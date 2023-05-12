@@ -48,6 +48,13 @@ type ServiceUpdate struct {
 	IpAccessList *IpAccessUpdate `json:"ipAccessList,omitempty"`
 }
 
+type ServiceScalingUpdate struct {
+	IdleScaling        *bool `json:"idleScaling,omitempty"` // bool pointer so that `false`` is not omitted
+	MinTotalMemoryGb   int   `json:"minTotalMemoryGb,omitempty"`
+	MaxTotalMemoryGb   int   `json:"maxTotalMemoryGb,omitempty"`
+	IdleTimeoutMinutes int   `json:"idleTimeoutMinutes,omitempty"`
+}
+
 type ServiceResponseResult struct {
 	Service  Service `json:"service"`
 	Password string  `json:"password"`
@@ -91,11 +98,11 @@ func (c *Client) getOrgPath(path string) string {
 	return fmt.Sprintf("%s/organizations/%s%s", c.BaseUrl, c.OrganizationId, path)
 }
 
-func (c *Client) getServicePath(serviceId string) string {
+func (c *Client) getServicePath(serviceId string, path string) string {
 	if serviceId == "" {
 		return c.getOrgPath("/services")
 	} else {
-		return c.getOrgPath(fmt.Sprintf("/services/%s", serviceId))
+		return c.getOrgPath(fmt.Sprintf("/services/%s%s", serviceId, path))
 	}
 }
 
@@ -131,7 +138,7 @@ func (c *Client) doRequest(req *http.Request, diags diag.Diagnostics) ([]byte, e
 
 // GetOrder - Returns a specifc order
 func (c *Client) GetService(serviceId string, diags diag.Diagnostics) (*Service, error) {
-	req, err := http.NewRequest("GET", c.getServicePath(serviceId), nil)
+	req, err := http.NewRequest("GET", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +164,7 @@ func (c *Client) CreateService(s Service, diags diag.Diagnostics) (*Service, err
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", c.getServicePath(""), strings.NewReader(string(rb)))
+	req, err := http.NewRequest("POST", c.getServicePath("", ""), strings.NewReader(string(rb)))
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +191,34 @@ func (c *Client) UpdateService(serviceId string, s ServiceUpdate, diags diag.Dia
 		return nil, err
 	}
 
-	req, err := http.NewRequest("PATCH", c.getServicePath(serviceId), strings.NewReader(string(rb)))
+	req, err := http.NewRequest("PATCH", c.getServicePath(serviceId, ""), strings.NewReader(string(rb)))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	body, err := c.doRequest(req, diags)
+	if err != nil {
+		return nil, err
+	}
+
+	serviceResponse := ServicePatchResponse{}
+	err = json.Unmarshal(body, &serviceResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &serviceResponse.Result, nil
+}
+
+func (c *Client) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate, diags diag.Diagnostics) (*Service, error) {
+	rb, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", c.getServicePath(serviceId, "/scaling"), strings.NewReader(string(rb)))
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +240,7 @@ func (c *Client) UpdateService(serviceId string, s ServiceUpdate, diags diag.Dia
 }
 
 func (c *Client) DeleteService(serviceId string, diags diag.Diagnostics) (*Service, error) {
-	req, err := http.NewRequest("DELETE", c.getServicePath((serviceId)), nil)
+	req, err := http.NewRequest("DELETE", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
 	}

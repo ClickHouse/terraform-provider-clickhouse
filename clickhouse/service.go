@@ -137,13 +137,50 @@ func resourceServiceUpdate(ctx context.Context, d *schema.ResourceData, m interf
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
+	if d.HasChange("cloud_provider") {
+		resetValue(d, "cloud_provider")
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Invalid Update",
+			Detail:   "ClickHouse does not support changing service cloud providers",
+		})
+	}
+
+	if d.HasChange("region") {
+		resetValue(d, "region")
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Invalid Update",
+			Detail:   "ClickHouse does not support changing service regions",
+		})
+	}
+
+	if d.HasChange("tier") {
+		resetValue(d, "tier")
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Invalid Update",
+			Detail:   "ClickHouse does not support changing service tiers",
+		})
+	}
+
+	if diags.HasError() {
+		return diags
+	}
+
 	serviceId := d.Id()
+	serviceChange := false
 	service := ServiceUpdate{
-		Name:         d.Get("name").(string),
+		Name:         "",
 		IpAccessList: nil,
 	}
 
+	if d.HasChange("name") {
+		serviceChange = true
+		service.Name = d.Get("name").(string)
+	}
 	if d.HasChange("ip_access") {
+		serviceChange = true
 		ipAccessListRawOld, ipAccessListRawNew := d.GetChange("ip_access")
 		ipAccessListOld := []IpAccess{}
 		ipAccessListNew := []IpAccess{}
@@ -180,9 +217,46 @@ func resourceServiceUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
-	_, err := c.UpdateService(serviceId, service, diags)
-	if err != nil {
-		return diag.FromErr(err)
+	if serviceChange {
+		_, err := c.UpdateService(serviceId, service, diags)
+		if err != nil {
+			resetValue(d, "name")
+			resetValue(d, "cloud_provider")
+			return diag.FromErr(err)
+		}
+	}
+
+	scalingChange := false
+	serviceScaling := ServiceScalingUpdate{}
+
+	if d.HasChange("idle_scaling") {
+		scalingChange = true
+		idleScaling := new(bool)
+		*idleScaling = d.Get("idle_scaling").(bool)
+		serviceScaling.IdleScaling = idleScaling
+	}
+	if d.HasChange("min_total_memory_gb") {
+		scalingChange = true
+		serviceScaling.MinTotalMemoryGb = d.Get("min_total_memory_gb").(int)
+	}
+	if d.HasChange("max_total_memory_gb") {
+		scalingChange = true
+		serviceScaling.MaxTotalMemoryGb = d.Get("max_total_memory_gb").(int)
+	}
+	if d.HasChange("idle_timeout_minutes") {
+		scalingChange = true
+		serviceScaling.IdleTimeoutMinutes = d.Get("idle_timeout_minutes").(int)
+	}
+
+	if scalingChange {
+		_, err := c.UpdateServiceScaling(serviceId, serviceScaling, diags)
+		if err != nil {
+			resetValue(d, "idle_scaling")
+			resetValue(d, "min_total_memory_gb")
+			resetValue(d, "max_total_memory_gb")
+			resetValue(d, "idle_timeout_minutes")
+			return diag.FromErr(err)
+		}
 	}
 
 	return diags

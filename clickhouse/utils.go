@@ -1,5 +1,7 @@
 package clickhouse
 
+import "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+
 func diffArrays[T any, V comparable](a []T, b []T, hash func(T) V) ([]T, []T) {
 	aSet := map[V]bool{}
 	bSet := map[V]bool{}
@@ -30,4 +32,9 @@ func diffArrays[T any, V comparable](a []T, b []T, hash func(T) V) ([]T, []T) {
 	}
 
 	return add, remove
+}
+
+func resetValue(d *schema.ResourceData, key string) {
+	oldValue, _ := d.GetChange(key)
+	d.Set(key, oldValue)
 }

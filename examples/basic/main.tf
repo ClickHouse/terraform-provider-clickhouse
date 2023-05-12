@@ -22,7 +22,7 @@ provider clickhouse {
 }
 
 resource "clickhouse_service" "service" {
-  name           = "My Service New Name"
+  name           = "My Service"
   cloud_provider = "aws"
   region         = "us-east-1"
   tier           = "production"
