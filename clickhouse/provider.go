@@ -14,6 +14,11 @@ func Provider() *schema.Provider {
 			// 	Type:     schema.TypeString,
 			// 	Required: true,
 			// },
+			"environment": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Default:  "production",
+			},
 			"organization_id": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -44,10 +49,11 @@ func providerContextConfigure(ctx context.Context, d *schema.ResourceData) (inte
 	var diags diag.Diagnostics
 
 	// tokenKey, tokenSecret := readTokenFromFile(d.Get("credentials_file").(string))
+	env := d.Get("environment").(string)
 	organizationId := d.Get("organization_id").(string)
 	tokenKey := d.Get("token_key").(string)
 	tokenSecret := d.Get("token_secret").(string)
-	c, err := NewClient(organizationId, tokenKey, tokenSecret)
+	c, err := NewClient(env, organizationId, tokenKey, tokenSecret)
 	if err != nil {
 		return nil, diag.FromErr(err)
 	}

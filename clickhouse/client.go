@@ -80,9 +80,16 @@ type ServiceBody struct {
 	Service Service `json:"service"`
 }
 
-func NewClient(organizationId string, tokenKey string, tokenSecret string) (*Client, error) {
+func NewClient(env string, organizationId string, tokenKey string, tokenSecret string) (*Client, error) {
+	envMap := map[string]string{
+		"local":      "http://localhost:2023/v1",
+		"qa":         "https://api.control-plane.clickhouse-dev.com/v1",
+		"staging":    "https://api.control-plane.clickhouse-staging.com/v1",
+		"production": "https://api.clickhouse.cloud/v1",
+	}
+
 	client := &Client{
-		BaseUrl: "http://localhost:2023/v1",
+		BaseUrl: envMap[env],
 		HttpClient: &http.Client{
 			Timeout: time.Second * 30,
 		},

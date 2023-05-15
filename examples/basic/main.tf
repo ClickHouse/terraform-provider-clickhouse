@@ -16,9 +16,10 @@ variable "token_secret" {
 }
 
 provider clickhouse {
-  organization_id  = "aee076c1-3f83-4637-95b1-ad5a0a825b71"
-  token_key        = var.token_key
-  token_secret     = var.token_secret
+  environment     = "local"
+  organization_id = "aee076c1-3f83-4637-95b1-ad5a0a825b71"
+  token_key       = var.token_key
+  token_secret    = var.token_secret
 }
 
 resource "clickhouse_service" "service" {
