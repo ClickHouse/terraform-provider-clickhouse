@@ -3,6 +3,7 @@ package clickhouse
 import (
 	b64 "encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -88,8 +89,13 @@ func NewClient(env string, organizationId string, tokenKey string, tokenSecret s
 		"production": "https://api.clickhouse.cloud/v1",
 	}
 
+	apiUrl, hasApiUrl := envMap[env]
+	if !hasApiUrl {
+		return nil, errors.New(fmt.Sprintf("Invalid environment: \"%s\". Only \"production\", \"staging\", \"qa\", or \"local\" is allowed.", env))
+	}
+
 	client := &Client{
-		BaseUrl: envMap[env],
+		BaseUrl: apiUrl,
 		HttpClient: &http.Client{
 			Timeout: time.Second * 30,
 		},
