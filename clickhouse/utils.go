@@ -34,6 +34,18 @@ func diffArrays[T any, V comparable](a []T, b []T, hash func(T) V) ([]T, []T) {
 	return add, remove
 }
 
+func equal[T comparable](a []T, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func resetValue(d *schema.ResourceData, key string) {
 	oldValue, _ := d.GetChange(key)
 	d.Set(key, oldValue)

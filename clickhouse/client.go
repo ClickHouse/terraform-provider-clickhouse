@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 )
 
 type Client struct {
@@ -119,7 +117,7 @@ func (c *Client) getServicePath(serviceId string, path string) string {
 	}
 }
 
-func (c *Client) doRequest(req *http.Request, diags diag.Diagnostics) ([]byte, error) {
+func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 	credentials := fmt.Sprintf("%s:%s", c.TokenKey, c.TokenSecret)
 	base64Credentials := b64.StdEncoding.EncodeToString([]byte(credentials))
 	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
@@ -136,12 +134,6 @@ func (c *Client) doRequest(req *http.Request, diags diag.Diagnostics) ([]byte, e
 		return nil, err
 	}
 
-	diags = append(diags, diag.Diagnostic{
-		Severity: diag.Warning,
-		Summary:  "body",
-		Detail:   string(body),
-	})
-
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status: %d, body: %s", res.StatusCode, body)
 	}
@@ -150,13 +142,13 @@ func (c *Client) doRequest(req *http.Request, diags diag.Diagnostics) ([]byte, e
 }
 
 // GetOrder - Returns a specifc order
-func (c *Client) GetService(serviceId string, diags diag.Diagnostics) (*Service, error) {
+func (c *Client) GetService(serviceId string) (*Service, error) {
 	req, err := http.NewRequest("GET", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	body, err := c.doRequest(req, diags)
+	body, err := c.doRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +162,7 @@ func (c *Client) GetService(serviceId string, diags diag.Diagnostics) (*Service,
 	return &serviceResponse.Result, nil
 }
 
-func (c *Client) CreateService(s Service, diags diag.Diagnostics) (*Service, error) {
+func (c *Client) CreateService(s Service) (*Service, error) {
 	rb, err := json.Marshal(s)
 
 	if err != nil {
@@ -184,7 +176,7 @@ func (c *Client) CreateService(s Service, diags diag.Diagnostics) (*Service, err
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	body, err := c.doRequest(req, diags)
+	body, err := c.doRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +190,7 @@ func (c *Client) CreateService(s Service, diags diag.Diagnostics) (*Service, err
 	return &serviceResponse.Result.Service, nil
 }
 
-func (c *Client) UpdateService(serviceId string, s ServiceUpdate, diags diag.Diagnostics) (*Service, error) {
+func (c *Client) UpdateService(serviceId string, s ServiceUpdate) (*Service, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, err
@@ -211,7 +203,7 @@ func (c *Client) UpdateService(serviceId string, s ServiceUpdate, diags diag.Dia
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	body, err := c.doRequest(req, diags)
+	body, err := c.doRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +217,7 @@ func (c *Client) UpdateService(serviceId string, s ServiceUpdate, diags diag.Dia
 	return &serviceResponse.Result, nil
 }
 
-func (c *Client) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate, diags diag.Diagnostics) (*Service, error) {
+func (c *Client) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) (*Service, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, err
@@ -238,7 +230,7 @@ func (c *Client) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate, 
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	body, err := c.doRequest(req, diags)
+	body, err := c.doRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -252,13 +244,13 @@ func (c *Client) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate, 
 	return &serviceResponse.Result, nil
 }
 
-func (c *Client) DeleteService(serviceId string, diags diag.Diagnostics) (*Service, error) {
+func (c *Client) DeleteService(serviceId string) (*Service, error) {
 	req, err := http.NewRequest("DELETE", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	body, err := c.doRequest(req, diags)
+	body, err := c.doRequest(req)
 	if err != nil {
 		return nil, err
 	}
