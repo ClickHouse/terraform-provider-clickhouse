@@ -43,17 +43,21 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"environment": schema.StringAttribute{
-				Optional: true,
+				Description: "Deployment environment of the OpenAPI the provider will interact with.",
+				Optional:    true,
 			},
 			"organization_id": schema.StringAttribute{
-				Required: true,
+				Description: "ID of the organization the provider will create services under.",
+				Required:    true,
 			},
 			"token_key": schema.StringAttribute{
-				Required: true,
+				Description: "Token key of the key/secret pair. Used to authenticate with OpenAPI.",
+				Required:    true,
 			},
 			"token_secret": schema.StringAttribute{
-				Required:  true,
-				Sensitive: true,
+				Description: "Token secret of the key/secret pair. Used to authenticate with OpenAPI.",
+				Required:    true,
+				Sensitive:   true,
 			},
 		},
 	}
