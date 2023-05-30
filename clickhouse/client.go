@@ -40,6 +40,7 @@ type Service struct {
 	MinTotalMemoryGb   int        `json:"minTotalMemoryGb,omitempty"`
 	MaxTotalMemoryGb   int        `json:"maxTotalMemoryGb,omitempty"`
 	IdleTimeoutMinutes int        `json:"idleTimeoutMinutes,omitempty"`
+	State              string     `json:"state,omitempty"`
 }
 
 type ServiceUpdate struct {
@@ -52,6 +53,10 @@ type ServiceScalingUpdate struct {
 	MinTotalMemoryGb   int   `json:"minTotalMemoryGb,omitempty"`
 	MaxTotalMemoryGb   int   `json:"maxTotalMemoryGb,omitempty"`
 	IdleTimeoutMinutes int   `json:"idleTimeoutMinutes,omitempty"`
+}
+
+type ServiceStateUpdate struct {
+	Command string `json:"command"`
 }
 
 type ServiceResponseResult struct {
@@ -245,7 +250,34 @@ func (c *Client) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) 
 }
 
 func (c *Client) DeleteService(serviceId string) (*Service, error) {
-	req, err := http.NewRequest("DELETE", c.getServicePath(serviceId, ""), nil)
+	rb, err := json.Marshal(ServiceStateUpdate{
+		Command: "stop",
+	})
+	req, err := http.NewRequest("PATCH", c.getServicePath(serviceId, "/state"), strings.NewReader(string(rb)))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	_, err = c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		service, err := c.GetService(serviceId)
+		if err != nil {
+			return nil, err
+		}
+		stopped := service.State == "stopped"
+		if stopped {
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	req, err = http.NewRequest("DELETE", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
 	}
