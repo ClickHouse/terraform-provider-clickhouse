@@ -197,7 +197,7 @@ func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	// Get refreshed service value from HashiCups
+	// Get refreshed service value from ClickHouse OpenAPI
 	service, err := r.client.GetService(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(

@@ -23,7 +23,7 @@ func New() provider.Provider {
 	return &clickhouseProvider{}
 }
 
-// hashicupsProvider is the provider implementation.
+// clickhouseProvider is the provider implementation.
 type clickhouseProvider struct{}
 
 type clickhouseProviderModel struct {
@@ -200,7 +200,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		)
 	}
 
-	// Create a new HashiCups client using the configuration values
+	// Create a new ClickHouse client using the configuration values
 	client, err := NewClient(environment, organizationId, tokenKey, tokenSecret)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -212,7 +212,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		return
 	}
 
-	// Make the HashiCups client available during DataSource and Resource
+	// Make the ClickHouse client available during DataSource and Resource
 	// type Configure methods.
 	resp.DataSourceData = client
 	resp.ResourceData = client
