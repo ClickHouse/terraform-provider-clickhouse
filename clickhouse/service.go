@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -299,7 +300,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 
 		add, remove := diffArrays(ipAccessListOld, ipAccessListNew, func(a IpAccess) string {
-			return a.Source
+			return fmt.Sprintf("%s:%s", a.Source, a.Description)
 		})
 
 		service.IpAccessList = &IpAccessUpdate{
@@ -323,7 +324,9 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	scalingChange := false
-	serviceScaling := ServiceScalingUpdate{}
+	serviceScaling := ServiceScalingUpdate{
+		IdleScaling: state.IdleScaling.ValueBoolPointer(),
+	}
 
 	if plan.IdleScaling != state.IdleScaling {
 		scalingChange = true
@@ -348,10 +351,6 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		var err error
 		s, err = r.client.UpdateServiceScaling(serviceId, serviceScaling)
 		if err != nil {
-			// resetValue(d, "idle_scaling")
-			// resetValue(d, "min_total_memory_gb")
-			// resetValue(d, "max_total_memory_gb")
-			// resetValue(d, "idle_timeout_minutes")
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Scaling",
 				"Could not update service scaling, unexpected error: "+err.Error(),

@@ -7,6 +7,10 @@ terraform {
   }
 }
 
+variable "organization_id" {
+  type = string
+}
+
 variable "token_key" {
   type = string
 }
@@ -16,8 +20,8 @@ variable "token_secret" {
 }
 
 provider clickhouse {
-  environment     = "local"
-  organization_id = "aee076c1-3f83-4637-95b1-ad5a0a825b71"
+  environment     = "qa"
+  organization_id = var.organization_id
   token_key       = var.token_key
   token_secret    = var.token_secret
 }
