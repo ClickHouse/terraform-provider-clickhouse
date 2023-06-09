@@ -1,6 +1,7 @@
 package clickhouse
 
 import (
+	"crypto/sha256"
 	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,12 @@ type IpAccess struct {
 	Description string `json:"description,omitempty"`
 }
 
+type Endpoint struct {
+	Protocol string `json:"protocol,omitempty"`
+	Host     string `json:"host,omitempty"`
+	Port     int    `json:"port,omitempty"`
+}
+
 type IpAccessUpdate struct {
 	Add    []IpAccess `json:"add,omitempty"`
 	Remove []IpAccess `json:"remove,omitempty"`
@@ -41,6 +48,7 @@ type Service struct {
 	MaxTotalMemoryGb   int        `json:"maxTotalMemoryGb,omitempty"`
 	IdleTimeoutMinutes int        `json:"idleTimeoutMinutes,omitempty"`
 	State              string     `json:"state,omitempty"`
+	Endpoints          []Endpoint `json:"endpoints,omitempty"`
 }
 
 type ServiceUpdate struct {
@@ -53,6 +61,19 @@ type ServiceScalingUpdate struct {
 	MinTotalMemoryGb   int   `json:"minTotalMemoryGb,omitempty"`
 	MaxTotalMemoryGb   int   `json:"maxTotalMemoryGb,omitempty"`
 	IdleTimeoutMinutes int   `json:"idleTimeoutMinutes,omitempty"`
+}
+
+type ServicePasswordUpdate struct {
+	NewPasswordHash string `json:"newPasswordHash,omitempty"`
+}
+
+func ServicePasswordUpdateFromPlainPassword(password string) ServicePasswordUpdate {
+	hash := sha256.Sum256([]byte(password))
+	return ServicePasswordUpdate{NewPasswordHash: b64.StdEncoding.EncodeToString(hash[:])}
+}
+
+type ServicePasswordUpdateResult struct {
+	Password string `json:"password,omitempty"`
 }
 
 type ServiceStateUpdate struct {
@@ -167,32 +188,32 @@ func (c *Client) GetService(serviceId string) (*Service, error) {
 	return &serviceResponse.Result, nil
 }
 
-func (c *Client) CreateService(s Service) (*Service, error) {
+func (c *Client) CreateService(s Service) (*Service, string, error) {
 	rb, err := json.Marshal(s)
 
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	req, err := http.NewRequest("POST", c.getServicePath("", ""), strings.NewReader(string(rb)))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
 	body, err := c.doRequest(req)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	serviceResponse := ServicePostResponse{}
 	err = json.Unmarshal(body, &serviceResponse)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return &serviceResponse.Result.Service, nil
+	return &serviceResponse.Result.Service, serviceResponse.Result.Password, nil
 }
 
 func (c *Client) UpdateService(serviceId string, s ServiceUpdate) (*Service, error) {
@@ -247,6 +268,33 @@ func (c *Client) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) 
 	}
 
 	return &serviceResponse.Result, nil
+}
+
+func (c *Client) UpdateServicePassword(serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error) {
+	rb, err := json.Marshal(u)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", c.getServicePath(serviceId, "/password"), strings.NewReader(string(rb)))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	body, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	serviceResponse := ServicePasswordUpdateResult{}
+	err = json.Unmarshal(body, &serviceResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &serviceResponse, nil
 }
 
 func (c *Client) DeleteService(serviceId string) (*Service, error) {
