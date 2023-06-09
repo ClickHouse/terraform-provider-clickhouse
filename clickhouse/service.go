@@ -3,8 +3,9 @@ package clickhouse
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -258,7 +259,6 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 
 		values = append(values, obj)
 	}
-
 	plan.Endpoints, _ = types.ListValue(endpointObjectType, values)
 
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
@@ -488,6 +488,19 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 			Description: types.StringValue(ipAccess.Description),
 		}
 	}
+
+	var values []attr.Value
+	for _, endpoint := range s.Endpoints {
+		obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
+			"protocol": types.StringValue(endpoint.Protocol),
+			"host":     types.StringValue(endpoint.Host),
+			"port":     types.Int64Value(int64(endpoint.Port)),
+		})
+
+		values = append(values, obj)
+	}
+	plan.Endpoints, _ = types.ListValue(endpointObjectType, values)
+
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
 	diags = resp.State.Set(ctx, plan)
