@@ -141,15 +141,15 @@ func (r *serviceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"min_total_memory_gb": schema.Int64Attribute{
 				Description: "Minimum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and greater than 24.",
-				Required:    true,
+				Optional:    true,
 			},
 			"max_total_memory_gb": schema.Int64Attribute{
 				Description: "Maximum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.",
-				Required:    true,
+				Optional:    true,
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
 				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes.",
-				Required:    true,
+				Optional:    true,
 			},
 		},
 	}
@@ -176,15 +176,35 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Generate API request body from plan
 	service := Service{
-		Name:               string(plan.Name.ValueString()),
-		Provider:           string(plan.CloudProvider.ValueString()),
-		Region:             string(plan.Region.ValueString()),
-		Tier:               string(plan.Tier.ValueString()),
-		IdleScaling:        bool(plan.IdleScaling.ValueBool()),
-		MinTotalMemoryGb:   int(plan.MinTotalMemoryGb.ValueInt64()),
-		MaxTotalMemoryGb:   int(plan.MaxTotalMemoryGb.ValueInt64()),
-		IdleTimeoutMinutes: int(plan.IdleTimeoutMinutes.ValueInt64()),
+		Name:        string(plan.Name.ValueString()),
+		Provider:    string(plan.CloudProvider.ValueString()),
+		Region:      string(plan.Region.ValueString()),
+		Tier:        string(plan.Tier.ValueString()),
+		IdleScaling: bool(plan.IdleScaling.ValueBool()),
 	}
+
+	if service.Tier == "development" {
+		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.IdleTimeoutMinutes.IsNull() {
+			resp.Diagnostics.AddError(
+				"Error creating service",
+				"min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes cannot be defined if the service tier is development",
+			)
+			return
+		}
+	} else if service.Tier == "production" {
+		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull() {
+			resp.Diagnostics.AddError(
+				"Error creating service",
+				"min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production",
+			)
+			return
+		}
+
+		service.MinTotalMemoryGb = int(plan.MinTotalMemoryGb.ValueInt64())
+		service.MaxTotalMemoryGb = int(plan.MaxTotalMemoryGb.ValueInt64())
+		service.IdleTimeoutMinutes = int(plan.IdleTimeoutMinutes.ValueInt64())
+	}
+
 	for _, item := range plan.IpAccessList {
 		service.IpAccessList = append(service.IpAccessList, IpAccess{
 			Source:      string(item.Source.ValueString()),
@@ -239,9 +259,11 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	plan.Region = types.StringValue(s.Region)
 	plan.Tier = types.StringValue(s.Tier)
 	plan.IdleScaling = types.BoolValue(s.IdleScaling)
-	plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
-	plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
-	plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+	if s.Tier == "production" {
+		plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
+		plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
+		plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+	}
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
 		plan.IpAccessList[ipAccessIndex] = IpAccessModel{
 			Source:      types.StringValue(ipAccess.Source),
