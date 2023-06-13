@@ -32,6 +32,7 @@ resource "clickhouse_service" "service" {
   region         = "us-east-1"
   tier           = "production"
   idle_scaling   = true
+  password_hash  = "13d249f2cb4127b40cfa757866850278793f814ded3c587fe5889e889a7a9f6c"
 
   ip_access = [
     {

@@ -34,6 +34,7 @@ type serviceResourceModel struct {
 	ID                 types.String    `tfsdk:"id"`
 	Name               types.String    `tfsdk:"name"`
 	Password           types.String    `tfsdk:"password"`
+	PasswordHash       types.String    `tfsdk:"password_hash"`
 	Endpoints          types.List      `tfsdk:"endpoints"`
 	CloudProvider      types.String    `tfsdk:"cloud_provider"`
 	Region             types.String    `tfsdk:"region"`
@@ -81,10 +82,13 @@ func (r *serviceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"password": schema.StringAttribute{
-				Description: "Password for a default user. If not provided, a random password will be generated.",
-				Required:    false,
+				Description: "Password for the default user. One of either password or password_hash must be specified.",
 				Optional:    true,
-				Computed:    true,
+				Sensitive:   true,
+			},
+			"password_hash": schema.StringAttribute{
+				Description: "SHA256 hash of password for the default user. One of either password or password_hash must be specified.",
+				Optional:    true,
 				Sensitive:   true,
 			},
 			"cloud_provider": schema.StringAttribute{
@@ -186,7 +190,7 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	if service.Tier == "development" {
 		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.IdleTimeoutMinutes.IsNull() {
 			resp.Diagnostics.AddError(
-				"Error creating service",
+				"Invalid Configuration",
 				"min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes cannot be defined if the service tier is development",
 			)
 			return
@@ -194,7 +198,7 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	} else if service.Tier == "production" {
 		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull() {
 			resp.Diagnostics.AddError(
-				"Error creating service",
+				"Invalid Configuration",
 				"min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production",
 			)
 			return
@@ -205,6 +209,22 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.IdleTimeoutMinutes = int(plan.IdleTimeoutMinutes.ValueInt64())
 	}
 
+	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"Only one of either password or password_hash may be specified",
+		)
+		return
+	}
+
+	if plan.Password.IsNull() && plan.PasswordHash.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"One of either password or password_hash must be specified",
+		)
+		return
+	}
+
 	for _, item := range plan.IpAccessList {
 		service.IpAccessList = append(service.IpAccessList, IpAccess{
 			Source:      string(item.Source.ValueString()),
@@ -213,7 +233,7 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Create new service
-	s, password, err := r.client.CreateService(service)
+	s, _, err := r.client.CreateService(service)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating service",
@@ -240,8 +260,23 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Update service password if provided explicitly
-	if password = plan.Password.ValueString(); len(password) > 0 {
-		_, err := r.client.UpdateServicePassword(s.Id, ServicePasswordUpdateFromPlainPassword(password))
+	planPassword := plan.Password.ValueString()
+	if len(planPassword) > 0 {
+		_, err := r.client.UpdateServicePassword(s.Id, ServicePasswordUpdateFromPlainPassword(planPassword))
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error setting service password",
+				"Could not set service password after creation, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
+	// Update hashed service password if provided explicitly
+	if passwordHash := plan.PasswordHash.ValueString(); len(passwordHash) > 0 {
+		_, err := r.client.UpdateServicePassword(s.Id, ServicePasswordUpdate{
+			NewPasswordHash: passwordHash,
+		})
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error setting service password",
@@ -254,7 +289,6 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	// Map response body to schema and populate Computed attribute values
 	plan.ID = types.StringValue(s.Id)
 	plan.Name = types.StringValue(s.Name)
-	plan.Password = types.StringValue(password)
 	plan.CloudProvider = types.StringValue(s.Provider)
 	plan.Region = types.StringValue(s.Region)
 	plan.Tier = types.StringValue(s.Tier)
@@ -272,7 +306,7 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	var values []attr.Value
-	for _, endpoint := range service.Endpoints {
+	for _, endpoint := range s.Endpoints {
 		obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
 			"protocol": types.StringValue(endpoint.Protocol),
 			"host":     types.StringValue(endpoint.Host),
@@ -344,12 +378,13 @@ func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, re
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Retrieve values from plan
-	var plan, state serviceResourceModel
+	var config, plan, state serviceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	diags = req.State.Get(ctx, &state)
+	diags = req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 
-	if plan.CloudProvider != state.CloudProvider {
+	if !plan.CloudProvider.IsNull() && plan.CloudProvider != state.CloudProvider {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("cloud_provider"),
 			"Invalid Update",
@@ -357,7 +392,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		)
 	}
 
-	if plan.Region != state.Region {
+	if !plan.Region.IsNull() && plan.Region != state.Region {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("region"),
 			"Invalid Update",
@@ -365,11 +400,43 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		)
 	}
 
-	if plan.Tier != state.Tier {
+	if !plan.Tier.IsNull() && plan.Tier != state.Tier {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("tier"),
 			"Invalid Update",
 			"ClickHouse does not support changing service tiers",
+		)
+	}
+
+	if !plan.Password.IsNull() && !config.PasswordHash.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("password"),
+			"Invalid Update",
+			"Only one of either password or password_hash may be specified",
+		)
+	}
+
+	if !plan.PasswordHash.IsNull() && !config.Password.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("password_hash"),
+			"Invalid Update",
+			"Only one of either password or password_hash may be specified",
+		)
+	}
+
+	if plan.Password.IsNull() && config.PasswordHash.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("password"),
+			"Invalid Update",
+			"One of either password or password_hash must be specified",
+		)
+	}
+
+	if plan.PasswordHash.IsNull() && config.Password.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("password_hash"),
+			"Invalid Update",
+			"One of either password or password_hash must be specified",
 		)
 	}
 
@@ -425,11 +492,10 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	// Update existing order
-	var s *Service
+	// Update existing service
 	if serviceChange {
 		var err error
-		s, err = r.client.UpdateService(serviceId, service)
+		_, err = r.client.UpdateService(serviceId, service)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service",
@@ -465,7 +531,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	if scalingChange {
 		var err error
-		s, err = r.client.UpdateServiceScaling(serviceId, serviceScaling)
+		_, err = r.client.UpdateServiceScaling(serviceId, serviceScaling)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Scaling",
@@ -475,8 +541,8 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	password := state.Password.String()
-	if plan.Password != state.Password {
+	password := plan.Password.ValueString()
+	if len(password) > 0 && plan.Password != state.Password {
 		password = plan.Password.ValueString()
 		res, err := r.client.UpdateServicePassword(serviceId, ServicePasswordUpdateFromPlainPassword(password))
 		if err != nil {
@@ -491,19 +557,38 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		if len(res.Password) > 0 {
 			password = res.Password
 		}
+	} else if !plan.PasswordHash.IsNull() {
+		res, err := r.client.UpdateServicePassword(serviceId, ServicePasswordUpdate{
+			NewPasswordHash: plan.PasswordHash.ValueString(),
+		})
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error Updating ClickHouse Service Password",
+				"Could not update service password, unexpected error: "+err.Error(),
+			)
+			return
+		}
+
+		// empty password provided, ClickHouse Cloud return a new generated password
+		if len(res.Password) > 0 {
+			password = res.Password
+		}
 	}
+
+	s, _ := r.client.GetService(serviceId)
 
 	// Update resource state with updated items and timestamp
 	plan.ID = types.StringValue(s.Id)
 	plan.Name = types.StringValue(s.Name)
-	plan.Password = types.StringValue(password)
 	plan.CloudProvider = types.StringValue(s.Provider)
 	plan.Region = types.StringValue(s.Region)
 	plan.Tier = types.StringValue(s.Tier)
 	plan.IdleScaling = types.BoolValue(s.IdleScaling)
-	plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
-	plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
-	plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+	if s.Tier == "production" {
+		plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
+		plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
+		plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+	}
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
 		plan.IpAccessList[ipAccessIndex] = IpAccessModel{
 			Source:      types.StringValue(ipAccess.Source),
