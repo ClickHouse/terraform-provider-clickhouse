@@ -34,4 +34,4 @@ provider "clickhouse" {
 
 ### Optional
 
-- `environment` (String) Deployment environment of the OpenAPI the provider will interact with.
+- `api_url` (String) API URL of the ClickHouse OpenAPI the provider will interact with. Only specify if you have a specific deployment of the ClickHouse OpenAPI you want to run against.

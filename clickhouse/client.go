@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	b64 "encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -105,19 +104,7 @@ type ServiceBody struct {
 	Service Service `json:"service"`
 }
 
-func NewClient(env string, organizationId string, tokenKey string, tokenSecret string) (*Client, error) {
-	envMap := map[string]string{
-		"local":      "http://localhost:2023/v1",
-		"qa":         "https://api.control-plane.clickhouse-dev.com/v1",
-		"staging":    "https://api.control-plane.clickhouse-staging.com/v1",
-		"production": "https://api.clickhouse.cloud/v1",
-	}
-
-	apiUrl, hasApiUrl := envMap[env]
-	if !hasApiUrl {
-		return nil, errors.New(fmt.Sprintf("Invalid environment: \"%s\". Only \"production\", \"staging\", \"qa\", or \"local\" is allowed.", env))
-	}
-
+func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecret string) (*Client, error) {
 	client := &Client{
 		BaseUrl: apiUrl,
 		HttpClient: &http.Client{
