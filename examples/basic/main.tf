@@ -45,3 +45,7 @@ resource "clickhouse_service" "service" {
   max_total_memory_gb  = 360
   idle_timeout_minutes = 5
 }
+
+output "service_endpoints" {
+  value = clickhouse_service.service.endpoints
+}
