@@ -132,7 +132,9 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 
 	if !config.ApiUrl.IsNull() {
 		apiUrl = config.ApiUrl.ValueString()
-	} else {
+	}
+
+	if apiUrl == "" {
 		apiUrl = "https://api.clickhouse.cloud/v1"
 	}
 
@@ -155,8 +157,8 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_url"),
 			"Missing ClickHouse OpenAPI API URL",
-			"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the environment. "+
-				"Set the environment value in the configuration or use the CLICKHOUSE_ENV environment variable. "+
+			"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the API url. "+
+				"Set the API url value in the configuration or use the CLICKHOUSE_API_URL environment variable. "+
 				"If either is already set, ensure the value is not empty.",
 		)
 	}
