@@ -1,9 +1,9 @@
 terraform {
   required_providers {
     clickhouse = {
-      # version = "0.0.2"
-      # source  = "ClickHouse/clickhouse"
-      source  = "clickhouse.cloud/terraform/clickhouse"
+      version = "0.0.2"
+      source  = "ClickHouse/clickhouse"
+      # source  = "clickhouse.cloud/terraform/clickhouse" # used for dev
     }
   }
 }
@@ -48,4 +48,8 @@ resource "clickhouse_service" "service" {
   min_total_memory_gb  = 24
   max_total_memory_gb  = 360
   idle_timeout_minutes = 5
+}
+
+output "service_endpoints" {
+  value = clickhouse_service.service.endpoints
 }
