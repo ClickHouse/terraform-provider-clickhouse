@@ -2,7 +2,6 @@ package clickhouse
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -27,7 +26,7 @@ func New() provider.Provider {
 type clickhouseProvider struct{}
 
 type clickhouseProviderModel struct {
-	Environment    types.String `tfsdk:"environment"`
+	ApiUrl         types.String `tfsdk:"api_url"`
 	OrganizationID types.String `tfsdk:"organization_id"`
 	TokenKey       types.String `tfsdk:"token_key"`
 	TokenSecret    types.String `tfsdk:"token_secret"`
@@ -42,8 +41,8 @@ func (p *clickhouseProvider) Metadata(_ context.Context, _ provider.MetadataRequ
 func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"environment": schema.StringAttribute{
-				Description: "Deployment environment of the OpenAPI the provider will interact with.",
+			"api_url": schema.StringAttribute{
+				Description: "API URL of the ClickHouse OpenAPI the provider will interact with. Only specify if you have a specific deployment of the ClickHouse OpenAPI you want to run against.",
 				Optional:    true,
 			},
 			"organization_id": schema.StringAttribute{
@@ -83,12 +82,12 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	// If practitioner provided a configuration value for any of the
 	// attributes, it must be a known value.
 
-	if config.Environment.IsUnknown() {
+	if config.ApiUrl.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("environment"),
-			"Unknown ClickHouse OpenAPI Environment",
+			path.Root("api_url"),
+			"Unknown ClickHouse OpenAPI API URL",
 			"The provider cannot create the ClickHouse OpenAPI client as there is an unknown configuration value for the Environment. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the CLICKHOUSE_ENV environment variable.",
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the CLICKHOUSE_API_URL environment variable.",
 		)
 	}
 
@@ -126,13 +125,17 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	// Default values to environment variables, but override
 	// with Terraform configuration value if set.
 
-	environment := os.Getenv("CLICKHOUSE_ENV")
+	apiUrl := os.Getenv("CLICKHOUSE_API_URL")
 	organizationId := os.Getenv("CLICKHOUSE_ORG_ID")
 	tokenKey := os.Getenv("CLICKHOUSE_TOKEN_KEY")
 	tokenSecret := os.Getenv("CLICKHOUSE_TOKEN_KEY")
 
-	if !config.Environment.IsNull() {
-		environment = config.Environment.ValueString()
+	if !config.ApiUrl.IsNull() {
+		apiUrl = config.ApiUrl.ValueString()
+	}
+
+	if apiUrl == "" {
+		apiUrl = "https://api.clickhouse.cloud/v1"
 	}
 
 	if !config.OrganizationID.IsNull() {
@@ -150,23 +153,13 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	// If any of the expected configurations are missing, return
 	// errors with provider-specific guidance.
 
-	if environment == "" {
+	if apiUrl == "" {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("environment"),
-			"Missing ClickHouse OpenAPI Environment",
-			"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the environment. "+
-				"Set the environment value in the configuration or use the CLICKHOUSE_ENV environment variable. "+
+			path.Root("api_url"),
+			"Missing ClickHouse OpenAPI API URL",
+			"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the API url. "+
+				"Set the API url value in the configuration or use the CLICKHOUSE_API_URL environment variable. "+
 				"If either is already set, ensure the value is not empty.",
-		)
-	}
-
-	_, validEnvironment := environmentMap[environment]
-	if !validEnvironment {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("environment"),
-			"Invalid ClickHouse OpenAPI Environment",
-			fmt.Sprintf("The provider cannot create the ClickHouse OpenAPI client: invalid value \"%s\" must be "+
-				"one of \"production\", \"staging\", \"qa\", or \"local\"", environment),
 		)
 	}
 
@@ -201,7 +194,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	}
 
 	// Create a new ClickHouse client using the configuration values
-	client, err := NewClient(environment, organizationId, tokenKey, tokenSecret)
+	client, err := NewClient(apiUrl, organizationId, tokenKey, tokenSecret)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create ClickHouse OpenAPI Client",

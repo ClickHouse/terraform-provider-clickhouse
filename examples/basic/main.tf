@@ -21,7 +21,10 @@ variable "token_secret" {
 }
 
 provider clickhouse {
-  environment     = "qa"
+  # only use if you have a specific deployment of the ClickHouse OpenAPI you want to interact with.
+  # otherwise, just omit this key.
+  api_url         = var.api_url
+
   organization_id = var.organization_id
   token_key       = var.token_key
   token_secret    = var.token_secret
@@ -37,7 +40,7 @@ resource "clickhouse_service" "service" {
 
   ip_access = [
     {
-      source      = "192.168.2.63"
+      source      = "0.0.0.0"
       description = "Test IP"
     }
   ]
