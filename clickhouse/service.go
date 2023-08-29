@@ -119,7 +119,7 @@ func (r *serviceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"source": schema.StringAttribute{
-							Description: "IP address allowed to access the service.",
+							Description: "IP address allowed to access the service. In case you want to set the ip_access to anywhere you should set source to 0.0.0.0/0",
 							Required:    true,
 						},
 						"description": schema.StringAttribute{
