@@ -34,20 +34,21 @@ type serviceResource struct {
 }
 
 type serviceResourceModel struct {
-	ID                 types.String    `tfsdk:"id"`
-	Name               types.String    `tfsdk:"name"`
-	Password           types.String    `tfsdk:"password"`
-	PasswordHash       types.String    `tfsdk:"password_hash"`
-	Endpoints          types.List      `tfsdk:"endpoints"`
-	CloudProvider      types.String    `tfsdk:"cloud_provider"`
-	Region             types.String    `tfsdk:"region"`
-	Tier               types.String    `tfsdk:"tier"`
-	IdleScaling        types.Bool      `tfsdk:"idle_scaling"`
-	IpAccessList       []IpAccessModel `tfsdk:"ip_access"`
-	MinTotalMemoryGb   types.Int64     `tfsdk:"min_total_memory_gb"`
-	MaxTotalMemoryGb   types.Int64     `tfsdk:"max_total_memory_gb"`
-	IdleTimeoutMinutes types.Int64     `tfsdk:"idle_timeout_minutes"`
-	LastUpdated        types.String    `tfsdk:"last_updated"`
+	ID                     types.String    `tfsdk:"id"`
+	Name                   types.String    `tfsdk:"name"`
+	Password               types.String    `tfsdk:"password"`
+	PasswordHash           types.String    `tfsdk:"password_hash"`
+	DoubleSha1PasswordHash types.String    `tfsdk:"double_sha1_password_hash"`
+	Endpoints              types.List      `tfsdk:"endpoints"`
+	CloudProvider          types.String    `tfsdk:"cloud_provider"`
+	Region                 types.String    `tfsdk:"region"`
+	Tier                   types.String    `tfsdk:"tier"`
+	IdleScaling            types.Bool      `tfsdk:"idle_scaling"`
+	IpAccessList           []IpAccessModel `tfsdk:"ip_access"`
+	MinTotalMemoryGb       types.Int64     `tfsdk:"min_total_memory_gb"`
+	MaxTotalMemoryGb       types.Int64     `tfsdk:"max_total_memory_gb"`
+	IdleTimeoutMinutes     types.Int64     `tfsdk:"idle_timeout_minutes"`
+	LastUpdated            types.String    `tfsdk:"last_updated"`
 }
 
 var endpointObjectType = types.ObjectType{
@@ -88,14 +89,19 @@ func (r *serviceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"password": schema.StringAttribute{
-				Description: "Password for the default user. One of either password or password_hash must be specified.",
+				Description: "Password for the default user. One of either `password` or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
 			},
 			"password_hash": schema.StringAttribute{
-				Description: "SHA256 hash of password for the default user. One of either password or password_hash must be specified.",
+				Description: "SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
+			},
+			"double_sha1_password_hash": schema.StringAttribute{
+				Description: "Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.",
+				Optional: true,
+				Sensitive: true,
 			},
 			"cloud_provider": schema.StringAttribute{
 				Description: "Cloud provider ('aws' or 'gcp') in which the service is deployed in.",
@@ -234,6 +240,14 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	if !plan.Password.IsNull() && !plan.DoubleSha1PasswordHash.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"`double_sha1_password_hash` cannot be specified if `password` specified",
+		)
+		return
+	}
+
 	for _, item := range plan.IpAccessList {
 		service.IpAccessList = append(service.IpAccessList, IpAccess{
 			Source:      string(item.Source.ValueString()),
@@ -283,9 +297,15 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Update hashed service password if provided explicitly
 	if passwordHash := plan.PasswordHash.ValueString(); len(passwordHash) > 0 {
-		_, err := r.client.UpdateServicePassword(s.Id, ServicePasswordUpdate{
+		passwordUpdate := ServicePasswordUpdate{
 			NewPasswordHash: passwordHash,
-		})
+		}
+
+		if doubleSha1PasswordHash := plan.DoubleSha1PasswordHash.ValueString(); len(doubleSha1PasswordHash) > 0 {
+			passwordUpdate.NewDoubleSha1Hash = doubleSha1PasswordHash
+		}
+
+		_, err := r.client.UpdateServicePassword(s.Id, passwordUpdate)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error setting service password",
@@ -422,7 +442,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddAttributeError(
 			path.Root("password"),
 			"Invalid Update",
-			"Only one of either password or password_hash may be specified",
+			"Only one of either `password` or `password_hash` may be specified",
 		)
 	}
 
@@ -430,7 +450,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddAttributeError(
 			path.Root("password_hash"),
 			"Invalid Update",
-			"Only one of either password or password_hash may be specified",
+			"Only one of either `password` or `password_hash` may be specified",
 		)
 	}
 
@@ -438,7 +458,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddAttributeError(
 			path.Root("password"),
 			"Invalid Update",
-			"One of either password or password_hash must be specified",
+			"One of either `password` or `password_hash` must be specified",
 		)
 	}
 
@@ -447,6 +467,22 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 			path.Root("password_hash"),
 			"Invalid Update",
 			"One of either password or password_hash must be specified",
+		)
+	}
+
+	if !plan.Password.IsNull() && !config.DoubleSha1PasswordHash.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("password"),
+			"Invalid Update",
+			"`double_sha1_password_hash` cannot be specified if `password` specified",
+		)
+	}
+
+	if !config.DoubleSha1PasswordHash.IsNull() && !config.Password.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("double_sha1_password_hash"),
+			"Invalid Update",
+			"`double_sha1_password_hash` cannot be specified if `password` specified",
 		)
 	}
 
