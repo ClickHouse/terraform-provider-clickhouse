@@ -1,11 +1,15 @@
 terraform {
   required_providers {
     clickhouse = {
-      version = "0.0.2"
+      version = "0.0.3"
       source  = "ClickHouse/clickhouse"
       # source  = "clickhouse.cloud/terraform/clickhouse" # used for dev
     }
   }
+}
+
+variable "api_url" {
+  type = string
 }
 
 variable "organization_id" {
@@ -31,12 +35,14 @@ provider clickhouse {
 }
 
 resource "clickhouse_service" "service" {
-  name           = "My Terraform Service"
-  cloud_provider = "aws"
-  region         = "us-east-1"
-  tier           = "production"
-  idle_scaling   = true
-  password_hash  = "13d249f2cb4127b40cfa757866850278793f814ded3c587fe5889e889a7a9f6c"
+  name                      = "My Terraform Service"
+  cloud_provider            = "aws"
+  region                    = "us-east-1"
+  tier                      = "production"
+  idle_scaling              = true
+  # password = "test"
+  password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
+  double_sha1_password_hash = "94bdcebe19083ce2a1f959fd02f964c7af4cfc29" # double sha1 hash of "test"
 
   ip_access = [
     {
