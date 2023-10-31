@@ -1,11 +1,17 @@
 terraform {
   required_providers {
     clickhouse = {
-      version = "0.0.2"
+      version = "0.0.3"
       source  = "ClickHouse/clickhouse"
       # source  = "clickhouse.cloud/terraform/clickhouse" # used for dev
     }
   }
+}
+
+# only use if you have a specific deployment of the ClickHouse OpenAPI you want to interact with.
+# otherwise, just omit this variable.
+variable "api_url" {
+  type = string
 }
 
 variable "organization_id" {
