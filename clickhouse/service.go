@@ -2,7 +2,6 @@ package clickhouse
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -484,6 +483,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		service.Name = plan.Name.ValueString()
 		serviceChange = true
 	}
+
 	if !equal(plan.IpAccessList, state.IpAccessList) {
 		serviceChange = true
 		ipAccessListRawOld := state.IpAccessList
@@ -510,13 +510,9 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 			ipAccessListNew = append(ipAccessListNew, ipAccess)
 		}
 
-		add, remove := diffArrays(ipAccessListOld, ipAccessListNew, func(a IpAccess) string {
-			return fmt.Sprintf("%s:%s", a.Source, a.Description)
-		})
-
 		service.IpAccessList = &IpAccessUpdate{
-			Add:    add,
-			Remove: remove,
+			Add:    ipAccessListNew,
+			Remove: ipAccessListOld,
 		}
 	}
 
