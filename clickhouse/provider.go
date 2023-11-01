@@ -128,7 +128,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	apiUrl := os.Getenv("CLICKHOUSE_API_URL")
 	organizationId := os.Getenv("CLICKHOUSE_ORG_ID")
 	tokenKey := os.Getenv("CLICKHOUSE_TOKEN_KEY")
-	tokenSecret := os.Getenv("CLICKHOUSE_TOKEN_KEY")
+	tokenSecret := os.Getenv("CLICKHOUSE_TOKEN_SECRET")
 
 	if !config.ApiUrl.IsNull() {
 		apiUrl = config.ApiUrl.ValueString()
