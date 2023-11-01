@@ -40,9 +40,7 @@ resource "clickhouse_service" "service" {
   region                    = "us-east-1"
   tier                      = "production"
   idle_scaling              = true
-  # password = "test"
   password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
-  double_sha1_password_hash = "94bdcebe19083ce2a1f959fd02f964c7af4cfc29" # double sha1 hash of "test"
 
   ip_access = [
     {

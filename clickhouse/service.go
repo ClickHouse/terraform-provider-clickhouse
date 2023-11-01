@@ -248,6 +248,14 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	if !plan.DoubleSha1PasswordHash.IsNull() && plan.PasswordHash.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"`double_sha1_password_hash` cannot be specified without `password_hash`",
+		)
+		return
+	}
+
 	for _, item := range plan.IpAccessList {
 		service.IpAccessList = append(service.IpAccessList, IpAccess{
 			Source:      string(item.Source.ValueString()),
@@ -296,12 +304,13 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Update hashed service password if provided explicitly
-	if passwordHash := plan.PasswordHash.ValueString(); len(passwordHash) > 0 {
+	if passwordHash, doubleSha1PasswordHash := plan.PasswordHash.ValueString(), plan.DoubleSha1PasswordHash.ValueString();
+		 len(passwordHash) > 0 || len(doubleSha1PasswordHash) > 0 {
 		passwordUpdate := ServicePasswordUpdate{
 			NewPasswordHash: passwordHash,
 		}
 
-		if doubleSha1PasswordHash := plan.DoubleSha1PasswordHash.ValueString(); len(doubleSha1PasswordHash) > 0 {
+		if len(doubleSha1PasswordHash) > 0 {
 			passwordUpdate.NewDoubleSha1Hash = doubleSha1PasswordHash
 		}
 
@@ -478,11 +487,19 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		)
 	}
 
-	if !config.DoubleSha1PasswordHash.IsNull() && !config.Password.IsNull() {
+	if !plan.DoubleSha1PasswordHash.IsNull() && !config.Password.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("double_sha1_password_hash"),
 			"Invalid Update",
 			"`double_sha1_password_hash` cannot be specified if `password` specified",
+		)
+	}
+
+	if !plan.DoubleSha1PasswordHash.IsNull() && (plan.PasswordHash.IsNull() && config.PasswordHash.IsNull()) {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("double_sha1_password_hash"),
+			"Invalid Update",
+			"`double_sha1_password_hash` cannot be specified without `password_hash`",
 		)
 	}
 
@@ -621,10 +638,21 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		if len(res.Password) > 0 {
 			password = res.Password
 		}
-	} else if !plan.PasswordHash.IsNull() {
-		res, err := r.client.UpdateServicePassword(serviceId, ServicePasswordUpdate{
-			NewPasswordHash: plan.PasswordHash.ValueString(),
-		})
+	} else if !plan.PasswordHash.IsNull() || !plan.DoubleSha1PasswordHash.IsNull() {
+		passwordUpdate := ServicePasswordUpdate{}
+
+		if !plan.PasswordHash.IsNull() { // change in password hash
+			passwordUpdate.NewPasswordHash = plan.PasswordHash.ValueString()
+		} else { // no change in password hash, use state value
+			passwordUpdate.NewPasswordHash = state.PasswordHash.ValueString()
+		}
+
+		if !plan.DoubleSha1PasswordHash.IsNull() { // change in double sha1 password hash
+			passwordUpdate.NewDoubleSha1Hash = plan.DoubleSha1PasswordHash.ValueString()
+		}
+
+		res, err := r.client.UpdateServicePassword(serviceId, passwordUpdate)
+
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
