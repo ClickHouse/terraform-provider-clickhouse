@@ -2,8 +2,8 @@ terraform {
   required_providers {
     clickhouse = {
       version = "0.0.3"
-      source  = "ClickHouse/clickhouse"
-      # source  = "clickhouse.cloud/terraform/clickhouse" # used for dev
+      # source  = "ClickHouse/clickhouse"
+      source  = "clickhouse.cloud/terraform/clickhouse" # used for dev
     }
   }
 }
@@ -58,4 +58,8 @@ resource "clickhouse_service" "service" {
 
 output "service_endpoints" {
   value = clickhouse_service.service.endpoints
+}
+
+output "service_iam" {
+  value = clickhouse_service.service.iam_role
 }
