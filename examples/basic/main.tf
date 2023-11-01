@@ -8,6 +8,8 @@ terraform {
   }
 }
 
+# only use if you have a specific deployment of the ClickHouse OpenAPI you want to interact with.
+# otherwise, just omit this variable.
 variable "api_url" {
   type = string
 }
