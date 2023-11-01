@@ -37,12 +37,12 @@ provider clickhouse {
 }
 
 resource "clickhouse_service" "service" {
-  name           = "My Terraform Service"
-  cloud_provider = "aws"
-  region         = "us-east-1"
-  tier           = "production"
-  idle_scaling   = true
-  password_hash  = "13d249f2cb4127b40cfa757866850278793f814ded3c587fe5889e889a7a9f6c"
+  name                      = "My Terraform Service"
+  cloud_provider            = "aws"
+  region                    = "us-east-1"
+  tier                      = "production"
+  idle_scaling              = true
+  password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
 
   ip_access = [
     {

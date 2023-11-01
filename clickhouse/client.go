@@ -1,8 +1,10 @@
 package clickhouse
 
 import (
+	"crypto/sha1"
 	"crypto/sha256"
-	b64 "encoding/base64"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -63,12 +65,20 @@ type ServiceScalingUpdate struct {
 }
 
 type ServicePasswordUpdate struct {
-	NewPasswordHash string `json:"newPasswordHash,omitempty"`
+	NewPasswordHash   string `json:"newPasswordHash,omitempty"`
+	NewDoubleSha1Hash string `json:"newDoubleSha1Hash,omitempty"`
 }
 
 func ServicePasswordUpdateFromPlainPassword(password string) ServicePasswordUpdate {
 	hash := sha256.Sum256([]byte(password))
-	return ServicePasswordUpdate{NewPasswordHash: b64.StdEncoding.EncodeToString(hash[:])}
+
+	singleSha1Hash := sha1.Sum([]byte(password))
+	doubleSha1Hash := sha1.Sum(singleSha1Hash[:])
+
+	return ServicePasswordUpdate{
+		NewPasswordHash: base64.StdEncoding.EncodeToString(hash[:]),
+		NewDoubleSha1Hash: hex.EncodeToString(doubleSha1Hash[:]),
+	}
 }
 
 type ServicePasswordUpdateResult struct {
@@ -132,7 +142,7 @@ func (c *Client) getServicePath(serviceId string, path string) string {
 
 func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 	credentials := fmt.Sprintf("%s:%s", c.TokenKey, c.TokenSecret)
-	base64Credentials := b64.StdEncoding.EncodeToString([]byte(credentials))
+	base64Credentials := base64.StdEncoding.EncodeToString([]byte(credentials))
 	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
 	req.Header.Set("Authorization", authHeader)
 
