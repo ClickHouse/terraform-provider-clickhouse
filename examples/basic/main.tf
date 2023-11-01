@@ -2,8 +2,8 @@ terraform {
   required_providers {
     clickhouse = {
       version = "0.0.3"
-      # source  = "ClickHouse/clickhouse"
-      source  = "clickhouse.cloud/terraform/clickhouse" # used for dev
+      source  = "ClickHouse/clickhouse"
+      # source  = "clickhouse.cloud/terraform/clickhouse" # used for dev
     }
   }
 }
