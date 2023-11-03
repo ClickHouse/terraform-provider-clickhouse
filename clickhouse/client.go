@@ -50,6 +50,7 @@ type Service struct {
 	IdleTimeoutMinutes int        `json:"idleTimeoutMinutes,omitempty"`
 	State              string     `json:"state,omitempty"`
 	Endpoints          []Endpoint `json:"endpoints,omitempty"`
+	IAMRole						 string     `json:"iamRole,omitempty"`
 }
 
 type ServiceUpdate struct {

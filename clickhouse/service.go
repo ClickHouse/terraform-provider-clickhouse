@@ -47,6 +47,7 @@ type serviceResourceModel struct {
 	MinTotalMemoryGb       types.Int64     `tfsdk:"min_total_memory_gb"`
 	MaxTotalMemoryGb       types.Int64     `tfsdk:"max_total_memory_gb"`
 	IdleTimeoutMinutes     types.Int64     `tfsdk:"idle_timeout_minutes"`
+	IAMRole							   types.String    `tfsdk:"iam_role"`
 	LastUpdated            types.String    `tfsdk:"last_updated"`
 }
 
@@ -168,6 +169,10 @@ func (r *serviceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"idle_timeout_minutes": schema.Int64Attribute{
 				Description: "Set minimum idling timeout (in minutes). Available only for 'production' services. Must be greater than or equal to 5 minutes.",
 				Optional:    true,
+			},
+			"iam_role": schema.StringAttribute{
+				Description: "IAM role used for accessing objects in s3.",
+				Computed:    true,
 			},
 		},
 	}
@@ -356,6 +361,7 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	plan.Endpoints, _ = types.ListValue(endpointObjectType, values)
 
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	plan.IAMRole = types.StringValue(s.IAMRole)
 
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
@@ -697,6 +703,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 	plan.Endpoints, _ = types.ListValue(endpointObjectType, values)
 
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	plan.IAMRole = types.StringValue(s.IAMRole)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

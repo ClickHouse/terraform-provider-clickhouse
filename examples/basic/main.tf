@@ -59,3 +59,7 @@ resource "clickhouse_service" "service" {
 output "service_endpoints" {
   value = clickhouse_service.service.endpoints
 }
+
+output "service_iam" {
+  value = clickhouse_service.service.iam_role
+}
