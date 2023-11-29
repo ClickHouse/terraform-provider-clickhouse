@@ -30,3 +30,7 @@ provider "clickhouse" {
 - `organization_id` (String) ID of the organization the provider will create services under.
 - `token_key` (String) Token key of the key/secret pair. Used to authenticate with OpenAPI.
 - `token_secret` (String, Sensitive) Token secret of the key/secret pair. Used to authenticate with OpenAPI.
+
+### Optional
+
+- `api_url` (String) API URL of the ClickHouse OpenAPI the provider will interact with. Only specify if you have a specific deployment of the ClickHouse OpenAPI you want to run against.
