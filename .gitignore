@@ -5,3 +5,4 @@ terraform.tfstate.backup
 
 node_modules/
 secrets.tfvars
+dev/
