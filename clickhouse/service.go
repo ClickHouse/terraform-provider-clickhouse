@@ -342,10 +342,15 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
-		plan.IpAccessList[ipAccessIndex] = IpAccessModel{
+		stateIpAccess := IpAccessModel{
 			Source:      types.StringValue(ipAccess.Source),
-			Description: types.StringValue(ipAccess.Description),
 		}
+
+		if (!plan.IpAccessList[ipAccessIndex].Description.IsNull()) {
+			stateIpAccess.Description = types.StringValue(ipAccess.Description)
+		}
+
+		plan.IpAccessList[ipAccessIndex] = stateIpAccess
 	}
 
 	var values []attr.Value
@@ -684,10 +689,15 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
 	}
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
-		plan.IpAccessList[ipAccessIndex] = IpAccessModel{
+		stateIpAccess := IpAccessModel{
 			Source:      types.StringValue(ipAccess.Source),
-			Description: types.StringValue(ipAccess.Description),
 		}
+
+		if (!plan.IpAccessList[ipAccessIndex].Description.IsNull()) {
+			stateIpAccess.Description = types.StringValue(ipAccess.Description)
+		}
+
+		plan.IpAccessList[ipAccessIndex] = stateIpAccess
 	}
 
 	var values []attr.Value
