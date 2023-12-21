@@ -396,13 +396,19 @@ func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Overwrite items with refreshed state
-	state.IpAccessList = []IpAccessModel{}
-	for _, item := range service.IpAccessList {
-		state.IpAccessList = append(state.IpAccessList, IpAccessModel{
+	newIpAccess := []IpAccessModel{}
+	for index, item := range service.IpAccessList {
+		stateIpAccess := IpAccessModel{
 			Source:      types.StringValue(item.Source),
-			Description: types.StringValue(item.Description),
-		})
+		}
+
+		if (!(item.Description == "" && state.IpAccessList[index].Description.IsNull())) {
+			stateIpAccess.Description = types.StringValue(item.Description)
+		}
+
+		newIpAccess = append(newIpAccess, stateIpAccess)
 	}
+	state.IpAccessList = newIpAccess
 
 	var values []attr.Value
 	for _, endpoint := range service.Endpoints {
