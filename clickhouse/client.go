@@ -21,6 +21,24 @@ type Client struct {
 	TokenSecret    string
 }
 
+func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecret string) (*Client, error) {
+	client := &Client{
+		BaseUrl: apiUrl,
+		HttpClient: &http.Client{
+			Timeout: time.Second * 30,
+		},
+		OrganizationId: organizationId,
+		TokenKey:       tokenKey,
+		TokenSecret:    tokenSecret,
+	}
+
+	return client, nil
+}
+
+/****
+	Service
+****/
+
 type IpAccess struct {
 	Source      string `json:"source,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -35,6 +53,11 @@ type Endpoint struct {
 type IpAccessUpdate struct {
 	Add    []IpAccess `json:"add,omitempty"`
 	Remove []IpAccess `json:"remove,omitempty"`
+}
+
+type PrivateEndpointIdsUpdate struct {
+	Add    []string `json:"add,omitempty"`
+	Remove []string `json:"remove,omitempty"`
 }
 
 type PrivateEndpointConfig struct {
@@ -61,8 +84,9 @@ type Service struct {
 }
 
 type ServiceUpdate struct {
-	Name         string          `json:"name,omitempty"`
-	IpAccessList *IpAccessUpdate `json:"ipAccessList,omitempty"`
+	Name               string                    `json:"name,omitempty"`
+	IpAccessList       *IpAccessUpdate           `json:"ipAccessList,omitempty"`
+	PrivateEndpointIds *PrivateEndpointIdsUpdate `json:"privateEndpointIds,omitempty"`
 }
 
 type ServiceScalingUpdate struct {
@@ -124,20 +148,6 @@ type ServiceBody struct {
 
 type ServicePrivateEndpointConfigResponse struct {
 	Result PrivateEndpointConfig `json:"result"`
-}
-
-func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecret string) (*Client, error) {
-	client := &Client{
-		BaseUrl: apiUrl,
-		HttpClient: &http.Client{
-			Timeout: time.Second * 30,
-		},
-		OrganizationId: organizationId,
-		TokenKey:       tokenKey,
-		TokenSecret:    tokenSecret,
-	}
-
-	return client, nil
 }
 
 func (c *Client) getOrgPath(path string) string {
@@ -219,7 +229,6 @@ func (c *Client) GetService(serviceId string) (*Service, error) {
 
 func (c *Client) CreateService(s Service) (*Service, string, error) {
 	rb, err := json.Marshal(s)
-
 	if err != nil {
 		return nil, "", err
 	}
@@ -371,4 +380,86 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 	}
 
 	return &serviceResponse.Result.Service, nil
+}
+
+/****
+	Organization
+****/
+
+type PrivateEndpoint struct {
+	CloudProvider string `json:"cloudProvider,omitempty"`
+	Description   string `json:"description,omitempty"`
+	EndpointId    string `json:"id,omitempty"`
+	Region        string `json:"region,omitempty"`
+}
+
+type OrgPrivateEndpointsUpdate struct {
+	Add    []PrivateEndpoint `json:"add,omitempty"`
+	Remove []PrivateEndpoint `json:"remove,omitempty"`
+}
+
+type OrganizationUpdate struct {
+	PrivateEndpoints *OrgPrivateEndpointsUpdate `json:"privateEndpoints"`
+}
+
+type OrgResult struct {
+	CreatedAt				 string            `json:"createdAt,omitempty"`
+	ID               string            `json:"id,omitempty"`
+	Name             string            `json:"name,omitempty"`
+	PrivateEndpoints []PrivateEndpoint `json:"privateEndpoints,omitempty"`
+}
+
+type OrganizationGetResponse struct {
+	Result OrgResult `json:"result,omitempty"`
+}
+
+type OrganizationUpdateResponse struct {
+	Result OrgResult `json:"result,omitempty"`
+}
+
+func (c *Client) GetOrganizationPrivateEndpoints() (*[]PrivateEndpoint, error) {
+	req, err := http.NewRequest("GET", c.getOrgPath(""), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	orgResponse := OrganizationGetResponse{}
+	err = json.Unmarshal(body, &orgResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &orgResponse.Result.PrivateEndpoints, nil
+}
+
+func (c *Client) UpdateOrganizationPrivateEndpoints(orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error) {
+	rb, err := json.Marshal(orgUpdate)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", c.getOrgPath(""), strings.NewReader(string(rb)))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	body, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	orgResponse := OrganizationUpdateResponse{}
+	err = json.Unmarshal(body, &orgResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &orgResponse.Result.PrivateEndpoints, nil
 }

@@ -220,5 +220,6 @@ func (p *clickhouseProvider) DataSources(_ context.Context) []func() datasource.
 func (p *clickhouseProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewServiceResource,
+		NewPrivateEndpointRegistrationResource,
 	}
 }

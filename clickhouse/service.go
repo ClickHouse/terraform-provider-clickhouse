@@ -17,18 +17,18 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &serviceResource{}
-	_ resource.ResourceWithConfigure   = &serviceResource{}
-	_ resource.ResourceWithImportState = &serviceResource{}
+	_ resource.Resource                = &ServiceResource{}
+	_ resource.ResourceWithConfigure   = &ServiceResource{}
+	_ resource.ResourceWithImportState = &ServiceResource{}
 )
 
 // NewServiceResource is a helper function to simplify the provider implementation.
 func NewServiceResource() resource.Resource {
-	return &serviceResource{}
+	return &ServiceResource{}
 }
 
-// serviceResource is the resource implementation.
-type serviceResource struct {
+// ServiceResource is the resource implementation.
+type ServiceResource struct {
 	client *Client
 }
 
@@ -74,12 +74,12 @@ var privateEndpointConfigType = types.ObjectType{
 }
 
 // Metadata returns the resource type name.
-func (r *serviceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *ServiceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_service"
 }
 
 // Schema defines the schema for the resource.
-func (r *serviceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -189,25 +189,25 @@ func (r *serviceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Attributes:  map[string]schema.Attribute{
 					"endpoint_service_id": schema.StringAttribute{
 						Description: "Unique identifier of the interface endpoint you created in your VPC with the AWS(Service Name) or GCP(Target Service) resource",
-						Computed: true,
+						Computed:    true,
 					},
 					"private_dns_hostname": schema.StringAttribute{
 						Description: "Private DNS Hostname of the VPC you created",
-						Computed: true,
+						Computed:    true,
 					},
 				},
 			},
 			"private_endpoint_ids": schema.ListAttribute{
-				Description: "List of private endpoints",
+				Description: "List of private endpoint IDs",
 				ElementType: types.StringType,
-				Computed: true,
+				Optional:    true,
 			},
 		},
 	}
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *serviceResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *ServiceResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -216,7 +216,7 @@ func (r *serviceResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 // Create a new resource
-func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
 	var plan ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -293,6 +293,12 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 			Source:      string(item.Source.ValueString()),
 			Description: string(item.Description.ValueString()),
 		})
+	}
+
+	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
+	plan.PrivateEndpointIds.ElementsAs(ctx, &servicePrivateEndpointIds, false)
+	for _, item := range servicePrivateEndpointIds {
+		service.PrivateEndpointIds = append(service.PrivateEndpointIds, item.ValueString())
 	}
 
 	// Create new service
@@ -402,6 +408,8 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 	plan.PrivateEndpointIds, _ = types.ListValue(types.StringType, privateEndpointIds)
 
+	plan.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
+
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -411,7 +419,7 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state ServiceResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -455,11 +463,7 @@ func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, re
 		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
-	var privateEndpointIds []attr.Value
-	for _, item := range service.PrivateEndpointIds {
-		privateEndpointIds = append(privateEndpointIds, types.StringValue(item))
-	}
-	state.PrivateEndpointIds, _ = types.ListValue(types.StringType, privateEndpointIds)
+	state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -470,7 +474,7 @@ func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Retrieve values from plan
 	var config, plan, state ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -625,6 +629,30 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	if !equal(plan.PrivateEndpointIds.Elements(), state.PrivateEndpointIds.Elements()) {
+		serviceChange = true
+		privateEndpointIdsRawOld := make([]types.String, 0, len(state.PrivateEndpointIds.Elements()))
+		privateEndpointIdsRawNew := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
+		plan.PrivateEndpointIds.ElementsAs(ctx, &privateEndpointIdsRawOld, false)
+		plan.PrivateEndpointIds.ElementsAs(ctx, &privateEndpointIdsRawNew, false)
+
+		privateEndpointIdsOld := []string{}
+		privateEndpointIdsNew := []string{}
+
+		for _, item := range privateEndpointIdsRawOld {
+			privateEndpointIdsOld = append(privateEndpointIdsOld, item.ValueString())
+		}
+
+		for _, item := range privateEndpointIdsRawNew {
+			privateEndpointIdsNew = append(privateEndpointIdsNew, item.ValueString())
+		}
+
+		service.PrivateEndpointIds = &PrivateEndpointIdsUpdate{
+			Add:    privateEndpointIdsNew,
+			Remove: privateEndpointIdsOld,
+		}
+	}
+
 	// Update existing service
 	if serviceChange {
 		var err error
@@ -760,11 +788,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		"private_dns_hostname": types.StringValue(s.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
-	var privateEndpointIds []attr.Value
-	for _, item := range s.PrivateEndpointIds {
-		privateEndpointIds = append(privateEndpointIds, types.StringValue(item))
-	}
-	state.PrivateEndpointIds, _ = types.ListValue(types.StringType, privateEndpointIds)
+	state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, s.PrivateEndpointIds)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -774,7 +798,7 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *serviceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *ServiceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
 	var state ServiceResourceModel
 	diags := req.State.Get(ctx, &state)
@@ -794,7 +818,7 @@ func (r *serviceResource) Delete(ctx context.Context, req resource.DeleteRequest
 	}
 }
 
-func (r *serviceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *ServiceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
