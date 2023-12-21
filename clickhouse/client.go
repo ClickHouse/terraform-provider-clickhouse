@@ -37,20 +37,26 @@ type IpAccessUpdate struct {
 	Remove []IpAccess `json:"remove,omitempty"`
 }
 
+type PrivateEndpointConfig struct {
+	EndpointServiceId  string `json:"endpointServiceId,omitempty"`
+	PrivateDnsHostname string `json:"privateDnsHostname,omitempty"`
+}
+
 type Service struct {
-	Id                 string     `json:"id,omitempty"`
-	Name               string     `json:"name,omitempty"`
-	Provider           string     `json:"provider,omitempty"`
-	Region             string     `json:"region,omitempty"`
-	Tier               string     `json:"tier,omitempty"`
-	IdleScaling        bool       `json:"idleScaling,omitempty"`
-	IpAccessList       []IpAccess `json:"ipAccessList,omitempty"`
-	MinTotalMemoryGb   int        `json:"minTotalMemoryGb,omitempty"`
-	MaxTotalMemoryGb   int        `json:"maxTotalMemoryGb,omitempty"`
-	IdleTimeoutMinutes int        `json:"idleTimeoutMinutes,omitempty"`
-	State              string     `json:"state,omitempty"`
-	Endpoints          []Endpoint `json:"endpoints,omitempty"`
-	IAMRole						 string     `json:"iamRole,omitempty"`
+	Id                    string                `json:"id,omitempty"`
+	Name                  string                `json:"name,omitempty"`
+	Provider              string                `json:"provider,omitempty"`
+	Region                string                `json:"region,omitempty"`
+	Tier                  string                `json:"tier,omitempty"`
+	IdleScaling           bool                  `json:"idleScaling,omitempty"`
+	IpAccessList          []IpAccess            `json:"ipAccessList,omitempty"`
+	MinTotalMemoryGb      int                   `json:"minTotalMemoryGb,omitempty"`
+	MaxTotalMemoryGb      int                   `json:"maxTotalMemoryGb,omitempty"`
+	IdleTimeoutMinutes    int                   `json:"idleTimeoutMinutes,omitempty"`
+	State                 string                `json:"state,omitempty"`
+	Endpoints             []Endpoint            `json:"endpoints,omitempty"`
+	IAMRole						    string                `json:"iamRole,omitempty"`
+	PrivateEndpointConfig *PrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
 }
 
 type ServiceUpdate struct {
@@ -113,6 +119,10 @@ type ServiceGetResponse struct {
 
 type ServiceBody struct {
 	Service Service `json:"service"`
+}
+
+type ServicePrivateEndpointConfigResponse struct {
+	Result PrivateEndpointConfig `json:"result"`
 }
 
 func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecret string) (*Client, error) {
@@ -183,7 +193,27 @@ func (c *Client) GetService(serviceId string) (*Service, error) {
 		return nil, err
 	}
 
-	return &serviceResponse.Result, nil
+	service := serviceResponse.Result
+
+	req, err = http.NewRequest("GET", c.getServicePath(serviceId, "/privateEndpointConfig"), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err = c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	endpointConfigResponse := ServicePrivateEndpointConfigResponse{}
+	err = json.Unmarshal(body, &endpointConfigResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	service.PrivateEndpointConfig = &endpointConfigResponse.Result
+
+	return &service, nil
 }
 
 func (c *Client) CreateService(s Service) (*Service, string, error) {
