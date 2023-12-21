@@ -43,20 +43,21 @@ type PrivateEndpointConfig struct {
 }
 
 type Service struct {
-	Id                    string                `json:"id,omitempty"`
-	Name                  string                `json:"name,omitempty"`
-	Provider              string                `json:"provider,omitempty"`
-	Region                string                `json:"region,omitempty"`
-	Tier                  string                `json:"tier,omitempty"`
-	IdleScaling           bool                  `json:"idleScaling,omitempty"`
-	IpAccessList          []IpAccess            `json:"ipAccessList,omitempty"`
-	MinTotalMemoryGb      int                   `json:"minTotalMemoryGb,omitempty"`
-	MaxTotalMemoryGb      int                   `json:"maxTotalMemoryGb,omitempty"`
-	IdleTimeoutMinutes    int                   `json:"idleTimeoutMinutes,omitempty"`
-	State                 string                `json:"state,omitempty"`
-	Endpoints             []Endpoint            `json:"endpoints,omitempty"`
-	IAMRole						    string                `json:"iamRole,omitempty"`
+	Id                    string                 `json:"id,omitempty"`
+	Name                  string                 `json:"name,omitempty"`
+	Provider              string                 `json:"provider,omitempty"`
+	Region                string                 `json:"region,omitempty"`
+	Tier                  string                 `json:"tier,omitempty"`
+	IdleScaling           bool                   `json:"idleScaling,omitempty"`
+	IpAccessList          []IpAccess             `json:"ipAccessList,omitempty"`
+	MinTotalMemoryGb      int                    `json:"minTotalMemoryGb,omitempty"`
+	MaxTotalMemoryGb      int                    `json:"maxTotalMemoryGb,omitempty"`
+	IdleTimeoutMinutes    int                    `json:"idleTimeoutMinutes,omitempty"`
+	State                 string                 `json:"state,omitempty"`
+	Endpoints             []Endpoint             `json:"endpoints,omitempty"`
+	IAMRole						    string                 `json:"iamRole,omitempty"`
 	PrivateEndpointConfig *PrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
+	PrivateEndpointIds    []string               `json:"privateEndpointIds,omitempty"`
 }
 
 type ServiceUpdate struct {

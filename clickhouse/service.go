@@ -50,6 +50,7 @@ type ServiceResourceModel struct {
 	IAMRole							   types.String    `tfsdk:"iam_role"`
 	LastUpdated            types.String    `tfsdk:"last_updated"`
 	PrivateEndpointConfig  types.Object    `tfsdk:"private_endpoint_config"`
+	PrivateEndpointIds     types.List      `tfsdk:"private_endpoint_ids"`
 }
 
 var endpointObjectType = types.ObjectType{
@@ -195,6 +196,11 @@ func (r *serviceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						Computed: true,
 					},
 				},
+			},
+			"private_endpoint_ids": schema.ListAttribute{
+				Description: "List of private endpoints",
+				ElementType: types.StringType,
+				Computed: true,
 			},
 		},
 	}
@@ -390,6 +396,12 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 		"private_dns_hostname": types.StringValue(s.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
+	var privateEndpointIds []attr.Value
+	for _, item := range s.PrivateEndpointIds {
+		privateEndpointIds = append(privateEndpointIds, types.StringValue(item))
+	}
+	plan.PrivateEndpointIds, _ = types.ListValue(types.StringType, privateEndpointIds)
+
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -442,6 +454,12 @@ func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, re
 		"endpoint_service_id":  types.StringValue(service.PrivateEndpointConfig.EndpointServiceId),
 		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
 	})
+
+	var privateEndpointIds []attr.Value
+	for _, item := range service.PrivateEndpointIds {
+		privateEndpointIds = append(privateEndpointIds, types.StringValue(item))
+	}
+	state.PrivateEndpointIds, _ = types.ListValue(types.StringType, privateEndpointIds)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -741,6 +759,12 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 		"endpoint_service_id":  types.StringValue(s.PrivateEndpointConfig.EndpointServiceId),
 		"private_dns_hostname": types.StringValue(s.PrivateEndpointConfig.PrivateDnsHostname),
 	})
+
+	var privateEndpointIds []attr.Value
+	for _, item := range s.PrivateEndpointIds {
+		privateEndpointIds = append(privateEndpointIds, types.StringValue(item))
+	}
+	state.PrivateEndpointIds, _ = types.ListValue(types.StringType, privateEndpointIds)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
