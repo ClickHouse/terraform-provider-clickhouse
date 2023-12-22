@@ -334,6 +334,7 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	plan.CloudProvider = types.StringValue(s.Provider)
 	plan.Region = types.StringValue(s.Region)
 	plan.Tier = types.StringValue(s.Tier)
+
 	if s.Tier == "production" {
 		plan.IdleScaling = types.BoolValue(s.IdleScaling)
 		plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
@@ -677,12 +678,14 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 	plan.CloudProvider = types.StringValue(s.Provider)
 	plan.Region = types.StringValue(s.Region)
 	plan.Tier = types.StringValue(s.Tier)
-	plan.IdleScaling = types.BoolValue(s.IdleScaling)
+
 	if s.Tier == "production" {
+		plan.IdleScaling = types.BoolValue(s.IdleScaling)
 		plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
 		plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
 		plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
 	}
+
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
 		plan.IpAccessList[ipAccessIndex] = IpAccessModel{
 			Source:      types.StringValue(ipAccess.Source),
