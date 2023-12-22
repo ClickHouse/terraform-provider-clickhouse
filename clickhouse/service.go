@@ -343,10 +343,15 @@ func (r *serviceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
-		plan.IpAccessList[ipAccessIndex] = IpAccessModel{
+		stateIpAccess := IpAccessModel{
 			Source:      types.StringValue(ipAccess.Source),
-			Description: types.StringValue(ipAccess.Description),
 		}
+
+		if (!plan.IpAccessList[ipAccessIndex].Description.IsNull()) {
+			stateIpAccess.Description = types.StringValue(ipAccess.Description)
+		}
+
+		plan.IpAccessList[ipAccessIndex] = stateIpAccess
 	}
 
 	var values []attr.Value
@@ -392,13 +397,19 @@ func (r *serviceResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Overwrite items with refreshed state
-	state.IpAccessList = []IpAccessModel{}
-	for _, item := range service.IpAccessList {
-		state.IpAccessList = append(state.IpAccessList, IpAccessModel{
+	newIpAccess := []IpAccessModel{}
+	for index, item := range service.IpAccessList {
+		stateIpAccess := IpAccessModel{
 			Source:      types.StringValue(item.Source),
-			Description: types.StringValue(item.Description),
-		})
+		}
+
+		if (!(item.Description == "" && state.IpAccessList[index].Description.IsNull())) {
+			stateIpAccess.Description = types.StringValue(item.Description)
+		}
+
+		newIpAccess = append(newIpAccess, stateIpAccess)
 	}
+	state.IpAccessList = newIpAccess
 
 	var values []attr.Value
 	for _, endpoint := range service.Endpoints {
@@ -687,10 +698,15 @@ func (r *serviceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
-		plan.IpAccessList[ipAccessIndex] = IpAccessModel{
+		stateIpAccess := IpAccessModel{
 			Source:      types.StringValue(ipAccess.Source),
-			Description: types.StringValue(ipAccess.Description),
 		}
+
+		if (!plan.IpAccessList[ipAccessIndex].Description.IsNull()) {
+			stateIpAccess.Description = types.StringValue(ipAccess.Description)
+		}
+
+		plan.IpAccessList[ipAccessIndex] = stateIpAccess
 	}
 
 	var values []attr.Value
