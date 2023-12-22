@@ -368,6 +368,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	plan.CloudProvider = types.StringValue(s.Provider)
 	plan.Region = types.StringValue(s.Region)
 	plan.Tier = types.StringValue(s.Tier)
+
 	if s.Tier == "production" {
 		plan.IdleScaling = types.BoolValue(s.IdleScaling)
 		plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
@@ -376,10 +377,15 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
-		plan.IpAccessList[ipAccessIndex] = IpAccessModel{
+		stateIpAccess := IpAccessModel{
 			Source:      types.StringValue(ipAccess.Source),
-			Description: types.StringValue(ipAccess.Description),
 		}
+
+		if (!plan.IpAccessList[ipAccessIndex].Description.IsNull()) {
+			stateIpAccess.Description = types.StringValue(ipAccess.Description)
+		}
+
+		plan.IpAccessList[ipAccessIndex] = stateIpAccess
 	}
 
 	var values []attr.Value
@@ -438,13 +444,19 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Overwrite items with refreshed state
-	state.IpAccessList = []IpAccessModel{}
-	for _, item := range service.IpAccessList {
-		state.IpAccessList = append(state.IpAccessList, IpAccessModel{
+	newIpAccess := []IpAccessModel{}
+	for index, item := range service.IpAccessList {
+		stateIpAccess := IpAccessModel{
 			Source:      types.StringValue(item.Source),
-			Description: types.StringValue(item.Description),
-		})
+		}
+
+		if (!(item.Description == "" && state.IpAccessList[index].Description.IsNull())) {
+			stateIpAccess.Description = types.StringValue(item.Description)
+		}
+
+		newIpAccess = append(newIpAccess, stateIpAccess)
 	}
+	state.IpAccessList = newIpAccess
 
 	var values []attr.Value
 	for _, endpoint := range service.Endpoints {
@@ -755,17 +767,24 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	plan.CloudProvider = types.StringValue(s.Provider)
 	plan.Region = types.StringValue(s.Region)
 	plan.Tier = types.StringValue(s.Tier)
-	plan.IdleScaling = types.BoolValue(s.IdleScaling)
+
 	if s.Tier == "production" {
+		plan.IdleScaling = types.BoolValue(s.IdleScaling)
 		plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
 		plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
 		plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
 	}
+
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
-		plan.IpAccessList[ipAccessIndex] = IpAccessModel{
+		stateIpAccess := IpAccessModel{
 			Source:      types.StringValue(ipAccess.Source),
-			Description: types.StringValue(ipAccess.Description),
 		}
+
+		if (!plan.IpAccessList[ipAccessIndex].Description.IsNull()) {
+			stateIpAccess.Description = types.StringValue(ipAccess.Description)
+		}
+
+		plan.IpAccessList[ipAccessIndex] = stateIpAccess
 	}
 
 	var values []attr.Value
