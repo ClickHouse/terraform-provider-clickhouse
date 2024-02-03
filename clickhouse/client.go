@@ -60,27 +60,27 @@ type PrivateEndpointIdsUpdate struct {
 	Remove []string `json:"remove,omitempty"`
 }
 
-type PrivateEndpointConfig struct {
+type ServicePrivateEndpointConfig struct {
 	EndpointServiceId  string `json:"endpointServiceId,omitempty"`
 	PrivateDnsHostname string `json:"privateDnsHostname,omitempty"`
 }
 
 type Service struct {
-	Id                    string                 `json:"id,omitempty"`
-	Name                  string                 `json:"name,omitempty"`
-	Provider              string                 `json:"provider,omitempty"`
-	Region                string                 `json:"region,omitempty"`
-	Tier                  string                 `json:"tier,omitempty"`
-	IdleScaling           bool                   `json:"idleScaling,omitempty"`
-	IpAccessList          []IpAccess             `json:"ipAccessList,omitempty"`
-	MinTotalMemoryGb      int                    `json:"minTotalMemoryGb,omitempty"`
-	MaxTotalMemoryGb      int                    `json:"maxTotalMemoryGb,omitempty"`
-	IdleTimeoutMinutes    int                    `json:"idleTimeoutMinutes,omitempty"`
-	State                 string                 `json:"state,omitempty"`
-	Endpoints             []Endpoint             `json:"endpoints,omitempty"`
-	IAMRole						    string                 `json:"iamRole,omitempty"`
-	PrivateEndpointConfig *PrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
-	PrivateEndpointIds    []string               `json:"privateEndpointIds,omitempty"`
+	Id                    string                        `json:"id,omitempty"`
+	Name                  string                        `json:"name,omitempty"`
+	Provider              string                        `json:"provider,omitempty"`
+	Region                string                        `json:"region,omitempty"`
+	Tier                  string                        `json:"tier,omitempty"`
+	IdleScaling           bool                          `json:"idleScaling,omitempty"`
+	IpAccessList          []IpAccess                    `json:"ipAccessList,omitempty"`
+	MinTotalMemoryGb      int                           `json:"minTotalMemoryGb,omitempty"`
+	MaxTotalMemoryGb      int                           `json:"maxTotalMemoryGb,omitempty"`
+	IdleTimeoutMinutes    int                           `json:"idleTimeoutMinutes,omitempty"`
+	State                 string                        `json:"state,omitempty"`
+	Endpoints             []Endpoint                    `json:"endpoints,omitempty"`
+	IAMRole						    string                        `json:"iamRole,omitempty"`
+	PrivateEndpointConfig *ServicePrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
+	PrivateEndpointIds    []string                      `json:"privateEndpointIds,omitempty"`
 }
 
 type ServiceUpdate struct {
@@ -108,7 +108,7 @@ func ServicePasswordUpdateFromPlainPassword(password string) ServicePasswordUpda
 	doubleSha1Hash := sha1.Sum(singleSha1Hash[:])
 
 	return ServicePasswordUpdate{
-		NewPasswordHash: base64.StdEncoding.EncodeToString(hash[:]),
+		NewPasswordHash:   base64.StdEncoding.EncodeToString(hash[:]),
 		NewDoubleSha1Hash: hex.EncodeToString(doubleSha1Hash[:]),
 	}
 }
@@ -142,12 +142,20 @@ type ServiceGetResponse struct {
 	Result Service `json:"result"`
 }
 
+type OrgPrivateEndpointConfig struct {
+	EndpointServiceId string `json:"endpointServiceId,omitempty"`
+}
+
+type OrgPrivateEndpointConfigGetResponse struct {
+	Result OrgPrivateEndpointConfig `json:"result"`
+}
+
 type ServiceBody struct {
 	Service Service `json:"service"`
 }
 
 type ServicePrivateEndpointConfigResponse struct {
-	Result PrivateEndpointConfig `json:"result"`
+	Result ServicePrivateEndpointConfig `json:"result"`
 }
 
 func (c *Client) getOrgPath(path string) string {
@@ -160,6 +168,9 @@ func (c *Client) getServicePath(serviceId string, path string) string {
 	} else {
 		return c.getOrgPath(fmt.Sprintf("/services/%s%s", serviceId, path))
 	}
+}
+func (c *Client) getPrivateEndpointConfigPath(cloudProvider string, region string) string {
+	return c.getOrgPath(fmt.Sprintf("/privateEndpointConfig?cloud_provider=%s&region_id=%s", cloudProvider, region))
 }
 
 func (c *Client) doRequest(req *http.Request) ([]byte, error) {
@@ -225,6 +236,27 @@ func (c *Client) GetService(serviceId string) (*Service, error) {
 	service.PrivateEndpointConfig = &endpointConfigResponse.Result
 
 	return &service, nil
+}
+
+func (c *Client) GetOrgPrivateEndpointConfig(cloudProvider string, region string) (*OrgPrivateEndpointConfig, error) {
+	privateEndpointConfigPath := c.getPrivateEndpointConfigPath(cloudProvider, region)
+
+	req, err := http.NewRequest("GET", privateEndpointConfigPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	privateEndpointConfigResponse := OrgPrivateEndpointConfigGetResponse{}
+	if err = json.Unmarshal(body, &privateEndpointConfigResponse); err != nil {
+		return nil, err
+	}
+
+	return &privateEndpointConfigResponse.Result, nil
 }
 
 func (c *Client) CreateService(s Service) (*Service, string, error) {
