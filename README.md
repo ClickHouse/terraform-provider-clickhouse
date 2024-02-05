@@ -4,7 +4,7 @@
 
 To test the provider locally, you'll need to set up some dev overrides so that terraform knows where to grab your local installation.
 
-First, find the `GOBIN` path where Go installs your binaries: 
+First, find the `GOBIN` path where Go installs your binaries:
 
 ```sh
 $ go env GOBIN
@@ -19,7 +19,7 @@ Then, create a new file called .terraformrc in your home directory (~), then add
 provider_installation {
 
   dev_overrides {
-      "clickhouse.cloud/terraform/clickhouse" = "<PATH>"
+      "ClickHouse/clickhouse" = "<PATH>"
   }
 
   # For all other providers, install them directly from their origin provider
@@ -43,7 +43,7 @@ terraform apply -var-file="variables.tfvars"
 │ Warning: Provider development overrides are in effect
 │
 │ The following provider development overrides are set in the CLI configuration:
-│  - clickhouse.cloud/terraform/clickhouse in /Users/kinzeng/go/bin
+│  - ClickHouse/clickhouse in /Users/kinzeng/go/bin
 │
 │ The behavior may therefore not match any released version of the provider and applying changes may
 │ cause the state to become incompatible with published releases.
