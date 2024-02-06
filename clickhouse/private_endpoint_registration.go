@@ -177,7 +177,9 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 			Region:        types.StringValue(privateEndpoint.Region),
 		}
 
-		if (!(privateEndpoint.Description == "" && state.PrivateEndpoints[index].Description.IsNull())) {
+		// update description if the new description isn't empty string
+		// if it is emply string, only update if the state value is also empty string
+		if (privateEndpoint.Description != "" || (index < len(state.PrivateEndpoints) && !state.PrivateEndpoints[index].Description.IsNull())) {
 			statePrivateEndpoint.Description = types.StringValue(privateEndpoint.Description)
 		}
 
