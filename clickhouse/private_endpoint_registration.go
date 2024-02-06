@@ -179,7 +179,7 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 			statePrivateEndpoint.Description = types.StringValue(privateEndpoint.Description)
 		}
 
-		newPrivateEndpoints = append(state.PrivateEndpoints, statePrivateEndpoint)
+		newPrivateEndpoints = append(newPrivateEndpoints, statePrivateEndpoint)
 		privateEndpointIds = append(privateEndpointIds, privateEndpoint.EndpointId)
 	}
 	state.PrivateEndpoints = newPrivateEndpoints
