@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -186,7 +186,7 @@ func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 	}
 	defer res.Body.Close()
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -369,19 +369,26 @@ func (c *Client) UpdateServicePassword(serviceId string, u ServicePasswordUpdate
 }
 
 func (c *Client) DeleteService(serviceId string) (*Service, error) {
-	rb, err := json.Marshal(ServiceStateUpdate{
-		Command: "stop",
-	})
-	req, err := http.NewRequest("PATCH", c.getServicePath(serviceId, "/state"), strings.NewReader(string(rb)))
+	service, err := c.GetService(serviceId)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	if service.State != "stopped" && service.State != "stopping" {
+		rb, _ := json.Marshal(ServiceStateUpdate{
+			Command: "stop",
+		})
+		req, err := http.NewRequest("PATCH", c.getServicePath(serviceId, "/state"), strings.NewReader(string(rb)))
+		if err != nil {
+			return nil, err
+		}
 
-	_, err = c.doRequest(req)
-	if err != nil {
-		return nil, err
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+		_, err = c.doRequest(req)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	numErrors := 0
@@ -396,14 +403,14 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 				continue
 			}
 		}
-		stopped := service.State == "stopped"
-		if stopped {
+
+		if service.State == "stopped" {
 			break
 		}
 		time.Sleep(5 * time.Second)
 	}
 
-	req, err = http.NewRequest("DELETE", c.getServicePath(serviceId, ""), nil)
+	req, err := http.NewRequest("DELETE", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
 	}
