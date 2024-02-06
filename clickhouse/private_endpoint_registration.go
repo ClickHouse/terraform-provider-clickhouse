@@ -24,11 +24,6 @@ type PrivateEndpointRegistrationResource struct {
 }
 
 type PrivateEndpointRegistrationResourceModel struct {
-	PrivateEndpoints   []PrivateEndpointModel `tfsdk:"private_endpoints"`
-	PrivateEndpointIds types.List             `tfsdk:"private_endpoint_ids"`
-}
-
-type PrivateEndpointModel struct {
 	CloudProvider types.String `tfsdk:"cloud_provider"`
 	Description   types.String `tfsdk:"description"`
 	EndpointId    types.String `tfsdk:"id"`
@@ -42,34 +37,21 @@ func (r *PrivateEndpointRegistrationResource) Metadata(_ context.Context, req re
 func (r *PrivateEndpointRegistrationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"private_endpoints": schema.ListNestedAttribute{
-				Description:  "List of private endpoint ids to register",
-				Required:     true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"cloud_provider": schema.StringAttribute{
-							Description: "Cloud provider of the private endpoint ID",
-							Required: true,
-						},
-						"description": schema.StringAttribute{
-							Description: "Description of the private endpoint",
-							Optional:    true,
-						},
-						"id": schema.StringAttribute{
-							Description: "ID of the private endpoint",
-							Required:    true,
-						},
-						"region": schema.StringAttribute{
-							Description: "Region of the private endpoint",
-							Required:    true,
-						},
-					},
-				},
+			"cloud_provider": schema.StringAttribute{
+				Description: "Cloud provider of the private endpoint ID",
+				Required: true,
 			},
-			"private_endpoint_ids": schema.ListAttribute{
-				Description: "List of private endpoint IDs",
-				ElementType: types.StringType,
-				Computed:    true,
+			"description": schema.StringAttribute{
+				Description: "Description of the private endpoint",
+				Optional:    true,
+			},
+			"id": schema.StringAttribute{
+				Description: "ID of the private endpoint",
+				Required:    true,
+			},
+			"region": schema.StringAttribute{
+				Description: "Region of the private endpoint",
+				Required:    true,
 			},
 		},
 	}
@@ -92,57 +74,27 @@ func (r *PrivateEndpointRegistrationResource) Create(ctx context.Context, req re
 	}
 
 	add := []PrivateEndpoint{}
-	for _, item := range plan.PrivateEndpoints {
-		add = append(add, PrivateEndpoint{
-			CloudProvider: item.CloudProvider.ValueString(),
-			Description:   item.Description.ValueString(),
-			EndpointId:    item.EndpointId.ValueString(),
-			Region:        item.Region.ValueString(),
-		})
+	add = append(add, PrivateEndpoint{
+		CloudProvider: plan.CloudProvider.ValueString(),
+		Description:   plan.Description.ValueString(),
+		EndpointId:    plan.EndpointId.ValueString(),
+		Region:        plan.Region.ValueString(),
+	})
+
+	orgUpdate := OrganizationUpdate{
+		PrivateEndpoints: &OrgPrivateEndpointsUpdate{
+			Add: add,
+		},
 	}
 
-	if len(add) > 0 {
-		orgUpdate := OrganizationUpdate{
-			PrivateEndpoints: &OrgPrivateEndpointsUpdate{
-				Add: add,
-			},
-		}
-
-		_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error Registering ClickHouse Organization Private Endpoint IDs",
-				"Could not update organization private endpoint IDs, unexpected error: "+err.Error(),
-			)
-			return
-		}
-	}
-
-	privateEndpoints, err := r.client.GetOrganizationPrivateEndpoints()
+	_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error Fetching ClickHouse Organization Private Endpoint IDs",
-			"Could not fetch organization private endpoint IDs, unexpected error: "+err.Error(),
+			"Error Registering ClickHouse Organization Private Endpoint IDs",
+			"Could not update organization private endpoint IDs, unexpected error: "+err.Error(),
 		)
 		return
 	}
-
-	privateEndpointIds := []string{}
-	for index, privateEndpoint := range *privateEndpoints {
-		planPrivateEndpoint := PrivateEndpointModel{
-			CloudProvider: types.StringValue(privateEndpoint.CloudProvider),
-			EndpointId:    types.StringValue(privateEndpoint.EndpointId),
-			Region:        types.StringValue(privateEndpoint.Region),
-		}
-
-		if (!plan.PrivateEndpoints[index].Description.IsNull()) {
-			planPrivateEndpoint.Description = types.StringValue(privateEndpoint.Description)
-		}
-
-		plan.PrivateEndpoints[index] = planPrivateEndpoint
-		privateEndpointIds = append(privateEndpointIds, privateEndpoint.EndpointId)
-	}
-	plan.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, privateEndpointIds)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -168,26 +120,22 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 		return
 	}
 
-	newPrivateEndpoints := []PrivateEndpointModel{}
-	privateEndpointIds := []string{}
-	for index, privateEndpoint := range *privateEndpoints {
-		statePrivateEndpoint := PrivateEndpointModel{
-			CloudProvider: types.StringValue(privateEndpoint.CloudProvider),
-			EndpointId:    types.StringValue(privateEndpoint.EndpointId),
-			Region:        types.StringValue(privateEndpoint.Region),
+	var privateEndpoint *PrivateEndpoint
+	for _, pe := range *privateEndpoints {
+		if pe.CloudProvider == state.CloudProvider.ValueString() &&
+			pe.EndpointId == state.EndpointId.ValueString() &&
+			pe.Region == state.Region.ValueString() {
+				privateEndpoint = &pe
+				break
 		}
-
-		// update description if the new description isn't empty string
-		// if it is emply string, only update if the state value is also empty string
-		if (privateEndpoint.Description != "" || (index < len(state.PrivateEndpoints) && !state.PrivateEndpoints[index].Description.IsNull())) {
-			statePrivateEndpoint.Description = types.StringValue(privateEndpoint.Description)
-		}
-
-		newPrivateEndpoints = append(newPrivateEndpoints, statePrivateEndpoint)
-		privateEndpointIds = append(privateEndpointIds, privateEndpoint.EndpointId)
 	}
-	state.PrivateEndpoints = newPrivateEndpoints
-	state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, privateEndpointIds)
+
+	if privateEndpoint == nil {
+		resp.Diagnostics.AddError("Private endpoint not found", "Could not find private endpoint in org registration")
+		return
+	}
+
+	state.Description = types.StringValue(privateEndpoint.Description)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -203,41 +151,25 @@ func (r *PrivateEndpointRegistrationResource) Update(ctx context.Context, req re
 	diags = req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 
-	orgUpdate := OrganizationUpdate{}
-
-	if !equal(plan.PrivateEndpoints, state.PrivateEndpoints) {
-		privateEndpointsRawOld := state.PrivateEndpoints
-		privateEndpointsRawNew := plan.PrivateEndpoints
-
-		privateEndpointsOld := []PrivateEndpoint{}
-		privateEndpointsNew := []PrivateEndpoint{}
-
-		for _, item := range privateEndpointsRawOld {
-			privateEndpoint := PrivateEndpoint{
-				CloudProvider: item.CloudProvider.ValueString(),
-				Description:   item.Description.ValueString(),
-				EndpointId:    item.EndpointId.ValueString(),
-				Region:        item.Region.ValueString(),
-			}
-
-			privateEndpointsOld = append(privateEndpointsOld, privateEndpoint)
-		}
-
-		for _, item := range privateEndpointsRawNew {
-			privateEndpoint := PrivateEndpoint{
-				CloudProvider: item.CloudProvider.ValueString(),
-				Description:   item.Description.ValueString(),
-				EndpointId:    item.EndpointId.ValueString(),
-				Region:        item.Region.ValueString(),
-			}
-
-			privateEndpointsNew = append(privateEndpointsNew, privateEndpoint)
-		}
-
-		orgUpdate.PrivateEndpoints = &OrgPrivateEndpointsUpdate{
-			Add:    privateEndpointsNew,
-			Remove: privateEndpointsOld,
-		}
+	orgUpdate := OrganizationUpdate{
+		PrivateEndpoints: &OrgPrivateEndpointsUpdate{
+		Add: []PrivateEndpoint{
+				{
+					CloudProvider: plan.CloudProvider.ValueString(),
+					Description:   plan.Description.ValueString(),
+					EndpointId:    plan.EndpointId.ValueString(),
+					Region:        plan.Region.ValueString(),
+				},
+			},
+			Remove: []PrivateEndpoint{
+				{
+					CloudProvider: state.CloudProvider.ValueString(),
+					Description:   state.Description.ValueString(),
+					EndpointId:    state.EndpointId.ValueString(),
+					Region:        state.Region.ValueString(),
+				},
+			},
+		},
 	}
 
 	_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
@@ -248,32 +180,6 @@ func (r *PrivateEndpointRegistrationResource) Update(ctx context.Context, req re
 		)
 		return
 	}
-
-	privateEndpoints, err := r.client.GetOrganizationPrivateEndpoints()
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Fetching ClickHouse Organization Private Endpoint IDs",
-			"Could not fetch organization private endpoint IDs, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	privateEndpointIds := []string{}
-	for index, privateEndpoint := range *privateEndpoints {
-		planPrivateEndpoint := PrivateEndpointModel{
-			CloudProvider: types.StringValue(privateEndpoint.CloudProvider),
-			EndpointId:    types.StringValue(privateEndpoint.EndpointId),
-			Region:        types.StringValue(privateEndpoint.Region),
-		}
-
-		if (!plan.PrivateEndpoints[index].Description.IsNull()) {
-			planPrivateEndpoint.Description = types.StringValue(privateEndpoint.Description)
-		}
-
-		plan.PrivateEndpoints[index] = planPrivateEndpoint
-		privateEndpointIds = append(privateEndpointIds, privateEndpoint.EndpointId)
-	}
-	plan.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, privateEndpointIds)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -290,30 +196,27 @@ func (r *PrivateEndpointRegistrationResource) Delete(ctx context.Context, req re
 		return
 	}
 
-	remove := []PrivateEndpoint{}
-	for _, item := range state.PrivateEndpoints {
-		remove = append(remove, PrivateEndpoint{
-			CloudProvider: item.CloudProvider.ValueString(),
-			EndpointId:    item.EndpointId.ValueString(),
-			Region:        item.Region.ValueString(),
-		})
+	remove := []PrivateEndpoint{
+		{
+			CloudProvider: state.CloudProvider.ValueString(),
+			EndpointId:    state.EndpointId.ValueString(),
+			Region:        state.Region.ValueString(),
+		},
 	}
 
-	if len(remove) > 0 {
-		orgUpdate := OrganizationUpdate{
-			PrivateEndpoints: &OrgPrivateEndpointsUpdate{
-				Remove: remove,
-			},
-		}
+	orgUpdate := OrganizationUpdate{
+		PrivateEndpoints: &OrgPrivateEndpointsUpdate{
+			Remove: remove,
+		},
+	}
 
-		_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error Registering ClickHouse Organization Private Endpoint IDs",
-				"Could not update organization private endpoint IDs, unexpected error: "+err.Error(),
-			)
-			return
-		}
+	_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Registering ClickHouse Organization Private Endpoint IDs",
+			"Could not update organization private endpoint IDs, unexpected error: "+err.Error(),
+		)
+		return
 	}
 }
 
