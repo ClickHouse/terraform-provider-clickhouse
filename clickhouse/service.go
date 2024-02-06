@@ -311,14 +311,21 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	numErrors := 0
 	for {
 		s, err = r.client.GetService(s.Id)
 		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error retrieving service state",
-				"Could not retrieve service state after creation, unexpected error: "+err.Error(),
-			)
-			return
+			numErrors++
+			if numErrors > MAX_RETRY {
+				resp.Diagnostics.AddError(
+					"Error retrieving service state",
+					"Could not retrieve service state after creation, unexpected error: "+err.Error(),
+				)
+				return
+			} else {
+				time.Sleep(time.Second * 5)
+				continue
+			}
 		}
 
 		if s.State != "provisioning" {

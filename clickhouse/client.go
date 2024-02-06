@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+
 type Client struct {
 	BaseUrl        string
 	HttpClient     *http.Client
@@ -383,10 +384,17 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 		return nil, err
 	}
 
+	numErrors := 0
 	for {
 		service, err := c.GetService(serviceId)
 		if err != nil {
-			return nil, err
+			numErrors++
+			if (numErrors > MAX_RETRY) {
+				return nil, err
+			} else {
+				time.Sleep(5 * time.Second)
+				continue
+			}
 		}
 		stopped := service.State == "stopped"
 		if stopped {
