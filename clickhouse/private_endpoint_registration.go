@@ -101,19 +101,21 @@ func (r *PrivateEndpointRegistrationResource) Create(ctx context.Context, req re
 		})
 	}
 
-	orgUpdate := OrganizationUpdate{
-		PrivateEndpoints: &OrgPrivateEndpointsUpdate{
-			Add: add,
-		},
-	}
+	if len(add) > 0 {
+		orgUpdate := OrganizationUpdate{
+			PrivateEndpoints: &OrgPrivateEndpointsUpdate{
+				Add: add,
+			},
+		}
 
-	_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Registering ClickHouse Organization Private Endpoint IDs",
-			"Could not update organization private endpoint IDs, unexpected error: "+err.Error(),
-		)
-		return
+		_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error Registering ClickHouse Organization Private Endpoint IDs",
+				"Could not update organization private endpoint IDs, unexpected error: "+err.Error(),
+			)
+			return
+		}
 	}
 
 	privateEndpoints, err := r.client.GetOrganizationPrivateEndpoints()
@@ -295,19 +297,21 @@ func (r *PrivateEndpointRegistrationResource) Delete(ctx context.Context, req re
 		})
 	}
 
-	orgUpdate := OrganizationUpdate{
-		PrivateEndpoints: &OrgPrivateEndpointsUpdate{
-			Remove: remove,
-		},
-	}
+	if len(remove) > 0 {
+		orgUpdate := OrganizationUpdate{
+			PrivateEndpoints: &OrgPrivateEndpointsUpdate{
+				Remove: remove,
+			},
+		}
 
-	_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Registering ClickHouse Organization Private Endpoint IDs",
-			"Could not update organization private endpoint IDs, unexpected error: "+err.Error(),
-		)
-		return
+		_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error Registering ClickHouse Organization Private Endpoint IDs",
+				"Could not update organization private endpoint IDs, unexpected error: "+err.Error(),
+			)
+			return
+		}
 	}
 }
 

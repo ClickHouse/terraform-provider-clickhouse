@@ -645,7 +645,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		serviceChange = true
 		privateEndpointIdsRawOld := make([]types.String, 0, len(state.PrivateEndpointIds.Elements()))
 		privateEndpointIdsRawNew := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
-		plan.PrivateEndpointIds.ElementsAs(ctx, &privateEndpointIdsRawOld, false)
+		state.PrivateEndpointIds.ElementsAs(ctx, &privateEndpointIdsRawOld, false)
 		plan.PrivateEndpointIds.ElementsAs(ctx, &privateEndpointIdsRawNew, false)
 
 		privateEndpointIdsOld := []string{}
