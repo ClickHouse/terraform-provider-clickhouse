@@ -34,12 +34,7 @@ resource "clickhouse_service" "aws_red" {
   password_hash  = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
 
   // keep it empty to block access from internet
-  ip_access = [
-    {
-      source      = "8.8.8.8"
-      description = "Test IP"
-    }
-  ]
+  ip_access = []
 
   min_total_memory_gb  = 24
   max_total_memory_gb  = 360
@@ -72,7 +67,7 @@ resource "clickhouse_service" "aws_blue" {
   private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.id, clickhouse_private_endpoint_registration.private_endpoint_aws_bar.id]
 }
 
-// Private Link Service name for aws/${var.aws_region}, it is dynamic value
+// Private Link Service name for aws/${var.aws_region}
 data "clickhouse_private_endpoint_config" "endpoint_config" {
   cloud_provider = "aws"
   region         = var.aws_region
