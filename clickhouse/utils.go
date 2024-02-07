@@ -6,9 +6,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func createEmptyStringList() types.List {
-	var emptyStringArray, _ = types.ListValue(types.StringType, []attr.Value{})
-	return emptyStringArray
+func createEmptyList(listType attr.Type) types.List {
+	var emptyList, _ = types.ListValue(listType, []attr.Value{})
+	return emptyList
 }
 
 func diffArrays[T any, V comparable](a []T, b []T, hash func(T) V) ([]T, []T) {

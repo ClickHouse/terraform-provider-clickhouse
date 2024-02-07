@@ -203,7 +203,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				ElementType: types.StringType,
 				Optional:    true,
 				Computed:    true,
-				Default:     listdefault.StaticValue(createEmptyStringList()),
+				Default:     listdefault.StaticValue(createEmptyList(types.StringType)),
 			},
 		},
 	}
@@ -420,7 +420,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// default null config value to empty string array
 	if plan.PrivateEndpointIds.IsNull() {
-		plan.PrivateEndpointIds = createEmptyStringList()
+		plan.PrivateEndpointIds = createEmptyList(types.StringType)
 	} else {
 		plan.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, s.PrivateEndpointIds)
 	}
@@ -486,7 +486,7 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	// default null config value to empty string array
 	if state.PrivateEndpointIds.IsNull() {
-		state.PrivateEndpointIds = createEmptyStringList()
+		state.PrivateEndpointIds = createEmptyList(types.StringType)
 	} else {
 		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
 	}
@@ -823,7 +823,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	// default null config value to empty string array
 	if plan.PrivateEndpointIds.IsNull() {
-		state.PrivateEndpointIds = createEmptyStringList()
+		state.PrivateEndpointIds = createEmptyList(types.StringType)
 	} else {
 		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, s.PrivateEndpointIds)
 	}
