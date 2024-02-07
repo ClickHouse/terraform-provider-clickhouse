@@ -418,17 +418,11 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		"private_dns_hostname": types.StringValue(s.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
-	var privateEndpointIds []attr.Value
-	for _, item := range s.PrivateEndpointIds {
-		privateEndpointIds = append(privateEndpointIds, types.StringValue(item))
-	}
-	plan.PrivateEndpointIds, _ = types.ListValue(types.StringType, privateEndpointIds)
-
 	// default null config value to empty string array
 	if plan.PrivateEndpointIds.IsNull() {
-		plan.PrivateEndpointIds, _ = types.ListValue(types.StringType, []attr.Value{})
+		plan.PrivateEndpointIds = createEmptyStringList()
 	} else {
-		plan.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
+		plan.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, s.PrivateEndpointIds)
 	}
 
 	// Set state to fully populated data
@@ -492,7 +486,7 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	// default null config value to empty string array
 	if state.PrivateEndpointIds.IsNull() {
-		state.PrivateEndpointIds, _ = types.ListValue(types.StringType, []attr.Value{})
+		state.PrivateEndpointIds = createEmptyStringList()
 	} else {
 		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
 	}
@@ -829,7 +823,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	// default null config value to empty string array
 	if plan.PrivateEndpointIds.IsNull() {
-		state.PrivateEndpointIds, _ = types.ListValue(types.StringType, []attr.Value{})
+		state.PrivateEndpointIds = createEmptyStringList()
 	} else {
 		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, s.PrivateEndpointIds)
 	}
