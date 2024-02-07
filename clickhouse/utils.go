@@ -1,6 +1,15 @@
 package clickhouse
 
-import "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+import (
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+)
+
+func createEmptyStringList() types.List {
+	var emptyStringArray, _ = types.ListValue(types.StringType, []attr.Value{})
+	return emptyStringArray
+}
 
 func diffArrays[T any, V comparable](a []T, b []T, hash func(T) V) ([]T, []T) {
 	aSet := map[V]bool{}

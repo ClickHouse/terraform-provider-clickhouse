@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -201,6 +202,8 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "List of private endpoint IDs",
 				ElementType: types.StringType,
 				Optional:    true,
+				Computed:    true,
+				Default:     listdefault.StaticValue(createEmptyStringList()),
 			},
 		},
 	}
@@ -421,7 +424,12 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 	plan.PrivateEndpointIds, _ = types.ListValue(types.StringType, privateEndpointIds)
 
-	plan.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
+	// default null config value to empty string array
+	if plan.PrivateEndpointIds.IsNull() {
+		plan.PrivateEndpointIds, _ = types.ListValue(types.StringType, []attr.Value{})
+	} else {
+		plan.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
+	}
 
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
@@ -482,7 +490,12 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
-	state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
+	// default null config value to empty string array
+	if state.PrivateEndpointIds.IsNull() {
+		state.PrivateEndpointIds, _ = types.ListValue(types.StringType, []attr.Value{})
+	} else {
+		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
+	}
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -814,7 +827,12 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		"private_dns_hostname": types.StringValue(s.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
-	state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, s.PrivateEndpointIds)
+	// default null config value to empty string array
+	if plan.PrivateEndpointIds.IsNull() {
+		state.PrivateEndpointIds, _ = types.ListValue(types.StringType, []attr.Value{})
+	} else {
+		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, s.PrivateEndpointIds)
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
