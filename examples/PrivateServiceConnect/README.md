@@ -1,6 +1,6 @@
 ## GCP Private Service Connect example
 
-Tested with HashiCorp/Google v5.15.0 Terraform module. 
+Tested with HashiCorp/Google v5.15.0 Terraform provider. 
 
 The Terraform example code deploys the following resources:
 - GCP Private Service Connect endpoint & endpoint IP address
