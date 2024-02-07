@@ -291,6 +291,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	service.IpAccessList = []IpAccess{}
 	for _, item := range plan.IpAccessList {
 		service.IpAccessList = append(service.IpAccessList, IpAccess{
 			Source:      string(item.Source.ValueString()),
