@@ -198,7 +198,23 @@ func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 	return body, err
 }
 
-// GetOrder - Returns a specifc order
+func (c *Client) checkStatusCode(req *http.Request) (*int, error) {
+	credentials := fmt.Sprintf("%s:%s", c.TokenKey, c.TokenSecret)
+	base64Credentials := base64.StdEncoding.EncodeToString([]byte(credentials))
+	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
+	req.Header.Set("Authorization", authHeader)
+
+	res, err := c.HttpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	return &res.StatusCode, err
+}
+
+
+// GetService - Returns a specifc order
 func (c *Client) GetService(serviceId string) (*Service, error) {
 	req, err := http.NewRequest("GET", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
@@ -368,6 +384,20 @@ func (c *Client) UpdateServicePassword(serviceId string, u ServicePasswordUpdate
 	return &serviceResponse, nil
 }
 
+func (c *Client) GetServiceStatusCode(serviceId string) (*int, error) {
+	req, err := http.NewRequest("GET", c.getServicePath(serviceId, ""), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	statusCode, err := c.checkStatusCode(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return statusCode, nil
+}
+
 func (c *Client) DeleteService(serviceId string) (*Service, error) {
 	service, err := c.GetService(serviceId)
 	if err != nil {
@@ -425,6 +455,18 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	numErrors = 0
+	for {
+		statusCode, _ := c.GetServiceStatusCode(serviceId)
+
+		if *statusCode == 404 {
+			break
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+
 
 	return &serviceResponse.Result.Service, nil
 }
