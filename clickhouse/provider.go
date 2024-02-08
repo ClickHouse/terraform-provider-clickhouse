@@ -47,15 +47,15 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 			},
 			"organization_id": schema.StringAttribute{
 				Description: "ID of the organization the provider will create services under. Alternatively, can be configured using the `CLICKHOUSE_ORG_ID` environment variable.",
-				Required:    true,
+				Optional:    true,
 			},
 			"token_key": schema.StringAttribute{
 				Description: "Token key of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_TOKEN_KEY` environment variable.",
-				Required:    true,
+				Optional:    true,
 			},
 			"token_secret": schema.StringAttribute{
 				Description: "Token secret of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_TOKEN_SECRET` environment variable.",
-				Required:    true,
+				Optional:    true,
 				Sensitive:   true,
 			},
 		},
