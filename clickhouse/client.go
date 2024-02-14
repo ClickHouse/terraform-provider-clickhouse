@@ -68,15 +68,15 @@ type ServicePrivateEndpointConfig struct {
 
 type Service struct {
 	Id                    string                        `json:"id,omitempty"`
-	Name                  string                        `json:"name,omitempty"`
-	Provider              string                        `json:"provider,omitempty"`
-	Region                string                        `json:"region,omitempty"`
-	Tier                  string                        `json:"tier,omitempty"`
-	IdleScaling           bool                          `json:"idleScaling,omitempty"`
+	Name                  string                        `json:"name"`
+	Provider              string                        `json:"provider"`
+	Region                string                        `json:"region"`
+	Tier                  string                        `json:"tier"`
+	IdleScaling           bool                          `json:"idleScaling"`
 	IpAccessList          []IpAccess                    `json:"ipAccessList"`
-	MinTotalMemoryGb      int                           `json:"minTotalMemoryGb,omitempty"`
-	MaxTotalMemoryGb      int                           `json:"maxTotalMemoryGb,omitempty"`
-	IdleTimeoutMinutes    int                           `json:"idleTimeoutMinutes,omitempty"`
+	MinTotalMemoryGb      int                           `json:"minTotalMemoryGb"`
+	MaxTotalMemoryGb      int                           `json:"maxTotalMemoryGb"`
+	IdleTimeoutMinutes    int                           `json:"idleTimeoutMinutes"`
 	State                 string                        `json:"state,omitempty"`
 	Endpoints             []Endpoint                    `json:"endpoints,omitempty"`
 	IAMRole						    string                        `json:"iamRole,omitempty"`
