@@ -253,10 +253,21 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 
+
 		service.IdleScaling = bool(plan.IdleScaling.ValueBool())
-		service.MinTotalMemoryGb = int(plan.MinTotalMemoryGb.ValueInt64())
-		service.MaxTotalMemoryGb = int(plan.MaxTotalMemoryGb.ValueInt64())
-		service.IdleTimeoutMinutes = int(plan.IdleTimeoutMinutes.ValueInt64())
+
+		if !plan.MinTotalMemoryGb.IsNull() {
+			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
+			service.MinTotalMemoryGb = &minTotalMemoryGb
+		}
+		if !plan.MaxTotalMemoryGb.IsNull() {
+			maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
+			service.MaxTotalMemoryGb = &maxTotalMemoryGb
+		}
+		if !plan.IdleTimeoutMinutes.IsNull() {
+			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
+			service.IdleTimeoutMinutes = &idleTimeoutMinutes
+		}
 	}
 
 	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
@@ -384,13 +395,13 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		plan.IdleScaling = types.BoolValue(s.IdleScaling)
 
 		if !plan.MinTotalMemoryGb.IsNull() {
-			plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
+			plan.MinTotalMemoryGb = types.Int64Value(int64(*s.MinTotalMemoryGb))
 		}
 		if !plan.MaxTotalMemoryGb.IsNull() {
-			plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
+			plan.MaxTotalMemoryGb = types.Int64Value(int64(*s.MaxTotalMemoryGb))
 		}
 		if !plan.IdleTimeoutMinutes.IsNull() {
-			plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+			plan.IdleTimeoutMinutes = types.Int64Value(int64(*s.IdleTimeoutMinutes))
 		}
 	}
 
@@ -713,15 +724,24 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 	if plan.MinTotalMemoryGb != state.MinTotalMemoryGb {
 		scalingChange = true
-		serviceScaling.MinTotalMemoryGb = int(plan.MinTotalMemoryGb.ValueInt64())
+		if !plan.MinTotalMemoryGb.IsNull() {
+			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
+			serviceScaling.MinTotalMemoryGb = &minTotalMemoryGb
+		}
 	}
 	if plan.MaxTotalMemoryGb != state.MaxTotalMemoryGb {
 		scalingChange = true
-		serviceScaling.MaxTotalMemoryGb = int(plan.MaxTotalMemoryGb.ValueInt64())
+		if !plan.MaxTotalMemoryGb.IsNull() {
+			maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
+			serviceScaling.MaxTotalMemoryGb = &maxTotalMemoryGb
+		}
 	}
 	if plan.IdleTimeoutMinutes != state.IdleTimeoutMinutes {
 		scalingChange = true
-		serviceScaling.IdleTimeoutMinutes = int(plan.IdleTimeoutMinutes.ValueInt64())
+		if !plan.IdleTimeoutMinutes.IsNull() {
+			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
+			serviceScaling.IdleTimeoutMinutes = &idleTimeoutMinutes
+		}
 	}
 
 	if scalingChange {
@@ -793,13 +813,13 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	if s.Tier == "production" {
 		plan.IdleScaling = types.BoolValue(s.IdleScaling)
 		if !plan.MinTotalMemoryGb.IsNull() {
-			plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
+			plan.MinTotalMemoryGb = types.Int64Value(int64(*s.MinTotalMemoryGb))
 		}
 		if !plan.MaxTotalMemoryGb.IsNull() {
-			plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
+			plan.MaxTotalMemoryGb = types.Int64Value(int64(*s.MaxTotalMemoryGb))
 		}
 		if !plan.IdleTimeoutMinutes.IsNull() {
-			plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+			plan.IdleTimeoutMinutes = types.Int64Value(int64(*s.IdleTimeoutMinutes))
 		}
 	}
 
