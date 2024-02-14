@@ -245,10 +245,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 	} else if service.Tier == "production" {
-		if plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull() {
+		if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production",
+				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
 			)
 			return
 		}
@@ -382,9 +382,16 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	if s.Tier == "production" {
 		plan.IdleScaling = types.BoolValue(s.IdleScaling)
-		plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
-		plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
-		plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+
+		if !plan.MinTotalMemoryGb.IsNull() {
+			plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
+		}
+		if !plan.MaxTotalMemoryGb.IsNull() {
+			plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
+		}
+		if !plan.IdleTimeoutMinutes.IsNull() {
+			plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+		}
 	}
 
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
@@ -598,10 +605,10 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			return
 		}
 	} else if config.Tier.ValueString() == "production" {
-		if plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull() {
+		if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production",
+				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
 			)
 			return
 		}
@@ -785,9 +792,15 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	if s.Tier == "production" {
 		plan.IdleScaling = types.BoolValue(s.IdleScaling)
-		plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
-		plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
-		plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+		if !plan.MinTotalMemoryGb.IsNull() {
+			plan.MinTotalMemoryGb = types.Int64Value(int64(s.MinTotalMemoryGb))
+		}
+		if !plan.MaxTotalMemoryGb.IsNull() {
+			plan.MaxTotalMemoryGb = types.Int64Value(int64(s.MaxTotalMemoryGb))
+		}
+		if !plan.IdleTimeoutMinutes.IsNull() {
+			plan.IdleTimeoutMinutes = types.Int64Value(int64(s.IdleTimeoutMinutes))
+		}
 	}
 
 	for ipAccessIndex, ipAccess := range s.IpAccessList {
