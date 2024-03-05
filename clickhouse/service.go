@@ -114,7 +114,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Sensitive: true,
 			},
 			"cloud_provider": schema.StringAttribute{
-				Description: "Cloud provider ('aws' or 'gcp') in which the service is deployed in.",
+				Description: "Cloud provider ('aws', 'gcp', or 'azure') in which the service is deployed in.",
 				Required:    true,
 			},
 			"region": schema.StringAttribute{
