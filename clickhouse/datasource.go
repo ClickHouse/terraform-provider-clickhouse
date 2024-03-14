@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	CloudProviderGCP = "gcp"
 	CloudProviderAWS = "aws"
+	CloudProviderGCP = "gcp"
+	CloudProviderAzure = "azure"
 )
 
 // Ensure the implementation satisfies the desired interfaces.
@@ -50,10 +51,10 @@ func (d *privateEndpointConfigDataSource) Schema(ctx context.Context, req dataso
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"cloud_provider": schema.StringAttribute{
-				Description: "The cloud provider for the private endpoint. Valid values are 'aws' or 'gcp'.",
+				Description: "The cloud provider for the private endpoint. Valid values are 'aws', 'gcp', or 'azure'.",
 				Required:    true,
 				Validators: []validator.String{
-					stringvalidator.OneOf(CloudProviderAWS, CloudProviderGCP),
+					stringvalidator.OneOf(CloudProviderAWS, CloudProviderGCP, CloudProviderAzure),
 				},
 			},
 			"region": schema.StringAttribute{
