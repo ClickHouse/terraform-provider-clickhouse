@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -269,10 +270,18 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				return
 			}
 
-			if plan.EncryptionKey.IsNull() != plan.EncryptionAssumedRoleIdentifier.IsNull(){
+			if (plan.EncryptionKey.IsNull() != plan.EncryptionAssumedRoleIdentifier.IsNull()) {
 				resp.Diagnostics.AddError(
 					"Invalid Configuration",
 					"both the encryption_key and the encryption_assumed_role_identifier must be defined",
+				)
+				return
+			}
+
+			if (!plan.EncryptionKey.IsNull() && !plan.EncryptionAssumedRoleIdentifier.IsNull() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 ) {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"both the encryption_key and the encryption_assumed_role_identifier cannot be defined for aws services",
 				)
 				return
 			}
