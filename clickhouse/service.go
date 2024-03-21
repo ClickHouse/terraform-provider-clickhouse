@@ -52,6 +52,7 @@ type ServiceResourceModel struct {
 	LastUpdated            types.String    `tfsdk:"last_updated"`
 	PrivateEndpointConfig  types.Object    `tfsdk:"private_endpoint_config"`
 	PrivateEndpointIds     types.List      `tfsdk:"private_endpoint_ids"`
+	ManagedEncryption      types.Object    `tfsdk:"managed_encryption"`
 }
 
 var endpointObjectType = types.ObjectType{
@@ -71,6 +72,13 @@ var privateEndpointConfigType = types.ObjectType{
 	AttrTypes: map[string]attr.Type{
 		"endpoint_service_id":  types.StringType,
 		"private_dns_hostname": types.StringType,
+	},
+}
+
+var managedEncryptionType = types.ObjectType{
+	AttrTypes: map[string]attr.Type{
+		"key_arn":  types.StringType,
+		"assume_role_arn": types.StringType,
 	},
 }
 
@@ -205,6 +213,20 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 				Default:     listdefault.StaticValue(createEmptyList(types.StringType)),
 			},
+			"managed_encryption": schema.SingleNestedAttribute{
+				Description: "Custom managed encryption",
+				Computed:    true,
+				Attributes:  map[string]schema.Attribute{
+					"key_arn": schema.StringAttribute{
+						Description: "Key arn",
+						Computed:    true,
+					},
+					"assume_role_arn": schema.StringAttribute{
+						Description: "Assume role arn",
+						Computed:    true,
+					},
+				},
+			},
 		},
 	}
 }
@@ -245,30 +267,30 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 	} else if service.Tier == "production" {
-		if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
-			)
-			return
-		}
+			if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
+				)
+				return
+			}
 
 
-		service.IdleScaling = bool(plan.IdleScaling.ValueBool())
+			service.IdleScaling = bool(plan.IdleScaling.ValueBool())
 
-		if !plan.MinTotalMemoryGb.IsNull() {
-			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
-			service.MinTotalMemoryGb = &minTotalMemoryGb
+			if !plan.MinTotalMemoryGb.IsNull() {
+				minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
+				service.MinTotalMemoryGb = &minTotalMemoryGb
+			}
+			if !plan.MaxTotalMemoryGb.IsNull() {
+				maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
+				service.MaxTotalMemoryGb = &maxTotalMemoryGb
+			}
+			if !plan.IdleTimeoutMinutes.IsNull() {
+				idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
+				service.IdleTimeoutMinutes = &idleTimeoutMinutes
+			}
 		}
-		if !plan.MaxTotalMemoryGb.IsNull() {
-			maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
-			service.MaxTotalMemoryGb = &maxTotalMemoryGb
-		}
-		if !plan.IdleTimeoutMinutes.IsNull() {
-			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
-			service.IdleTimeoutMinutes = &idleTimeoutMinutes
-		}
-	}
 
 	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
 		resp.Diagnostics.AddError(
@@ -444,6 +466,11 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		plan.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, s.PrivateEndpointIds)
 	}
 
+	plan.ManagedEncryption, _ = types.ObjectValue(managedEncryptionType.AttrTypes, map[string]attr.Value{
+		"key_arn":  types.StringValue(s.ManagedEncryption.KeyArn),
+		"assume_role_arn": types.StringValue(s.ManagedEncryption.AssumeRoleArn),
+	})
+
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -501,6 +528,11 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 	state.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
 		"endpoint_service_id":  types.StringValue(service.PrivateEndpointConfig.EndpointServiceId),
 		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
+	})
+
+	state.ManagedEncryption, _ = types.ObjectValue(managedEncryptionType.AttrTypes, map[string]attr.Value{
+		"key_arn":         types.StringValue(service.ManagedEncryption.KeyArn),
+		"assume_role_arn": types.StringValue(service.ManagedEncryption.AssumeRoleArn),
 	})
 
 	// default null config value to empty string array

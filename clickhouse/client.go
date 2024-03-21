@@ -65,6 +65,10 @@ type ServicePrivateEndpointConfig struct {
 	EndpointServiceId  string `json:"endpointServiceId,omitempty"`
 	PrivateDnsHostname string `json:"privateDnsHostname,omitempty"`
 }
+type ServiceManagedEncription struct {
+	KeyArn        string `json:"keyArn,omitempty"`
+	AssumeRoleArn string `json:"assumeRoleArn,omitempty"`
+}
 
 type Service struct {
 	Id                    string                        `json:"id,omitempty"`
@@ -82,6 +86,7 @@ type Service struct {
 	IAMRole						    string                        `json:"iamRole,omitempty"`
 	PrivateEndpointConfig *ServicePrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
 	PrivateEndpointIds    []string                      `json:"privateEndpointIds,omitempty"`
+	ManagedEncryption    	*ServiceManagedEncription   	`json:"managedEncription,omitempty"`
 }
 
 type ServiceUpdate struct {
