@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -34,24 +35,26 @@ type ServiceResource struct {
 }
 
 type ServiceResourceModel struct {
-	ID                     types.String    `tfsdk:"id"`
-	Name                   types.String    `tfsdk:"name"`
-	Password               types.String    `tfsdk:"password"`
-	PasswordHash           types.String    `tfsdk:"password_hash"`
-	DoubleSha1PasswordHash types.String    `tfsdk:"double_sha1_password_hash"`
-	Endpoints              types.List      `tfsdk:"endpoints"`
-	CloudProvider          types.String    `tfsdk:"cloud_provider"`
-	Region                 types.String    `tfsdk:"region"`
-	Tier                   types.String    `tfsdk:"tier"`
-	IdleScaling            types.Bool      `tfsdk:"idle_scaling"`
-	IpAccessList           []IpAccessModel `tfsdk:"ip_access"`
-	MinTotalMemoryGb       types.Int64     `tfsdk:"min_total_memory_gb"`
-	MaxTotalMemoryGb       types.Int64     `tfsdk:"max_total_memory_gb"`
-	IdleTimeoutMinutes     types.Int64     `tfsdk:"idle_timeout_minutes"`
-	IAMRole							   types.String    `tfsdk:"iam_role"`
-	LastUpdated            types.String    `tfsdk:"last_updated"`
-	PrivateEndpointConfig  types.Object    `tfsdk:"private_endpoint_config"`
-	PrivateEndpointIds     types.List      `tfsdk:"private_endpoint_ids"`
+	ID                     									types.String    `tfsdk:"id"`
+	Name                   									types.String    `tfsdk:"name"`
+	Password               									types.String    `tfsdk:"password"`
+	PasswordHash           									types.String    `tfsdk:"password_hash"`
+	DoubleSha1PasswordHash 									types.String    `tfsdk:"double_sha1_password_hash"`
+	Endpoints              									types.List      `tfsdk:"endpoints"`
+	CloudProvider          									types.String    `tfsdk:"cloud_provider"`
+	Region                 									types.String    `tfsdk:"region"`
+	Tier                   									types.String    `tfsdk:"tier"`
+	IdleScaling            									types.Bool      `tfsdk:"idle_scaling"`
+	IpAccessList           									[]IpAccessModel `tfsdk:"ip_access"`
+	MinTotalMemoryGb       									types.Int64     `tfsdk:"min_total_memory_gb"`
+	MaxTotalMemoryGb       									types.Int64     `tfsdk:"max_total_memory_gb"`
+	IdleTimeoutMinutes     									types.Int64     `tfsdk:"idle_timeout_minutes"`
+	IAMRole							   									types.String    `tfsdk:"iam_role"`
+	LastUpdated            									types.String    `tfsdk:"last_updated"`
+	PrivateEndpointConfig  									types.Object    `tfsdk:"private_endpoint_config"`
+	PrivateEndpointIds     									types.List      `tfsdk:"private_endpoint_ids"`
+	EncryptionKey			     									types.String    `tfsdk:"encryption_key"`
+	EncryptionAssumedRoleIdentifier 				types.String    `tfsdk:"encryption_assumed_role_identifier"`
 }
 
 var endpointObjectType = types.ObjectType{
@@ -205,6 +208,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 				Default:     listdefault.StaticValue(createEmptyList(types.StringType)),
 			},
+			"encryption_key": schema.StringAttribute{
+				Description: "Custom encryption key arn",
+				Optional:    true,
+			},
+			"encryption_assumed_role_identifier": schema.StringAttribute{
+				Description: "Custom role identifier arn ",
+				Optional:    true,
+			},
 		},
 	}
 }
@@ -244,31 +255,60 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			)
 			return
 		}
-	} else if service.Tier == "production" {
-		if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
+
+		if !plan.EncryptionKey.IsNull() || !plan.EncryptionAssumedRoleIdentifier.IsNull(){
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
+				"custom managed encryption cannot be defined if the service tier is development",
 			)
 			return
 		}
+	} else if service.Tier == "production" {
+			if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
+				)
+				return
+			}
 
+			if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionKey.IsNull() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"encryption_assumed_role_identifier cannot be defined without encryption_key as well",
+				)
+				return
+			}
 
-		service.IdleScaling = bool(plan.IdleScaling.ValueBool())
+			if (!plan.EncryptionKey.IsNull() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 ) {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"encryption_key and the encryption_assumed_role_identifier is only available for aws services",
+				)
+				return
+			}
 
-		if !plan.MinTotalMemoryGb.IsNull() {
-			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
-			service.MinTotalMemoryGb = &minTotalMemoryGb
+			service.IdleScaling = bool(plan.IdleScaling.ValueBool())
+
+			if !plan.MinTotalMemoryGb.IsNull() {
+				minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
+				service.MinTotalMemoryGb = &minTotalMemoryGb
+			}
+			if !plan.MaxTotalMemoryGb.IsNull() {
+				maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
+				service.MaxTotalMemoryGb = &maxTotalMemoryGb
+			}
+			if !plan.IdleTimeoutMinutes.IsNull() {
+				idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
+				service.IdleTimeoutMinutes = &idleTimeoutMinutes
+			}
+			if !plan.EncryptionKey.IsNull() {
+				service.EncryptionKey = string(plan.EncryptionKey.ValueString())
+			}
+			if !plan.EncryptionAssumedRoleIdentifier.IsNull() {
+				service.EncryptionAssumedRoleIdentifier = string(plan.EncryptionAssumedRoleIdentifier.ValueString())
+			}
 		}
-		if !plan.MaxTotalMemoryGb.IsNull() {
-			maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
-			service.MaxTotalMemoryGb = &maxTotalMemoryGb
-		}
-		if !plan.IdleTimeoutMinutes.IsNull() {
-			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
-			service.IdleTimeoutMinutes = &idleTimeoutMinutes
-		}
-	}
 
 	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
 		resp.Diagnostics.AddError(
@@ -503,6 +543,9 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
+	state.EncryptionKey = types.StringValue(service.EncryptionKey)
+	state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
+
 	// default null config value to empty string array
 	if state.PrivateEndpointIds.IsNull() {
 		state.PrivateEndpointIds = createEmptyList(types.StringType)
@@ -604,6 +647,22 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			path.Root("double_sha1_password_hash"),
 			"Invalid Update",
 			"`double_sha1_password_hash` cannot be specified without `password_hash`",
+		)
+	}
+
+	if !plan.EncryptionKey.IsNull() && plan.EncryptionKey != state.EncryptionKey {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("encryption_key"),
+			"Invalid Update",
+			"ClickHouse does not support changing encryption_key",
+		)
+	}
+
+	if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionAssumedRoleIdentifier != state.EncryptionAssumedRoleIdentifier {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("encryption_assumed_role_identifier"),
+			"Invalid Update",
+			"ClickHouse does not support changing encryption_assumed_role_identifier",
 		)
 	}
 
