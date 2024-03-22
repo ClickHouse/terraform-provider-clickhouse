@@ -210,9 +210,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"encryption_key": schema.StringAttribute{
 				Description: "Custom encryption key arn",
+				Optional:    true,
 			},
 			"encryption_assumed_role_identifier": schema.StringAttribute{
 				Description: "Custom role identifier arn ",
+				Optional:    true,
 			},
 		},
 	}
@@ -270,18 +272,18 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				return
 			}
 
-			if (plan.EncryptionKey.IsNull() != plan.EncryptionAssumedRoleIdentifier.IsNull()) {
+			if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionKey.IsNull() {
 				resp.Diagnostics.AddError(
 					"Invalid Configuration",
-					"both the encryption_key and the encryption_assumed_role_identifier must be defined",
+					"encryption_assumed_role_identifier cannot be defined without encryption_key as well",
 				)
 				return
 			}
 
-			if (!plan.EncryptionKey.IsNull() && !plan.EncryptionAssumedRoleIdentifier.IsNull() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 ) {
+			if (!plan.EncryptionKey.IsNull() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 ) {
 				resp.Diagnostics.AddError(
 					"Invalid Configuration",
-					"both the encryption_key and the encryption_assumed_role_identifier cannot be defined for aws services",
+					"encryption_key and the encryption_assumed_role_identifier is only available for aws services",
 				)
 				return
 			}
@@ -300,8 +302,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
 				service.IdleTimeoutMinutes = &idleTimeoutMinutes
 			}
-			if !plan.EncryptionKey.IsNull() && !plan.EncryptionAssumedRoleIdentifier.IsNull(){
+			if !plan.EncryptionKey.IsNull() {
 				service.EncryptionKey = string(plan.EncryptionKey.ValueString())
+			}
+			if !plan.EncryptionAssumedRoleIdentifier.IsNull() {
 				service.EncryptionAssumedRoleIdentifier = string(plan.EncryptionAssumedRoleIdentifier.ValueString())
 			}
 		}
@@ -646,7 +650,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		)
 	}
 
-	if !plan.EncryptionKey.IsNull() &&  plan.EncryptionKey != state.EncryptionKey {
+	if !plan.EncryptionKey.IsNull() && plan.EncryptionKey != state.EncryptionKey {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("encryption_key"),
 			"Invalid Update",
@@ -654,7 +658,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		)
 	}
 
-	if !plan.EncryptionKey.IsNull() &&  plan.EncryptionKey != state.EncryptionKey {
+	if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionAssumedRoleIdentifier != state.EncryptionAssumedRoleIdentifier {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("encryption_assumed_role_identifier"),
 			"Invalid Update",
