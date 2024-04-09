@@ -65,23 +65,29 @@ type ServicePrivateEndpointConfig struct {
 	EndpointServiceId  string `json:"endpointServiceId,omitempty"`
 	PrivateDnsHostname string `json:"privateDnsHostname,omitempty"`
 }
+type ServiceManagedEncryption struct {
+	KeyArn        string `json:"keyArn,omitempty"`
+	AssumeRoleArn string `json:"assumeRoleArn,omitempty"`
+}
 
 type Service struct {
-	Id                    string                        `json:"id,omitempty"`
-	Name                  string                        `json:"name"`
-	Provider              string                        `json:"provider"`
-	Region                string                        `json:"region"`
-	Tier                  string                        `json:"tier"`
-	IdleScaling           bool                          `json:"idleScaling"`
-	IpAccessList          []IpAccess                    `json:"ipAccessList"`
-	MinTotalMemoryGb      *int                          `json:"minTotalMemoryGb,omitempty"`
-	MaxTotalMemoryGb      *int                          `json:"maxTotalMemoryGb,omitempty"`
-	IdleTimeoutMinutes    *int                          `json:"idleTimeoutMinutes,omitempty"`
-	State                 string                        `json:"state,omitempty"`
-	Endpoints             []Endpoint                    `json:"endpoints,omitempty"`
-	IAMRole						    string                        `json:"iamRole,omitempty"`
-	PrivateEndpointConfig *ServicePrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
-	PrivateEndpointIds    []string                      `json:"privateEndpointIds,omitempty"`
+	Id                    						string                        `json:"id,omitempty"`
+	Name                  						string                        `json:"name"`
+	Provider              						string                        `json:"provider"`
+	Region                						string                        `json:"region"`
+	Tier                  						string                        `json:"tier"`
+	IdleScaling           						bool                          `json:"idleScaling"`
+	IpAccessList          						[]IpAccess                    `json:"ipAccessList"`
+	MinTotalMemoryGb      						*int                          `json:"minTotalMemoryGb,omitempty"`
+	MaxTotalMemoryGb      						*int                          `json:"maxTotalMemoryGb,omitempty"`
+	IdleTimeoutMinutes    						*int                          `json:"idleTimeoutMinutes,omitempty"`
+	State                 						string                        `json:"state,omitempty"`
+	Endpoints             						[]Endpoint                    `json:"endpoints,omitempty"`
+	IAMRole						    						string                        `json:"iamRole,omitempty"`
+	PrivateEndpointConfig 						*ServicePrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
+	PrivateEndpointIds    						[]string                      `json:"privateEndpointIds,omitempty"`
+	EncryptionKey    									string   											`json:"encryptionKey,omitempty"`
+	EncryptionAssumedRoleIdentifier		string												`json:"encryptionAssumedRoleIdentifier,omitempty"`
 }
 
 type ServiceUpdate struct {
