@@ -2,7 +2,6 @@ package clickhouse
 
 import (
 	"context"
-
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -39,7 +38,7 @@ func (r *PrivateEndpointRegistrationResource) Schema(_ context.Context, _ resour
 		Attributes: map[string]schema.Attribute{
 			"cloud_provider": schema.StringAttribute{
 				Description: "Cloud provider of the private endpoint ID",
-				Required: true,
+				Required:    true,
 			},
 			"description": schema.StringAttribute{
 				Description: "Description of the private endpoint",
@@ -122,11 +121,11 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 
 	var privateEndpoint *PrivateEndpoint
 	for _, pe := range *privateEndpoints {
-		if pe.CloudProvider == state.CloudProvider.ValueString() &&
-			pe.EndpointId == state.EndpointId.ValueString() &&
-			pe.Region == state.Region.ValueString() {
-				privateEndpoint = &pe
-				break
+
+		// openapi validator guarantees uniqueness by ID
+		if pe.EndpointId == state.EndpointId.ValueString() {
+			privateEndpoint = &pe
+			break
 		}
 	}
 
@@ -136,6 +135,8 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 	}
 
 	state.Description = types.StringValue(privateEndpoint.Description)
+	state.Region = types.StringValue(privateEndpoint.Region)
+	state.CloudProvider = types.StringValue(privateEndpoint.CloudProvider)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -153,7 +154,7 @@ func (r *PrivateEndpointRegistrationResource) Update(ctx context.Context, req re
 
 	orgUpdate := OrganizationUpdate{
 		PrivateEndpoints: &OrgPrivateEndpointsUpdate{
-		Add: []PrivateEndpoint{
+			Add: []PrivateEndpoint{
 				{
 					CloudProvider: plan.CloudProvider.ValueString(),
 					Description:   plan.Description.ValueString(),
