@@ -13,7 +13,7 @@ description: |-
 
 ### Required
 
-- `cloud_provider` (String) The cloud provider for the private endpoint. Valid values are 'aws', 'gcp', or 'azure'.
+- `cloud_provider` (String) The cloud provider for the private endpoint. Valid values are 'aws' or 'gcp''.
 - `region` (String) The region for the private endpoint. Valid values are specific to the cloud provider i.e. us-east-2
 
 ### Read-Only
