@@ -240,6 +240,8 @@ func (c *Client) GetService(serviceId string) (*Service, error) {
 
 	service := serviceResponse.Result
 
+	// The /privateEndpointConfig is not implemented yet for 
+	// azure instances
 	if serviceResponse.Result.Provider == "azure" {
 		return &service, nil
 	}
