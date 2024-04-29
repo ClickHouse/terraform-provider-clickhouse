@@ -923,10 +923,19 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	state.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	state.IAMRole = types.StringValue(service.IAMRole)
 
-	state.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-		"endpoint_service_id":  types.StringValue(service.PrivateEndpointConfig.EndpointServiceId),
-		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
-	})
+	if service.PrivateEndpointConfig != nil {
+    // Assign values to state.PrivateEndpointConfig using service.PrivateEndpointConfig fields
+    state.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
+        "endpoint_service_id":  types.StringValue(service.PrivateEndpointConfig.EndpointServiceId),
+        "private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
+    })
+	} else {
+    // If service.PrivateEndpointConfig is nil, assign default or empty values
+    state.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
+        "endpoint_service_id":  types.StringValue(""),
+        "private_dns_hostname": types.StringValue(""),
+    })
+	}
 
 	state.EncryptionKey = types.StringValue(service.EncryptionKey)
 	state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
