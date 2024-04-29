@@ -243,6 +243,13 @@ func (c *Client) GetService(serviceId string) (*Service, error) {
 	// The /privateEndpointConfig is not implemented yet for 
 	// azure instances
 	if serviceResponse.Result.Provider == "azure" {
+
+		privateEndpoint := ServicePrivateEndpointConfig{
+			EndpointServiceId:   "",
+			PrivateDnsHostname:  "",
+		}
+		
+		service.PrivateEndpointConfig = &privateEndpoint
 		return &service, nil
 	}
 
