@@ -426,7 +426,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Map response body to schema and populate Computed attribute values
 	plan.ID = types.StringValue(s.Id)
-	err = r.syncServiceState(ctx, &plan)
+	err = r.syncServiceState(ctx, &plan, true)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading ClickHouse Service",
@@ -452,7 +452,7 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	err := r.syncServiceState(ctx, &state)
+	err := r.syncServiceState(ctx, &state, false)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading ClickHouse Service",
@@ -768,66 +768,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	s, _ := r.client.GetService(serviceId)
-
-	// Update resource state with updated items and timestamp
-	plan.ID = types.StringValue(s.Id)
-	plan.Name = types.StringValue(s.Name)
-	plan.CloudProvider = types.StringValue(s.Provider)
-	plan.Region = types.StringValue(s.Region)
-	plan.Tier = types.StringValue(s.Tier)
-
-	if s.Tier == "production" {
-		plan.IdleScaling = types.BoolValue(s.IdleScaling)
-		if !plan.MinTotalMemoryGb.IsNull() {
-			plan.MinTotalMemoryGb = types.Int64Value(int64(*s.MinTotalMemoryGb))
-		}
-		if !plan.MaxTotalMemoryGb.IsNull() {
-			plan.MaxTotalMemoryGb = types.Int64Value(int64(*s.MaxTotalMemoryGb))
-		}
-		if !plan.IdleTimeoutMinutes.IsNull() {
-			plan.IdleTimeoutMinutes = types.Int64Value(int64(*s.IdleTimeoutMinutes))
-		}
-	}
-
-	for ipAccessIndex, ipAccess := range s.IpAccessList {
-		stateIpAccess := IpAccessModel{
-			Source: types.StringValue(ipAccess.Source),
-		}
-
-		if !plan.IpAccessList[ipAccessIndex].Description.IsNull() {
-			stateIpAccess.Description = types.StringValue(ipAccess.Description)
-		}
-
-		plan.IpAccessList[ipAccessIndex] = stateIpAccess
-	}
-
-	var values []attr.Value
-	for _, endpoint := range s.Endpoints {
-		obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
-			"protocol": types.StringValue(endpoint.Protocol),
-			"host":     types.StringValue(endpoint.Host),
-			"port":     types.Int64Value(int64(endpoint.Port)),
-		})
-
-		values = append(values, obj)
-	}
-	plan.Endpoints, _ = types.ListValue(endpointObjectType, values)
-
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-	plan.IAMRole = types.StringValue(s.IAMRole)
-
-	plan.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-		"endpoint_service_id":  types.StringValue(s.PrivateEndpointConfig.EndpointServiceId),
-		"private_dns_hostname": types.StringValue(s.PrivateEndpointConfig.PrivateDnsHostname),
-	})
-
-	// default null config value to empty string array
-	if plan.PrivateEndpointIds.IsNull() {
-		state.PrivateEndpointIds = createEmptyList(types.StringType)
-	} else {
-		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, s.PrivateEndpointIds)
-	}
+	r.syncServiceState(ctx, &plan, true)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -863,7 +804,7 @@ func (r *ServiceResource) ImportState(ctx context.Context, req resource.ImportSt
 }
 
 // syncServiceState fetches the latest state ClickHouse Cloud API and updates the Terraform state.
-func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceResourceModel) error {
+func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceResourceModel, updateTimestamp bool) error {
 	if state.ID.IsNull() {
 		return errors.New("service ID must be reset to fetch the service")
 	}
@@ -881,10 +822,18 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	state.Tier = types.StringValue(service.Tier)
 
 	if service.Tier == "production" {
-		state.IdleScaling = types.BoolValue(service.IdleScaling)
-		state.MinTotalMemoryGb = types.Int64Value(int64(*service.MinTotalMemoryGb))
-		state.MaxTotalMemoryGb = types.Int64Value(int64(*service.MaxTotalMemoryGb))
-		state.IdleTimeoutMinutes = types.Int64Value(int64(*service.IdleTimeoutMinutes))
+		if !state.IdleScaling.IsNull() {
+			state.IdleScaling = types.BoolValue(service.IdleScaling)
+		}
+		if !state.MinTotalMemoryGb.IsNull() {
+			state.MinTotalMemoryGb = types.Int64Value(int64(*service.MinTotalMemoryGb))
+		}
+		if !state.MaxTotalMemoryGb.IsNull() {
+			state.MaxTotalMemoryGb = types.Int64Value(int64(*service.MaxTotalMemoryGb))
+		}
+		if !state.IdleTimeoutMinutes.IsNull() {
+			state.IdleTimeoutMinutes = types.Int64Value(int64(*service.IdleTimeoutMinutes))
+		}
 	}
 
 	ipAccessList := []IpAccessModel{}
@@ -920,7 +869,6 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	}
 	state.Endpoints, _ = types.ListValue(endpointObjectType, endpoints)
 
-	state.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	state.IAMRole = types.StringValue(service.IAMRole)
 
 	state.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
@@ -928,13 +876,21 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
-	state.EncryptionKey = types.StringValue(service.EncryptionKey)
-	state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
+	if !state.EncryptionKey.IsNull() {
+		state.EncryptionKey = types.StringValue(service.EncryptionKey)
+	}
+	if !state.EncryptionAssumedRoleIdentifier.IsNull() {
+		state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
+	}
 
 	if len(service.PrivateEndpointIds) == 0 {
 		state.PrivateEndpointIds = createEmptyList(types.StringType)
 	} else {
 		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
+	}
+
+	if updateTimestamp {
+		state.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	}
 
 	return nil
