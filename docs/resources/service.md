@@ -56,7 +56,7 @@ Optional:
 - `description` (String) Description of the IP address.
 
 
-## Argument Reference
+## Attribute Reference
 
 - `endpoints` (Attributes List) List of public endpoints. (see [below for nested schema](#nestedatt--endpoints))
 - `iam_role` (String) IAM role used for accessing objects in s3.
