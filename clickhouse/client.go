@@ -240,19 +240,6 @@ func (c *Client) GetService(serviceId string) (*Service, error) {
 
 	service := serviceResponse.Result
 
-	// The /privateEndpointConfig endpoint is not implemented yet for 
-	// azure instances
-	if serviceResponse.Result.Provider == "azure" {
-
-		privateEndpoint := ServicePrivateEndpointConfig{
-			EndpointServiceId:   "",
-			PrivateDnsHostname:  "",
-		}
-
-		service.PrivateEndpointConfig = &privateEndpoint
-		return &service, nil
-	}
-
 	req, err = http.NewRequest("GET", c.getServicePath(serviceId, "/privateEndpointConfig"), nil)
 	if err != nil {
 		return nil, err
