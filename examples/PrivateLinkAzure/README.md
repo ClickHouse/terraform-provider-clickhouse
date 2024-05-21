@@ -26,4 +26,4 @@ Azure's Terraform provider does not expose the Private Endpoint UUID, which mean
 2. [Obtain Private Endpoint UUID](https://clickhouse.com/docs/en/cloud/security/azure-privatelink#obtaining-private-endpoint-resourceguid) for foo and bar endpoints.
 3. Second Run: set `private_endpoint_azure_bar_uuid` `private_endpoint_azure_foo_uuid`. This time Private Endpoints will be added to organization and instance allow list.
 
-There is [an open issue](https://github.com/hashicorp/terraform-provider-azurerm/issues/17011) to fix it.
+There is [an open issue](https://github.com/hashicorp/terraform-provider-azurerm/issues/17011) to address this problem.
