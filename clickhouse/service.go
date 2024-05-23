@@ -50,6 +50,7 @@ type ServiceResourceModel struct {
 	IpAccessList           []IpAccessModel `tfsdk:"ip_access"`
 	MinTotalMemoryGb       types.Int64     `tfsdk:"min_total_memory_gb"`
 	MaxTotalMemoryGb       types.Int64     `tfsdk:"max_total_memory_gb"`
+	NumReplicas            types.Int64     `tfsdk:"num_replicas"`
 	IdleTimeoutMinutes     types.Int64     `tfsdk:"idle_timeout_minutes"`
 	IAMRole                types.String    `tfsdk:"iam_role"`
 	LastUpdated            types.String    `tfsdk:"last_updated"`
@@ -181,6 +182,10 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Maximum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 			},
+			"num_replicas": schema.Int64Attribute{
+				Description: "Number of replicas for the service. Available only for 'production' services. Must be greater than 3 and less than 25. Contact support to enable this feature.",
+				Optional:    true,
+			},
 			"idle_timeout_minutes": schema.Int64Attribute{
 				Description: "Set minimum idling timeout (in minutes). Available only for 'production' services. Must be greater than or equal to 5 minutes.",
 				Optional:    true,
@@ -306,6 +311,13 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			if !plan.MaxTotalMemoryGb.IsNull() {
 				maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
 				service.MaxTotalMemoryGb = &maxTotalMemoryGb
+			}
+			if !plan.NumReplicas.IsNull() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"num_replicas cannot be defined on a new service, only on existing services",
+				)
+				return
 			}
 			if !plan.IdleTimeoutMinutes.IsNull() {
 				idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
@@ -711,6 +723,13 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			serviceScaling.MaxTotalMemoryGb = &maxTotalMemoryGb
 		}
 	}
+	if plan.NumReplicas != state.NumReplicas {
+		scalingChange = true
+		if !plan.NumReplicas.IsNull() {
+			numReplicas := int(plan.NumReplicas.ValueInt64())
+			serviceScaling.NumReplicas = &numReplicas
+		}
+	}
 	if plan.IdleTimeoutMinutes != state.IdleTimeoutMinutes {
 		scalingChange = true
 		if !plan.IdleTimeoutMinutes.IsNull() {
@@ -838,6 +857,9 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 		}
 		if !state.MaxTotalMemoryGb.IsNull() {
 			state.MaxTotalMemoryGb = types.Int64Value(int64(*service.MaxTotalMemoryGb))
+		}
+		if !state.NumReplicas.IsNull() {
+			state.NumReplicas = types.Int64Value(int64(*service.NumReplicas))
 		}
 		if !state.IdleTimeoutMinutes.IsNull() {
 			state.IdleTimeoutMinutes = types.Int64Value(int64(*service.IdleTimeoutMinutes))
