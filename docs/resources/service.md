@@ -32,7 +32,7 @@ description: |-
 - `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Available only for 'production' services. Must be greater than or equal to 5 minutes.
 - `max_total_memory_gb` (Number) Maximum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.
 - `min_total_memory_gb` (Number) Minimum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and greater than 24.
-- `num_replicas` (Number) Number of replicas for the service. Available only for 'production' services. Must be greater than 3 and less than 25. Contact support to enable this feature.
+- `num_replicas` (Number) Number of replicas for the service. Can only be specified for an existing service. Available only for 'production' services. Must be greater than or equal to 3 and less than or equal to 20. Contact support to enable this feature.
 - `password` (String, Sensitive) Password for the default user. One of either `password` or `password_hash` must be specified.
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.
 - `private_endpoint_ids` (List of String) List of private endpoint IDs

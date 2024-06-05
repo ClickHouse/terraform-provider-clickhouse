@@ -183,7 +183,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 			},
 			"num_replicas": schema.Int64Attribute{
-				Description: "Number of replicas for the service. Available only for 'production' services. Must be greater than 3 and less than 25. Contact support to enable this feature.",
+				Description: "Number of replicas for the service. Available only for 'production' services. Must be greater than or equal to 3 and less than or equal to 20. Contact support to enable this feature.",
 				Optional:    true,
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
