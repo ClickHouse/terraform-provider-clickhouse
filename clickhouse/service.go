@@ -262,10 +262,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	if service.Tier == "development" {
-		if !plan.IdleScaling.IsNull() || !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.IdleTimeoutMinutes.IsNull() {
+		if !plan.IdleScaling.IsNull() || !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.IdleTimeoutMinutes.IsNull() || !plan.NumReplicas.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes cannot be defined if the service tier is development",
+				"idle_scaling, min_total_memory_gb, max_total_memory_gb, idle_timeout_minutes and num_replicas cannot be defined if the service tier is development",
 			)
 			return
 		}
