@@ -80,6 +80,7 @@ type Service struct {
 	IpAccessList          						[]IpAccess                    `json:"ipAccessList"`
 	MinTotalMemoryGb      						*int                          `json:"minTotalMemoryGb,omitempty"`
 	MaxTotalMemoryGb      						*int                          `json:"maxTotalMemoryGb,omitempty"`
+	NumReplicas           						*int                          `json:"numReplicas,omitempty"`
 	IdleTimeoutMinutes    						*int                          `json:"idleTimeoutMinutes,omitempty"`
 	State                 						string                        `json:"state,omitempty"`
 	Endpoints             						[]Endpoint                    `json:"endpoints,omitempty"`
@@ -100,6 +101,7 @@ type ServiceScalingUpdate struct {
 	IdleScaling        *bool `json:"idleScaling,omitempty"` // bool pointer so that `false`` is not omitted
 	MinTotalMemoryGb   *int   `json:"minTotalMemoryGb,omitempty"`
 	MaxTotalMemoryGb   *int   `json:"maxTotalMemoryGb,omitempty"`
+	NumReplicas        *int   `json:"numReplicas,omitempty"`
 	IdleTimeoutMinutes *int   `json:"idleTimeoutMinutes,omitempty"`
 }
 
