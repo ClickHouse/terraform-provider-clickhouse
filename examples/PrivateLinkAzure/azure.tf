@@ -2,6 +2,9 @@ provider "azurerm" {
   features {}
 }
 
+provider "azapi" {
+}
+
 
 variable "resource_group_foo" {
   type = string
@@ -115,4 +118,31 @@ data "azurerm_network_interface" "pe_foo" {
 data "azurerm_network_interface" "pe_bar" {
   resource_group_name = var.resource_group_bar
   name                = azurerm_private_endpoint.bar_example_clickhouse_cloud.network_interface[0].name
+}
+
+
+data "azurerm_resource_group" "rg_foo" {
+  name = var.resource_group_foo
+}
+
+data "azurerm_resource_group" "rg_bar" {
+  name = var.resource_group_bar
+}
+
+// workaround for https://github.com/hashicorp/terraform-provider-azurerm/issues/17011
+data "azapi_resource" "clickhouse_cloud_privateendpoint_resource_guid_foo" {
+  type      = "Microsoft.Network/privateEndpoints@2022-01-01"
+  name      = azurerm_private_endpoint.foo_example_clickhouse_cloud.name
+  parent_id = data.azurerm_resource_group.rg_foo.id
+
+  response_export_values = ["properties.resourceGuid"]
+}
+
+// workaround for https://github.com/hashicorp/terraform-provider-azurerm/issues/17011
+data "azapi_resource" "clickhouse_cloud_privateendpoint_resource_guid_bar" {
+  type      = "Microsoft.Network/privateEndpoints@2022-01-01"
+  name      = azurerm_private_endpoint.bar_example_clickhouse_cloud.name
+  parent_id = data.azurerm_resource_group.rg_bar.id
+
+  response_export_values = ["properties.resourceGuid"]
 }
