@@ -875,7 +875,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 		// the API does not differentiate between undefined and empty string
 		if ipAccess.Description == "" {
 			// we will set this field as "" when user defines the description field
-			isDescriptionNull := index > len(state.IpAccessList) || state.IpAccessList[index].Description.IsNull()
+			isDescriptionNull := index >= len(state.IpAccessList) || state.IpAccessList[index].Description.IsNull()
 			if !isDescriptionNull {
 				stateIpAccess.Description = types.StringValue("")
 			}
