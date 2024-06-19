@@ -1,9 +1,15 @@
 terraform {
   required_providers {
     clickhouse = {
-      version = "0.0.9"
+      version = "0.0.10"
       source  = "ClickHouse/clickhouse"
     }
+
+    azapi = {
+      source  = "Azure/azapi"
+      version = "1.13.1"
+    }
+
   }
 }
 
@@ -56,7 +62,7 @@ resource "clickhouse_service" "azure_red" {
   idle_timeout_minutes = 5
 
   // allow connections via PrivateLink from VPC bar only
-  private_endpoint_ids = var.private_endpoint_azure_bar_uuid != "" ? [clickhouse_private_endpoint_registration.private_endpoint_azure_bar[0].id] : []
+  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_azure_bar.id]
 }
 
 resource "clickhouse_service" "azure_blue" {
@@ -79,8 +85,7 @@ resource "clickhouse_service" "azure_blue" {
   idle_timeout_minutes = 5
 
   // allow connecting via PrivateLink from VPC foo and bar
-  private_endpoint_ids = concat((var.private_endpoint_azure_foo_uuid != "" ? [clickhouse_private_endpoint_registration.private_endpoint_azure_foo[0].id] : []),
-  (var.private_endpoint_azure_bar_uuid != "" ? [clickhouse_private_endpoint_registration.private_endpoint_azure_bar[0].id] : []))
+  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_azure_foo.id, clickhouse_private_endpoint_registration.private_endpoint_azure_bar.id]
 }
 
 // Private Link Service name for azure/${var.clickhouse_service_location}
@@ -90,23 +95,17 @@ data "clickhouse_private_endpoint_config" "endpoint_config" {
 }
 
 resource "clickhouse_private_endpoint_registration" "private_endpoint_azure_foo" {
-  count          = var.private_endpoint_azure_foo_uuid != "" ? 1 : 0
   cloud_provider = "azure"
-  // Private Endpoint GUID is not available in azurerm_private_endpoint object, it has to be specified manually
-  // open issue for azurem provider: https://github.com/hashicorp/terraform-provider-azurerm/issues/17011
-  id          = var.private_endpoint_azure_foo_uuid
-  region      = var.clickhouse_service_location
-  description = "Private Link from VNET foo"
+  id             = jsondecode(data.azapi_resource.clickhouse_cloud_privateendpoint_resource_guid_foo.output).properties.resourceGuid
+  region         = var.clickhouse_service_location
+  description    = "Private Link from VNET foo"
 }
 
 resource "clickhouse_private_endpoint_registration" "private_endpoint_azure_bar" {
-  count          = var.private_endpoint_azure_bar_uuid != "" ? 1 : 0
   cloud_provider = "azure"
-  // Private Endpoint GUID is not available in azurerm_private_endpoint object, it has to be specified manually
-  // open issue for azurem provider: https://github.com/hashicorp/terraform-provider-azurerm/issues/17011
-  id          = var.private_endpoint_azure_bar_uuid
-  region      = var.clickhouse_service_location
-  description = "Private Link from VNET foo"
+  id             = jsondecode(data.azapi_resource.clickhouse_cloud_privateendpoint_resource_guid_bar.output).properties.resourceGuid
+  region         = var.clickhouse_service_location
+  description    = "Private Link from VNET foo"
 }
 
 // hostname for connecting to instance via Private Link from VPC foo
