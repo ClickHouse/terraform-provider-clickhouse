@@ -84,4 +84,6 @@ Do you want to perform these actions?
   Enter a value:
 ```
 
-Note that this basic example points to a locally running OpenAPI server. If you do not have that server running, you can still test by changing the `environment` key on the provider to `qa`, `staging`, or `production`. Make sure to change the organization id, token key, and token secret to valid values for those environments.
+Note that this basic example points to a locally running OpenAPI server.
+If you do not have that server running, you can still test by changing the `api_url` key on the provider to a URL of running API server.
+Make sure to change the organization id, token key, and token secret to valid values for those environments.
