@@ -62,13 +62,6 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 	}
 }
 
-var environmentMap = map[string]bool{
-	"production": true,
-	"staging":    true,
-	"qa":         true,
-	"local":      true,
-}
-
 // Configure prepares a ClickHouse OpenAPI client for data sources and resources.
 func (p *clickhouseProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	// Retrieve provider data from configuration
