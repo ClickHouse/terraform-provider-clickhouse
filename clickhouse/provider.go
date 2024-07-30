@@ -223,5 +223,6 @@ func (p *clickhouseProvider) Resources(_ context.Context) []func() resource.Reso
 	return []func() resource.Resource{
 		NewServiceResource,
 		NewPrivateEndpointRegistrationResource,
+		NewClickhouseServicePrivateEndpointAttachmentResource,
 	}
 }

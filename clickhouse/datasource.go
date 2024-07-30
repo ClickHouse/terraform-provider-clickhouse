@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	CloudProviderAWS = "aws"
-	CloudProviderGCP = "gcp"
+	CloudProviderAWS   = "aws"
+	CloudProviderGCP   = "gcp"
 	CloudProviderAzure = "azure"
 )
 
@@ -80,7 +80,7 @@ func (d *privateEndpointConfigDataSource) Read(ctx context.Context, req datasour
 	// Make the API request to get the private endpoint config
 	privateEndpointConfig, err := d.client.GetOrgPrivateEndpointConfig(cloudProvider, region)
 	if err != nil {
-		resp.Diagnostics.AddError("failed get", fmt.Sprintf("error getting privateEndpointConfig: %w", err))
+		resp.Diagnostics.AddError("failed get", fmt.Sprintf("error getting privateEndpointConfig: %v", err))
 		return
 	}
 	data.EndpointServiceID = types.StringValue(privateEndpointConfig.EndpointServiceId)

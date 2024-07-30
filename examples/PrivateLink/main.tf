@@ -39,9 +39,6 @@ resource "clickhouse_service" "aws_red" {
   min_total_memory_gb  = 24
   max_total_memory_gb  = 360
   idle_timeout_minutes = 5
-
-  // allow connections via PrivateLink from VPC foo only
-  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.id, ]
 }
 
 resource "clickhouse_service" "aws_blue" {
@@ -62,15 +59,13 @@ resource "clickhouse_service" "aws_blue" {
   min_total_memory_gb  = 24
   max_total_memory_gb  = 360
   idle_timeout_minutes = 5
-
-  // allow connecting via PrivateLink from VPC foo and bar
-  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.id, clickhouse_private_endpoint_registration.private_endpoint_aws_bar.id]
 }
 
 // Private Link Service name for aws/${var.aws_region}
 data "clickhouse_private_endpoint_config" "endpoint_config" {
   cloud_provider = "aws"
   region         = var.aws_region
+  depends_on = [clickhouse_service.aws_blue, clickhouse_service.aws_red]
 }
 
 // add AWS PrivateLink from VPC foo to organization
@@ -87,6 +82,15 @@ resource "clickhouse_private_endpoint_registration" "private_endpoint_aws_bar" {
   id             = aws_vpc_endpoint.pl_vpc_bar.id
   region         = var.aws_region
   description    = "Private Link from VPC bar"
+}
+
+resource "clickhouse_service_private_endpoint_attachment" "red_attachment" {
+  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.id]
+	service_id = clickhouse_service.aws_red.id
+}
+resource "clickhouse_service_private_endpoint_attachment" "blue_attachment" {
+  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.id, clickhouse_private_endpoint_registration.private_endpoint_aws_bar.id]
+	service_id = clickhouse_service.aws_blue.id
 }
 
 // hostname for connecting to instance via PrivateLink from VPC foo

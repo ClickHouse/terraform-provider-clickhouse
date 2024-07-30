@@ -13,7 +13,6 @@ import (
 	"time"
 )
 
-
 type Client struct {
 	BaseUrl        string
 	HttpClient     *http.Client
@@ -71,24 +70,24 @@ type ServiceManagedEncryption struct {
 }
 
 type Service struct {
-	Id                    						string                        `json:"id,omitempty"`
-	Name                  						string                        `json:"name"`
-	Provider              						string                        `json:"provider"`
-	Region                						string                        `json:"region"`
-	Tier                  						string                        `json:"tier"`
-	IdleScaling           						bool                          `json:"idleScaling"`
-	IpAccessList          						[]IpAccess                    `json:"ipAccessList"`
-	MinTotalMemoryGb      						*int                          `json:"minTotalMemoryGb,omitempty"`
-	MaxTotalMemoryGb      						*int                          `json:"maxTotalMemoryGb,omitempty"`
-	NumReplicas           						*int                          `json:"numReplicas,omitempty"`
-	IdleTimeoutMinutes    						*int                          `json:"idleTimeoutMinutes,omitempty"`
-	State                 						string                        `json:"state,omitempty"`
-	Endpoints             						[]Endpoint                    `json:"endpoints,omitempty"`
-	IAMRole						    						string                        `json:"iamRole,omitempty"`
-	PrivateEndpointConfig 						*ServicePrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
-	PrivateEndpointIds    						[]string                      `json:"privateEndpointIds,omitempty"`
-	EncryptionKey    									string   											`json:"encryptionKey,omitempty"`
-	EncryptionAssumedRoleIdentifier		string												`json:"encryptionAssumedRoleIdentifier,omitempty"`
+	Id                              string                        `json:"id,omitempty"`
+	Name                            string                        `json:"name"`
+	Provider                        string                        `json:"provider"`
+	Region                          string                        `json:"region"`
+	Tier                            string                        `json:"tier"`
+	IdleScaling                     bool                          `json:"idleScaling"`
+	IpAccessList                    []IpAccess                    `json:"ipAccessList"`
+	MinTotalMemoryGb                *int                          `json:"minTotalMemoryGb,omitempty"`
+	MaxTotalMemoryGb                *int                          `json:"maxTotalMemoryGb,omitempty"`
+	NumReplicas                     *int                          `json:"numReplicas,omitempty"`
+	IdleTimeoutMinutes              *int                          `json:"idleTimeoutMinutes,omitempty"`
+	State                           string                        `json:"state,omitempty"`
+	Endpoints                       []Endpoint                    `json:"endpoints,omitempty"`
+	IAMRole                         string                        `json:"iamRole,omitempty"`
+	PrivateEndpointConfig           *ServicePrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
+	PrivateEndpointIds              []string                      `json:"privateEndpointIds,omitempty"`
+	EncryptionKey                   string                        `json:"encryptionKey,omitempty"`
+	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
 }
 
 type ServiceUpdate struct {
@@ -99,10 +98,10 @@ type ServiceUpdate struct {
 
 type ServiceScalingUpdate struct {
 	IdleScaling        *bool `json:"idleScaling,omitempty"` // bool pointer so that `false`` is not omitted
-	MinTotalMemoryGb   *int   `json:"minTotalMemoryGb,omitempty"`
-	MaxTotalMemoryGb   *int   `json:"maxTotalMemoryGb,omitempty"`
-	NumReplicas        *int   `json:"numReplicas,omitempty"`
-	IdleTimeoutMinutes *int   `json:"idleTimeoutMinutes,omitempty"`
+	MinTotalMemoryGb   *int  `json:"minTotalMemoryGb,omitempty"`
+	MaxTotalMemoryGb   *int  `json:"maxTotalMemoryGb,omitempty"`
+	NumReplicas        *int  `json:"numReplicas,omitempty"`
+	IdleTimeoutMinutes *int  `json:"idleTimeoutMinutes,omitempty"`
 }
 
 type ServicePasswordUpdate struct {
@@ -221,14 +220,12 @@ func (c *Client) checkStatusCode(req *http.Request) (*int, error) {
 	return &res.StatusCode, err
 }
 
-
 // GetService - Returns a specifc order
 func (c *Client) GetService(serviceId string) (*Service, error) {
 	req, err := http.NewRequest("GET", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
 	}
-
 	body, err := c.doRequest(req)
 	if err != nil {
 		return nil, err
@@ -434,7 +431,7 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 		service, err := c.GetService(serviceId)
 		if err != nil {
 			numErrors++
-			if (numErrors > MAX_RETRY) {
+			if numErrors > MAX_RETRY {
 				return nil, err
 			} else {
 				time.Sleep(5 * time.Second)
@@ -475,7 +472,6 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 		time.Sleep(5 * time.Second)
 	}
 
-
 	return &serviceResponse.Result.Service, nil
 }
 
@@ -500,7 +496,7 @@ type OrganizationUpdate struct {
 }
 
 type OrgResult struct {
-	CreatedAt				 string            `json:"createdAt,omitempty"`
+	CreatedAt        string            `json:"createdAt,omitempty"`
 	ID               string            `json:"id,omitempty"`
 	Name             string            `json:"name,omitempty"`
 	PrivateEndpoints []PrivateEndpoint `json:"privateEndpoints,omitempty"`
