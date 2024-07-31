@@ -32,7 +32,7 @@ description: |-
 - `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Available only for 'production' services. Must be greater than or equal to 5 minutes.
 - `max_total_memory_gb` (Number) Maximum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.
 - `min_total_memory_gb` (Number) Minimum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and greater than 24.
-- `num_replicas` (Number) Number of replicas for the service. Can only be specified for an existing service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.
+- `num_replicas` (Number) Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.
 - `password` (String, Sensitive) Password for the default user. One of either `password` or `password_hash` must be specified.
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.
 - `private_endpoint_ids` (List of String) List of private endpoint IDs
@@ -74,5 +74,3 @@ Read-Only:
 
 - `endpoint_service_id` (String) Unique identifier of the interface endpoint you created in your VPC with the AWS(Service Name) or GCP(Target Service) resource
 - `private_dns_hostname` (String) Private DNS Hostname of the VPC you created
-
-

@@ -23,5 +23,3 @@ description: |-
 ### Read-Only
 
 - `endpoint_service_id` (String) The ID of the private endpoint that is used to securely connect to ClickHouse. This is a read-only attribute.
-
-
