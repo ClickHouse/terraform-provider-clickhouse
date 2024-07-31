@@ -780,7 +780,6 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 
 		res, err := r.client.UpdateServicePassword(serviceId, passwordUpdate)
-
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",

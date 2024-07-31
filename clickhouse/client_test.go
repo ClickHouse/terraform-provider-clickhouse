@@ -22,7 +22,6 @@ func TestNewClient(t *testing.T) {
 	client, err := NewClient(testClient.BaseUrl, testClient.OrganizationId, testClient.TokenKey, testClient.TokenSecret)
 	if err != nil {
 		t.Fatalf("new client err: %v", err)
-
 	}
 	if diff := cmp.Diff(testClient, client); diff != "" {
 		t.Errorf("NewClient() mismatch (-want +got):\n%s", diff)

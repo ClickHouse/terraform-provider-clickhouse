@@ -177,6 +177,7 @@ func (c *Client) getServicePath(serviceId string, path string) string {
 		return c.getOrgPath(fmt.Sprintf("/services/%s%s", serviceId, path))
 	}
 }
+
 func (c *Client) getPrivateEndpointConfigPath(cloudProvider string, region string) string {
 	return c.getOrgPath(fmt.Sprintf("/privateEndpointConfig?cloud_provider=%s&region_id=%s", cloudProvider, region))
 }
