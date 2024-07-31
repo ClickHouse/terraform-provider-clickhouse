@@ -37,27 +37,27 @@ type ServiceResource struct {
 }
 
 type ServiceResourceModel struct {
-	ID                     types.String    `tfsdk:"id"`
-	Name                   types.String    `tfsdk:"name"`
-	Password               types.String    `tfsdk:"password"`
-	PasswordHash           types.String    `tfsdk:"password_hash"`
-	DoubleSha1PasswordHash types.String    `tfsdk:"double_sha1_password_hash"`
-	Endpoints              types.List      `tfsdk:"endpoints"`
-	CloudProvider          types.String    `tfsdk:"cloud_provider"`
-	Region                 types.String    `tfsdk:"region"`
-	Tier                   types.String    `tfsdk:"tier"`
-	IdleScaling            types.Bool      `tfsdk:"idle_scaling"`
-	IpAccessList           []IpAccessModel `tfsdk:"ip_access"`
-	MinTotalMemoryGb       types.Int64     `tfsdk:"min_total_memory_gb"`
-	MaxTotalMemoryGb       types.Int64     `tfsdk:"max_total_memory_gb"`
-	NumReplicas            types.Int64     `tfsdk:"num_replicas"`
-	IdleTimeoutMinutes     types.Int64     `tfsdk:"idle_timeout_minutes"`
-	IAMRole                types.String    `tfsdk:"iam_role"`
-	LastUpdated            types.String    `tfsdk:"last_updated"`
-	PrivateEndpointConfig  types.Object    `tfsdk:"private_endpoint_config"`
-	PrivateEndpointIds     types.List      `tfsdk:"private_endpoint_ids"`
-	EncryptionKey			     									types.String    `tfsdk:"encryption_key"`
-	EncryptionAssumedRoleIdentifier 				types.String    `tfsdk:"encryption_assumed_role_identifier"`
+	ID                              types.String    `tfsdk:"id"`
+	Name                            types.String    `tfsdk:"name"`
+	Password                        types.String    `tfsdk:"password"`
+	PasswordHash                    types.String    `tfsdk:"password_hash"`
+	DoubleSha1PasswordHash          types.String    `tfsdk:"double_sha1_password_hash"`
+	Endpoints                       types.List      `tfsdk:"endpoints"`
+	CloudProvider                   types.String    `tfsdk:"cloud_provider"`
+	Region                          types.String    `tfsdk:"region"`
+	Tier                            types.String    `tfsdk:"tier"`
+	IdleScaling                     types.Bool      `tfsdk:"idle_scaling"`
+	IpAccessList                    []IpAccessModel `tfsdk:"ip_access"`
+	MinTotalMemoryGb                types.Int64     `tfsdk:"min_total_memory_gb"`
+	MaxTotalMemoryGb                types.Int64     `tfsdk:"max_total_memory_gb"`
+	NumReplicas                     types.Int64     `tfsdk:"num_replicas"`
+	IdleTimeoutMinutes              types.Int64     `tfsdk:"idle_timeout_minutes"`
+	IAMRole                         types.String    `tfsdk:"iam_role"`
+	LastUpdated                     types.String    `tfsdk:"last_updated"`
+	PrivateEndpointConfig           types.Object    `tfsdk:"private_endpoint_config"`
+	PrivateEndpointIds              types.List      `tfsdk:"private_endpoint_ids"`
+	EncryptionKey                   types.String    `tfsdk:"encryption_key"`
+	EncryptionAssumedRoleIdentifier types.String    `tfsdk:"encryption_assumed_role_identifier"`
 }
 
 var endpointObjectType = types.ObjectType{
@@ -270,7 +270,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 
-		if !plan.EncryptionKey.IsNull() || !plan.EncryptionAssumedRoleIdentifier.IsNull(){
+		if !plan.EncryptionKey.IsNull() || !plan.EncryptionAssumedRoleIdentifier.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"custom managed encryption cannot be defined if the service tier is development",
@@ -278,58 +278,58 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 	} else if service.Tier == "production" {
-			if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
-				resp.Diagnostics.AddError(
-					"Invalid Configuration",
-					"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
-				)
-				return
-			}
-
-			if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionKey.IsNull() {
-				resp.Diagnostics.AddError(
-					"Invalid Configuration",
-					"encryption_assumed_role_identifier cannot be defined without encryption_key as well",
-				)
-				return
-			}
-
-			if (!plan.EncryptionKey.IsNull() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 ) {
-				resp.Diagnostics.AddError(
-					"Invalid Configuration",
-					"encryption_key and the encryption_assumed_role_identifier is only available for aws services",
-				)
-				return
-			}
-
-			service.IdleScaling = bool(plan.IdleScaling.ValueBool())
-
-			if !plan.MinTotalMemoryGb.IsNull() {
-				minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
-				service.MinTotalMemoryGb = &minTotalMemoryGb
-			}
-			if !plan.MaxTotalMemoryGb.IsNull() {
-				maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
-				service.MaxTotalMemoryGb = &maxTotalMemoryGb
-			}
-			if !plan.NumReplicas.IsNull() {
-				resp.Diagnostics.AddError(
-					"Invalid Configuration",
-					"num_replicas cannot be defined on a new service, only on existing services",
-				)
-				return
-			}
-			if !plan.IdleTimeoutMinutes.IsNull() {
-				idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
-				service.IdleTimeoutMinutes = &idleTimeoutMinutes
-			}
-			if !plan.EncryptionKey.IsNull() {
-				service.EncryptionKey = string(plan.EncryptionKey.ValueString())
-			}
-			if !plan.EncryptionAssumedRoleIdentifier.IsNull() {
-				service.EncryptionAssumedRoleIdentifier = string(plan.EncryptionAssumedRoleIdentifier.ValueString())
-			}
+		if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
+			)
+			return
 		}
+
+		if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionKey.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"encryption_assumed_role_identifier cannot be defined without encryption_key as well",
+			)
+			return
+		}
+
+		if !plan.EncryptionKey.IsNull() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"encryption_key and the encryption_assumed_role_identifier is only available for aws services",
+			)
+			return
+		}
+
+		service.IdleScaling = bool(plan.IdleScaling.ValueBool())
+
+		if !plan.MinTotalMemoryGb.IsNull() {
+			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
+			service.MinTotalMemoryGb = &minTotalMemoryGb
+		}
+		if !plan.MaxTotalMemoryGb.IsNull() {
+			maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
+			service.MaxTotalMemoryGb = &maxTotalMemoryGb
+		}
+		if !plan.NumReplicas.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"num_replicas cannot be defined on a new service, only on existing services",
+			)
+			return
+		}
+		if !plan.IdleTimeoutMinutes.IsNull() {
+			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
+			service.IdleTimeoutMinutes = &idleTimeoutMinutes
+		}
+		if !plan.EncryptionKey.IsNull() {
+			service.EncryptionKey = string(plan.EncryptionKey.ValueString())
+		}
+		if !plan.EncryptionAssumedRoleIdentifier.IsNull() {
+			service.EncryptionAssumedRoleIdentifier = string(plan.EncryptionAssumedRoleIdentifier.ValueString())
+		}
+	}
 
 	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
 		resp.Diagnostics.AddError(
@@ -849,19 +849,17 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	state.Tier = types.StringValue(service.Tier)
 
 	if service.Tier == "production" {
-		if !state.IdleScaling.IsNull() {
-			state.IdleScaling = types.BoolValue(service.IdleScaling)
-		}
-		if !state.MinTotalMemoryGb.IsNull() {
+		state.IdleScaling = types.BoolValue(service.IdleScaling)
+		if service.MinTotalMemoryGb != nil {
 			state.MinTotalMemoryGb = types.Int64Value(int64(*service.MinTotalMemoryGb))
 		}
-		if !state.MaxTotalMemoryGb.IsNull() {
+		if service.MaxTotalMemoryGb != nil {
 			state.MaxTotalMemoryGb = types.Int64Value(int64(*service.MaxTotalMemoryGb))
 		}
-		if !state.NumReplicas.IsNull() {
+		if service.NumReplicas != nil {
 			state.NumReplicas = types.Int64Value(int64(*service.NumReplicas))
 		}
-		if !state.IdleTimeoutMinutes.IsNull() {
+		if service.IdleTimeoutMinutes != nil {
 			state.IdleTimeoutMinutes = types.Int64Value(int64(*service.IdleTimeoutMinutes))
 		}
 	}
