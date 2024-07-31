@@ -13,8 +13,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.PROJECT_AUTOMATION_GITHUB_TOKEN }}
 
       - name: Setup go
         uses: actions/setup-go@v5
