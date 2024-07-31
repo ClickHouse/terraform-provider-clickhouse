@@ -122,7 +122,6 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 
 	var privateEndpoint *PrivateEndpoint
 	for _, pe := range *privateEndpoints {
-
 		// openapi validator guarantees uniqueness by ID
 		if pe.EndpointId == state.EndpointId.ValueString() {
 			privateEndpoint = &pe

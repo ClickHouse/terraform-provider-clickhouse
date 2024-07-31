@@ -7,7 +7,7 @@ import (
 )
 
 func createEmptyList(listType attr.Type) types.List {
-	var emptyList, _ = types.ListValue(listType, []attr.Value{})
+	emptyList, _ := types.ListValue(listType, []attr.Value{})
 	return emptyList
 }
 
