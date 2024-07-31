@@ -1,6 +1,8 @@
 module terraform-provider-clickhouse
 
-go 1.20
+go 1.21
+
+toolchain go1.22.5
 
 require (
 	github.com/google/go-cmp v0.6.0
