@@ -74,3 +74,11 @@ Read-Only:
 
 - `endpoint_service_id` (String) Unique identifier of the interface endpoint you created in your VPC with the AWS(Service Name) or GCP(Target Service) resource
 - `private_dns_hostname` (String) Private DNS Hostname of the VPC you created
+
+## Import
+
+Using `terraform import`, import clickhouse_service using the `id`. For example:
+
+```console
+% terraform import clickhouse_service.this xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
