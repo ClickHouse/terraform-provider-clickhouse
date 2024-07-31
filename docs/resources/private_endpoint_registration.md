@@ -24,5 +24,3 @@ description: |-
 ### Optional
 
 - `description` (String) Description of the private endpoint
-
-

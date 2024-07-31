@@ -34,4 +34,29 @@ test:
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4                    
 
 testacc: 
-	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m   
+	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m
+
+docs: ensure-tfplugindocs
+	$(TFPLUGINDOCS) generate --provider-name=clickhouse
+
+TFPLUGINDOCS = $(shell go env GOPATH)/bin/tfplugindocs
+# Test if tfplugindocs is available in the GOPATH, if not, set to local and download if needed
+ifneq ($(shell test -f $(TFPLUGINDOCS) && echo -n yes),yes)
+TFPLUGINDOCS = /tmp/tfplugindocs
+endif
+ensure-tfplugindocs: ## Download tfplugindocs locally if necessary.
+	$(call go-get-tool,$(TFPLUGINDOCS),github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.19.4)
+
+# go-get-tool will 'go get' any package $2 and install it to $1.
+define go-get-tool
+@[ -f $(1) ] || { \
+set -e ;\
+TMP_DIR=$$(mktemp -d) ;\
+cd $$TMP_DIR ;\
+go mod init tmp ;\
+gobin="$$(dirname $(1))" ;\
+echo "Downloading $(2) into $$gobin" ;\
+GOBIN=$$gobin go install $(2) ;\
+rm -rf $$TMP_DIR ;\
+}
+endef
