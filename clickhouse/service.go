@@ -2,12 +2,13 @@ package clickhouse
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" // nolint:gosec
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"strings"
+	"terraform-provider-clickhouse/internal/api"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -21,8 +22,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-
-	"terraform-provider-clickhouse/internal/api"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -425,7 +424,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	// Update service password if provided explicitly
 	planPassword := plan.Password.ValueString()
 	if len(planPassword) > 0 {
-		_, err := r.client.UpdateServicePassword(s.Id, ServicePasswordUpdateFromPlainPassword(planPassword))
+		_, err := r.client.UpdateServicePassword(s.Id, servicePasswordUpdateFromPlainPassword(planPassword))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error setting service password",
@@ -771,7 +770,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	password := plan.Password.ValueString()
 	if len(password) > 0 && plan.Password != state.Password {
 		password = plan.Password.ValueString()
-		_, err := r.client.UpdateServicePassword(serviceId, ServicePasswordUpdateFromPlainPassword(password))
+		_, err := r.client.UpdateServicePassword(serviceId, servicePasswordUpdateFromPlainPassword(password))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
@@ -938,7 +937,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	return nil
 }
 
-func ServicePasswordUpdateFromPlainPassword(password string) api.ServicePasswordUpdate {
+func servicePasswordUpdateFromPlainPassword(password string) api.ServicePasswordUpdate {
 	hash := sha256.Sum256([]byte(password))
 
 	singleSha1Hash := sha1.Sum([]byte(password))  // nolint:gosec

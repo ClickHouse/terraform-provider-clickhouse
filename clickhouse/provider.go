@@ -3,6 +3,7 @@ package clickhouse
 import (
 	"context"
 	"os"
+	"terraform-provider-clickhouse/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -10,8 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-
-	"terraform-provider-clickhouse/internal/api"
 )
 
 // Ensure the implementation satisfies the expected interfaces

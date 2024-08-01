@@ -1,7 +1,7 @@
 package api
 
 /****
-	Service
+	Request and Response models for all API calls.
 ****/
 
 type IpAccess struct {
