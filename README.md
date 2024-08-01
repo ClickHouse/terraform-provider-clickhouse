@@ -1,5 +1,9 @@
 # ClickHouse Terraform Provider
 
+[![Release](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/release.yml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/release.yml)
+[![Ensure docs are up to date](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml)
+[![Dependabot Updates](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates)
+
 ## Local Development
 
 To test the provider locally, you'll need to set up some dev overrides so that terraform knows where to grab your local installation.
