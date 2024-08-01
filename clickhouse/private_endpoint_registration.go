@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"terraform-provider-clickhouse/internal/api"
 )
 
 var (
@@ -20,7 +22,7 @@ func NewPrivateEndpointRegistrationResource() resource.Resource {
 }
 
 type PrivateEndpointRegistrationResource struct {
-	client *Client
+	client api.Client
 }
 
 type PrivateEndpointRegistrationResourceModel struct {
@@ -62,7 +64,7 @@ func (r *PrivateEndpointRegistrationResource) Configure(_ context.Context, req r
 		return
 	}
 
-	r.client = req.ProviderData.(*Client)
+	r.client = req.ProviderData.(api.Client)
 }
 
 func (r *PrivateEndpointRegistrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -73,16 +75,16 @@ func (r *PrivateEndpointRegistrationResource) Create(ctx context.Context, req re
 		return
 	}
 
-	add := []PrivateEndpoint{}
-	add = append(add, PrivateEndpoint{
+	add := []api.PrivateEndpoint{}
+	add = append(add, api.PrivateEndpoint{
 		CloudProvider: plan.CloudProvider.ValueString(),
 		Description:   plan.Description.ValueString(),
 		EndpointId:    plan.EndpointId.ValueString(),
 		Region:        plan.Region.ValueString(),
 	})
 
-	orgUpdate := OrganizationUpdate{
-		PrivateEndpoints: &OrgPrivateEndpointsUpdate{
+	orgUpdate := api.OrganizationUpdate{
+		PrivateEndpoints: &api.OrgPrivateEndpointsUpdate{
 			Add: add,
 		},
 	}
@@ -120,7 +122,7 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 		return
 	}
 
-	var privateEndpoint *PrivateEndpoint
+	var privateEndpoint *api.PrivateEndpoint
 	for _, pe := range *privateEndpoints {
 		// openapi validator guarantees uniqueness by ID
 		if pe.EndpointId == state.EndpointId.ValueString() {
@@ -155,9 +157,9 @@ func (r *PrivateEndpointRegistrationResource) Update(ctx context.Context, req re
 	diags = req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 
-	orgUpdate := OrganizationUpdate{
-		PrivateEndpoints: &OrgPrivateEndpointsUpdate{
-			Add: []PrivateEndpoint{
+	orgUpdate := api.OrganizationUpdate{
+		PrivateEndpoints: &api.OrgPrivateEndpointsUpdate{
+			Add: []api.PrivateEndpoint{
 				{
 					CloudProvider: plan.CloudProvider.ValueString(),
 					Description:   plan.Description.ValueString(),
@@ -165,7 +167,7 @@ func (r *PrivateEndpointRegistrationResource) Update(ctx context.Context, req re
 					Region:        plan.Region.ValueString(),
 				},
 			},
-			Remove: []PrivateEndpoint{
+			Remove: []api.PrivateEndpoint{
 				{
 					CloudProvider: state.CloudProvider.ValueString(),
 					Description:   state.Description.ValueString(),
@@ -200,7 +202,7 @@ func (r *PrivateEndpointRegistrationResource) Delete(ctx context.Context, req re
 		return
 	}
 
-	remove := []PrivateEndpoint{
+	remove := []api.PrivateEndpoint{
 		{
 			CloudProvider: state.CloudProvider.ValueString(),
 			EndpointId:    state.EndpointId.ValueString(),
@@ -208,8 +210,8 @@ func (r *PrivateEndpointRegistrationResource) Delete(ctx context.Context, req re
 		},
 	}
 
-	orgUpdate := OrganizationUpdate{
-		PrivateEndpoints: &OrgPrivateEndpointsUpdate{
+	orgUpdate := api.OrganizationUpdate{
+		PrivateEndpoints: &api.OrgPrivateEndpointsUpdate{
 			Remove: remove,
 		},
 	}

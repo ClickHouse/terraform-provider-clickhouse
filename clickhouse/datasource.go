@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"terraform-provider-clickhouse/internal/api"
 )
 
 const (
@@ -26,7 +28,7 @@ func NewPrivateEndpointConfigDataSource() datasource.DataSource {
 }
 
 type privateEndpointConfigDataSource struct {
-	client *Client
+	client api.Client
 }
 
 func (d *privateEndpointConfigDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -34,7 +36,7 @@ func (d *privateEndpointConfigDataSource) Configure(ctx context.Context, req dat
 	if req.ProviderData == nil {
 		return
 	}
-	d.client = req.ProviderData.(*Client)
+	d.client = req.ProviderData.(api.Client)
 }
 
 func (d *privateEndpointConfigDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {

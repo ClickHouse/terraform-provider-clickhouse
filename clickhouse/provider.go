@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"terraform-provider-clickhouse/internal/api"
 )
 
 // Ensure the implementation satisfies the expected interfaces
@@ -187,7 +189,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	}
 
 	// Create a new ClickHouse client using the configuration values
-	client, err := NewClient(apiUrl, organizationId, tokenKey, tokenSecret)
+	client, err := api.NewClient(apiUrl, organizationId, tokenKey, tokenSecret)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create ClickHouse OpenAPI Client",
