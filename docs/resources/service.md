@@ -51,8 +51,8 @@ resource "clickhouse_service" "service" {
 - `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.
 - `encryption_assumed_role_identifier` (String) Custom role identifier arn
 - `encryption_key` (String) Custom encryption key arn
-- `idle_scaling` (Boolean) When set to true the service is allowed to scale down to zero when idle. Always true for development services. Configurable only for 'production' services.
-- `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Available only for 'production' services. Must be greater than or equal to 5 minutes.
+- `idle_scaling` (Boolean) When set to true the service is allowed to scale down to zero when idle.
+- `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled
 - `max_total_memory_gb` (Number) Maximum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.
 - `min_total_memory_gb` (Number) Minimum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and greater than 24.
 - `num_replicas` (Number) Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.
