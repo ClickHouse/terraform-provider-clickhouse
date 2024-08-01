@@ -11,10 +11,7 @@ import (
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --provider-name clickhouse
 
 func main() {
-	err := providerserver.Serve(context.Background(), clickhouse.New, providerserver.ServeOpts{
+	providerserver.Serve(context.Background(), clickhouse.New, providerserver.ServeOpts{ // nolint:errcheck
 		Address: "clickhouse.cloud/terraform/clickhouse",
 	})
-	if err != nil {
-		panic(err)
-	}
 }
