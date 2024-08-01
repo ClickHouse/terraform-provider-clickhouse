@@ -1,4 +1,4 @@
-package clickhouse
+package api
 
 const (
 	MaxRetry = 5

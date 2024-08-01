@@ -1,4 +1,4 @@
-package clickhouse
+package api
 
 import (
 	"net/http"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewClient(t *testing.T) {
-	testClient := &Client{
+	testClient := &ClientImpl{
 		BaseUrl: "https://api.clickhouse.cloud/v1",
 		HttpClient: &http.Client{
 			Timeout: time.Second * 30,

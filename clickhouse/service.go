@@ -2,8 +2,13 @@ package clickhouse
 
 import (
 	"context"
+	"crypto/sha1" // nolint:gosec
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"strings"
+	"terraform-provider-clickhouse/internal/api"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -33,7 +38,7 @@ func NewServiceResource() resource.Resource {
 
 // ServiceResource is the resource implementation.
 type ServiceResource struct {
-	client *Client
+	client api.Client
 }
 
 type ServiceResourceModel struct {
@@ -240,7 +245,7 @@ func (r *ServiceResource) Configure(_ context.Context, req resource.ConfigureReq
 		return
 	}
 
-	r.client = req.ProviderData.(*Client)
+	r.client = req.ProviderData.(api.Client)
 }
 
 // Create a new resource
@@ -254,14 +259,14 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Generate API request body from plan
-	service := Service{
+	service := api.Service{
 		Name:     plan.Name.ValueString(),
 		Provider: plan.CloudProvider.ValueString(),
 		Region:   plan.Region.ValueString(),
 		Tier:     plan.Tier.ValueString(),
 	}
 
-	if service.Tier == TierDevelopment {
+	if service.Tier == api.TierDevelopment {
 		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
@@ -277,7 +282,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			)
 			return
 		}
-	} else if service.Tier == TierProduction {
+	} else if service.Tier == api.TierProduction {
 		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
@@ -369,9 +374,9 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	service.IpAccessList = []IpAccess{}
+	service.IpAccessList = []api.IpAccess{}
 	for _, item := range plan.IpAccessList {
-		service.IpAccessList = append(service.IpAccessList, IpAccess{
+		service.IpAccessList = append(service.IpAccessList, api.IpAccess{
 			Source:      item.Source.ValueString(),
 			Description: item.Description.ValueString(),
 		})
@@ -398,7 +403,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		s, err = r.client.GetService(s.Id)
 		if err != nil {
 			numErrors++
-			if numErrors > MaxRetry {
+			if numErrors > api.MaxRetry {
 				resp.Diagnostics.AddError(
 					"Error retrieving service state",
 					"Could not retrieve service state after creation, unexpected error: "+err.Error(),
@@ -419,7 +424,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	// Update service password if provided explicitly
 	planPassword := plan.Password.ValueString()
 	if len(planPassword) > 0 {
-		_, err := r.client.UpdateServicePassword(s.Id, ServicePasswordUpdateFromPlainPassword(planPassword))
+		_, err := r.client.UpdateServicePassword(s.Id, servicePasswordUpdateFromPlainPassword(planPassword))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error setting service password",
@@ -431,7 +436,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Update hashed service password if provided explicitly
 	if passwordHash, doubleSha1PasswordHash := plan.PasswordHash.ValueString(), plan.DoubleSha1PasswordHash.ValueString(); len(passwordHash) > 0 || len(doubleSha1PasswordHash) > 0 {
-		passwordUpdate := ServicePasswordUpdate{
+		passwordUpdate := api.ServicePasswordUpdate{
 			NewPasswordHash: passwordHash,
 		}
 
@@ -601,14 +606,14 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		)
 	}
 
-	if config.Tier.ValueString() == TierDevelopment {
+	if config.Tier.ValueString() == api.TierDevelopment {
 		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"min_total_memory_gb, max_total_memory_gb, and num_replicase cannot be defined if the service tier is development",
 			)
 		}
-	} else if config.Tier.ValueString() == TierProduction {
+	} else if config.Tier.ValueString() == api.TierProduction {
 		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
@@ -630,7 +635,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	// Generate API request body from plan
 	serviceId := state.ID.ValueString()
-	service := ServiceUpdate{
+	service := api.ServiceUpdate{
 		Name:         "",
 		IpAccessList: nil,
 	}
@@ -646,11 +651,11 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		ipAccessListRawOld := state.IpAccessList
 		ipAccessListRawNew := plan.IpAccessList
 
-		ipAccessListOld := []IpAccess{}
-		ipAccessListNew := []IpAccess{}
+		ipAccessListOld := []api.IpAccess{}
+		ipAccessListNew := []api.IpAccess{}
 
 		for _, item := range ipAccessListRawOld {
-			ipAccess := IpAccess{
+			ipAccess := api.IpAccess{
 				Source:      item.Source.ValueString(),
 				Description: item.Description.ValueString(),
 			}
@@ -659,7 +664,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 
 		for _, item := range ipAccessListRawNew {
-			ipAccess := IpAccess{
+			ipAccess := api.IpAccess{
 				Source:      item.Source.ValueString(),
 				Description: item.Description.ValueString(),
 			}
@@ -667,7 +672,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			ipAccessListNew = append(ipAccessListNew, ipAccess)
 		}
 
-		service.IpAccessList = &IpAccessUpdate{
+		service.IpAccessList = &api.IpAccessUpdate{
 			Add:    ipAccessListNew,
 			Remove: ipAccessListOld,
 		}
@@ -691,7 +696,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			privateEndpointIdsNew = append(privateEndpointIdsNew, item.ValueString())
 		}
 
-		service.PrivateEndpointIds = &PrivateEndpointIdsUpdate{
+		service.PrivateEndpointIds = &api.PrivateEndpointIdsUpdate{
 			Add:    privateEndpointIdsNew,
 			Remove: privateEndpointIdsOld,
 		}
@@ -711,7 +716,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	scalingChange := false
-	serviceScaling := ServiceScalingUpdate{
+	serviceScaling := api.ServiceScalingUpdate{
 		IdleScaling: state.IdleScaling.ValueBoolPointer(),
 	}
 
@@ -765,7 +770,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	password := plan.Password.ValueString()
 	if len(password) > 0 && plan.Password != state.Password {
 		password = plan.Password.ValueString()
-		_, err := r.client.UpdateServicePassword(serviceId, ServicePasswordUpdateFromPlainPassword(password))
+		_, err := r.client.UpdateServicePassword(serviceId, servicePasswordUpdateFromPlainPassword(password))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
@@ -774,7 +779,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			return
 		}
 	} else if !plan.PasswordHash.IsNull() || !plan.DoubleSha1PasswordHash.IsNull() {
-		passwordUpdate := ServicePasswordUpdate{}
+		passwordUpdate := api.ServicePasswordUpdate{}
 
 		if !plan.PasswordHash.IsNull() { // change in password hash
 			passwordUpdate.NewPasswordHash = plan.PasswordHash.ValueString()
@@ -856,7 +861,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	state.Region = types.StringValue(service.Region)
 	state.Tier = types.StringValue(service.Tier)
 
-	if service.Tier == TierProduction {
+	if service.Tier == api.TierProduction {
 		state.IdleScaling = types.BoolValue(service.IdleScaling)
 		if service.MinTotalMemoryGb != nil {
 			state.MinTotalMemoryGb = types.Int64Value(int64(*service.MinTotalMemoryGb))
@@ -930,4 +935,16 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	}
 
 	return nil
+}
+
+func servicePasswordUpdateFromPlainPassword(password string) api.ServicePasswordUpdate {
+	hash := sha256.Sum256([]byte(password))
+
+	singleSha1Hash := sha1.Sum([]byte(password))  // nolint:gosec
+	doubleSha1Hash := sha1.Sum(singleSha1Hash[:]) // nolint:gosec
+
+	return api.ServicePasswordUpdate{
+		NewPasswordHash:   base64.StdEncoding.EncodeToString(hash[:]),
+		NewDoubleSha1Hash: hex.EncodeToString(doubleSha1Hash[:]),
+	}
 }
