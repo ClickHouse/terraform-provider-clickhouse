@@ -325,7 +325,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	service.IdleScaling = bool(plan.IdleScaling.ValueBool())
+	service.IdleScaling = plan.IdleScaling.ValueBool()
 	if !plan.IdleTimeoutMinutes.IsNull() {
 		idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
 		service.IdleTimeoutMinutes = &idleTimeoutMinutes
@@ -499,7 +499,9 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Retrieve values from plan
 	var config, plan, state ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
 	diags = req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 
@@ -763,18 +765,13 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	password := plan.Password.ValueString()
 	if len(password) > 0 && plan.Password != state.Password {
 		password = plan.Password.ValueString()
-		res, err := r.client.UpdateServicePassword(serviceId, ServicePasswordUpdateFromPlainPassword(password))
+		_, err := r.client.UpdateServicePassword(serviceId, ServicePasswordUpdateFromPlainPassword(password))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
 				"Could not update service password, unexpected error: "+err.Error(),
 			)
 			return
-		}
-
-		// empty password provided, ClickHouse Cloud return a new generated password
-		if len(res.Password) > 0 {
-			password = res.Password
 		}
 	} else if !plan.PasswordHash.IsNull() || !plan.DoubleSha1PasswordHash.IsNull() {
 		passwordUpdate := ServicePasswordUpdate{}
@@ -789,18 +786,13 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			passwordUpdate.NewDoubleSha1Hash = plan.DoubleSha1PasswordHash.ValueString()
 		}
 
-		res, err := r.client.UpdateServicePassword(serviceId, passwordUpdate)
+		_, err := r.client.UpdateServicePassword(serviceId, passwordUpdate)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
 				"Could not update service password, unexpected error: "+err.Error(),
 			)
 			return
-		}
-
-		// empty password provided, ClickHouse Cloud return a new generated password
-		if len(res.Password) > 0 {
-			password = res.Password
 		}
 	}
 

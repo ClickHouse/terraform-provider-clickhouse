@@ -153,7 +153,9 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 func (r *PrivateEndpointRegistrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var config, plan, state PrivateEndpointRegistrationResourceModel
 	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
 	diags = req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 
