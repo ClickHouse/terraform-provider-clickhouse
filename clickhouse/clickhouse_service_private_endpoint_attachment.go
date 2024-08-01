@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"terraform-provider-clickhouse/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -21,7 +22,7 @@ func NewClickhouseServicePrivateEndpointAttachmentResource() resource.Resource {
 }
 
 type ClickhouseServicePrivateEndpointAttachmentResource struct {
-	client *Client
+	client api.Client
 }
 
 type ClickhouseServicePrivateEndpointAttachmentModel struct {
@@ -56,7 +57,7 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Configure(_ context
 		return
 	}
 
-	r.client = req.ProviderData.(*Client)
+	r.client = req.ProviderData.(api.Client)
 }
 
 func (r *ClickhouseServicePrivateEndpointAttachmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -67,10 +68,10 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Create(ctx context.
 		return
 	}
 
-	service := ServiceUpdate{
+	service := api.ServiceUpdate{
 		Name:         "",
 		IpAccessList: nil,
-		PrivateEndpointIds: &PrivateEndpointIdsUpdate{
+		PrivateEndpointIds: &api.PrivateEndpointIdsUpdate{
 			Add: []string{},
 		},
 	}
@@ -138,10 +139,10 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Update(ctx context.
 	diags = req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 
-	service := ServiceUpdate{
+	service := api.ServiceUpdate{
 		Name:         "",
 		IpAccessList: nil,
-		PrivateEndpointIds: &PrivateEndpointIdsUpdate{
+		PrivateEndpointIds: &api.PrivateEndpointIdsUpdate{
 			Add:    []string{},
 			Remove: []string{},
 		},
@@ -182,10 +183,10 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Delete(ctx context.
 		return
 	}
 
-	service := ServiceUpdate{
+	service := api.ServiceUpdate{
 		Name:         "",
 		IpAccessList: nil,
-		PrivateEndpointIds: &PrivateEndpointIdsUpdate{
+		PrivateEndpointIds: &api.PrivateEndpointIdsUpdate{
 			Remove: []string{},
 		},
 	}

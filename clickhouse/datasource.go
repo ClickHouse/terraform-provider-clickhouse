@@ -3,6 +3,7 @@ package clickhouse
 import (
 	"context"
 	"fmt"
+	"terraform-provider-clickhouse/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -26,7 +27,7 @@ func NewPrivateEndpointConfigDataSource() datasource.DataSource {
 }
 
 type privateEndpointConfigDataSource struct {
-	client *Client
+	client api.Client
 }
 
 func (d *privateEndpointConfigDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -34,7 +35,7 @@ func (d *privateEndpointConfigDataSource) Configure(ctx context.Context, req dat
 	if req.ProviderData == nil {
 		return
 	}
-	d.client = req.ProviderData.(*Client)
+	d.client = req.ProviderData.(api.Client)
 }
 
 func (d *privateEndpointConfigDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {

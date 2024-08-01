@@ -3,6 +3,8 @@ terraform.tfstate
 terraform.tfstate.backup
 .terraform.lock.hcl
 
+terraform-provider-clickhouse
+
 node_modules/
 secrets.tfvars
 dev/

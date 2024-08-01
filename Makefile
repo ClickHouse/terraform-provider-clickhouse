@@ -39,6 +39,10 @@ testacc:
 docs: ensure-tfplugindocs
 	$(TFPLUGINDOCS) generate --provider-name=clickhouse
 
+fmt: ensure-golangci-lint
+	go fmt ./...
+	$(GOLANGCILINT) run --fix --allow-serial-runners
+
 TFPLUGINDOCS = $(shell go env GOPATH)/bin/tfplugindocs
 # Test if tfplugindocs is available in the GOPATH, if not, set to local and download if needed
 ifneq ($(shell test -f $(TFPLUGINDOCS) && echo -n yes),yes)
@@ -46,6 +50,14 @@ TFPLUGINDOCS = /tmp/tfplugindocs
 endif
 ensure-tfplugindocs: ## Download tfplugindocs locally if necessary.
 	$(call go-get-tool,$(TFPLUGINDOCS),github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.19.4)
+
+GOLANGCILINT = $(shell go env GOPATH)/bin/golangci-lint
+# Test if golangci-lint is available in the GOPATH, if not, set to local and download if needed
+ifneq ($(shell test -f $(GOLANGCILINT) && echo -n yes),yes)
+GOLANGCILINT = /tmp/golangci-lint
+endif
+ensure-golangci-lint: ## Download golangci-lint locally if necessary.
+	$(call go-get-tool,$(GOLANGCILINT),github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.1)
 
 # go-get-tool will 'go get' any package $2 and install it to $1.
 define go-get-tool
