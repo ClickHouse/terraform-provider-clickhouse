@@ -2,8 +2,13 @@ package clickhouse
 
 import (
 	"context"
+	"crypto/sha1" // nolint:gosec
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"strings"
+	"terraform-provider-clickhouse/internal/api"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -33,7 +38,7 @@ func NewServiceResource() resource.Resource {
 
 // ServiceResource is the resource implementation.
 type ServiceResource struct {
-	client *Client
+	client api.Client
 }
 
 type ServiceResourceModel struct {
@@ -132,7 +137,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"idle_scaling": schema.BoolAttribute{
-				Description: "When set to true the service is allowed to scale down to zero when idle. Always true for development services. Configurable only for 'production' services.",
+				Description: "When set to true the service is allowed to scale down to zero when idle.",
 				Optional:    true,
 			},
 			"ip_access": schema.ListNestedAttribute{
@@ -187,7 +192,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
-				Description: "Set minimum idling timeout (in minutes). Available only for 'production' services. Must be greater than or equal to 5 minutes.",
+				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled",
 				Optional:    true,
 			},
 			"iam_role": schema.StringAttribute{
@@ -240,7 +245,7 @@ func (r *ServiceResource) Configure(_ context.Context, req resource.ConfigureReq
 		return
 	}
 
-	r.client = req.ProviderData.(*Client)
+	r.client = req.ProviderData.(api.Client)
 }
 
 // Create a new resource
@@ -254,18 +259,18 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Generate API request body from plan
-	service := Service{
-		Name:     string(plan.Name.ValueString()),
-		Provider: string(plan.CloudProvider.ValueString()),
-		Region:   string(plan.Region.ValueString()),
-		Tier:     string(plan.Tier.ValueString()),
+	service := api.Service{
+		Name:     plan.Name.ValueString(),
+		Provider: plan.CloudProvider.ValueString(),
+		Region:   plan.Region.ValueString(),
+		Tier:     plan.Tier.ValueString(),
 	}
 
-	if service.Tier == "development" {
-		if !plan.IdleScaling.IsNull() || !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.IdleTimeoutMinutes.IsNull() || !plan.NumReplicas.IsNull() {
+	if service.Tier == api.TierDevelopment {
+		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, idle_timeout_minutes and num_replicas cannot be defined if the service tier is development",
+				"min_total_memory_gb, max_total_memory_gb and num_replicas cannot be defined if the service tier is development",
 			)
 			return
 		}
@@ -277,11 +282,11 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			)
 			return
 		}
-	} else if service.Tier == "production" {
-		if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
+	} else if service.Tier == api.TierProduction {
+		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
+				"min_total_memory_gb and max_total_memory_gb must be defined if the service tier is production",
 			)
 			return
 		}
@@ -302,8 +307,6 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 
-		service.IdleScaling = bool(plan.IdleScaling.ValueBool())
-
 		if !plan.MinTotalMemoryGb.IsNull() {
 			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
 			service.MinTotalMemoryGb = &minTotalMemoryGb
@@ -319,16 +322,24 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			)
 			return
 		}
-		if !plan.IdleTimeoutMinutes.IsNull() {
-			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
-			service.IdleTimeoutMinutes = &idleTimeoutMinutes
-		}
 		if !plan.EncryptionKey.IsNull() {
-			service.EncryptionKey = string(plan.EncryptionKey.ValueString())
+			service.EncryptionKey = plan.EncryptionKey.ValueString()
 		}
 		if !plan.EncryptionAssumedRoleIdentifier.IsNull() {
-			service.EncryptionAssumedRoleIdentifier = string(plan.EncryptionAssumedRoleIdentifier.ValueString())
+			service.EncryptionAssumedRoleIdentifier = plan.EncryptionAssumedRoleIdentifier.ValueString()
 		}
+	}
+
+	service.IdleScaling = plan.IdleScaling.ValueBool()
+	if !plan.IdleTimeoutMinutes.IsNull() {
+		idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
+		service.IdleTimeoutMinutes = &idleTimeoutMinutes
+	} else if service.IdleScaling {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"idle_timeout_minutes should be defined if idle_scaling is enabled",
+		)
+		return
 	}
 
 	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
@@ -363,11 +374,11 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	service.IpAccessList = []IpAccess{}
+	service.IpAccessList = []api.IpAccess{}
 	for _, item := range plan.IpAccessList {
-		service.IpAccessList = append(service.IpAccessList, IpAccess{
-			Source:      string(item.Source.ValueString()),
-			Description: string(item.Description.ValueString()),
+		service.IpAccessList = append(service.IpAccessList, api.IpAccess{
+			Source:      item.Source.ValueString(),
+			Description: item.Description.ValueString(),
 		})
 	}
 
@@ -392,16 +403,15 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		s, err = r.client.GetService(s.Id)
 		if err != nil {
 			numErrors++
-			if numErrors > MAX_RETRY {
+			if numErrors > api.MaxRetry {
 				resp.Diagnostics.AddError(
 					"Error retrieving service state",
 					"Could not retrieve service state after creation, unexpected error: "+err.Error(),
 				)
 				return
-			} else {
-				time.Sleep(time.Second * 5)
-				continue
 			}
+			time.Sleep(time.Second * 5)
+			continue
 		}
 
 		if s.State != "provisioning" {
@@ -414,7 +424,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	// Update service password if provided explicitly
 	planPassword := plan.Password.ValueString()
 	if len(planPassword) > 0 {
-		_, err := r.client.UpdateServicePassword(s.Id, ServicePasswordUpdateFromPlainPassword(planPassword))
+		_, err := r.client.UpdateServicePassword(s.Id, servicePasswordUpdateFromPlainPassword(planPassword))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error setting service password",
@@ -426,7 +436,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Update hashed service password if provided explicitly
 	if passwordHash, doubleSha1PasswordHash := plan.PasswordHash.ValueString(), plan.DoubleSha1PasswordHash.ValueString(); len(passwordHash) > 0 || len(doubleSha1PasswordHash) > 0 {
-		passwordUpdate := ServicePasswordUpdate{
+		passwordUpdate := api.ServicePasswordUpdate{
 			NewPasswordHash: passwordHash,
 		}
 
@@ -494,7 +504,9 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Retrieve values from plan
 	var config, plan, state ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
 	diags = req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 
@@ -594,22 +606,27 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		)
 	}
 
-	if config.Tier.ValueString() == "development" {
-		if !plan.IdleScaling.IsNull() || !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.IdleTimeoutMinutes.IsNull() {
+	if config.Tier.ValueString() == api.TierDevelopment {
+		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes cannot be defined if the service tier is development",
+				"min_total_memory_gb, max_total_memory_gb, and num_replicase cannot be defined if the service tier is development",
 			)
-			return
 		}
-	} else if config.Tier.ValueString() == "production" {
-		if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
+	} else if config.Tier.ValueString() == api.TierProduction {
+		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
+				"min_total_memory_gb and max_total_memory_gb must be defined if the service tier is production",
 			)
-			return
 		}
+	}
+
+	if plan.IdleScaling.ValueBool() && plan.IdleTimeoutMinutes.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"idle_timeout_minutes should be defined if idle_scaling is enabled",
+		)
 	}
 
 	if resp.Diagnostics.HasError() {
@@ -618,7 +635,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	// Generate API request body from plan
 	serviceId := state.ID.ValueString()
-	service := ServiceUpdate{
+	service := api.ServiceUpdate{
 		Name:         "",
 		IpAccessList: nil,
 	}
@@ -634,11 +651,11 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		ipAccessListRawOld := state.IpAccessList
 		ipAccessListRawNew := plan.IpAccessList
 
-		ipAccessListOld := []IpAccess{}
-		ipAccessListNew := []IpAccess{}
+		ipAccessListOld := []api.IpAccess{}
+		ipAccessListNew := []api.IpAccess{}
 
 		for _, item := range ipAccessListRawOld {
-			ipAccess := IpAccess{
+			ipAccess := api.IpAccess{
 				Source:      item.Source.ValueString(),
 				Description: item.Description.ValueString(),
 			}
@@ -647,7 +664,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 
 		for _, item := range ipAccessListRawNew {
-			ipAccess := IpAccess{
+			ipAccess := api.IpAccess{
 				Source:      item.Source.ValueString(),
 				Description: item.Description.ValueString(),
 			}
@@ -655,7 +672,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			ipAccessListNew = append(ipAccessListNew, ipAccess)
 		}
 
-		service.IpAccessList = &IpAccessUpdate{
+		service.IpAccessList = &api.IpAccessUpdate{
 			Add:    ipAccessListNew,
 			Remove: ipAccessListOld,
 		}
@@ -679,7 +696,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			privateEndpointIdsNew = append(privateEndpointIdsNew, item.ValueString())
 		}
 
-		service.PrivateEndpointIds = &PrivateEndpointIdsUpdate{
+		service.PrivateEndpointIds = &api.PrivateEndpointIdsUpdate{
 			Add:    privateEndpointIdsNew,
 			Remove: privateEndpointIdsOld,
 		}
@@ -699,7 +716,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	scalingChange := false
-	serviceScaling := ServiceScalingUpdate{
+	serviceScaling := api.ServiceScalingUpdate{
 		IdleScaling: state.IdleScaling.ValueBoolPointer(),
 	}
 
@@ -753,7 +770,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	password := plan.Password.ValueString()
 	if len(password) > 0 && plan.Password != state.Password {
 		password = plan.Password.ValueString()
-		res, err := r.client.UpdateServicePassword(serviceId, ServicePasswordUpdateFromPlainPassword(password))
+		_, err := r.client.UpdateServicePassword(serviceId, servicePasswordUpdateFromPlainPassword(password))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
@@ -761,13 +778,8 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			)
 			return
 		}
-
-		// empty password provided, ClickHouse Cloud return a new generated password
-		if len(res.Password) > 0 {
-			password = res.Password
-		}
 	} else if !plan.PasswordHash.IsNull() || !plan.DoubleSha1PasswordHash.IsNull() {
-		passwordUpdate := ServicePasswordUpdate{}
+		passwordUpdate := api.ServicePasswordUpdate{}
 
 		if !plan.PasswordHash.IsNull() { // change in password hash
 			passwordUpdate.NewPasswordHash = plan.PasswordHash.ValueString()
@@ -779,7 +791,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			passwordUpdate.NewDoubleSha1Hash = plan.DoubleSha1PasswordHash.ValueString()
 		}
 
-		res, err := r.client.UpdateServicePassword(serviceId, passwordUpdate)
+		_, err := r.client.UpdateServicePassword(serviceId, passwordUpdate)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
@@ -787,14 +799,16 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			)
 			return
 		}
-
-		// empty password provided, ClickHouse Cloud return a new generated password
-		if len(res.Password) > 0 {
-			password = res.Password
-		}
 	}
 
-	r.syncServiceState(ctx, &plan, true)
+	err := r.syncServiceState(ctx, &plan, true)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error syncing service state",
+			"Could not sync service state, unexpected error: "+err.Error(),
+		)
+		return
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -847,7 +861,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	state.Region = types.StringValue(service.Region)
 	state.Tier = types.StringValue(service.Tier)
 
-	if service.Tier == "production" {
+	if service.Tier == api.TierProduction {
 		state.IdleScaling = types.BoolValue(service.IdleScaling)
 		if service.MinTotalMemoryGb != nil {
 			state.MinTotalMemoryGb = types.Int64Value(int64(*service.MinTotalMemoryGb))
@@ -921,4 +935,16 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	}
 
 	return nil
+}
+
+func servicePasswordUpdateFromPlainPassword(password string) api.ServicePasswordUpdate {
+	hash := sha256.Sum256([]byte(password))
+
+	singleSha1Hash := sha1.Sum([]byte(password))  // nolint:gosec
+	doubleSha1Hash := sha1.Sum(singleSha1Hash[:]) // nolint:gosec
+
+	return api.ServicePasswordUpdate{
+		NewPasswordHash:   base64.StdEncoding.EncodeToString(hash[:]),
+		NewDoubleSha1Hash: hex.EncodeToString(doubleSha1Hash[:]),
+	}
 }

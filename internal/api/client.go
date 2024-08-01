@@ -1,10 +1,7 @@
-package clickhouse
+package api
 
 import (
-	"crypto/sha1"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,7 +10,7 @@ import (
 	"time"
 )
 
-type Client struct {
+type ClientImpl struct {
 	BaseUrl        string
 	HttpClient     *http.Client
 	OrganizationId string
@@ -21,8 +18,8 @@ type Client struct {
 	TokenSecret    string
 }
 
-func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecret string) (*Client, error) {
-	client := &Client{
+func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecret string) (*ClientImpl, error) {
+	client := &ClientImpl{
 		BaseUrl: apiUrl,
 		HttpClient: &http.Client{
 			Timeout: time.Second * 30,
@@ -33,92 +30,6 @@ func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecre
 	}
 
 	return client, nil
-}
-
-/****
-	Service
-****/
-
-type IpAccess struct {
-	Source      string `json:"source,omitempty"`
-	Description string `json:"description,omitempty"`
-}
-
-type Endpoint struct {
-	Protocol string `json:"protocol,omitempty"`
-	Host     string `json:"host,omitempty"`
-	Port     int    `json:"port,omitempty"`
-}
-
-type IpAccessUpdate struct {
-	Add    []IpAccess `json:"add,omitempty"`
-	Remove []IpAccess `json:"remove,omitempty"`
-}
-
-type PrivateEndpointIdsUpdate struct {
-	Add    []string `json:"add,omitempty"`
-	Remove []string `json:"remove,omitempty"`
-}
-
-type ServicePrivateEndpointConfig struct {
-	EndpointServiceId  string `json:"endpointServiceId,omitempty"`
-	PrivateDnsHostname string `json:"privateDnsHostname,omitempty"`
-}
-type ServiceManagedEncryption struct {
-	KeyArn        string `json:"keyArn,omitempty"`
-	AssumeRoleArn string `json:"assumeRoleArn,omitempty"`
-}
-
-type Service struct {
-	Id                              string                        `json:"id,omitempty"`
-	Name                            string                        `json:"name"`
-	Provider                        string                        `json:"provider"`
-	Region                          string                        `json:"region"`
-	Tier                            string                        `json:"tier"`
-	IdleScaling                     bool                          `json:"idleScaling"`
-	IpAccessList                    []IpAccess                    `json:"ipAccessList"`
-	MinTotalMemoryGb                *int                          `json:"minTotalMemoryGb,omitempty"`
-	MaxTotalMemoryGb                *int                          `json:"maxTotalMemoryGb,omitempty"`
-	NumReplicas                     *int                          `json:"numReplicas,omitempty"`
-	IdleTimeoutMinutes              *int                          `json:"idleTimeoutMinutes,omitempty"`
-	State                           string                        `json:"state,omitempty"`
-	Endpoints                       []Endpoint                    `json:"endpoints,omitempty"`
-	IAMRole                         string                        `json:"iamRole,omitempty"`
-	PrivateEndpointConfig           *ServicePrivateEndpointConfig `json:"privateEndpointConfig,omitempty"`
-	PrivateEndpointIds              []string                      `json:"privateEndpointIds,omitempty"`
-	EncryptionKey                   string                        `json:"encryptionKey,omitempty"`
-	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
-}
-
-type ServiceUpdate struct {
-	Name               string                    `json:"name,omitempty"`
-	IpAccessList       *IpAccessUpdate           `json:"ipAccessList,omitempty"`
-	PrivateEndpointIds *PrivateEndpointIdsUpdate `json:"privateEndpointIds,omitempty"`
-}
-
-type ServiceScalingUpdate struct {
-	IdleScaling        *bool `json:"idleScaling,omitempty"` // bool pointer so that `false`` is not omitted
-	MinTotalMemoryGb   *int  `json:"minTotalMemoryGb,omitempty"`
-	MaxTotalMemoryGb   *int  `json:"maxTotalMemoryGb,omitempty"`
-	NumReplicas        *int  `json:"numReplicas,omitempty"`
-	IdleTimeoutMinutes *int  `json:"idleTimeoutMinutes,omitempty"`
-}
-
-type ServicePasswordUpdate struct {
-	NewPasswordHash   string `json:"newPasswordHash,omitempty"`
-	NewDoubleSha1Hash string `json:"newDoubleSha1Hash,omitempty"`
-}
-
-func ServicePasswordUpdateFromPlainPassword(password string) ServicePasswordUpdate {
-	hash := sha256.Sum256([]byte(password))
-
-	singleSha1Hash := sha1.Sum([]byte(password))
-	doubleSha1Hash := sha1.Sum(singleSha1Hash[:])
-
-	return ServicePasswordUpdate{
-		NewPasswordHash:   base64.StdEncoding.EncodeToString(hash[:]),
-		NewDoubleSha1Hash: hex.EncodeToString(doubleSha1Hash[:]),
-	}
 }
 
 type ServicePasswordUpdateResult struct {
@@ -166,23 +77,22 @@ type ServicePrivateEndpointConfigResponse struct {
 	Result ServicePrivateEndpointConfig `json:"result"`
 }
 
-func (c *Client) getOrgPath(path string) string {
+func (c *ClientImpl) getOrgPath(path string) string {
 	return fmt.Sprintf("%s/organizations/%s%s", c.BaseUrl, c.OrganizationId, path)
 }
 
-func (c *Client) getServicePath(serviceId string, path string) string {
+func (c *ClientImpl) getServicePath(serviceId string, path string) string {
 	if serviceId == "" {
 		return c.getOrgPath("/services")
-	} else {
-		return c.getOrgPath(fmt.Sprintf("/services/%s%s", serviceId, path))
 	}
+	return c.getOrgPath(fmt.Sprintf("/services/%s%s", serviceId, path))
 }
 
-func (c *Client) getPrivateEndpointConfigPath(cloudProvider string, region string) string {
+func (c *ClientImpl) getPrivateEndpointConfigPath(cloudProvider string, region string) string {
 	return c.getOrgPath(fmt.Sprintf("/privateEndpointConfig?cloud_provider=%s&region_id=%s", cloudProvider, region))
 }
 
-func (c *Client) doRequest(req *http.Request) ([]byte, error) {
+func (c *ClientImpl) doRequest(req *http.Request) ([]byte, error) {
 	credentials := fmt.Sprintf("%s:%s", c.TokenKey, c.TokenSecret)
 	base64Credentials := base64.StdEncoding.EncodeToString([]byte(credentials))
 	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
@@ -206,7 +116,7 @@ func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 	return body, err
 }
 
-func (c *Client) checkStatusCode(req *http.Request) (*int, error) {
+func (c *ClientImpl) checkStatusCode(req *http.Request) (*int, error) {
 	credentials := fmt.Sprintf("%s:%s", c.TokenKey, c.TokenSecret)
 	base64Credentials := base64.StdEncoding.EncodeToString([]byte(credentials))
 	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
@@ -222,7 +132,7 @@ func (c *Client) checkStatusCode(req *http.Request) (*int, error) {
 }
 
 // GetService - Returns a specifc order
-func (c *Client) GetService(serviceId string) (*Service, error) {
+func (c *ClientImpl) GetService(serviceId string) (*Service, error) {
 	req, err := http.NewRequest("GET", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
@@ -261,7 +171,7 @@ func (c *Client) GetService(serviceId string) (*Service, error) {
 	return &service, nil
 }
 
-func (c *Client) GetOrgPrivateEndpointConfig(cloudProvider string, region string) (*OrgPrivateEndpointConfig, error) {
+func (c *ClientImpl) GetOrgPrivateEndpointConfig(cloudProvider string, region string) (*OrgPrivateEndpointConfig, error) {
 	privateEndpointConfigPath := c.getPrivateEndpointConfigPath(cloudProvider, region)
 
 	req, err := http.NewRequest("GET", privateEndpointConfigPath, nil)
@@ -282,7 +192,7 @@ func (c *Client) GetOrgPrivateEndpointConfig(cloudProvider string, region string
 	return &privateEndpointConfigResponse.Result, nil
 }
 
-func (c *Client) CreateService(s Service) (*Service, string, error) {
+func (c *ClientImpl) CreateService(s Service) (*Service, string, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, "", err
@@ -309,7 +219,7 @@ func (c *Client) CreateService(s Service) (*Service, string, error) {
 	return &serviceResponse.Result.Service, serviceResponse.Result.Password, nil
 }
 
-func (c *Client) UpdateService(serviceId string, s ServiceUpdate) (*Service, error) {
+func (c *ClientImpl) UpdateService(serviceId string, s ServiceUpdate) (*Service, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, err
@@ -336,7 +246,7 @@ func (c *Client) UpdateService(serviceId string, s ServiceUpdate) (*Service, err
 	return &serviceResponse.Result, nil
 }
 
-func (c *Client) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) (*Service, error) {
+func (c *ClientImpl) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) (*Service, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, err
@@ -363,7 +273,7 @@ func (c *Client) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) 
 	return &serviceResponse.Result, nil
 }
 
-func (c *Client) UpdateServicePassword(serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error) {
+func (c *ClientImpl) UpdateServicePassword(serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error) {
 	rb, err := json.Marshal(u)
 	if err != nil {
 		return nil, err
@@ -390,7 +300,7 @@ func (c *Client) UpdateServicePassword(serviceId string, u ServicePasswordUpdate
 	return &serviceResponse, nil
 }
 
-func (c *Client) GetServiceStatusCode(serviceId string) (*int, error) {
+func (c *ClientImpl) GetServiceStatusCode(serviceId string) (*int, error) {
 	req, err := http.NewRequest("GET", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
@@ -404,7 +314,7 @@ func (c *Client) GetServiceStatusCode(serviceId string) (*int, error) {
 	return statusCode, nil
 }
 
-func (c *Client) DeleteService(serviceId string) (*Service, error) {
+func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
 	service, err := c.GetService(serviceId)
 	if err != nil {
 		return nil, err
@@ -432,12 +342,11 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 		service, err := c.GetService(serviceId)
 		if err != nil {
 			numErrors++
-			if numErrors > MAX_RETRY {
+			if numErrors > MaxRetry {
 				return nil, err
-			} else {
-				time.Sleep(5 * time.Second)
-				continue
 			}
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
 		if service.State == "stopped" {
@@ -462,7 +371,6 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 		return nil, err
 	}
 
-	numErrors = 0
 	for {
 		statusCode, _ := c.GetServiceStatusCode(serviceId)
 
@@ -511,7 +419,7 @@ type OrganizationUpdateResponse struct {
 	Result OrgResult `json:"result,omitempty"`
 }
 
-func (c *Client) GetOrganizationPrivateEndpoints() (*[]PrivateEndpoint, error) {
+func (c *ClientImpl) GetOrganizationPrivateEndpoints() (*[]PrivateEndpoint, error) {
 	req, err := http.NewRequest("GET", c.getOrgPath(""), nil)
 	if err != nil {
 		return nil, err
@@ -531,7 +439,7 @@ func (c *Client) GetOrganizationPrivateEndpoints() (*[]PrivateEndpoint, error) {
 	return &orgResponse.Result.PrivateEndpoints, nil
 }
 
-func (c *Client) UpdateOrganizationPrivateEndpoints(orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error) {
+func (c *ClientImpl) UpdateOrganizationPrivateEndpoints(orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error) {
 	rb, err := json.Marshal(orgUpdate)
 	if err != nil {
 		return nil, err
