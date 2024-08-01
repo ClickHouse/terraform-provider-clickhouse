@@ -132,7 +132,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"idle_scaling": schema.BoolAttribute{
-				Description: "When set to true the service is allowed to scale down to zero when idle. Always true for development services. Configurable only for 'production' services.",
+				Description: "When set to true the service is allowed to scale down to zero when idle.",
 				Optional:    true,
 			},
 			"ip_access": schema.ListNestedAttribute{
@@ -187,7 +187,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
-				Description: "Set minimum idling timeout (in minutes). Available only for 'production' services. Must be greater than or equal to 5 minutes.",
+				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled",
 				Optional:    true,
 			},
 			"iam_role": schema.StringAttribute{
