@@ -262,10 +262,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	if service.Tier == "development" {
-		if !plan.IdleScaling.IsNull() || !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.IdleTimeoutMinutes.IsNull() || !plan.NumReplicas.IsNull() {
+		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, idle_timeout_minutes and num_replicas cannot be defined if the service tier is development",
+				"min_total_memory_gb, max_total_memory_gb and num_replicas cannot be defined if the service tier is development",
 			)
 			return
 		}
@@ -278,10 +278,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 	} else if service.Tier == "production" {
-		if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
+		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
+				"min_total_memory_gb and max_total_memory_gb must be defined if the service tier is production",
 			)
 			return
 		}
@@ -302,8 +302,6 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 
-		service.IdleScaling = bool(plan.IdleScaling.ValueBool())
-
 		if !plan.MinTotalMemoryGb.IsNull() {
 			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
 			service.MinTotalMemoryGb = &minTotalMemoryGb
@@ -319,16 +317,24 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			)
 			return
 		}
-		if !plan.IdleTimeoutMinutes.IsNull() {
-			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
-			service.IdleTimeoutMinutes = &idleTimeoutMinutes
-		}
 		if !plan.EncryptionKey.IsNull() {
 			service.EncryptionKey = string(plan.EncryptionKey.ValueString())
 		}
 		if !plan.EncryptionAssumedRoleIdentifier.IsNull() {
 			service.EncryptionAssumedRoleIdentifier = string(plan.EncryptionAssumedRoleIdentifier.ValueString())
 		}
+	}
+
+	service.IdleScaling = bool(plan.IdleScaling.ValueBool())
+	if !plan.IdleTimeoutMinutes.IsNull() {
+		idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
+		service.IdleTimeoutMinutes = &idleTimeoutMinutes
+	} else if service.IdleScaling {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"idle_timeout_minutes should be defined if idle_scaling is enabled",
+		)
+		return
 	}
 
 	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
@@ -595,21 +601,26 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	if config.Tier.ValueString() == "development" {
-		if !plan.IdleScaling.IsNull() || !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.IdleTimeoutMinutes.IsNull() {
+		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes cannot be defined if the service tier is development",
+				"min_total_memory_gb, max_total_memory_gb, and num_replicase cannot be defined if the service tier is development",
 			)
-			return
 		}
 	} else if config.Tier.ValueString() == "production" {
-		if plan.IdleScaling.ValueBool() && (plan.IdleScaling.IsNull() || plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() || plan.IdleTimeoutMinutes.IsNull()) {
+		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"idle_scaling, min_total_memory_gb, max_total_memory_gb, and idle_timeout_minutes must be defined if the service tier is production and idle_scaling is enabled",
+				"min_total_memory_gb and max_total_memory_gb must be defined if the service tier is production",
 			)
-			return
 		}
+	}
+
+	if plan.IdleScaling.ValueBool() && plan.IdleTimeoutMinutes.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"idle_timeout_minutes should be defined if idle_scaling is enabled",
+		)
 	}
 
 	if resp.Diagnostics.HasError() {
