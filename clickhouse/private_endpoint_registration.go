@@ -124,12 +124,8 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 	for _, pe := range *privateEndpoints {
 		// openapi validator guarantees uniqueness by ID
 		if pe.EndpointId == state.EndpointId.ValueString() {
-			privateEndpoint = &PrivateEndpoint{
-				CloudProvider: pe.CloudProvider,
-				Description:   pe.Description,
-				EndpointId:    pe.EndpointId,
-				Region:        pe.Region,
-			}
+			clone := pe
+			privateEndpoint = &clone
 			break
 		}
 	}
