@@ -1,7 +1,7 @@
 package clickhouse
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" // nolint:gosec
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -112,8 +112,8 @@ type ServicePasswordUpdate struct {
 func ServicePasswordUpdateFromPlainPassword(password string) ServicePasswordUpdate {
 	hash := sha256.Sum256([]byte(password))
 
-	singleSha1Hash := sha1.Sum([]byte(password))
-	doubleSha1Hash := sha1.Sum(singleSha1Hash[:])
+	singleSha1Hash := sha1.Sum([]byte(password))  // nolint:gosec
+	doubleSha1Hash := sha1.Sum(singleSha1Hash[:]) // nolint:gosec
 
 	return ServicePasswordUpdate{
 		NewPasswordHash:   base64.StdEncoding.EncodeToString(hash[:]),
@@ -173,9 +173,8 @@ func (c *Client) getOrgPath(path string) string {
 func (c *Client) getServicePath(serviceId string, path string) string {
 	if serviceId == "" {
 		return c.getOrgPath("/services")
-	} else {
-		return c.getOrgPath(fmt.Sprintf("/services/%s%s", serviceId, path))
 	}
+	return c.getOrgPath(fmt.Sprintf("/services/%s%s", serviceId, path))
 }
 
 func (c *Client) getPrivateEndpointConfigPath(cloudProvider string, region string) string {
@@ -432,12 +431,11 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 		service, err := c.GetService(serviceId)
 		if err != nil {
 			numErrors++
-			if numErrors > MAX_RETRY {
+			if numErrors > MaxRetry {
 				return nil, err
-			} else {
-				time.Sleep(5 * time.Second)
-				continue
 			}
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
 		if service.State == "stopped" {
@@ -462,7 +460,6 @@ func (c *Client) DeleteService(serviceId string) (*Service, error) {
 		return nil, err
 	}
 
-	numErrors = 0
 	for {
 		statusCode, _ := c.GetServiceStatusCode(serviceId)
 

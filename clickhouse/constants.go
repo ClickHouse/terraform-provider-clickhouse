@@ -1,3 +1,8 @@
 package clickhouse
 
-const MAX_RETRY = 5
+const (
+	MaxRetry = 5
+
+	TierDevelopment = "development"
+	TierProduction  = "production"
+)
