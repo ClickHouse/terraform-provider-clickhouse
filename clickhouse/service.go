@@ -8,9 +8,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
-	"time"
-
 	"terraform-provider-clickhouse/internal/api"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 

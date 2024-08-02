@@ -2,12 +2,11 @@ package clickhouse
 
 import (
 	"context"
+	"terraform-provider-clickhouse/internal/test"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-
-	"terraform-provider-clickhouse/internal/test"
 )
 
 func TestServiceResourceModel_Equals(t *testing.T) {
