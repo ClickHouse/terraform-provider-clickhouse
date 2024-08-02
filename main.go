@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"terraform-provider-clickhouse/clickhouse"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/clickhouse"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )

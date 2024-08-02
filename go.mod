@@ -1,4 +1,4 @@
-module terraform-provider-clickhouse
+module github.com/ClickHouse/terraform-provider-clickhouse
 
 go 1.22.5
 

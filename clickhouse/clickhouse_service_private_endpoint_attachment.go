@@ -2,7 +2,8 @@ package clickhouse
 
 import (
 	"context"
-	"terraform-provider-clickhouse/internal/api"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"

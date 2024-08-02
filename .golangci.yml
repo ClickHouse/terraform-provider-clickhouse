@@ -19,7 +19,7 @@ linters-settings:
     # Put imports beginning with prefix after 3rd-party packages.
     # It's a comma-separated list of prefixes.
     autofix: true
-    local-prefixes: clickhouse.com/
+    local-prefixes: github.com/ClickHouse/terraform-provider-clickhouse
 
 run:
   timeout: 10m

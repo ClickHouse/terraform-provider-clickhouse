@@ -2,8 +2,9 @@ package clickhouse
 
 import (
 	"context"
-	"terraform-provider-clickhouse/internal/test"
 	"testing"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/test"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"

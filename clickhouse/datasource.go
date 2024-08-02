@@ -3,7 +3,8 @@ package clickhouse
 import (
 	"context"
 	"fmt"
-	"terraform-provider-clickhouse/internal/api"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
