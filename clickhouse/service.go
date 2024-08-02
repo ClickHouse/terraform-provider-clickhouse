@@ -8,8 +8,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
-	"terraform-provider-clickhouse/internal/api"
 	"time"
+
+	"terraform-provider-clickhouse/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 
@@ -41,30 +42,6 @@ type ServiceResource struct {
 	client api.Client
 }
 
-type ServiceResourceModel struct {
-	ID                              types.String    `tfsdk:"id"`
-	Name                            types.String    `tfsdk:"name"`
-	Password                        types.String    `tfsdk:"password"`
-	PasswordHash                    types.String    `tfsdk:"password_hash"`
-	DoubleSha1PasswordHash          types.String    `tfsdk:"double_sha1_password_hash"`
-	Endpoints                       types.List      `tfsdk:"endpoints"`
-	CloudProvider                   types.String    `tfsdk:"cloud_provider"`
-	Region                          types.String    `tfsdk:"region"`
-	Tier                            types.String    `tfsdk:"tier"`
-	IdleScaling                     types.Bool      `tfsdk:"idle_scaling"`
-	IpAccessList                    []IpAccessModel `tfsdk:"ip_access"`
-	MinTotalMemoryGb                types.Int64     `tfsdk:"min_total_memory_gb"`
-	MaxTotalMemoryGb                types.Int64     `tfsdk:"max_total_memory_gb"`
-	NumReplicas                     types.Int64     `tfsdk:"num_replicas"`
-	IdleTimeoutMinutes              types.Int64     `tfsdk:"idle_timeout_minutes"`
-	IAMRole                         types.String    `tfsdk:"iam_role"`
-	LastUpdated                     types.String    `tfsdk:"last_updated"`
-	PrivateEndpointConfig           types.Object    `tfsdk:"private_endpoint_config"`
-	PrivateEndpointIds              types.List      `tfsdk:"private_endpoint_ids"`
-	EncryptionKey                   types.String    `tfsdk:"encryption_key"`
-	EncryptionAssumedRoleIdentifier types.String    `tfsdk:"encryption_assumed_role_identifier"`
-}
-
 var endpointObjectType = types.ObjectType{
 	AttrTypes: map[string]attr.Type{
 		"protocol": types.StringType,
@@ -76,6 +53,10 @@ var endpointObjectType = types.ObjectType{
 type IpAccessModel struct {
 	Source      types.String `tfsdk:"source"`
 	Description types.String `tfsdk:"description"`
+}
+
+func (s IpAccessModel) Equal(other IpAccessModel) bool {
+	return false
 }
 
 var privateEndpointConfigType = types.ObjectType{
