@@ -2,8 +2,9 @@ package clickhouse
 
 import (
 	"context"
-	"terraform-provider-clickhouse/internal/test"
 	"testing"
+
+	"terraform-provider-clickhouse/internal/test"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -226,7 +227,7 @@ func TestServiceResourceModel_Equals(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.a.Equals(tt.b); got != tt.want {
-				t.Errorf("Equals() = %v, want %v", got, tt.want)
+				t.Errorf("%s wanted Equals() to return %v, got %v", tt.name, tt.want, got)
 			}
 		})
 	}
