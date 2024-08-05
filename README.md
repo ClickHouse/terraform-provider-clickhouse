@@ -1,8 +1,9 @@
 # ClickHouse Terraform Provider
 
 [![Release](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/release.yml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/release.yml)
-[![Ensure docs are up to date](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml)
+[![Docs](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml)
 [![Dependabot Updates](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates)
+[![Unit tests ](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml)
 
 ## Local Development
 
