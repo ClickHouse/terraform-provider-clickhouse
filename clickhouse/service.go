@@ -898,12 +898,8 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
-	if !state.EncryptionKey.IsNull() {
-		state.EncryptionKey = types.StringValue(service.EncryptionKey)
-	}
-	if !state.EncryptionAssumedRoleIdentifier.IsNull() {
-		state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
-	}
+	state.EncryptionKey = types.StringValue(service.EncryptionKey)
+	state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
 
 	if len(service.PrivateEndpointIds) == 0 {
 		state.PrivateEndpointIds = createEmptyList(types.StringType)
