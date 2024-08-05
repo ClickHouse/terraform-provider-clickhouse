@@ -1,11 +1,12 @@
-package clickhouse
+package resource
 
 import (
 	"context"
 	"testing"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/test"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/test"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -17,10 +18,10 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		state           ServiceResourceModel
+		state           models.ServiceResourceModel
 		response        *api.Service
 		responseErr     error
-		desiredState    ServiceResourceModel
+		desiredState    models.ServiceResourceModel
 		updateTimestamp bool
 		wantErr         bool
 	}{
@@ -31,7 +32,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.Name = "newname"
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Name = types.StringValue("newname")
 			}).Get(),
 			updateTimestamp: false,
@@ -50,7 +51,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				}
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				var endpoints []attr.Value
 				obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
 					"protocol": types.StringValue("TCP"),
@@ -71,7 +72,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.Provider = "newprovider"
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.CloudProvider = types.StringValue("newprovider")
 			}).Get(),
 			updateTimestamp: false,
@@ -84,7 +85,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.Region = "newregion"
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Region = types.StringValue("newregion")
 			}).Get(),
 			updateTimestamp: false,
@@ -97,7 +98,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.Tier = "newtier"
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue("newtier")
 			}).Get(),
 			updateTimestamp: false,
@@ -110,7 +111,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.IdleScaling = true
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.IdleScaling = types.BoolValue(true)
 			}).Get(),
 			updateTimestamp: false,
@@ -123,7 +124,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.IdleScaling = false
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.IdleScaling = types.BoolValue(false)
 			}).Get(),
 			updateTimestamp: false,
@@ -141,8 +142,8 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				}
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
-				src.IpAccessList = []IpAccessModel{
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.IpAccessList = []models.IPAccessModel{
 					{
 						Source:      types.StringValue("0.0.0.0/0"),
 						Description: types.StringValue("whitelist"),
@@ -161,7 +162,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.MinTotalMemoryGb = &minTotalMemory
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierProduction)
 				src.MinTotalMemoryGb = types.Int64Value(10)
 			}).Get(),
@@ -177,7 +178,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.MinTotalMemoryGb = &minTotalMemory
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierDevelopment)
 				src.MinTotalMemoryGb = types.Int64{}
 			}).Get(),
@@ -193,7 +194,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.MaxTotalMemoryGb = &maxTotalMemory
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierProduction)
 				src.MaxTotalMemoryGb = types.Int64Value(10)
 			}).Get(),
@@ -209,7 +210,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.MaxTotalMemoryGb = &maxTotalMemory
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierDevelopment)
 				src.MaxTotalMemoryGb = types.Int64{}
 			}).Get(),
@@ -225,7 +226,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.NumReplicas = &replicas
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierProduction)
 				src.NumReplicas = types.Int64Value(3)
 			}).Get(),
@@ -241,7 +242,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.NumReplicas = &replicas
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierDevelopment)
 				src.NumReplicas = types.Int64{}
 			}).Get(),
@@ -256,7 +257,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.IdleTimeoutMinutes = &timeout
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.IdleTimeoutMinutes = types.Int64Value(25)
 			}).Get(),
 			updateTimestamp: false,
@@ -269,7 +270,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.IAMRole = "newiamrole"
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.IAMRole = types.StringValue("newiamrole")
 			}).Get(),
 			updateTimestamp: false,
@@ -285,7 +286,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				}
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
 					"endpoint_service_id":  types.StringValue("newendpointserviceid"),
 					"private_dns_hostname": types.StringValue("new.endpoint.service.hostname"),
@@ -303,7 +304,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				}
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.PrivateEndpointIds, _ = types.ListValueFrom(context.Background(), types.StringType, []string{"newendpointid"})
 			}).Get(),
 			updateTimestamp: false,
@@ -316,7 +317,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.EncryptionKey = "newencryptionkey"
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.EncryptionKey = types.StringValue("newencryptionkey")
 			}).Get(),
 			updateTimestamp: false,
@@ -329,7 +330,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 				src.EncryptionAssumedRoleIdentifier = "newroleidentifier"
 			}).GetPtr(),
 			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *ServiceResourceModel) {
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.EncryptionAssumedRoleIdentifier = types.StringValue("newroleidentifier")
 			}).Get(),
 			updateTimestamp: false,
@@ -342,7 +343,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mc := minimock.NewController(t)
 
-			apiClientMock := NewClientMock(mc).
+			apiClientMock := api.NewClientMock(mc).
 				GetServiceMock.
 				Expect(tt.state.ID.ValueString()).
 				Return(tt.response, tt.responseErr)
@@ -364,7 +365,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 	}
 }
 
-func getInitialState() ServiceResourceModel {
+func getInitialState() models.ServiceResourceModel {
 	uuid := "773bb8b4-34e8-4ecf-8e23-4f7e20aa14b3"
 
 	endpoints, _ := types.ListValue(endpointObjectType, []attr.Value{})
@@ -374,7 +375,7 @@ func getInitialState() ServiceResourceModel {
 	})
 	privateEndpointIds, _ := types.ListValue(types.StringType, []attr.Value{})
 
-	state := ServiceResourceModel{
+	state := models.ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
 		Name:                            types.StringValue(""),
 		Password:                        types.String{},
@@ -385,7 +386,7 @@ func getInitialState() ServiceResourceModel {
 		Region:                          types.StringValue(""),
 		Tier:                            types.StringValue(""),
 		IdleScaling:                     types.BoolValue(false),
-		IpAccessList:                    make([]IpAccessModel, 0),
+		IpAccessList:                    make([]models.IPAccessModel, 0),
 		MinTotalMemoryGb:                types.Int64{},
 		MaxTotalMemoryGb:                types.Int64{},
 		NumReplicas:                     types.Int64{},

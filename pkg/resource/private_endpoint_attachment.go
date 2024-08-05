@@ -1,41 +1,42 @@
-package clickhouse
+package resource
 
 import (
 	"context"
-
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
 )
 
 var (
-	_ resource.Resource                = &ClickhouseServicePrivateEndpointAttachmentResource{}
-	_ resource.ResourceWithConfigure   = &ClickhouseServicePrivateEndpointAttachmentResource{}
-	_ resource.ResourceWithImportState = &ClickhouseServicePrivateEndpointAttachmentResource{}
+	_ resource.Resource                = &PrivateEndpointAttachmentResource{}
+	_ resource.ResourceWithConfigure   = &PrivateEndpointAttachmentResource{}
+	_ resource.ResourceWithImportState = &PrivateEndpointAttachmentResource{}
 )
 
-func NewClickhouseServicePrivateEndpointAttachmentResource() resource.Resource {
-	return &ClickhouseServicePrivateEndpointAttachmentResource{}
+func NewPrivateEndpointAttachmentResource() resource.Resource {
+	return &PrivateEndpointAttachmentResource{}
 }
 
-type ClickhouseServicePrivateEndpointAttachmentResource struct {
+type PrivateEndpointAttachmentResource struct {
 	client api.Client
 }
 
-type ClickhouseServicePrivateEndpointAttachmentModel struct {
+type PrivateEndpointAttachmentModel struct {
 	PrivateEndpointIds types.List   `tfsdk:"private_endpoint_ids"`
 	ServiceId          types.String `tfsdk:"service_id"`
 }
 
-func (r *ClickhouseServicePrivateEndpointAttachmentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *PrivateEndpointAttachmentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_service_private_endpoint_attachment"
 }
 
-func (r *ClickhouseServicePrivateEndpointAttachmentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *PrivateEndpointAttachmentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"private_endpoint_ids": schema.ListAttribute{
@@ -43,7 +44,7 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Schema(_ context.Co
 				ElementType: types.StringType,
 				Optional:    true,
 				Computed:    true,
-				Default:     listdefault.StaticValue(createEmptyList(types.StringType)),
+				Default:     listdefault.StaticValue(tfutils.CreateEmptyList(types.StringType)),
 			},
 			"service_id": schema.StringAttribute{
 				Description: "ClickHouse Servie ID",
@@ -53,7 +54,7 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Schema(_ context.Co
 	}
 }
 
-func (r *ClickhouseServicePrivateEndpointAttachmentResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *PrivateEndpointAttachmentResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -61,8 +62,8 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Configure(_ context
 	r.client = req.ProviderData.(api.Client)
 }
 
-func (r *ClickhouseServicePrivateEndpointAttachmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan ClickhouseServicePrivateEndpointAttachmentModel
+func (r *PrivateEndpointAttachmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan PrivateEndpointAttachmentModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -98,8 +99,8 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Create(ctx context.
 	}
 }
 
-func (r *ClickhouseServicePrivateEndpointAttachmentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state ClickhouseServicePrivateEndpointAttachmentModel
+func (r *PrivateEndpointAttachmentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state PrivateEndpointAttachmentModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -118,7 +119,7 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Read(ctx context.Co
 
 	// Overwrite items with refreshed state
 	if len(service.PrivateEndpointIds) == 0 {
-		state.PrivateEndpointIds = createEmptyList(types.StringType)
+		state.PrivateEndpointIds = tfutils.CreateEmptyList(types.StringType)
 	} else {
 		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
 	}
@@ -131,8 +132,8 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Read(ctx context.Co
 	}
 }
 
-func (r *ClickhouseServicePrivateEndpointAttachmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var config, plan, state ClickhouseServicePrivateEndpointAttachmentModel
+func (r *PrivateEndpointAttachmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var config, plan, state PrivateEndpointAttachmentModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
@@ -176,8 +177,8 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Update(ctx context.
 	}
 }
 
-func (r *ClickhouseServicePrivateEndpointAttachmentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state ClickhouseServicePrivateEndpointAttachmentModel
+func (r *PrivateEndpointAttachmentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state PrivateEndpointAttachmentModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -208,6 +209,6 @@ func (r *ClickhouseServicePrivateEndpointAttachmentResource) Delete(ctx context.
 	}
 }
 
-func (r *ClickhouseServicePrivateEndpointAttachmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *PrivateEndpointAttachmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("service_id"), req, resp)
 }

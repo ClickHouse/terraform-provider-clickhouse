@@ -1,4 +1,4 @@
-package clickhouse
+package resource
 
 import (
 	"context"
@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -48,16 +49,6 @@ var endpointObjectType = types.ObjectType{
 		"host":     types.StringType,
 		"port":     types.Int64Type,
 	},
-}
-
-type IpAccessModel struct {
-	Source      types.String `tfsdk:"source"`
-	Description types.String `tfsdk:"description"`
-}
-
-func (s IpAccessModel) Equal(other IpAccessModel) bool {
-	return s.Source.ValueString() == other.Source.ValueString() &&
-		s.Description.ValueString() == other.Description.ValueString()
 }
 
 var privateEndpointConfigType = types.ObjectType{
@@ -207,7 +198,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				ElementType: types.StringType,
 				Optional:    true,
 				Computed:    true,
-				Default:     listdefault.StaticValue(createEmptyList(types.StringType)),
+				Default:     listdefault.StaticValue(tfutils.CreateEmptyList(types.StringType)),
 			},
 			"encryption_key": schema.StringAttribute{
 				Description: "Custom encryption key arn",
@@ -233,7 +224,7 @@ func (r *ServiceResource) Configure(_ context.Context, req resource.ConfigureReq
 // Create a new resource
 func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan ServiceResourceModel
+	var plan models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -457,7 +448,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 // Read refreshes the Terraform state with the latest data.
 func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state ServiceResourceModel
+	var state models.ServiceResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -484,7 +475,7 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Retrieve values from plan
-	var config, plan, state ServiceResourceModel
+	var config, plan, state models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
@@ -628,7 +619,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		serviceChange = true
 	}
 
-	if !equal(plan.IpAccessList, state.IpAccessList) {
+	if !tfutils.Equal(plan.IpAccessList, state.IpAccessList) {
 		serviceChange = true
 		ipAccessListRawOld := state.IpAccessList
 		ipAccessListRawNew := plan.IpAccessList
@@ -660,7 +651,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	if !equal(plan.PrivateEndpointIds.Elements(), state.PrivateEndpointIds.Elements()) {
+	if !tfutils.Equal(plan.PrivateEndpointIds.Elements(), state.PrivateEndpointIds.Elements()) {
 		serviceChange = true
 		privateEndpointIdsRawOld := make([]types.String, 0, len(state.PrivateEndpointIds.Elements()))
 		privateEndpointIdsRawNew := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
@@ -802,7 +793,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *ServiceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state ServiceResourceModel
+	var state models.ServiceResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -826,7 +817,7 @@ func (r *ServiceResource) ImportState(ctx context.Context, req resource.ImportSt
 }
 
 // syncServiceState fetches the latest state ClickHouse Cloud API and updates the Terraform state.
-func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceResourceModel, updateTimestamp bool) error {
+func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.ServiceResourceModel, updateTimestamp bool) error {
 	if state.ID.IsNull() {
 		return errors.New("service ID must be reset to fetch the service")
 	}
@@ -859,9 +850,9 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 		}
 	}
 
-	ipAccessList := []IpAccessModel{}
+	ipAccessList := []models.IPAccessModel{}
 	for index, ipAccess := range service.IpAccessList {
-		stateIpAccess := IpAccessModel{
+		stateIpAccess := models.IPAccessModel{
 			Source: types.StringValue(ipAccess.Source),
 		}
 
@@ -903,7 +894,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
 
 	if len(service.PrivateEndpointIds) == 0 {
-		state.PrivateEndpointIds = createEmptyList(types.StringType)
+		state.PrivateEndpointIds = tfutils.CreateEmptyList(types.StringType)
 	} else {
 		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
 	}
