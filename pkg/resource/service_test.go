@@ -143,7 +143,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
-				src.IpAccessList = []models.IpAccessModel{
+				src.IpAccessList = []models.IPAccessModel{
 					{
 						Source:      types.StringValue("0.0.0.0/0"),
 						Description: types.StringValue("whitelist"),
@@ -386,7 +386,7 @@ func getInitialState() models.ServiceResourceModel {
 		Region:                          types.StringValue(""),
 		Tier:                            types.StringValue(""),
 		IdleScaling:                     types.BoolValue(false),
-		IpAccessList:                    make([]models.IpAccessModel, 0),
+		IpAccessList:                    make([]models.IPAccessModel, 0),
 		MinTotalMemoryGb:                types.Int64{},
 		MaxTotalMemoryGb:                types.Int64{},
 		NumReplicas:                     types.Int64{},

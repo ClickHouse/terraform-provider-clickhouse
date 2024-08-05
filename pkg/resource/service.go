@@ -850,9 +850,9 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		}
 	}
 
-	ipAccessList := []models.IpAccessModel{}
+	ipAccessList := []models.IPAccessModel{}
 	for index, ipAccess := range service.IpAccessList {
-		stateIpAccess := models.IpAccessModel{
+		stateIpAccess := models.IPAccessModel{
 			Source: types.StringValue(ipAccess.Source),
 		}
 

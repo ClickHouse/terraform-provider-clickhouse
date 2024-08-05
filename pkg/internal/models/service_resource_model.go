@@ -17,7 +17,7 @@ type ServiceResourceModel struct {
 	Region                          types.String    `tfsdk:"region"`
 	Tier                            types.String    `tfsdk:"tier"`
 	IdleScaling                     types.Bool      `tfsdk:"idle_scaling"`
-	IpAccessList                    []IpAccessModel `tfsdk:"ip_access"`
+	IpAccessList                    []IPAccessModel `tfsdk:"ip_access"`
 	MinTotalMemoryGb                types.Int64     `tfsdk:"min_total_memory_gb"`
 	MaxTotalMemoryGb                types.Int64     `tfsdk:"max_total_memory_gb"`
 	NumReplicas                     types.Int64     `tfsdk:"num_replicas"`

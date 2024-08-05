@@ -283,7 +283,7 @@ func getBaseModel() ServiceResourceModel {
 		Region:                          types.StringValue(""),
 		Tier:                            types.StringValue(""),
 		IdleScaling:                     types.Bool{},
-		IpAccessList:                    make([]IpAccessModel, 0),
+		IpAccessList:                    make([]IPAccessModel, 0),
 		MinTotalMemoryGb:                types.Int64{},
 		MaxTotalMemoryGb:                types.Int64{},
 		NumReplicas:                     types.Int64{},
