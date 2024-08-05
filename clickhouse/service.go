@@ -56,7 +56,8 @@ type IpAccessModel struct {
 }
 
 func (s IpAccessModel) Equal(other IpAccessModel) bool {
-	return false
+	return s.Source.ValueString() == other.Source.ValueString() &&
+		s.Description.ValueString() == other.Description.ValueString()
 }
 
 var privateEndpointConfigType = types.ObjectType{
