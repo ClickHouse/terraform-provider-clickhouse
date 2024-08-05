@@ -394,8 +394,8 @@ func getInitialState() ServiceResourceModel {
 		LastUpdated:                     types.String{},
 		PrivateEndpointConfig:           privateEndpointConfig,
 		PrivateEndpointIds:              privateEndpointIds,
-		EncryptionKey:                   types.String{},
-		EncryptionAssumedRoleIdentifier: types.String{},
+		EncryptionKey:                   types.StringValue(""),
+		EncryptionAssumedRoleIdentifier: types.StringValue(""),
 	}
 
 	return state
