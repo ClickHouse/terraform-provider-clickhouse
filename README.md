@@ -7,24 +7,13 @@
 
 ## Local Development
 
-To test the provider locally, you'll need to set up some dev overrides so that terraform knows where to grab your local installation.
-
-First, find the `GOBIN` path where Go installs your binaries:
-
-```sh
-$ go env GOBIN
-/Users/<Username>/go/bin
-```
-
-If the GOBIN go environment variable is not set, use the default path, `/Users/<Username>/go/bin`.
-
-Then, create a new file called .terraformrc in your home directory (~), then add the dev_overrides block below. Change the `<PATH>` to the value returned from the go env GOBIN command above.
+Create a new file called .terraformrc in your home directory (~), then add the dev_overrides block below. Change the `<PATH>` to the full path of the `tmp` directory in this repo. For example:
 
 ```t
 provider_installation {
 
   dev_overrides {
-      "ClickHouse/clickhouse" = "<PATH>"
+      "ClickHouse/clickhouse" = "/home/user/workdir/terraform-provider-clickhouse/tmp"
   }
 
   # For all other providers, install them directly from their origin provider
@@ -34,13 +23,20 @@ provider_installation {
 }
 ```
 
-Next, install the provider to the `GOBIN` path:
+Ensure you have [`air`](https://github.com/air-verse/air) or install it with:
 
-```sh
-$ go install .
+```bash
+go install github.com/air-verse/air@latest
 ```
 
-Finally, running `terraform plan` or `terraform apply` while in the examples/basic directory will showcase a basic usage of the plugin (the dev_overrides make it so that you have to skip `terraform init`):
+Run `air` to automatically build the plugin binary every time you make changes to the code:
+
+```sh
+$ air
+```
+
+You can now run `terraform` and you'll be using the locally built binary. Please note that the `dev_overrides` make it so that you have to skip `terraform init`).
+For example, go to the `examples/basic` directory and :
 
 ```
 terraform apply -var-file="variables.tfvars"
@@ -48,7 +44,7 @@ terraform apply -var-file="variables.tfvars"
 │ Warning: Provider development overrides are in effect
 │
 │ The following provider development overrides are set in the CLI configuration:
-│  - ClickHouse/clickhouse in /Users/kinzeng/go/bin
+│  - ClickHouse/clickhouse in /home/user/workdir/terraform-provider-clickhouse/tmp
 │
 │ The behavior may therefore not match any released version of the provider and applying changes may
 │ cause the state to become incompatible with published releases.
@@ -89,9 +85,8 @@ Do you want to perform these actions?
   Enter a value:
 ```
 
-Note that this basic example points to a locally running OpenAPI server.
-If you do not have that server running, you can still test by changing the `api_url` key on the provider to a URL of running API server.
-Make sure to change the organization id, token key, and token secret to valid values for those environments.
+
+Make sure to change the organization id, token key, and token secret to valid values.
 
 ## Docs
 

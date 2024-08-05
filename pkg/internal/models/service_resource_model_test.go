@@ -1,14 +1,29 @@
-package clickhouse
+package models
 
 import (
 	"context"
 	"testing"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/test"
-
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/test"
 )
+
+var endpointObjectType = types.ObjectType{
+	AttrTypes: map[string]attr.Type{
+		"protocol": types.StringType,
+		"host":     types.StringType,
+		"port":     types.Int64Type,
+	},
+}
+
+var privateEndpointConfigType = types.ObjectType{
+	AttrTypes: map[string]attr.Type{
+		"endpoint_service_id":  types.StringType,
+		"private_dns_hostname": types.StringType,
+	},
+}
 
 func TestServiceResourceModel_Equals(t *testing.T) {
 	base := getBaseModel()

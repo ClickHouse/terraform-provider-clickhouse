@@ -1,7 +1,9 @@
-package clickhouse
+package models
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
 )
 
 type ServiceResourceModel struct {
@@ -48,17 +50,9 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.PrivateEndpointConfig.Equal(b.PrivateEndpointConfig) ||
 		!m.PrivateEndpointIds.Equal(b.PrivateEndpointIds) ||
 		!m.EncryptionKey.Equal(b.EncryptionKey) ||
-		!m.EncryptionAssumedRoleIdentifier.Equal(b.EncryptionAssumedRoleIdentifier) {
+		!m.EncryptionAssumedRoleIdentifier.Equal(b.EncryptionAssumedRoleIdentifier) ||
+		!tfutils.Equal(m.IpAccessList, b.IpAccessList) {
 		return false
-	}
-
-	if len(m.IpAccessList) != len(b.IpAccessList) {
-		return false
-	}
-	for i, ipAccess := range b.IpAccessList {
-		if !ipAccess.Equal(b.IpAccessList[i]) {
-			return false
-		}
 	}
 
 	return true

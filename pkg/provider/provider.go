@@ -1,16 +1,18 @@
-package clickhouse
+package provider
 
 import (
 	"context"
 	"os"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/datasource"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource"
 
-	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	upstreamdatasource "github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
+	upstreamresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -207,17 +209,17 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 }
 
 // DataSources defines the data sources implemented in the provider.
-func (p *clickhouseProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{
-		NewPrivateEndpointConfigDataSource,
+func (p *clickhouseProvider) DataSources(_ context.Context) []func() upstreamdatasource.DataSource {
+	return []func() upstreamdatasource.DataSource{
+		datasource.NewPrivateEndpointConfigDataSource,
 	}
 }
 
 // Resources defines the resources implemented in the provider.
-func (p *clickhouseProvider) Resources(_ context.Context) []func() resource.Resource {
-	return []func() resource.Resource{
-		NewServiceResource,
-		NewPrivateEndpointRegistrationResource,
-		NewClickhouseServicePrivateEndpointAttachmentResource,
+func (p *clickhouseProvider) Resources(_ context.Context) []func() upstreamresource.Resource {
+	return []func() upstreamresource.Resource{
+		resource.NewServiceResource,
+		resource.NewPrivateEndpointRegistrationResource,
+		resource.NewPrivateEndpointAttachmentResource,
 	}
 }
