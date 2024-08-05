@@ -841,9 +841,12 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 	state.CloudProvider = types.StringValue(service.Provider)
 	state.Region = types.StringValue(service.Region)
 	state.Tier = types.StringValue(service.Tier)
+	state.IdleScaling = types.BoolValue(service.IdleScaling)
+	if service.IdleTimeoutMinutes != nil {
+		state.IdleTimeoutMinutes = types.Int64Value(int64(*service.IdleTimeoutMinutes))
+	}
 
 	if service.Tier == api.TierProduction {
-		state.IdleScaling = types.BoolValue(service.IdleScaling)
 		if service.MinTotalMemoryGb != nil {
 			state.MinTotalMemoryGb = types.Int64Value(int64(*service.MinTotalMemoryGb))
 		}
@@ -852,9 +855,6 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *ServiceRe
 		}
 		if service.NumReplicas != nil {
 			state.NumReplicas = types.Int64Value(int64(*service.NumReplicas))
-		}
-		if service.IdleTimeoutMinutes != nil {
-			state.IdleTimeoutMinutes = types.Int64Value(int64(*service.IdleTimeoutMinutes))
 		}
 	}
 
