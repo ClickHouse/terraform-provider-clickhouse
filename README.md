@@ -13,7 +13,7 @@ Create a new file called .terraformrc in your home directory (~), then add the d
 provider_installation {
 
   dev_overrides {
-      "ClickHouse/clickhouse" = "/home/user/workdir/terraform-provider-clickhouse/tmp"
+      "ClickHouse/clickhouse" = "<PATH example /home/user/workdir/terraform-provider-clickhouse/tmp>"
   }
 
   # For all other providers, install them directly from their origin provider
