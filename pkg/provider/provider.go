@@ -220,6 +220,5 @@ func (p *clickhouseProvider) Resources(_ context.Context) []func() upstreamresou
 	return []func() upstreamresource.Resource{
 		resource.NewServiceResource,
 		resource.NewPrivateEndpointRegistrationResource,
-		resource.NewPrivateEndpointAttachmentResource,
 	}
 }

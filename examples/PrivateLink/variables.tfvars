@@ -5,9 +5,7 @@ token_secret    = "4b1dROiHQEuSXJHlV8zHFd0S7WQj7CGxz5kGJeJnca"
 
 # AWS 
 vpc_foo_id                   = "vpc-abcd"
-vpc_bar_id                   = "vpc-cdef"
 aws_key                      = "key"
 aws_secret                   = "secret"
 aws_region                   = "us-west-2"
 vpc_foo_private_link_subnets = ["subnet-xxxxx", "subnet-zzzzz"]
-vpc_bar_private_link_subnets = ["subnet-yyyyy", ]
