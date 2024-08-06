@@ -14,6 +14,7 @@ import (
 )
 
 func TestServiceResource_syncServiceState(t *testing.T) {
+	ctx := context.Background()
 	state := getInitialState()
 
 	tests := []struct {
@@ -52,15 +53,10 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResource) {
-				var endpoints []attr.Value
-				obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
-					"protocol": types.StringValue("TCP"),
-					"host":     types.StringValue("a.b.c.d"),
-					"port":     types.Int64Value(int64(1234)),
-				})
-
-				endpoints = append(endpoints, obj)
-				src.Endpoints, _ = types.ListValue(endpointObjectType, endpoints)
+				endpoints := []attr.Value{
+					models.Endpoint{Protocol: types.StringValue("TCP"), Host: types.StringValue("a.b.c.d"), Port: types.Int64Value(1234)}.ObjectValue(),
+				}
+				src.Endpoints, _ = types.ListValue(models.Endpoint{}.ObjectType(), endpoints)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -143,14 +139,11 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResource) {
-				var ipAccessList []attr.Value
-				obj, _ := types.ObjectValue(ipAccessListObjectType.AttrTypes, map[string]attr.Value{
-					"source":      types.StringValue("0.0.0.0/0"),
-					"description": types.StringValue("whitelist"),
-				})
+				ipAccessList := []attr.Value{
+					models.IpAccessList{Source: types.StringValue("0.0.0.0/0"), Description: types.StringValue("whitelist")}.ObjectValue(),
+				}
 
-				ipAccessList = append(ipAccessList, obj)
-				src.IpAccessList, _ = types.ListValue(ipAccessListObjectType, ipAccessList)
+				src.IpAccessList, _ = types.ListValue(models.IpAccessList{}.ObjectType(), ipAccessList)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -307,10 +300,10 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResource) {
-				src.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-					"endpoint_service_id":  types.StringValue("newendpointserviceid"),
-					"private_dns_hostname": types.StringValue("new.endpoint.service.hostname"),
-				})
+				src.PrivateEndpointConfig = models.PrivateEndpointConfig{
+					EndpointServiceID:  types.StringValue("newendpointserviceid"),
+					PrivateDNSHostname: types.StringValue("new.endpoint.service.hostname"),
+				}.ObjectValue()
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -384,7 +377,6 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mc := minimock.NewController(t)
@@ -414,12 +406,12 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 func getInitialState() models.ServiceResource {
 	uuid := "773bb8b4-34e8-4ecf-8e23-4f7e20aa14b3"
 
-	endpoints, _ := types.ListValue(endpointObjectType, []attr.Value{})
-	ipAccessList, _ := types.ListValue(ipAccessListObjectType, []attr.Value{})
-	privateEndpointConfig, _ := types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-		"endpoint_service_id":  types.StringValue(""),
-		"private_dns_hostname": types.StringValue(""),
-	})
+	endpoints, _ := types.ListValue(models.Endpoint{}.ObjectType(), []attr.Value{})
+	ipAccessList, _ := types.ListValue(models.IpAccessList{}.ObjectType(), []attr.Value{})
+	privateEndpointConfig := models.PrivateEndpointConfig{
+		EndpointServiceID:  types.StringValue(""),
+		PrivateDNSHostname: types.StringValue(""),
+	}.ObjectValue()
 	privateEndpointIds, _ := types.ListValue(types.StringType, []attr.Value{})
 
 	state := models.ServiceResource{

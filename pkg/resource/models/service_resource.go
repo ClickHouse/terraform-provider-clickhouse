@@ -1,8 +1,76 @@
 package models
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
+
+type Endpoint struct {
+	Protocol types.String `tfsdk:"protocol"`
+	Host     types.String `tfsdk:"host"`
+	Port     types.Int64  `tfsdk:"port"`
+}
+
+func (e Endpoint) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"protocol": types.StringType,
+			"host":     types.StringType,
+			"port":     types.Int64Type,
+		},
+	}
+}
+
+func (e Endpoint) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(e.ObjectType().AttrTypes, map[string]attr.Value{
+		"protocol": e.Protocol,
+		"host":     e.Host,
+		"port":     e.Port,
+	})
+}
+
+type IpAccessList struct {
+	Source      types.String `tfsdk:"source"`
+	Description types.String `tfsdk:"description"`
+}
+
+func (i IpAccessList) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"source":      types.StringType,
+			"description": types.StringType,
+		},
+	}
+}
+
+func (i IpAccessList) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(i.ObjectType().AttrTypes, map[string]attr.Value{
+		"source":      i.Source,
+		"description": i.Description,
+	})
+}
+
+type PrivateEndpointConfig struct {
+	EndpointServiceID  types.String `tfsdk:"endpoint_service_id"`
+	PrivateDNSHostname types.String `tfsdk:"private_dns_hostname"`
+}
+
+func (p PrivateEndpointConfig) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"endpoint_service_id":  types.StringType,
+			"private_dns_hostname": types.StringType,
+		},
+	}
+}
+
+func (p PrivateEndpointConfig) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(p.ObjectType().AttrTypes, map[string]attr.Value{
+		"endpoint_service_id":  p.EndpointServiceID,
+		"private_dns_hostname": p.PrivateDNSHostname,
+	})
+}
 
 type ServiceResource struct {
 	ID                              types.String `tfsdk:"id"`

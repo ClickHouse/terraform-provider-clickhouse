@@ -44,28 +44,6 @@ type ServiceResource struct {
 	client api.Client
 }
 
-var endpointObjectType = types.ObjectType{
-	AttrTypes: map[string]attr.Type{
-		"protocol": types.StringType,
-		"host":     types.StringType,
-		"port":     types.Int64Type,
-	},
-}
-
-var privateEndpointConfigType = types.ObjectType{
-	AttrTypes: map[string]attr.Type{
-		"endpoint_service_id":  types.StringType,
-		"private_dns_hostname": types.StringType,
-	},
-}
-
-var ipAccessListObjectType = types.ObjectType{
-	AttrTypes: map[string]attr.Type{
-		"source":      types.StringType,
-		"description": types.StringType,
-	},
-}
-
 // Metadata returns the resource type name.
 func (r *ServiceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_service"
@@ -420,10 +398,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.IdleTimeoutMinutes = &idleTimeoutMinutes
 	}
 
-	ipAccessModels := make([]struct {
-		Source      types.String `tfsdk:"source"`
-		Description types.String `tfsdk:"description"`
-	}, 0, len(plan.IpAccessList.Elements()))
+	ipAccessModels := make([]models.IpAccessList, 0, len(plan.IpAccessList.Elements()))
 	plan.IpAccessList.ElementsAs(ctx, &ipAccessModels, false)
 	ipAccessLists := make([]api.IpAccess, 0, len(ipAccessModels))
 	for _, ipAccessModel := range ipAccessModels {
@@ -793,35 +768,28 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		}
 	}
 
-	var ipAccessList []attr.Value
-	for _, ipAccess := range service.IpAccessList {
-		obj, _ := types.ObjectValue(ipAccessListObjectType.AttrTypes, map[string]attr.Value{
-			"source":      types.StringValue(ipAccess.Source),
-			"description": types.StringValue(ipAccess.Description),
-		})
-
-		ipAccessList = append(ipAccessList, obj)
+	{
+		var ipAccessList []attr.Value
+		for _, ipAccess := range service.IpAccessList {
+			ipAccessList = append(ipAccessList, models.IpAccessList{Source: types.StringValue(ipAccess.Source), Description: types.StringValue(ipAccess.Description)}.ObjectValue())
+		}
+		state.IpAccessList, _ = types.ListValue(models.IpAccessList{}.ObjectType(), ipAccessList)
 	}
-	state.IpAccessList, _ = types.ListValue(ipAccessListObjectType, ipAccessList)
 
-	var endpoints []attr.Value
-	for _, endpoint := range service.Endpoints {
-		obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
-			"protocol": types.StringValue(endpoint.Protocol),
-			"host":     types.StringValue(endpoint.Host),
-			"port":     types.Int64Value(int64(endpoint.Port)),
-		})
-
-		endpoints = append(endpoints, obj)
+	{
+		var endpoints []attr.Value
+		for _, endpoint := range service.Endpoints {
+			endpoints = append(endpoints, models.Endpoint{Protocol: types.StringValue(endpoint.Protocol), Host: types.StringValue(endpoint.Host), Port: types.Int64Value(int64(endpoint.Port))}.ObjectValue())
+		}
+		state.Endpoints, _ = types.ListValue(models.Endpoint{}.ObjectType(), endpoints)
 	}
-	state.Endpoints, _ = types.ListValue(endpointObjectType, endpoints)
 
 	state.IAMRole = types.StringValue(service.IAMRole)
 
-	state.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-		"endpoint_service_id":  types.StringValue(service.PrivateEndpointConfig.EndpointServiceId),
-		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
-	})
+	state.PrivateEndpointConfig = models.PrivateEndpointConfig{
+		EndpointServiceID:  types.StringValue(service.PrivateEndpointConfig.EndpointServiceId),
+		PrivateDNSHostname: types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
+	}.ObjectValue()
 
 	if service.EncryptionKey != "" {
 		state.EncryptionKey = types.StringValue(service.EncryptionKey)
