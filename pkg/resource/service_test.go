@@ -127,7 +127,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			wantErr:         false,
 		},
 		{
-			name:  "Update IpAccessList field",
+			name:  "Update IPAccessList field",
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
 				src.IpAccessList = []api.IpAccess{
@@ -140,10 +140,10 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				ipAccessList := []attr.Value{
-					models.IpAccessList{Source: types.StringValue("0.0.0.0/0"), Description: types.StringValue("whitelist")}.ObjectValue(),
+					models.IPAccessList{Source: types.StringValue("0.0.0.0/0"), Description: types.StringValue("whitelist")}.ObjectValue(),
 				}
 
-				src.IpAccessList, _ = types.ListValue(models.IpAccessList{}.ObjectType(), ipAccessList)
+				src.IpAccessList, _ = types.ListValue(models.IPAccessList{}.ObjectType(), ipAccessList)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -407,7 +407,7 @@ func getInitialState() models.ServiceResourceModel {
 	uuid := "773bb8b4-34e8-4ecf-8e23-4f7e20aa14b3"
 
 	endpoints, _ := types.ListValue(models.Endpoint{}.ObjectType(), []attr.Value{})
-	ipAccessList, _ := types.ListValue(models.IpAccessList{}.ObjectType(), []attr.Value{})
+	ipAccessList, _ := types.ListValue(models.IPAccessList{}.ObjectType(), []attr.Value{})
 	privateEndpointConfig := models.PrivateEndpointConfig{
 		EndpointServiceID:  types.StringValue(""),
 		PrivateDNSHostname: types.StringValue(""),
@@ -449,7 +449,7 @@ func getBaseResponse(id string) api.Service {
 		// Region:                          "",
 		// Tier:                            "",
 		IdleScaling: false,
-		// IpAccessList:                    nil,
+		// IPAccessList:                    nil,
 		// MinTotalMemoryGb:                nil,
 		// MaxTotalMemoryGb:                nil,
 		// NumReplicas:                     nil,

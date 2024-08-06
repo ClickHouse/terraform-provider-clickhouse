@@ -398,7 +398,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.IdleTimeoutMinutes = &idleTimeoutMinutes
 	}
 
-	ipAccessModels := make([]models.IpAccessList, 0, len(plan.IpAccessList.Elements()))
+	ipAccessModels := make([]models.IPAccessList, 0, len(plan.IpAccessList.Elements()))
 	plan.IpAccessList.ElementsAs(ctx, &ipAccessModels, false)
 	ipAccessLists := make([]api.IpAccess, 0, len(ipAccessModels))
 	for _, ipAccessModel := range ipAccessModels {
@@ -554,7 +554,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	if !tfutils.Equal(plan.IpAccessList.Elements(), state.IpAccessList.Elements()) {
 		serviceChange = true
-		var currentIPAccessList, desiredIPAccessList []models.IpAccessList
+		var currentIPAccessList, desiredIPAccessList []models.IPAccessList
 		state.IpAccessList.ElementsAs(ctx, &currentIPAccessList, false)
 		plan.IpAccessList.ElementsAs(ctx, &desiredIPAccessList, false)
 
@@ -786,9 +786,9 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	{
 		var ipAccessList []attr.Value
 		for _, ipAccess := range service.IpAccessList {
-			ipAccessList = append(ipAccessList, models.IpAccessList{Source: types.StringValue(ipAccess.Source), Description: types.StringValue(ipAccess.Description)}.ObjectValue())
+			ipAccessList = append(ipAccessList, models.IPAccessList{Source: types.StringValue(ipAccess.Source), Description: types.StringValue(ipAccess.Description)}.ObjectValue())
 		}
-		state.IpAccessList, _ = types.ListValue(models.IpAccessList{}.ObjectType(), ipAccessList)
+		state.IpAccessList, _ = types.ListValue(models.IPAccessList{}.ObjectType(), ipAccessList)
 	}
 
 	{

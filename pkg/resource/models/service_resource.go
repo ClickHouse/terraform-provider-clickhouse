@@ -30,12 +30,12 @@ func (e Endpoint) ObjectValue() basetypes.ObjectValue {
 	})
 }
 
-type IpAccessList struct {
+type IPAccessList struct {
 	Source      types.String `tfsdk:"source"`
 	Description types.String `tfsdk:"description"`
 }
 
-func (i IpAccessList) ObjectType() types.ObjectType {
+func (i IPAccessList) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"source":      types.StringType,
@@ -44,7 +44,7 @@ func (i IpAccessList) ObjectType() types.ObjectType {
 	}
 }
 
-func (i IpAccessList) ObjectValue() basetypes.ObjectValue {
+func (i IPAccessList) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(i.ObjectType().AttrTypes, map[string]attr.Value{
 		"source":      i.Source,
 		"description": i.Description,
