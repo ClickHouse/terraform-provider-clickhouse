@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/models"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/test"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -14,6 +14,7 @@ import (
 )
 
 func TestServiceResource_syncServiceState(t *testing.T) {
+	ctx := context.Background()
 	state := getInitialState()
 
 	tests := []struct {
@@ -52,15 +53,10 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
-				var endpoints []attr.Value
-				obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
-					"protocol": types.StringValue("TCP"),
-					"host":     types.StringValue("a.b.c.d"),
-					"port":     types.Int64Value(int64(1234)),
-				})
-
-				endpoints = append(endpoints, obj)
-				src.Endpoints, _ = types.ListValue(endpointObjectType, endpoints)
+				endpoints := []attr.Value{
+					models.Endpoint{Protocol: types.StringValue("TCP"), Host: types.StringValue("a.b.c.d"), Port: types.Int64Value(1234)}.ObjectValue(),
+				}
+				src.Endpoints, _ = types.ListValue(models.Endpoint{}.ObjectType(), endpoints)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -131,7 +127,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			wantErr:         false,
 		},
 		{
-			name:  "Update IpAccessList field",
+			name:  "Update IPAccessList field",
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
 				src.IpAccessList = []api.IpAccess{
@@ -143,12 +139,11 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
-				src.IpAccessList = []models.IPAccessModel{
-					{
-						Source:      types.StringValue("0.0.0.0/0"),
-						Description: types.StringValue("whitelist"),
-					},
+				ipAccessList := []attr.Value{
+					models.IPAccessList{Source: types.StringValue("0.0.0.0/0"), Description: types.StringValue("whitelist")}.ObjectValue(),
 				}
+
+				src.IpAccessList, _ = types.ListValue(models.IPAccessList{}.ObjectType(), ipAccessList)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -305,10 +300,10 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
-				src.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-					"endpoint_service_id":  types.StringValue("newendpointserviceid"),
-					"private_dns_hostname": types.StringValue("new.endpoint.service.hostname"),
-				})
+				src.PrivateEndpointConfig = models.PrivateEndpointConfig{
+					EndpointServiceID:  types.StringValue("newendpointserviceid"),
+					PrivateDNSHostname: types.StringValue("new.endpoint.service.hostname"),
+				}.ObjectValue()
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -382,7 +377,6 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mc := minimock.NewController(t)
@@ -412,11 +406,12 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 func getInitialState() models.ServiceResourceModel {
 	uuid := "773bb8b4-34e8-4ecf-8e23-4f7e20aa14b3"
 
-	endpoints, _ := types.ListValue(endpointObjectType, []attr.Value{})
-	privateEndpointConfig, _ := types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-		"endpoint_service_id":  types.StringValue(""),
-		"private_dns_hostname": types.StringValue(""),
-	})
+	endpoints, _ := types.ListValue(models.Endpoint{}.ObjectType(), []attr.Value{})
+	ipAccessList, _ := types.ListValue(models.IPAccessList{}.ObjectType(), []attr.Value{})
+	privateEndpointConfig := models.PrivateEndpointConfig{
+		EndpointServiceID:  types.StringValue(""),
+		PrivateDNSHostname: types.StringValue(""),
+	}.ObjectValue()
 	privateEndpointIds, _ := types.ListValue(types.StringType, []attr.Value{})
 
 	state := models.ServiceResourceModel{
@@ -430,7 +425,7 @@ func getInitialState() models.ServiceResourceModel {
 		Region:                          types.StringValue(""),
 		Tier:                            types.StringValue(""),
 		IdleScaling:                     types.BoolValue(false),
-		IpAccessList:                    make([]models.IPAccessModel, 0),
+		IpAccessList:                    ipAccessList,
 		MinTotalMemoryGb:                types.Int64{},
 		MaxTotalMemoryGb:                types.Int64{},
 		NumReplicas:                     types.Int64{},
@@ -454,7 +449,7 @@ func getBaseResponse(id string) api.Service {
 		// Region:                          "",
 		// Tier:                            "",
 		IdleScaling: false,
-		// IpAccessList:                    nil,
+		// IPAccessList:                    nil,
 		// MinTotalMemoryGb:                nil,
 		// MaxTotalMemoryGb:                nil,
 		// NumReplicas:                     nil,

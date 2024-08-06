@@ -11,6 +11,7 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
 var (
@@ -25,11 +26,6 @@ func NewPrivateEndpointAttachmentResource() resource.Resource {
 
 type PrivateEndpointAttachmentResource struct {
 	client api.Client
-}
-
-type PrivateEndpointAttachmentModel struct {
-	PrivateEndpointIds types.List   `tfsdk:"private_endpoint_ids"`
-	ServiceId          types.String `tfsdk:"service_id"`
 }
 
 func (r *PrivateEndpointAttachmentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -63,7 +59,7 @@ func (r *PrivateEndpointAttachmentResource) Configure(_ context.Context, req res
 }
 
 func (r *PrivateEndpointAttachmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan PrivateEndpointAttachmentModel
+	var plan models.PrivateEndpointAttachment
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -100,7 +96,7 @@ func (r *PrivateEndpointAttachmentResource) Create(ctx context.Context, req reso
 }
 
 func (r *PrivateEndpointAttachmentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state PrivateEndpointAttachmentModel
+	var state models.PrivateEndpointAttachment
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -133,7 +129,7 @@ func (r *PrivateEndpointAttachmentResource) Read(ctx context.Context, req resour
 }
 
 func (r *PrivateEndpointAttachmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var config, plan, state PrivateEndpointAttachmentModel
+	var config, plan, state models.PrivateEndpointAttachment
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
@@ -178,7 +174,7 @@ func (r *PrivateEndpointAttachmentResource) Update(ctx context.Context, req reso
 }
 
 func (r *PrivateEndpointAttachmentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state PrivateEndpointAttachmentModel
+	var state models.PrivateEndpointAttachment
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

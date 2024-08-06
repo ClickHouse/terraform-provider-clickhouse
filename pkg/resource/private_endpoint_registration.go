@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
 var (
@@ -23,13 +24,6 @@ func NewPrivateEndpointRegistrationResource() resource.Resource {
 
 type PrivateEndpointRegistrationResource struct {
 	client api.Client
-}
-
-type PrivateEndpointRegistrationResourceModel struct {
-	CloudProvider types.String `tfsdk:"cloud_provider"`
-	Description   types.String `tfsdk:"description"`
-	EndpointId    types.String `tfsdk:"id"`
-	Region        types.String `tfsdk:"region"`
 }
 
 func (r *PrivateEndpointRegistrationResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -68,7 +62,7 @@ func (r *PrivateEndpointRegistrationResource) Configure(_ context.Context, req r
 }
 
 func (r *PrivateEndpointRegistrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan PrivateEndpointRegistrationResourceModel
+	var plan models.PrivateEndpointRegistration
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -106,7 +100,7 @@ func (r *PrivateEndpointRegistrationResource) Create(ctx context.Context, req re
 }
 
 func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state PrivateEndpointRegistrationResourceModel
+	var state models.PrivateEndpointRegistration
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -149,7 +143,7 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 }
 
 func (r *PrivateEndpointRegistrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var config, plan, state PrivateEndpointRegistrationResourceModel
+	var config, plan, state models.PrivateEndpointRegistration
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
@@ -195,7 +189,7 @@ func (r *PrivateEndpointRegistrationResource) Update(ctx context.Context, req re
 }
 
 func (r *PrivateEndpointRegistrationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state PrivateEndpointRegistrationResourceModel
+	var state models.PrivateEndpointRegistration
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/models"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -42,21 +42,6 @@ func NewServiceResource() resource.Resource {
 // ServiceResource is the resource implementation.
 type ServiceResource struct {
 	client api.Client
-}
-
-var endpointObjectType = types.ObjectType{
-	AttrTypes: map[string]attr.Type{
-		"protocol": types.StringType,
-		"host":     types.StringType,
-		"port":     types.Int64Type,
-	},
-}
-
-var privateEndpointConfigType = types.ObjectType{
-	AttrTypes: map[string]attr.Type{
-		"endpoint_service_id":  types.StringType,
-		"private_dns_hostname": types.StringType,
-	},
 }
 
 // Metadata returns the resource type name.
@@ -413,13 +398,16 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.IdleTimeoutMinutes = &idleTimeoutMinutes
 	}
 
-	service.IpAccessList = []api.IpAccess{}
-	for _, item := range plan.IpAccessList {
-		service.IpAccessList = append(service.IpAccessList, api.IpAccess{
-			Source:      item.Source.ValueString(),
-			Description: item.Description.ValueString(),
+	ipAccessModels := make([]models.IPAccessList, 0, len(plan.IpAccessList.Elements()))
+	plan.IpAccessList.ElementsAs(ctx, &ipAccessModels, false)
+	ipAccessLists := make([]api.IpAccess, 0, len(ipAccessModels))
+	for _, ipAccessModel := range ipAccessModels {
+		ipAccessLists = append(ipAccessLists, api.IpAccess{
+			Source:      ipAccessModel.Source.ValueString(),
+			Description: ipAccessModel.Description.ValueString(),
 		})
 	}
+	service.IpAccessList = ipAccessLists
 
 	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
 	plan.PrivateEndpointIds.ElementsAs(ctx, &servicePrivateEndpointIds, false)
@@ -564,35 +552,31 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		serviceChange = true
 	}
 
-	if !tfutils.Equal(plan.IpAccessList, state.IpAccessList) {
+	if !tfutils.Equal(plan.IpAccessList.Elements(), state.IpAccessList.Elements()) {
 		serviceChange = true
-		ipAccessListRawOld := state.IpAccessList
-		ipAccessListRawNew := plan.IpAccessList
+		var currentIPAccessList, desiredIPAccessList []models.IPAccessList
+		state.IpAccessList.ElementsAs(ctx, &currentIPAccessList, false)
+		plan.IpAccessList.ElementsAs(ctx, &desiredIPAccessList, false)
 
-		ipAccessListOld := []api.IpAccess{}
-		ipAccessListNew := []api.IpAccess{}
+		var add, remove []api.IpAccess
 
-		for _, item := range ipAccessListRawOld {
-			ipAccess := api.IpAccess{
-				Source:      item.Source.ValueString(),
-				Description: item.Description.ValueString(),
-			}
-
-			ipAccessListOld = append(ipAccessListOld, ipAccess)
+		for _, ipAccess := range currentIPAccessList {
+			remove = append(remove, api.IpAccess{
+				Source:      ipAccess.Source.ValueString(),
+				Description: ipAccess.Description.ValueString(),
+			})
 		}
 
-		for _, item := range ipAccessListRawNew {
-			ipAccess := api.IpAccess{
-				Source:      item.Source.ValueString(),
-				Description: item.Description.ValueString(),
-			}
-
-			ipAccessListNew = append(ipAccessListNew, ipAccess)
+		for _, ipAccess := range desiredIPAccessList {
+			add = append(add, api.IpAccess{
+				Source:      ipAccess.Source.ValueString(),
+				Description: ipAccess.Description.ValueString(),
+			})
 		}
 
 		service.IpAccessList = &api.IpAccessUpdate{
-			Add:    ipAccessListNew,
-			Remove: ipAccessListOld,
+			Add:    add,
+			Remove: remove,
 		}
 	}
 
@@ -799,45 +783,28 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		}
 	}
 
-	ipAccessList := []models.IPAccessModel{}
-	for index, ipAccess := range service.IpAccessList {
-		stateIpAccess := models.IPAccessModel{
-			Source: types.StringValue(ipAccess.Source),
+	{
+		var ipAccessList []attr.Value
+		for _, ipAccess := range service.IpAccessList {
+			ipAccessList = append(ipAccessList, models.IPAccessList{Source: types.StringValue(ipAccess.Source), Description: types.StringValue(ipAccess.Description)}.ObjectValue())
 		}
+		state.IpAccessList, _ = types.ListValue(models.IPAccessList{}.ObjectType(), ipAccessList)
+	}
 
-		// the API does not differentiate between undefined and empty string
-		if ipAccess.Description == "" {
-			// we will set this field as "" when user defines the description field
-			isDescriptionNull := index >= len(state.IpAccessList) || state.IpAccessList[index].Description.IsNull()
-			if !isDescriptionNull {
-				stateIpAccess.Description = types.StringValue("")
-			}
-		} else {
-			stateIpAccess.Description = types.StringValue(ipAccess.Description)
+	{
+		var endpoints []attr.Value
+		for _, endpoint := range service.Endpoints {
+			endpoints = append(endpoints, models.Endpoint{Protocol: types.StringValue(endpoint.Protocol), Host: types.StringValue(endpoint.Host), Port: types.Int64Value(int64(endpoint.Port))}.ObjectValue())
 		}
-
-		ipAccessList = append(ipAccessList, stateIpAccess)
+		state.Endpoints, _ = types.ListValue(models.Endpoint{}.ObjectType(), endpoints)
 	}
-	state.IpAccessList = ipAccessList
-
-	var endpoints []attr.Value
-	for _, endpoint := range service.Endpoints {
-		obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
-			"protocol": types.StringValue(endpoint.Protocol),
-			"host":     types.StringValue(endpoint.Host),
-			"port":     types.Int64Value(int64(endpoint.Port)),
-		})
-
-		endpoints = append(endpoints, obj)
-	}
-	state.Endpoints, _ = types.ListValue(endpointObjectType, endpoints)
 
 	state.IAMRole = types.StringValue(service.IAMRole)
 
-	state.PrivateEndpointConfig, _ = types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-		"endpoint_service_id":  types.StringValue(service.PrivateEndpointConfig.EndpointServiceId),
-		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
-	})
+	state.PrivateEndpointConfig = models.PrivateEndpointConfig{
+		EndpointServiceID:  types.StringValue(service.PrivateEndpointConfig.EndpointServiceId),
+		PrivateDNSHostname: types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
+	}.ObjectValue()
 
 	if service.EncryptionKey != "" {
 		state.EncryptionKey = types.StringValue(service.EncryptionKey)

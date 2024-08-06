@@ -8,25 +8,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/test"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
 )
 
-var endpointObjectType = types.ObjectType{
-	AttrTypes: map[string]attr.Type{
-		"protocol": types.StringType,
-		"host":     types.StringType,
-		"port":     types.Int64Type,
-	},
-}
-
-var privateEndpointConfigType = types.ObjectType{
-	AttrTypes: map[string]attr.Type{
-		"endpoint_service_id":  types.StringType,
-		"private_dns_hostname": types.StringType,
-	},
-}
-
-func TestServiceResourceModel_Equals(t *testing.T) {
+func TestServiceResource_Equals(t *testing.T) {
 	base := getBaseModel()
+	ctx := context.Background()
 
 	tests := []struct {
 		name string
@@ -84,14 +71,9 @@ func TestServiceResourceModel_Equals(t *testing.T) {
 			name: "Endpoints added",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				current := src.Endpoints.Elements()
-				obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
-					"protocol": types.StringValue("changed"),
-					"host":     types.StringValue("changed"),
-					"port":     types.Int64Value(int64(1236)),
-				})
-				current = append(current, obj)
-				src.Endpoints, _ = types.ListValue(endpointObjectType, current)
+				data := append(src.Endpoints.Elements(), Endpoint{Protocol: types.StringValue("changed"), Host: types.StringValue("changed"), Port: types.Int64Value(1236)}.ObjectValue())
+
+				src.Endpoints, _ = types.ListValueFrom(ctx, src.Endpoints.ElementType(ctx).(types.ObjectType), data)
 			}).Get(),
 			want: false,
 		},
@@ -102,7 +84,7 @@ func TestServiceResourceModel_Equals(t *testing.T) {
 				current := src.Endpoints.Elements()
 				var endpoints []attr.Value
 				endpoints = append(endpoints, current[0])
-				src.Endpoints, _ = types.ListValue(endpointObjectType, endpoints)
+				src.Endpoints, _ = types.ListValue(src.Endpoints.ElementType(ctx).(types.ObjectType), endpoints)
 			}).Get(),
 			want: false,
 		},
@@ -114,7 +96,7 @@ func TestServiceResourceModel_Equals(t *testing.T) {
 				var endpoints []attr.Value
 				endpoints = append(endpoints, current[1])
 				endpoints = append(endpoints, current[0])
-				src.Endpoints, _ = types.ListValue(endpointObjectType, endpoints)
+				src.Endpoints, _ = types.ListValue(src.Endpoints.ElementType(ctx).(types.ObjectType), endpoints)
 			}).Get(),
 			want: false,
 		},
@@ -171,11 +153,10 @@ func TestServiceResourceModel_Equals(t *testing.T) {
 			name: "PrivateEndpointConfig endpoint_service_id changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				privateEndpointConfig, _ := types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-					"endpoint_service_id":  types.StringValue("changed"),
-					"private_dns_hostname": types.StringValue(""),
-				})
-				src.PrivateEndpointConfig = privateEndpointConfig
+				src.PrivateEndpointConfig = PrivateEndpointConfig{
+					EndpointServiceID:  types.StringValue("changed"),
+					PrivateDNSHostname: types.StringValue(""),
+				}.ObjectValue()
 			}).Get(),
 			want: false,
 		},
@@ -183,11 +164,10 @@ func TestServiceResourceModel_Equals(t *testing.T) {
 			name: "PrivateEndpointConfig private_dns_hostname changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				privateEndpointConfig, _ := types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-					"endpoint_service_id":  types.StringValue(""),
-					"private_dns_hostname": types.StringValue("changed"),
-				})
-				src.PrivateEndpointConfig = privateEndpointConfig
+				src.PrivateEndpointConfig = PrivateEndpointConfig{
+					EndpointServiceID:  types.StringValue(""),
+					PrivateDNSHostname: types.StringValue("changed"),
+				}.ObjectValue()
 			}).Get(),
 			want: false,
 		},
@@ -252,24 +232,10 @@ func getBaseModel() ServiceResourceModel {
 	uuid := "773bb8b4-34e8-4ecf-8e23-4f7e20aa14b3"
 
 	var endpoints []attr.Value
-	obj, _ := types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
-		"protocol": types.StringValue("changed"),
-		"host":     types.StringValue("changed"),
-		"port":     types.Int64Value(int64(1234)),
-	})
-	endpoints = append(endpoints, obj)
-	obj, _ = types.ObjectValue(endpointObjectType.AttrTypes, map[string]attr.Value{
-		"protocol": types.StringValue("changed"),
-		"host":     types.StringValue("changed"),
-		"port":     types.Int64Value(int64(1235)),
-	})
-	endpoints = append(endpoints, obj)
-	ep, _ := types.ListValue(endpointObjectType, endpoints)
+	endpoints = append(endpoints, Endpoint{Protocol: types.StringValue("changed"), Host: types.StringValue("changed"), Port: types.Int64Value(1234)}.ObjectValue())
+	endpoints = append(endpoints, Endpoint{Protocol: types.StringValue("changed"), Host: types.StringValue("changed"), Port: types.Int64Value(1235)}.ObjectValue())
+	ep, _ := types.ListValue(Endpoint{}.ObjectType(), endpoints)
 
-	privateEndpointConfig, _ := types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
-		"endpoint_service_id":  types.StringValue(""),
-		"private_dns_hostname": types.StringValue(""),
-	})
 	privateEndpointIds, _ := types.ListValueFrom(context.Background(), types.StringType, []string{"id1", "id2"})
 
 	state := ServiceResourceModel{
@@ -283,14 +249,14 @@ func getBaseModel() ServiceResourceModel {
 		Region:                          types.StringValue(""),
 		Tier:                            types.StringValue(""),
 		IdleScaling:                     types.Bool{},
-		IpAccessList:                    make([]IPAccessModel, 0),
+		IpAccessList:                    tfutils.CreateEmptyList(IPAccessList{}.ObjectType()),
 		MinTotalMemoryGb:                types.Int64{},
 		MaxTotalMemoryGb:                types.Int64{},
 		NumReplicas:                     types.Int64{},
 		IdleTimeoutMinutes:              types.Int64{},
 		IAMRole:                         types.StringValue(""),
 		LastUpdated:                     types.String{},
-		PrivateEndpointConfig:           privateEndpointConfig,
+		PrivateEndpointConfig:           PrivateEndpointConfig{}.ObjectValue(),
 		PrivateEndpointIds:              privateEndpointIds,
 		EncryptionKey:                   types.String{},
 		EncryptionAssumedRoleIdentifier: types.String{},
