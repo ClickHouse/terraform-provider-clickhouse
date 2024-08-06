@@ -72,7 +72,7 @@ func (p PrivateEndpointConfig) ObjectValue() basetypes.ObjectValue {
 	})
 }
 
-type ServiceResource struct {
+type ServiceResourceModel struct {
 	ID                              types.String `tfsdk:"id"`
 	Name                            types.String `tfsdk:"name"`
 	Password                        types.String `tfsdk:"password"`
@@ -96,7 +96,7 @@ type ServiceResource struct {
 	EncryptionAssumedRoleIdentifier types.String `tfsdk:"encryption_assumed_role_identifier"`
 }
 
-func (m *ServiceResource) Equals(b ServiceResource) bool {
+func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 	if !m.ID.Equal(b.ID) ||
 		!m.Name.Equal(b.Name) ||
 		!m.Password.Equal(b.Password) ||

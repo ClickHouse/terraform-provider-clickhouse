@@ -213,7 +213,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	var plan, state models.ServiceResource
+	var plan, state models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if !req.State.Raw.IsNull() {
@@ -363,7 +363,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 // Create a new resource
 func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan models.ServiceResource
+	var plan models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -502,7 +502,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 // Read refreshes the Terraform state with the latest data.
 func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state models.ServiceResource
+	var state models.ServiceResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -529,7 +529,7 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Retrieve values from plan
-	var plan, state models.ServiceResource
+	var plan, state models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
@@ -707,7 +707,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *ServiceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state models.ServiceResource
+	var state models.ServiceResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -731,7 +731,7 @@ func (r *ServiceResource) ImportState(ctx context.Context, req resource.ImportSt
 }
 
 // syncServiceState fetches the latest state ClickHouse Cloud API and updates the Terraform state.
-func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.ServiceResource, updateTimestamp bool) error {
+func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.ServiceResourceModel, updateTimestamp bool) error {
 	if state.ID.IsNull() {
 		return errors.New("service ID must be set to fetch the service")
 	}

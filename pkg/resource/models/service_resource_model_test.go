@@ -17,8 +17,8 @@ func TestServiceResource_Equals(t *testing.T) {
 
 	tests := []struct {
 		name string
-		a    ServiceResource
-		b    ServiceResource
+		a    ServiceResourceModel
+		b    ServiceResourceModel
 		want bool
 	}{
 		{
@@ -30,7 +30,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "ID changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.ID = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -38,7 +38,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "Name changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.Name = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -46,7 +46,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "Password changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.Password = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -54,7 +54,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "PasswordHash changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.PasswordHash = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -62,7 +62,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "DoubleSha1PasswordHash changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.DoubleSha1PasswordHash = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -70,7 +70,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "Endpoints added",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				data := append(src.Endpoints.Elements(), Endpoint{Protocol: types.StringValue("changed"), Host: types.StringValue("changed"), Port: types.Int64Value(1236)}.ObjectValue())
 
 				src.Endpoints, _ = types.ListValueFrom(ctx, src.Endpoints.ElementType(ctx).(types.ObjectType), data)
@@ -80,7 +80,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "Endpoints deleted",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				current := src.Endpoints.Elements()
 				var endpoints []attr.Value
 				endpoints = append(endpoints, current[0])
@@ -91,7 +91,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "Endpoints order changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				current := src.Endpoints.Elements()
 				var endpoints []attr.Value
 				endpoints = append(endpoints, current[1])
@@ -103,7 +103,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "CloudProvider changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.CloudProvider = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -111,7 +111,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "Region changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.Region = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -119,7 +119,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "Tier changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.Tier = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -127,7 +127,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "IdleScaling changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				old := src.IdleScaling.ValueBool()
 				src.IdleScaling = types.BoolValue(!old)
 			}).Get(),
@@ -136,7 +136,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "IAMRole changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.IAMRole = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -144,7 +144,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "LastUpdated changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.LastUpdated = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -152,7 +152,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "PrivateEndpointConfig endpoint_service_id changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.PrivateEndpointConfig = PrivateEndpointConfig{
 					EndpointServiceID:  types.StringValue("changed"),
 					PrivateDNSHostname: types.StringValue(""),
@@ -163,7 +163,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "PrivateEndpointConfig private_dns_hostname changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.PrivateEndpointConfig = PrivateEndpointConfig{
 					EndpointServiceID:  types.StringValue(""),
 					PrivateDNSHostname: types.StringValue("changed"),
@@ -174,7 +174,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "PrivateEndpointIds added",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				existing := src.PrivateEndpointIds.Elements()
 				existing = append(existing, types.StringValue("added"))
 				privateEndpointIds, _ := types.ListValue(types.StringType, existing)
@@ -185,7 +185,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "PrivateEndpointIds removed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				existing := src.PrivateEndpointIds.Elements()
 				privateEndpointIds, _ := types.ListValue(types.StringType, []attr.Value{existing[0]})
 				src.PrivateEndpointIds = privateEndpointIds
@@ -195,7 +195,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "PrivateEndpointIds order changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				existing := src.PrivateEndpointIds.Elements()
 				privateEndpointIds, _ := types.ListValue(types.StringType, []attr.Value{existing[1], existing[0]})
 				src.PrivateEndpointIds = privateEndpointIds
@@ -205,7 +205,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "EncryptionKey changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.EncryptionKey = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -213,7 +213,7 @@ func TestServiceResource_Equals(t *testing.T) {
 		{
 			name: "EncryptionAssumedRoleIdentifier changed",
 			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResource) {
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
 				src.EncryptionAssumedRoleIdentifier = types.StringValue("changed")
 			}).Get(),
 			want: false,
@@ -228,7 +228,7 @@ func TestServiceResource_Equals(t *testing.T) {
 	}
 }
 
-func getBaseModel() ServiceResource {
+func getBaseModel() ServiceResourceModel {
 	uuid := "773bb8b4-34e8-4ecf-8e23-4f7e20aa14b3"
 
 	var endpoints []attr.Value
@@ -238,7 +238,7 @@ func getBaseModel() ServiceResource {
 
 	privateEndpointIds, _ := types.ListValueFrom(context.Background(), types.StringType, []string{"id1", "id2"})
 
-	state := ServiceResource{
+	state := ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
 		Name:                            types.StringValue(""),
 		Password:                        types.String{},
