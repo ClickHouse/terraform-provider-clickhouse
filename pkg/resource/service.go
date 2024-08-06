@@ -554,14 +554,29 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	if !tfutils.Equal(plan.IpAccessList.Elements(), state.IpAccessList.Elements()) {
 		serviceChange = true
-		ipAccessListOld := make([]api.IpAccess, 0, len(state.IpAccessList.Elements()))
-		ipAccessListNew := make([]api.IpAccess, 0, len(plan.IpAccessList.Elements()))
-		state.IpAccessList.ElementsAs(ctx, &ipAccessListOld, false)
-		plan.IpAccessList.ElementsAs(ctx, &ipAccessListNew, false)
+		var currentIPAccessList, desiredIPAccessList []models.IpAccessList
+		state.IpAccessList.ElementsAs(ctx, &currentIPAccessList, false)
+		plan.IpAccessList.ElementsAs(ctx, &desiredIPAccessList, false)
+
+		var add, remove []api.IpAccess
+
+		for _, ipAccess := range currentIPAccessList {
+			remove = append(remove, api.IpAccess{
+				Source:      ipAccess.Source.ValueString(),
+				Description: ipAccess.Description.ValueString(),
+			})
+		}
+
+		for _, ipAccess := range desiredIPAccessList {
+			add = append(add, api.IpAccess{
+				Source:      ipAccess.Source.ValueString(),
+				Description: ipAccess.Description.ValueString(),
+			})
+		}
 
 		service.IpAccessList = &api.IpAccessUpdate{
-			Add:    ipAccessListNew,
-			Remove: ipAccessListOld,
+			Add:    add,
+			Remove: remove,
 		}
 	}
 
