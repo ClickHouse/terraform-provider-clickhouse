@@ -6,7 +6,12 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
 )
 
-type ServiceResourceModel struct {
+type IPAccessModel struct {
+	Source      types.String `tfsdk:"source"`
+	Description types.String `tfsdk:"description"`
+}
+
+type ServiceResource struct {
 	ID                              types.String    `tfsdk:"id"`
 	Name                            types.String    `tfsdk:"name"`
 	Password                        types.String    `tfsdk:"password"`
@@ -30,7 +35,7 @@ type ServiceResourceModel struct {
 	EncryptionAssumedRoleIdentifier types.String    `tfsdk:"encryption_assumed_role_identifier"`
 }
 
-func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
+func (m *ServiceResource) Equals(b ServiceResource) bool {
 	if !m.ID.Equal(b.ID) ||
 		!m.Name.Equal(b.Name) ||
 		!m.Password.Equal(b.Password) ||
