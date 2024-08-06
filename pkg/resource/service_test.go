@@ -143,12 +143,14 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResource) {
-				src.IpAccessList = []models.IPAccessModel{
-					{
-						Source:      types.StringValue("0.0.0.0/0"),
-						Description: types.StringValue("whitelist"),
-					},
-				}
+				var ipAccessList []attr.Value
+				obj, _ := types.ObjectValue(ipAccessListObjectType.AttrTypes, map[string]attr.Value{
+					"source":      types.StringValue("0.0.0.0/0"),
+					"description": types.StringValue("whitelist"),
+				})
+
+				ipAccessList = append(ipAccessList, obj)
+				src.IpAccessList, _ = types.ListValue(ipAccessListObjectType, ipAccessList)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -413,6 +415,7 @@ func getInitialState() models.ServiceResource {
 	uuid := "773bb8b4-34e8-4ecf-8e23-4f7e20aa14b3"
 
 	endpoints, _ := types.ListValue(endpointObjectType, []attr.Value{})
+	ipAccessList, _ := types.ListValue(ipAccessListObjectType, []attr.Value{})
 	privateEndpointConfig, _ := types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
 		"endpoint_service_id":  types.StringValue(""),
 		"private_dns_hostname": types.StringValue(""),
@@ -430,7 +433,7 @@ func getInitialState() models.ServiceResource {
 		Region:                          types.StringValue(""),
 		Tier:                            types.StringValue(""),
 		IdleScaling:                     types.BoolValue(false),
-		IpAccessList:                    make([]models.IPAccessModel, 0),
+		IpAccessList:                    ipAccessList,
 		MinTotalMemoryGb:                types.Int64{},
 		MaxTotalMemoryGb:                types.Int64{},
 		NumReplicas:                     types.Int64{},

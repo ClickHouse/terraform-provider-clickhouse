@@ -59,6 +59,13 @@ var privateEndpointConfigType = types.ObjectType{
 	},
 }
 
+var ipAccessListObjectType = types.ObjectType{
+	AttrTypes: map[string]attr.Type{
+		"source":      types.StringType,
+		"description": types.StringType,
+	},
+}
+
 // Metadata returns the resource type name.
 func (r *ServiceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_service"
@@ -413,13 +420,19 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.IdleTimeoutMinutes = &idleTimeoutMinutes
 	}
 
-	service.IpAccessList = []api.IpAccess{}
-	for _, item := range plan.IpAccessList {
-		service.IpAccessList = append(service.IpAccessList, api.IpAccess{
-			Source:      item.Source.ValueString(),
-			Description: item.Description.ValueString(),
+	ipAccessModels := make([]struct {
+		Source      types.String `tfsdk:"source"`
+		Description types.String `tfsdk:"description"`
+	}, 0, len(plan.IpAccessList.Elements()))
+	plan.IpAccessList.ElementsAs(ctx, &ipAccessModels, false)
+	ipAccessLists := make([]api.IpAccess, 0, len(ipAccessModels))
+	for _, ipAccessModel := range ipAccessModels {
+		ipAccessLists = append(ipAccessLists, api.IpAccess{
+			Source:      ipAccessModel.Source.ValueString(),
+			Description: ipAccessModel.Description.ValueString(),
 		})
 	}
+	service.IpAccessList = ipAccessLists
 
 	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
 	plan.PrivateEndpointIds.ElementsAs(ctx, &servicePrivateEndpointIds, false)
@@ -564,31 +577,12 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		serviceChange = true
 	}
 
-	if !tfutils.Equal(plan.IpAccessList, state.IpAccessList) {
+	if !tfutils.Equal(plan.IpAccessList.Elements(), state.IpAccessList.Elements()) {
 		serviceChange = true
-		ipAccessListRawOld := state.IpAccessList
-		ipAccessListRawNew := plan.IpAccessList
-
-		ipAccessListOld := []api.IpAccess{}
-		ipAccessListNew := []api.IpAccess{}
-
-		for _, item := range ipAccessListRawOld {
-			ipAccess := api.IpAccess{
-				Source:      item.Source.ValueString(),
-				Description: item.Description.ValueString(),
-			}
-
-			ipAccessListOld = append(ipAccessListOld, ipAccess)
-		}
-
-		for _, item := range ipAccessListRawNew {
-			ipAccess := api.IpAccess{
-				Source:      item.Source.ValueString(),
-				Description: item.Description.ValueString(),
-			}
-
-			ipAccessListNew = append(ipAccessListNew, ipAccess)
-		}
+		ipAccessListOld := make([]api.IpAccess, 0, len(state.IpAccessList.Elements()))
+		ipAccessListNew := make([]api.IpAccess, 0, len(plan.IpAccessList.Elements()))
+		state.IpAccessList.ElementsAs(ctx, &ipAccessListOld, false)
+		plan.IpAccessList.ElementsAs(ctx, &ipAccessListNew, false)
 
 		service.IpAccessList = &api.IpAccessUpdate{
 			Add:    ipAccessListNew,
@@ -799,26 +793,16 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		}
 	}
 
-	ipAccessList := []models.IPAccessModel{}
-	for index, ipAccess := range service.IpAccessList {
-		stateIpAccess := models.IPAccessModel{
-			Source: types.StringValue(ipAccess.Source),
-		}
+	var ipAccessList []attr.Value
+	for _, ipAccess := range service.IpAccessList {
+		obj, _ := types.ObjectValue(ipAccessListObjectType.AttrTypes, map[string]attr.Value{
+			"source":      types.StringValue(ipAccess.Source),
+			"description": types.StringValue(ipAccess.Description),
+		})
 
-		// the API does not differentiate between undefined and empty string
-		if ipAccess.Description == "" {
-			// we will set this field as "" when user defines the description field
-			isDescriptionNull := index >= len(state.IpAccessList) || state.IpAccessList[index].Description.IsNull()
-			if !isDescriptionNull {
-				stateIpAccess.Description = types.StringValue("")
-			}
-		} else {
-			stateIpAccess.Description = types.StringValue(ipAccess.Description)
-		}
-
-		ipAccessList = append(ipAccessList, stateIpAccess)
+		ipAccessList = append(ipAccessList, obj)
 	}
-	state.IpAccessList = ipAccessList
+	state.IpAccessList, _ = types.ListValue(ipAccessListObjectType, ipAccessList)
 
 	var endpoints []attr.Value
 	for _, endpoint := range service.Endpoints {

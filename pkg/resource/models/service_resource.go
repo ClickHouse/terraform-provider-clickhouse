@@ -2,37 +2,30 @@ package models
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
-
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
 )
 
-type IPAccessModel struct {
-	Source      types.String `tfsdk:"source"`
-	Description types.String `tfsdk:"description"`
-}
-
 type ServiceResource struct {
-	ID                              types.String    `tfsdk:"id"`
-	Name                            types.String    `tfsdk:"name"`
-	Password                        types.String    `tfsdk:"password"`
-	PasswordHash                    types.String    `tfsdk:"password_hash"`
-	DoubleSha1PasswordHash          types.String    `tfsdk:"double_sha1_password_hash"`
-	Endpoints                       types.List      `tfsdk:"endpoints"`
-	CloudProvider                   types.String    `tfsdk:"cloud_provider"`
-	Region                          types.String    `tfsdk:"region"`
-	Tier                            types.String    `tfsdk:"tier"`
-	IdleScaling                     types.Bool      `tfsdk:"idle_scaling"`
-	IpAccessList                    []IPAccessModel `tfsdk:"ip_access"`
-	MinTotalMemoryGb                types.Int64     `tfsdk:"min_total_memory_gb"`
-	MaxTotalMemoryGb                types.Int64     `tfsdk:"max_total_memory_gb"`
-	NumReplicas                     types.Int64     `tfsdk:"num_replicas"`
-	IdleTimeoutMinutes              types.Int64     `tfsdk:"idle_timeout_minutes"`
-	IAMRole                         types.String    `tfsdk:"iam_role"`
-	LastUpdated                     types.String    `tfsdk:"last_updated"`
-	PrivateEndpointConfig           types.Object    `tfsdk:"private_endpoint_config"`
-	PrivateEndpointIds              types.List      `tfsdk:"private_endpoint_ids"`
-	EncryptionKey                   types.String    `tfsdk:"encryption_key"`
-	EncryptionAssumedRoleIdentifier types.String    `tfsdk:"encryption_assumed_role_identifier"`
+	ID                              types.String `tfsdk:"id"`
+	Name                            types.String `tfsdk:"name"`
+	Password                        types.String `tfsdk:"password"`
+	PasswordHash                    types.String `tfsdk:"password_hash"`
+	DoubleSha1PasswordHash          types.String `tfsdk:"double_sha1_password_hash"`
+	Endpoints                       types.List   `tfsdk:"endpoints"`
+	CloudProvider                   types.String `tfsdk:"cloud_provider"`
+	Region                          types.String `tfsdk:"region"`
+	Tier                            types.String `tfsdk:"tier"`
+	IdleScaling                     types.Bool   `tfsdk:"idle_scaling"`
+	IpAccessList                    types.List   `tfsdk:"ip_access"`
+	MinTotalMemoryGb                types.Int64  `tfsdk:"min_total_memory_gb"`
+	MaxTotalMemoryGb                types.Int64  `tfsdk:"max_total_memory_gb"`
+	NumReplicas                     types.Int64  `tfsdk:"num_replicas"`
+	IdleTimeoutMinutes              types.Int64  `tfsdk:"idle_timeout_minutes"`
+	IAMRole                         types.String `tfsdk:"iam_role"`
+	LastUpdated                     types.String `tfsdk:"last_updated"`
+	PrivateEndpointConfig           types.Object `tfsdk:"private_endpoint_config"`
+	PrivateEndpointIds              types.List   `tfsdk:"private_endpoint_ids"`
+	EncryptionKey                   types.String `tfsdk:"encryption_key"`
+	EncryptionAssumedRoleIdentifier types.String `tfsdk:"encryption_assumed_role_identifier"`
 }
 
 func (m *ServiceResource) Equals(b ServiceResource) bool {
@@ -56,7 +49,7 @@ func (m *ServiceResource) Equals(b ServiceResource) bool {
 		!m.PrivateEndpointIds.Equal(b.PrivateEndpointIds) ||
 		!m.EncryptionKey.Equal(b.EncryptionKey) ||
 		!m.EncryptionAssumedRoleIdentifier.Equal(b.EncryptionAssumedRoleIdentifier) ||
-		!tfutils.Equal(m.IpAccessList, b.IpAccessList) {
+		!m.IpAccessList.Equal(b.IpAccessList) {
 		return false
 	}
 

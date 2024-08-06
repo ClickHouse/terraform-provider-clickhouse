@@ -25,6 +25,13 @@ var privateEndpointConfigType = types.ObjectType{
 	},
 }
 
+var ipAccessListObjectType = types.ObjectType{
+	AttrTypes: map[string]attr.Type{
+		"source":      types.StringType,
+		"description": types.StringType,
+	},
+}
+
 func TestServiceResource_Equals(t *testing.T) {
 	base := getBaseModel()
 
@@ -266,6 +273,8 @@ func getBaseModel() ServiceResource {
 	endpoints = append(endpoints, obj)
 	ep, _ := types.ListValue(endpointObjectType, endpoints)
 
+	ipAccessList, _ := types.ListValue(ipAccessListObjectType, []attr.Value{})
+
 	privateEndpointConfig, _ := types.ObjectValue(privateEndpointConfigType.AttrTypes, map[string]attr.Value{
 		"endpoint_service_id":  types.StringValue(""),
 		"private_dns_hostname": types.StringValue(""),
@@ -283,7 +292,7 @@ func getBaseModel() ServiceResource {
 		Region:                          types.StringValue(""),
 		Tier:                            types.StringValue(""),
 		IdleScaling:                     types.Bool{},
-		IpAccessList:                    make([]IPAccessModel, 0),
+		IpAccessList:                    ipAccessList,
 		MinTotalMemoryGb:                types.Int64{},
 		MaxTotalMemoryGb:                types.Int64{},
 		NumReplicas:                     types.Int64{},
