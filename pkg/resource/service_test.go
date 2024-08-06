@@ -253,12 +253,30 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			name:  "Update IdleTimeoutMinutes field",
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.IdleScaling = true
 				timeout := 25
 				src.IdleTimeoutMinutes = &timeout
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.IdleScaling = types.BoolValue(true)
 				src.IdleTimeoutMinutes = types.Int64Value(25)
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			name:  "Nullify IdleTimeoutMinutes when idle scaling is false",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.IdleScaling = false
+				timeout := 25
+				src.IdleTimeoutMinutes = &timeout
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.IdleScaling = types.BoolValue(false)
+				src.IdleTimeoutMinutes = types.Int64Null()
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -336,6 +354,32 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			updateTimestamp: false,
 			wantErr:         false,
 		},
+		{
+			name:  "Update EncryptionKey field to null",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.EncryptionKey = ""
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.EncryptionKey = types.StringNull()
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			name:  "Update EncryptionAssumedRoleIdentifier field to null",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.EncryptionAssumedRoleIdentifier = ""
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.EncryptionAssumedRoleIdentifier = types.StringNull()
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
 	}
 
 	ctx := context.Background()
@@ -395,8 +439,8 @@ func getInitialState() models.ServiceResourceModel {
 		LastUpdated:                     types.String{},
 		PrivateEndpointConfig:           privateEndpointConfig,
 		PrivateEndpointIds:              privateEndpointIds,
-		EncryptionKey:                   types.StringValue(""),
-		EncryptionAssumedRoleIdentifier: types.StringValue(""),
+		EncryptionKey:                   types.StringNull(),
+		EncryptionAssumedRoleIdentifier: types.StringNull(),
 	}
 
 	return state
