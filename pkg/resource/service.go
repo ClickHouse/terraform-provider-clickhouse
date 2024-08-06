@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 
@@ -221,6 +222,159 @@ func (r *ServiceResource) Configure(_ context.Context, req resource.ConfigureReq
 	r.client = req.ProviderData.(api.Client)
 }
 
+func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		// If the entire plan is null, the resource is planned for destruction.
+		return
+	}
+
+	var plan, state models.ServiceResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if !req.State.Raw.IsNull() {
+		diags = req.State.Get(ctx, &state)
+		resp.Diagnostics.Append(diags...)
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !req.State.Raw.IsNull() {
+		// Validations for updates.
+		if !plan.CloudProvider.IsNull() && plan.CloudProvider != state.CloudProvider {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("cloud_provider"),
+				"Invalid Update",
+				"ClickHouse does not support changing service cloud providers",
+			)
+		}
+
+		if !plan.Region.IsNull() && plan.Region != state.Region {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("region"),
+				"Invalid Update",
+				"ClickHouse does not support changing service regions",
+			)
+		}
+
+		if !plan.Tier.IsNull() && plan.Tier != state.Tier {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("tier"),
+				"Invalid Update",
+				"ClickHouse does not support changing service tiers",
+			)
+		}
+
+		if !plan.EncryptionKey.IsNull() && plan.EncryptionKey != state.EncryptionKey {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("encryption_key"),
+				"Invalid Update",
+				"ClickHouse does not support changing encryption_key",
+			)
+		}
+
+		if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionAssumedRoleIdentifier != state.EncryptionAssumedRoleIdentifier {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("encryption_assumed_role_identifier"),
+				"Invalid Update",
+				"ClickHouse does not support changing encryption_assumed_role_identifier",
+			)
+		}
+	}
+
+	if plan.Tier.ValueString() == api.TierDevelopment {
+		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"min_total_memory_gb, max_total_memory_gb and num_replicas cannot be defined if the service tier is development",
+			)
+		}
+
+		if !plan.EncryptionKey.IsNull() || !plan.EncryptionAssumedRoleIdentifier.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"custom managed encryption cannot be defined if the service tier is development",
+			)
+		}
+	} else if plan.Tier.ValueString() == api.TierProduction {
+		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"min_total_memory_gb and max_total_memory_gb must be defined if the service tier is production",
+			)
+		}
+
+		if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionKey.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"encryption_assumed_role_identifier cannot be defined without encryption_key as well",
+			)
+		}
+
+		if !plan.EncryptionKey.IsNull() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"encryption_key and the encryption_assumed_role_identifier is only available for aws services",
+			)
+		}
+	}
+
+	if plan.IdleTimeoutMinutes.IsNull() && plan.IdleScaling.ValueBool() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"idle_timeout_minutes should be defined if idle_scaling is enabled",
+		)
+	}
+
+	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"Only one of either password or password_hash may be specified",
+		)
+	}
+
+	if plan.Password.IsNull() && plan.PasswordHash.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"One of either password or password_hash must be specified",
+		)
+	}
+
+	if !plan.Password.IsNull() && !plan.DoubleSha1PasswordHash.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"`double_sha1_password_hash` cannot be specified if `password` specified",
+		)
+	}
+
+	if !plan.DoubleSha1PasswordHash.IsNull() && plan.PasswordHash.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"`double_sha1_password_hash` cannot be specified without `password_hash`",
+		)
+	}
+
+	if !plan.DoubleSha1PasswordHash.IsNull() {
+		match, _ := regexp.MatchString("^[0-9a-fA-F]{40}$", plan.DoubleSha1PasswordHash.ValueString())
+		if !match {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"`double_sha1_password_hash` is not a double sha1 hash",
+			)
+		}
+	}
+
+	if !plan.PasswordHash.IsNull() {
+		match, _ := regexp.MatchString("^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$", plan.PasswordHash.ValueString())
+		if !match {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"`password_hash` is not a base64 encoded hash",
+			)
+		}
+	}
+}
+
 // Create a new resource
 func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
@@ -239,62 +393,12 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		Tier:     plan.Tier.ValueString(),
 	}
 
-	if service.Tier == api.TierDevelopment {
-		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"min_total_memory_gb, max_total_memory_gb and num_replicas cannot be defined if the service tier is development",
-			)
-			return
-		}
+	if service.Tier == api.TierProduction {
+		minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
+		service.MinTotalMemoryGb = &minTotalMemoryGb
+		maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
+		service.MaxTotalMemoryGb = &maxTotalMemoryGb
 
-		if !plan.EncryptionKey.IsNull() || !plan.EncryptionAssumedRoleIdentifier.IsNull() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"custom managed encryption cannot be defined if the service tier is development",
-			)
-			return
-		}
-	} else if service.Tier == api.TierProduction {
-		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"min_total_memory_gb and max_total_memory_gb must be defined if the service tier is production",
-			)
-			return
-		}
-
-		if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionKey.IsNull() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"encryption_assumed_role_identifier cannot be defined without encryption_key as well",
-			)
-			return
-		}
-
-		if !plan.EncryptionKey.IsNull() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"encryption_key and the encryption_assumed_role_identifier is only available for aws services",
-			)
-			return
-		}
-
-		if !plan.MinTotalMemoryGb.IsNull() {
-			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
-			service.MinTotalMemoryGb = &minTotalMemoryGb
-		}
-		if !plan.MaxTotalMemoryGb.IsNull() {
-			maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
-			service.MaxTotalMemoryGb = &maxTotalMemoryGb
-		}
-		if !plan.NumReplicas.IsNull() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"num_replicas cannot be defined on a new service, only on existing services",
-			)
-			return
-		}
 		if !plan.EncryptionKey.IsNull() {
 			service.EncryptionKey = plan.EncryptionKey.ValueString()
 		}
@@ -307,44 +411,6 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	if !plan.IdleTimeoutMinutes.IsNull() {
 		idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
 		service.IdleTimeoutMinutes = &idleTimeoutMinutes
-	} else if service.IdleScaling {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"idle_timeout_minutes should be defined if idle_scaling is enabled",
-		)
-		return
-	}
-
-	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"Only one of either password or password_hash may be specified",
-		)
-		return
-	}
-
-	if plan.Password.IsNull() && plan.PasswordHash.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"One of either password or password_hash must be specified",
-		)
-		return
-	}
-
-	if !plan.Password.IsNull() && !plan.DoubleSha1PasswordHash.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"`double_sha1_password_hash` cannot be specified if `password` specified",
-		)
-		return
-	}
-
-	if !plan.DoubleSha1PasswordHash.IsNull() && plan.PasswordHash.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"`double_sha1_password_hash` cannot be specified without `password_hash`",
-		)
-		return
 	}
 
 	service.IpAccessList = []api.IpAccess{}
@@ -475,132 +541,11 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Retrieve values from plan
-	var config, plan, state models.ServiceResourceModel
+	var plan, state models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
-	diags = req.Config.Get(ctx, &config)
-	resp.Diagnostics.Append(diags...)
-
-	if !plan.CloudProvider.IsNull() && plan.CloudProvider != state.CloudProvider {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("cloud_provider"),
-			"Invalid Update",
-			"ClickHouse does not support changing service cloud providers",
-		)
-	}
-
-	if !plan.Region.IsNull() && plan.Region != state.Region {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("region"),
-			"Invalid Update",
-			"ClickHouse does not support changing service regions",
-		)
-	}
-
-	if !plan.Tier.IsNull() && plan.Tier != state.Tier {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("tier"),
-			"Invalid Update",
-			"ClickHouse does not support changing service tiers",
-		)
-	}
-
-	if !plan.Password.IsNull() && !config.PasswordHash.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("password"),
-			"Invalid Update",
-			"Only one of either `password` or `password_hash` may be specified",
-		)
-	}
-
-	if !plan.PasswordHash.IsNull() && !config.Password.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("password_hash"),
-			"Invalid Update",
-			"Only one of either `password` or `password_hash` may be specified",
-		)
-	}
-
-	if plan.Password.IsNull() && config.PasswordHash.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("password"),
-			"Invalid Update",
-			"One of either `password` or `password_hash` must be specified",
-		)
-	}
-
-	if plan.PasswordHash.IsNull() && config.Password.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("password_hash"),
-			"Invalid Update",
-			"One of either password or password_hash must be specified",
-		)
-	}
-
-	if !plan.Password.IsNull() && !config.DoubleSha1PasswordHash.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("password"),
-			"Invalid Update",
-			"`double_sha1_password_hash` cannot be specified if `password` specified",
-		)
-	}
-
-	if !plan.DoubleSha1PasswordHash.IsNull() && !config.Password.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("double_sha1_password_hash"),
-			"Invalid Update",
-			"`double_sha1_password_hash` cannot be specified if `password` specified",
-		)
-	}
-
-	if !plan.DoubleSha1PasswordHash.IsNull() && (plan.PasswordHash.IsNull() && config.PasswordHash.IsNull()) {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("double_sha1_password_hash"),
-			"Invalid Update",
-			"`double_sha1_password_hash` cannot be specified without `password_hash`",
-		)
-	}
-
-	if !plan.EncryptionKey.IsNull() && plan.EncryptionKey != state.EncryptionKey {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("encryption_key"),
-			"Invalid Update",
-			"ClickHouse does not support changing encryption_key",
-		)
-	}
-
-	if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionAssumedRoleIdentifier != state.EncryptionAssumedRoleIdentifier {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("encryption_assumed_role_identifier"),
-			"Invalid Update",
-			"ClickHouse does not support changing encryption_assumed_role_identifier",
-		)
-	}
-
-	if config.Tier.ValueString() == api.TierDevelopment {
-		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"min_total_memory_gb, max_total_memory_gb, and num_replicase cannot be defined if the service tier is development",
-			)
-		}
-	} else if config.Tier.ValueString() == api.TierProduction {
-		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"min_total_memory_gb and max_total_memory_gb must be defined if the service tier is production",
-			)
-		}
-	}
-
-	if plan.IdleScaling.ValueBool() && plan.IdleTimeoutMinutes.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"idle_timeout_minutes should be defined if idle_scaling is enabled",
-		)
-	}
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -819,7 +764,7 @@ func (r *ServiceResource) ImportState(ctx context.Context, req resource.ImportSt
 // syncServiceState fetches the latest state ClickHouse Cloud API and updates the Terraform state.
 func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.ServiceResourceModel, updateTimestamp bool) error {
 	if state.ID.IsNull() {
-		return errors.New("service ID must be reset to fetch the service")
+		return errors.New("service ID must be set to fetch the service")
 	}
 
 	// Get latest service value from ClickHouse OpenAPI
@@ -834,8 +779,12 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	state.Region = types.StringValue(service.Region)
 	state.Tier = types.StringValue(service.Tier)
 	state.IdleScaling = types.BoolValue(service.IdleScaling)
-	if service.IdleTimeoutMinutes != nil {
-		state.IdleTimeoutMinutes = types.Int64Value(int64(*service.IdleTimeoutMinutes))
+	if state.IdleScaling.ValueBool() {
+		if service.IdleTimeoutMinutes != nil {
+			state.IdleTimeoutMinutes = types.Int64Value(int64(*service.IdleTimeoutMinutes))
+		}
+	} else {
+		state.IdleTimeoutMinutes = types.Int64Null()
 	}
 
 	if service.Tier == api.TierProduction {
@@ -890,8 +839,16 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		"private_dns_hostname": types.StringValue(service.PrivateEndpointConfig.PrivateDnsHostname),
 	})
 
-	state.EncryptionKey = types.StringValue(service.EncryptionKey)
-	state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
+	if service.EncryptionKey != "" {
+		state.EncryptionKey = types.StringValue(service.EncryptionKey)
+	} else {
+		state.EncryptionKey = types.StringNull()
+	}
+	if service.EncryptionAssumedRoleIdentifier != "" {
+		state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
+	} else {
+		state.EncryptionAssumedRoleIdentifier = types.StringNull()
+	}
 
 	if len(service.PrivateEndpointIds) == 0 {
 		state.PrivateEndpointIds = tfutils.CreateEmptyList(types.StringType)
