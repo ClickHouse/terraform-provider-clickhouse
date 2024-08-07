@@ -3,7 +3,7 @@ name: Make release
 on:
   push:
     branches:
-      - "release-automation"
+      - "main"
 
 defaults:
   run:

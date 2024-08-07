@@ -1,14 +1,11 @@
-name: Prepare for release
+name: Prepare release
 
 on:
-  push:
-    branches:
-      - release-automation
   workflow_dispatch:
     inputs:
       version:
         required: true
-        description: "The semver formatted version for the new release"
+        description: "The semver formatted version for the new release i.e 0.3.1"
 
 defaults:
   run:
@@ -28,8 +25,7 @@ jobs:
       - name: Bump provider version in examples
         id: bump
         run: |
-          #version="${{ inputs.logLevel }}"
-          version="0.2.2"
+          version="${{ inputs.version }}"
           
           # strip any leading "v" from the release.
           version="${version#v}"
