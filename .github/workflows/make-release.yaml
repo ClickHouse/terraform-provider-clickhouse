@@ -10,7 +10,7 @@ defaults:
     shell: bash
 
 jobs:
-  bump:
+  release:
     permissions:
       contents: write
       pull-requests: write
@@ -24,6 +24,8 @@ jobs:
         id: check
         run: |
           last_commit_msg="git log -1 --pretty=%B|head -n1"
+          
+          echo "Last commit msg = '${last_commit_msg}'"
           
           if [[ $last_commit_msg == \[RELEASE* ]]
           then

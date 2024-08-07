@@ -60,6 +60,3 @@ jobs:
         with:
           branch: "bump-provider-to-${{ steps.bump.outputs.release-version }}"
           title: "[RELEASE ${{ steps.bump.outputs.release-version }}] Bump provider version in examples"
-
-      - name: Enable Pull Request Automerge
-        run: gh pr merge --merge --auto "${{ steps.pr.outputs.pull-request-number }}"
