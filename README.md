@@ -91,3 +91,11 @@ Make sure to change the organization id, token key, and token secret to valid va
 ## Docs
 
 If you made any changes to the provider's interface, please run `make docs` to update documentation as well.
+
+## Release
+
+To make a new public release:
+- ensure the `main` branch contains all the changes you want to release
+- go to `Actions` section on github and Run the `Prepare release` workflow against the main branch (enter the desired release version in semver format without leading `v`, example: "1.2.3")
+- a PR will be opened to prepare the `main` branch for a new release. Approve and merge it
+- Release will be automatically created.
