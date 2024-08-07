@@ -1,18 +1,3 @@
-terraform {
-  required_providers {
-    clickhouse = {
-      version = "0.0.10"
-      source  = "ClickHouse/clickhouse"
-    }
-
-    azapi = {
-      source  = "Azure/azapi"
-      version = "1.13.1"
-    }
-
-  }
-}
-
 variable "organization_id" {
   type = string
 }
@@ -38,12 +23,6 @@ variable "private_endpoint_azure_foo_uuid" {
 variable "private_endpoint_azure_bar_uuid" {
   type    = string
   default = ""
-}
-
-provider "clickhouse" {
-  organization_id = var.organization_id
-  token_key       = var.token_key
-  token_secret    = var.token_secret
 }
 
 resource "clickhouse_service" "azure_red" {
