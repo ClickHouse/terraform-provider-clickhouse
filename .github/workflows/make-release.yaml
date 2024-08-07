@@ -52,6 +52,6 @@ jobs:
       - name: Create tag
         if: ${{ steps.check.outputs.release-version != 'null' }}
         run: |
-          tag="disabled-v${{ steps.check.outputs.release-version }}"
+          tag="v${{ steps.check.outputs.release-version }}"
           git tag $tag
           git push origin $tag
