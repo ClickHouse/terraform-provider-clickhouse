@@ -311,6 +311,13 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		)
 	}
 
+	if !plan.IdleTimeoutMinutes.IsNull() && !plan.IdleScaling.ValueBool() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"idle_timeout_minutes must be null if idle_scaling is disabled",
+		)
+	}
+
 	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
