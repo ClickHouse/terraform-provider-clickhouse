@@ -559,7 +559,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		serviceChange = true
 	}
 
-	if !tfutils.Equal(plan.IpAccessList.Elements(), state.IpAccessList.Elements()) {
+	if !plan.IpAccessList.Equal(state.IpAccessList) {
 		serviceChange = true
 		var currentIPAccessList, desiredIPAccessList []models.IPAccessList
 		state.IpAccessList.ElementsAs(ctx, &currentIPAccessList, false)
@@ -587,7 +587,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	if !tfutils.Equal(plan.PrivateEndpointIds.Elements(), state.PrivateEndpointIds.Elements()) {
+	if !plan.PrivateEndpointIds.Equal(state.PrivateEndpointIds) {
 		serviceChange = true
 		privateEndpointIdsRawOld := make([]types.String, 0, len(state.PrivateEndpointIds.Elements()))
 		privateEndpointIdsRawNew := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
