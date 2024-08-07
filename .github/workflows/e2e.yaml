@@ -1,0 +1,42 @@
+name: E2E tests
+
+on:
+  push:
+    branches:
+      - acceptance-tests
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  e2e:
+    outputs:
+      version: ${{ steps.check.outputs.release-version }}
+
+    runs-on: [dataplane, self-hosted, linux, x64, small]
+    env:
+      TEST_NAME: "basic"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.4"
+
+      - name: Terraform Init
+        run: |
+          cd "examples/${TEST_NAME}"
+          terraform init
+
+      - name: Terraform plan
+        id: plan
+        run: |
+          cd "examples/${TEST_NAME}"
+          terraform plan -no-color
+
+      - run: echo ${{ steps.plan.outputs.stdout }}
+      - run: echo ${{ steps.plan.outputs.stderr }}
+      - run: echo ${{ steps.plan.outputs.exitcode }}
