@@ -823,10 +823,6 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
 	}
 
-	if updateTimestamp {
-		state.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-	}
-
 	return nil
 }
 
