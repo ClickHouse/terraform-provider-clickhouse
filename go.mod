@@ -3,7 +3,7 @@ module github.com/ClickHouse/terraform-provider-clickhouse
 go 1.22.5
 
 require (
-	github.com/gojuno/minimock/v3 v3.3.13
+	github.com/gojuno/minimock/v3 v3.3.14
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/terraform-plugin-docs v0.19.4
 	github.com/hashicorp/terraform-plugin-framework v1.10.0
