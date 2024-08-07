@@ -1,4 +1,4 @@
-name: Prepare for release
+name: Make release
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
       - name: Check release
         id: check
         run: |
-          last_commit_msg="git log -1 --pretty=%B|head -n1"
+          last_commit_msg="$(git log -1 --pretty=%B|head -n1)"
           
           echo "Last commit msg = '${last_commit_msg}'"
           
