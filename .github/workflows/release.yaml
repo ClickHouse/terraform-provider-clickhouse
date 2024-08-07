@@ -1,0 +1,53 @@
+name: Make a new release
+
+on:
+  push:
+    branches:
+      - 'releases/v*'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  bump:
+    permissions:
+      contents: write
+      pull-requests: write
+
+    runs-on: [dataplane, self-hosted, linux, x64, small]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bump provider version in examples
+        run: |
+          # strip "releases/v" prefix from branch name. We're left with the plain semver i.e. "1.2.3".
+          version="${GITHUB_REF_NAME#"releases/v"}"
+          
+          # validate semver.
+          if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
+            echo "Preparing release $version"
+          else
+            echo "Invalid semver $version in branch name"
+            exit 1
+          fi
+          
+          # Bump semver in examples
+          export CLICKHOUSE_TERRAFORM_PROVIDER_VERSION="$version"
+          for f in `find examples -name provider.tf.template`
+          do
+            dst="${f%.template}"
+            cat $f | envsubst > $dst
+          
+            sed -i '1s/^/# This file is generated automatically please do not edit\n/' $dst
+          done
+
+      - name: Open PR with changes
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: "bump-provider-version-in-examples"
+          title: "Bump provider version in examples"
+          assignees: $GITHUB_ACTOR
+          reviewers: $GITHUB_ACTOR
+

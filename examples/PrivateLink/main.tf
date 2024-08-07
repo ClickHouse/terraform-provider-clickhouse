@@ -1,12 +1,3 @@
-terraform {
-  required_providers {
-    clickhouse = {
-      version = "0.0.10"
-      source  = "ClickHouse/clickhouse"
-    }
-  }
-}
-
 variable "organization_id" {
   type = string
 }
@@ -17,12 +8,6 @@ variable "token_key" {
 
 variable "token_secret" {
   type = string
-}
-
-provider "clickhouse" {
-  organization_id = var.organization_id
-  token_key       = var.token_key
-  token_secret    = var.token_secret
 }
 
 resource "clickhouse_service" "aws_red" {
