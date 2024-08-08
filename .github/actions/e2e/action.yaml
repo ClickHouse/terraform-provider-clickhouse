@@ -32,9 +32,6 @@ runs:
     TF_VAR_token_secret: ${{ inputs.token_secret }}
 
   steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
     - name: Setup go
       uses: actions/setup-go@v5
       with:
