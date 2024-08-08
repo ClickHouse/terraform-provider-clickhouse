@@ -10,10 +10,28 @@ variable "token_secret" {
   type = string
 }
 
+variable "service_name" {
+  type = string
+  default = "My Terraform Service"
+}
+
+variable "cloud_provider" {
+  type = string
+  default = "aws"
+}
+
+locals {
+  regions = {
+    aws = "us-east-1"
+    gcp = "europe-west4"
+    azure = "westus3"
+  }
+}
+
 resource "clickhouse_service" "service" {
-  name                      = "My Terraform Service"
-  cloud_provider            = "aws"
-  region                    = "us-east-1"
+  name                      = var.service_name
+  cloud_provider            = var.cloud_provider
+  region                    = local.regions[var.cloud_provider]
   tier                      = "production"
   idle_scaling              = true
   password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"

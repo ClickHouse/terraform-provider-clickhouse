@@ -1,0 +1,102 @@
+name: "Run e2e tests"
+description: "Run end to end tests for terraform provider"
+inputs:
+  organization_id:
+    required: true
+    description: "The clickhouse organization ID"
+  token_key:
+    required: true
+    description: "The clickhouse token key"
+  token_secret:
+    required: true
+    description: "The clickhouse token secret"
+  token:
+    required: true
+    description: "The unique token assigned to this e2e run"
+  test_name:
+    required: true
+    description: "The test name i.e. the name of the folder inside the `examples` dir."
+  tf_release:
+    required: true
+    description: "The terraform cli version"
+  cloud_provider:
+    required: true
+    description: "The cloud provider name"
+
+
+runs:
+  using: "composite"
+  env:
+    TF_VAR_organization_id: ${{ inputs.organization_id }}
+    TF_VAR_token_key: ${{ inputs.token_key }}
+    TF_VAR_token_secret: ${{ inputs.token_secret }}
+
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.22.5"
+        cache: true
+
+    - name: Install terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.tf_release }}
+        terraform_wrapper: false
+
+    - name: Show terraform version
+      run: terraform version
+
+    - name: Build plugin
+      run: |
+        go get
+        go build -o terraform-provider-clickhouse
+
+        cat <<EOF >$HOME/.terraformrc
+        provider_installation {
+          dev_overrides {
+            "ClickHouse/clickhouse" = "$(pwd)"
+          }
+          direct {}
+        }
+        EOF
+
+    - name: Generate name
+      id: generate-name
+      run: |
+        name="[e2e] ${{ inputs.test_name }} - TF ${{ inputs.tf_release }} - ${{ inputs.cloud_provider }} - ${{ inputs.token }}"
+
+        echo "service-name=${name}" >> $GITHUB_OUTPUT
+
+    - name: Terraform Init
+      run: |
+        cd "examples/${{ inputs.test_name }}"
+        export TF_VAR_service_name="${{ steps.generate-name.outputs.service-name }}"
+        export TF_VAR_cloud_provider="${{ inputs.cloud_provider }}"
+        terraform init -input=false
+
+    - name: Terraform plan
+      id: plan
+      run: |
+        cd "examples/${{ inputs.test_name }}"
+        export TF_VAR_service_name="${{ steps.generate-name.outputs.service-name }}"
+        export TF_VAR_cloud_provider="${{ inputs.cloud_provider }}"
+        terraform plan -no-color
+
+    - name: Terraform apply
+      run: |
+        cd "examples/${{ inputs.test_name }}"
+        export TF_VAR_service_name="${{ steps.generate-name.outputs.service-name }}"
+        export TF_VAR_cloud_provider="${{ inputs.cloud_provider }}"
+        terraform apply -no-color -auto-approve
+
+    - name: Terraform destroy
+      if: always()
+      run: |
+        cd "examples/${{ inputs.test_name }}"
+        export TF_VAR_service_name="${{ steps.generate-name.outputs.service-name }}"
+        export TF_VAR_cloud_provider="${{ inputs.cloud_provider }}"
+        terraform destroy -no-color -auto-approve
