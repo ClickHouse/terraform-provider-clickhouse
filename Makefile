@@ -33,8 +33,10 @@ test:
 	go test -i $(TEST) || exit 1                                                   
 	echo $(TEST) | xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4                    
 
-testacc: 
-	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 120m
+enable_git_hooks: ## Add githooks for code validation before commit, as symlink so they get updated automatically
+	mkdir -p .git/hooks
+	cd .git/hooks && ln -fs ../../.githooks/* .
+	echo "Git hooks were updated from .githooks/ into .git/hooks/"
 
 docs: ensure-tfplugindocs
 	$(TFPLUGINDOCS) generate --provider-name=clickhouse

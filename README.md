@@ -88,9 +88,21 @@ Do you want to perform these actions?
 
 Make sure to change the organization id, token key, and token secret to valid values.
 
+## Git hooks
+
+We suggest to add git hooks to your local repo, by running:
+
+```bash
+make enable_git_hooks
+```
+
+Code will be formatted and docs generated before each commit.
+
 ## Docs
 
 If you made any changes to the provider's interface, please run `make docs` to update documentation as well.
+
+NOTE: this is done automatically by git hooks.
 
 ## Release
 
