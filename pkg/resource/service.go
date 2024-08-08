@@ -60,10 +60,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"last_updated": schema.StringAttribute{
-				Description: "Date for when the service was last updated by Terraform.",
-				Computed:    true,
-			},
 			"name": schema.StringAttribute{
 				Description: "User defined identifier for the service.",
 				Required:    true,
