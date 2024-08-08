@@ -431,7 +431,6 @@ func getInitialState() models.ServiceResourceModel {
 		NumReplicas:                     types.Int64{},
 		IdleTimeoutMinutes:              types.Int64{},
 		IAMRole:                         types.StringValue(""),
-		LastUpdated:                     types.String{},
 		PrivateEndpointConfig:           privateEndpointConfig,
 		PrivateEndpointIds:              privateEndpointIds,
 		EncryptionKey:                   types.StringNull(),
