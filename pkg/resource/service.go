@@ -433,8 +433,9 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	numErrors := 0
+	id := s.Id
 	for {
-		s, err = r.client.GetService(s.Id)
+		s, err = r.client.GetService(id)
 		if err != nil {
 			numErrors++
 			if numErrors > api.MaxRetry {
