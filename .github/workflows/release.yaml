@@ -100,6 +100,8 @@ jobs:
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "gcp", "azure" ]
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: e2e
         uses: ./.github/actions/e2e
         with:
@@ -122,6 +124,8 @@ jobs:
       token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
       token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: cleanup
         uses: ./.github/actions/cleanup
         with:
