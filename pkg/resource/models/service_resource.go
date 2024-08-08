@@ -89,7 +89,6 @@ type ServiceResourceModel struct {
 	NumReplicas                     types.Int64  `tfsdk:"num_replicas"`
 	IdleTimeoutMinutes              types.Int64  `tfsdk:"idle_timeout_minutes"`
 	IAMRole                         types.String `tfsdk:"iam_role"`
-	LastUpdated                     types.String `tfsdk:"last_updated"`
 	PrivateEndpointConfig           types.Object `tfsdk:"private_endpoint_config"`
 	PrivateEndpointIds              types.List   `tfsdk:"private_endpoint_ids"`
 	EncryptionKey                   types.String `tfsdk:"encryption_key"`
@@ -112,7 +111,6 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.NumReplicas.Equal(b.NumReplicas) ||
 		!m.IdleTimeoutMinutes.Equal(b.IdleTimeoutMinutes) ||
 		!m.IAMRole.Equal(b.IAMRole) ||
-		!m.LastUpdated.Equal(b.LastUpdated) ||
 		!m.PrivateEndpointConfig.Equal(b.PrivateEndpointConfig) ||
 		!m.PrivateEndpointIds.Equal(b.PrivateEndpointIds) ||
 		!m.EncryptionKey.Equal(b.EncryptionKey) ||

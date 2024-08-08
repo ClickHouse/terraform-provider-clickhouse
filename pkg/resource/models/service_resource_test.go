@@ -142,14 +142,6 @@ func TestServiceResource_Equals(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "LastUpdated changed",
-			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				src.LastUpdated = types.StringValue("changed")
-			}).Get(),
-			want: false,
-		},
-		{
 			name: "PrivateEndpointConfig endpoint_service_id changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
@@ -255,7 +247,6 @@ func getBaseModel() ServiceResourceModel {
 		NumReplicas:                     types.Int64{},
 		IdleTimeoutMinutes:              types.Int64{},
 		IAMRole:                         types.StringValue(""),
-		LastUpdated:                     types.String{},
 		PrivateEndpointConfig:           PrivateEndpointConfig{}.ObjectValue(),
 		PrivateEndpointIds:              privateEndpointIds,
 		EncryptionKey:                   types.String{},
