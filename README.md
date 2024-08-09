@@ -108,6 +108,5 @@ NOTE: this is done automatically by git hooks.
 
 To make a new public release:
 - ensure the `main` branch contains all the changes you want to release
-- go to `Actions` section on github and Run the `Prepare release` workflow against the main branch (enter the desired release version in semver format without leading `v`, example: "1.2.3")
-- a PR will be opened to prepare the `main` branch for a new release. Approve and merge it
-- Release will be automatically created.
+- Run the [`Release`](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/release.yaml) workflow against the main branch (enter the desired release version in semver format without leading `v`, example: "1.2.3")
+- Release will be automatically created if end to end tests will be successful.

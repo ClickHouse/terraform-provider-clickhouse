@@ -1,70 +1,51 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - "main"
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        description: "The semver formatted version for the new release i.e 0.3.1"
+      test_upgrade:
+        type: boolean
+        required: false
+        default: true
+        description: "Additionally run upgrade test from latest stable version of the plugin to the one being released"
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  # Make a new tag out of main branch
-  # Only runs if latest comming on main is a release commit.
-  release-tag:
-    permissions:
-      contents: write
-      pull-requests: write
-
+  # Validate the input
+  validate:
+    runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.check.outputs.release-version }}
-
-    runs-on: [dataplane, self-hosted, linux, x64, small]
+      test-upgrade-matrix: ${{ steps.check.outputs.test-upgrade-matrix }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check release
+      - name: Check input
         id: check
         run: |
-          last_commit_msg="$(git log -1 --pretty=%B|head -n1)"
-          
-          echo "Last commit msg = '${last_commit_msg}'"
-          
-          if [[ $last_commit_msg == \[RELEASE* ]]
-          then
-            version="$(echo "$last_commit_msg" | cut -d"]" -f1 | cut -d" " -f2)"
-          else
-            echo "Latest commit does not look like a release commit"
-            echo "release-version=null" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-                    
-          # strip any leading "v" from the release.
-          version="${version#v}"
-          
+          version="${{ inputs.version }}"
+
           # validate semver.
           if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
-            echo "Preparing release $version"
+            echo "Valid release version: $version"
           else
-            echo "Invalid semver $version in branch name"
+            echo "Invalid semver: \"$version\". Must be something like 1.2.3 without leading \"v\""
             exit 1
           fi
           
-          echo "release-version=${version}" >> $GITHUB_OUTPUT
+          if [ "${{inputs.test_upgrade}}" == "true" ]
+          then
+            echo "test-upgrade-matrix=[\"true\", \"false\"]" >> $GITHUB_OUTPUT
+          else
+            echo "test-upgrade-matrix=[\"false\"]" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Create tag
-        if: ${{ steps.check.outputs.release-version != 'null' }}
-        run: |
-          tag="v${{ steps.check.outputs.release-version }}"
-          git tag $tag
-          git push origin $tag
-
-  # Begin e2e tests section
+  # Generate a random token to tag the tests with
   token:
-    needs: [ "release-tag" ]
-    if: ${{ needs.release-tag.outputs.version != 'null' }}
+    needs: ["validate"]
     outputs:
       token: ${{ steps.generate.outputs.token }}
     runs-on: ubuntu-latest
@@ -75,9 +56,9 @@ jobs:
           token="$(date '+%s')"
           echo "token=${token}" >> $GITHUB_OUTPUT
 
+  # Find the 3 most recent releases of terraform CLI (one for each minor)
   find-tf-releases:
-    needs: [ "release-tag" ]
-    if: ${{ needs.release-tag.outputs.version != 'null' }}
+    needs: ["validate"]
     outputs:
       releases: ${{ steps.find.outputs.releases }}
     runs-on: ubuntu-latest
@@ -87,9 +68,11 @@ jobs:
       - uses: ./.github/actions/find-tf-releases
         id: find
 
+  # Run e2e tests
   e2e:
-    if: ${{ needs.release-tag.outputs.version != 'null' }}
-    needs: [ "token", "find-tf-releases" ]
+    outputs:
+      status: ${{ steps.status.outputs.status }}
+    needs: [ "validate", "token", "find-tf-releases" ]
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
@@ -99,11 +82,10 @@ jobs:
         test: [ "basic" ]
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "gcp", "azure" ]
+        upgrade_test: ${{ fromJSON(needs.validate.outputs.test-upgrade-matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: "v${{needs.release-tag.outputs.version}}"
       - name: e2e
         uses: ./.github/actions/e2e
         with:
@@ -114,10 +96,25 @@ jobs:
           test_name: ${{ matrix.test }}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
+          upgrade_test: ${{ matrix.upgrade_test }}
+      - name: Mark error
+        id: status
+        if: failure()
+        run: |
+          echo "status=failure" >> $GITHUB_OUTPUT
+      - name: Report Failure on slack
+        if: failure()
+        uses: ravsamhq/notify-slack-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: ${{ job.status }}
+          notification_title: "E2E tests failed during release ${github.ref_name}"
+          footer: "{workflow_url}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.DATA_PLANE_SLACK_WEBHOOK }}
 
   # Delete any leftover service that might have failed deleting
   cleanup:
-    if: ${{ needs.release-tag.outputs.version != 'null' }}
     runs-on: ubuntu-latest
     needs: [ "e2e", "token" ]
     continue-on-error: true
@@ -135,23 +132,75 @@ jobs:
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
           token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
           token: ${{needs.token.outputs.token}}
-  # End e2e tests section
 
-  # Make a new release out of the tag
-  goreleaser:
+  # Bump the provider version in the examples directory
+  bump-examples:
+    needs: [ "e2e" ]
+    if: ${{ needs.e2e.outputs.status != 'failure' }}
     runs-on: ubuntu-latest
-    needs: [ "release-tag", "e2e" ]
-    if: ${{ needs.release-tag.outputs.version != 'null' }}
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{needs.release-tag.outputs.version}}
+          ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      - name: Bump provider version in examples
+        id: bump
+        run: |
+          version="${{ inputs.version }}"
+
+          # Bump semver in examples
+          export CLICKHOUSE_TERRAFORM_PROVIDER_VERSION="$version"
+          for f in `find examples -name provider.tf.template`
+          do
+            dst="${f%.template}"
+            cat $f | envsubst > $dst
+
+            sed -i '1s/^/# This file is generated automatically please do not edit\n/' $dst
+          done
+      - name: Commit
+        run: |
+          git config --global user.name "Release Github Action"
+          git config --global user.email "bot@users.noreply.github.com"
+          git commit -a -m "Bump provider version in examples to ${{ inputs.version }}"
+          git push 
+
+  # Create tag for the release
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    needs: [ "e2e", "bump-examples" ]
+    if: ${{ needs.e2e.outputs.status != 'failure' }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Create tag
+      run: |
+        tag="v${{ inputs.version }}"
+        git tag $tag
+        git push origin $tag
+        
+  # Make a new release out of the tag
+  goreleaser:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    needs: [ "tag", "e2e" ]
+    if: ${{ needs.e2e.outputs.status != 'failure' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v${{inputs.version}}
 
       - name: Setup go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.5"
+          go-version-file: 'go.mod'
           cache: true
 
       - name: Import GPG key
@@ -169,3 +218,4 @@ jobs:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+

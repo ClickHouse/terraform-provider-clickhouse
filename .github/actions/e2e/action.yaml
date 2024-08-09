@@ -15,27 +15,25 @@ inputs:
     description: "The unique token assigned to this e2e run"
   test_name:
     required: true
-    description: "The test name i.e. the name of the folder inside the `examples` dir."
+    description: "The test name i.e. the name of the folder inside the examples dir"
   tf_release:
     required: true
     description: "The terraform cli version"
   cloud_provider:
     required: true
     description: "The cloud provider name"
-
+  upgrade_test:
+    required: false
+    default: "false"
+    description: "If true it runs a provider upgrade test"
 
 runs:
   using: "composite"
-  env:
-    TF_VAR_organization_id: ${{ inputs.organization_id }}
-    TF_VAR_token_key: ${{ inputs.token_key }}
-    TF_VAR_token_secret: ${{ inputs.token_secret }}
-
   steps:
     - name: Setup go
       uses: actions/setup-go@v5
       with:
-        go-version: "1.22.5"
+        go-version-file: 'go.mod'
         cache: true
 
     - name: Install terraform
@@ -44,11 +42,43 @@ runs:
         terraform_version: ${{ inputs.tf_release }}
         terraform_wrapper: false
 
-    - name: Show terraform version
+    - shell: bash
+      name: Show terraform version
       run: terraform version
 
-    - name: Build plugin
+    - shell: bash
+      name: Set env variables
       run: |
+        echo "::group::Setting env variables"
+        test_type=""
+        if [ "${{inputs.upgrade_test}}" == "true" ]
+        then
+          test_type=" upgrade"
+        fi
+        service_name="[e2e${test_type}]-${{ inputs.test_name }}-${{ inputs.tf_release }}-${{ inputs.cloud_provider }}-${{ inputs.token }}"
+        
+        echo "TF_VAR_organization_id=${{ inputs.organization_id }}" >> $GITHUB_ENV
+        echo "TF_VAR_token_key=${{ inputs.token_key }}" >> $GITHUB_ENV
+        echo "TF_VAR_token_secret=${{ inputs.token_secret }}" >> $GITHUB_ENV
+        echo "TF_VAR_service_name=${service_name}" >> $GITHUB_ENV
+        echo "TF_VAR_cloud_provider=${{ inputs.cloud_provider }}" >> $GITHUB_ENV
+        echo "::endgroup::"
+
+    - shell: bash
+      if: ${{ inputs.upgrade_test == 'true' }}
+      name: Upgrade test - Run terraform using latest stable version
+      run: |
+        echo "::group::Run terraform using latest stable version"
+        cd "examples/${{ inputs.test_name }}"
+        terraform init -input=false
+        terraform plan -no-color
+        terraform apply -no-color -auto-approve
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Build provider from branch and create terraformrc to use it
+      run: |
+        echo "::group::Build provider from branch and create terraformrc to use it"
         go get
         go build -o terraform-provider-clickhouse
 
@@ -60,40 +90,23 @@ runs:
           direct {}
         }
         EOF
+        echo "::endgroup::"
 
-    - name: Generate name
-      id: generate-name
+    - shell: bash
+      name: Run terraform using current branch version
       run: |
-        name="[e2e] ${{ inputs.test_name }} - TF ${{ inputs.tf_release }} - ${{ inputs.cloud_provider }} - ${{ inputs.token }}"
-
-        echo "service-name=${name}" >> $GITHUB_OUTPUT
-
-    - name: Terraform Init
-      run: |
+        echo "::group::Run terraform using current branch version"
         cd "examples/${{ inputs.test_name }}"
-        export TF_VAR_service_name="${{ steps.generate-name.outputs.service-name }}"
-        export TF_VAR_cloud_provider="${{ inputs.cloud_provider }}"
-        terraform init -input=false
-
-    - name: Terraform plan
-      id: plan
-      run: |
-        cd "examples/${{ inputs.test_name }}"
-        export TF_VAR_service_name="${{ steps.generate-name.outputs.service-name }}"
-        export TF_VAR_cloud_provider="${{ inputs.cloud_provider }}"
+        terraform init -input=false -upgrade
         terraform plan -no-color
-
-    - name: Terraform apply
-      run: |
-        cd "examples/${{ inputs.test_name }}"
-        export TF_VAR_service_name="${{ steps.generate-name.outputs.service-name }}"
-        export TF_VAR_cloud_provider="${{ inputs.cloud_provider }}"
         terraform apply -no-color -auto-approve
+        echo "::endgroup::"
 
-    - name: Terraform destroy
+    - shell: bash
+      name: Terraform destroy
       if: always()
       run: |
+        echo "::group::Run terraform destroy"
         cd "examples/${{ inputs.test_name }}"
-        export TF_VAR_service_name="${{ steps.generate-name.outputs.service-name }}"
-        export TF_VAR_cloud_provider="${{ inputs.cloud_provider }}"
         terraform destroy -no-color -auto-approve
+        echo "::endgroup::"
