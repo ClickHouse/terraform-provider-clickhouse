@@ -1,11 +1,16 @@
 # ClickHouse Terraform Provider
 
-[![Release](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/release.yml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/release.yml)
 [![Docs](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml)
 [![Dependabot Updates](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates)
-[![Unit tests ](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml)
+[![Unit tests](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml)
 
-## Local Development
+## Usage
+
+This is the official terraform provider for [ClickHouse Cloud](https://clickhouse.com/cloud).
+
+Please refer to the [official docs](https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs) for more details.
+
+## Development
 
 Create a new file called .terraformrc in your home directory (~), then add the dev_overrides block below. Change the `<PATH>` to the full path of the `tmp` directory in this repo. For example:
 
