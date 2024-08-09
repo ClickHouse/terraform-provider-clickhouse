@@ -26,6 +26,10 @@ inputs:
     required: false
     default: "false"
     description: "If true it runs a provider upgrade test"
+  skip_build:
+    required: false
+    default: "false"
+    description: "If true it runs tests out of last published terraform provider release"
 
 runs:
   using: "composite"
@@ -76,6 +80,7 @@ runs:
         echo "::endgroup::"
 
     - shell: bash
+      if: ${{ inputs.skip_build == 'false' }}
       name: Build provider from branch and create terraformrc to use it
       run: |
         echo "::group::Build provider from branch and create terraformrc to use it"
@@ -93,9 +98,9 @@ runs:
         echo "::endgroup::"
 
     - shell: bash
-      name: Run terraform using current branch version
+      name: Run terraform
       run: |
-        echo "::group::Run terraform using current branch version"
+        echo "::group::Run terraform"
         cd "examples/${{ inputs.test_name }}"
         terraform init -input=false -upgrade
         terraform plan -no-color

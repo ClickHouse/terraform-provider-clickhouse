@@ -102,8 +102,13 @@ jobs:
         if: failure()
         run: |
           echo "status=failure" >> $GITHUB_OUTPUT
+
+  report:
+    runs-on: ubuntu-latest
+    needs: [ "e2e" ]
+    if: ${{ needs.e2e.outputs.status == 'failure' }}
+    steps:
       - name: Report Failure on slack
-        if: failure()
         uses: ravsamhq/notify-slack-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -196,6 +201,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: v${{inputs.version}}
+          # Allow goreleaser to access older tag information.
+          fetch-depth: 0
 
       - name: Setup go
         uses: actions/setup-go@v5
