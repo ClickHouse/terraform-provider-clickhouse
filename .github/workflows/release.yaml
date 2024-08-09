@@ -111,7 +111,7 @@ jobs:
           notification_title: "E2E tests failed during release ${github.ref_name}"
           footer: "{workflow_url}"
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.DATA_PLANE_SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
 
   # Delete any leftover service that might have failed deleting
   cleanup:
