@@ -101,8 +101,6 @@ func (r *ServicePrivateEndpointsAttachmentResource) Create(ctx context.Context, 
 	}
 
 	service := api.ServiceUpdate{
-		Name:         "",
-		IpAccessList: nil,
 		PrivateEndpointIds: &api.PrivateEndpointIdsUpdate{
 			Add: []string{},
 		},
@@ -174,8 +172,6 @@ func (r *ServicePrivateEndpointsAttachmentResource) Update(ctx context.Context, 
 	resp.Diagnostics.Append(diags...)
 
 	service := api.ServiceUpdate{
-		Name:         "",
-		IpAccessList: nil,
 		PrivateEndpointIds: &api.PrivateEndpointIdsUpdate{
 			Add:    []string{},
 			Remove: []string{},
@@ -218,8 +214,6 @@ func (r *ServicePrivateEndpointsAttachmentResource) Delete(ctx context.Context, 
 	}
 
 	service := api.ServiceUpdate{
-		Name:         "",
-		IpAccessList: nil,
 		PrivateEndpointIds: &api.PrivateEndpointIdsUpdate{
 			Remove: []string{},
 		},
