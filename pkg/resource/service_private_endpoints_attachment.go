@@ -144,7 +144,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Read(ctx context.Context, re
 	} else if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading ClickHouse Service",
-			"Could not read ClickHouse service edpoints service id"+state.ServiceId.ValueString()+": "+err.Error(),
+			"Could not read ClickHouse service private endpoints service id"+state.ServiceId.ValueString()+": "+err.Error(),
 		)
 		return
 	}
