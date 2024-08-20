@@ -12,14 +12,12 @@ import (
 	"time"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -176,11 +174,10 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"private_endpoint_ids": schema.ListAttribute{
-				Description: "List of private endpoint IDs",
-				ElementType: types.StringType,
-				Optional:    true,
-				Computed:    true,
-				Default:     listdefault.StaticValue(tfutils.CreateEmptyList(types.StringType)),
+				Description:        "The `private_endpoint_ids` attribute is deprecated and not used. Please use `clickhouse_service_private_endpoint_attachment` resource instead.",
+				ElementType:        types.StringType,
+				Optional:           true,
+				DeprecationMessage: "The `private_endpoint_ids` attribute is deprecated and not used. Please use `clickhouse_service_private_endpoint_attachment` resource instead.",
 			},
 			"encryption_key": schema.StringAttribute{
 				Description: "Custom encryption key arn",
@@ -412,12 +409,6 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 	service.IpAccessList = ipAccessLists
 
-	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
-	plan.PrivateEndpointIds.ElementsAs(ctx, &servicePrivateEndpointIds, false)
-	for _, item := range servicePrivateEndpointIds {
-		service.PrivateEndpointIds = append(service.PrivateEndpointIds, item.ValueString())
-	}
-
 	// Create new service
 	s, _, err := r.client.CreateService(service)
 	if err != nil {
@@ -522,11 +513,13 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+	if state.ID.IsNull() {
+		// Resource was deleted outside terraform
+		resp.State.RemoveResource(ctx)
+	} else {
+		// Set refreshed state
+		diags = resp.State.Set(ctx, state)
+		resp.Diagnostics.Append(diags...)
 	}
 }
 
@@ -581,30 +574,6 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		service.IpAccessList = &api.IpAccessUpdate{
 			Add:    add,
 			Remove: remove,
-		}
-	}
-
-	if !plan.PrivateEndpointIds.Equal(state.PrivateEndpointIds) {
-		serviceChange = true
-		privateEndpointIdsRawOld := make([]types.String, 0, len(state.PrivateEndpointIds.Elements()))
-		privateEndpointIdsRawNew := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
-		state.PrivateEndpointIds.ElementsAs(ctx, &privateEndpointIdsRawOld, false)
-		plan.PrivateEndpointIds.ElementsAs(ctx, &privateEndpointIdsRawNew, false)
-
-		privateEndpointIdsOld := []string{}
-		privateEndpointIdsNew := []string{}
-
-		for _, item := range privateEndpointIdsRawOld {
-			privateEndpointIdsOld = append(privateEndpointIdsOld, item.ValueString())
-		}
-
-		for _, item := range privateEndpointIdsRawNew {
-			privateEndpointIdsNew = append(privateEndpointIdsNew, item.ValueString())
-		}
-
-		service.PrivateEndpointIds = &api.PrivateEndpointIdsUpdate{
-			Add:    privateEndpointIdsNew,
-			Remove: privateEndpointIdsOld,
 		}
 	}
 
@@ -757,7 +726,12 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 
 	// Get latest service value from ClickHouse OpenAPI
 	service, err := r.client.GetService(state.ID.ValueString())
-	if err != nil {
+	if api.IsNotFound(err) {
+		// Service was deleted outside terraform.
+		state.ID = types.StringNull()
+
+		return nil
+	} else if err != nil {
 		return err
 	}
 
@@ -819,12 +793,6 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
 	} else {
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
-	}
-
-	if len(service.PrivateEndpointIds) == 0 {
-		state.PrivateEndpointIds = tfutils.CreateEmptyList(types.StringType)
-	} else {
-		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
 	}
 
 	return nil

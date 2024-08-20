@@ -309,21 +309,6 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			wantErr:         false,
 		},
 		{
-			name:  "Update PrivateEndpointIds field",
-			state: state,
-			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
-				src.PrivateEndpointIds = []string{
-					"newendpointid",
-				}
-			}).GetPtr(),
-			responseErr: nil,
-			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
-				src.PrivateEndpointIds, _ = types.ListValueFrom(context.Background(), types.StringType, []string{"newendpointid"})
-			}).Get(),
-			updateTimestamp: false,
-			wantErr:         false,
-		},
-		{
 			name:  "Update EncryptionKey field",
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
@@ -412,7 +397,6 @@ func getInitialState() models.ServiceResourceModel {
 		EndpointServiceID:  types.StringValue(""),
 		PrivateDNSHostname: types.StringValue(""),
 	}.ObjectValue()
-	privateEndpointIds, _ := types.ListValue(types.StringType, []attr.Value{})
 
 	state := models.ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
@@ -432,7 +416,6 @@ func getInitialState() models.ServiceResourceModel {
 		IdleTimeoutMinutes:              types.Int64{},
 		IAMRole:                         types.StringValue(""),
 		PrivateEndpointConfig:           privateEndpointConfig,
-		PrivateEndpointIds:              privateEndpointIds,
 		EncryptionKey:                   types.StringNull(),
 		EncryptionAssumedRoleIdentifier: types.StringNull(),
 	}
@@ -460,7 +443,6 @@ func getBaseResponse(id string) api.Service {
 			EndpointServiceId:  "",
 			PrivateDnsHostname: "",
 		},
-		// PrivateEndpointIds:              nil,
 		// EncryptionKey:                   "",
 		// EncryptionAssumedRoleIdentifier: "",
 	}

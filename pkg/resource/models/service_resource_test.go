@@ -164,37 +164,6 @@ func TestServiceResource_Equals(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "PrivateEndpointIds added",
-			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				existing := src.PrivateEndpointIds.Elements()
-				existing = append(existing, types.StringValue("added"))
-				privateEndpointIds, _ := types.ListValue(types.StringType, existing)
-				src.PrivateEndpointIds = privateEndpointIds
-			}).Get(),
-			want: false,
-		},
-		{
-			name: "PrivateEndpointIds removed",
-			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				existing := src.PrivateEndpointIds.Elements()
-				privateEndpointIds, _ := types.ListValue(types.StringType, []attr.Value{existing[0]})
-				src.PrivateEndpointIds = privateEndpointIds
-			}).Get(),
-			want: false,
-		},
-		{
-			name: "PrivateEndpointIds order changed",
-			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				existing := src.PrivateEndpointIds.Elements()
-				privateEndpointIds, _ := types.ListValue(types.StringType, []attr.Value{existing[1], existing[0]})
-				src.PrivateEndpointIds = privateEndpointIds
-			}).Get(),
-			want: false,
-		},
-		{
 			name: "EncryptionKey changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
@@ -228,8 +197,6 @@ func getBaseModel() ServiceResourceModel {
 	endpoints = append(endpoints, Endpoint{Protocol: types.StringValue("changed"), Host: types.StringValue("changed"), Port: types.Int64Value(1235)}.ObjectValue())
 	ep, _ := types.ListValue(Endpoint{}.ObjectType(), endpoints)
 
-	privateEndpointIds, _ := types.ListValueFrom(context.Background(), types.StringType, []string{"id1", "id2"})
-
 	state := ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
 		Name:                            types.StringValue(""),
@@ -248,7 +215,6 @@ func getBaseModel() ServiceResourceModel {
 		IdleTimeoutMinutes:              types.Int64{},
 		IAMRole:                         types.StringValue(""),
 		PrivateEndpointConfig:           PrivateEndpointConfig{}.ObjectValue(),
-		PrivateEndpointIds:              privateEndpointIds,
 		EncryptionKey:                   types.String{},
 		EncryptionAssumedRoleIdentifier: types.String{},
 	}
