@@ -126,19 +126,15 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 		}
 	}
 
-	if privateEndpoint == nil {
-		resp.Diagnostics.AddError("Private endpoint not found", "Could not find private endpoint in org registration")
-		return
-	}
+	if privateEndpoint != nil {
+		state.Description = types.StringValue(privateEndpoint.Description)
+		state.Region = types.StringValue(privateEndpoint.Region)
+		state.CloudProvider = types.StringValue(privateEndpoint.CloudProvider)
 
-	state.Description = types.StringValue(privateEndpoint.Description)
-	state.Region = types.StringValue(privateEndpoint.Region)
-	state.CloudProvider = types.StringValue(privateEndpoint.CloudProvider)
-
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+		diags = resp.State.Set(ctx, &state)
+		resp.Diagnostics.Append(diags...)
+	} else {
+		resp.State.RemoveResource(ctx)
 	}
 }
 

@@ -112,7 +112,6 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.IdleTimeoutMinutes.Equal(b.IdleTimeoutMinutes) ||
 		!m.IAMRole.Equal(b.IAMRole) ||
 		!m.PrivateEndpointConfig.Equal(b.PrivateEndpointConfig) ||
-		!m.PrivateEndpointIds.Equal(b.PrivateEndpointIds) ||
 		!m.EncryptionKey.Equal(b.EncryptionKey) ||
 		!m.EncryptionAssumedRoleIdentifier.Equal(b.EncryptionAssumedRoleIdentifier) ||
 		!m.IpAccessList.Equal(b.IpAccessList) {
