@@ -58,7 +58,7 @@ resource "clickhouse_service" "service" {
 - `num_replicas` (Number) Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.
 - `password` (String, Sensitive) Password for the default user. One of either `password` or `password_hash` must be specified.
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.
-- `private_endpoint_ids` (List of String) List of private endpoint IDs
+- `private_endpoint_ids` (List of String, Deprecated) List of private endpoint IDs
 
 ### Read-Only
 
