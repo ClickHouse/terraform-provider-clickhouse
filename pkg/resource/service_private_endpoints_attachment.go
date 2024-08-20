@@ -75,7 +75,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) ModifyPlan(ctx context.Conte
 		return
 	}
 
-	if plan.ServiceId.IsNull() {
+	if plan.ServiceID.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("service_id"),
 			"clickhouse_service_private_endpoints_attachment is invalid",
@@ -83,7 +83,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) ModifyPlan(ctx context.Conte
 		)
 	}
 
-	if len(plan.PrivateEndpointIds.Elements()) == 0 {
+	if len(plan.PrivateEndpointIDs.Elements()) == 0 {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("private_endpoint_ids"),
 			"clickhouse_service_private_endpoints_attachment is invalid",
@@ -105,13 +105,13 @@ func (r *ServicePrivateEndpointsAttachmentResource) Create(ctx context.Context, 
 			Add: []string{},
 		},
 	}
-	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
-	plan.PrivateEndpointIds.ElementsAs(ctx, &servicePrivateEndpointIds, false)
+	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIDs.Elements()))
+	plan.PrivateEndpointIDs.ElementsAs(ctx, &servicePrivateEndpointIds, false)
 	for _, item := range servicePrivateEndpointIds {
 		service.PrivateEndpointIds.Add = append(service.PrivateEndpointIds.Add, item.ValueString())
 	}
 
-	_, err := r.client.UpdateService(plan.ServiceId.ValueString(), service)
+	_, err := r.client.UpdateService(plan.ServiceID.ValueString(), service)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",
@@ -136,7 +136,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Read(ctx context.Context, re
 	}
 
 	// Get latest service value from ClickHouse OpenAPI
-	service, err := r.client.GetService(state.ServiceId.ValueString())
+	service, err := r.client.GetService(state.ServiceID.ValueString())
 	if api.IsNotFound(err) {
 		// Service not found, hence attachment cannot exist as well.
 		resp.State.RemoveResource(ctx)
@@ -144,7 +144,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Read(ctx context.Context, re
 	} else if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading ClickHouse Service",
-			"Could not read ClickHouse service private endpoints service id"+state.ServiceId.ValueString()+": "+err.Error(),
+			"Could not read ClickHouse service private endpoints service id"+state.ServiceID.ValueString()+": "+err.Error(),
 		)
 		return
 	}
@@ -154,7 +154,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Read(ctx context.Context, re
 		resp.State.RemoveResource(ctx)
 		return
 	} else {
-		state.PrivateEndpointIds, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
+		state.PrivateEndpointIDs, _ = types.ListValueFrom(ctx, types.StringType, service.PrivateEndpointIds)
 	}
 
 	// Set refreshed state
@@ -177,23 +177,23 @@ func (r *ServicePrivateEndpointsAttachmentResource) Update(ctx context.Context, 
 			Remove: []string{},
 		},
 	}
-	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIds.Elements()))
-	plan.PrivateEndpointIds.ElementsAs(ctx, &servicePrivateEndpointIds, false)
+	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIDs.Elements()))
+	plan.PrivateEndpointIDs.ElementsAs(ctx, &servicePrivateEndpointIds, false)
 	for _, item := range servicePrivateEndpointIds {
 		service.PrivateEndpointIds.Add = append(service.PrivateEndpointIds.Add, item.ValueString())
 	}
 
-	servicePrivateEndpointIds = make([]types.String, 0, len(state.PrivateEndpointIds.Elements()))
-	state.PrivateEndpointIds.ElementsAs(ctx, &servicePrivateEndpointIds, false)
+	servicePrivateEndpointIds = make([]types.String, 0, len(state.PrivateEndpointIDs.Elements()))
+	state.PrivateEndpointIDs.ElementsAs(ctx, &servicePrivateEndpointIds, false)
 	for _, item := range servicePrivateEndpointIds {
 		service.PrivateEndpointIds.Remove = append(service.PrivateEndpointIds.Add, item.ValueString())
 	}
 
-	_, err := r.client.UpdateService(plan.ServiceId.ValueString(), service)
+	_, err := r.client.UpdateService(plan.ServiceID.ValueString(), service)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",
-			"Could not update organization private endpoint IDs, service id"+state.ServiceId.ValueString()+": "+err.Error(),
+			"Could not update organization private endpoint IDs, service id"+state.ServiceID.ValueString()+": "+err.Error(),
 		)
 		return
 	}
@@ -219,17 +219,17 @@ func (r *ServicePrivateEndpointsAttachmentResource) Delete(ctx context.Context, 
 		},
 	}
 
-	servicePrivateEndpointIds := make([]types.String, 0, len(state.PrivateEndpointIds.Elements()))
-	state.PrivateEndpointIds.ElementsAs(ctx, &servicePrivateEndpointIds, false)
+	servicePrivateEndpointIds := make([]types.String, 0, len(state.PrivateEndpointIDs.Elements()))
+	state.PrivateEndpointIDs.ElementsAs(ctx, &servicePrivateEndpointIds, false)
 	for _, item := range servicePrivateEndpointIds {
 		service.PrivateEndpointIds.Remove = append(service.PrivateEndpointIds.Add, item.ValueString())
 	}
 
-	_, err := r.client.UpdateService(state.ServiceId.ValueString(), service)
+	_, err := r.client.UpdateService(state.ServiceID.ValueString(), service)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",
-			"Could not update organization private endpoint IDs, service id"+state.ServiceId.ValueString()+": "+err.Error(),
+			"Could not update organization private endpoint IDs, service id"+state.ServiceID.ValueString()+": "+err.Error(),
 		)
 		return
 	}

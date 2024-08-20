@@ -5,6 +5,6 @@ import (
 )
 
 type ServicePrivateEndpointsAttachment struct {
-	PrivateEndpointIds types.List   `tfsdk:"private_endpoint_ids"`
-	ServiceId          types.String `tfsdk:"service_id"`
+	PrivateEndpointIDs types.List   `tfsdk:"private_endpoint_ids"`
+	ServiceID          types.String `tfsdk:"service_id"`
 }
