@@ -174,7 +174,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"private_endpoint_ids": schema.ListAttribute{
-				Description:        "List of private endpoint IDs",
+				Description:        "The `private_endpoint_ids` attribute is deprecated and not used. Please use `clickhouse_service_private_endpoint_attachment` resource instead.",
 				ElementType:        types.StringType,
 				Optional:           true,
 				DeprecationMessage: "The `private_endpoint_ids` attribute is deprecated and not used. Please use `clickhouse_service_private_endpoint_attachment` resource instead.",
