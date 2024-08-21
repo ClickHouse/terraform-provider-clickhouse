@@ -4,9 +4,11 @@
 [![Dependabot Updates](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates)
 [![Unit tests](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml)
 
+This is the official terraform provider for [ClickHouse Cloud](https://clickhouse.com/cloud).
+
 ## Usage
 
-This is the official terraform provider for [ClickHouse Cloud](https://clickhouse.com/cloud).
+You can find examples in the `examples/full` directory.
 
 Please refer to the [official docs](https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs) for more details.
 
@@ -36,14 +38,14 @@ go install github.com/air-verse/air@latest
 
 Run `air` to automatically build the plugin binary every time you make changes to the code:
 
-```sh
+```bash
 $ air
 ```
 
 You can now run `terraform` and you'll be using the locally built binary. Please note that the `dev_overrides` make it so that you have to skip `terraform init`).
 For example, go to the `examples/basic` directory and :
 
-```
+```bash
 terraform apply -var-file="variables.tfvars"
 ╷
 │ Warning: Provider development overrides are in effect
