@@ -4,11 +4,11 @@
 [![Dependabot Updates](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates)
 [![Unit tests](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml)
 
-This is the official terraform provider for [ClickHouse Cloud](https://clickhouse.com/cloud).
+This is the official terraform provider for [ClickHouse Cloud](https://clickhouse.com/docs/en/about-us/cloud).
 
 ## Usage
 
-You can find examples in the `examples/full` directory.
+You can find examples in the [examples/full](https://github.com/ClickHouse/terraform-provider-clickhouse/tree/main/examples/full) directory.
 
 Please refer to the [official docs](https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs) for more details.
 
