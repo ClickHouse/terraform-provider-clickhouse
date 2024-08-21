@@ -50,6 +50,11 @@ func (r *PrivateEndpointRegistrationResource) Schema(_ context.Context, _ resour
 				Required:    true,
 			},
 		},
+		MarkdownDescription: `ClickHouse Cloud provides the ability to connect your services to your cloud virtual network through a feature named *Private Link*.
+
+You can use the *private_endpoint_registration* resource to set up the private link feature.
+
+Check the [docs](https://clickhouse.com/docs/en/cloud/security/private-link-overview) for more details on *private link*.`,
 	}
 }
 

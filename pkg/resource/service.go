@@ -188,6 +188,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 			},
 		},
+		MarkdownDescription: `You can use the *clickhouse_service* resource to deploy ClickHouse cloud instances on supported cloud providers.`,
 	}
 }
 
