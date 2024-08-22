@@ -82,15 +82,7 @@ resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
 }
 ```
 
-2c) Import existing `clickhouse_service_private_endpoints_attachment`
-
-For each `clickhouse_service_private_endpoints_attachment` you created in step 2b, import existing state with
-
-```
-  terraform import clickhouse_service_private_endpoints_attachment.<name> <clickhouse service id>
-```
-
-If everyting is fine, there should be no changes in your infrastructure after the upgrade.
+If everyting is fine, there should be no changes in existing infrastructure but only one or more `clickhouse_service_private_endpoints_attachment` should be pending creation. That is the expected status.
 
 If you have trouble, please open an issue and we'll try to help!
 
