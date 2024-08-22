@@ -8,7 +8,6 @@ type Client interface {
 	UpdateService(serviceId string, s ServiceUpdate) (*Service, error)
 	UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) (*Service, error)
 	UpdateServicePassword(serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error)
-	GetServiceStatusCode(serviceId string) (*int, error)
 	DeleteService(serviceId string) (*Service, error)
 	GetOrganizationPrivateEndpoints() (*[]PrivateEndpoint, error)
 	UpdateOrganizationPrivateEndpoints(orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
