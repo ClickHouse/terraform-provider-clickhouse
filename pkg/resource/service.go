@@ -173,12 +173,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"private_endpoint_ids": schema.ListAttribute{
-				Description:        "The `private_endpoint_ids` attribute is deprecated and not used. Please use `clickhouse_service_private_endpoint_attachment` resource instead.",
-				ElementType:        types.StringType,
-				Optional:           true,
-				DeprecationMessage: "The `private_endpoint_ids` attribute is deprecated and not used. Please use `clickhouse_service_private_endpoint_attachment` resource instead.",
-			},
 			"encryption_key": schema.StringAttribute{
 				Description: "Custom encryption key arn",
 				Optional:    true,
