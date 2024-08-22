@@ -11,3 +11,7 @@ func IsNotFound(err error) bool {
 
 	return strings.HasPrefix(err.Error(), "status: 404")
 }
+
+func RetriableError(statusCode int) bool {
+	return statusCode == 429 || statusCode >= 500
+}
