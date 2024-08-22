@@ -41,8 +41,8 @@ func (r *PrivateEndpointRegistrationResource) Schema(_ context.Context, _ resour
 				Description: "Description of the private endpoint",
 				Optional:    true,
 			},
-			"id": schema.StringAttribute{
-				Description: "ID of the private endpoint",
+			"private_endpoint_id": schema.StringAttribute{
+				Description: "ID of the private endpoint (replaces deprecated attribute `id`)",
 				Required:    true,
 			},
 			"region": schema.StringAttribute{
@@ -135,6 +135,7 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 		state.Description = types.StringValue(privateEndpoint.Description)
 		state.Region = types.StringValue(privateEndpoint.Region)
 		state.CloudProvider = types.StringValue(privateEndpoint.CloudProvider)
+		state.EndpointId = types.StringValue(privateEndpoint.EndpointId)
 
 		diags = resp.State.Set(ctx, &state)
 		resp.Diagnostics.Append(diags...)

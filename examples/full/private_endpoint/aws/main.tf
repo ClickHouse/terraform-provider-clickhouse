@@ -33,14 +33,14 @@ resource "clickhouse_service" "aws_red" {
 
 // add AWS PrivateLink from VPC foo to organization
 resource "clickhouse_private_endpoint_registration" "private_endpoint_aws_foo" {
-  cloud_provider = "aws"
-  id             = aws_vpc_endpoint.pl_vpc_foo.id
-  region         = var.aws_region
-  description    = "Private Link from VPC foo"
+  cloud_provider      = "aws"
+  private_endpoint_id = aws_vpc_endpoint.pl_vpc_foo.id
+  region              = var.aws_region
+  description         = "Private Link from VPC foo"
 }
 
 resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
-  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.id]
+  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.private_endpoint_id]
   service_id = clickhouse_service.aws_red.id
 }
 

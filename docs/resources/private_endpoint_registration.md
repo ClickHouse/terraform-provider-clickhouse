@@ -20,10 +20,10 @@ Check the [docs](https://clickhouse.com/docs/en/cloud/security/private-link-over
 
 ```terraform
 resource "clickhouse_private_endpoint_registration" "endpoint" {
-  cloud_provider = "aws"
-  id             = "vpce-..."
-  region         = "us-west-2"
-  description    = "Private Link from VPC foo"
+  cloud_provider      = "aws"
+  private_endpoint_id = "vpce-..."
+  region              = "us-west-2"
+  description         = "Private Link from VPC foo"
 }
 ```
 
@@ -33,7 +33,7 @@ resource "clickhouse_private_endpoint_registration" "endpoint" {
 ### Required
 
 - `cloud_provider` (String) Cloud provider of the private endpoint ID
-- `id` (String) ID of the private endpoint
+- `private_endpoint_id` (String) ID of the private endpoint (replaces deprecated attribute `id`)
 - `region` (String) Region of the private endpoint
 
 ### Optional
