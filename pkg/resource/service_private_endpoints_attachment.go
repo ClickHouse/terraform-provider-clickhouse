@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -106,18 +107,35 @@ func (r *ServicePrivateEndpointsAttachmentResource) Create(ctx context.Context, 
 		return
 	}
 
-	service := api.ServiceUpdate{
+	serviceUpdate := api.ServiceUpdate{
 		PrivateEndpointIds: &api.PrivateEndpointIdsUpdate{
-			Add: []string{},
+			Add:    []string{},
+			Remove: []string{},
 		},
 	}
+
+	// When migrating from 0.3.0 to 1.0.0+ this resource is always created, but the attachment might still exist
+	// We read the service to check for existing attachments in order to not fail creating them
+	{
+		service, err := r.client.GetService(plan.ServiceID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error Reading ClickHouse Service",
+				fmt.Sprintf("Could not read ClickHouse service private endpoints service id %s: %s", plan.ServiceID.ValueString(), err.Error()),
+			)
+			return
+		}
+
+		serviceUpdate.PrivateEndpointIds.Remove = append(serviceUpdate.PrivateEndpointIds.Remove, service.PrivateEndpointIds...)
+	}
+
 	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIDs.Elements()))
 	plan.PrivateEndpointIDs.ElementsAs(ctx, &servicePrivateEndpointIds, false)
 	for _, item := range servicePrivateEndpointIds {
-		service.PrivateEndpointIds.Add = append(service.PrivateEndpointIds.Add, item.ValueString())
+		serviceUpdate.PrivateEndpointIds.Add = append(serviceUpdate.PrivateEndpointIds.Add, item.ValueString())
 	}
 
-	_, err := r.client.UpdateService(plan.ServiceID.ValueString(), service)
+	_, err := r.client.UpdateService(plan.ServiceID.ValueString(), serviceUpdate)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",

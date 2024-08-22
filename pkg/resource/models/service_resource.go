@@ -90,7 +90,6 @@ type ServiceResourceModel struct {
 	IdleTimeoutMinutes              types.Int64  `tfsdk:"idle_timeout_minutes"`
 	IAMRole                         types.String `tfsdk:"iam_role"`
 	PrivateEndpointConfig           types.Object `tfsdk:"private_endpoint_config"`
-	PrivateEndpointIds              types.List   `tfsdk:"private_endpoint_ids"`
 	EncryptionKey                   types.String `tfsdk:"encryption_key"`
 	EncryptionAssumedRoleIdentifier types.String `tfsdk:"encryption_assumed_role_identifier"`
 }

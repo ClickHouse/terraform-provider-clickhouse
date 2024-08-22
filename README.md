@@ -12,6 +12,80 @@ You can find examples in the [examples/full](https://github.com/ClickHouse/terra
 
 Please refer to the [official docs](https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs) for more details.
 
+## Breaking changes
+
+### Upgrading to version >= 1.0.0 of the Clickhouse Terraform Provider
+
+If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the `clickhouse_private_endpoint_registration` resource or the `private_endpoint_ids` attribute of the `clickhouse_service` resource,
+then a manual process is required after the upgrade.
+
+1) In the `clickhouse_private_endpoint_registration` resource, rename the `id` attribute to `private_endpoint_id`.
+
+Before:
+
+```
+resource "clickhouse_private_endpoint_registration" "example" {
+  id = aws_vpc_endpoint.pl_vpc_foo.id
+  ...
+}
+```
+
+After:
+
+```
+resource "clickhouse_private_endpoint_registration" "example" {
+  private_endpoint_id = aws_vpc_endpoint.pl_vpc_foo.id
+  ...
+}
+```
+
+2) If you used the `private_endpoint_ids` in any of the `clickhouse_service` resources
+
+For each service with `private_endpoint_ids` attribute set:
+
+2a) Create a new `clickhouse_service_private_endpoints_attachment` resource  like this:
+
+```
+resource "clickhouse_service_private_endpoints_attachment" "example" {
+  # The ID of the service with the `private_endpoint_ids` set
+  service_id = clickhouse_service.aws_red.id
+
+  # the same attribute you previously defined in the `clickhouse_service` resource goes here now
+  # Remember to change `id` with `private_endpoint_id` in the `clickhouse_private_endpoint_registration` reference.
+  private_endpoint_ids = [clickhouse_private_endpoint_registration.example.private_endpoint_id]
+}
+```
+
+2b) Remove the `private_endpoint_ids` attribute from the `clickhouse_service` resource.
+
+Example:
+
+Before:
+
+```
+resource "clickhouse_service" "example" {
+  ...
+  private_endpoint_ids = [clickhouse_private_endpoint_registration.example.id]
+}
+```
+
+After:
+
+```
+resource "clickhouse_service" "example" {
+  ...
+}
+
+resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
+  private_endpoint_ids = [clickhouse_private_endpoint_registration.example.private_endpoint_id]
+  service_id = clickhouse_service.example.id
+}
+```
+
+If everyting is fine, there should be no changes in existing infrastructure but only one or more `clickhouse_service_private_endpoints_attachment` should be pending creation. That is the expected status.
+
+If you have trouble, please open an issue and we'll try to help!
+
 ## Development
 
 Create a new file called .terraformrc in your home directory (~), then add the dev_overrides block below. Change the `<PATH>` to the full path of the `tmp` directory in this repo. For example:

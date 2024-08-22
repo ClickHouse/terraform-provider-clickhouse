@@ -55,6 +55,7 @@ func (r *PrivateEndpointRegistrationResource) Schema(_ context.Context, _ resour
 You can use the *private_endpoint_registration* resource to set up the private link feature.
 
 Check the [docs](https://clickhouse.com/docs/en/cloud/security/private-link-overview) for more details on *private link*.`,
+		Version: 1,
 	}
 }
 
@@ -224,4 +225,53 @@ func (r *PrivateEndpointRegistrationResource) Delete(ctx context.Context, req re
 
 func (r *PrivateEndpointRegistrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *PrivateEndpointRegistrationResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		// In version 1.0.0 we renamed the `id` field to `private_endpoint_id`.
+		0: {
+			PriorSchema: &schema.Schema{
+				Attributes: map[string]schema.Attribute{
+					"cloud_provider": schema.StringAttribute{
+						Required: true,
+					},
+					"description": schema.StringAttribute{
+						Optional: true,
+					},
+					"id": schema.StringAttribute{
+						Required: true,
+					},
+					"region": schema.StringAttribute{
+						Required: true,
+					},
+				},
+			},
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				type oldPrivateEndpointRegistration struct {
+					CloudProvider types.String `tfsdk:"cloud_provider"`
+					Description   types.String `tfsdk:"description"`
+					EndpointId    types.String `tfsdk:"id"`
+					Region        types.String `tfsdk:"region"`
+				}
+
+				var priorStateData oldPrivateEndpointRegistration
+
+				resp.Diagnostics.Append(req.State.Get(ctx, &priorStateData)...)
+
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				upgradedStateData := models.PrivateEndpointRegistration{
+					CloudProvider: priorStateData.CloudProvider,
+					Description:   priorStateData.Description,
+					EndpointId:    priorStateData.EndpointId,
+					Region:        priorStateData.Region,
+				}
+
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradedStateData)...)
+			},
+		},
+	}
 }
