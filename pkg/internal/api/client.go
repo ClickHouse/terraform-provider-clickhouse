@@ -127,9 +127,9 @@ func (c *ClientImpl) doRequest(req *http.Request) ([]byte, error) {
 
 	// Retry after 5 seconds, then double wait time until max 80 seconds are elapsed.
 	backoffSettings := backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(BackoffInitialInterval),
-		backoff.WithMaxElapsedTime(BackoffMaxElapsed),
-		backoff.WithMultiplier(BackoffMultiplier),
+		backoff.WithInitialInterval(5*time.Second),
+		backoff.WithMaxElapsedTime(81*time.Second),
+		backoff.WithMultiplier(2),
 	)
 
 	body, err := backoff.RetryNotifyWithData[[]byte](makeRequest(req), backoffSettings, func(err error, next time.Duration) {
@@ -137,21 +137,6 @@ func (c *ClientImpl) doRequest(req *http.Request) ([]byte, error) {
 	})
 
 	return body, err
-}
-
-func (c *ClientImpl) checkStatusCode(req *http.Request) (*int, error) {
-	credentials := fmt.Sprintf("%s:%s", c.TokenKey, c.TokenSecret)
-	base64Credentials := base64.StdEncoding.EncodeToString([]byte(credentials))
-	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
-	req.Header.Set("Authorization", authHeader)
-
-	res, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	return &res.StatusCode, err
 }
 
 // GetService - Returns a specifc order
