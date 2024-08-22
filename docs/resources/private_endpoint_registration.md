@@ -33,12 +33,13 @@ resource "clickhouse_private_endpoint_registration" "endpoint" {
 ### Required
 
 - `cloud_provider` (String) Cloud provider of the private endpoint ID
-- `id` (String) ID of the private endpoint
 - `region` (String) Region of the private endpoint
 
 ### Optional
 
 - `description` (String) Description of the private endpoint
+- `id` (String, Deprecated) The `id` attribute is deprecated and will be removed in version 2.0.0. Please use `private_endpoint_id` attribute instead.
+- `private_endpoint_id` (String) ID of the private endpoint (replaces deprecated attribute `id`)
 
 ## Import
 

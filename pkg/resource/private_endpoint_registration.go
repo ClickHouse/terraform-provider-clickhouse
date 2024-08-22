@@ -41,9 +41,15 @@ func (r *PrivateEndpointRegistrationResource) Schema(_ context.Context, _ resour
 				Description: "Description of the private endpoint",
 				Optional:    true,
 			},
+			// TODO remove in 2.0.0.
 			"id": schema.StringAttribute{
-				Description: "ID of the private endpoint",
-				Required:    true,
+				Optional:           true,
+				Description:        "The `id` attribute is deprecated and will be removed in version 2.0.0. Please use `private_endpoint_id` attribute instead.",
+				DeprecationMessage: "The `id` attribute is deprecated and will be removed in version 2.0.0. Please use `private_endpoint_id` attribute instead.",
+			},
+			"private_endpoint_id": schema.StringAttribute{
+				Description: "ID of the private endpoint (replaces deprecated attribute `id`)",
+				Optional:    true,
 			},
 			"region": schema.StringAttribute{
 				Description: "Region of the private endpoint",
@@ -64,6 +70,38 @@ func (r *PrivateEndpointRegistrationResource) Configure(_ context.Context, req r
 	}
 
 	r.client = req.ProviderData.(api.Client)
+}
+
+func (r *PrivateEndpointRegistrationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		// If the entire plan is null, the resource is planned for destruction.
+		return
+	}
+
+	var plan, state models.PrivateEndpointRegistration
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if !req.State.Raw.IsNull() {
+		diags = req.State.Get(ctx, &state)
+		resp.Diagnostics.Append(diags...)
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// TODO remove in 2.0.0
+	{
+		if !plan.EndpointId.IsNull() && !plan.LegacyEndpointId.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"Both `id` (deprecated) and `private_endpoint_id` attributes were sepecified. Please remove deprecated `id` field.",
+			)
+		}
+
+		if plan.EndpointId.IsNull() && !plan.LegacyEndpointId.IsNull() {
+			plan.EndpointId = plan.LegacyEndpointId
+		}
+	}
 }
 
 func (r *PrivateEndpointRegistrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
