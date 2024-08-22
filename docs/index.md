@@ -11,59 +11,7 @@ description: |-
   Breaking changes
   Upgrading to version >= 1.0.0 of the Clickhouse Terraform Provider
   If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the clickhouse_private_endpoint_registration resource or the private_endpoint_ids attribute of the clickhouse_service resource,
-  then a manual process is required after the upgrade.
-  In the clickhouse_private_endpoint_registration resource, rename the id attribute to private_endpoint_id.
-  Before:
-  
-  resource "clickhouse_private_endpoint_registration" "example" {
-    id = aws_vpc_endpoint.pl_vpc_foo.id
-    ...
-  }
-  
-  After:
-  
-  resource "clickhouse_private_endpoint_registration" "example" {
-    private_endpoint_id = aws_vpc_endpoint.pl_vpc_foo.id
-    ...
-  }
-  
-  If you used the private_endpoint_ids in any of the clickhouse_service resources
-  For each service with private_endpoint_ids attribute set:
-  2a) Create a new clickhouse_service_private_endpoints_attachment resource  like this:
-  
-  resource "clickhouse_service_private_endpoints_attachment" "example" {
-    # The ID of the service with the `private_endpoint_ids` set
-    service_id = clickhouse_service.aws_red.id
-  
-    # the same attribute you previously defined in the `clickhouse_service` resource goes here now
-    # Remember to change `id` with `private_endpoint_id` in the `clickhouse_private_endpoint_registration` reference.
-    private_endpoint_ids = [clickhouse_private_endpoint_registration.example.private_endpoint_id]
-  }
-  
-  2b) Remove the private_endpoint_ids attribute from the clickhouse_service resource.
-  Example:
-  Before:
-  
-  resource "clickhouse_service" "example" {
-    ...
-    private_endpoint_ids = [clickhouse_private_endpoint_registration.example.id]
-  }
-  
-  After:
-  
-  resource "clickhouse_service" "example" {
-    ...
-  }
-  
-  resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
-    private_endpoint_ids = [clickhouse_private_endpoint_registration.example.private_endpoint_id]
-    service_id = clickhouse_service.example.id
-  }
-  
-  2c) Import existing clickhouse_service_private_endpoints_attachment
-  For each clickhouse_service_private_endpoints_attachment you created in step 2b, import existing state with
-  
-    terraform import clickhouse_service_private_endpoints_attachment.<name> <clickhouse service id>
+  then a manual process is required after the upgrade. Please visit https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes for more details.
 ---
 
 # clickhouse Provider
@@ -83,78 +31,7 @@ Visit [https://clickhouse.com/docs/en/cloud-quick-start](https://clickhouse.com/
 ### Upgrading to version >= 1.0.0 of the Clickhouse Terraform Provider
 
 If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the `clickhouse_private_endpoint_registration` resource or the `private_endpoint_ids` attribute of the `clickhouse_service` resource,
-then a manual process is required after the upgrade.
-
-1) In the `clickhouse_private_endpoint_registration` resource, rename the `id` attribute to `private_endpoint_id`.
-
-Before:
-
-```
-resource "clickhouse_private_endpoint_registration" "example" {
-  id = aws_vpc_endpoint.pl_vpc_foo.id
-  ...
-}
-```
-
-After:
-
-```
-resource "clickhouse_private_endpoint_registration" "example" {
-  private_endpoint_id = aws_vpc_endpoint.pl_vpc_foo.id
-  ...
-}
-```
-
-2) If you used the `private_endpoint_ids` in any of the `clickhouse_service` resources
-
-For each service with `private_endpoint_ids` attribute set:
-
-2a) Create a new `clickhouse_service_private_endpoints_attachment` resource  like this:
-
-```
-resource "clickhouse_service_private_endpoints_attachment" "example" {
-  # The ID of the service with the `private_endpoint_ids` set
-  service_id = clickhouse_service.aws_red.id
-
-  # the same attribute you previously defined in the `clickhouse_service` resource goes here now
-  # Remember to change `id` with `private_endpoint_id` in the `clickhouse_private_endpoint_registration` reference.
-  private_endpoint_ids = [clickhouse_private_endpoint_registration.example.private_endpoint_id]
-}
-```
-
-2b) Remove the `private_endpoint_ids` attribute from the `clickhouse_service` resource.
-
-Example: 
-
-Before:
-
-```
-resource "clickhouse_service" "example" {
-  ...
-  private_endpoint_ids = [clickhouse_private_endpoint_registration.example.id]
-}
-```
-
-After:
-
-```
-resource "clickhouse_service" "example" {
-  ...
-}
-
-resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
-  private_endpoint_ids = [clickhouse_private_endpoint_registration.example.private_endpoint_id]
-  service_id = clickhouse_service.example.id
-}
-```
-
-2c) Import existing `clickhouse_service_private_endpoints_attachment`
-
-For each `clickhouse_service_private_endpoints_attachment` you created in step 2b, import existing state with
-
-```
-  terraform import clickhouse_service_private_endpoints_attachment.<name> <clickhouse service id>
-```
+then a manual process is required after the upgrade. Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes](https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes) for more details.
 
 ## Example Usage
 
