@@ -40,7 +40,7 @@ resource "clickhouse_private_endpoint_registration" "private_endpoint_aws_foo" {
 }
 
 resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
-  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.id]
+  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.private_endpoint_id]
   service_id = clickhouse_service.aws_red.id
 }
 
