@@ -1,7 +1,5 @@
-.terraform
-terraform.tfstate
-terraform.tfstate.backup
-.terraform.lock.hcl
+.terraform*
+terraform.tfstate*
 
 terraform-provider-clickhouse
 
@@ -10,3 +8,5 @@ secrets.tfvars
 dev/
 .idea/
 *.backup
+
+examples/full/**/variables.tfvars

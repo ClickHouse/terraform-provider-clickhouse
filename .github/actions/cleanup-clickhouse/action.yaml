@@ -17,7 +17,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: cleanup
+    - name: cleanup clikchouse
       shell: bash
       run: |
         organization_id="${{ inputs.organization_id }}"

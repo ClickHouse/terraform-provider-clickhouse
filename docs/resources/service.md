@@ -3,12 +3,12 @@
 page_title: "clickhouse_service Resource - clickhouse"
 subcategory: ""
 description: |-
-  
+  You can use the clickhouse_service resource to deploy ClickHouse cloud instances on supported cloud providers.
 ---
 
 # clickhouse_service (Resource)
 
-
+You can use the *clickhouse_service* resource to deploy ClickHouse cloud instances on supported cloud providers.
 
 ## Example Usage
 

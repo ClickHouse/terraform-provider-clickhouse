@@ -2,13 +2,24 @@ name: E2E tests
 
 on:
   workflow_dispatch:
-    inputs: {}
+    inputs:
+      notify_errors:
+        type: boolean
+        default: false
+        description: "If checked, send any errors in e2e tests to the #proj-api-terraform slack channel"
+      skip_build_from_branch:
+        type: boolean
+        default: false
+        description: "If checked, the latest stable release of the clickhouse terraform plugin is used for the tests"
   schedule:
     - cron: "0 3 * * *"
 
 defaults:
   run:
     shell: bash
+
+env:
+  aws_region: "eu-west-2"
 
 jobs:
   # Generate a random token to tag the tests with
@@ -41,29 +52,50 @@ jobs:
     needs: [ "token", "find-tf-releases" ]
     runs-on: ubuntu-latest
     continue-on-error: true
+    permissions:
+      id-token: write
     strategy:
       fail-fast: false
       max-parallel: 5
       matrix:
-        test: [ "basic" ]
+        test: [ "basic", "private_endpoint" ]
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "gcp", "azure" ]
         upgrade_test: ["false"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Generate test name
+        id: name
+        run: |
+          test_type=""
+          if [ "${{matrix.upgrade_test}}" == "true" ]
+          then
+            test_type=" upgrade"
+          fi
+          
+          echo "test_name=[e2e${test_type}]-${{ matrix.test }}-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
       - name: e2e
         uses: ./.github/actions/e2e
         with:
           organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
           token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
-          token: ${{needs.token.outputs.token}}
+          service_name: ${{steps.name.outputs.test_name}}
           test_name: ${{ matrix.test }}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
           upgrade_test: ${{ matrix.upgrade_test }}
-          skip_build: "true"
+          skip_build: "${{ !contains(inputs.skip_build_from_branch, 'false') }}"
+          aws_region: ${{ env.aws_region }}
+          aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+      - name: cleanup
+        if: ${{ always() && matrix.cloud_provider == 'aws' && matrix.test == 'private_endpoint' }}
+        uses: ./.github/actions/cleanup-aws
+        with:
+          service_name: ${{steps.name.outputs.test_name}}
+          aws_region: ${{ env.aws_region }}
+          aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: Mark error
         id: status
         if: failure()
@@ -76,19 +108,24 @@ jobs:
     if: ${{ needs.e2e.outputs.status == 'failure' }}
     steps:
       - name: Report Failure on slack
+        if: ${{ !contains(inputs.notify_errors, 'false') }}
         uses: ravsamhq/notify-slack-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: ${{ job.status }}
-          notification_title: "E2E tests failed during release ${github.ref_name}"
-          footer: "{workflow_url}"
+          notification_title: "E2E tests failed for {branch}"
+          footer: "{run_url}"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      - name: Report error on github UI
+        run: |
+          exit 1
 
   # Delete any leftover service that might have failed deleting
   cleanup:
     runs-on: ubuntu-latest
     needs: [ "e2e", "token" ]
+    if: always()
     continue-on-error: true
     env:
       organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
@@ -98,7 +135,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: cleanup
-        uses: ./.github/actions/cleanup
+        uses: ./.github/actions/cleanup-clickhouse
         with:
           organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}

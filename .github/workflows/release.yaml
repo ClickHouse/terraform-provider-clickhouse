@@ -16,6 +16,9 @@ defaults:
   run:
     shell: bash
 
+env:
+  aws_region: "eu-west-2"
+
 jobs:
   # Validate the input
   validate:
@@ -86,17 +89,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Generate test name
+        id: name
+        run: |
+          test_type=""
+          if [ "${{matrix.upgrade_test}}" == "true" ]
+          then
+            test_type=" upgrade"
+          fi
+
+          echo "test_name=[e2e${test_type}]-${{ matrix.test }}-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
       - name: e2e
         uses: ./.github/actions/e2e
         with:
           organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
           token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
-          token: ${{needs.token.outputs.token}}
+          service_name: ${{steps.name.outputs.test_name}}
           test_name: ${{ matrix.test }}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
           upgrade_test: ${{ matrix.upgrade_test }}
+          aws_region: ${{ env.aws_region }}
+          aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: Mark error
         id: status
         if: failure()
@@ -131,7 +146,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: cleanup
-        uses: ./.github/actions/cleanup
+        uses: ./.github/actions/cleanup-clickhouse
         with:
           organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}

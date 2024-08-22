@@ -3,12 +3,18 @@
 page_title: "clickhouse_private_endpoint_registration Resource - clickhouse"
 subcategory: ""
 description: |-
-  
+  ClickHouse Cloud provides the ability to connect your services to your cloud virtual network through a feature named Private Link.
+  You can use the private_endpoint_registration resource to set up the private link feature.
+  Check the docs https://clickhouse.com/docs/en/cloud/security/private-link-overview for more details on private link.
 ---
 
 # clickhouse_private_endpoint_registration (Resource)
 
+ClickHouse Cloud provides the ability to connect your services to your cloud virtual network through a feature named *Private Link*.
 
+You can use the *private_endpoint_registration* resource to set up the private link feature.
+
+Check the [docs](https://clickhouse.com/docs/en/cloud/security/private-link-overview) for more details on *private link*.
 
 ## Example Usage
 

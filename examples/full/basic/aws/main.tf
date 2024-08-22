@@ -15,23 +15,10 @@ variable "service_name" {
   default = "My Terraform Service"
 }
 
-variable "cloud_provider" {
-  type = string
-  default = "aws"
-}
-
-locals {
-  regions = {
-    aws = "us-east-1"
-    gcp = "europe-west4"
-    azure = "westus3"
-  }
-}
-
 resource "clickhouse_service" "service" {
   name                      = var.service_name
-  cloud_provider            = var.cloud_provider
-  region                    = local.regions[var.cloud_provider]
+  cloud_provider            = "aws"
+  region                    = "us-east-1"
   tier                      = "production"
   idle_scaling              = true
   password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"

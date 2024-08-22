@@ -47,6 +47,12 @@ func (r *ServicePrivateEndpointsAttachmentResource) Schema(_ context.Context, _ 
 				Optional:    true,
 			},
 		},
+		MarkdownDescription: `Use the *clickhouse_service_private_endpoints_attachment* resource to attach a ClickHouse *service* to a *Private Endpoint*.
+
+See [private_endpoint_registration](https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs/resources/private_endpoint_registration) for how to create a *private endpoint*.
+
+See [full example](https://github.com/ClickHouse/terraform-provider-clickhouse/tree/main/examples/full/private_endpoint) on GitHub.
+`,
 	}
 }
 
