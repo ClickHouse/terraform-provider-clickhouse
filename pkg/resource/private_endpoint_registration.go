@@ -49,7 +49,8 @@ func (r *PrivateEndpointRegistrationResource) Schema(_ context.Context, _ resour
 			},
 			"private_endpoint_id": schema.StringAttribute{
 				Description: "ID of the private endpoint (replaces deprecated attribute `id`)",
-				Optional:    true,
+				// TODO mark as required in 2.0.0
+				Optional: true,
 			},
 			"region": schema.StringAttribute{
 				Description: "Region of the private endpoint",
@@ -100,6 +101,13 @@ func (r *PrivateEndpointRegistrationResource) ModifyPlan(ctx context.Context, re
 
 		if plan.EndpointId.IsNull() && !plan.LegacyEndpointId.IsNull() {
 			plan.EndpointId = plan.LegacyEndpointId
+		}
+
+		if plan.EndpointId.IsNull() && plan.LegacyEndpointId.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"Please specify `private_endpoint_id` attribute.",
+			)
 		}
 	}
 }
