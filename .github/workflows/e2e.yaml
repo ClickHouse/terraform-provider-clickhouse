@@ -135,7 +135,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: cleanup
-        uses: ./.github/actions/cleanup
+        uses: ./.github/actions/cleanup-clickhouse
         with:
           organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
