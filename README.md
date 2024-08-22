@@ -90,6 +90,10 @@ For each `clickhouse_service_private_endpoints_attachment` you created in step 2
   terraform import clickhouse_service_private_endpoints_attachment.<name> <clickhouse service id>
 ```
 
+If everyting is fine, there should be no changes in your infrastructure after the upgrade.
+
+If you have trouble, please open an issue and we'll try to help!
+
 ## Development
 
 Create a new file called .terraformrc in your home directory (~), then add the dev_overrides block below. Change the `<PATH>` to the full path of the `tmp` directory in this repo. For example:
