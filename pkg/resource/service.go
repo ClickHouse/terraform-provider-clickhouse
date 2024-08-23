@@ -9,7 +9,6 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
@@ -414,28 +413,13 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	numErrors := 0
-	id := s.Id
-	for {
-		s, err = r.client.GetService(id)
-		if err != nil {
-			numErrors++
-			if numErrors > api.MaxRetry {
-				resp.Diagnostics.AddError(
-					"Error retrieving service state",
-					"Could not retrieve service state after creation, unexpected error: "+err.Error(),
-				)
-				return
-			}
-			time.Sleep(time.Second * 5)
-			continue
-		}
-
-		if s.State != "provisioning" {
-			break
-		}
-
-		time.Sleep(time.Second * 5)
+	err = r.client.WaitForServiceState(s.Id, func(state string) bool { return state != api.StatusProvisioning }, 300)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error retrieving service state",
+			"Could not retrieve service state after creation, unexpected error: "+err.Error(),
+		)
+		return
 	}
 
 	// Update service password if provided explicitly

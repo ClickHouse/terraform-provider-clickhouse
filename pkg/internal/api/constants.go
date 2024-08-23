@@ -1,8 +1,10 @@
 package api
 
 const (
-	MaxRetry = 5
-
 	TierDevelopment = "development"
 	TierProduction  = "production"
+
+	StatusProvisioning = "provisioning"
+	StatusStopped      = "stopped"
+	StatusStopping     = "stopping"
 )

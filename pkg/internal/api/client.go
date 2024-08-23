@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
 type ClientImpl struct {
@@ -98,37 +100,43 @@ func (c *ClientImpl) doRequest(req *http.Request) ([]byte, error) {
 	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
 	req.Header.Set("Authorization", authHeader)
 
-	res, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
+	makeRequest := func(req *http.Request) func() ([]byte, error) {
+		return func() ([]byte, error) {
+			res, err := c.HttpClient.Do(req)
+			if err != nil {
+				return nil, err
+			}
+			defer res.Body.Close()
 
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				return nil, err
+			}
+
+			if res.StatusCode != http.StatusOK {
+				if RetriableError(res.StatusCode) {
+					return nil, fmt.Errorf("status: %d, body: %s", res.StatusCode, body)
+				} else {
+					return nil, backoff.Permanent(fmt.Errorf("status: %d, body: %s", res.StatusCode, body))
+				}
+			}
+
+			return body, nil
+		}
 	}
 
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status: %d, body: %s", res.StatusCode, body)
-	}
+	// Retry after 5 seconds, then double wait time until max 80 seconds are elapsed.
+	backoffSettings := backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(5*time.Second),
+		backoff.WithMaxElapsedTime(81*time.Second),
+		backoff.WithMultiplier(2),
+	)
+
+	body, err := backoff.RetryNotifyWithData[[]byte](makeRequest(req), backoffSettings, func(err error, next time.Duration) {
+		fmt.Printf("Request failed with error: %s. Retrying in %.0f seconds\n", err, next.Seconds())
+	})
 
 	return body, err
-}
-
-func (c *ClientImpl) checkStatusCode(req *http.Request) (*int, error) {
-	credentials := fmt.Sprintf("%s:%s", c.TokenKey, c.TokenSecret)
-	base64Credentials := base64.StdEncoding.EncodeToString([]byte(credentials))
-	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
-	req.Header.Set("Authorization", authHeader)
-
-	res, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	return &res.StatusCode, err
 }
 
 // GetService - Returns a specifc order
@@ -219,6 +227,33 @@ func (c *ClientImpl) CreateService(s Service) (*Service, string, error) {
 	return &serviceResponse.Result.Service, serviceResponse.Result.Password, nil
 }
 
+func (c *ClientImpl) WaitForServiceState(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error {
+	// Wait until service is in desired status
+	checkStatus := func() error {
+		service, err := c.GetService(serviceId)
+		if err != nil {
+			return err
+		}
+
+		if stateChecker(service.State) {
+			return nil
+		}
+
+		return fmt.Errorf("service %s is in state %s", serviceId, service.State)
+	}
+
+	if maxWaitSeconds < 5 {
+		maxWaitSeconds = 5
+	}
+
+	err := backoff.Retry(checkStatus, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *ClientImpl) UpdateService(serviceId string, s ServiceUpdate) (*Service, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
@@ -300,27 +335,13 @@ func (c *ClientImpl) UpdateServicePassword(serviceId string, u ServicePasswordUp
 	return &serviceResponse, nil
 }
 
-func (c *ClientImpl) GetServiceStatusCode(serviceId string) (*int, error) {
-	req, err := http.NewRequest("GET", c.getServicePath(serviceId, ""), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	statusCode, err := c.checkStatusCode(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return statusCode, nil
-}
-
 func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
 	service, err := c.GetService(serviceId)
 	if err != nil {
 		return nil, err
 	}
 
-	if service.State != "stopped" && service.State != "stopping" {
+	if service.State != StatusStopped && service.State != StatusStopping {
 		rb, _ := json.Marshal(ServiceStateUpdate{
 			Command: "stop",
 		})
@@ -337,22 +358,9 @@ func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
 		}
 	}
 
-	numErrors := 0
-	for {
-		service, err := c.GetService(serviceId)
-		if err != nil {
-			numErrors++
-			if numErrors > MaxRetry {
-				return nil, err
-			}
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		if service.State == "stopped" {
-			break
-		}
-		time.Sleep(5 * time.Second)
+	err = c.WaitForServiceState(serviceId, func(state string) bool { return state == StatusStopped }, 300)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("DELETE", c.getServicePath(serviceId, ""), nil)
@@ -371,14 +379,23 @@ func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
 		return nil, err
 	}
 
-	for {
-		statusCode, _ := c.GetServiceStatusCode(serviceId)
-
-		if *statusCode == 404 {
-			break
+	// Wait until service is deleted
+	checkDeleted := func() error {
+		_, err := c.GetService(serviceId)
+		if IsNotFound(err) {
+			// That is what we want
+			return nil
+		} else if err != nil {
+			return err
 		}
 
-		time.Sleep(5 * time.Second)
+		return fmt.Errorf("service %s is not deleted yet", serviceId)
+	}
+
+	// Wait for up to 5 minutes for the service to be deleted
+	err = backoff.Retry(checkDeleted, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 60))
+	if err != nil {
+		return nil, fmt.Errorf("service %s was not deleted in the allocated time", serviceId)
 	}
 
 	return &serviceResponse.Result.Service, nil

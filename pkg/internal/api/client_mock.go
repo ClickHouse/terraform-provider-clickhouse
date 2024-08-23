@@ -47,12 +47,6 @@ type ClientMock struct {
 	beforeGetServiceCounter uint64
 	GetServiceMock          mClientMockGetService
 
-	funcGetServiceStatusCode          func(serviceId string) (ip1 *int, err error)
-	inspectFuncGetServiceStatusCode   func(serviceId string)
-	afterGetServiceStatusCodeCounter  uint64
-	beforeGetServiceStatusCodeCounter uint64
-	GetServiceStatusCodeMock          mClientMockGetServiceStatusCode
-
 	funcUpdateOrganizationPrivateEndpoints          func(orgUpdate OrganizationUpdate) (pap1 *[]PrivateEndpoint, err error)
 	inspectFuncUpdateOrganizationPrivateEndpoints   func(orgUpdate OrganizationUpdate)
 	afterUpdateOrganizationPrivateEndpointsCounter  uint64
@@ -76,6 +70,12 @@ type ClientMock struct {
 	afterUpdateServiceScalingCounter  uint64
 	beforeUpdateServiceScalingCounter uint64
 	UpdateServiceScalingMock          mClientMockUpdateServiceScaling
+
+	funcWaitForServiceState          func(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
+	inspectFuncWaitForServiceState   func(serviceId string, stateChecker func(string) bool, maxWaitSeconds int)
+	afterWaitForServiceStateCounter  uint64
+	beforeWaitForServiceStateCounter uint64
+	WaitForServiceStateMock          mClientMockWaitForServiceState
 }
 
 // NewClientMock returns a mock for Client
@@ -100,9 +100,6 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
 
-	m.GetServiceStatusCodeMock = mClientMockGetServiceStatusCode{mock: m}
-	m.GetServiceStatusCodeMock.callArgs = []*ClientMockGetServiceStatusCodeParams{}
-
 	m.UpdateOrganizationPrivateEndpointsMock = mClientMockUpdateOrganizationPrivateEndpoints{mock: m}
 	m.UpdateOrganizationPrivateEndpointsMock.callArgs = []*ClientMockUpdateOrganizationPrivateEndpointsParams{}
 
@@ -114,6 +111,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateServiceScalingMock = mClientMockUpdateServiceScaling{mock: m}
 	m.UpdateServiceScalingMock.callArgs = []*ClientMockUpdateServiceScalingParams{}
+
+	m.WaitForServiceStateMock = mClientMockWaitForServiceState{mock: m}
+	m.WaitForServiceStateMock.callArgs = []*ClientMockWaitForServiceStateParams{}
 
 	t.Cleanup(m.MinimockFinish)
 
@@ -1501,299 +1501,6 @@ func (m *ClientMock) MinimockGetServiceInspect() {
 	}
 }
 
-type mClientMockGetServiceStatusCode struct {
-	optional           bool
-	mock               *ClientMock
-	defaultExpectation *ClientMockGetServiceStatusCodeExpectation
-	expectations       []*ClientMockGetServiceStatusCodeExpectation
-
-	callArgs []*ClientMockGetServiceStatusCodeParams
-	mutex    sync.RWMutex
-
-	expectedInvocations uint64
-}
-
-// ClientMockGetServiceStatusCodeExpectation specifies expectation struct of the Client.GetServiceStatusCode
-type ClientMockGetServiceStatusCodeExpectation struct {
-	mock      *ClientMock
-	params    *ClientMockGetServiceStatusCodeParams
-	paramPtrs *ClientMockGetServiceStatusCodeParamPtrs
-	results   *ClientMockGetServiceStatusCodeResults
-	Counter   uint64
-}
-
-// ClientMockGetServiceStatusCodeParams contains parameters of the Client.GetServiceStatusCode
-type ClientMockGetServiceStatusCodeParams struct {
-	serviceId string
-}
-
-// ClientMockGetServiceStatusCodeParamPtrs contains pointers to parameters of the Client.GetServiceStatusCode
-type ClientMockGetServiceStatusCodeParamPtrs struct {
-	serviceId *string
-}
-
-// ClientMockGetServiceStatusCodeResults contains results of the Client.GetServiceStatusCode
-type ClientMockGetServiceStatusCodeResults struct {
-	ip1 *int
-	err error
-}
-
-// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
-// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
-// Optional() makes method check to work in '0 or more' mode.
-// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
-// catch the problems when the expected method call is totally skipped during test run.
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) Optional() *mClientMockGetServiceStatusCode {
-	mmGetServiceStatusCode.optional = true
-	return mmGetServiceStatusCode
-}
-
-// Expect sets up expected params for Client.GetServiceStatusCode
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) Expect(serviceId string) *mClientMockGetServiceStatusCode {
-	if mmGetServiceStatusCode.mock.funcGetServiceStatusCode != nil {
-		mmGetServiceStatusCode.mock.t.Fatalf("ClientMock.GetServiceStatusCode mock is already set by Set")
-	}
-
-	if mmGetServiceStatusCode.defaultExpectation == nil {
-		mmGetServiceStatusCode.defaultExpectation = &ClientMockGetServiceStatusCodeExpectation{}
-	}
-
-	if mmGetServiceStatusCode.defaultExpectation.paramPtrs != nil {
-		mmGetServiceStatusCode.mock.t.Fatalf("ClientMock.GetServiceStatusCode mock is already set by ExpectParams functions")
-	}
-
-	mmGetServiceStatusCode.defaultExpectation.params = &ClientMockGetServiceStatusCodeParams{serviceId}
-	for _, e := range mmGetServiceStatusCode.expectations {
-		if minimock.Equal(e.params, mmGetServiceStatusCode.defaultExpectation.params) {
-			mmGetServiceStatusCode.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetServiceStatusCode.defaultExpectation.params)
-		}
-	}
-
-	return mmGetServiceStatusCode
-}
-
-// ExpectServiceIdParam1 sets up expected param serviceId for Client.GetServiceStatusCode
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) ExpectServiceIdParam1(serviceId string) *mClientMockGetServiceStatusCode {
-	if mmGetServiceStatusCode.mock.funcGetServiceStatusCode != nil {
-		mmGetServiceStatusCode.mock.t.Fatalf("ClientMock.GetServiceStatusCode mock is already set by Set")
-	}
-
-	if mmGetServiceStatusCode.defaultExpectation == nil {
-		mmGetServiceStatusCode.defaultExpectation = &ClientMockGetServiceStatusCodeExpectation{}
-	}
-
-	if mmGetServiceStatusCode.defaultExpectation.params != nil {
-		mmGetServiceStatusCode.mock.t.Fatalf("ClientMock.GetServiceStatusCode mock is already set by Expect")
-	}
-
-	if mmGetServiceStatusCode.defaultExpectation.paramPtrs == nil {
-		mmGetServiceStatusCode.defaultExpectation.paramPtrs = &ClientMockGetServiceStatusCodeParamPtrs{}
-	}
-	mmGetServiceStatusCode.defaultExpectation.paramPtrs.serviceId = &serviceId
-
-	return mmGetServiceStatusCode
-}
-
-// Inspect accepts an inspector function that has same arguments as the Client.GetServiceStatusCode
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) Inspect(f func(serviceId string)) *mClientMockGetServiceStatusCode {
-	if mmGetServiceStatusCode.mock.inspectFuncGetServiceStatusCode != nil {
-		mmGetServiceStatusCode.mock.t.Fatalf("Inspect function is already set for ClientMock.GetServiceStatusCode")
-	}
-
-	mmGetServiceStatusCode.mock.inspectFuncGetServiceStatusCode = f
-
-	return mmGetServiceStatusCode
-}
-
-// Return sets up results that will be returned by Client.GetServiceStatusCode
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) Return(ip1 *int, err error) *ClientMock {
-	if mmGetServiceStatusCode.mock.funcGetServiceStatusCode != nil {
-		mmGetServiceStatusCode.mock.t.Fatalf("ClientMock.GetServiceStatusCode mock is already set by Set")
-	}
-
-	if mmGetServiceStatusCode.defaultExpectation == nil {
-		mmGetServiceStatusCode.defaultExpectation = &ClientMockGetServiceStatusCodeExpectation{mock: mmGetServiceStatusCode.mock}
-	}
-	mmGetServiceStatusCode.defaultExpectation.results = &ClientMockGetServiceStatusCodeResults{ip1, err}
-	return mmGetServiceStatusCode.mock
-}
-
-// Set uses given function f to mock the Client.GetServiceStatusCode method
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) Set(f func(serviceId string) (ip1 *int, err error)) *ClientMock {
-	if mmGetServiceStatusCode.defaultExpectation != nil {
-		mmGetServiceStatusCode.mock.t.Fatalf("Default expectation is already set for the Client.GetServiceStatusCode method")
-	}
-
-	if len(mmGetServiceStatusCode.expectations) > 0 {
-		mmGetServiceStatusCode.mock.t.Fatalf("Some expectations are already set for the Client.GetServiceStatusCode method")
-	}
-
-	mmGetServiceStatusCode.mock.funcGetServiceStatusCode = f
-	return mmGetServiceStatusCode.mock
-}
-
-// When sets expectation for the Client.GetServiceStatusCode which will trigger the result defined by the following
-// Then helper
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) When(serviceId string) *ClientMockGetServiceStatusCodeExpectation {
-	if mmGetServiceStatusCode.mock.funcGetServiceStatusCode != nil {
-		mmGetServiceStatusCode.mock.t.Fatalf("ClientMock.GetServiceStatusCode mock is already set by Set")
-	}
-
-	expectation := &ClientMockGetServiceStatusCodeExpectation{
-		mock:   mmGetServiceStatusCode.mock,
-		params: &ClientMockGetServiceStatusCodeParams{serviceId},
-	}
-	mmGetServiceStatusCode.expectations = append(mmGetServiceStatusCode.expectations, expectation)
-	return expectation
-}
-
-// Then sets up Client.GetServiceStatusCode return parameters for the expectation previously defined by the When method
-func (e *ClientMockGetServiceStatusCodeExpectation) Then(ip1 *int, err error) *ClientMock {
-	e.results = &ClientMockGetServiceStatusCodeResults{ip1, err}
-	return e.mock
-}
-
-// Times sets number of times Client.GetServiceStatusCode should be invoked
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) Times(n uint64) *mClientMockGetServiceStatusCode {
-	if n == 0 {
-		mmGetServiceStatusCode.mock.t.Fatalf("Times of ClientMock.GetServiceStatusCode mock can not be zero")
-	}
-	mm_atomic.StoreUint64(&mmGetServiceStatusCode.expectedInvocations, n)
-	return mmGetServiceStatusCode
-}
-
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) invocationsDone() bool {
-	if len(mmGetServiceStatusCode.expectations) == 0 && mmGetServiceStatusCode.defaultExpectation == nil && mmGetServiceStatusCode.mock.funcGetServiceStatusCode == nil {
-		return true
-	}
-
-	totalInvocations := mm_atomic.LoadUint64(&mmGetServiceStatusCode.mock.afterGetServiceStatusCodeCounter)
-	expectedInvocations := mm_atomic.LoadUint64(&mmGetServiceStatusCode.expectedInvocations)
-
-	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
-}
-
-// GetServiceStatusCode implements Client
-func (mmGetServiceStatusCode *ClientMock) GetServiceStatusCode(serviceId string) (ip1 *int, err error) {
-	mm_atomic.AddUint64(&mmGetServiceStatusCode.beforeGetServiceStatusCodeCounter, 1)
-	defer mm_atomic.AddUint64(&mmGetServiceStatusCode.afterGetServiceStatusCodeCounter, 1)
-
-	if mmGetServiceStatusCode.inspectFuncGetServiceStatusCode != nil {
-		mmGetServiceStatusCode.inspectFuncGetServiceStatusCode(serviceId)
-	}
-
-	mm_params := ClientMockGetServiceStatusCodeParams{serviceId}
-
-	// Record call args
-	mmGetServiceStatusCode.GetServiceStatusCodeMock.mutex.Lock()
-	mmGetServiceStatusCode.GetServiceStatusCodeMock.callArgs = append(mmGetServiceStatusCode.GetServiceStatusCodeMock.callArgs, &mm_params)
-	mmGetServiceStatusCode.GetServiceStatusCodeMock.mutex.Unlock()
-
-	for _, e := range mmGetServiceStatusCode.GetServiceStatusCodeMock.expectations {
-		if minimock.Equal(*e.params, mm_params) {
-			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.ip1, e.results.err
-		}
-	}
-
-	if mmGetServiceStatusCode.GetServiceStatusCodeMock.defaultExpectation != nil {
-		mm_atomic.AddUint64(&mmGetServiceStatusCode.GetServiceStatusCodeMock.defaultExpectation.Counter, 1)
-		mm_want := mmGetServiceStatusCode.GetServiceStatusCodeMock.defaultExpectation.params
-		mm_want_ptrs := mmGetServiceStatusCode.GetServiceStatusCodeMock.defaultExpectation.paramPtrs
-
-		mm_got := ClientMockGetServiceStatusCodeParams{serviceId}
-
-		if mm_want_ptrs != nil {
-
-			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
-				mmGetServiceStatusCode.t.Errorf("ClientMock.GetServiceStatusCode got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
-			}
-
-		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
-			mmGetServiceStatusCode.t.Errorf("ClientMock.GetServiceStatusCode got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
-		}
-
-		mm_results := mmGetServiceStatusCode.GetServiceStatusCodeMock.defaultExpectation.results
-		if mm_results == nil {
-			mmGetServiceStatusCode.t.Fatal("No results are set for the ClientMock.GetServiceStatusCode")
-		}
-		return (*mm_results).ip1, (*mm_results).err
-	}
-	if mmGetServiceStatusCode.funcGetServiceStatusCode != nil {
-		return mmGetServiceStatusCode.funcGetServiceStatusCode(serviceId)
-	}
-	mmGetServiceStatusCode.t.Fatalf("Unexpected call to ClientMock.GetServiceStatusCode. %v", serviceId)
-	return
-}
-
-// GetServiceStatusCodeAfterCounter returns a count of finished ClientMock.GetServiceStatusCode invocations
-func (mmGetServiceStatusCode *ClientMock) GetServiceStatusCodeAfterCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmGetServiceStatusCode.afterGetServiceStatusCodeCounter)
-}
-
-// GetServiceStatusCodeBeforeCounter returns a count of ClientMock.GetServiceStatusCode invocations
-func (mmGetServiceStatusCode *ClientMock) GetServiceStatusCodeBeforeCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmGetServiceStatusCode.beforeGetServiceStatusCodeCounter)
-}
-
-// Calls returns a list of arguments used in each call to ClientMock.GetServiceStatusCode.
-// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
-func (mmGetServiceStatusCode *mClientMockGetServiceStatusCode) Calls() []*ClientMockGetServiceStatusCodeParams {
-	mmGetServiceStatusCode.mutex.RLock()
-
-	argCopy := make([]*ClientMockGetServiceStatusCodeParams, len(mmGetServiceStatusCode.callArgs))
-	copy(argCopy, mmGetServiceStatusCode.callArgs)
-
-	mmGetServiceStatusCode.mutex.RUnlock()
-
-	return argCopy
-}
-
-// MinimockGetServiceStatusCodeDone returns true if the count of the GetServiceStatusCode invocations corresponds
-// the number of defined expectations
-func (m *ClientMock) MinimockGetServiceStatusCodeDone() bool {
-	if m.GetServiceStatusCodeMock.optional {
-		// Optional methods provide '0 or more' call count restriction.
-		return true
-	}
-
-	for _, e := range m.GetServiceStatusCodeMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			return false
-		}
-	}
-
-	return m.GetServiceStatusCodeMock.invocationsDone()
-}
-
-// MinimockGetServiceStatusCodeInspect logs each unmet expectation
-func (m *ClientMock) MinimockGetServiceStatusCodeInspect() {
-	for _, e := range m.GetServiceStatusCodeMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Errorf("Expected call to ClientMock.GetServiceStatusCode with params: %#v", *e.params)
-		}
-	}
-
-	afterGetServiceStatusCodeCounter := mm_atomic.LoadUint64(&m.afterGetServiceStatusCodeCounter)
-	// if default expectation was set then invocations count should be greater than zero
-	if m.GetServiceStatusCodeMock.defaultExpectation != nil && afterGetServiceStatusCodeCounter < 1 {
-		if m.GetServiceStatusCodeMock.defaultExpectation.params == nil {
-			m.t.Error("Expected call to ClientMock.GetServiceStatusCode")
-		} else {
-			m.t.Errorf("Expected call to ClientMock.GetServiceStatusCode with params: %#v", *m.GetServiceStatusCodeMock.defaultExpectation.params)
-		}
-	}
-	// if func was set then invocations count should be greater than zero
-	if m.funcGetServiceStatusCode != nil && afterGetServiceStatusCodeCounter < 1 {
-		m.t.Error("Expected call to ClientMock.GetServiceStatusCode")
-	}
-
-	if !m.GetServiceStatusCodeMock.invocationsDone() && afterGetServiceStatusCodeCounter > 0 {
-		m.t.Errorf("Expected %d calls to ClientMock.GetServiceStatusCode but found %d calls",
-			mm_atomic.LoadUint64(&m.GetServiceStatusCodeMock.expectedInvocations), afterGetServiceStatusCodeCounter)
-	}
-}
-
 type mClientMockUpdateOrganizationPrivateEndpoints struct {
 	optional           bool
 	mock               *ClientMock
@@ -3050,6 +2757,354 @@ func (m *ClientMock) MinimockUpdateServiceScalingInspect() {
 	}
 }
 
+type mClientMockWaitForServiceState struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForServiceStateExpectation
+	expectations       []*ClientMockWaitForServiceStateExpectation
+
+	callArgs []*ClientMockWaitForServiceStateParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockWaitForServiceStateExpectation specifies expectation struct of the Client.WaitForServiceState
+type ClientMockWaitForServiceStateExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockWaitForServiceStateParams
+	paramPtrs *ClientMockWaitForServiceStateParamPtrs
+	results   *ClientMockWaitForServiceStateResults
+	Counter   uint64
+}
+
+// ClientMockWaitForServiceStateParams contains parameters of the Client.WaitForServiceState
+type ClientMockWaitForServiceStateParams struct {
+	serviceId      string
+	stateChecker   func(string) bool
+	maxWaitSeconds int
+}
+
+// ClientMockWaitForServiceStateParamPtrs contains pointers to parameters of the Client.WaitForServiceState
+type ClientMockWaitForServiceStateParamPtrs struct {
+	serviceId      *string
+	stateChecker   *func(string) bool
+	maxWaitSeconds *int
+}
+
+// ClientMockWaitForServiceStateResults contains results of the Client.WaitForServiceState
+type ClientMockWaitForServiceStateResults struct {
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Optional() *mClientMockWaitForServiceState {
+	mmWaitForServiceState.optional = true
+	return mmWaitForServiceState
+}
+
+// Expect sets up expected params for Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Expect(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) *mClientMockWaitForServiceState {
+	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
+	}
+
+	if mmWaitForServiceState.defaultExpectation == nil {
+		mmWaitForServiceState.defaultExpectation = &ClientMockWaitForServiceStateExpectation{}
+	}
+
+	if mmWaitForServiceState.defaultExpectation.paramPtrs != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForServiceState.defaultExpectation.params = &ClientMockWaitForServiceStateParams{serviceId, stateChecker, maxWaitSeconds}
+	for _, e := range mmWaitForServiceState.expectations {
+		if minimock.Equal(e.params, mmWaitForServiceState.defaultExpectation.params) {
+			mmWaitForServiceState.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForServiceState.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForServiceState
+}
+
+// ExpectServiceIdParam1 sets up expected param serviceId for Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectServiceIdParam1(serviceId string) *mClientMockWaitForServiceState {
+	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
+	}
+
+	if mmWaitForServiceState.defaultExpectation == nil {
+		mmWaitForServiceState.defaultExpectation = &ClientMockWaitForServiceStateExpectation{}
+	}
+
+	if mmWaitForServiceState.defaultExpectation.params != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Expect")
+	}
+
+	if mmWaitForServiceState.defaultExpectation.paramPtrs == nil {
+		mmWaitForServiceState.defaultExpectation.paramPtrs = &ClientMockWaitForServiceStateParamPtrs{}
+	}
+	mmWaitForServiceState.defaultExpectation.paramPtrs.serviceId = &serviceId
+
+	return mmWaitForServiceState
+}
+
+// ExpectStateCheckerParam2 sets up expected param stateChecker for Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectStateCheckerParam2(stateChecker func(string) bool) *mClientMockWaitForServiceState {
+	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
+	}
+
+	if mmWaitForServiceState.defaultExpectation == nil {
+		mmWaitForServiceState.defaultExpectation = &ClientMockWaitForServiceStateExpectation{}
+	}
+
+	if mmWaitForServiceState.defaultExpectation.params != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Expect")
+	}
+
+	if mmWaitForServiceState.defaultExpectation.paramPtrs == nil {
+		mmWaitForServiceState.defaultExpectation.paramPtrs = &ClientMockWaitForServiceStateParamPtrs{}
+	}
+	mmWaitForServiceState.defaultExpectation.paramPtrs.stateChecker = &stateChecker
+
+	return mmWaitForServiceState
+}
+
+// ExpectMaxWaitSecondsParam3 sets up expected param maxWaitSeconds for Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectMaxWaitSecondsParam3(maxWaitSeconds int) *mClientMockWaitForServiceState {
+	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
+	}
+
+	if mmWaitForServiceState.defaultExpectation == nil {
+		mmWaitForServiceState.defaultExpectation = &ClientMockWaitForServiceStateExpectation{}
+	}
+
+	if mmWaitForServiceState.defaultExpectation.params != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Expect")
+	}
+
+	if mmWaitForServiceState.defaultExpectation.paramPtrs == nil {
+		mmWaitForServiceState.defaultExpectation.paramPtrs = &ClientMockWaitForServiceStateParamPtrs{}
+	}
+	mmWaitForServiceState.defaultExpectation.paramPtrs.maxWaitSeconds = &maxWaitSeconds
+
+	return mmWaitForServiceState
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Inspect(f func(serviceId string, stateChecker func(string) bool, maxWaitSeconds int)) *mClientMockWaitForServiceState {
+	if mmWaitForServiceState.mock.inspectFuncWaitForServiceState != nil {
+		mmWaitForServiceState.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForServiceState")
+	}
+
+	mmWaitForServiceState.mock.inspectFuncWaitForServiceState = f
+
+	return mmWaitForServiceState
+}
+
+// Return sets up results that will be returned by Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Return(err error) *ClientMock {
+	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
+	}
+
+	if mmWaitForServiceState.defaultExpectation == nil {
+		mmWaitForServiceState.defaultExpectation = &ClientMockWaitForServiceStateExpectation{mock: mmWaitForServiceState.mock}
+	}
+	mmWaitForServiceState.defaultExpectation.results = &ClientMockWaitForServiceStateResults{err}
+	return mmWaitForServiceState.mock
+}
+
+// Set uses given function f to mock the Client.WaitForServiceState method
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Set(f func(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)) *ClientMock {
+	if mmWaitForServiceState.defaultExpectation != nil {
+		mmWaitForServiceState.mock.t.Fatalf("Default expectation is already set for the Client.WaitForServiceState method")
+	}
+
+	if len(mmWaitForServiceState.expectations) > 0 {
+		mmWaitForServiceState.mock.t.Fatalf("Some expectations are already set for the Client.WaitForServiceState method")
+	}
+
+	mmWaitForServiceState.mock.funcWaitForServiceState = f
+	return mmWaitForServiceState.mock
+}
+
+// When sets expectation for the Client.WaitForServiceState which will trigger the result defined by the following
+// Then helper
+func (mmWaitForServiceState *mClientMockWaitForServiceState) When(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) *ClientMockWaitForServiceStateExpectation {
+	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForServiceStateExpectation{
+		mock:   mmWaitForServiceState.mock,
+		params: &ClientMockWaitForServiceStateParams{serviceId, stateChecker, maxWaitSeconds},
+	}
+	mmWaitForServiceState.expectations = append(mmWaitForServiceState.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForServiceState return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForServiceStateExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockWaitForServiceStateResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForServiceState should be invoked
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Times(n uint64) *mClientMockWaitForServiceState {
+	if n == 0 {
+		mmWaitForServiceState.mock.t.Fatalf("Times of ClientMock.WaitForServiceState mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForServiceState.expectedInvocations, n)
+	return mmWaitForServiceState
+}
+
+func (mmWaitForServiceState *mClientMockWaitForServiceState) invocationsDone() bool {
+	if len(mmWaitForServiceState.expectations) == 0 && mmWaitForServiceState.defaultExpectation == nil && mmWaitForServiceState.mock.funcWaitForServiceState == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForServiceState.mock.afterWaitForServiceStateCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForServiceState.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForServiceState implements Client
+func (mmWaitForServiceState *ClientMock) WaitForServiceState(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error) {
+	mm_atomic.AddUint64(&mmWaitForServiceState.beforeWaitForServiceStateCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForServiceState.afterWaitForServiceStateCounter, 1)
+
+	if mmWaitForServiceState.inspectFuncWaitForServiceState != nil {
+		mmWaitForServiceState.inspectFuncWaitForServiceState(serviceId, stateChecker, maxWaitSeconds)
+	}
+
+	mm_params := ClientMockWaitForServiceStateParams{serviceId, stateChecker, maxWaitSeconds}
+
+	// Record call args
+	mmWaitForServiceState.WaitForServiceStateMock.mutex.Lock()
+	mmWaitForServiceState.WaitForServiceStateMock.callArgs = append(mmWaitForServiceState.WaitForServiceStateMock.callArgs, &mm_params)
+	mmWaitForServiceState.WaitForServiceStateMock.mutex.Unlock()
+
+	for _, e := range mmWaitForServiceState.WaitForServiceStateMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForServiceStateParams{serviceId, stateChecker, maxWaitSeconds}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmWaitForServiceState.t.Errorf("ClientMock.WaitForServiceState got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.stateChecker != nil && !minimock.Equal(*mm_want_ptrs.stateChecker, mm_got.stateChecker) {
+				mmWaitForServiceState.t.Errorf("ClientMock.WaitForServiceState got unexpected parameter stateChecker, want: %#v, got: %#v%s\n", *mm_want_ptrs.stateChecker, mm_got.stateChecker, minimock.Diff(*mm_want_ptrs.stateChecker, mm_got.stateChecker))
+			}
+
+			if mm_want_ptrs.maxWaitSeconds != nil && !minimock.Equal(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds) {
+				mmWaitForServiceState.t.Errorf("ClientMock.WaitForServiceState got unexpected parameter maxWaitSeconds, want: %#v, got: %#v%s\n", *mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds, minimock.Diff(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForServiceState.t.Errorf("ClientMock.WaitForServiceState got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForServiceState.t.Fatal("No results are set for the ClientMock.WaitForServiceState")
+		}
+		return (*mm_results).err
+	}
+	if mmWaitForServiceState.funcWaitForServiceState != nil {
+		return mmWaitForServiceState.funcWaitForServiceState(serviceId, stateChecker, maxWaitSeconds)
+	}
+	mmWaitForServiceState.t.Fatalf("Unexpected call to ClientMock.WaitForServiceState. %v %v %v", serviceId, stateChecker, maxWaitSeconds)
+	return
+}
+
+// WaitForServiceStateAfterCounter returns a count of finished ClientMock.WaitForServiceState invocations
+func (mmWaitForServiceState *ClientMock) WaitForServiceStateAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForServiceState.afterWaitForServiceStateCounter)
+}
+
+// WaitForServiceStateBeforeCounter returns a count of ClientMock.WaitForServiceState invocations
+func (mmWaitForServiceState *ClientMock) WaitForServiceStateBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForServiceState.beforeWaitForServiceStateCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForServiceState.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Calls() []*ClientMockWaitForServiceStateParams {
+	mmWaitForServiceState.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForServiceStateParams, len(mmWaitForServiceState.callArgs))
+	copy(argCopy, mmWaitForServiceState.callArgs)
+
+	mmWaitForServiceState.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForServiceStateDone returns true if the count of the WaitForServiceState invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForServiceStateDone() bool {
+	if m.WaitForServiceStateMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForServiceStateMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForServiceStateMock.invocationsDone()
+}
+
+// MinimockWaitForServiceStateInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForServiceStateInspect() {
+	for _, e := range m.WaitForServiceStateMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForServiceState with params: %#v", *e.params)
+		}
+	}
+
+	afterWaitForServiceStateCounter := mm_atomic.LoadUint64(&m.afterWaitForServiceStateCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForServiceStateMock.defaultExpectation != nil && afterWaitForServiceStateCounter < 1 {
+		if m.WaitForServiceStateMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.WaitForServiceState")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForServiceState with params: %#v", *m.WaitForServiceStateMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForServiceState != nil && afterWaitForServiceStateCounter < 1 {
+		m.t.Error("Expected call to ClientMock.WaitForServiceState")
+	}
+
+	if !m.WaitForServiceStateMock.invocationsDone() && afterWaitForServiceStateCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForServiceState but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForServiceStateMock.expectedInvocations), afterWaitForServiceStateCounter)
+	}
+}
+
 // MinimockFinish checks that all mocked methods have been called the expected number of times
 func (m *ClientMock) MinimockFinish() {
 	m.finishOnce.Do(func() {
@@ -3064,8 +3119,6 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetServiceInspect()
 
-			m.MinimockGetServiceStatusCodeInspect()
-
 			m.MinimockUpdateOrganizationPrivateEndpointsInspect()
 
 			m.MinimockUpdateServiceInspect()
@@ -3073,6 +3126,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateServicePasswordInspect()
 
 			m.MinimockUpdateServiceScalingInspect()
+
+			m.MinimockWaitForServiceStateInspect()
 		}
 	})
 }
@@ -3101,9 +3156,9 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationPrivateEndpointsDone() &&
 		m.MinimockGetServiceDone() &&
-		m.MinimockGetServiceStatusCodeDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
-		m.MinimockUpdateServiceScalingDone()
+		m.MinimockUpdateServiceScalingDone() &&
+		m.MinimockWaitForServiceStateDone()
 }
