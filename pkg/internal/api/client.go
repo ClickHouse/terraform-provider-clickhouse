@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/project"
 )
 
 type ClientImpl struct {
@@ -102,6 +104,7 @@ func (c *ClientImpl) doRequest(req *http.Request) ([]byte, error) {
 
 	makeRequest := func(req *http.Request) func() ([]byte, error) {
 		return func() ([]byte, error) {
+			req.Header.Set("User-Agent", fmt.Sprintf("terraform-provider-clickhouse/%s Commit/%s", project.Version(), project.Commit()))
 			res, err := c.HttpClient.Do(req)
 			if err != nil {
 				return nil, err
