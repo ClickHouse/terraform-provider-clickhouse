@@ -228,8 +228,8 @@ func (c *ClientImpl) CreateService(s Service) (*Service, string, error) {
 }
 
 func (c *ClientImpl) WaitForServiceState(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error {
-	// Wait until service is in desired status
-	checkStatus := func() error {
+	// Wait until service is in desired state
+	checkState := func() error {
 		service, err := c.GetService(serviceId)
 		if err != nil {
 			return err
@@ -246,7 +246,7 @@ func (c *ClientImpl) WaitForServiceState(serviceId string, stateChecker func(str
 		maxWaitSeconds = 5
 	}
 
-	err := backoff.Retry(checkStatus, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)))
+	err := backoff.Retry(checkState, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)))
 	if err != nil {
 		return err
 	}
@@ -341,7 +341,7 @@ func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
 		return nil, err
 	}
 
-	if service.State != StatusStopped && service.State != StatusStopping {
+	if service.State != StateStopped && service.State != StateStopping {
 		rb, _ := json.Marshal(ServiceStateUpdate{
 			Command: "stop",
 		})
@@ -358,7 +358,7 @@ func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
 		}
 	}
 
-	err = c.WaitForServiceState(serviceId, func(state string) bool { return state == StatusStopped }, 300)
+	err = c.WaitForServiceState(serviceId, func(state string) bool { return state == StateStopped }, 300)
 	if err != nil {
 		return nil, err
 	}

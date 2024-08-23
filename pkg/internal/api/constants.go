@@ -4,7 +4,7 @@ const (
 	TierDevelopment = "development"
 	TierProduction  = "production"
 
-	StatusProvisioning = "provisioning"
-	StatusStopped      = "stopped"
-	StatusStopping     = "stopping"
+	StateProvisioning = "provisioning"
+	StateStopped      = "stopped"
+	StateStopping     = "stopping"
 )
