@@ -82,7 +82,7 @@ jobs:
       fail-fast: false
       max-parallel: 5
       matrix:
-        test: [ "basic" ]
+        test: [ "basic", "private_endpoint" ]
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "gcp", "azure" ]
         upgrade_test: ${{ fromJSON(needs.validate.outputs.test-upgrade-matrix) }}
