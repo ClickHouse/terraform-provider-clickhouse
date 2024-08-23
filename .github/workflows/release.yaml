@@ -130,10 +130,13 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: ${{ job.status }}
-          notification_title: "E2E tests failed during release ${github.ref_name}"
-          footer: "{workflow_url}"
+          notification_title: "E2E tests failed for {branch}"
+          footer: "{run_url}"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      - name: Report error on github UI
+        run: |
+          exit 1
 
   # Delete any leftover service that might have failed deleting
   cleanup:
