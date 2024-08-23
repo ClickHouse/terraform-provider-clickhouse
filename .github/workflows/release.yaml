@@ -78,6 +78,8 @@ jobs:
     needs: [ "validate", "token", "find-tf-releases" ]
     runs-on: ubuntu-latest
     continue-on-error: true
+    permissions:
+      id-token: write
     strategy:
       fail-fast: false
       max-parallel: 5
