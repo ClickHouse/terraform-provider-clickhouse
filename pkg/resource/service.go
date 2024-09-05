@@ -703,21 +703,6 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		return errors.New("service ID must be set to fetch the service")
 	}
 
-	j := 50
-	for j > 0 {
-		j = j - 1
-		// Get latest service value from ClickHouse OpenAPI
-		_, err := r.client.GetService(ctx, state.ID.ValueString())
-		if api.IsNotFound(err) {
-			// Service was deleted outside terraform.
-			state.ID = types.StringNull()
-
-			return nil
-		} else if err != nil {
-			return err
-		}
-	}
-
 	// Get latest service value from ClickHouse OpenAPI
 	service, err := r.client.GetService(ctx, state.ID.ValueString())
 	if api.IsNotFound(err) {
