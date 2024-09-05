@@ -80,7 +80,7 @@ func (d *privateEndpointConfigDataSource) Read(ctx context.Context, req datasour
 	region := data.Region.ValueString()
 
 	// Make the API request to get the private endpoint config
-	privateEndpointConfig, err := d.client.GetOrgPrivateEndpointConfig(cloudProvider, region)
+	privateEndpointConfig, err := d.client.GetOrgPrivateEndpointConfig(ctx, cloudProvider, region)
 	if err != nil {
 		resp.Diagnostics.AddError("failed get", fmt.Sprintf("error getting privateEndpointConfig: %v", err))
 		return

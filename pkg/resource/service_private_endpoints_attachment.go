@@ -117,7 +117,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Create(ctx context.Context, 
 	// When migrating from 0.3.0 to 1.0.0+ this resource is always created, but the attachment might still exist
 	// We read the service to check for existing attachments in order to not fail creating them
 	{
-		service, err := r.client.GetService(plan.ServiceID.ValueString())
+		service, err := r.client.GetService(ctx, plan.ServiceID.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Reading ClickHouse Service",
@@ -135,7 +135,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Create(ctx context.Context, 
 		serviceUpdate.PrivateEndpointIds.Add = append(serviceUpdate.PrivateEndpointIds.Add, item.ValueString())
 	}
 
-	_, err := r.client.UpdateService(plan.ServiceID.ValueString(), serviceUpdate)
+	_, err := r.client.UpdateService(ctx, plan.ServiceID.ValueString(), serviceUpdate)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",
@@ -160,7 +160,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Read(ctx context.Context, re
 	}
 
 	// Get latest service value from ClickHouse OpenAPI
-	service, err := r.client.GetService(state.ServiceID.ValueString())
+	service, err := r.client.GetService(ctx, state.ServiceID.ValueString())
 	if api.IsNotFound(err) {
 		// Service not found, hence attachment cannot exist as well.
 		resp.State.RemoveResource(ctx)
@@ -213,7 +213,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Update(ctx context.Context, 
 		service.PrivateEndpointIds.Remove = append(service.PrivateEndpointIds.Add, item.ValueString())
 	}
 
-	_, err := r.client.UpdateService(plan.ServiceID.ValueString(), service)
+	_, err := r.client.UpdateService(ctx, plan.ServiceID.ValueString(), service)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",
@@ -249,7 +249,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Delete(ctx context.Context, 
 		service.PrivateEndpointIds.Remove = append(service.PrivateEndpointIds.Add, item.ValueString())
 	}
 
-	_, err := r.client.UpdateService(state.ServiceID.ValueString(), service)
+	_, err := r.client.UpdateService(ctx, state.ServiceID.ValueString(), service)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",

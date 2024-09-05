@@ -1,15 +1,18 @@
 package api
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/project"
 )
@@ -96,15 +99,33 @@ func (c *ClientImpl) getPrivateEndpointConfigPath(cloudProvider string, region s
 	return c.getOrgPath(fmt.Sprintf("/privateEndpointConfig?cloud_provider=%s&region_id=%s", cloudProvider, region))
 }
 
-func (c *ClientImpl) doRequest(req *http.Request) ([]byte, error) {
+func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, error) {
+	ctx = tflog.SetField(ctx, "method", req.Method)
+	ctx = tflog.SetField(ctx, "URL", req.URL.String())
+
 	credentials := fmt.Sprintf("%s:%s", c.TokenKey, c.TokenSecret)
 	base64Credentials := base64.StdEncoding.EncodeToString([]byte(credentials))
 	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
 	req.Header.Set("Authorization", authHeader)
 
+	currentExponentialBackoff := float64(1)
+	attempt := 1
+
 	makeRequest := func(req *http.Request) func() ([]byte, error) {
 		return func() ([]byte, error) {
 			req.Header.Set("User-Agent", fmt.Sprintf("terraform-provider-clickhouse/%s Commit/%s", project.Version(), project.Commit()))
+
+			if req.Body != nil {
+				requestBody, err := io.ReadAll(req.Body)
+				if err == nil {
+					ctx = tflog.SetField(ctx, "requestBody", string(requestBody))
+				}
+			}
+
+			ctx = tflog.SetField(ctx, "requestHeaders", req.Header)
+			ctx = tflog.SetField(ctx, "attempt", attempt)
+			attempt = attempt + 1
+
 			res, err := c.HttpClient.Do(req)
 			if err != nil {
 				return nil, err
@@ -116,39 +137,71 @@ func (c *ClientImpl) doRequest(req *http.Request) ([]byte, error) {
 				return nil, err
 			}
 
+			ctx = tflog.SetField(ctx, "statusCode", res.StatusCode)
+			ctx = tflog.SetField(ctx, "responseHeaders", res.Header)
+			ctx = tflog.SetField(ctx, "responseBody", string(body))
+			tflog.Debug(ctx, fmt.Sprintf("API request"))
+
 			if res.StatusCode != http.StatusOK {
-				if RetriableError(res.StatusCode) {
-					return nil, fmt.Errorf("status: %d, body: %s", res.StatusCode, body)
+				var resetSeconds float64
+				if res.StatusCode == http.StatusTooManyRequests { // 429
+					// Try to read rate limiting headers from the response.
+					resetSecondsStr := res.Header.Get(ResponseHeaderRateLimitReset)
+					if resetSecondsStr != "" {
+						// Try parsing the string as an integer
+						i, err := strconv.ParseFloat(resetSecondsStr, 64)
+						if err != nil {
+							tflog.Warn(ctx, fmt.Sprintf("Error parsing X-RateLimit-Reset header %q as a float64: %s", resetSecondsStr, err))
+						} else {
+							// Give 1 more second after the server returned reset.
+							resetSeconds = i + 1
+
+							tflog.Warn(ctx, fmt.Sprintf("Server side throttling (429): waiting %f.1 seconds before retrying", resetSeconds))
+						}
+					}
+				} else if res.StatusCode >= http.StatusInternalServerError { // 500
+					resetSeconds = currentExponentialBackoff
+					tflog.Warn(ctx, fmt.Sprintf("Server side error (5xx): waiting %d seconds before retrying", resetSeconds))
 				} else {
 					return nil, backoff.Permanent(fmt.Errorf("status: %d, body: %s", res.StatusCode, body))
 				}
+
+				// Wait for the calculated exponential backoff number of seconds.
+				time.Sleep(time.Second * time.Duration(resetSeconds))
+
+				// Double wait time for next loop
+				currentExponentialBackoff = currentExponentialBackoff * 2
+
+				return nil, fmt.Errorf("status: %d, body: %s", res.StatusCode, body)
 			}
 
 			return body, nil
 		}
 	}
 
-	// Retry after 5 seconds, then double wait time until max 80 seconds are elapsed.
+	// This is a fake exponential backoff, becacuse multiplier is only 1.
+	// We need to do this because there is no way to set a MaxElapsedTime using ConstantBackOff()
+	// Real waiting times happen in the makeRequest function depending on the server's response.
 	backoffSettings := backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(5*time.Second),
+		backoff.WithInitialInterval(1*time.Second),
 		backoff.WithMaxElapsedTime(81*time.Second),
-		backoff.WithMultiplier(2),
+		backoff.WithMultiplier(1),
 	)
 
 	body, err := backoff.RetryNotifyWithData[[]byte](makeRequest(req), backoffSettings, func(err error, next time.Duration) {
-		fmt.Printf("Request failed with error: %s. Retrying in %.0f seconds\n", err, next.Seconds())
+		tflog.Warn(ctx, fmt.Sprintf("API request %s %s failed with error: %s.", req.Method, req.URL, err))
 	})
 
 	return body, err
 }
 
 // GetService - Returns a specifc order
-func (c *ClientImpl) GetService(serviceId string) (*Service, error) {
+func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service, error) {
 	req, err := http.NewRequest("GET", c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
 	}
-	body, err := c.doRequest(req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +219,7 @@ func (c *ClientImpl) GetService(serviceId string) (*Service, error) {
 		return nil, err
 	}
 
-	body, err = c.doRequest(req)
+	body, err = c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +235,7 @@ func (c *ClientImpl) GetService(serviceId string) (*Service, error) {
 	return &service, nil
 }
 
-func (c *ClientImpl) GetOrgPrivateEndpointConfig(cloudProvider string, region string) (*OrgPrivateEndpointConfig, error) {
+func (c *ClientImpl) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error) {
 	privateEndpointConfigPath := c.getPrivateEndpointConfigPath(cloudProvider, region)
 
 	req, err := http.NewRequest("GET", privateEndpointConfigPath, nil)
@@ -190,7 +243,7 @@ func (c *ClientImpl) GetOrgPrivateEndpointConfig(cloudProvider string, region st
 		return nil, err
 	}
 
-	body, err := c.doRequest(req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +256,7 @@ func (c *ClientImpl) GetOrgPrivateEndpointConfig(cloudProvider string, region st
 	return &privateEndpointConfigResponse.Result, nil
 }
 
-func (c *ClientImpl) CreateService(s Service) (*Service, string, error) {
+func (c *ClientImpl) CreateService(ctx context.Context, s Service) (*Service, string, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, "", err
@@ -216,7 +269,7 @@ func (c *ClientImpl) CreateService(s Service) (*Service, string, error) {
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	body, err := c.doRequest(req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, "", err
 	}
@@ -230,10 +283,10 @@ func (c *ClientImpl) CreateService(s Service) (*Service, string, error) {
 	return &serviceResponse.Result.Service, serviceResponse.Result.Password, nil
 }
 
-func (c *ClientImpl) WaitForServiceState(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error {
+func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error {
 	// Wait until service is in desired state
 	checkState := func() error {
-		service, err := c.GetService(serviceId)
+		service, err := c.GetService(ctx, serviceId)
 		if err != nil {
 			return err
 		}
@@ -257,7 +310,7 @@ func (c *ClientImpl) WaitForServiceState(serviceId string, stateChecker func(str
 	return nil
 }
 
-func (c *ClientImpl) UpdateService(serviceId string, s ServiceUpdate) (*Service, error) {
+func (c *ClientImpl) UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, err
@@ -270,7 +323,7 @@ func (c *ClientImpl) UpdateService(serviceId string, s ServiceUpdate) (*Service,
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	body, err := c.doRequest(req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +337,7 @@ func (c *ClientImpl) UpdateService(serviceId string, s ServiceUpdate) (*Service,
 	return &serviceResponse.Result, nil
 }
 
-func (c *ClientImpl) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) (*Service, error) {
+func (c *ClientImpl) UpdateServiceScaling(ctx context.Context, serviceId string, s ServiceScalingUpdate) (*Service, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, err
@@ -297,7 +350,7 @@ func (c *ClientImpl) UpdateServiceScaling(serviceId string, s ServiceScalingUpda
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	body, err := c.doRequest(req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +364,7 @@ func (c *ClientImpl) UpdateServiceScaling(serviceId string, s ServiceScalingUpda
 	return &serviceResponse.Result, nil
 }
 
-func (c *ClientImpl) UpdateServicePassword(serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error) {
+func (c *ClientImpl) UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error) {
 	rb, err := json.Marshal(u)
 	if err != nil {
 		return nil, err
@@ -324,7 +377,7 @@ func (c *ClientImpl) UpdateServicePassword(serviceId string, u ServicePasswordUp
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	body, err := c.doRequest(req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -338,8 +391,8 @@ func (c *ClientImpl) UpdateServicePassword(serviceId string, u ServicePasswordUp
 	return &serviceResponse, nil
 }
 
-func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
-	service, err := c.GetService(serviceId)
+func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Service, error) {
+	service, err := c.GetService(ctx, serviceId)
 	if err != nil {
 		return nil, err
 	}
@@ -355,13 +408,13 @@ func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
 
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-		_, err = c.doRequest(req)
+		_, err = c.doRequest(ctx, req)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	err = c.WaitForServiceState(serviceId, func(state string) bool { return state == StateStopped }, 300)
+	err = c.WaitForServiceState(ctx, serviceId, func(state string) bool { return state == StateStopped }, 300)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +424,7 @@ func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
 		return nil, err
 	}
 
-	body, err := c.doRequest(req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +437,7 @@ func (c *ClientImpl) DeleteService(serviceId string) (*Service, error) {
 
 	// Wait until service is deleted
 	checkDeleted := func() error {
-		_, err := c.GetService(serviceId)
+		_, err := c.GetService(ctx, serviceId)
 		if IsNotFound(err) {
 			// That is what we want
 			return nil
@@ -439,13 +492,13 @@ type OrganizationUpdateResponse struct {
 	Result OrgResult `json:"result,omitempty"`
 }
 
-func (c *ClientImpl) GetOrganizationPrivateEndpoints() (*[]PrivateEndpoint, error) {
+func (c *ClientImpl) GetOrganizationPrivateEndpoints(ctx context.Context) (*[]PrivateEndpoint, error) {
 	req, err := http.NewRequest("GET", c.getOrgPath(""), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	body, err := c.doRequest(req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +512,7 @@ func (c *ClientImpl) GetOrganizationPrivateEndpoints() (*[]PrivateEndpoint, erro
 	return &orgResponse.Result.PrivateEndpoints, nil
 }
 
-func (c *ClientImpl) UpdateOrganizationPrivateEndpoints(orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error) {
+func (c *ClientImpl) UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error) {
 	rb, err := json.Marshal(orgUpdate)
 	if err != nil {
 		return nil, err
@@ -472,7 +525,7 @@ func (c *ClientImpl) UpdateOrganizationPrivateEndpoints(orgUpdate OrganizationUp
 
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	body, err := c.doRequest(req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
