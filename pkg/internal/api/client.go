@@ -140,7 +140,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 			ctx = tflog.SetField(ctx, "statusCode", res.StatusCode)
 			ctx = tflog.SetField(ctx, "responseHeaders", res.Header)
 			ctx = tflog.SetField(ctx, "responseBody", string(body))
-			tflog.Debug(ctx, fmt.Sprintf("API request"))
+			tflog.Debug(ctx, "API request")
 
 			if res.StatusCode != http.StatusOK {
 				var resetSeconds float64
@@ -161,7 +161,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 					}
 				} else if res.StatusCode >= http.StatusInternalServerError { // 500
 					resetSeconds = currentExponentialBackoff
-					tflog.Warn(ctx, fmt.Sprintf("Server side error (5xx): waiting %d seconds before retrying", resetSeconds))
+					tflog.Warn(ctx, fmt.Sprintf("Server side error (5xx): waiting %f.1 seconds before retrying", resetSeconds))
 				} else {
 					return nil, backoff.Permanent(fmt.Errorf("status: %d, body: %s", res.StatusCode, body))
 				}
