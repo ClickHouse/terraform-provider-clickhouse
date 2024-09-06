@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -115,11 +116,11 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 		return func() ([]byte, error) {
 			req.Header.Set("User-Agent", fmt.Sprintf("terraform-provider-clickhouse/%s Commit/%s", project.Version(), project.Commit()))
 
+			// Copy the request body as a tflog field to have it logged.
 			if req.Body != nil {
-				requestBody, err := io.ReadAll(req.Body)
-				if err == nil {
-					ctx = tflog.SetField(ctx, "requestBody", string(requestBody))
-				}
+				var requestBody bytes.Buffer
+				req.Body = io.NopCloser(io.TeeReader(req.Body, &requestBody))
+				ctx = tflog.SetField(ctx, "requestBody", requestBody.String())
 			}
 
 			ctx = tflog.SetField(ctx, "requestHeaders", req.Header)
