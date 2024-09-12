@@ -16,19 +16,19 @@ variable "service_name" {
 }
 
 resource "clickhouse_service" "aws_red" {
-  name           = var.service_name
-  cloud_provider = "aws"
-  region         = var.aws_region
-  tier           = "production"
-  idle_scaling   = true
-  password_hash  = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
+  name                 = var.service_name
+  cloud_provider       = "aws"
+  region               = var.aws_region
+  tier                 = "production"
+  idle_scaling         = true
+  idle_timeout_minutes = 5
+  password_hash        = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
 
   // keep it empty to block access from internet
   ip_access = []
 
-  min_total_memory_gb  = 24
-  max_total_memory_gb  = 360
-  idle_timeout_minutes = 5
+  min_replica_memory_gb = 8
+  max_replica_memory_gb = 120
 }
 
 // add AWS PrivateLink from VPC foo to organization

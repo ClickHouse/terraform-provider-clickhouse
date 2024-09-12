@@ -86,6 +86,8 @@ type ServiceResourceModel struct {
 	IpAccessList                    types.List   `tfsdk:"ip_access"`
 	MinTotalMemoryGb                types.Int64  `tfsdk:"min_total_memory_gb"`
 	MaxTotalMemoryGb                types.Int64  `tfsdk:"max_total_memory_gb"`
+	MinReplicaMemoryGb              types.Int64  `tfsdk:"min_replica_memory_gb"`
+	MaxReplicaMemoryGb              types.Int64  `tfsdk:"max_replica_memory_gb"`
 	NumReplicas                     types.Int64  `tfsdk:"num_replicas"`
 	IdleTimeoutMinutes              types.Int64  `tfsdk:"idle_timeout_minutes"`
 	IAMRole                         types.String `tfsdk:"iam_role"`

@@ -149,17 +149,17 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			wantErr:         false,
 		},
 		{
-			name:  "Updates MinTotalMemoryGb field when in production tier",
+			name:  "Updates MinReplicaMemoryGb field when in production tier",
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
 				src.Tier = api.TierProduction
-				minTotalMemory := 10
-				src.MinTotalMemoryGb = &minTotalMemory
+				minReplicaMemory := 10
+				src.MinReplicaMemoryGb = &minReplicaMemory
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierProduction)
-				src.MinTotalMemoryGb = types.Int64Value(10)
+				src.MinReplicaMemoryGb = types.Int64Value(10)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -169,40 +169,40 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
 				src.Tier = api.TierDevelopment
-				minTotalMemory := 10
-				src.MinTotalMemoryGb = &minTotalMemory
+				minReplicaMemory := 10
+				src.MinReplicaMemoryGb = &minReplicaMemory
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierDevelopment)
-				src.MinTotalMemoryGb = types.Int64{}
+				src.MinReplicaMemoryGb = types.Int64{}
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
 		},
 		{
-			name:  "Updates MaxTotalMemoryGb field when in production tier",
+			name:  "Updates MaxReplicaMemoryGb field when in production tier",
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
 				src.Tier = api.TierProduction
-				maxTotalMemory := 10
-				src.MaxTotalMemoryGb = &maxTotalMemory
+				maxReplicaMemory := 10
+				src.MaxReplicaMemoryGb = &maxReplicaMemory
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierProduction)
-				src.MaxTotalMemoryGb = types.Int64Value(10)
+				src.MaxReplicaMemoryGb = types.Int64Value(10)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
 		},
 		{
-			name:  "Does not update MaxTotalMemoryGb field when in development tier",
+			name:  "Does not update MaxReplicaMemoryGb field when in development tier",
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
 				src.Tier = api.TierDevelopment
-				maxTotalMemory := 10
-				src.MaxTotalMemoryGb = &maxTotalMemory
+				maxReplicaMemory := 10
+				src.MaxReplicaMemoryGb = &maxReplicaMemory
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {

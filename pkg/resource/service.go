@@ -132,11 +132,21 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"min_total_memory_gb": schema.Int64Attribute{
-				Description: "Minimum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and greater than 24.",
-				Optional:    true,
+				Description:        "Minimum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and greater than 24.",
+				Optional:           true,
+				DeprecationMessage: "Please use min_replica_memory_gb instead",
 			},
 			"max_total_memory_gb": schema.Int64Attribute{
-				Description: "Maximum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.",
+				Description:        "Maximum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.",
+				Optional:           true,
+				DeprecationMessage: "Please use max_replica_memory_gb instead",
+			},
+			"min_replica_memory_gb": schema.Int64Attribute{
+				Description: "Minimum memory of a singe replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. min_replica_memory_gb x num_replicas (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Optional:    true,
+			},
+			"max_replica_memory_gb": schema.Int64Attribute{
+				Description: "Maximum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. max_replica_memory_gb x num_replicas (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 			},
 			"num_replicas": schema.Int64Attribute{
@@ -269,10 +279,17 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 	} else if plan.Tier.ValueString() == api.TierProduction {
-		if plan.MinTotalMemoryGb.IsNull() || plan.MaxTotalMemoryGb.IsNull() {
+		if plan.MinReplicaMemoryGb.IsNull() && plan.MinTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"min_total_memory_gb and max_total_memory_gb must be defined if the service tier is production",
+				"min_replica_memory_gb must be defined if the service tier is production",
+			)
+		}
+
+		if plan.MaxReplicaMemoryGb.IsNull() && plan.MaxTotalMemoryGb.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"max_replica_memory_gb must be defined if the service tier is production",
 			)
 		}
 
@@ -289,6 +306,27 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				"encryption_key and the encryption_assumed_role_identifier is only available for aws services",
 			)
 		}
+	}
+
+	if !plan.MinTotalMemoryGb.IsNull() && !plan.MinReplicaMemoryGb.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"min_total_memory_gb and min_replica_memory_gb can't be specified at the same time. Please remove deprecated field min_total_memory_gb",
+		)
+	}
+
+	if !plan.MaxTotalMemoryGb.IsNull() && !plan.MaxReplicaMemoryGb.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"max_total_memory_gb and max_replica_memory_gb can't be specified at the same time. Please remove deprecated field max_total_memory_gb",
+		)
+	}
+
+	if (!plan.MinReplicaMemoryGb.IsNull() || !plan.MaxReplicaMemoryGb.IsNull()) && (!plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull()) {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"If you specify either min_replica_memory_gb or max_replica_memory_gb fields, you can't use deprecated min_total_memory_gb nor max_total_memory_gb fields any more.",
+		)
 	}
 
 	if plan.IdleTimeoutMinutes.IsNull() && plan.IdleScaling.ValueBool() {
@@ -373,10 +411,27 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	if service.Tier == api.TierProduction {
-		minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
-		service.MinTotalMemoryGb = &minTotalMemoryGb
-		maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
-		service.MaxTotalMemoryGb = &maxTotalMemoryGb
+		var minReplicaMemoryGb, maxReplicaMemoryGb int
+		if !plan.MinReplicaMemoryGb.IsNull() {
+			minReplicaMemoryGb = int(plan.MinReplicaMemoryGb.ValueInt64())
+		} else {
+			// Due to a bug on the API, we always assumed the MinTotalMemoryGb value was always related to 3 replicas.
+			// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same
+			// behaviour as before.
+			minReplicaMemoryGb = int(plan.MinTotalMemoryGb.ValueInt64() / 3)
+		}
+
+		if !plan.MaxReplicaMemoryGb.IsNull() {
+			maxReplicaMemoryGb = int(plan.MaxReplicaMemoryGb.ValueInt64())
+		} else {
+			// Due to a bug on the API, we always assumed the MaxTotalMemoryGb value was always related to 3 replicas.
+			// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same
+			// behaviour as before.
+			maxReplicaMemoryGb = int(plan.MaxTotalMemoryGb.ValueInt64() / 3)
+		}
+
+		service.MinReplicaMemoryGb = &minReplicaMemoryGb
+		service.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 
 		if !plan.EncryptionKey.IsNull() {
 			service.EncryptionKey = plan.EncryptionKey.ValueString()
@@ -570,7 +625,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	scalingChange := false
-	serviceScaling := api.ServiceScalingUpdate{
+	replicaScaling := api.ReplicaScalingUpdate{
 		IdleScaling: state.IdleScaling.ValueBoolPointer(),
 	}
 
@@ -578,40 +633,60 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		scalingChange = true
 		idleScaling := new(bool)
 		*idleScaling = plan.IdleScaling.ValueBool()
-		serviceScaling.IdleScaling = idleScaling
+		replicaScaling.IdleScaling = idleScaling
 	}
 	if plan.MinTotalMemoryGb != state.MinTotalMemoryGb {
 		scalingChange = true
 		if !plan.MinTotalMemoryGb.IsNull() {
-			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64())
-			serviceScaling.MinTotalMemoryGb = &minTotalMemoryGb
+			// Due to a bug on the API, we always assumed the MinTotalMemoryGb value was always related to 3 replicas.
+			// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same
+			// behaviour as before.
+			minTotalMemoryGb := int(plan.MinTotalMemoryGb.ValueInt64()) / 3
+			replicaScaling.MinReplicaMemoryGb = &minTotalMemoryGb
 		}
 	}
 	if plan.MaxTotalMemoryGb != state.MaxTotalMemoryGb {
 		scalingChange = true
 		if !plan.MaxTotalMemoryGb.IsNull() {
-			maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64())
-			serviceScaling.MaxTotalMemoryGb = &maxTotalMemoryGb
+			// Due to a bug on the API, we always assumed the MaxTotalMemoryGb value was always related to 3 replicas.
+			// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same
+			// behaviour as before.
+			maxTotalMemoryGb := int(plan.MaxTotalMemoryGb.ValueInt64()) / 3
+			replicaScaling.MaxReplicaMemoryGb = &maxTotalMemoryGb
+		}
+	}
+	if plan.MinReplicaMemoryGb != state.MinReplicaMemoryGb {
+		scalingChange = true
+		if !plan.MinReplicaMemoryGb.IsNull() {
+			minReplicaMemoryGb := int(plan.MinReplicaMemoryGb.ValueInt64())
+			replicaScaling.MinReplicaMemoryGb = &minReplicaMemoryGb
+		}
+	}
+	if plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb {
+		scalingChange = true
+		if !plan.MaxReplicaMemoryGb.IsNull() {
+			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
+			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
 	}
 	if plan.NumReplicas != state.NumReplicas {
 		scalingChange = true
 		if !plan.NumReplicas.IsNull() {
 			numReplicas := int(plan.NumReplicas.ValueInt64())
-			serviceScaling.NumReplicas = &numReplicas
+			replicaScaling.NumReplicas = &numReplicas
 		}
 	}
 	if plan.IdleTimeoutMinutes != state.IdleTimeoutMinutes {
 		scalingChange = true
 		if !plan.IdleTimeoutMinutes.IsNull() {
 			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
-			serviceScaling.IdleTimeoutMinutes = &idleTimeoutMinutes
+			replicaScaling.IdleTimeoutMinutes = &idleTimeoutMinutes
 		}
 	}
 
 	if scalingChange {
 		var err error
-		_, err = r.client.UpdateServiceScaling(ctx, serviceId, serviceScaling)
+		_, err = r.client.UpdateReplicaScaling(ctx, serviceId, replicaScaling)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Scaling",
@@ -729,11 +804,11 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	}
 
 	if service.Tier == api.TierProduction {
-		if service.MinTotalMemoryGb != nil {
-			state.MinTotalMemoryGb = types.Int64Value(int64(*service.MinTotalMemoryGb))
+		if service.MinReplicaMemoryGb != nil {
+			state.MinReplicaMemoryGb = types.Int64Value(int64(*service.MinReplicaMemoryGb))
 		}
-		if service.MaxTotalMemoryGb != nil {
-			state.MaxTotalMemoryGb = types.Int64Value(int64(*service.MaxTotalMemoryGb))
+		if service.MaxReplicaMemoryGb != nil {
+			state.MaxReplicaMemoryGb = types.Int64Value(int64(*service.MaxReplicaMemoryGb))
 		}
 		if service.NumReplicas != nil {
 			state.NumReplicas = types.Int64Value(int64(*service.NumReplicas))
