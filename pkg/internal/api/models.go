@@ -57,7 +57,7 @@ type Service struct {
 	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
 }
 
-func (s *Service) FixReplicas() {
+func (s *Service) FixMemoryBounds() {
 	if s.MinReplicaMemoryGb == nil && s.MinTotalMemoryGb != nil {
 		// Due to a bug on the API, we always assumed the MinTotalMemoryGb value was always related to 3 replicas.
 		// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same

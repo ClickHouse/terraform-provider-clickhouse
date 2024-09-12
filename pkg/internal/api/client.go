@@ -258,7 +258,8 @@ func (c *ClientImpl) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvi
 }
 
 func (c *ClientImpl) CreateService(ctx context.Context, s Service) (*Service, string, error) {
-	s.FixReplicas()
+	// Needed until we have alignment between service creation and replicaScaling calls.
+	s.FixMemoryBounds()
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, "", err
