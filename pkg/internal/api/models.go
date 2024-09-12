@@ -76,7 +76,7 @@ func (s *Service) FixReplicas() {
 
 	if s.MinTotalMemoryGb == nil && s.MinReplicaMemoryGb != nil {
 		// Due to a bug on the API, we always assumed the MinTotalMemoryGb value was always related to 3 replicas.
-		// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same
+		// Now we use a per-replica API to set the min total memory so we need to multiply by 3 to get the same
 		// behaviour as before.
 		minTotalMemory := *s.MinReplicaMemoryGb * 3
 		s.MinTotalMemoryGb = &minTotalMemory
@@ -84,7 +84,7 @@ func (s *Service) FixReplicas() {
 
 	if s.MaxTotalMemoryGb == nil && s.MaxReplicaMemoryGb != nil {
 		// Due to a bug on the API, we always assumed the MaxTotalMemoryGb value was always related to 3 replicas.
-		// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same
+		// Now we use a per-replica API to set the min total memory so we need to multiply by 3 to get the same
 		// behaviour as before.
 		maxTotalMemory := *s.MaxReplicaMemoryGb * 3
 		s.MaxTotalMemoryGb = &maxTotalMemory
