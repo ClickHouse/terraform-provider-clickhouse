@@ -404,7 +404,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	service.IpAccessList = ipAccessLists
 
 	// Create new service
-	s, _, err := r.client.CreateService(service)
+	s, _, err := r.client.CreateService(ctx, service)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating service",
@@ -413,7 +413,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	err = r.client.WaitForServiceState(s.Id, func(state string) bool { return state != api.StateProvisioning }, 300)
+	err = r.client.WaitForServiceState(ctx, s.Id, func(state string) bool { return state != api.StateProvisioning }, 300)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error retrieving service state",
@@ -425,7 +425,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	// Update service password if provided explicitly
 	planPassword := plan.Password.ValueString()
 	if len(planPassword) > 0 {
-		_, err := r.client.UpdateServicePassword(s.Id, servicePasswordUpdateFromPlainPassword(planPassword))
+		_, err := r.client.UpdateServicePassword(ctx, s.Id, servicePasswordUpdateFromPlainPassword(planPassword))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error setting service password",
@@ -445,7 +445,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			passwordUpdate.NewDoubleSha1Hash = doubleSha1PasswordHash
 		}
 
-		_, err := r.client.UpdateServicePassword(s.Id, passwordUpdate)
+		_, err := r.client.UpdateServicePassword(ctx, s.Id, passwordUpdate)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error setting service password",
@@ -559,7 +559,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Update existing service
 	if serviceChange {
 		var err error
-		_, err = r.client.UpdateService(serviceId, service)
+		_, err = r.client.UpdateService(ctx, serviceId, service)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service",
@@ -611,7 +611,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	if scalingChange {
 		var err error
-		_, err = r.client.UpdateServiceScaling(serviceId, serviceScaling)
+		_, err = r.client.UpdateServiceScaling(ctx, serviceId, serviceScaling)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Scaling",
@@ -624,7 +624,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	password := plan.Password.ValueString()
 	if len(password) > 0 && plan.Password != state.Password {
 		password = plan.Password.ValueString()
-		_, err := r.client.UpdateServicePassword(serviceId, servicePasswordUpdateFromPlainPassword(password))
+		_, err := r.client.UpdateServicePassword(ctx, serviceId, servicePasswordUpdateFromPlainPassword(password))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
@@ -645,7 +645,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			passwordUpdate.NewDoubleSha1Hash = plan.DoubleSha1PasswordHash.ValueString()
 		}
 
-		_, err := r.client.UpdateServicePassword(serviceId, passwordUpdate)
+		_, err := r.client.UpdateServicePassword(ctx, serviceId, passwordUpdate)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
@@ -682,7 +682,7 @@ func (r *ServiceResource) Delete(ctx context.Context, req resource.DeleteRequest
 	}
 
 	// Delete existing order
-	_, err := r.client.DeleteService(state.ID.ValueString())
+	_, err := r.client.DeleteService(ctx, state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting ClickHouse Service",
@@ -704,7 +704,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	}
 
 	// Get latest service value from ClickHouse OpenAPI
-	service, err := r.client.GetService(state.ID.ValueString())
+	service, err := r.client.GetService(ctx, state.ID.ValueString())
 	if api.IsNotFound(err) {
 		// Service was deleted outside terraform.
 		state.ID = types.StringNull()

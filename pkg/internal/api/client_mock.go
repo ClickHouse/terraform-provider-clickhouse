@@ -5,6 +5,7 @@ package api
 //go:generate minimock -i github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api.Client -o client_mock_test.go -n ClientMock -p api
 
 import (
+	"context"
 	"sync"
 	mm_atomic "sync/atomic"
 	mm_time "time"
@@ -17,62 +18,62 @@ type ClientMock struct {
 	t          minimock.Tester
 	finishOnce sync.Once
 
-	funcCreateService          func(s Service) (sp1 *Service, s1 string, err error)
-	inspectFuncCreateService   func(s Service)
+	funcCreateService          func(ctx context.Context, s Service) (sp1 *Service, s1 string, err error)
+	inspectFuncCreateService   func(ctx context.Context, s Service)
 	afterCreateServiceCounter  uint64
 	beforeCreateServiceCounter uint64
 	CreateServiceMock          mClientMockCreateService
 
-	funcDeleteService          func(serviceId string) (sp1 *Service, err error)
-	inspectFuncDeleteService   func(serviceId string)
+	funcDeleteService          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
+	inspectFuncDeleteService   func(ctx context.Context, serviceId string)
 	afterDeleteServiceCounter  uint64
 	beforeDeleteServiceCounter uint64
 	DeleteServiceMock          mClientMockDeleteService
 
-	funcGetOrgPrivateEndpointConfig          func(cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error)
-	inspectFuncGetOrgPrivateEndpointConfig   func(cloudProvider string, region string)
+	funcGetOrgPrivateEndpointConfig          func(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error)
+	inspectFuncGetOrgPrivateEndpointConfig   func(ctx context.Context, cloudProvider string, region string)
 	afterGetOrgPrivateEndpointConfigCounter  uint64
 	beforeGetOrgPrivateEndpointConfigCounter uint64
 	GetOrgPrivateEndpointConfigMock          mClientMockGetOrgPrivateEndpointConfig
 
-	funcGetOrganizationPrivateEndpoints          func() (pap1 *[]PrivateEndpoint, err error)
-	inspectFuncGetOrganizationPrivateEndpoints   func()
+	funcGetOrganizationPrivateEndpoints          func(ctx context.Context) (pap1 *[]PrivateEndpoint, err error)
+	inspectFuncGetOrganizationPrivateEndpoints   func(ctx context.Context)
 	afterGetOrganizationPrivateEndpointsCounter  uint64
 	beforeGetOrganizationPrivateEndpointsCounter uint64
 	GetOrganizationPrivateEndpointsMock          mClientMockGetOrganizationPrivateEndpoints
 
-	funcGetService          func(serviceId string) (sp1 *Service, err error)
-	inspectFuncGetService   func(serviceId string)
+	funcGetService          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
+	inspectFuncGetService   func(ctx context.Context, serviceId string)
 	afterGetServiceCounter  uint64
 	beforeGetServiceCounter uint64
 	GetServiceMock          mClientMockGetService
 
-	funcUpdateOrganizationPrivateEndpoints          func(orgUpdate OrganizationUpdate) (pap1 *[]PrivateEndpoint, err error)
-	inspectFuncUpdateOrganizationPrivateEndpoints   func(orgUpdate OrganizationUpdate)
+	funcUpdateOrganizationPrivateEndpoints          func(ctx context.Context, orgUpdate OrganizationUpdate) (pap1 *[]PrivateEndpoint, err error)
+	inspectFuncUpdateOrganizationPrivateEndpoints   func(ctx context.Context, orgUpdate OrganizationUpdate)
 	afterUpdateOrganizationPrivateEndpointsCounter  uint64
 	beforeUpdateOrganizationPrivateEndpointsCounter uint64
 	UpdateOrganizationPrivateEndpointsMock          mClientMockUpdateOrganizationPrivateEndpoints
 
-	funcUpdateService          func(serviceId string, s ServiceUpdate) (sp1 *Service, err error)
-	inspectFuncUpdateService   func(serviceId string, s ServiceUpdate)
+	funcUpdateService          func(ctx context.Context, serviceId string, s ServiceUpdate) (sp1 *Service, err error)
+	inspectFuncUpdateService   func(ctx context.Context, serviceId string, s ServiceUpdate)
 	afterUpdateServiceCounter  uint64
 	beforeUpdateServiceCounter uint64
 	UpdateServiceMock          mClientMockUpdateService
 
-	funcUpdateServicePassword          func(serviceId string, u ServicePasswordUpdate) (sp1 *ServicePasswordUpdateResult, err error)
-	inspectFuncUpdateServicePassword   func(serviceId string, u ServicePasswordUpdate)
+	funcUpdateServicePassword          func(ctx context.Context, serviceId string, u ServicePasswordUpdate) (sp1 *ServicePasswordUpdateResult, err error)
+	inspectFuncUpdateServicePassword   func(ctx context.Context, serviceId string, u ServicePasswordUpdate)
 	afterUpdateServicePasswordCounter  uint64
 	beforeUpdateServicePasswordCounter uint64
 	UpdateServicePasswordMock          mClientMockUpdateServicePassword
 
-	funcUpdateServiceScaling          func(serviceId string, s ServiceScalingUpdate) (sp1 *Service, err error)
-	inspectFuncUpdateServiceScaling   func(serviceId string, s ServiceScalingUpdate)
+	funcUpdateServiceScaling          func(ctx context.Context, serviceId string, s ServiceScalingUpdate) (sp1 *Service, err error)
+	inspectFuncUpdateServiceScaling   func(ctx context.Context, serviceId string, s ServiceScalingUpdate)
 	afterUpdateServiceScalingCounter  uint64
 	beforeUpdateServiceScalingCounter uint64
 	UpdateServiceScalingMock          mClientMockUpdateServiceScaling
 
-	funcWaitForServiceState          func(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
-	inspectFuncWaitForServiceState   func(serviceId string, stateChecker func(string) bool, maxWaitSeconds int)
+	funcWaitForServiceState          func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
+	inspectFuncWaitForServiceState   func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int)
 	afterWaitForServiceStateCounter  uint64
 	beforeWaitForServiceStateCounter uint64
 	WaitForServiceStateMock          mClientMockWaitForServiceState
@@ -96,6 +97,7 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetOrgPrivateEndpointConfigMock.callArgs = []*ClientMockGetOrgPrivateEndpointConfigParams{}
 
 	m.GetOrganizationPrivateEndpointsMock = mClientMockGetOrganizationPrivateEndpoints{mock: m}
+	m.GetOrganizationPrivateEndpointsMock.callArgs = []*ClientMockGetOrganizationPrivateEndpointsParams{}
 
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
@@ -143,12 +145,14 @@ type ClientMockCreateServiceExpectation struct {
 
 // ClientMockCreateServiceParams contains parameters of the Client.CreateService
 type ClientMockCreateServiceParams struct {
-	s Service
+	ctx context.Context
+	s   Service
 }
 
 // ClientMockCreateServiceParamPtrs contains pointers to parameters of the Client.CreateService
 type ClientMockCreateServiceParamPtrs struct {
-	s *Service
+	ctx *context.Context
+	s   *Service
 }
 
 // ClientMockCreateServiceResults contains results of the Client.CreateService
@@ -169,7 +173,7 @@ func (mmCreateService *mClientMockCreateService) Optional() *mClientMockCreateSe
 }
 
 // Expect sets up expected params for Client.CreateService
-func (mmCreateService *mClientMockCreateService) Expect(s Service) *mClientMockCreateService {
+func (mmCreateService *mClientMockCreateService) Expect(ctx context.Context, s Service) *mClientMockCreateService {
 	if mmCreateService.mock.funcCreateService != nil {
 		mmCreateService.mock.t.Fatalf("ClientMock.CreateService mock is already set by Set")
 	}
@@ -182,7 +186,7 @@ func (mmCreateService *mClientMockCreateService) Expect(s Service) *mClientMockC
 		mmCreateService.mock.t.Fatalf("ClientMock.CreateService mock is already set by ExpectParams functions")
 	}
 
-	mmCreateService.defaultExpectation.params = &ClientMockCreateServiceParams{s}
+	mmCreateService.defaultExpectation.params = &ClientMockCreateServiceParams{ctx, s}
 	for _, e := range mmCreateService.expectations {
 		if minimock.Equal(e.params, mmCreateService.defaultExpectation.params) {
 			mmCreateService.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateService.defaultExpectation.params)
@@ -192,8 +196,30 @@ func (mmCreateService *mClientMockCreateService) Expect(s Service) *mClientMockC
 	return mmCreateService
 }
 
-// ExpectSParam1 sets up expected param s for Client.CreateService
-func (mmCreateService *mClientMockCreateService) ExpectSParam1(s Service) *mClientMockCreateService {
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateService
+func (mmCreateService *mClientMockCreateService) ExpectCtxParam1(ctx context.Context) *mClientMockCreateService {
+	if mmCreateService.mock.funcCreateService != nil {
+		mmCreateService.mock.t.Fatalf("ClientMock.CreateService mock is already set by Set")
+	}
+
+	if mmCreateService.defaultExpectation == nil {
+		mmCreateService.defaultExpectation = &ClientMockCreateServiceExpectation{}
+	}
+
+	if mmCreateService.defaultExpectation.params != nil {
+		mmCreateService.mock.t.Fatalf("ClientMock.CreateService mock is already set by Expect")
+	}
+
+	if mmCreateService.defaultExpectation.paramPtrs == nil {
+		mmCreateService.defaultExpectation.paramPtrs = &ClientMockCreateServiceParamPtrs{}
+	}
+	mmCreateService.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmCreateService
+}
+
+// ExpectSParam2 sets up expected param s for Client.CreateService
+func (mmCreateService *mClientMockCreateService) ExpectSParam2(s Service) *mClientMockCreateService {
 	if mmCreateService.mock.funcCreateService != nil {
 		mmCreateService.mock.t.Fatalf("ClientMock.CreateService mock is already set by Set")
 	}
@@ -215,7 +241,7 @@ func (mmCreateService *mClientMockCreateService) ExpectSParam1(s Service) *mClie
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.CreateService
-func (mmCreateService *mClientMockCreateService) Inspect(f func(s Service)) *mClientMockCreateService {
+func (mmCreateService *mClientMockCreateService) Inspect(f func(ctx context.Context, s Service)) *mClientMockCreateService {
 	if mmCreateService.mock.inspectFuncCreateService != nil {
 		mmCreateService.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateService")
 	}
@@ -239,7 +265,7 @@ func (mmCreateService *mClientMockCreateService) Return(sp1 *Service, s1 string,
 }
 
 // Set uses given function f to mock the Client.CreateService method
-func (mmCreateService *mClientMockCreateService) Set(f func(s Service) (sp1 *Service, s1 string, err error)) *ClientMock {
+func (mmCreateService *mClientMockCreateService) Set(f func(ctx context.Context, s Service) (sp1 *Service, s1 string, err error)) *ClientMock {
 	if mmCreateService.defaultExpectation != nil {
 		mmCreateService.mock.t.Fatalf("Default expectation is already set for the Client.CreateService method")
 	}
@@ -254,14 +280,14 @@ func (mmCreateService *mClientMockCreateService) Set(f func(s Service) (sp1 *Ser
 
 // When sets expectation for the Client.CreateService which will trigger the result defined by the following
 // Then helper
-func (mmCreateService *mClientMockCreateService) When(s Service) *ClientMockCreateServiceExpectation {
+func (mmCreateService *mClientMockCreateService) When(ctx context.Context, s Service) *ClientMockCreateServiceExpectation {
 	if mmCreateService.mock.funcCreateService != nil {
 		mmCreateService.mock.t.Fatalf("ClientMock.CreateService mock is already set by Set")
 	}
 
 	expectation := &ClientMockCreateServiceExpectation{
 		mock:   mmCreateService.mock,
-		params: &ClientMockCreateServiceParams{s},
+		params: &ClientMockCreateServiceParams{ctx, s},
 	}
 	mmCreateService.expectations = append(mmCreateService.expectations, expectation)
 	return expectation
@@ -294,15 +320,15 @@ func (mmCreateService *mClientMockCreateService) invocationsDone() bool {
 }
 
 // CreateService implements Client
-func (mmCreateService *ClientMock) CreateService(s Service) (sp1 *Service, s1 string, err error) {
+func (mmCreateService *ClientMock) CreateService(ctx context.Context, s Service) (sp1 *Service, s1 string, err error) {
 	mm_atomic.AddUint64(&mmCreateService.beforeCreateServiceCounter, 1)
 	defer mm_atomic.AddUint64(&mmCreateService.afterCreateServiceCounter, 1)
 
 	if mmCreateService.inspectFuncCreateService != nil {
-		mmCreateService.inspectFuncCreateService(s)
+		mmCreateService.inspectFuncCreateService(ctx, s)
 	}
 
-	mm_params := ClientMockCreateServiceParams{s}
+	mm_params := ClientMockCreateServiceParams{ctx, s}
 
 	// Record call args
 	mmCreateService.CreateServiceMock.mutex.Lock()
@@ -321,9 +347,13 @@ func (mmCreateService *ClientMock) CreateService(s Service) (sp1 *Service, s1 st
 		mm_want := mmCreateService.CreateServiceMock.defaultExpectation.params
 		mm_want_ptrs := mmCreateService.CreateServiceMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockCreateServiceParams{s}
+		mm_got := ClientMockCreateServiceParams{ctx, s}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateService.t.Errorf("ClientMock.CreateService got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.s != nil && !minimock.Equal(*mm_want_ptrs.s, mm_got.s) {
 				mmCreateService.t.Errorf("ClientMock.CreateService got unexpected parameter s, want: %#v, got: %#v%s\n", *mm_want_ptrs.s, mm_got.s, minimock.Diff(*mm_want_ptrs.s, mm_got.s))
@@ -340,9 +370,9 @@ func (mmCreateService *ClientMock) CreateService(s Service) (sp1 *Service, s1 st
 		return (*mm_results).sp1, (*mm_results).s1, (*mm_results).err
 	}
 	if mmCreateService.funcCreateService != nil {
-		return mmCreateService.funcCreateService(s)
+		return mmCreateService.funcCreateService(ctx, s)
 	}
-	mmCreateService.t.Fatalf("Unexpected call to ClientMock.CreateService. %v", s)
+	mmCreateService.t.Fatalf("Unexpected call to ClientMock.CreateService. %v %v", ctx, s)
 	return
 }
 
@@ -437,11 +467,13 @@ type ClientMockDeleteServiceExpectation struct {
 
 // ClientMockDeleteServiceParams contains parameters of the Client.DeleteService
 type ClientMockDeleteServiceParams struct {
+	ctx       context.Context
 	serviceId string
 }
 
 // ClientMockDeleteServiceParamPtrs contains pointers to parameters of the Client.DeleteService
 type ClientMockDeleteServiceParamPtrs struct {
+	ctx       *context.Context
 	serviceId *string
 }
 
@@ -462,7 +494,7 @@ func (mmDeleteService *mClientMockDeleteService) Optional() *mClientMockDeleteSe
 }
 
 // Expect sets up expected params for Client.DeleteService
-func (mmDeleteService *mClientMockDeleteService) Expect(serviceId string) *mClientMockDeleteService {
+func (mmDeleteService *mClientMockDeleteService) Expect(ctx context.Context, serviceId string) *mClientMockDeleteService {
 	if mmDeleteService.mock.funcDeleteService != nil {
 		mmDeleteService.mock.t.Fatalf("ClientMock.DeleteService mock is already set by Set")
 	}
@@ -475,7 +507,7 @@ func (mmDeleteService *mClientMockDeleteService) Expect(serviceId string) *mClie
 		mmDeleteService.mock.t.Fatalf("ClientMock.DeleteService mock is already set by ExpectParams functions")
 	}
 
-	mmDeleteService.defaultExpectation.params = &ClientMockDeleteServiceParams{serviceId}
+	mmDeleteService.defaultExpectation.params = &ClientMockDeleteServiceParams{ctx, serviceId}
 	for _, e := range mmDeleteService.expectations {
 		if minimock.Equal(e.params, mmDeleteService.defaultExpectation.params) {
 			mmDeleteService.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteService.defaultExpectation.params)
@@ -485,8 +517,30 @@ func (mmDeleteService *mClientMockDeleteService) Expect(serviceId string) *mClie
 	return mmDeleteService
 }
 
-// ExpectServiceIdParam1 sets up expected param serviceId for Client.DeleteService
-func (mmDeleteService *mClientMockDeleteService) ExpectServiceIdParam1(serviceId string) *mClientMockDeleteService {
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteService
+func (mmDeleteService *mClientMockDeleteService) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteService {
+	if mmDeleteService.mock.funcDeleteService != nil {
+		mmDeleteService.mock.t.Fatalf("ClientMock.DeleteService mock is already set by Set")
+	}
+
+	if mmDeleteService.defaultExpectation == nil {
+		mmDeleteService.defaultExpectation = &ClientMockDeleteServiceExpectation{}
+	}
+
+	if mmDeleteService.defaultExpectation.params != nil {
+		mmDeleteService.mock.t.Fatalf("ClientMock.DeleteService mock is already set by Expect")
+	}
+
+	if mmDeleteService.defaultExpectation.paramPtrs == nil {
+		mmDeleteService.defaultExpectation.paramPtrs = &ClientMockDeleteServiceParamPtrs{}
+	}
+	mmDeleteService.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmDeleteService
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.DeleteService
+func (mmDeleteService *mClientMockDeleteService) ExpectServiceIdParam2(serviceId string) *mClientMockDeleteService {
 	if mmDeleteService.mock.funcDeleteService != nil {
 		mmDeleteService.mock.t.Fatalf("ClientMock.DeleteService mock is already set by Set")
 	}
@@ -508,7 +562,7 @@ func (mmDeleteService *mClientMockDeleteService) ExpectServiceIdParam1(serviceId
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.DeleteService
-func (mmDeleteService *mClientMockDeleteService) Inspect(f func(serviceId string)) *mClientMockDeleteService {
+func (mmDeleteService *mClientMockDeleteService) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockDeleteService {
 	if mmDeleteService.mock.inspectFuncDeleteService != nil {
 		mmDeleteService.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteService")
 	}
@@ -532,7 +586,7 @@ func (mmDeleteService *mClientMockDeleteService) Return(sp1 *Service, err error)
 }
 
 // Set uses given function f to mock the Client.DeleteService method
-func (mmDeleteService *mClientMockDeleteService) Set(f func(serviceId string) (sp1 *Service, err error)) *ClientMock {
+func (mmDeleteService *mClientMockDeleteService) Set(f func(ctx context.Context, serviceId string) (sp1 *Service, err error)) *ClientMock {
 	if mmDeleteService.defaultExpectation != nil {
 		mmDeleteService.mock.t.Fatalf("Default expectation is already set for the Client.DeleteService method")
 	}
@@ -547,14 +601,14 @@ func (mmDeleteService *mClientMockDeleteService) Set(f func(serviceId string) (s
 
 // When sets expectation for the Client.DeleteService which will trigger the result defined by the following
 // Then helper
-func (mmDeleteService *mClientMockDeleteService) When(serviceId string) *ClientMockDeleteServiceExpectation {
+func (mmDeleteService *mClientMockDeleteService) When(ctx context.Context, serviceId string) *ClientMockDeleteServiceExpectation {
 	if mmDeleteService.mock.funcDeleteService != nil {
 		mmDeleteService.mock.t.Fatalf("ClientMock.DeleteService mock is already set by Set")
 	}
 
 	expectation := &ClientMockDeleteServiceExpectation{
 		mock:   mmDeleteService.mock,
-		params: &ClientMockDeleteServiceParams{serviceId},
+		params: &ClientMockDeleteServiceParams{ctx, serviceId},
 	}
 	mmDeleteService.expectations = append(mmDeleteService.expectations, expectation)
 	return expectation
@@ -587,15 +641,15 @@ func (mmDeleteService *mClientMockDeleteService) invocationsDone() bool {
 }
 
 // DeleteService implements Client
-func (mmDeleteService *ClientMock) DeleteService(serviceId string) (sp1 *Service, err error) {
+func (mmDeleteService *ClientMock) DeleteService(ctx context.Context, serviceId string) (sp1 *Service, err error) {
 	mm_atomic.AddUint64(&mmDeleteService.beforeDeleteServiceCounter, 1)
 	defer mm_atomic.AddUint64(&mmDeleteService.afterDeleteServiceCounter, 1)
 
 	if mmDeleteService.inspectFuncDeleteService != nil {
-		mmDeleteService.inspectFuncDeleteService(serviceId)
+		mmDeleteService.inspectFuncDeleteService(ctx, serviceId)
 	}
 
-	mm_params := ClientMockDeleteServiceParams{serviceId}
+	mm_params := ClientMockDeleteServiceParams{ctx, serviceId}
 
 	// Record call args
 	mmDeleteService.DeleteServiceMock.mutex.Lock()
@@ -614,9 +668,13 @@ func (mmDeleteService *ClientMock) DeleteService(serviceId string) (sp1 *Service
 		mm_want := mmDeleteService.DeleteServiceMock.defaultExpectation.params
 		mm_want_ptrs := mmDeleteService.DeleteServiceMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockDeleteServiceParams{serviceId}
+		mm_got := ClientMockDeleteServiceParams{ctx, serviceId}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteService.t.Errorf("ClientMock.DeleteService got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
 				mmDeleteService.t.Errorf("ClientMock.DeleteService got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
@@ -633,9 +691,9 @@ func (mmDeleteService *ClientMock) DeleteService(serviceId string) (sp1 *Service
 		return (*mm_results).sp1, (*mm_results).err
 	}
 	if mmDeleteService.funcDeleteService != nil {
-		return mmDeleteService.funcDeleteService(serviceId)
+		return mmDeleteService.funcDeleteService(ctx, serviceId)
 	}
-	mmDeleteService.t.Fatalf("Unexpected call to ClientMock.DeleteService. %v", serviceId)
+	mmDeleteService.t.Fatalf("Unexpected call to ClientMock.DeleteService. %v %v", ctx, serviceId)
 	return
 }
 
@@ -730,12 +788,14 @@ type ClientMockGetOrgPrivateEndpointConfigExpectation struct {
 
 // ClientMockGetOrgPrivateEndpointConfigParams contains parameters of the Client.GetOrgPrivateEndpointConfig
 type ClientMockGetOrgPrivateEndpointConfigParams struct {
+	ctx           context.Context
 	cloudProvider string
 	region        string
 }
 
 // ClientMockGetOrgPrivateEndpointConfigParamPtrs contains pointers to parameters of the Client.GetOrgPrivateEndpointConfig
 type ClientMockGetOrgPrivateEndpointConfigParamPtrs struct {
+	ctx           *context.Context
 	cloudProvider *string
 	region        *string
 }
@@ -757,7 +817,7 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Opt
 }
 
 // Expect sets up expected params for Client.GetOrgPrivateEndpointConfig
-func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Expect(cloudProvider string, region string) *mClientMockGetOrgPrivateEndpointConfig {
+func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Expect(ctx context.Context, cloudProvider string, region string) *mClientMockGetOrgPrivateEndpointConfig {
 	if mmGetOrgPrivateEndpointConfig.mock.funcGetOrgPrivateEndpointConfig != nil {
 		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetOrgPrivateEndpointConfig mock is already set by Set")
 	}
@@ -770,7 +830,7 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Exp
 		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetOrgPrivateEndpointConfig mock is already set by ExpectParams functions")
 	}
 
-	mmGetOrgPrivateEndpointConfig.defaultExpectation.params = &ClientMockGetOrgPrivateEndpointConfigParams{cloudProvider, region}
+	mmGetOrgPrivateEndpointConfig.defaultExpectation.params = &ClientMockGetOrgPrivateEndpointConfigParams{ctx, cloudProvider, region}
 	for _, e := range mmGetOrgPrivateEndpointConfig.expectations {
 		if minimock.Equal(e.params, mmGetOrgPrivateEndpointConfig.defaultExpectation.params) {
 			mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetOrgPrivateEndpointConfig.defaultExpectation.params)
@@ -780,8 +840,30 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Exp
 	return mmGetOrgPrivateEndpointConfig
 }
 
-// ExpectCloudProviderParam1 sets up expected param cloudProvider for Client.GetOrgPrivateEndpointConfig
-func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) ExpectCloudProviderParam1(cloudProvider string) *mClientMockGetOrgPrivateEndpointConfig {
+// ExpectCtxParam1 sets up expected param ctx for Client.GetOrgPrivateEndpointConfig
+func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) ExpectCtxParam1(ctx context.Context) *mClientMockGetOrgPrivateEndpointConfig {
+	if mmGetOrgPrivateEndpointConfig.mock.funcGetOrgPrivateEndpointConfig != nil {
+		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetOrgPrivateEndpointConfig mock is already set by Set")
+	}
+
+	if mmGetOrgPrivateEndpointConfig.defaultExpectation == nil {
+		mmGetOrgPrivateEndpointConfig.defaultExpectation = &ClientMockGetOrgPrivateEndpointConfigExpectation{}
+	}
+
+	if mmGetOrgPrivateEndpointConfig.defaultExpectation.params != nil {
+		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetOrgPrivateEndpointConfig mock is already set by Expect")
+	}
+
+	if mmGetOrgPrivateEndpointConfig.defaultExpectation.paramPtrs == nil {
+		mmGetOrgPrivateEndpointConfig.defaultExpectation.paramPtrs = &ClientMockGetOrgPrivateEndpointConfigParamPtrs{}
+	}
+	mmGetOrgPrivateEndpointConfig.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmGetOrgPrivateEndpointConfig
+}
+
+// ExpectCloudProviderParam2 sets up expected param cloudProvider for Client.GetOrgPrivateEndpointConfig
+func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) ExpectCloudProviderParam2(cloudProvider string) *mClientMockGetOrgPrivateEndpointConfig {
 	if mmGetOrgPrivateEndpointConfig.mock.funcGetOrgPrivateEndpointConfig != nil {
 		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetOrgPrivateEndpointConfig mock is already set by Set")
 	}
@@ -802,8 +884,8 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Exp
 	return mmGetOrgPrivateEndpointConfig
 }
 
-// ExpectRegionParam2 sets up expected param region for Client.GetOrgPrivateEndpointConfig
-func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) ExpectRegionParam2(region string) *mClientMockGetOrgPrivateEndpointConfig {
+// ExpectRegionParam3 sets up expected param region for Client.GetOrgPrivateEndpointConfig
+func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) ExpectRegionParam3(region string) *mClientMockGetOrgPrivateEndpointConfig {
 	if mmGetOrgPrivateEndpointConfig.mock.funcGetOrgPrivateEndpointConfig != nil {
 		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetOrgPrivateEndpointConfig mock is already set by Set")
 	}
@@ -825,7 +907,7 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Exp
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.GetOrgPrivateEndpointConfig
-func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Inspect(f func(cloudProvider string, region string)) *mClientMockGetOrgPrivateEndpointConfig {
+func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Inspect(f func(ctx context.Context, cloudProvider string, region string)) *mClientMockGetOrgPrivateEndpointConfig {
 	if mmGetOrgPrivateEndpointConfig.mock.inspectFuncGetOrgPrivateEndpointConfig != nil {
 		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("Inspect function is already set for ClientMock.GetOrgPrivateEndpointConfig")
 	}
@@ -849,7 +931,7 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Ret
 }
 
 // Set uses given function f to mock the Client.GetOrgPrivateEndpointConfig method
-func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Set(f func(cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error)) *ClientMock {
+func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Set(f func(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error)) *ClientMock {
 	if mmGetOrgPrivateEndpointConfig.defaultExpectation != nil {
 		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("Default expectation is already set for the Client.GetOrgPrivateEndpointConfig method")
 	}
@@ -864,14 +946,14 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Set
 
 // When sets expectation for the Client.GetOrgPrivateEndpointConfig which will trigger the result defined by the following
 // Then helper
-func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) When(cloudProvider string, region string) *ClientMockGetOrgPrivateEndpointConfigExpectation {
+func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) When(ctx context.Context, cloudProvider string, region string) *ClientMockGetOrgPrivateEndpointConfigExpectation {
 	if mmGetOrgPrivateEndpointConfig.mock.funcGetOrgPrivateEndpointConfig != nil {
 		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetOrgPrivateEndpointConfig mock is already set by Set")
 	}
 
 	expectation := &ClientMockGetOrgPrivateEndpointConfigExpectation{
 		mock:   mmGetOrgPrivateEndpointConfig.mock,
-		params: &ClientMockGetOrgPrivateEndpointConfigParams{cloudProvider, region},
+		params: &ClientMockGetOrgPrivateEndpointConfigParams{ctx, cloudProvider, region},
 	}
 	mmGetOrgPrivateEndpointConfig.expectations = append(mmGetOrgPrivateEndpointConfig.expectations, expectation)
 	return expectation
@@ -904,15 +986,15 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) inv
 }
 
 // GetOrgPrivateEndpointConfig implements Client
-func (mmGetOrgPrivateEndpointConfig *ClientMock) GetOrgPrivateEndpointConfig(cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error) {
+func (mmGetOrgPrivateEndpointConfig *ClientMock) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error) {
 	mm_atomic.AddUint64(&mmGetOrgPrivateEndpointConfig.beforeGetOrgPrivateEndpointConfigCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetOrgPrivateEndpointConfig.afterGetOrgPrivateEndpointConfigCounter, 1)
 
 	if mmGetOrgPrivateEndpointConfig.inspectFuncGetOrgPrivateEndpointConfig != nil {
-		mmGetOrgPrivateEndpointConfig.inspectFuncGetOrgPrivateEndpointConfig(cloudProvider, region)
+		mmGetOrgPrivateEndpointConfig.inspectFuncGetOrgPrivateEndpointConfig(ctx, cloudProvider, region)
 	}
 
-	mm_params := ClientMockGetOrgPrivateEndpointConfigParams{cloudProvider, region}
+	mm_params := ClientMockGetOrgPrivateEndpointConfigParams{ctx, cloudProvider, region}
 
 	// Record call args
 	mmGetOrgPrivateEndpointConfig.GetOrgPrivateEndpointConfigMock.mutex.Lock()
@@ -931,9 +1013,13 @@ func (mmGetOrgPrivateEndpointConfig *ClientMock) GetOrgPrivateEndpointConfig(clo
 		mm_want := mmGetOrgPrivateEndpointConfig.GetOrgPrivateEndpointConfigMock.defaultExpectation.params
 		mm_want_ptrs := mmGetOrgPrivateEndpointConfig.GetOrgPrivateEndpointConfigMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockGetOrgPrivateEndpointConfigParams{cloudProvider, region}
+		mm_got := ClientMockGetOrgPrivateEndpointConfigParams{ctx, cloudProvider, region}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetOrgPrivateEndpointConfig.t.Errorf("ClientMock.GetOrgPrivateEndpointConfig got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.cloudProvider != nil && !minimock.Equal(*mm_want_ptrs.cloudProvider, mm_got.cloudProvider) {
 				mmGetOrgPrivateEndpointConfig.t.Errorf("ClientMock.GetOrgPrivateEndpointConfig got unexpected parameter cloudProvider, want: %#v, got: %#v%s\n", *mm_want_ptrs.cloudProvider, mm_got.cloudProvider, minimock.Diff(*mm_want_ptrs.cloudProvider, mm_got.cloudProvider))
@@ -954,9 +1040,9 @@ func (mmGetOrgPrivateEndpointConfig *ClientMock) GetOrgPrivateEndpointConfig(clo
 		return (*mm_results).op1, (*mm_results).err
 	}
 	if mmGetOrgPrivateEndpointConfig.funcGetOrgPrivateEndpointConfig != nil {
-		return mmGetOrgPrivateEndpointConfig.funcGetOrgPrivateEndpointConfig(cloudProvider, region)
+		return mmGetOrgPrivateEndpointConfig.funcGetOrgPrivateEndpointConfig(ctx, cloudProvider, region)
 	}
-	mmGetOrgPrivateEndpointConfig.t.Fatalf("Unexpected call to ClientMock.GetOrgPrivateEndpointConfig. %v %v", cloudProvider, region)
+	mmGetOrgPrivateEndpointConfig.t.Fatalf("Unexpected call to ClientMock.GetOrgPrivateEndpointConfig. %v %v %v", ctx, cloudProvider, region)
 	return
 }
 
@@ -1034,15 +1120,29 @@ type mClientMockGetOrganizationPrivateEndpoints struct {
 	defaultExpectation *ClientMockGetOrganizationPrivateEndpointsExpectation
 	expectations       []*ClientMockGetOrganizationPrivateEndpointsExpectation
 
+	callArgs []*ClientMockGetOrganizationPrivateEndpointsParams
+	mutex    sync.RWMutex
+
 	expectedInvocations uint64
 }
 
 // ClientMockGetOrganizationPrivateEndpointsExpectation specifies expectation struct of the Client.GetOrganizationPrivateEndpoints
 type ClientMockGetOrganizationPrivateEndpointsExpectation struct {
-	mock *ClientMock
+	mock      *ClientMock
+	params    *ClientMockGetOrganizationPrivateEndpointsParams
+	paramPtrs *ClientMockGetOrganizationPrivateEndpointsParamPtrs
+	results   *ClientMockGetOrganizationPrivateEndpointsResults
+	Counter   uint64
+}
 
-	results *ClientMockGetOrganizationPrivateEndpointsResults
-	Counter uint64
+// ClientMockGetOrganizationPrivateEndpointsParams contains parameters of the Client.GetOrganizationPrivateEndpoints
+type ClientMockGetOrganizationPrivateEndpointsParams struct {
+	ctx context.Context
+}
+
+// ClientMockGetOrganizationPrivateEndpointsParamPtrs contains pointers to parameters of the Client.GetOrganizationPrivateEndpoints
+type ClientMockGetOrganizationPrivateEndpointsParamPtrs struct {
+	ctx *context.Context
 }
 
 // ClientMockGetOrganizationPrivateEndpointsResults contains results of the Client.GetOrganizationPrivateEndpoints
@@ -1062,7 +1162,7 @@ func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoi
 }
 
 // Expect sets up expected params for Client.GetOrganizationPrivateEndpoints
-func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoints) Expect() *mClientMockGetOrganizationPrivateEndpoints {
+func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoints) Expect(ctx context.Context) *mClientMockGetOrganizationPrivateEndpoints {
 	if mmGetOrganizationPrivateEndpoints.mock.funcGetOrganizationPrivateEndpoints != nil {
 		mmGetOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.GetOrganizationPrivateEndpoints mock is already set by Set")
 	}
@@ -1071,11 +1171,44 @@ func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoi
 		mmGetOrganizationPrivateEndpoints.defaultExpectation = &ClientMockGetOrganizationPrivateEndpointsExpectation{}
 	}
 
+	if mmGetOrganizationPrivateEndpoints.defaultExpectation.paramPtrs != nil {
+		mmGetOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.GetOrganizationPrivateEndpoints mock is already set by ExpectParams functions")
+	}
+
+	mmGetOrganizationPrivateEndpoints.defaultExpectation.params = &ClientMockGetOrganizationPrivateEndpointsParams{ctx}
+	for _, e := range mmGetOrganizationPrivateEndpoints.expectations {
+		if minimock.Equal(e.params, mmGetOrganizationPrivateEndpoints.defaultExpectation.params) {
+			mmGetOrganizationPrivateEndpoints.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetOrganizationPrivateEndpoints.defaultExpectation.params)
+		}
+	}
+
+	return mmGetOrganizationPrivateEndpoints
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetOrganizationPrivateEndpoints
+func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoints) ExpectCtxParam1(ctx context.Context) *mClientMockGetOrganizationPrivateEndpoints {
+	if mmGetOrganizationPrivateEndpoints.mock.funcGetOrganizationPrivateEndpoints != nil {
+		mmGetOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.GetOrganizationPrivateEndpoints mock is already set by Set")
+	}
+
+	if mmGetOrganizationPrivateEndpoints.defaultExpectation == nil {
+		mmGetOrganizationPrivateEndpoints.defaultExpectation = &ClientMockGetOrganizationPrivateEndpointsExpectation{}
+	}
+
+	if mmGetOrganizationPrivateEndpoints.defaultExpectation.params != nil {
+		mmGetOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.GetOrganizationPrivateEndpoints mock is already set by Expect")
+	}
+
+	if mmGetOrganizationPrivateEndpoints.defaultExpectation.paramPtrs == nil {
+		mmGetOrganizationPrivateEndpoints.defaultExpectation.paramPtrs = &ClientMockGetOrganizationPrivateEndpointsParamPtrs{}
+	}
+	mmGetOrganizationPrivateEndpoints.defaultExpectation.paramPtrs.ctx = &ctx
+
 	return mmGetOrganizationPrivateEndpoints
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.GetOrganizationPrivateEndpoints
-func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoints) Inspect(f func()) *mClientMockGetOrganizationPrivateEndpoints {
+func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoints) Inspect(f func(ctx context.Context)) *mClientMockGetOrganizationPrivateEndpoints {
 	if mmGetOrganizationPrivateEndpoints.mock.inspectFuncGetOrganizationPrivateEndpoints != nil {
 		mmGetOrganizationPrivateEndpoints.mock.t.Fatalf("Inspect function is already set for ClientMock.GetOrganizationPrivateEndpoints")
 	}
@@ -1099,7 +1232,7 @@ func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoi
 }
 
 // Set uses given function f to mock the Client.GetOrganizationPrivateEndpoints method
-func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoints) Set(f func() (pap1 *[]PrivateEndpoint, err error)) *ClientMock {
+func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoints) Set(f func(ctx context.Context) (pap1 *[]PrivateEndpoint, err error)) *ClientMock {
 	if mmGetOrganizationPrivateEndpoints.defaultExpectation != nil {
 		mmGetOrganizationPrivateEndpoints.mock.t.Fatalf("Default expectation is already set for the Client.GetOrganizationPrivateEndpoints method")
 	}
@@ -1110,6 +1243,27 @@ func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoi
 
 	mmGetOrganizationPrivateEndpoints.mock.funcGetOrganizationPrivateEndpoints = f
 	return mmGetOrganizationPrivateEndpoints.mock
+}
+
+// When sets expectation for the Client.GetOrganizationPrivateEndpoints which will trigger the result defined by the following
+// Then helper
+func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoints) When(ctx context.Context) *ClientMockGetOrganizationPrivateEndpointsExpectation {
+	if mmGetOrganizationPrivateEndpoints.mock.funcGetOrganizationPrivateEndpoints != nil {
+		mmGetOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.GetOrganizationPrivateEndpoints mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetOrganizationPrivateEndpointsExpectation{
+		mock:   mmGetOrganizationPrivateEndpoints.mock,
+		params: &ClientMockGetOrganizationPrivateEndpointsParams{ctx},
+	}
+	mmGetOrganizationPrivateEndpoints.expectations = append(mmGetOrganizationPrivateEndpoints.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetOrganizationPrivateEndpoints return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetOrganizationPrivateEndpointsExpectation) Then(pap1 *[]PrivateEndpoint, err error) *ClientMock {
+	e.results = &ClientMockGetOrganizationPrivateEndpointsResults{pap1, err}
+	return e.mock
 }
 
 // Times sets number of times Client.GetOrganizationPrivateEndpoints should be invoked
@@ -1133,16 +1287,44 @@ func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoi
 }
 
 // GetOrganizationPrivateEndpoints implements Client
-func (mmGetOrganizationPrivateEndpoints *ClientMock) GetOrganizationPrivateEndpoints() (pap1 *[]PrivateEndpoint, err error) {
+func (mmGetOrganizationPrivateEndpoints *ClientMock) GetOrganizationPrivateEndpoints(ctx context.Context) (pap1 *[]PrivateEndpoint, err error) {
 	mm_atomic.AddUint64(&mmGetOrganizationPrivateEndpoints.beforeGetOrganizationPrivateEndpointsCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetOrganizationPrivateEndpoints.afterGetOrganizationPrivateEndpointsCounter, 1)
 
 	if mmGetOrganizationPrivateEndpoints.inspectFuncGetOrganizationPrivateEndpoints != nil {
-		mmGetOrganizationPrivateEndpoints.inspectFuncGetOrganizationPrivateEndpoints()
+		mmGetOrganizationPrivateEndpoints.inspectFuncGetOrganizationPrivateEndpoints(ctx)
+	}
+
+	mm_params := ClientMockGetOrganizationPrivateEndpointsParams{ctx}
+
+	// Record call args
+	mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.mutex.Lock()
+	mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.callArgs = append(mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.callArgs, &mm_params)
+	mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.mutex.Unlock()
+
+	for _, e := range mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pap1, e.results.err
+		}
 	}
 
 	if mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.defaultExpectation != nil {
 		mm_atomic.AddUint64(&mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.defaultExpectation.params
+		mm_want_ptrs := mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetOrganizationPrivateEndpointsParams{ctx}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetOrganizationPrivateEndpoints.t.Errorf("ClientMock.GetOrganizationPrivateEndpoints got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetOrganizationPrivateEndpoints.t.Errorf("ClientMock.GetOrganizationPrivateEndpoints got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
 
 		mm_results := mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.defaultExpectation.results
 		if mm_results == nil {
@@ -1151,9 +1333,9 @@ func (mmGetOrganizationPrivateEndpoints *ClientMock) GetOrganizationPrivateEndpo
 		return (*mm_results).pap1, (*mm_results).err
 	}
 	if mmGetOrganizationPrivateEndpoints.funcGetOrganizationPrivateEndpoints != nil {
-		return mmGetOrganizationPrivateEndpoints.funcGetOrganizationPrivateEndpoints()
+		return mmGetOrganizationPrivateEndpoints.funcGetOrganizationPrivateEndpoints(ctx)
 	}
-	mmGetOrganizationPrivateEndpoints.t.Fatalf("Unexpected call to ClientMock.GetOrganizationPrivateEndpoints.")
+	mmGetOrganizationPrivateEndpoints.t.Fatalf("Unexpected call to ClientMock.GetOrganizationPrivateEndpoints. %v", ctx)
 	return
 }
 
@@ -1165,6 +1347,19 @@ func (mmGetOrganizationPrivateEndpoints *ClientMock) GetOrganizationPrivateEndpo
 // GetOrganizationPrivateEndpointsBeforeCounter returns a count of ClientMock.GetOrganizationPrivateEndpoints invocations
 func (mmGetOrganizationPrivateEndpoints *ClientMock) GetOrganizationPrivateEndpointsBeforeCounter() uint64 {
 	return mm_atomic.LoadUint64(&mmGetOrganizationPrivateEndpoints.beforeGetOrganizationPrivateEndpointsCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetOrganizationPrivateEndpoints.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoints) Calls() []*ClientMockGetOrganizationPrivateEndpointsParams {
+	mmGetOrganizationPrivateEndpoints.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetOrganizationPrivateEndpointsParams, len(mmGetOrganizationPrivateEndpoints.callArgs))
+	copy(argCopy, mmGetOrganizationPrivateEndpoints.callArgs)
+
+	mmGetOrganizationPrivateEndpoints.mutex.RUnlock()
+
+	return argCopy
 }
 
 // MinimockGetOrganizationPrivateEndpointsDone returns true if the count of the GetOrganizationPrivateEndpoints invocations corresponds
@@ -1188,14 +1383,18 @@ func (m *ClientMock) MinimockGetOrganizationPrivateEndpointsDone() bool {
 func (m *ClientMock) MinimockGetOrganizationPrivateEndpointsInspect() {
 	for _, e := range m.GetOrganizationPrivateEndpointsMock.expectations {
 		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Error("Expected call to ClientMock.GetOrganizationPrivateEndpoints")
+			m.t.Errorf("Expected call to ClientMock.GetOrganizationPrivateEndpoints with params: %#v", *e.params)
 		}
 	}
 
 	afterGetOrganizationPrivateEndpointsCounter := mm_atomic.LoadUint64(&m.afterGetOrganizationPrivateEndpointsCounter)
 	// if default expectation was set then invocations count should be greater than zero
 	if m.GetOrganizationPrivateEndpointsMock.defaultExpectation != nil && afterGetOrganizationPrivateEndpointsCounter < 1 {
-		m.t.Error("Expected call to ClientMock.GetOrganizationPrivateEndpoints")
+		if m.GetOrganizationPrivateEndpointsMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.GetOrganizationPrivateEndpoints")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetOrganizationPrivateEndpoints with params: %#v", *m.GetOrganizationPrivateEndpointsMock.defaultExpectation.params)
+		}
 	}
 	// if func was set then invocations count should be greater than zero
 	if m.funcGetOrganizationPrivateEndpoints != nil && afterGetOrganizationPrivateEndpointsCounter < 1 {
@@ -1231,11 +1430,13 @@ type ClientMockGetServiceExpectation struct {
 
 // ClientMockGetServiceParams contains parameters of the Client.GetService
 type ClientMockGetServiceParams struct {
+	ctx       context.Context
 	serviceId string
 }
 
 // ClientMockGetServiceParamPtrs contains pointers to parameters of the Client.GetService
 type ClientMockGetServiceParamPtrs struct {
+	ctx       *context.Context
 	serviceId *string
 }
 
@@ -1256,7 +1457,7 @@ func (mmGetService *mClientMockGetService) Optional() *mClientMockGetService {
 }
 
 // Expect sets up expected params for Client.GetService
-func (mmGetService *mClientMockGetService) Expect(serviceId string) *mClientMockGetService {
+func (mmGetService *mClientMockGetService) Expect(ctx context.Context, serviceId string) *mClientMockGetService {
 	if mmGetService.mock.funcGetService != nil {
 		mmGetService.mock.t.Fatalf("ClientMock.GetService mock is already set by Set")
 	}
@@ -1269,7 +1470,7 @@ func (mmGetService *mClientMockGetService) Expect(serviceId string) *mClientMock
 		mmGetService.mock.t.Fatalf("ClientMock.GetService mock is already set by ExpectParams functions")
 	}
 
-	mmGetService.defaultExpectation.params = &ClientMockGetServiceParams{serviceId}
+	mmGetService.defaultExpectation.params = &ClientMockGetServiceParams{ctx, serviceId}
 	for _, e := range mmGetService.expectations {
 		if minimock.Equal(e.params, mmGetService.defaultExpectation.params) {
 			mmGetService.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetService.defaultExpectation.params)
@@ -1279,8 +1480,30 @@ func (mmGetService *mClientMockGetService) Expect(serviceId string) *mClientMock
 	return mmGetService
 }
 
-// ExpectServiceIdParam1 sets up expected param serviceId for Client.GetService
-func (mmGetService *mClientMockGetService) ExpectServiceIdParam1(serviceId string) *mClientMockGetService {
+// ExpectCtxParam1 sets up expected param ctx for Client.GetService
+func (mmGetService *mClientMockGetService) ExpectCtxParam1(ctx context.Context) *mClientMockGetService {
+	if mmGetService.mock.funcGetService != nil {
+		mmGetService.mock.t.Fatalf("ClientMock.GetService mock is already set by Set")
+	}
+
+	if mmGetService.defaultExpectation == nil {
+		mmGetService.defaultExpectation = &ClientMockGetServiceExpectation{}
+	}
+
+	if mmGetService.defaultExpectation.params != nil {
+		mmGetService.mock.t.Fatalf("ClientMock.GetService mock is already set by Expect")
+	}
+
+	if mmGetService.defaultExpectation.paramPtrs == nil {
+		mmGetService.defaultExpectation.paramPtrs = &ClientMockGetServiceParamPtrs{}
+	}
+	mmGetService.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmGetService
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetService
+func (mmGetService *mClientMockGetService) ExpectServiceIdParam2(serviceId string) *mClientMockGetService {
 	if mmGetService.mock.funcGetService != nil {
 		mmGetService.mock.t.Fatalf("ClientMock.GetService mock is already set by Set")
 	}
@@ -1302,7 +1525,7 @@ func (mmGetService *mClientMockGetService) ExpectServiceIdParam1(serviceId strin
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.GetService
-func (mmGetService *mClientMockGetService) Inspect(f func(serviceId string)) *mClientMockGetService {
+func (mmGetService *mClientMockGetService) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetService {
 	if mmGetService.mock.inspectFuncGetService != nil {
 		mmGetService.mock.t.Fatalf("Inspect function is already set for ClientMock.GetService")
 	}
@@ -1326,7 +1549,7 @@ func (mmGetService *mClientMockGetService) Return(sp1 *Service, err error) *Clie
 }
 
 // Set uses given function f to mock the Client.GetService method
-func (mmGetService *mClientMockGetService) Set(f func(serviceId string) (sp1 *Service, err error)) *ClientMock {
+func (mmGetService *mClientMockGetService) Set(f func(ctx context.Context, serviceId string) (sp1 *Service, err error)) *ClientMock {
 	if mmGetService.defaultExpectation != nil {
 		mmGetService.mock.t.Fatalf("Default expectation is already set for the Client.GetService method")
 	}
@@ -1341,14 +1564,14 @@ func (mmGetService *mClientMockGetService) Set(f func(serviceId string) (sp1 *Se
 
 // When sets expectation for the Client.GetService which will trigger the result defined by the following
 // Then helper
-func (mmGetService *mClientMockGetService) When(serviceId string) *ClientMockGetServiceExpectation {
+func (mmGetService *mClientMockGetService) When(ctx context.Context, serviceId string) *ClientMockGetServiceExpectation {
 	if mmGetService.mock.funcGetService != nil {
 		mmGetService.mock.t.Fatalf("ClientMock.GetService mock is already set by Set")
 	}
 
 	expectation := &ClientMockGetServiceExpectation{
 		mock:   mmGetService.mock,
-		params: &ClientMockGetServiceParams{serviceId},
+		params: &ClientMockGetServiceParams{ctx, serviceId},
 	}
 	mmGetService.expectations = append(mmGetService.expectations, expectation)
 	return expectation
@@ -1381,15 +1604,15 @@ func (mmGetService *mClientMockGetService) invocationsDone() bool {
 }
 
 // GetService implements Client
-func (mmGetService *ClientMock) GetService(serviceId string) (sp1 *Service, err error) {
+func (mmGetService *ClientMock) GetService(ctx context.Context, serviceId string) (sp1 *Service, err error) {
 	mm_atomic.AddUint64(&mmGetService.beforeGetServiceCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetService.afterGetServiceCounter, 1)
 
 	if mmGetService.inspectFuncGetService != nil {
-		mmGetService.inspectFuncGetService(serviceId)
+		mmGetService.inspectFuncGetService(ctx, serviceId)
 	}
 
-	mm_params := ClientMockGetServiceParams{serviceId}
+	mm_params := ClientMockGetServiceParams{ctx, serviceId}
 
 	// Record call args
 	mmGetService.GetServiceMock.mutex.Lock()
@@ -1408,9 +1631,13 @@ func (mmGetService *ClientMock) GetService(serviceId string) (sp1 *Service, err 
 		mm_want := mmGetService.GetServiceMock.defaultExpectation.params
 		mm_want_ptrs := mmGetService.GetServiceMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockGetServiceParams{serviceId}
+		mm_got := ClientMockGetServiceParams{ctx, serviceId}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetService.t.Errorf("ClientMock.GetService got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
 				mmGetService.t.Errorf("ClientMock.GetService got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
@@ -1427,9 +1654,9 @@ func (mmGetService *ClientMock) GetService(serviceId string) (sp1 *Service, err 
 		return (*mm_results).sp1, (*mm_results).err
 	}
 	if mmGetService.funcGetService != nil {
-		return mmGetService.funcGetService(serviceId)
+		return mmGetService.funcGetService(ctx, serviceId)
 	}
-	mmGetService.t.Fatalf("Unexpected call to ClientMock.GetService. %v", serviceId)
+	mmGetService.t.Fatalf("Unexpected call to ClientMock.GetService. %v %v", ctx, serviceId)
 	return
 }
 
@@ -1524,11 +1751,13 @@ type ClientMockUpdateOrganizationPrivateEndpointsExpectation struct {
 
 // ClientMockUpdateOrganizationPrivateEndpointsParams contains parameters of the Client.UpdateOrganizationPrivateEndpoints
 type ClientMockUpdateOrganizationPrivateEndpointsParams struct {
+	ctx       context.Context
 	orgUpdate OrganizationUpdate
 }
 
 // ClientMockUpdateOrganizationPrivateEndpointsParamPtrs contains pointers to parameters of the Client.UpdateOrganizationPrivateEndpoints
 type ClientMockUpdateOrganizationPrivateEndpointsParamPtrs struct {
+	ctx       *context.Context
 	orgUpdate *OrganizationUpdate
 }
 
@@ -1549,7 +1778,7 @@ func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivate
 }
 
 // Expect sets up expected params for Client.UpdateOrganizationPrivateEndpoints
-func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) Expect(orgUpdate OrganizationUpdate) *mClientMockUpdateOrganizationPrivateEndpoints {
+func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) Expect(ctx context.Context, orgUpdate OrganizationUpdate) *mClientMockUpdateOrganizationPrivateEndpoints {
 	if mmUpdateOrganizationPrivateEndpoints.mock.funcUpdateOrganizationPrivateEndpoints != nil {
 		mmUpdateOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.UpdateOrganizationPrivateEndpoints mock is already set by Set")
 	}
@@ -1562,7 +1791,7 @@ func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivate
 		mmUpdateOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.UpdateOrganizationPrivateEndpoints mock is already set by ExpectParams functions")
 	}
 
-	mmUpdateOrganizationPrivateEndpoints.defaultExpectation.params = &ClientMockUpdateOrganizationPrivateEndpointsParams{orgUpdate}
+	mmUpdateOrganizationPrivateEndpoints.defaultExpectation.params = &ClientMockUpdateOrganizationPrivateEndpointsParams{ctx, orgUpdate}
 	for _, e := range mmUpdateOrganizationPrivateEndpoints.expectations {
 		if minimock.Equal(e.params, mmUpdateOrganizationPrivateEndpoints.defaultExpectation.params) {
 			mmUpdateOrganizationPrivateEndpoints.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateOrganizationPrivateEndpoints.defaultExpectation.params)
@@ -1572,8 +1801,30 @@ func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivate
 	return mmUpdateOrganizationPrivateEndpoints
 }
 
-// ExpectOrgUpdateParam1 sets up expected param orgUpdate for Client.UpdateOrganizationPrivateEndpoints
-func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) ExpectOrgUpdateParam1(orgUpdate OrganizationUpdate) *mClientMockUpdateOrganizationPrivateEndpoints {
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateOrganizationPrivateEndpoints
+func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateOrganizationPrivateEndpoints {
+	if mmUpdateOrganizationPrivateEndpoints.mock.funcUpdateOrganizationPrivateEndpoints != nil {
+		mmUpdateOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.UpdateOrganizationPrivateEndpoints mock is already set by Set")
+	}
+
+	if mmUpdateOrganizationPrivateEndpoints.defaultExpectation == nil {
+		mmUpdateOrganizationPrivateEndpoints.defaultExpectation = &ClientMockUpdateOrganizationPrivateEndpointsExpectation{}
+	}
+
+	if mmUpdateOrganizationPrivateEndpoints.defaultExpectation.params != nil {
+		mmUpdateOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.UpdateOrganizationPrivateEndpoints mock is already set by Expect")
+	}
+
+	if mmUpdateOrganizationPrivateEndpoints.defaultExpectation.paramPtrs == nil {
+		mmUpdateOrganizationPrivateEndpoints.defaultExpectation.paramPtrs = &ClientMockUpdateOrganizationPrivateEndpointsParamPtrs{}
+	}
+	mmUpdateOrganizationPrivateEndpoints.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmUpdateOrganizationPrivateEndpoints
+}
+
+// ExpectOrgUpdateParam2 sets up expected param orgUpdate for Client.UpdateOrganizationPrivateEndpoints
+func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) ExpectOrgUpdateParam2(orgUpdate OrganizationUpdate) *mClientMockUpdateOrganizationPrivateEndpoints {
 	if mmUpdateOrganizationPrivateEndpoints.mock.funcUpdateOrganizationPrivateEndpoints != nil {
 		mmUpdateOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.UpdateOrganizationPrivateEndpoints mock is already set by Set")
 	}
@@ -1595,7 +1846,7 @@ func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivate
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.UpdateOrganizationPrivateEndpoints
-func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) Inspect(f func(orgUpdate OrganizationUpdate)) *mClientMockUpdateOrganizationPrivateEndpoints {
+func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) Inspect(f func(ctx context.Context, orgUpdate OrganizationUpdate)) *mClientMockUpdateOrganizationPrivateEndpoints {
 	if mmUpdateOrganizationPrivateEndpoints.mock.inspectFuncUpdateOrganizationPrivateEndpoints != nil {
 		mmUpdateOrganizationPrivateEndpoints.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateOrganizationPrivateEndpoints")
 	}
@@ -1619,7 +1870,7 @@ func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivate
 }
 
 // Set uses given function f to mock the Client.UpdateOrganizationPrivateEndpoints method
-func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) Set(f func(orgUpdate OrganizationUpdate) (pap1 *[]PrivateEndpoint, err error)) *ClientMock {
+func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) Set(f func(ctx context.Context, orgUpdate OrganizationUpdate) (pap1 *[]PrivateEndpoint, err error)) *ClientMock {
 	if mmUpdateOrganizationPrivateEndpoints.defaultExpectation != nil {
 		mmUpdateOrganizationPrivateEndpoints.mock.t.Fatalf("Default expectation is already set for the Client.UpdateOrganizationPrivateEndpoints method")
 	}
@@ -1634,14 +1885,14 @@ func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivate
 
 // When sets expectation for the Client.UpdateOrganizationPrivateEndpoints which will trigger the result defined by the following
 // Then helper
-func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) When(orgUpdate OrganizationUpdate) *ClientMockUpdateOrganizationPrivateEndpointsExpectation {
+func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivateEndpoints) When(ctx context.Context, orgUpdate OrganizationUpdate) *ClientMockUpdateOrganizationPrivateEndpointsExpectation {
 	if mmUpdateOrganizationPrivateEndpoints.mock.funcUpdateOrganizationPrivateEndpoints != nil {
 		mmUpdateOrganizationPrivateEndpoints.mock.t.Fatalf("ClientMock.UpdateOrganizationPrivateEndpoints mock is already set by Set")
 	}
 
 	expectation := &ClientMockUpdateOrganizationPrivateEndpointsExpectation{
 		mock:   mmUpdateOrganizationPrivateEndpoints.mock,
-		params: &ClientMockUpdateOrganizationPrivateEndpointsParams{orgUpdate},
+		params: &ClientMockUpdateOrganizationPrivateEndpointsParams{ctx, orgUpdate},
 	}
 	mmUpdateOrganizationPrivateEndpoints.expectations = append(mmUpdateOrganizationPrivateEndpoints.expectations, expectation)
 	return expectation
@@ -1674,15 +1925,15 @@ func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivate
 }
 
 // UpdateOrganizationPrivateEndpoints implements Client
-func (mmUpdateOrganizationPrivateEndpoints *ClientMock) UpdateOrganizationPrivateEndpoints(orgUpdate OrganizationUpdate) (pap1 *[]PrivateEndpoint, err error) {
+func (mmUpdateOrganizationPrivateEndpoints *ClientMock) UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (pap1 *[]PrivateEndpoint, err error) {
 	mm_atomic.AddUint64(&mmUpdateOrganizationPrivateEndpoints.beforeUpdateOrganizationPrivateEndpointsCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdateOrganizationPrivateEndpoints.afterUpdateOrganizationPrivateEndpointsCounter, 1)
 
 	if mmUpdateOrganizationPrivateEndpoints.inspectFuncUpdateOrganizationPrivateEndpoints != nil {
-		mmUpdateOrganizationPrivateEndpoints.inspectFuncUpdateOrganizationPrivateEndpoints(orgUpdate)
+		mmUpdateOrganizationPrivateEndpoints.inspectFuncUpdateOrganizationPrivateEndpoints(ctx, orgUpdate)
 	}
 
-	mm_params := ClientMockUpdateOrganizationPrivateEndpointsParams{orgUpdate}
+	mm_params := ClientMockUpdateOrganizationPrivateEndpointsParams{ctx, orgUpdate}
 
 	// Record call args
 	mmUpdateOrganizationPrivateEndpoints.UpdateOrganizationPrivateEndpointsMock.mutex.Lock()
@@ -1701,9 +1952,13 @@ func (mmUpdateOrganizationPrivateEndpoints *ClientMock) UpdateOrganizationPrivat
 		mm_want := mmUpdateOrganizationPrivateEndpoints.UpdateOrganizationPrivateEndpointsMock.defaultExpectation.params
 		mm_want_ptrs := mmUpdateOrganizationPrivateEndpoints.UpdateOrganizationPrivateEndpointsMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockUpdateOrganizationPrivateEndpointsParams{orgUpdate}
+		mm_got := ClientMockUpdateOrganizationPrivateEndpointsParams{ctx, orgUpdate}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateOrganizationPrivateEndpoints.t.Errorf("ClientMock.UpdateOrganizationPrivateEndpoints got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.orgUpdate != nil && !minimock.Equal(*mm_want_ptrs.orgUpdate, mm_got.orgUpdate) {
 				mmUpdateOrganizationPrivateEndpoints.t.Errorf("ClientMock.UpdateOrganizationPrivateEndpoints got unexpected parameter orgUpdate, want: %#v, got: %#v%s\n", *mm_want_ptrs.orgUpdate, mm_got.orgUpdate, minimock.Diff(*mm_want_ptrs.orgUpdate, mm_got.orgUpdate))
@@ -1720,9 +1975,9 @@ func (mmUpdateOrganizationPrivateEndpoints *ClientMock) UpdateOrganizationPrivat
 		return (*mm_results).pap1, (*mm_results).err
 	}
 	if mmUpdateOrganizationPrivateEndpoints.funcUpdateOrganizationPrivateEndpoints != nil {
-		return mmUpdateOrganizationPrivateEndpoints.funcUpdateOrganizationPrivateEndpoints(orgUpdate)
+		return mmUpdateOrganizationPrivateEndpoints.funcUpdateOrganizationPrivateEndpoints(ctx, orgUpdate)
 	}
-	mmUpdateOrganizationPrivateEndpoints.t.Fatalf("Unexpected call to ClientMock.UpdateOrganizationPrivateEndpoints. %v", orgUpdate)
+	mmUpdateOrganizationPrivateEndpoints.t.Fatalf("Unexpected call to ClientMock.UpdateOrganizationPrivateEndpoints. %v %v", ctx, orgUpdate)
 	return
 }
 
@@ -1817,12 +2072,14 @@ type ClientMockUpdateServiceExpectation struct {
 
 // ClientMockUpdateServiceParams contains parameters of the Client.UpdateService
 type ClientMockUpdateServiceParams struct {
+	ctx       context.Context
 	serviceId string
 	s         ServiceUpdate
 }
 
 // ClientMockUpdateServiceParamPtrs contains pointers to parameters of the Client.UpdateService
 type ClientMockUpdateServiceParamPtrs struct {
+	ctx       *context.Context
 	serviceId *string
 	s         *ServiceUpdate
 }
@@ -1844,7 +2101,7 @@ func (mmUpdateService *mClientMockUpdateService) Optional() *mClientMockUpdateSe
 }
 
 // Expect sets up expected params for Client.UpdateService
-func (mmUpdateService *mClientMockUpdateService) Expect(serviceId string, s ServiceUpdate) *mClientMockUpdateService {
+func (mmUpdateService *mClientMockUpdateService) Expect(ctx context.Context, serviceId string, s ServiceUpdate) *mClientMockUpdateService {
 	if mmUpdateService.mock.funcUpdateService != nil {
 		mmUpdateService.mock.t.Fatalf("ClientMock.UpdateService mock is already set by Set")
 	}
@@ -1857,7 +2114,7 @@ func (mmUpdateService *mClientMockUpdateService) Expect(serviceId string, s Serv
 		mmUpdateService.mock.t.Fatalf("ClientMock.UpdateService mock is already set by ExpectParams functions")
 	}
 
-	mmUpdateService.defaultExpectation.params = &ClientMockUpdateServiceParams{serviceId, s}
+	mmUpdateService.defaultExpectation.params = &ClientMockUpdateServiceParams{ctx, serviceId, s}
 	for _, e := range mmUpdateService.expectations {
 		if minimock.Equal(e.params, mmUpdateService.defaultExpectation.params) {
 			mmUpdateService.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateService.defaultExpectation.params)
@@ -1867,8 +2124,30 @@ func (mmUpdateService *mClientMockUpdateService) Expect(serviceId string, s Serv
 	return mmUpdateService
 }
 
-// ExpectServiceIdParam1 sets up expected param serviceId for Client.UpdateService
-func (mmUpdateService *mClientMockUpdateService) ExpectServiceIdParam1(serviceId string) *mClientMockUpdateService {
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateService
+func (mmUpdateService *mClientMockUpdateService) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateService {
+	if mmUpdateService.mock.funcUpdateService != nil {
+		mmUpdateService.mock.t.Fatalf("ClientMock.UpdateService mock is already set by Set")
+	}
+
+	if mmUpdateService.defaultExpectation == nil {
+		mmUpdateService.defaultExpectation = &ClientMockUpdateServiceExpectation{}
+	}
+
+	if mmUpdateService.defaultExpectation.params != nil {
+		mmUpdateService.mock.t.Fatalf("ClientMock.UpdateService mock is already set by Expect")
+	}
+
+	if mmUpdateService.defaultExpectation.paramPtrs == nil {
+		mmUpdateService.defaultExpectation.paramPtrs = &ClientMockUpdateServiceParamPtrs{}
+	}
+	mmUpdateService.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmUpdateService
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateService
+func (mmUpdateService *mClientMockUpdateService) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateService {
 	if mmUpdateService.mock.funcUpdateService != nil {
 		mmUpdateService.mock.t.Fatalf("ClientMock.UpdateService mock is already set by Set")
 	}
@@ -1889,8 +2168,8 @@ func (mmUpdateService *mClientMockUpdateService) ExpectServiceIdParam1(serviceId
 	return mmUpdateService
 }
 
-// ExpectSParam2 sets up expected param s for Client.UpdateService
-func (mmUpdateService *mClientMockUpdateService) ExpectSParam2(s ServiceUpdate) *mClientMockUpdateService {
+// ExpectSParam3 sets up expected param s for Client.UpdateService
+func (mmUpdateService *mClientMockUpdateService) ExpectSParam3(s ServiceUpdate) *mClientMockUpdateService {
 	if mmUpdateService.mock.funcUpdateService != nil {
 		mmUpdateService.mock.t.Fatalf("ClientMock.UpdateService mock is already set by Set")
 	}
@@ -1912,7 +2191,7 @@ func (mmUpdateService *mClientMockUpdateService) ExpectSParam2(s ServiceUpdate) 
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.UpdateService
-func (mmUpdateService *mClientMockUpdateService) Inspect(f func(serviceId string, s ServiceUpdate)) *mClientMockUpdateService {
+func (mmUpdateService *mClientMockUpdateService) Inspect(f func(ctx context.Context, serviceId string, s ServiceUpdate)) *mClientMockUpdateService {
 	if mmUpdateService.mock.inspectFuncUpdateService != nil {
 		mmUpdateService.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateService")
 	}
@@ -1936,7 +2215,7 @@ func (mmUpdateService *mClientMockUpdateService) Return(sp1 *Service, err error)
 }
 
 // Set uses given function f to mock the Client.UpdateService method
-func (mmUpdateService *mClientMockUpdateService) Set(f func(serviceId string, s ServiceUpdate) (sp1 *Service, err error)) *ClientMock {
+func (mmUpdateService *mClientMockUpdateService) Set(f func(ctx context.Context, serviceId string, s ServiceUpdate) (sp1 *Service, err error)) *ClientMock {
 	if mmUpdateService.defaultExpectation != nil {
 		mmUpdateService.mock.t.Fatalf("Default expectation is already set for the Client.UpdateService method")
 	}
@@ -1951,14 +2230,14 @@ func (mmUpdateService *mClientMockUpdateService) Set(f func(serviceId string, s 
 
 // When sets expectation for the Client.UpdateService which will trigger the result defined by the following
 // Then helper
-func (mmUpdateService *mClientMockUpdateService) When(serviceId string, s ServiceUpdate) *ClientMockUpdateServiceExpectation {
+func (mmUpdateService *mClientMockUpdateService) When(ctx context.Context, serviceId string, s ServiceUpdate) *ClientMockUpdateServiceExpectation {
 	if mmUpdateService.mock.funcUpdateService != nil {
 		mmUpdateService.mock.t.Fatalf("ClientMock.UpdateService mock is already set by Set")
 	}
 
 	expectation := &ClientMockUpdateServiceExpectation{
 		mock:   mmUpdateService.mock,
-		params: &ClientMockUpdateServiceParams{serviceId, s},
+		params: &ClientMockUpdateServiceParams{ctx, serviceId, s},
 	}
 	mmUpdateService.expectations = append(mmUpdateService.expectations, expectation)
 	return expectation
@@ -1991,15 +2270,15 @@ func (mmUpdateService *mClientMockUpdateService) invocationsDone() bool {
 }
 
 // UpdateService implements Client
-func (mmUpdateService *ClientMock) UpdateService(serviceId string, s ServiceUpdate) (sp1 *Service, err error) {
+func (mmUpdateService *ClientMock) UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (sp1 *Service, err error) {
 	mm_atomic.AddUint64(&mmUpdateService.beforeUpdateServiceCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdateService.afterUpdateServiceCounter, 1)
 
 	if mmUpdateService.inspectFuncUpdateService != nil {
-		mmUpdateService.inspectFuncUpdateService(serviceId, s)
+		mmUpdateService.inspectFuncUpdateService(ctx, serviceId, s)
 	}
 
-	mm_params := ClientMockUpdateServiceParams{serviceId, s}
+	mm_params := ClientMockUpdateServiceParams{ctx, serviceId, s}
 
 	// Record call args
 	mmUpdateService.UpdateServiceMock.mutex.Lock()
@@ -2018,9 +2297,13 @@ func (mmUpdateService *ClientMock) UpdateService(serviceId string, s ServiceUpda
 		mm_want := mmUpdateService.UpdateServiceMock.defaultExpectation.params
 		mm_want_ptrs := mmUpdateService.UpdateServiceMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockUpdateServiceParams{serviceId, s}
+		mm_got := ClientMockUpdateServiceParams{ctx, serviceId, s}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateService.t.Errorf("ClientMock.UpdateService got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
 				mmUpdateService.t.Errorf("ClientMock.UpdateService got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
@@ -2041,9 +2324,9 @@ func (mmUpdateService *ClientMock) UpdateService(serviceId string, s ServiceUpda
 		return (*mm_results).sp1, (*mm_results).err
 	}
 	if mmUpdateService.funcUpdateService != nil {
-		return mmUpdateService.funcUpdateService(serviceId, s)
+		return mmUpdateService.funcUpdateService(ctx, serviceId, s)
 	}
-	mmUpdateService.t.Fatalf("Unexpected call to ClientMock.UpdateService. %v %v", serviceId, s)
+	mmUpdateService.t.Fatalf("Unexpected call to ClientMock.UpdateService. %v %v %v", ctx, serviceId, s)
 	return
 }
 
@@ -2138,12 +2421,14 @@ type ClientMockUpdateServicePasswordExpectation struct {
 
 // ClientMockUpdateServicePasswordParams contains parameters of the Client.UpdateServicePassword
 type ClientMockUpdateServicePasswordParams struct {
+	ctx       context.Context
 	serviceId string
 	u         ServicePasswordUpdate
 }
 
 // ClientMockUpdateServicePasswordParamPtrs contains pointers to parameters of the Client.UpdateServicePassword
 type ClientMockUpdateServicePasswordParamPtrs struct {
+	ctx       *context.Context
 	serviceId *string
 	u         *ServicePasswordUpdate
 }
@@ -2165,7 +2450,7 @@ func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Optional() *mCl
 }
 
 // Expect sets up expected params for Client.UpdateServicePassword
-func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Expect(serviceId string, u ServicePasswordUpdate) *mClientMockUpdateServicePassword {
+func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Expect(ctx context.Context, serviceId string, u ServicePasswordUpdate) *mClientMockUpdateServicePassword {
 	if mmUpdateServicePassword.mock.funcUpdateServicePassword != nil {
 		mmUpdateServicePassword.mock.t.Fatalf("ClientMock.UpdateServicePassword mock is already set by Set")
 	}
@@ -2178,7 +2463,7 @@ func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Expect(serviceI
 		mmUpdateServicePassword.mock.t.Fatalf("ClientMock.UpdateServicePassword mock is already set by ExpectParams functions")
 	}
 
-	mmUpdateServicePassword.defaultExpectation.params = &ClientMockUpdateServicePasswordParams{serviceId, u}
+	mmUpdateServicePassword.defaultExpectation.params = &ClientMockUpdateServicePasswordParams{ctx, serviceId, u}
 	for _, e := range mmUpdateServicePassword.expectations {
 		if minimock.Equal(e.params, mmUpdateServicePassword.defaultExpectation.params) {
 			mmUpdateServicePassword.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateServicePassword.defaultExpectation.params)
@@ -2188,8 +2473,30 @@ func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Expect(serviceI
 	return mmUpdateServicePassword
 }
 
-// ExpectServiceIdParam1 sets up expected param serviceId for Client.UpdateServicePassword
-func (mmUpdateServicePassword *mClientMockUpdateServicePassword) ExpectServiceIdParam1(serviceId string) *mClientMockUpdateServicePassword {
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateServicePassword
+func (mmUpdateServicePassword *mClientMockUpdateServicePassword) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateServicePassword {
+	if mmUpdateServicePassword.mock.funcUpdateServicePassword != nil {
+		mmUpdateServicePassword.mock.t.Fatalf("ClientMock.UpdateServicePassword mock is already set by Set")
+	}
+
+	if mmUpdateServicePassword.defaultExpectation == nil {
+		mmUpdateServicePassword.defaultExpectation = &ClientMockUpdateServicePasswordExpectation{}
+	}
+
+	if mmUpdateServicePassword.defaultExpectation.params != nil {
+		mmUpdateServicePassword.mock.t.Fatalf("ClientMock.UpdateServicePassword mock is already set by Expect")
+	}
+
+	if mmUpdateServicePassword.defaultExpectation.paramPtrs == nil {
+		mmUpdateServicePassword.defaultExpectation.paramPtrs = &ClientMockUpdateServicePasswordParamPtrs{}
+	}
+	mmUpdateServicePassword.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmUpdateServicePassword
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateServicePassword
+func (mmUpdateServicePassword *mClientMockUpdateServicePassword) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateServicePassword {
 	if mmUpdateServicePassword.mock.funcUpdateServicePassword != nil {
 		mmUpdateServicePassword.mock.t.Fatalf("ClientMock.UpdateServicePassword mock is already set by Set")
 	}
@@ -2210,8 +2517,8 @@ func (mmUpdateServicePassword *mClientMockUpdateServicePassword) ExpectServiceId
 	return mmUpdateServicePassword
 }
 
-// ExpectUParam2 sets up expected param u for Client.UpdateServicePassword
-func (mmUpdateServicePassword *mClientMockUpdateServicePassword) ExpectUParam2(u ServicePasswordUpdate) *mClientMockUpdateServicePassword {
+// ExpectUParam3 sets up expected param u for Client.UpdateServicePassword
+func (mmUpdateServicePassword *mClientMockUpdateServicePassword) ExpectUParam3(u ServicePasswordUpdate) *mClientMockUpdateServicePassword {
 	if mmUpdateServicePassword.mock.funcUpdateServicePassword != nil {
 		mmUpdateServicePassword.mock.t.Fatalf("ClientMock.UpdateServicePassword mock is already set by Set")
 	}
@@ -2233,7 +2540,7 @@ func (mmUpdateServicePassword *mClientMockUpdateServicePassword) ExpectUParam2(u
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.UpdateServicePassword
-func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Inspect(f func(serviceId string, u ServicePasswordUpdate)) *mClientMockUpdateServicePassword {
+func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Inspect(f func(ctx context.Context, serviceId string, u ServicePasswordUpdate)) *mClientMockUpdateServicePassword {
 	if mmUpdateServicePassword.mock.inspectFuncUpdateServicePassword != nil {
 		mmUpdateServicePassword.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateServicePassword")
 	}
@@ -2257,7 +2564,7 @@ func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Return(sp1 *Ser
 }
 
 // Set uses given function f to mock the Client.UpdateServicePassword method
-func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Set(f func(serviceId string, u ServicePasswordUpdate) (sp1 *ServicePasswordUpdateResult, err error)) *ClientMock {
+func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Set(f func(ctx context.Context, serviceId string, u ServicePasswordUpdate) (sp1 *ServicePasswordUpdateResult, err error)) *ClientMock {
 	if mmUpdateServicePassword.defaultExpectation != nil {
 		mmUpdateServicePassword.mock.t.Fatalf("Default expectation is already set for the Client.UpdateServicePassword method")
 	}
@@ -2272,14 +2579,14 @@ func (mmUpdateServicePassword *mClientMockUpdateServicePassword) Set(f func(serv
 
 // When sets expectation for the Client.UpdateServicePassword which will trigger the result defined by the following
 // Then helper
-func (mmUpdateServicePassword *mClientMockUpdateServicePassword) When(serviceId string, u ServicePasswordUpdate) *ClientMockUpdateServicePasswordExpectation {
+func (mmUpdateServicePassword *mClientMockUpdateServicePassword) When(ctx context.Context, serviceId string, u ServicePasswordUpdate) *ClientMockUpdateServicePasswordExpectation {
 	if mmUpdateServicePassword.mock.funcUpdateServicePassword != nil {
 		mmUpdateServicePassword.mock.t.Fatalf("ClientMock.UpdateServicePassword mock is already set by Set")
 	}
 
 	expectation := &ClientMockUpdateServicePasswordExpectation{
 		mock:   mmUpdateServicePassword.mock,
-		params: &ClientMockUpdateServicePasswordParams{serviceId, u},
+		params: &ClientMockUpdateServicePasswordParams{ctx, serviceId, u},
 	}
 	mmUpdateServicePassword.expectations = append(mmUpdateServicePassword.expectations, expectation)
 	return expectation
@@ -2312,15 +2619,15 @@ func (mmUpdateServicePassword *mClientMockUpdateServicePassword) invocationsDone
 }
 
 // UpdateServicePassword implements Client
-func (mmUpdateServicePassword *ClientMock) UpdateServicePassword(serviceId string, u ServicePasswordUpdate) (sp1 *ServicePasswordUpdateResult, err error) {
+func (mmUpdateServicePassword *ClientMock) UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (sp1 *ServicePasswordUpdateResult, err error) {
 	mm_atomic.AddUint64(&mmUpdateServicePassword.beforeUpdateServicePasswordCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdateServicePassword.afterUpdateServicePasswordCounter, 1)
 
 	if mmUpdateServicePassword.inspectFuncUpdateServicePassword != nil {
-		mmUpdateServicePassword.inspectFuncUpdateServicePassword(serviceId, u)
+		mmUpdateServicePassword.inspectFuncUpdateServicePassword(ctx, serviceId, u)
 	}
 
-	mm_params := ClientMockUpdateServicePasswordParams{serviceId, u}
+	mm_params := ClientMockUpdateServicePasswordParams{ctx, serviceId, u}
 
 	// Record call args
 	mmUpdateServicePassword.UpdateServicePasswordMock.mutex.Lock()
@@ -2339,9 +2646,13 @@ func (mmUpdateServicePassword *ClientMock) UpdateServicePassword(serviceId strin
 		mm_want := mmUpdateServicePassword.UpdateServicePasswordMock.defaultExpectation.params
 		mm_want_ptrs := mmUpdateServicePassword.UpdateServicePasswordMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockUpdateServicePasswordParams{serviceId, u}
+		mm_got := ClientMockUpdateServicePasswordParams{ctx, serviceId, u}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateServicePassword.t.Errorf("ClientMock.UpdateServicePassword got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
 				mmUpdateServicePassword.t.Errorf("ClientMock.UpdateServicePassword got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
@@ -2362,9 +2673,9 @@ func (mmUpdateServicePassword *ClientMock) UpdateServicePassword(serviceId strin
 		return (*mm_results).sp1, (*mm_results).err
 	}
 	if mmUpdateServicePassword.funcUpdateServicePassword != nil {
-		return mmUpdateServicePassword.funcUpdateServicePassword(serviceId, u)
+		return mmUpdateServicePassword.funcUpdateServicePassword(ctx, serviceId, u)
 	}
-	mmUpdateServicePassword.t.Fatalf("Unexpected call to ClientMock.UpdateServicePassword. %v %v", serviceId, u)
+	mmUpdateServicePassword.t.Fatalf("Unexpected call to ClientMock.UpdateServicePassword. %v %v %v", ctx, serviceId, u)
 	return
 }
 
@@ -2459,12 +2770,14 @@ type ClientMockUpdateServiceScalingExpectation struct {
 
 // ClientMockUpdateServiceScalingParams contains parameters of the Client.UpdateServiceScaling
 type ClientMockUpdateServiceScalingParams struct {
+	ctx       context.Context
 	serviceId string
 	s         ServiceScalingUpdate
 }
 
 // ClientMockUpdateServiceScalingParamPtrs contains pointers to parameters of the Client.UpdateServiceScaling
 type ClientMockUpdateServiceScalingParamPtrs struct {
+	ctx       *context.Context
 	serviceId *string
 	s         *ServiceScalingUpdate
 }
@@ -2486,7 +2799,7 @@ func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Optional() *mClie
 }
 
 // Expect sets up expected params for Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Expect(serviceId string, s ServiceScalingUpdate) *mClientMockUpdateServiceScaling {
+func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Expect(ctx context.Context, serviceId string, s ServiceScalingUpdate) *mClientMockUpdateServiceScaling {
 	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
 		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
 	}
@@ -2499,7 +2812,7 @@ func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Expect(serviceId 
 		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by ExpectParams functions")
 	}
 
-	mmUpdateServiceScaling.defaultExpectation.params = &ClientMockUpdateServiceScalingParams{serviceId, s}
+	mmUpdateServiceScaling.defaultExpectation.params = &ClientMockUpdateServiceScalingParams{ctx, serviceId, s}
 	for _, e := range mmUpdateServiceScaling.expectations {
 		if minimock.Equal(e.params, mmUpdateServiceScaling.defaultExpectation.params) {
 			mmUpdateServiceScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateServiceScaling.defaultExpectation.params)
@@ -2509,8 +2822,30 @@ func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Expect(serviceId 
 	return mmUpdateServiceScaling
 }
 
-// ExpectServiceIdParam1 sets up expected param serviceId for Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectServiceIdParam1(serviceId string) *mClientMockUpdateServiceScaling {
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateServiceScaling
+func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateServiceScaling {
+	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
+		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
+	}
+
+	if mmUpdateServiceScaling.defaultExpectation == nil {
+		mmUpdateServiceScaling.defaultExpectation = &ClientMockUpdateServiceScalingExpectation{}
+	}
+
+	if mmUpdateServiceScaling.defaultExpectation.params != nil {
+		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Expect")
+	}
+
+	if mmUpdateServiceScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateServiceScaling.defaultExpectation.paramPtrs = &ClientMockUpdateServiceScalingParamPtrs{}
+	}
+	mmUpdateServiceScaling.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmUpdateServiceScaling
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateServiceScaling
+func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateServiceScaling {
 	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
 		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
 	}
@@ -2531,8 +2866,8 @@ func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectServiceIdPa
 	return mmUpdateServiceScaling
 }
 
-// ExpectSParam2 sets up expected param s for Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectSParam2(s ServiceScalingUpdate) *mClientMockUpdateServiceScaling {
+// ExpectSParam3 sets up expected param s for Client.UpdateServiceScaling
+func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectSParam3(s ServiceScalingUpdate) *mClientMockUpdateServiceScaling {
 	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
 		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
 	}
@@ -2554,7 +2889,7 @@ func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectSParam2(s S
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Inspect(f func(serviceId string, s ServiceScalingUpdate)) *mClientMockUpdateServiceScaling {
+func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Inspect(f func(ctx context.Context, serviceId string, s ServiceScalingUpdate)) *mClientMockUpdateServiceScaling {
 	if mmUpdateServiceScaling.mock.inspectFuncUpdateServiceScaling != nil {
 		mmUpdateServiceScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateServiceScaling")
 	}
@@ -2578,7 +2913,7 @@ func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Return(sp1 *Servi
 }
 
 // Set uses given function f to mock the Client.UpdateServiceScaling method
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Set(f func(serviceId string, s ServiceScalingUpdate) (sp1 *Service, err error)) *ClientMock {
+func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Set(f func(ctx context.Context, serviceId string, s ServiceScalingUpdate) (sp1 *Service, err error)) *ClientMock {
 	if mmUpdateServiceScaling.defaultExpectation != nil {
 		mmUpdateServiceScaling.mock.t.Fatalf("Default expectation is already set for the Client.UpdateServiceScaling method")
 	}
@@ -2593,14 +2928,14 @@ func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Set(f func(servic
 
 // When sets expectation for the Client.UpdateServiceScaling which will trigger the result defined by the following
 // Then helper
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) When(serviceId string, s ServiceScalingUpdate) *ClientMockUpdateServiceScalingExpectation {
+func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) When(ctx context.Context, serviceId string, s ServiceScalingUpdate) *ClientMockUpdateServiceScalingExpectation {
 	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
 		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
 	}
 
 	expectation := &ClientMockUpdateServiceScalingExpectation{
 		mock:   mmUpdateServiceScaling.mock,
-		params: &ClientMockUpdateServiceScalingParams{serviceId, s},
+		params: &ClientMockUpdateServiceScalingParams{ctx, serviceId, s},
 	}
 	mmUpdateServiceScaling.expectations = append(mmUpdateServiceScaling.expectations, expectation)
 	return expectation
@@ -2633,15 +2968,15 @@ func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) invocationsDone()
 }
 
 // UpdateServiceScaling implements Client
-func (mmUpdateServiceScaling *ClientMock) UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) (sp1 *Service, err error) {
+func (mmUpdateServiceScaling *ClientMock) UpdateServiceScaling(ctx context.Context, serviceId string, s ServiceScalingUpdate) (sp1 *Service, err error) {
 	mm_atomic.AddUint64(&mmUpdateServiceScaling.beforeUpdateServiceScalingCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdateServiceScaling.afterUpdateServiceScalingCounter, 1)
 
 	if mmUpdateServiceScaling.inspectFuncUpdateServiceScaling != nil {
-		mmUpdateServiceScaling.inspectFuncUpdateServiceScaling(serviceId, s)
+		mmUpdateServiceScaling.inspectFuncUpdateServiceScaling(ctx, serviceId, s)
 	}
 
-	mm_params := ClientMockUpdateServiceScalingParams{serviceId, s}
+	mm_params := ClientMockUpdateServiceScalingParams{ctx, serviceId, s}
 
 	// Record call args
 	mmUpdateServiceScaling.UpdateServiceScalingMock.mutex.Lock()
@@ -2660,9 +2995,13 @@ func (mmUpdateServiceScaling *ClientMock) UpdateServiceScaling(serviceId string,
 		mm_want := mmUpdateServiceScaling.UpdateServiceScalingMock.defaultExpectation.params
 		mm_want_ptrs := mmUpdateServiceScaling.UpdateServiceScalingMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockUpdateServiceScalingParams{serviceId, s}
+		mm_got := ClientMockUpdateServiceScalingParams{ctx, serviceId, s}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateServiceScaling.t.Errorf("ClientMock.UpdateServiceScaling got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
 				mmUpdateServiceScaling.t.Errorf("ClientMock.UpdateServiceScaling got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
@@ -2683,9 +3022,9 @@ func (mmUpdateServiceScaling *ClientMock) UpdateServiceScaling(serviceId string,
 		return (*mm_results).sp1, (*mm_results).err
 	}
 	if mmUpdateServiceScaling.funcUpdateServiceScaling != nil {
-		return mmUpdateServiceScaling.funcUpdateServiceScaling(serviceId, s)
+		return mmUpdateServiceScaling.funcUpdateServiceScaling(ctx, serviceId, s)
 	}
-	mmUpdateServiceScaling.t.Fatalf("Unexpected call to ClientMock.UpdateServiceScaling. %v %v", serviceId, s)
+	mmUpdateServiceScaling.t.Fatalf("Unexpected call to ClientMock.UpdateServiceScaling. %v %v %v", ctx, serviceId, s)
 	return
 }
 
@@ -2780,6 +3119,7 @@ type ClientMockWaitForServiceStateExpectation struct {
 
 // ClientMockWaitForServiceStateParams contains parameters of the Client.WaitForServiceState
 type ClientMockWaitForServiceStateParams struct {
+	ctx            context.Context
 	serviceId      string
 	stateChecker   func(string) bool
 	maxWaitSeconds int
@@ -2787,6 +3127,7 @@ type ClientMockWaitForServiceStateParams struct {
 
 // ClientMockWaitForServiceStateParamPtrs contains pointers to parameters of the Client.WaitForServiceState
 type ClientMockWaitForServiceStateParamPtrs struct {
+	ctx            *context.Context
 	serviceId      *string
 	stateChecker   *func(string) bool
 	maxWaitSeconds *int
@@ -2808,7 +3149,7 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) Optional() *mClient
 }
 
 // Expect sets up expected params for Client.WaitForServiceState
-func (mmWaitForServiceState *mClientMockWaitForServiceState) Expect(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) *mClientMockWaitForServiceState {
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Expect(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) *mClientMockWaitForServiceState {
 	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
 		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
 	}
@@ -2821,7 +3162,7 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) Expect(serviceId st
 		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by ExpectParams functions")
 	}
 
-	mmWaitForServiceState.defaultExpectation.params = &ClientMockWaitForServiceStateParams{serviceId, stateChecker, maxWaitSeconds}
+	mmWaitForServiceState.defaultExpectation.params = &ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds}
 	for _, e := range mmWaitForServiceState.expectations {
 		if minimock.Equal(e.params, mmWaitForServiceState.defaultExpectation.params) {
 			mmWaitForServiceState.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForServiceState.defaultExpectation.params)
@@ -2831,8 +3172,30 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) Expect(serviceId st
 	return mmWaitForServiceState
 }
 
-// ExpectServiceIdParam1 sets up expected param serviceId for Client.WaitForServiceState
-func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectServiceIdParam1(serviceId string) *mClientMockWaitForServiceState {
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForServiceState {
+	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
+	}
+
+	if mmWaitForServiceState.defaultExpectation == nil {
+		mmWaitForServiceState.defaultExpectation = &ClientMockWaitForServiceStateExpectation{}
+	}
+
+	if mmWaitForServiceState.defaultExpectation.params != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Expect")
+	}
+
+	if mmWaitForServiceState.defaultExpectation.paramPtrs == nil {
+		mmWaitForServiceState.defaultExpectation.paramPtrs = &ClientMockWaitForServiceStateParamPtrs{}
+	}
+	mmWaitForServiceState.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmWaitForServiceState
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectServiceIdParam2(serviceId string) *mClientMockWaitForServiceState {
 	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
 		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
 	}
@@ -2853,8 +3216,8 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectServiceIdPara
 	return mmWaitForServiceState
 }
 
-// ExpectStateCheckerParam2 sets up expected param stateChecker for Client.WaitForServiceState
-func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectStateCheckerParam2(stateChecker func(string) bool) *mClientMockWaitForServiceState {
+// ExpectStateCheckerParam3 sets up expected param stateChecker for Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectStateCheckerParam3(stateChecker func(string) bool) *mClientMockWaitForServiceState {
 	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
 		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
 	}
@@ -2875,8 +3238,8 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectStateCheckerP
 	return mmWaitForServiceState
 }
 
-// ExpectMaxWaitSecondsParam3 sets up expected param maxWaitSeconds for Client.WaitForServiceState
-func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectMaxWaitSecondsParam3(maxWaitSeconds int) *mClientMockWaitForServiceState {
+// ExpectMaxWaitSecondsParam4 sets up expected param maxWaitSeconds for Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectMaxWaitSecondsParam4(maxWaitSeconds int) *mClientMockWaitForServiceState {
 	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
 		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
 	}
@@ -2898,7 +3261,7 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectMaxWaitSecond
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.WaitForServiceState
-func (mmWaitForServiceState *mClientMockWaitForServiceState) Inspect(f func(serviceId string, stateChecker func(string) bool, maxWaitSeconds int)) *mClientMockWaitForServiceState {
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Inspect(f func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int)) *mClientMockWaitForServiceState {
 	if mmWaitForServiceState.mock.inspectFuncWaitForServiceState != nil {
 		mmWaitForServiceState.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForServiceState")
 	}
@@ -2922,7 +3285,7 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) Return(err error) *
 }
 
 // Set uses given function f to mock the Client.WaitForServiceState method
-func (mmWaitForServiceState *mClientMockWaitForServiceState) Set(f func(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)) *ClientMock {
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Set(f func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)) *ClientMock {
 	if mmWaitForServiceState.defaultExpectation != nil {
 		mmWaitForServiceState.mock.t.Fatalf("Default expectation is already set for the Client.WaitForServiceState method")
 	}
@@ -2937,14 +3300,14 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) Set(f func(serviceI
 
 // When sets expectation for the Client.WaitForServiceState which will trigger the result defined by the following
 // Then helper
-func (mmWaitForServiceState *mClientMockWaitForServiceState) When(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) *ClientMockWaitForServiceStateExpectation {
+func (mmWaitForServiceState *mClientMockWaitForServiceState) When(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) *ClientMockWaitForServiceStateExpectation {
 	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
 		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
 	}
 
 	expectation := &ClientMockWaitForServiceStateExpectation{
 		mock:   mmWaitForServiceState.mock,
-		params: &ClientMockWaitForServiceStateParams{serviceId, stateChecker, maxWaitSeconds},
+		params: &ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds},
 	}
 	mmWaitForServiceState.expectations = append(mmWaitForServiceState.expectations, expectation)
 	return expectation
@@ -2977,15 +3340,15 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) invocationsDone() b
 }
 
 // WaitForServiceState implements Client
-func (mmWaitForServiceState *ClientMock) WaitForServiceState(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error) {
+func (mmWaitForServiceState *ClientMock) WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error) {
 	mm_atomic.AddUint64(&mmWaitForServiceState.beforeWaitForServiceStateCounter, 1)
 	defer mm_atomic.AddUint64(&mmWaitForServiceState.afterWaitForServiceStateCounter, 1)
 
 	if mmWaitForServiceState.inspectFuncWaitForServiceState != nil {
-		mmWaitForServiceState.inspectFuncWaitForServiceState(serviceId, stateChecker, maxWaitSeconds)
+		mmWaitForServiceState.inspectFuncWaitForServiceState(ctx, serviceId, stateChecker, maxWaitSeconds)
 	}
 
-	mm_params := ClientMockWaitForServiceStateParams{serviceId, stateChecker, maxWaitSeconds}
+	mm_params := ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds}
 
 	// Record call args
 	mmWaitForServiceState.WaitForServiceStateMock.mutex.Lock()
@@ -3004,9 +3367,13 @@ func (mmWaitForServiceState *ClientMock) WaitForServiceState(serviceId string, s
 		mm_want := mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.params
 		mm_want_ptrs := mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockWaitForServiceStateParams{serviceId, stateChecker, maxWaitSeconds}
+		mm_got := ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForServiceState.t.Errorf("ClientMock.WaitForServiceState got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
 				mmWaitForServiceState.t.Errorf("ClientMock.WaitForServiceState got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
@@ -3031,9 +3398,9 @@ func (mmWaitForServiceState *ClientMock) WaitForServiceState(serviceId string, s
 		return (*mm_results).err
 	}
 	if mmWaitForServiceState.funcWaitForServiceState != nil {
-		return mmWaitForServiceState.funcWaitForServiceState(serviceId, stateChecker, maxWaitSeconds)
+		return mmWaitForServiceState.funcWaitForServiceState(ctx, serviceId, stateChecker, maxWaitSeconds)
 	}
-	mmWaitForServiceState.t.Fatalf("Unexpected call to ClientMock.WaitForServiceState. %v %v %v", serviceId, stateChecker, maxWaitSeconds)
+	mmWaitForServiceState.t.Fatalf("Unexpected call to ClientMock.WaitForServiceState. %v %v %v %v", ctx, serviceId, stateChecker, maxWaitSeconds)
 	return
 }
 

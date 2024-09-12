@@ -368,7 +368,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 
 			apiClientMock := api.NewClientMock(mc).
 				GetServiceMock.
-				Expect(tt.state.ID.ValueString()).
+				Expect(context.Background(), tt.state.ID.ValueString()).
 				Return(tt.response, tt.responseErr)
 
 			r := &ServiceResource{

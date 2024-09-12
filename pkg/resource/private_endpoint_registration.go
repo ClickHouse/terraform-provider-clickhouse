@@ -89,7 +89,7 @@ func (r *PrivateEndpointRegistrationResource) Create(ctx context.Context, req re
 		},
 	}
 
-	_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
+	_, err := r.client.UpdateOrganizationPrivateEndpoints(ctx, orgUpdate)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",
@@ -113,7 +113,7 @@ func (r *PrivateEndpointRegistrationResource) Read(ctx context.Context, req reso
 		return
 	}
 
-	privateEndpoints, err := r.client.GetOrganizationPrivateEndpoints()
+	privateEndpoints, err := r.client.GetOrganizationPrivateEndpoints(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading ClickHouse Organization Private Endpoint IDs",
@@ -175,7 +175,7 @@ func (r *PrivateEndpointRegistrationResource) Update(ctx context.Context, req re
 		},
 	}
 
-	_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
+	_, err := r.client.UpdateOrganizationPrivateEndpoints(ctx, orgUpdate)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",
@@ -213,7 +213,7 @@ func (r *PrivateEndpointRegistrationResource) Delete(ctx context.Context, req re
 		},
 	}
 
-	_, err := r.client.UpdateOrganizationPrivateEndpoints(orgUpdate)
+	_, err := r.client.UpdateOrganizationPrivateEndpoints(ctx, orgUpdate)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Registering ClickHouse Organization Private Endpoint IDs",

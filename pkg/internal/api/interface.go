@@ -1,14 +1,18 @@
 package api
 
+import (
+	"context"
+)
+
 type Client interface {
-	GetService(serviceId string) (*Service, error)
-	GetOrgPrivateEndpointConfig(cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
-	CreateService(s Service) (*Service, string, error)
-	WaitForServiceState(serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error
-	UpdateService(serviceId string, s ServiceUpdate) (*Service, error)
-	UpdateServiceScaling(serviceId string, s ServiceScalingUpdate) (*Service, error)
-	UpdateServicePassword(serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error)
-	DeleteService(serviceId string) (*Service, error)
-	GetOrganizationPrivateEndpoints() (*[]PrivateEndpoint, error)
-	UpdateOrganizationPrivateEndpoints(orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
+	GetService(ctx context.Context, serviceId string) (*Service, error)
+	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
+	CreateService(ctx context.Context, s Service) (*Service, string, error)
+	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error
+	UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error)
+	UpdateServiceScaling(ctx context.Context, serviceId string, s ServiceScalingUpdate) (*Service, error)
+	UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error)
+	DeleteService(ctx context.Context, serviceId string) (*Service, error)
+	GetOrganizationPrivateEndpoints(ctx context.Context) (*[]PrivateEndpoint, error)
+	UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
 }
