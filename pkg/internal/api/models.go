@@ -57,6 +57,8 @@ type Service struct {
 	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
 }
 
+// FixMemoryBounds ensures the MinTotalMemoryGb and MaxTotalMemoryGb fields are set before doing an API call to create the service
+// This is needed because there is a different interface between the /replicaScaling and the service creation API calls.
 func (s *Service) FixMemoryBounds() {
 	if s.MinReplicaMemoryGb == nil && s.MinTotalMemoryGb != nil {
 		// Due to a bug on the API, we always assumed the MinTotalMemoryGb value was always related to 3 replicas.
