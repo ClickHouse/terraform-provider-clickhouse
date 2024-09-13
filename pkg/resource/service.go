@@ -142,11 +142,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				DeprecationMessage: "Please use max_replica_memory_gb instead",
 			},
 			"min_replica_memory_gb": schema.Int64Attribute{
-				Description: "Minimum memory of a singe replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. min_replica_memory_gb x num_replicas (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Minimum memory of a singe replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
-				Description: "Maximum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. max_replica_memory_gb x num_replicas (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Maximum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 			},
 			"num_replicas": schema.Int64Attribute{
