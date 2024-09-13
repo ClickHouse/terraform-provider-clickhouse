@@ -54,6 +54,12 @@ type ClientMock struct {
 	beforeUpdateOrganizationPrivateEndpointsCounter uint64
 	UpdateOrganizationPrivateEndpointsMock          mClientMockUpdateOrganizationPrivateEndpoints
 
+	funcUpdateReplicaScaling          func(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (sp1 *Service, err error)
+	inspectFuncUpdateReplicaScaling   func(ctx context.Context, serviceId string, s ReplicaScalingUpdate)
+	afterUpdateReplicaScalingCounter  uint64
+	beforeUpdateReplicaScalingCounter uint64
+	UpdateReplicaScalingMock          mClientMockUpdateReplicaScaling
+
 	funcUpdateService          func(ctx context.Context, serviceId string, s ServiceUpdate) (sp1 *Service, err error)
 	inspectFuncUpdateService   func(ctx context.Context, serviceId string, s ServiceUpdate)
 	afterUpdateServiceCounter  uint64
@@ -65,12 +71,6 @@ type ClientMock struct {
 	afterUpdateServicePasswordCounter  uint64
 	beforeUpdateServicePasswordCounter uint64
 	UpdateServicePasswordMock          mClientMockUpdateServicePassword
-
-	funcUpdateServiceScaling          func(ctx context.Context, serviceId string, s ServiceScalingUpdate) (sp1 *Service, err error)
-	inspectFuncUpdateServiceScaling   func(ctx context.Context, serviceId string, s ServiceScalingUpdate)
-	afterUpdateServiceScalingCounter  uint64
-	beforeUpdateServiceScalingCounter uint64
-	UpdateServiceScalingMock          mClientMockUpdateServiceScaling
 
 	funcWaitForServiceState          func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
 	inspectFuncWaitForServiceState   func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int)
@@ -105,14 +105,14 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.UpdateOrganizationPrivateEndpointsMock = mClientMockUpdateOrganizationPrivateEndpoints{mock: m}
 	m.UpdateOrganizationPrivateEndpointsMock.callArgs = []*ClientMockUpdateOrganizationPrivateEndpointsParams{}
 
+	m.UpdateReplicaScalingMock = mClientMockUpdateReplicaScaling{mock: m}
+	m.UpdateReplicaScalingMock.callArgs = []*ClientMockUpdateReplicaScalingParams{}
+
 	m.UpdateServiceMock = mClientMockUpdateService{mock: m}
 	m.UpdateServiceMock.callArgs = []*ClientMockUpdateServiceParams{}
 
 	m.UpdateServicePasswordMock = mClientMockUpdateServicePassword{mock: m}
 	m.UpdateServicePasswordMock.callArgs = []*ClientMockUpdateServicePasswordParams{}
-
-	m.UpdateServiceScalingMock = mClientMockUpdateServiceScaling{mock: m}
-	m.UpdateServiceScalingMock.callArgs = []*ClientMockUpdateServiceScalingParams{}
 
 	m.WaitForServiceStateMock = mClientMockWaitForServiceState{mock: m}
 	m.WaitForServiceStateMock.callArgs = []*ClientMockWaitForServiceStateParams{}
@@ -2049,6 +2049,355 @@ func (m *ClientMock) MinimockUpdateOrganizationPrivateEndpointsInspect() {
 	}
 }
 
+type mClientMockUpdateReplicaScaling struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateReplicaScalingExpectation
+	expectations       []*ClientMockUpdateReplicaScalingExpectation
+
+	callArgs []*ClientMockUpdateReplicaScalingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockUpdateReplicaScalingExpectation specifies expectation struct of the Client.UpdateReplicaScaling
+type ClientMockUpdateReplicaScalingExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockUpdateReplicaScalingParams
+	paramPtrs *ClientMockUpdateReplicaScalingParamPtrs
+	results   *ClientMockUpdateReplicaScalingResults
+	Counter   uint64
+}
+
+// ClientMockUpdateReplicaScalingParams contains parameters of the Client.UpdateReplicaScaling
+type ClientMockUpdateReplicaScalingParams struct {
+	ctx       context.Context
+	serviceId string
+	s         ReplicaScalingUpdate
+}
+
+// ClientMockUpdateReplicaScalingParamPtrs contains pointers to parameters of the Client.UpdateReplicaScaling
+type ClientMockUpdateReplicaScalingParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	s         *ReplicaScalingUpdate
+}
+
+// ClientMockUpdateReplicaScalingResults contains results of the Client.UpdateReplicaScaling
+type ClientMockUpdateReplicaScalingResults struct {
+	sp1 *Service
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) Optional() *mClientMockUpdateReplicaScaling {
+	mmUpdateReplicaScaling.optional = true
+	return mmUpdateReplicaScaling
+}
+
+// Expect sets up expected params for Client.UpdateReplicaScaling
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) Expect(ctx context.Context, serviceId string, s ReplicaScalingUpdate) *mClientMockUpdateReplicaScaling {
+	if mmUpdateReplicaScaling.mock.funcUpdateReplicaScaling != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by Set")
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation == nil {
+		mmUpdateReplicaScaling.defaultExpectation = &ClientMockUpdateReplicaScalingExpectation{}
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation.paramPtrs != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateReplicaScaling.defaultExpectation.params = &ClientMockUpdateReplicaScalingParams{ctx, serviceId, s}
+	for _, e := range mmUpdateReplicaScaling.expectations {
+		if minimock.Equal(e.params, mmUpdateReplicaScaling.defaultExpectation.params) {
+			mmUpdateReplicaScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateReplicaScaling.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateReplicaScaling
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateReplicaScaling
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateReplicaScaling {
+	if mmUpdateReplicaScaling.mock.funcUpdateReplicaScaling != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by Set")
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation == nil {
+		mmUpdateReplicaScaling.defaultExpectation = &ClientMockUpdateReplicaScalingExpectation{}
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation.params != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by Expect")
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateReplicaScaling.defaultExpectation.paramPtrs = &ClientMockUpdateReplicaScalingParamPtrs{}
+	}
+	mmUpdateReplicaScaling.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmUpdateReplicaScaling
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateReplicaScaling
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateReplicaScaling {
+	if mmUpdateReplicaScaling.mock.funcUpdateReplicaScaling != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by Set")
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation == nil {
+		mmUpdateReplicaScaling.defaultExpectation = &ClientMockUpdateReplicaScalingExpectation{}
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation.params != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by Expect")
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateReplicaScaling.defaultExpectation.paramPtrs = &ClientMockUpdateReplicaScalingParamPtrs{}
+	}
+	mmUpdateReplicaScaling.defaultExpectation.paramPtrs.serviceId = &serviceId
+
+	return mmUpdateReplicaScaling
+}
+
+// ExpectSParam3 sets up expected param s for Client.UpdateReplicaScaling
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) ExpectSParam3(s ReplicaScalingUpdate) *mClientMockUpdateReplicaScaling {
+	if mmUpdateReplicaScaling.mock.funcUpdateReplicaScaling != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by Set")
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation == nil {
+		mmUpdateReplicaScaling.defaultExpectation = &ClientMockUpdateReplicaScalingExpectation{}
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation.params != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by Expect")
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateReplicaScaling.defaultExpectation.paramPtrs = &ClientMockUpdateReplicaScalingParamPtrs{}
+	}
+	mmUpdateReplicaScaling.defaultExpectation.paramPtrs.s = &s
+
+	return mmUpdateReplicaScaling
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateReplicaScaling
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) Inspect(f func(ctx context.Context, serviceId string, s ReplicaScalingUpdate)) *mClientMockUpdateReplicaScaling {
+	if mmUpdateReplicaScaling.mock.inspectFuncUpdateReplicaScaling != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateReplicaScaling")
+	}
+
+	mmUpdateReplicaScaling.mock.inspectFuncUpdateReplicaScaling = f
+
+	return mmUpdateReplicaScaling
+}
+
+// Return sets up results that will be returned by Client.UpdateReplicaScaling
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) Return(sp1 *Service, err error) *ClientMock {
+	if mmUpdateReplicaScaling.mock.funcUpdateReplicaScaling != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by Set")
+	}
+
+	if mmUpdateReplicaScaling.defaultExpectation == nil {
+		mmUpdateReplicaScaling.defaultExpectation = &ClientMockUpdateReplicaScalingExpectation{mock: mmUpdateReplicaScaling.mock}
+	}
+	mmUpdateReplicaScaling.defaultExpectation.results = &ClientMockUpdateReplicaScalingResults{sp1, err}
+	return mmUpdateReplicaScaling.mock
+}
+
+// Set uses given function f to mock the Client.UpdateReplicaScaling method
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) Set(f func(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (sp1 *Service, err error)) *ClientMock {
+	if mmUpdateReplicaScaling.defaultExpectation != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("Default expectation is already set for the Client.UpdateReplicaScaling method")
+	}
+
+	if len(mmUpdateReplicaScaling.expectations) > 0 {
+		mmUpdateReplicaScaling.mock.t.Fatalf("Some expectations are already set for the Client.UpdateReplicaScaling method")
+	}
+
+	mmUpdateReplicaScaling.mock.funcUpdateReplicaScaling = f
+	return mmUpdateReplicaScaling.mock
+}
+
+// When sets expectation for the Client.UpdateReplicaScaling which will trigger the result defined by the following
+// Then helper
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) When(ctx context.Context, serviceId string, s ReplicaScalingUpdate) *ClientMockUpdateReplicaScalingExpectation {
+	if mmUpdateReplicaScaling.mock.funcUpdateReplicaScaling != nil {
+		mmUpdateReplicaScaling.mock.t.Fatalf("ClientMock.UpdateReplicaScaling mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateReplicaScalingExpectation{
+		mock:   mmUpdateReplicaScaling.mock,
+		params: &ClientMockUpdateReplicaScalingParams{ctx, serviceId, s},
+	}
+	mmUpdateReplicaScaling.expectations = append(mmUpdateReplicaScaling.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateReplicaScaling return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateReplicaScalingExpectation) Then(sp1 *Service, err error) *ClientMock {
+	e.results = &ClientMockUpdateReplicaScalingResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateReplicaScaling should be invoked
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) Times(n uint64) *mClientMockUpdateReplicaScaling {
+	if n == 0 {
+		mmUpdateReplicaScaling.mock.t.Fatalf("Times of ClientMock.UpdateReplicaScaling mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateReplicaScaling.expectedInvocations, n)
+	return mmUpdateReplicaScaling
+}
+
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) invocationsDone() bool {
+	if len(mmUpdateReplicaScaling.expectations) == 0 && mmUpdateReplicaScaling.defaultExpectation == nil && mmUpdateReplicaScaling.mock.funcUpdateReplicaScaling == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateReplicaScaling.mock.afterUpdateReplicaScalingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateReplicaScaling.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateReplicaScaling implements Client
+func (mmUpdateReplicaScaling *ClientMock) UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (sp1 *Service, err error) {
+	mm_atomic.AddUint64(&mmUpdateReplicaScaling.beforeUpdateReplicaScalingCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateReplicaScaling.afterUpdateReplicaScalingCounter, 1)
+
+	if mmUpdateReplicaScaling.inspectFuncUpdateReplicaScaling != nil {
+		mmUpdateReplicaScaling.inspectFuncUpdateReplicaScaling(ctx, serviceId, s)
+	}
+
+	mm_params := ClientMockUpdateReplicaScalingParams{ctx, serviceId, s}
+
+	// Record call args
+	mmUpdateReplicaScaling.UpdateReplicaScalingMock.mutex.Lock()
+	mmUpdateReplicaScaling.UpdateReplicaScalingMock.callArgs = append(mmUpdateReplicaScaling.UpdateReplicaScalingMock.callArgs, &mm_params)
+	mmUpdateReplicaScaling.UpdateReplicaScalingMock.mutex.Unlock()
+
+	for _, e := range mmUpdateReplicaScaling.UpdateReplicaScalingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmUpdateReplicaScaling.UpdateReplicaScalingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateReplicaScaling.UpdateReplicaScalingMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateReplicaScaling.UpdateReplicaScalingMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateReplicaScaling.UpdateReplicaScalingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateReplicaScalingParams{ctx, serviceId, s}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateReplicaScaling.t.Errorf("ClientMock.UpdateReplicaScaling got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateReplicaScaling.t.Errorf("ClientMock.UpdateReplicaScaling got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.s != nil && !minimock.Equal(*mm_want_ptrs.s, mm_got.s) {
+				mmUpdateReplicaScaling.t.Errorf("ClientMock.UpdateReplicaScaling got unexpected parameter s, want: %#v, got: %#v%s\n", *mm_want_ptrs.s, mm_got.s, minimock.Diff(*mm_want_ptrs.s, mm_got.s))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateReplicaScaling.t.Errorf("ClientMock.UpdateReplicaScaling got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateReplicaScaling.UpdateReplicaScalingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateReplicaScaling.t.Fatal("No results are set for the ClientMock.UpdateReplicaScaling")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmUpdateReplicaScaling.funcUpdateReplicaScaling != nil {
+		return mmUpdateReplicaScaling.funcUpdateReplicaScaling(ctx, serviceId, s)
+	}
+	mmUpdateReplicaScaling.t.Fatalf("Unexpected call to ClientMock.UpdateReplicaScaling. %v %v %v", ctx, serviceId, s)
+	return
+}
+
+// UpdateReplicaScalingAfterCounter returns a count of finished ClientMock.UpdateReplicaScaling invocations
+func (mmUpdateReplicaScaling *ClientMock) UpdateReplicaScalingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateReplicaScaling.afterUpdateReplicaScalingCounter)
+}
+
+// UpdateReplicaScalingBeforeCounter returns a count of ClientMock.UpdateReplicaScaling invocations
+func (mmUpdateReplicaScaling *ClientMock) UpdateReplicaScalingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateReplicaScaling.beforeUpdateReplicaScalingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateReplicaScaling.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) Calls() []*ClientMockUpdateReplicaScalingParams {
+	mmUpdateReplicaScaling.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateReplicaScalingParams, len(mmUpdateReplicaScaling.callArgs))
+	copy(argCopy, mmUpdateReplicaScaling.callArgs)
+
+	mmUpdateReplicaScaling.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateReplicaScalingDone returns true if the count of the UpdateReplicaScaling invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateReplicaScalingDone() bool {
+	if m.UpdateReplicaScalingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateReplicaScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateReplicaScalingMock.invocationsDone()
+}
+
+// MinimockUpdateReplicaScalingInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateReplicaScalingInspect() {
+	for _, e := range m.UpdateReplicaScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateReplicaScaling with params: %#v", *e.params)
+		}
+	}
+
+	afterUpdateReplicaScalingCounter := mm_atomic.LoadUint64(&m.afterUpdateReplicaScalingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateReplicaScalingMock.defaultExpectation != nil && afterUpdateReplicaScalingCounter < 1 {
+		if m.UpdateReplicaScalingMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.UpdateReplicaScaling")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateReplicaScaling with params: %#v", *m.UpdateReplicaScalingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateReplicaScaling != nil && afterUpdateReplicaScalingCounter < 1 {
+		m.t.Error("Expected call to ClientMock.UpdateReplicaScaling")
+	}
+
+	if !m.UpdateReplicaScalingMock.invocationsDone() && afterUpdateReplicaScalingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateReplicaScaling but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateReplicaScalingMock.expectedInvocations), afterUpdateReplicaScalingCounter)
+	}
+}
+
 type mClientMockUpdateService struct {
 	optional           bool
 	mock               *ClientMock
@@ -2747,355 +3096,6 @@ func (m *ClientMock) MinimockUpdateServicePasswordInspect() {
 	}
 }
 
-type mClientMockUpdateServiceScaling struct {
-	optional           bool
-	mock               *ClientMock
-	defaultExpectation *ClientMockUpdateServiceScalingExpectation
-	expectations       []*ClientMockUpdateServiceScalingExpectation
-
-	callArgs []*ClientMockUpdateServiceScalingParams
-	mutex    sync.RWMutex
-
-	expectedInvocations uint64
-}
-
-// ClientMockUpdateServiceScalingExpectation specifies expectation struct of the Client.UpdateServiceScaling
-type ClientMockUpdateServiceScalingExpectation struct {
-	mock      *ClientMock
-	params    *ClientMockUpdateServiceScalingParams
-	paramPtrs *ClientMockUpdateServiceScalingParamPtrs
-	results   *ClientMockUpdateServiceScalingResults
-	Counter   uint64
-}
-
-// ClientMockUpdateServiceScalingParams contains parameters of the Client.UpdateServiceScaling
-type ClientMockUpdateServiceScalingParams struct {
-	ctx       context.Context
-	serviceId string
-	s         ServiceScalingUpdate
-}
-
-// ClientMockUpdateServiceScalingParamPtrs contains pointers to parameters of the Client.UpdateServiceScaling
-type ClientMockUpdateServiceScalingParamPtrs struct {
-	ctx       *context.Context
-	serviceId *string
-	s         *ServiceScalingUpdate
-}
-
-// ClientMockUpdateServiceScalingResults contains results of the Client.UpdateServiceScaling
-type ClientMockUpdateServiceScalingResults struct {
-	sp1 *Service
-	err error
-}
-
-// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
-// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
-// Optional() makes method check to work in '0 or more' mode.
-// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
-// catch the problems when the expected method call is totally skipped during test run.
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Optional() *mClientMockUpdateServiceScaling {
-	mmUpdateServiceScaling.optional = true
-	return mmUpdateServiceScaling
-}
-
-// Expect sets up expected params for Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Expect(ctx context.Context, serviceId string, s ServiceScalingUpdate) *mClientMockUpdateServiceScaling {
-	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation == nil {
-		mmUpdateServiceScaling.defaultExpectation = &ClientMockUpdateServiceScalingExpectation{}
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation.paramPtrs != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by ExpectParams functions")
-	}
-
-	mmUpdateServiceScaling.defaultExpectation.params = &ClientMockUpdateServiceScalingParams{ctx, serviceId, s}
-	for _, e := range mmUpdateServiceScaling.expectations {
-		if minimock.Equal(e.params, mmUpdateServiceScaling.defaultExpectation.params) {
-			mmUpdateServiceScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateServiceScaling.defaultExpectation.params)
-		}
-	}
-
-	return mmUpdateServiceScaling
-}
-
-// ExpectCtxParam1 sets up expected param ctx for Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateServiceScaling {
-	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation == nil {
-		mmUpdateServiceScaling.defaultExpectation = &ClientMockUpdateServiceScalingExpectation{}
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation.params != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Expect")
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation.paramPtrs == nil {
-		mmUpdateServiceScaling.defaultExpectation.paramPtrs = &ClientMockUpdateServiceScalingParamPtrs{}
-	}
-	mmUpdateServiceScaling.defaultExpectation.paramPtrs.ctx = &ctx
-
-	return mmUpdateServiceScaling
-}
-
-// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateServiceScaling {
-	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation == nil {
-		mmUpdateServiceScaling.defaultExpectation = &ClientMockUpdateServiceScalingExpectation{}
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation.params != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Expect")
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation.paramPtrs == nil {
-		mmUpdateServiceScaling.defaultExpectation.paramPtrs = &ClientMockUpdateServiceScalingParamPtrs{}
-	}
-	mmUpdateServiceScaling.defaultExpectation.paramPtrs.serviceId = &serviceId
-
-	return mmUpdateServiceScaling
-}
-
-// ExpectSParam3 sets up expected param s for Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) ExpectSParam3(s ServiceScalingUpdate) *mClientMockUpdateServiceScaling {
-	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation == nil {
-		mmUpdateServiceScaling.defaultExpectation = &ClientMockUpdateServiceScalingExpectation{}
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation.params != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Expect")
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation.paramPtrs == nil {
-		mmUpdateServiceScaling.defaultExpectation.paramPtrs = &ClientMockUpdateServiceScalingParamPtrs{}
-	}
-	mmUpdateServiceScaling.defaultExpectation.paramPtrs.s = &s
-
-	return mmUpdateServiceScaling
-}
-
-// Inspect accepts an inspector function that has same arguments as the Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Inspect(f func(ctx context.Context, serviceId string, s ServiceScalingUpdate)) *mClientMockUpdateServiceScaling {
-	if mmUpdateServiceScaling.mock.inspectFuncUpdateServiceScaling != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateServiceScaling")
-	}
-
-	mmUpdateServiceScaling.mock.inspectFuncUpdateServiceScaling = f
-
-	return mmUpdateServiceScaling
-}
-
-// Return sets up results that will be returned by Client.UpdateServiceScaling
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Return(sp1 *Service, err error) *ClientMock {
-	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
-	}
-
-	if mmUpdateServiceScaling.defaultExpectation == nil {
-		mmUpdateServiceScaling.defaultExpectation = &ClientMockUpdateServiceScalingExpectation{mock: mmUpdateServiceScaling.mock}
-	}
-	mmUpdateServiceScaling.defaultExpectation.results = &ClientMockUpdateServiceScalingResults{sp1, err}
-	return mmUpdateServiceScaling.mock
-}
-
-// Set uses given function f to mock the Client.UpdateServiceScaling method
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Set(f func(ctx context.Context, serviceId string, s ServiceScalingUpdate) (sp1 *Service, err error)) *ClientMock {
-	if mmUpdateServiceScaling.defaultExpectation != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("Default expectation is already set for the Client.UpdateServiceScaling method")
-	}
-
-	if len(mmUpdateServiceScaling.expectations) > 0 {
-		mmUpdateServiceScaling.mock.t.Fatalf("Some expectations are already set for the Client.UpdateServiceScaling method")
-	}
-
-	mmUpdateServiceScaling.mock.funcUpdateServiceScaling = f
-	return mmUpdateServiceScaling.mock
-}
-
-// When sets expectation for the Client.UpdateServiceScaling which will trigger the result defined by the following
-// Then helper
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) When(ctx context.Context, serviceId string, s ServiceScalingUpdate) *ClientMockUpdateServiceScalingExpectation {
-	if mmUpdateServiceScaling.mock.funcUpdateServiceScaling != nil {
-		mmUpdateServiceScaling.mock.t.Fatalf("ClientMock.UpdateServiceScaling mock is already set by Set")
-	}
-
-	expectation := &ClientMockUpdateServiceScalingExpectation{
-		mock:   mmUpdateServiceScaling.mock,
-		params: &ClientMockUpdateServiceScalingParams{ctx, serviceId, s},
-	}
-	mmUpdateServiceScaling.expectations = append(mmUpdateServiceScaling.expectations, expectation)
-	return expectation
-}
-
-// Then sets up Client.UpdateServiceScaling return parameters for the expectation previously defined by the When method
-func (e *ClientMockUpdateServiceScalingExpectation) Then(sp1 *Service, err error) *ClientMock {
-	e.results = &ClientMockUpdateServiceScalingResults{sp1, err}
-	return e.mock
-}
-
-// Times sets number of times Client.UpdateServiceScaling should be invoked
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Times(n uint64) *mClientMockUpdateServiceScaling {
-	if n == 0 {
-		mmUpdateServiceScaling.mock.t.Fatalf("Times of ClientMock.UpdateServiceScaling mock can not be zero")
-	}
-	mm_atomic.StoreUint64(&mmUpdateServiceScaling.expectedInvocations, n)
-	return mmUpdateServiceScaling
-}
-
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) invocationsDone() bool {
-	if len(mmUpdateServiceScaling.expectations) == 0 && mmUpdateServiceScaling.defaultExpectation == nil && mmUpdateServiceScaling.mock.funcUpdateServiceScaling == nil {
-		return true
-	}
-
-	totalInvocations := mm_atomic.LoadUint64(&mmUpdateServiceScaling.mock.afterUpdateServiceScalingCounter)
-	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateServiceScaling.expectedInvocations)
-
-	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
-}
-
-// UpdateServiceScaling implements Client
-func (mmUpdateServiceScaling *ClientMock) UpdateServiceScaling(ctx context.Context, serviceId string, s ServiceScalingUpdate) (sp1 *Service, err error) {
-	mm_atomic.AddUint64(&mmUpdateServiceScaling.beforeUpdateServiceScalingCounter, 1)
-	defer mm_atomic.AddUint64(&mmUpdateServiceScaling.afterUpdateServiceScalingCounter, 1)
-
-	if mmUpdateServiceScaling.inspectFuncUpdateServiceScaling != nil {
-		mmUpdateServiceScaling.inspectFuncUpdateServiceScaling(ctx, serviceId, s)
-	}
-
-	mm_params := ClientMockUpdateServiceScalingParams{ctx, serviceId, s}
-
-	// Record call args
-	mmUpdateServiceScaling.UpdateServiceScalingMock.mutex.Lock()
-	mmUpdateServiceScaling.UpdateServiceScalingMock.callArgs = append(mmUpdateServiceScaling.UpdateServiceScalingMock.callArgs, &mm_params)
-	mmUpdateServiceScaling.UpdateServiceScalingMock.mutex.Unlock()
-
-	for _, e := range mmUpdateServiceScaling.UpdateServiceScalingMock.expectations {
-		if minimock.Equal(*e.params, mm_params) {
-			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.sp1, e.results.err
-		}
-	}
-
-	if mmUpdateServiceScaling.UpdateServiceScalingMock.defaultExpectation != nil {
-		mm_atomic.AddUint64(&mmUpdateServiceScaling.UpdateServiceScalingMock.defaultExpectation.Counter, 1)
-		mm_want := mmUpdateServiceScaling.UpdateServiceScalingMock.defaultExpectation.params
-		mm_want_ptrs := mmUpdateServiceScaling.UpdateServiceScalingMock.defaultExpectation.paramPtrs
-
-		mm_got := ClientMockUpdateServiceScalingParams{ctx, serviceId, s}
-
-		if mm_want_ptrs != nil {
-
-			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
-				mmUpdateServiceScaling.t.Errorf("ClientMock.UpdateServiceScaling got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
-			}
-
-			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
-				mmUpdateServiceScaling.t.Errorf("ClientMock.UpdateServiceScaling got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
-			}
-
-			if mm_want_ptrs.s != nil && !minimock.Equal(*mm_want_ptrs.s, mm_got.s) {
-				mmUpdateServiceScaling.t.Errorf("ClientMock.UpdateServiceScaling got unexpected parameter s, want: %#v, got: %#v%s\n", *mm_want_ptrs.s, mm_got.s, minimock.Diff(*mm_want_ptrs.s, mm_got.s))
-			}
-
-		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
-			mmUpdateServiceScaling.t.Errorf("ClientMock.UpdateServiceScaling got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
-		}
-
-		mm_results := mmUpdateServiceScaling.UpdateServiceScalingMock.defaultExpectation.results
-		if mm_results == nil {
-			mmUpdateServiceScaling.t.Fatal("No results are set for the ClientMock.UpdateServiceScaling")
-		}
-		return (*mm_results).sp1, (*mm_results).err
-	}
-	if mmUpdateServiceScaling.funcUpdateServiceScaling != nil {
-		return mmUpdateServiceScaling.funcUpdateServiceScaling(ctx, serviceId, s)
-	}
-	mmUpdateServiceScaling.t.Fatalf("Unexpected call to ClientMock.UpdateServiceScaling. %v %v %v", ctx, serviceId, s)
-	return
-}
-
-// UpdateServiceScalingAfterCounter returns a count of finished ClientMock.UpdateServiceScaling invocations
-func (mmUpdateServiceScaling *ClientMock) UpdateServiceScalingAfterCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmUpdateServiceScaling.afterUpdateServiceScalingCounter)
-}
-
-// UpdateServiceScalingBeforeCounter returns a count of ClientMock.UpdateServiceScaling invocations
-func (mmUpdateServiceScaling *ClientMock) UpdateServiceScalingBeforeCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmUpdateServiceScaling.beforeUpdateServiceScalingCounter)
-}
-
-// Calls returns a list of arguments used in each call to ClientMock.UpdateServiceScaling.
-// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
-func (mmUpdateServiceScaling *mClientMockUpdateServiceScaling) Calls() []*ClientMockUpdateServiceScalingParams {
-	mmUpdateServiceScaling.mutex.RLock()
-
-	argCopy := make([]*ClientMockUpdateServiceScalingParams, len(mmUpdateServiceScaling.callArgs))
-	copy(argCopy, mmUpdateServiceScaling.callArgs)
-
-	mmUpdateServiceScaling.mutex.RUnlock()
-
-	return argCopy
-}
-
-// MinimockUpdateServiceScalingDone returns true if the count of the UpdateServiceScaling invocations corresponds
-// the number of defined expectations
-func (m *ClientMock) MinimockUpdateServiceScalingDone() bool {
-	if m.UpdateServiceScalingMock.optional {
-		// Optional methods provide '0 or more' call count restriction.
-		return true
-	}
-
-	for _, e := range m.UpdateServiceScalingMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			return false
-		}
-	}
-
-	return m.UpdateServiceScalingMock.invocationsDone()
-}
-
-// MinimockUpdateServiceScalingInspect logs each unmet expectation
-func (m *ClientMock) MinimockUpdateServiceScalingInspect() {
-	for _, e := range m.UpdateServiceScalingMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Errorf("Expected call to ClientMock.UpdateServiceScaling with params: %#v", *e.params)
-		}
-	}
-
-	afterUpdateServiceScalingCounter := mm_atomic.LoadUint64(&m.afterUpdateServiceScalingCounter)
-	// if default expectation was set then invocations count should be greater than zero
-	if m.UpdateServiceScalingMock.defaultExpectation != nil && afterUpdateServiceScalingCounter < 1 {
-		if m.UpdateServiceScalingMock.defaultExpectation.params == nil {
-			m.t.Error("Expected call to ClientMock.UpdateServiceScaling")
-		} else {
-			m.t.Errorf("Expected call to ClientMock.UpdateServiceScaling with params: %#v", *m.UpdateServiceScalingMock.defaultExpectation.params)
-		}
-	}
-	// if func was set then invocations count should be greater than zero
-	if m.funcUpdateServiceScaling != nil && afterUpdateServiceScalingCounter < 1 {
-		m.t.Error("Expected call to ClientMock.UpdateServiceScaling")
-	}
-
-	if !m.UpdateServiceScalingMock.invocationsDone() && afterUpdateServiceScalingCounter > 0 {
-		m.t.Errorf("Expected %d calls to ClientMock.UpdateServiceScaling but found %d calls",
-			mm_atomic.LoadUint64(&m.UpdateServiceScalingMock.expectedInvocations), afterUpdateServiceScalingCounter)
-	}
-}
-
 type mClientMockWaitForServiceState struct {
 	optional           bool
 	mock               *ClientMock
@@ -3488,11 +3488,11 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockUpdateOrganizationPrivateEndpointsInspect()
 
+			m.MinimockUpdateReplicaScalingInspect()
+
 			m.MinimockUpdateServiceInspect()
 
 			m.MinimockUpdateServicePasswordInspect()
-
-			m.MinimockUpdateServiceScalingInspect()
 
 			m.MinimockWaitForServiceStateInspect()
 		}
@@ -3524,8 +3524,8 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetOrganizationPrivateEndpointsDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
+		m.MinimockUpdateReplicaScalingDone() &&
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
-		m.MinimockUpdateServiceScalingDone() &&
 		m.MinimockWaitForServiceStateDone()
 }

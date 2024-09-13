@@ -258,6 +258,8 @@ func (c *ClientImpl) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvi
 }
 
 func (c *ClientImpl) CreateService(ctx context.Context, s Service) (*Service, string, error) {
+	// Needed until we have alignment between service creation and replicaScaling calls.
+	s.FixMemoryBounds()
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, "", err
@@ -338,13 +340,13 @@ func (c *ClientImpl) UpdateService(ctx context.Context, serviceId string, s Serv
 	return &serviceResponse.Result, nil
 }
 
-func (c *ClientImpl) UpdateServiceScaling(ctx context.Context, serviceId string, s ServiceScalingUpdate) (*Service, error) {
+func (c *ClientImpl) UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (*Service, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("PATCH", c.getServicePath(serviceId, "/scaling"), strings.NewReader(string(rb)))
+	req, err := http.NewRequest("PATCH", c.getServicePath(serviceId, "/replicaScaling"), strings.NewReader(string(rb)))
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +417,7 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 		}
 	}
 
-	err = c.WaitForServiceState(ctx, serviceId, func(state string) bool { return state == StateStopped }, 300)
+	err = c.WaitForServiceState(ctx, serviceId, func(state string) bool { return state == StateStopped }, 10*60)
 	if err != nil {
 		return nil, err
 	}
