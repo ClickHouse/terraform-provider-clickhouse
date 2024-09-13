@@ -417,7 +417,7 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 		}
 	}
 
-	err = c.WaitForServiceState(ctx, serviceId, func(state string) bool { return state == StateStopped }, 300)
+	err = c.WaitForServiceState(ctx, serviceId, func(state string) bool { return state == StateStopped }, 10*60)
 	if err != nil {
 		return nil, err
 	}

@@ -468,7 +468,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	err = r.client.WaitForServiceState(ctx, s.Id, func(state string) bool { return state != api.StateProvisioning }, 300)
+	err = r.client.WaitForServiceState(ctx, s.Id, func(state string) bool { return state != api.StateProvisioning }, 20*60)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error retrieving service state",
