@@ -33,9 +33,9 @@ inputs:
   aws_role_arn:
     required: true
     description: "The ARN of the AWS role to assume for AWS tests"
-  aws_region:
+  region:
     required: true
-    description: "The AWS region to use for AWS tests"
+    description: "The Cloud region to use for tests"
 runs:
   using: "composite"
   steps:
@@ -74,7 +74,7 @@ runs:
       if: ${{ inputs.cloud_provider == 'aws' }}
       with:
         role-to-assume: ${{ inputs.aws_role_arn }}
-        aws-region: ${{ inputs.aws_region }}
+        aws-region: ${{ inputs.region }}
         output-credentials: true
 
     - shell: bash
@@ -88,6 +88,7 @@ runs:
         token_key       = "${{ inputs.token_key }}"
         token_secret    = "${{ inputs.token_secret }}"
         service_name    = "${{ inputs.service_name }}"
+        region          = "${{ inputs.region }}"
         EOF
         
         if [ "${{ inputs.cloud_provider }}" == "aws" ]
@@ -95,13 +96,12 @@ runs:
           aws sts get-caller-identity
         
           cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
-        aws_region        = "${{ inputs.aws_region }}"
         aws_key           = "${{ steps.aws-auth.outputs.aws-access-key-id }}"
         aws_secret        = "${{ steps.aws-auth.outputs.aws-secret-access-key }}"
         aws_session_token = "${{ steps.aws-auth.outputs.aws-session-token }}"
         EOF
         fi
-          
+        
         echo "::endgroup::"
 
     - shell: bash

@@ -15,10 +15,15 @@ variable "service_name" {
   default = "red"
 }
 
+variable "region" {
+  type = string
+  default = "us-east-2"
+}
+
 resource "clickhouse_service" "aws_red" {
   name                 = var.service_name
   cloud_provider       = "aws"
-  region               = var.aws_region
+  region               = var.region
   tier                 = "production"
   idle_scaling         = true
   idle_timeout_minutes = 5
@@ -35,7 +40,7 @@ resource "clickhouse_service" "aws_red" {
 resource "clickhouse_private_endpoint_registration" "private_endpoint_aws_foo" {
   cloud_provider      = "aws"
   private_endpoint_id = aws_vpc_endpoint.pl_vpc_foo.id
-  region              = var.aws_region
+  region              = var.region
   description         = "Private Link from VPC foo"
 }
 
@@ -46,7 +51,7 @@ resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
 
 data "clickhouse_private_endpoint_config" "endpoint_config" {
   cloud_provider = "aws"
-  region         = var.aws_region
+  region         = var.region
 
   depends_on = [clickhouse_service.aws_red]
 }

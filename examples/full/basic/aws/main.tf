@@ -15,10 +15,15 @@ variable "service_name" {
   default = "My Terraform Service"
 }
 
+variable "region" {
+  type = string
+  default = "europe-west4"
+}
+
 resource "clickhouse_service" "service" {
   name                      = var.service_name
   cloud_provider            = "aws"
-  region                    = "us-east-1"
+  region                    = var.region
   tier                      = "production"
   idle_scaling              = true
   idle_timeout_minutes      = 5
