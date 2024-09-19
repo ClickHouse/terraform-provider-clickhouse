@@ -18,9 +18,6 @@ defaults:
   run:
     shell: bash
 
-env:
-  aws_region: "eu-west-2"
-
 jobs:
   # Generate a random token to tag the tests with
   token:
@@ -75,6 +72,40 @@ jobs:
           fi
           
           echo "test_name=[e2e${test_type}]-${{ matrix.test }}-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
+      - name: Pick a cloud region
+        id: region
+        run: |
+          cloud="${{ matrix.cloud_provider }}"
+          regions=()
+          case $cloud in
+          aws)
+            regions+=('us-west-2')
+            regions+=('us-east-2')
+            regions+=('us-east-1')
+            regions+=('eu-west-1')
+            regions+=('eu-west-2')
+            regions+=('eu-central-1')
+            regions+=('ap-southeast-1')
+            regions+=('ap-southeast-2')
+            regions+=('ap-northeast-1')
+            regions+=('ap-south-1')
+            ;;
+          azure)
+            regions+=('germanywestcentral')
+            regions+=('eastus2')
+            regions+=('westus3')
+            ;;
+          gcp)
+            regions+=('us-east1')
+            regions+=('us-central1')
+            regions+=('europe-west4')
+            regions+=('asia-southeast1')
+            ;;
+          esac
+          
+          random=${regions[ $RANDOM % ${#regions[@]} ]}
+          echo "Lucky winner region is: $random"
+          echo "region=$random" >> $GITHUB_OUTPUT
       - name: e2e
         uses: ./.github/actions/e2e
         with:
@@ -87,14 +118,14 @@ jobs:
           cloud_provider: ${{ matrix.cloud_provider }}
           upgrade_test: ${{ matrix.upgrade_test }}
           skip_build: "${{ !contains(inputs.skip_build_from_branch, 'false') }}"
-          aws_region: ${{ env.aws_region }}
+          region: ${{steps.region.outputs.region}}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: cleanup
         if: ${{ always() && matrix.cloud_provider == 'aws' && matrix.test == 'private_endpoint' }}
         uses: ./.github/actions/cleanup-aws
         with:
           service_name: ${{steps.name.outputs.test_name}}
-          aws_region: ${{ env.aws_region }}
+          aws_region: ${{steps.region.outputs.region}}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: Mark error
         id: status

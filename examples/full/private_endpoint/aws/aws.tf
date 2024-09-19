@@ -1,8 +1,3 @@
-variable "aws_region" {
-  type = string
-  default = "us-east-2"
-}
-
 variable "aws_key" {
   type = string
 }
@@ -23,7 +18,7 @@ locals {
 }
 
 provider "aws" {
-  region     = var.aws_region
+  region     = var.region
   access_key = var.aws_key
   secret_key = var.aws_secret
   token      = var.aws_session_token
@@ -41,7 +36,7 @@ resource "aws_vpc" "vpc" {
 resource "aws_subnet" "subnet1" {
   vpc_id     = aws_vpc.vpc.id
   cidr_block = "192.168.0.0/24"
-  availability_zone = "${var.aws_region}a"
+  availability_zone = "${var.region}a"
 
   tags = local.tags
 }
@@ -49,7 +44,7 @@ resource "aws_subnet" "subnet1" {
 resource "aws_subnet" "subnet2" {
   vpc_id     = aws_vpc.vpc.id
   cidr_block = "192.168.1.0/24"
-  availability_zone = "${var.aws_region}b"
+  availability_zone = "${var.region}b"
 
   tags = local.tags
 }

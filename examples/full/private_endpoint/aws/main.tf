@@ -15,10 +15,15 @@ variable "service_name" {
   default = "red"
 }
 
+variable "region" {
+  type = string
+  default = "us-east-2"
+}
+
 resource "clickhouse_service" "aws_red" {
   name                 = var.service_name
   cloud_provider       = "aws"
-  region               = var.aws_region
+  region               = var.region
   tier                 = "production"
   idle_scaling         = true
   idle_timeout_minutes = 5
