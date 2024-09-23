@@ -17,7 +17,7 @@ variable "service_name" {
 
 variable "region" {
   type = string
-  default = "europe-west4"
+  default = "us-east-2"
 }
 
 resource "clickhouse_service" "service" {
