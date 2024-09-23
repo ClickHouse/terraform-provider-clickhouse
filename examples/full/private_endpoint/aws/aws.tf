@@ -33,10 +33,14 @@ resource "aws_vpc" "vpc" {
   tags = local.tags
 }
 
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
 resource "aws_subnet" "subnet1" {
   vpc_id     = aws_vpc.vpc.id
   cidr_block = "192.168.0.0/24"
-  availability_zone = "${var.region}a"
+  availability_zone = data.aws_availability_zones.available.names[0]
 
   tags = local.tags
 }
@@ -44,7 +48,7 @@ resource "aws_subnet" "subnet1" {
 resource "aws_subnet" "subnet2" {
   vpc_id     = aws_vpc.vpc.id
   cidr_block = "192.168.1.0/24"
-  availability_zone = "${var.region}b"
+  availability_zone = data.aws_availability_zones.available.names[1]
 
   tags = local.tags
 }
