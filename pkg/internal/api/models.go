@@ -98,16 +98,3 @@ type ServiceUpdate struct {
 	IpAccessList       *IpAccessUpdate           `json:"ipAccessList,omitempty"`
 	PrivateEndpointIds *PrivateEndpointIdsUpdate `json:"privateEndpointIds,omitempty"`
 }
-
-type ReplicaScalingUpdate struct {
-	IdleScaling        *bool `json:"idleScaling,omitempty"` // bool pointer so that `false`` is not omitted
-	MinReplicaMemoryGb *int  `json:"minReplicaMemoryGb,omitempty"`
-	MaxReplicaMemoryGb *int  `json:"maxReplicaMemoryGb,omitempty"`
-	NumReplicas        *int  `json:"numReplicas,omitempty"`
-	IdleTimeoutMinutes *int  `json:"idleTimeoutMinutes,omitempty"`
-}
-
-type ServicePasswordUpdate struct {
-	NewPasswordHash   string `json:"newPasswordHash,omitempty"`
-	NewDoubleSha1Hash string `json:"newDoubleSha1Hash,omitempty"`
-}
