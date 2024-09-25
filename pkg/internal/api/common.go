@@ -118,7 +118,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 		}
 	}
 
-	// This is a fake exponential backoff, becacuse multiplier is only 1.
+	// This is a fake exponential backoff, because multiplier is only 1.
 	// We need to do this because there is no way to set a MaxElapsedTime using ConstantBackOff()
 	// Real waiting times happen in the makeRequest function depending on the server's response.
 	backoffSettings := backoff.NewExponentialBackOff(
