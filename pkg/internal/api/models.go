@@ -1,9 +1,5 @@
 package api
 
-/****
-	Request and Response models for all API calls.
-****/
-
 type IpAccess struct {
 	Source      string `json:"source,omitempty"`
 	Description string `json:"description,omitempty"`
