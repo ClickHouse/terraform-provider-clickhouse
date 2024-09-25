@@ -1,9 +1,5 @@
 package api
 
-/****
-	Request and Response models for all API calls.
-****/
-
 type IpAccess struct {
 	Source      string `json:"source,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -57,6 +53,12 @@ type Service struct {
 	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
 }
 
+type ServiceUpdate struct {
+	Name               string                    `json:"name,omitempty"`
+	IpAccessList       *IpAccessUpdate           `json:"ipAccessList,omitempty"`
+	PrivateEndpointIds *PrivateEndpointIdsUpdate `json:"privateEndpointIds,omitempty"`
+}
+
 // FixMemoryBounds ensures the MinTotalMemoryGb and MaxTotalMemoryGb fields are set before doing an API call to create the service
 // This is needed because there is a different interface between the /replicaScaling and the service creation API calls.
 func (s *Service) FixMemoryBounds() {
@@ -91,23 +93,4 @@ func (s *Service) FixMemoryBounds() {
 		maxTotalMemory := *s.MaxReplicaMemoryGb * 3
 		s.MaxTotalMemoryGb = &maxTotalMemory
 	}
-}
-
-type ServiceUpdate struct {
-	Name               string                    `json:"name,omitempty"`
-	IpAccessList       *IpAccessUpdate           `json:"ipAccessList,omitempty"`
-	PrivateEndpointIds *PrivateEndpointIdsUpdate `json:"privateEndpointIds,omitempty"`
-}
-
-type ReplicaScalingUpdate struct {
-	IdleScaling        *bool `json:"idleScaling,omitempty"` // bool pointer so that `false`` is not omitted
-	MinReplicaMemoryGb *int  `json:"minReplicaMemoryGb,omitempty"`
-	MaxReplicaMemoryGb *int  `json:"maxReplicaMemoryGb,omitempty"`
-	NumReplicas        *int  `json:"numReplicas,omitempty"`
-	IdleTimeoutMinutes *int  `json:"idleTimeoutMinutes,omitempty"`
-}
-
-type ServicePasswordUpdate struct {
-	NewPasswordHash   string `json:"newPasswordHash,omitempty"`
-	NewDoubleSha1Hash string `json:"newDoubleSha1Hash,omitempty"`
 }
