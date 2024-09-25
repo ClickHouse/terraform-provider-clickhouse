@@ -24,7 +24,7 @@ type ServiceBody struct {
 	Service Service `json:"service"`
 }
 
-// GetService - Returns a specifc order
+// GetService - Returns service by ID
 func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, ""), nil)
 	if err != nil {
