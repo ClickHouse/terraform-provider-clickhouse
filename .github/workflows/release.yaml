@@ -164,7 +164,7 @@ jobs:
         uses: ravsamhq/notify-slack-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          status: ${{ job.status }}
+          status: 'failure'
           notification_title: "E2E tests failed for {branch}"
           footer: "{run_url}"
         env:
