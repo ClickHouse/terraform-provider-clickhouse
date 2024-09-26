@@ -91,6 +91,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Generate test name
         id: name
         run: |
@@ -112,7 +114,7 @@ jobs:
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
           upgrade_test: ${{ matrix.upgrade_test }}
-          aws_region: ${{ env.aws_region }}
+          region: ${{ env.aws_region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: Mark error
         id: status
@@ -203,6 +205,8 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        ref: "main"
     - name: Create tag
       run: |
         tag="v${{ inputs.version }}"
