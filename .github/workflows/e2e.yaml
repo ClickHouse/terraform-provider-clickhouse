@@ -11,6 +11,10 @@ on:
         type: boolean
         default: false
         description: "If checked, the latest stable release of the clickhouse terraform plugin is used for the tests"
+      run_upgrade_test:
+        type: boolean
+        default: false
+        description: "Create service using latest stable version, then upgrade to the current version"
   schedule:
     - cron: "0 3 * * *"
 
@@ -58,15 +62,16 @@ jobs:
         test: [ "basic", "private_endpoint" ]
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "gcp", "azure" ]
-        upgrade_test: ["false"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Generate test name
         id: name
         run: |
           test_type=""
-          if [ "${{matrix.upgrade_test}}" == "true" ]
+          if [ "${{inputs.run_upgrade_test}}" == "true" ]
           then
             test_type=" upgrade"
           fi
@@ -116,7 +121,7 @@ jobs:
           test_name: ${{ matrix.test }}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
-          upgrade_test: ${{ matrix.upgrade_test }}
+          upgrade_test: ${{ inputs.run_upgrade_test }}
           skip_build: "${{ !contains(inputs.skip_build_from_branch, 'false') }}"
           region: ${{steps.region.outputs.region}}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
