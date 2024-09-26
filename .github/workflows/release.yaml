@@ -68,41 +68,6 @@ jobs:
       - uses: ./.github/actions/find-tf-releases
         id: find
 
-      - name: Pick a cloud region
-        id: region
-        run: |
-          cloud="${{ matrix.cloud_provider }}"
-          regions=()
-          case $cloud in
-          aws)
-            regions+=('us-west-2')
-            regions+=('us-east-2')
-            regions+=('us-east-1')
-            regions+=('eu-west-1')
-            regions+=('eu-west-2')
-            regions+=('eu-central-1')
-            regions+=('ap-southeast-1')
-            regions+=('ap-southeast-2')
-            regions+=('ap-northeast-1')
-            regions+=('ap-south-1')
-            ;;
-          azure)
-            regions+=('germanywestcentral')
-            regions+=('eastus2')
-            regions+=('westus3')
-            ;;
-          gcp)
-            regions+=('us-east1')
-            regions+=('us-central1')
-            regions+=('europe-west4')
-            regions+=('asia-southeast1')
-            ;;
-          esac
-          
-          random=${regions[ $RANDOM % ${#regions[@]} ]}
-          echo "Lucky winner region is: $random"
-          echo "region=$random" >> $GITHUB_OUTPUT
-
   # Run e2e tests
   e2e:
     outputs:
@@ -135,6 +100,42 @@ jobs:
           fi
 
           echo "test_name=[e2e${test_type}]-${{ matrix.test }}-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
+
+      - name: Pick a cloud region
+        id: region
+        run: |
+          cloud="${{ matrix.cloud_provider }}"
+          regions=()
+          case $cloud in
+          aws)
+            regions+=('us-west-2')
+            regions+=('us-east-2')
+            regions+=('us-east-1')
+            regions+=('eu-west-1')
+            regions+=('eu-west-2')
+            regions+=('eu-central-1')
+            regions+=('ap-southeast-1')
+            regions+=('ap-southeast-2')
+            regions+=('ap-northeast-1')
+            regions+=('ap-south-1')
+            ;;
+          azure)
+            regions+=('germanywestcentral')
+            regions+=('eastus2')
+            regions+=('westus3')
+            ;;
+          gcp)
+            regions+=('us-east1')
+            regions+=('us-central1')
+            regions+=('europe-west4')
+            regions+=('asia-southeast1')
+            ;;
+          esac
+
+          random=${regions[ $RANDOM % ${#regions[@]} ]}
+          echo "Lucky winner region is: $random"
+          echo "region=$random" >> $GITHUB_OUTPUT
+
       - name: e2e
         uses: ./.github/actions/e2e
         with:
