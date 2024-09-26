@@ -10,6 +10,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 
@@ -65,20 +68,43 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Password for the default user. One of either `password` or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
+					stringvalidator.AtLeastOneOf(path.Expressions{
+						path.MatchRoot("password_hash"),
+					}...),
+				},
 			},
 			"password_hash": schema.StringAttribute{
 				Description: "SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$`),
+						"must be a base64 encoded hash",
+					),
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password")}...),
+				},
 			},
 			"double_sha1_password_hash": schema.StringAttribute{
 				Description: "Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.",
 				Optional:    true,
 				Sensitive:   true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[0-9a-fA-F]{40}$`),
+						"must be a double sha1 hash",
+					),
+					stringvalidator.AlsoRequires(path.Expressions{path.MatchRoot("password_hash")}...),
+				},
 			},
 			"cloud_provider": schema.StringAttribute{
 				Description: "Cloud provider ('aws', 'gcp', or 'azure') in which the service is deployed in.",
 				Required:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("aws", "gcp", "azure"),
+				},
 			},
 			"region": schema.StringAttribute{
 				Description: "Region within the cloud provider in which the service is deployed in.",
@@ -87,6 +113,9 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"tier": schema.StringAttribute{
 				Description: "Tier of the service: 'development', 'production'. Production services scale, Development are fixed size.",
 				Required:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf(api.TierDevelopment, api.TierProduction),
+				},
 			},
 			"idle_scaling": schema.BoolAttribute{
 				Description: "When set to true the service is allowed to scale down to zero when idle.",
@@ -341,54 +370,6 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			"Invalid Configuration",
 			"idle_timeout_minutes must be null if idle_scaling is disabled",
 		)
-	}
-
-	if !plan.Password.IsNull() && !plan.PasswordHash.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"Only one of either password or password_hash may be specified",
-		)
-	}
-
-	if plan.Password.IsNull() && plan.PasswordHash.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"One of either password or password_hash must be specified",
-		)
-	}
-
-	if !plan.Password.IsNull() && !plan.DoubleSha1PasswordHash.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"`double_sha1_password_hash` cannot be specified if `password` specified",
-		)
-	}
-
-	if !plan.DoubleSha1PasswordHash.IsNull() && plan.PasswordHash.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"`double_sha1_password_hash` cannot be specified without `password_hash`",
-		)
-	}
-
-	if !plan.DoubleSha1PasswordHash.IsNull() {
-		match, _ := regexp.MatchString("^[0-9a-fA-F]{40}$", plan.DoubleSha1PasswordHash.ValueString())
-		if !match {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"`double_sha1_password_hash` is not a double sha1 hash",
-			)
-		}
-	}
-
-	if !plan.PasswordHash.IsNull() {
-		match, _ := regexp.MatchString("^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$", plan.PasswordHash.ValueString())
-		if !match {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"`password_hash` is not a base64 encoded hash",
-			)
-		}
 	}
 }
 
