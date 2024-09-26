@@ -50,6 +50,13 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 
 	service.PrivateEndpointConfig = endpointConfigResponse
 
+	backupConfiguration, err := c.GetBackupConfiguration(ctx, service.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	service.BackupConfiguration = backupConfiguration
+
 	return &service, nil
 }
 

@@ -179,6 +179,36 @@ func TestServiceResource_Equals(t *testing.T) {
 			}).Get(),
 			want: false,
 		},
+		{
+			name: "BackupConfiguration.BackupPeriodInHours changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.BackupConfiguration = BackupConfiguration{
+					BackupPeriodInHours: types.Int32Value(10),
+				}.ObjectValue()
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "BackupConfiguration.BackupStartTime changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.BackupConfiguration = BackupConfiguration{
+					BackupStartTime: types.StringValue("changed"),
+				}.ObjectValue()
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "BackupConfiguration.BackupRetentionPeriodInHours changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.BackupConfiguration = BackupConfiguration{
+					BackupRetentionPeriodInHours: types.Int32Value(10),
+				}.ObjectValue()
+			}).Get(),
+			want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -217,6 +247,7 @@ func getBaseModel() ServiceResourceModel {
 		PrivateEndpointConfig:           PrivateEndpointConfig{}.ObjectValue(),
 		EncryptionKey:                   types.String{},
 		EncryptionAssumedRoleIdentifier: types.String{},
+		BackupConfiguration:             BackupConfiguration{}.ObjectValue(),
 	}
 
 	return state
