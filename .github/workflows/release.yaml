@@ -162,6 +162,7 @@ jobs:
     steps:
       - name: Report Failure on slack
         uses: ravsamhq/notify-slack-action@v2
+        if: ${{ needs.e2e.outputs.status == 'failure' }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: 'failure'
@@ -170,6 +171,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       - name: Report error on github UI
+        if: ${{ needs.e2e.outputs.status == 'failure' }}
         run: |
           exit 1
 
