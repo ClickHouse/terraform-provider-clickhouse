@@ -51,6 +51,7 @@ type Service struct {
 	PrivateEndpointIds              []string                      `json:"privateEndpointIds,omitempty"`
 	EncryptionKey                   string                        `json:"encryptionKey,omitempty"`
 	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
+	BackupConfiguration             *BackupConfiguration          `json:"backupConfiguration,omitempty"`
 }
 
 type ServiceUpdate struct {

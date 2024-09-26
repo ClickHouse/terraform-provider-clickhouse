@@ -30,6 +30,12 @@ type ClientMock struct {
 	beforeDeleteServiceCounter uint64
 	DeleteServiceMock          mClientMockDeleteService
 
+	funcGetBackupConfiguration          func(ctx context.Context, serviceId string) (bp1 *BackupConfiguration, err error)
+	inspectFuncGetBackupConfiguration   func(ctx context.Context, serviceId string)
+	afterGetBackupConfigurationCounter  uint64
+	beforeGetBackupConfigurationCounter uint64
+	GetBackupConfigurationMock          mClientMockGetBackupConfiguration
+
 	funcGetOrgPrivateEndpointConfig          func(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error)
 	inspectFuncGetOrgPrivateEndpointConfig   func(ctx context.Context, cloudProvider string, region string)
 	afterGetOrgPrivateEndpointConfigCounter  uint64
@@ -47,6 +53,12 @@ type ClientMock struct {
 	afterGetServiceCounter  uint64
 	beforeGetServiceCounter uint64
 	GetServiceMock          mClientMockGetService
+
+	funcUpdateBackupConfiguration          func(ctx context.Context, serviceId string, b BackupConfiguration) (bp1 *BackupConfiguration, err error)
+	inspectFuncUpdateBackupConfiguration   func(ctx context.Context, serviceId string, b BackupConfiguration)
+	afterUpdateBackupConfigurationCounter  uint64
+	beforeUpdateBackupConfigurationCounter uint64
+	UpdateBackupConfigurationMock          mClientMockUpdateBackupConfiguration
 
 	funcUpdateOrganizationPrivateEndpoints          func(ctx context.Context, orgUpdate OrganizationUpdate) (pap1 *[]PrivateEndpoint, err error)
 	inspectFuncUpdateOrganizationPrivateEndpoints   func(ctx context.Context, orgUpdate OrganizationUpdate)
@@ -93,6 +105,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.DeleteServiceMock = mClientMockDeleteService{mock: m}
 	m.DeleteServiceMock.callArgs = []*ClientMockDeleteServiceParams{}
 
+	m.GetBackupConfigurationMock = mClientMockGetBackupConfiguration{mock: m}
+	m.GetBackupConfigurationMock.callArgs = []*ClientMockGetBackupConfigurationParams{}
+
 	m.GetOrgPrivateEndpointConfigMock = mClientMockGetOrgPrivateEndpointConfig{mock: m}
 	m.GetOrgPrivateEndpointConfigMock.callArgs = []*ClientMockGetOrgPrivateEndpointConfigParams{}
 
@@ -101,6 +116,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
+
+	m.UpdateBackupConfigurationMock = mClientMockUpdateBackupConfiguration{mock: m}
+	m.UpdateBackupConfigurationMock.callArgs = []*ClientMockUpdateBackupConfigurationParams{}
 
 	m.UpdateOrganizationPrivateEndpointsMock = mClientMockUpdateOrganizationPrivateEndpoints{mock: m}
 	m.UpdateOrganizationPrivateEndpointsMock.callArgs = []*ClientMockUpdateOrganizationPrivateEndpointsParams{}
@@ -762,6 +780,327 @@ func (m *ClientMock) MinimockDeleteServiceInspect() {
 	if !m.DeleteServiceMock.invocationsDone() && afterDeleteServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteService but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteServiceMock.expectedInvocations), afterDeleteServiceCounter)
+	}
+}
+
+type mClientMockGetBackupConfiguration struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetBackupConfigurationExpectation
+	expectations       []*ClientMockGetBackupConfigurationExpectation
+
+	callArgs []*ClientMockGetBackupConfigurationParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockGetBackupConfigurationExpectation specifies expectation struct of the Client.GetBackupConfiguration
+type ClientMockGetBackupConfigurationExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockGetBackupConfigurationParams
+	paramPtrs *ClientMockGetBackupConfigurationParamPtrs
+	results   *ClientMockGetBackupConfigurationResults
+	Counter   uint64
+}
+
+// ClientMockGetBackupConfigurationParams contains parameters of the Client.GetBackupConfiguration
+type ClientMockGetBackupConfigurationParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetBackupConfigurationParamPtrs contains pointers to parameters of the Client.GetBackupConfiguration
+type ClientMockGetBackupConfigurationParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetBackupConfigurationResults contains results of the Client.GetBackupConfiguration
+type ClientMockGetBackupConfigurationResults struct {
+	bp1 *BackupConfiguration
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) Optional() *mClientMockGetBackupConfiguration {
+	mmGetBackupConfiguration.optional = true
+	return mmGetBackupConfiguration
+}
+
+// Expect sets up expected params for Client.GetBackupConfiguration
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) Expect(ctx context.Context, serviceId string) *mClientMockGetBackupConfiguration {
+	if mmGetBackupConfiguration.mock.funcGetBackupConfiguration != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("ClientMock.GetBackupConfiguration mock is already set by Set")
+	}
+
+	if mmGetBackupConfiguration.defaultExpectation == nil {
+		mmGetBackupConfiguration.defaultExpectation = &ClientMockGetBackupConfigurationExpectation{}
+	}
+
+	if mmGetBackupConfiguration.defaultExpectation.paramPtrs != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("ClientMock.GetBackupConfiguration mock is already set by ExpectParams functions")
+	}
+
+	mmGetBackupConfiguration.defaultExpectation.params = &ClientMockGetBackupConfigurationParams{ctx, serviceId}
+	for _, e := range mmGetBackupConfiguration.expectations {
+		if minimock.Equal(e.params, mmGetBackupConfiguration.defaultExpectation.params) {
+			mmGetBackupConfiguration.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetBackupConfiguration.defaultExpectation.params)
+		}
+	}
+
+	return mmGetBackupConfiguration
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetBackupConfiguration
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) ExpectCtxParam1(ctx context.Context) *mClientMockGetBackupConfiguration {
+	if mmGetBackupConfiguration.mock.funcGetBackupConfiguration != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("ClientMock.GetBackupConfiguration mock is already set by Set")
+	}
+
+	if mmGetBackupConfiguration.defaultExpectation == nil {
+		mmGetBackupConfiguration.defaultExpectation = &ClientMockGetBackupConfigurationExpectation{}
+	}
+
+	if mmGetBackupConfiguration.defaultExpectation.params != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("ClientMock.GetBackupConfiguration mock is already set by Expect")
+	}
+
+	if mmGetBackupConfiguration.defaultExpectation.paramPtrs == nil {
+		mmGetBackupConfiguration.defaultExpectation.paramPtrs = &ClientMockGetBackupConfigurationParamPtrs{}
+	}
+	mmGetBackupConfiguration.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmGetBackupConfiguration
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetBackupConfiguration
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) ExpectServiceIdParam2(serviceId string) *mClientMockGetBackupConfiguration {
+	if mmGetBackupConfiguration.mock.funcGetBackupConfiguration != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("ClientMock.GetBackupConfiguration mock is already set by Set")
+	}
+
+	if mmGetBackupConfiguration.defaultExpectation == nil {
+		mmGetBackupConfiguration.defaultExpectation = &ClientMockGetBackupConfigurationExpectation{}
+	}
+
+	if mmGetBackupConfiguration.defaultExpectation.params != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("ClientMock.GetBackupConfiguration mock is already set by Expect")
+	}
+
+	if mmGetBackupConfiguration.defaultExpectation.paramPtrs == nil {
+		mmGetBackupConfiguration.defaultExpectation.paramPtrs = &ClientMockGetBackupConfigurationParamPtrs{}
+	}
+	mmGetBackupConfiguration.defaultExpectation.paramPtrs.serviceId = &serviceId
+
+	return mmGetBackupConfiguration
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetBackupConfiguration
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetBackupConfiguration {
+	if mmGetBackupConfiguration.mock.inspectFuncGetBackupConfiguration != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("Inspect function is already set for ClientMock.GetBackupConfiguration")
+	}
+
+	mmGetBackupConfiguration.mock.inspectFuncGetBackupConfiguration = f
+
+	return mmGetBackupConfiguration
+}
+
+// Return sets up results that will be returned by Client.GetBackupConfiguration
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) Return(bp1 *BackupConfiguration, err error) *ClientMock {
+	if mmGetBackupConfiguration.mock.funcGetBackupConfiguration != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("ClientMock.GetBackupConfiguration mock is already set by Set")
+	}
+
+	if mmGetBackupConfiguration.defaultExpectation == nil {
+		mmGetBackupConfiguration.defaultExpectation = &ClientMockGetBackupConfigurationExpectation{mock: mmGetBackupConfiguration.mock}
+	}
+	mmGetBackupConfiguration.defaultExpectation.results = &ClientMockGetBackupConfigurationResults{bp1, err}
+	return mmGetBackupConfiguration.mock
+}
+
+// Set uses given function f to mock the Client.GetBackupConfiguration method
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) Set(f func(ctx context.Context, serviceId string) (bp1 *BackupConfiguration, err error)) *ClientMock {
+	if mmGetBackupConfiguration.defaultExpectation != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("Default expectation is already set for the Client.GetBackupConfiguration method")
+	}
+
+	if len(mmGetBackupConfiguration.expectations) > 0 {
+		mmGetBackupConfiguration.mock.t.Fatalf("Some expectations are already set for the Client.GetBackupConfiguration method")
+	}
+
+	mmGetBackupConfiguration.mock.funcGetBackupConfiguration = f
+	return mmGetBackupConfiguration.mock
+}
+
+// When sets expectation for the Client.GetBackupConfiguration which will trigger the result defined by the following
+// Then helper
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) When(ctx context.Context, serviceId string) *ClientMockGetBackupConfigurationExpectation {
+	if mmGetBackupConfiguration.mock.funcGetBackupConfiguration != nil {
+		mmGetBackupConfiguration.mock.t.Fatalf("ClientMock.GetBackupConfiguration mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetBackupConfigurationExpectation{
+		mock:   mmGetBackupConfiguration.mock,
+		params: &ClientMockGetBackupConfigurationParams{ctx, serviceId},
+	}
+	mmGetBackupConfiguration.expectations = append(mmGetBackupConfiguration.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetBackupConfiguration return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetBackupConfigurationExpectation) Then(bp1 *BackupConfiguration, err error) *ClientMock {
+	e.results = &ClientMockGetBackupConfigurationResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetBackupConfiguration should be invoked
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) Times(n uint64) *mClientMockGetBackupConfiguration {
+	if n == 0 {
+		mmGetBackupConfiguration.mock.t.Fatalf("Times of ClientMock.GetBackupConfiguration mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetBackupConfiguration.expectedInvocations, n)
+	return mmGetBackupConfiguration
+}
+
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) invocationsDone() bool {
+	if len(mmGetBackupConfiguration.expectations) == 0 && mmGetBackupConfiguration.defaultExpectation == nil && mmGetBackupConfiguration.mock.funcGetBackupConfiguration == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetBackupConfiguration.mock.afterGetBackupConfigurationCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetBackupConfiguration.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetBackupConfiguration implements Client
+func (mmGetBackupConfiguration *ClientMock) GetBackupConfiguration(ctx context.Context, serviceId string) (bp1 *BackupConfiguration, err error) {
+	mm_atomic.AddUint64(&mmGetBackupConfiguration.beforeGetBackupConfigurationCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetBackupConfiguration.afterGetBackupConfigurationCounter, 1)
+
+	if mmGetBackupConfiguration.inspectFuncGetBackupConfiguration != nil {
+		mmGetBackupConfiguration.inspectFuncGetBackupConfiguration(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetBackupConfigurationParams{ctx, serviceId}
+
+	// Record call args
+	mmGetBackupConfiguration.GetBackupConfigurationMock.mutex.Lock()
+	mmGetBackupConfiguration.GetBackupConfigurationMock.callArgs = append(mmGetBackupConfiguration.GetBackupConfigurationMock.callArgs, &mm_params)
+	mmGetBackupConfiguration.GetBackupConfigurationMock.mutex.Unlock()
+
+	for _, e := range mmGetBackupConfiguration.GetBackupConfigurationMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmGetBackupConfiguration.GetBackupConfigurationMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetBackupConfiguration.GetBackupConfigurationMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetBackupConfiguration.GetBackupConfigurationMock.defaultExpectation.params
+		mm_want_ptrs := mmGetBackupConfiguration.GetBackupConfigurationMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetBackupConfigurationParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetBackupConfiguration.t.Errorf("ClientMock.GetBackupConfiguration got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetBackupConfiguration.t.Errorf("ClientMock.GetBackupConfiguration got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetBackupConfiguration.t.Errorf("ClientMock.GetBackupConfiguration got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetBackupConfiguration.GetBackupConfigurationMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetBackupConfiguration.t.Fatal("No results are set for the ClientMock.GetBackupConfiguration")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmGetBackupConfiguration.funcGetBackupConfiguration != nil {
+		return mmGetBackupConfiguration.funcGetBackupConfiguration(ctx, serviceId)
+	}
+	mmGetBackupConfiguration.t.Fatalf("Unexpected call to ClientMock.GetBackupConfiguration. %v %v", ctx, serviceId)
+	return
+}
+
+// GetBackupConfigurationAfterCounter returns a count of finished ClientMock.GetBackupConfiguration invocations
+func (mmGetBackupConfiguration *ClientMock) GetBackupConfigurationAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetBackupConfiguration.afterGetBackupConfigurationCounter)
+}
+
+// GetBackupConfigurationBeforeCounter returns a count of ClientMock.GetBackupConfiguration invocations
+func (mmGetBackupConfiguration *ClientMock) GetBackupConfigurationBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetBackupConfiguration.beforeGetBackupConfigurationCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetBackupConfiguration.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) Calls() []*ClientMockGetBackupConfigurationParams {
+	mmGetBackupConfiguration.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetBackupConfigurationParams, len(mmGetBackupConfiguration.callArgs))
+	copy(argCopy, mmGetBackupConfiguration.callArgs)
+
+	mmGetBackupConfiguration.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetBackupConfigurationDone returns true if the count of the GetBackupConfiguration invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetBackupConfigurationDone() bool {
+	if m.GetBackupConfigurationMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetBackupConfigurationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetBackupConfigurationMock.invocationsDone()
+}
+
+// MinimockGetBackupConfigurationInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetBackupConfigurationInspect() {
+	for _, e := range m.GetBackupConfigurationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetBackupConfiguration with params: %#v", *e.params)
+		}
+	}
+
+	afterGetBackupConfigurationCounter := mm_atomic.LoadUint64(&m.afterGetBackupConfigurationCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetBackupConfigurationMock.defaultExpectation != nil && afterGetBackupConfigurationCounter < 1 {
+		if m.GetBackupConfigurationMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.GetBackupConfiguration")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetBackupConfiguration with params: %#v", *m.GetBackupConfigurationMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetBackupConfiguration != nil && afterGetBackupConfigurationCounter < 1 {
+		m.t.Error("Expected call to ClientMock.GetBackupConfiguration")
+	}
+
+	if !m.GetBackupConfigurationMock.invocationsDone() && afterGetBackupConfigurationCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetBackupConfiguration but found %d calls",
+			mm_atomic.LoadUint64(&m.GetBackupConfigurationMock.expectedInvocations), afterGetBackupConfigurationCounter)
 	}
 }
 
@@ -1725,6 +2064,355 @@ func (m *ClientMock) MinimockGetServiceInspect() {
 	if !m.GetServiceMock.invocationsDone() && afterGetServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetService but found %d calls",
 			mm_atomic.LoadUint64(&m.GetServiceMock.expectedInvocations), afterGetServiceCounter)
+	}
+}
+
+type mClientMockUpdateBackupConfiguration struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateBackupConfigurationExpectation
+	expectations       []*ClientMockUpdateBackupConfigurationExpectation
+
+	callArgs []*ClientMockUpdateBackupConfigurationParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockUpdateBackupConfigurationExpectation specifies expectation struct of the Client.UpdateBackupConfiguration
+type ClientMockUpdateBackupConfigurationExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockUpdateBackupConfigurationParams
+	paramPtrs *ClientMockUpdateBackupConfigurationParamPtrs
+	results   *ClientMockUpdateBackupConfigurationResults
+	Counter   uint64
+}
+
+// ClientMockUpdateBackupConfigurationParams contains parameters of the Client.UpdateBackupConfiguration
+type ClientMockUpdateBackupConfigurationParams struct {
+	ctx       context.Context
+	serviceId string
+	b         BackupConfiguration
+}
+
+// ClientMockUpdateBackupConfigurationParamPtrs contains pointers to parameters of the Client.UpdateBackupConfiguration
+type ClientMockUpdateBackupConfigurationParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	b         *BackupConfiguration
+}
+
+// ClientMockUpdateBackupConfigurationResults contains results of the Client.UpdateBackupConfiguration
+type ClientMockUpdateBackupConfigurationResults struct {
+	bp1 *BackupConfiguration
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) Optional() *mClientMockUpdateBackupConfiguration {
+	mmUpdateBackupConfiguration.optional = true
+	return mmUpdateBackupConfiguration
+}
+
+// Expect sets up expected params for Client.UpdateBackupConfiguration
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) Expect(ctx context.Context, serviceId string, b BackupConfiguration) *mClientMockUpdateBackupConfiguration {
+	if mmUpdateBackupConfiguration.mock.funcUpdateBackupConfiguration != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation == nil {
+		mmUpdateBackupConfiguration.defaultExpectation = &ClientMockUpdateBackupConfigurationExpectation{}
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation.paramPtrs != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateBackupConfiguration.defaultExpectation.params = &ClientMockUpdateBackupConfigurationParams{ctx, serviceId, b}
+	for _, e := range mmUpdateBackupConfiguration.expectations {
+		if minimock.Equal(e.params, mmUpdateBackupConfiguration.defaultExpectation.params) {
+			mmUpdateBackupConfiguration.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateBackupConfiguration.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateBackupConfiguration
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateBackupConfiguration
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateBackupConfiguration {
+	if mmUpdateBackupConfiguration.mock.funcUpdateBackupConfiguration != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation == nil {
+		mmUpdateBackupConfiguration.defaultExpectation = &ClientMockUpdateBackupConfigurationExpectation{}
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation.params != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by Expect")
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation.paramPtrs == nil {
+		mmUpdateBackupConfiguration.defaultExpectation.paramPtrs = &ClientMockUpdateBackupConfigurationParamPtrs{}
+	}
+	mmUpdateBackupConfiguration.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmUpdateBackupConfiguration
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateBackupConfiguration
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateBackupConfiguration {
+	if mmUpdateBackupConfiguration.mock.funcUpdateBackupConfiguration != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation == nil {
+		mmUpdateBackupConfiguration.defaultExpectation = &ClientMockUpdateBackupConfigurationExpectation{}
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation.params != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by Expect")
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation.paramPtrs == nil {
+		mmUpdateBackupConfiguration.defaultExpectation.paramPtrs = &ClientMockUpdateBackupConfigurationParamPtrs{}
+	}
+	mmUpdateBackupConfiguration.defaultExpectation.paramPtrs.serviceId = &serviceId
+
+	return mmUpdateBackupConfiguration
+}
+
+// ExpectBParam3 sets up expected param b for Client.UpdateBackupConfiguration
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) ExpectBParam3(b BackupConfiguration) *mClientMockUpdateBackupConfiguration {
+	if mmUpdateBackupConfiguration.mock.funcUpdateBackupConfiguration != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation == nil {
+		mmUpdateBackupConfiguration.defaultExpectation = &ClientMockUpdateBackupConfigurationExpectation{}
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation.params != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by Expect")
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation.paramPtrs == nil {
+		mmUpdateBackupConfiguration.defaultExpectation.paramPtrs = &ClientMockUpdateBackupConfigurationParamPtrs{}
+	}
+	mmUpdateBackupConfiguration.defaultExpectation.paramPtrs.b = &b
+
+	return mmUpdateBackupConfiguration
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateBackupConfiguration
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) Inspect(f func(ctx context.Context, serviceId string, b BackupConfiguration)) *mClientMockUpdateBackupConfiguration {
+	if mmUpdateBackupConfiguration.mock.inspectFuncUpdateBackupConfiguration != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateBackupConfiguration")
+	}
+
+	mmUpdateBackupConfiguration.mock.inspectFuncUpdateBackupConfiguration = f
+
+	return mmUpdateBackupConfiguration
+}
+
+// Return sets up results that will be returned by Client.UpdateBackupConfiguration
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) Return(bp1 *BackupConfiguration, err error) *ClientMock {
+	if mmUpdateBackupConfiguration.mock.funcUpdateBackupConfiguration != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateBackupConfiguration.defaultExpectation == nil {
+		mmUpdateBackupConfiguration.defaultExpectation = &ClientMockUpdateBackupConfigurationExpectation{mock: mmUpdateBackupConfiguration.mock}
+	}
+	mmUpdateBackupConfiguration.defaultExpectation.results = &ClientMockUpdateBackupConfigurationResults{bp1, err}
+	return mmUpdateBackupConfiguration.mock
+}
+
+// Set uses given function f to mock the Client.UpdateBackupConfiguration method
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) Set(f func(ctx context.Context, serviceId string, b BackupConfiguration) (bp1 *BackupConfiguration, err error)) *ClientMock {
+	if mmUpdateBackupConfiguration.defaultExpectation != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("Default expectation is already set for the Client.UpdateBackupConfiguration method")
+	}
+
+	if len(mmUpdateBackupConfiguration.expectations) > 0 {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("Some expectations are already set for the Client.UpdateBackupConfiguration method")
+	}
+
+	mmUpdateBackupConfiguration.mock.funcUpdateBackupConfiguration = f
+	return mmUpdateBackupConfiguration.mock
+}
+
+// When sets expectation for the Client.UpdateBackupConfiguration which will trigger the result defined by the following
+// Then helper
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) When(ctx context.Context, serviceId string, b BackupConfiguration) *ClientMockUpdateBackupConfigurationExpectation {
+	if mmUpdateBackupConfiguration.mock.funcUpdateBackupConfiguration != nil {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("ClientMock.UpdateBackupConfiguration mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateBackupConfigurationExpectation{
+		mock:   mmUpdateBackupConfiguration.mock,
+		params: &ClientMockUpdateBackupConfigurationParams{ctx, serviceId, b},
+	}
+	mmUpdateBackupConfiguration.expectations = append(mmUpdateBackupConfiguration.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateBackupConfiguration return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateBackupConfigurationExpectation) Then(bp1 *BackupConfiguration, err error) *ClientMock {
+	e.results = &ClientMockUpdateBackupConfigurationResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateBackupConfiguration should be invoked
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) Times(n uint64) *mClientMockUpdateBackupConfiguration {
+	if n == 0 {
+		mmUpdateBackupConfiguration.mock.t.Fatalf("Times of ClientMock.UpdateBackupConfiguration mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateBackupConfiguration.expectedInvocations, n)
+	return mmUpdateBackupConfiguration
+}
+
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) invocationsDone() bool {
+	if len(mmUpdateBackupConfiguration.expectations) == 0 && mmUpdateBackupConfiguration.defaultExpectation == nil && mmUpdateBackupConfiguration.mock.funcUpdateBackupConfiguration == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateBackupConfiguration.mock.afterUpdateBackupConfigurationCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateBackupConfiguration.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateBackupConfiguration implements Client
+func (mmUpdateBackupConfiguration *ClientMock) UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (bp1 *BackupConfiguration, err error) {
+	mm_atomic.AddUint64(&mmUpdateBackupConfiguration.beforeUpdateBackupConfigurationCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateBackupConfiguration.afterUpdateBackupConfigurationCounter, 1)
+
+	if mmUpdateBackupConfiguration.inspectFuncUpdateBackupConfiguration != nil {
+		mmUpdateBackupConfiguration.inspectFuncUpdateBackupConfiguration(ctx, serviceId, b)
+	}
+
+	mm_params := ClientMockUpdateBackupConfigurationParams{ctx, serviceId, b}
+
+	// Record call args
+	mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.mutex.Lock()
+	mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.callArgs = append(mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.callArgs, &mm_params)
+	mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.mutex.Unlock()
+
+	for _, e := range mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateBackupConfigurationParams{ctx, serviceId, b}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateBackupConfiguration.t.Errorf("ClientMock.UpdateBackupConfiguration got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateBackupConfiguration.t.Errorf("ClientMock.UpdateBackupConfiguration got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.b != nil && !minimock.Equal(*mm_want_ptrs.b, mm_got.b) {
+				mmUpdateBackupConfiguration.t.Errorf("ClientMock.UpdateBackupConfiguration got unexpected parameter b, want: %#v, got: %#v%s\n", *mm_want_ptrs.b, mm_got.b, minimock.Diff(*mm_want_ptrs.b, mm_got.b))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateBackupConfiguration.t.Errorf("ClientMock.UpdateBackupConfiguration got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateBackupConfiguration.UpdateBackupConfigurationMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateBackupConfiguration.t.Fatal("No results are set for the ClientMock.UpdateBackupConfiguration")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmUpdateBackupConfiguration.funcUpdateBackupConfiguration != nil {
+		return mmUpdateBackupConfiguration.funcUpdateBackupConfiguration(ctx, serviceId, b)
+	}
+	mmUpdateBackupConfiguration.t.Fatalf("Unexpected call to ClientMock.UpdateBackupConfiguration. %v %v %v", ctx, serviceId, b)
+	return
+}
+
+// UpdateBackupConfigurationAfterCounter returns a count of finished ClientMock.UpdateBackupConfiguration invocations
+func (mmUpdateBackupConfiguration *ClientMock) UpdateBackupConfigurationAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateBackupConfiguration.afterUpdateBackupConfigurationCounter)
+}
+
+// UpdateBackupConfigurationBeforeCounter returns a count of ClientMock.UpdateBackupConfiguration invocations
+func (mmUpdateBackupConfiguration *ClientMock) UpdateBackupConfigurationBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateBackupConfiguration.beforeUpdateBackupConfigurationCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateBackupConfiguration.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) Calls() []*ClientMockUpdateBackupConfigurationParams {
+	mmUpdateBackupConfiguration.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateBackupConfigurationParams, len(mmUpdateBackupConfiguration.callArgs))
+	copy(argCopy, mmUpdateBackupConfiguration.callArgs)
+
+	mmUpdateBackupConfiguration.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateBackupConfigurationDone returns true if the count of the UpdateBackupConfiguration invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateBackupConfigurationDone() bool {
+	if m.UpdateBackupConfigurationMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateBackupConfigurationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateBackupConfigurationMock.invocationsDone()
+}
+
+// MinimockUpdateBackupConfigurationInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateBackupConfigurationInspect() {
+	for _, e := range m.UpdateBackupConfigurationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateBackupConfiguration with params: %#v", *e.params)
+		}
+	}
+
+	afterUpdateBackupConfigurationCounter := mm_atomic.LoadUint64(&m.afterUpdateBackupConfigurationCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateBackupConfigurationMock.defaultExpectation != nil && afterUpdateBackupConfigurationCounter < 1 {
+		if m.UpdateBackupConfigurationMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.UpdateBackupConfiguration")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateBackupConfiguration with params: %#v", *m.UpdateBackupConfigurationMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateBackupConfiguration != nil && afterUpdateBackupConfigurationCounter < 1 {
+		m.t.Error("Expected call to ClientMock.UpdateBackupConfiguration")
+	}
+
+	if !m.UpdateBackupConfigurationMock.invocationsDone() && afterUpdateBackupConfigurationCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateBackupConfiguration but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateBackupConfigurationMock.expectedInvocations), afterUpdateBackupConfigurationCounter)
 	}
 }
 
@@ -3480,11 +4168,15 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockDeleteServiceInspect()
 
+			m.MinimockGetBackupConfigurationInspect()
+
 			m.MinimockGetOrgPrivateEndpointConfigInspect()
 
 			m.MinimockGetOrganizationPrivateEndpointsInspect()
 
 			m.MinimockGetServiceInspect()
+
+			m.MinimockUpdateBackupConfigurationInspect()
 
 			m.MinimockUpdateOrganizationPrivateEndpointsInspect()
 
@@ -3520,9 +4212,11 @@ func (m *ClientMock) minimockDone() bool {
 	return done &&
 		m.MinimockCreateServiceDone() &&
 		m.MinimockDeleteServiceDone() &&
+		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationPrivateEndpointsDone() &&
 		m.MinimockGetServiceDone() &&
+		m.MinimockUpdateBackupConfigurationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdateReplicaScalingDone() &&
 		m.MinimockUpdateServiceDone() &&

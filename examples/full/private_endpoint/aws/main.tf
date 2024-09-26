@@ -32,6 +32,12 @@ resource "clickhouse_service" "aws_red" {
   // keep it empty to block access from internet
   ip_access = []
 
+  backup_configuration = {
+    backup_period_in_hours           = 24
+    backup_retention_period_in_hours = 24
+    backup_start_time                = null
+  }
+
   min_replica_memory_gb = 8
   max_replica_memory_gb = 120
 }

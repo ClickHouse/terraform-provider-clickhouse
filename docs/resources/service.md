@@ -48,6 +48,7 @@ resource "clickhouse_service" "service" {
 
 ### Optional
 
+- `backup_configuration` (Attributes) Configuration of service backup settings (see [below for nested schema](#nestedatt--backup_configuration))
 - `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.
 - `encryption_assumed_role_identifier` (String) Custom role identifier arn
 - `encryption_key` (String) Custom encryption key arn
@@ -78,6 +79,16 @@ Required:
 Optional:
 
 - `description` (String) Description of the IP address.
+
+
+<a id="nestedatt--backup_configuration"></a>
+### Nested Schema for `backup_configuration`
+
+Optional:
+
+- `backup_period_in_hours` (Number) Interval in hours between each backup.
+- `backup_retention_period_in_hours` (Number) How long in hours to keep a backup before deleting it.
+- `backup_start_time` (String) Time of the day in UTC that indicates the start time of a 2 hours window to be used for backup. If set, backup_period_in_hours must be null and backups are created once a day.
 
 
 <a id="nestedatt--endpoints"></a>

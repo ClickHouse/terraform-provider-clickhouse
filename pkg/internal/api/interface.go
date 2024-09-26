@@ -15,4 +15,6 @@ type Client interface {
 	DeleteService(ctx context.Context, serviceId string) (*Service, error)
 	GetOrganizationPrivateEndpoints(ctx context.Context) (*[]PrivateEndpoint, error)
 	UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
+	GetBackupConfiguration(ctx context.Context, serviceId string) (*BackupConfiguration, error)
+	UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (*BackupConfiguration, error)
 }

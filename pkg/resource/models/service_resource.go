@@ -72,6 +72,30 @@ func (p PrivateEndpointConfig) ObjectValue() basetypes.ObjectValue {
 	})
 }
 
+type BackupConfiguration struct {
+	BackupPeriodInHours          types.Int32  `tfsdk:"backup_period_in_hours"`
+	BackupRetentionPeriodInHours types.Int32  `tfsdk:"backup_retention_period_in_hours"`
+	BackupStartTime              types.String `tfsdk:"backup_start_time"`
+}
+
+func (b BackupConfiguration) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"backup_period_in_hours":           types.Int32Type,
+			"backup_retention_period_in_hours": types.Int32Type,
+			"backup_start_time":                types.StringType,
+		},
+	}
+}
+
+func (b BackupConfiguration) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(b.ObjectType().AttrTypes, map[string]attr.Value{
+		"backup_period_in_hours":           b.BackupPeriodInHours,
+		"backup_retention_period_in_hours": b.BackupRetentionPeriodInHours,
+		"backup_start_time":                b.BackupStartTime,
+	})
+}
+
 type ServiceResourceModel struct {
 	ID                              types.String `tfsdk:"id"`
 	Name                            types.String `tfsdk:"name"`
@@ -94,6 +118,7 @@ type ServiceResourceModel struct {
 	PrivateEndpointConfig           types.Object `tfsdk:"private_endpoint_config"`
 	EncryptionKey                   types.String `tfsdk:"encryption_key"`
 	EncryptionAssumedRoleIdentifier types.String `tfsdk:"encryption_assumed_role_identifier"`
+	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
 }
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
@@ -115,7 +140,8 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.PrivateEndpointConfig.Equal(b.PrivateEndpointConfig) ||
 		!m.EncryptionKey.Equal(b.EncryptionKey) ||
 		!m.EncryptionAssumedRoleIdentifier.Equal(b.EncryptionAssumedRoleIdentifier) ||
-		!m.IpAccessList.Equal(b.IpAccessList) {
+		!m.IpAccessList.Equal(b.IpAccessList) ||
+		!m.BackupConfiguration.Equal(b.BackupConfiguration) {
 		return false
 	}
 

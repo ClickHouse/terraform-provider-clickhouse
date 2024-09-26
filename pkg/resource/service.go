@@ -10,8 +10,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32default"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
@@ -219,6 +222,44 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Custom role identifier arn ",
 				Optional:    true,
 			},
+			"backup_configuration": schema.SingleNestedAttribute{
+				Description: "Configuration of service backup settings",
+				Optional:    true,
+				Computed:    true,
+				Attributes: map[string]schema.Attribute{
+					"backup_period_in_hours": schema.Int32Attribute{
+						Description: "Interval in hours between each backup.",
+						Optional:    true,
+						Computed:    true,
+						Default:     int32default.StaticInt32(24),
+						Validators: []validator.Int32{
+							int32validator.OneOf([]int32{24, 48, 72, 96, 120, 144, 168, 336, 504, 672, 720}...),
+							int32validator.ConflictsWith(path.MatchRoot("backup_configuration").AtName("backup_start_time")),
+						},
+					},
+					"backup_retention_period_in_hours": schema.Int32Attribute{
+						Description: "How long in hours to keep a backup before deleting it.",
+						Optional:    true,
+						Computed:    true,
+						Default:     int32default.StaticInt32(24),
+						Validators: []validator.Int32{
+							int32validator.OneOf([]int32{6, 8, 12, 16, 20, 24, 36, 48}...),
+						},
+					},
+					"backup_start_time": schema.StringAttribute{
+						Optional:    true,
+						Description: "Time of the day in UTC that indicates the start time of a 2 hours window to be used for backup. If set, backup_period_in_hours must be null and backups are created once a day.",
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.RegexMatches(
+								regexp.MustCompile(`^(?:[0-9]|0[0-9]|1[0-9]|2[0-3]):00$`),
+								"must be in HH:00 format",
+							),
+							stringvalidator.ConflictsWith(path.MatchRoot("backup_configuration").AtName("backup_period_in_hours")),
+						},
+					},
+				},
+			},
 		},
 		MarkdownDescription: `You can use the *clickhouse_service* resource to deploy ClickHouse cloud instances on supported cloud providers.`,
 	}
@@ -239,11 +280,19 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	var plan, state models.ServiceResourceModel
+	var plan, state, config models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if !req.State.Raw.IsNull() {
 		diags = req.State.Get(ctx, &state)
+		resp.Diagnostics.Append(diags...)
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !req.Config.Raw.IsNull() {
+		diags = req.Config.Get(ctx, &config)
 		resp.Diagnostics.Append(diags...)
 	}
 	if resp.Diagnostics.HasError() {
@@ -371,6 +420,38 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			"idle_timeout_minutes must be null if idle_scaling is disabled",
 		)
 	}
+
+	if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
+		bc := models.BackupConfiguration{}
+		diag := plan.BackupConfiguration.As(ctx, &bc, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    false,
+			UnhandledUnknownAsEmpty: false,
+		})
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag.Errors()...)
+		} else {
+			if !config.BackupConfiguration.IsNull() && !config.BackupConfiguration.IsUnknown() {
+				cfgBackupConfig := models.BackupConfiguration{}
+				diag := config.BackupConfiguration.As(ctx, &cfgBackupConfig, basetypes.ObjectAsOptions{
+					UnhandledNullAsEmpty:    false,
+					UnhandledUnknownAsEmpty: false,
+				})
+				if !diag.HasError() {
+					if !cfgBackupConfig.BackupStartTime.IsNull() && !cfgBackupConfig.BackupStartTime.IsUnknown() && cfgBackupConfig.BackupPeriodInHours.IsNull() {
+						// Make BackupPeriodInHours null if user only set BackupStartTime.
+						bc.BackupPeriodInHours = types.Int32Null()
+						plan.BackupConfiguration = bc.ObjectValue()
+						resp.Plan.Set(ctx, plan)
+					} else if cfgBackupConfig.BackupStartTime.IsNull() || cfgBackupConfig.BackupStartTime.IsUnknown() {
+						// Make BackupStartTime null if user only set BackupPeriodInHours.
+						bc.BackupStartTime = types.StringNull()
+						plan.BackupConfiguration = bc.ObjectValue()
+						resp.Plan.Set(ctx, plan)
+					}
+				}
+			}
+		}
+	}
 }
 
 // Create a new resource
@@ -486,6 +567,30 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			resp.Diagnostics.AddError(
 				"Error setting service password",
 				"Could not set service password after creation, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
+	// Set backup settings.
+	if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
+		bc := models.BackupConfiguration{}
+		diag := plan.BackupConfiguration.As(ctx, &bc, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    false,
+			UnhandledUnknownAsEmpty: false,
+		})
+		if diag.HasError() {
+			return
+		}
+		_, err = r.client.UpdateBackupConfiguration(ctx, s.Id, api.BackupConfiguration{
+			BackupPeriodInHours:          bc.BackupPeriodInHours.ValueInt32Pointer(),
+			BackupRetentionPeriodInHours: bc.BackupRetentionPeriodInHours.ValueInt32Pointer(),
+			BackupStartTime:              bc.BackupStartTime.ValueStringPointer(),
+		})
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error setting service backup configuration",
+				"Could not set service backup settings after creation, unexpected error: "+err.Error(),
 			)
 			return
 		}
@@ -711,6 +816,47 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	// Set backup settings.
+	{
+		backupConfig := api.BackupConfiguration{
+			BackupPeriodInHours:          nil,
+			BackupRetentionPeriodInHours: nil,
+			BackupStartTime:              nil,
+		}
+		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
+			bc := models.BackupConfiguration{}
+			diag := plan.BackupConfiguration.As(ctx, &bc, basetypes.ObjectAsOptions{
+				UnhandledNullAsEmpty:    false,
+				UnhandledUnknownAsEmpty: false,
+			})
+			if diag.HasError() {
+				resp.Diagnostics.Append(diag.Errors()...)
+				return
+			}
+
+			if !bc.BackupPeriodInHours.IsUnknown() {
+				backupConfig.BackupPeriodInHours = bc.BackupPeriodInHours.ValueInt32Pointer()
+			}
+
+			if !bc.BackupRetentionPeriodInHours.IsUnknown() {
+				backupConfig.BackupRetentionPeriodInHours = bc.BackupRetentionPeriodInHours.ValueInt32Pointer()
+			}
+
+			if !bc.BackupStartTime.IsUnknown() {
+				backupConfig.BackupStartTime = bc.BackupStartTime.ValueStringPointer()
+			}
+		}
+
+		_, err := r.client.UpdateBackupConfiguration(ctx, serviceId, backupConfig)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error setting service backup configuration",
+				"Could not update service backup settings, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
 	err := r.syncServiceState(ctx, &plan, true)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -828,6 +974,26 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
 	} else {
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
+	}
+
+	if service.BackupConfiguration != nil {
+		backupConfiguration := models.BackupConfiguration{
+			BackupPeriodInHours:          types.Int32Null(),
+			BackupRetentionPeriodInHours: types.Int32Null(),
+			BackupStartTime:              types.StringNull(),
+		}
+
+		if service.BackupConfiguration.BackupPeriodInHours != nil && *service.BackupConfiguration.BackupPeriodInHours > 0 {
+			backupConfiguration.BackupPeriodInHours = types.Int32Value(*service.BackupConfiguration.BackupPeriodInHours)
+		}
+		if service.BackupConfiguration.BackupRetentionPeriodInHours != nil && *service.BackupConfiguration.BackupRetentionPeriodInHours > 0 {
+			backupConfiguration.BackupRetentionPeriodInHours = types.Int32Value(*service.BackupConfiguration.BackupRetentionPeriodInHours)
+		}
+		if service.BackupConfiguration.BackupStartTime != nil && *service.BackupConfiguration.BackupStartTime != "" {
+			backupConfiguration.BackupStartTime = types.StringValue(*service.BackupConfiguration.BackupStartTime)
+		}
+
+		state.BackupConfiguration = backupConfiguration.ObjectValue()
 	}
 
 	return nil

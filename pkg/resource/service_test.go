@@ -360,6 +360,60 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			updateTimestamp: false,
 			wantErr:         false,
 		},
+		{
+			name:  "Update BackupConfiguration.BackupPeriodInHours field",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				ten := int32(10)
+				src.BackupConfiguration = &api.BackupConfiguration{
+					BackupPeriodInHours: &ten,
+				}
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.BackupConfiguration = models.BackupConfiguration{
+					BackupPeriodInHours: types.Int32Value(10),
+				}.ObjectValue()
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			name:  "Update BackupConfiguration.BackupRetentionPeriodInHours field",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				ten := int32(10)
+				src.BackupConfiguration = &api.BackupConfiguration{
+					BackupRetentionPeriodInHours: &ten,
+				}
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.BackupConfiguration = models.BackupConfiguration{
+					BackupRetentionPeriodInHours: types.Int32Value(10),
+				}.ObjectValue()
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			name:  "Update BackupConfiguration.BackupStartTime field",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				chg := "changed"
+				src.BackupConfiguration = &api.BackupConfiguration{
+					BackupStartTime: &chg,
+				}
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.BackupConfiguration = models.BackupConfiguration{
+					BackupStartTime: types.StringValue("changed"),
+				}.ObjectValue()
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -397,6 +451,11 @@ func getInitialState() models.ServiceResourceModel {
 		EndpointServiceID:  types.StringValue(""),
 		PrivateDNSHostname: types.StringValue(""),
 	}.ObjectValue()
+	backupConfiguration := models.BackupConfiguration{
+		BackupPeriodInHours:          types.Int32{},
+		BackupRetentionPeriodInHours: types.Int32{},
+		BackupStartTime:              types.String{},
+	}.ObjectValue()
 
 	state := models.ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
@@ -418,6 +477,7 @@ func getInitialState() models.ServiceResourceModel {
 		PrivateEndpointConfig:           privateEndpointConfig,
 		EncryptionKey:                   types.StringNull(),
 		EncryptionAssumedRoleIdentifier: types.StringNull(),
+		BackupConfiguration:             backupConfiguration,
 	}
 
 	return state
@@ -445,5 +505,10 @@ func getBaseResponse(id string) api.Service {
 		},
 		// EncryptionKey:                   "",
 		// EncryptionAssumedRoleIdentifier: "",
+		BackupConfiguration: &api.BackupConfiguration{
+			BackupPeriodInHours:          nil,
+			BackupRetentionPeriodInHours: nil,
+			BackupStartTime:              nil,
+		},
 	}
 }
