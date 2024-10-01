@@ -144,7 +144,7 @@ jobs:
     if: ${{ needs.e2e.outputs.status == 'failure' }}
     steps:
       - name: Report Failure on slack
-        if: ${{ !contains(inputs.notify_errors, 'false') }}
+        if: ${{ needs.e2e.outputs.status == 'failure' && !contains(inputs.notify_errors, 'false') }}
         uses: ravsamhq/notify-slack-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -155,7 +155,10 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       - name: Report error on github UI
         run: |
-          exit 1
+          if [ ${{ needs.e2e.outputs.status }} == 'failure' ]
+          then
+            exit 1
+          fi
 
   # Delete any leftover service that might have failed deleting
   cleanup:
