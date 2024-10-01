@@ -233,7 +233,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						Computed:    true,
 						Default:     int32default.StaticInt32(24),
 						Validators: []validator.Int32{
-							int32validator.OneOf([]int32{24, 48, 72, 96, 120, 144, 168, 336, 504, 672, 720}...),
+							int32validator.OneOf([]int32{6, 8, 12, 16, 20, 24, 36, 48}...),
 							int32validator.ConflictsWith(path.MatchRoot("backup_configuration").AtName("backup_start_time")),
 						},
 					},
@@ -243,7 +243,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						Computed:    true,
 						Default:     int32default.StaticInt32(24),
 						Validators: []validator.Int32{
-							int32validator.OneOf([]int32{6, 8, 12, 16, 20, 24, 36, 48}...),
+							int32validator.OneOf([]int32{24, 48, 72, 96, 120, 144, 168, 336, 504, 672, 720}...),
 						},
 					},
 					"backup_start_time": schema.StringAttribute{
