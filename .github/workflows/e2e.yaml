@@ -155,7 +155,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       - name: Report error on github UI
         run: |
-          if [ ${{ needs.e2e.outputs.status }} == 'failure' ]
+          if [ "${{ needs.e2e.outputs.status }}" == 'failure' ]
           then
             exit 1
           fi
