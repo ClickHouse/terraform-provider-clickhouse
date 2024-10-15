@@ -58,7 +58,6 @@ jobs:
         run: |
           examples="$(echo '[]' | jq .)"
           pushd examples/full
-          idx=0
           for candidate in $(ls -1 .)
           do
             if [ -d $candidate ]
@@ -69,17 +68,13 @@ jobs:
               do
                 if [ -d $cloud ]
                 then
-                  cloud_providers+=(${cloud})        
+                  examples="$(echo "$examples" | jq -c --arg name "$candidate" --arg cloud "$cloud" '.[. | length] = { "name": $name, "cloud": $cloud }')"
                 fi
               done
               popd
-              json="$(printf '%s\n' "${cloud_providers[@]}" | jq -R . | jq -cs .)"
-              examples="$(echo "$examples" | jq -c --argjson idx $idx --arg name "$candidate" '.[$idx].name |= $name' | jq -c --argjson idx $idx --argjson clouds "$json" '.[$idx].cloud |= $clouds')"
-              idx=$((idx + 1))
             fi
           done
           popd
-          echo "${examples}"
           echo "examples=${examples}" >> "$GITHUB_OUTPUT"
 
   # Run e2e tests
