@@ -24,7 +24,7 @@ resource "clickhouse_service" "service" {
   name                      = var.service_name
   cloud_provider            = "gcp"
   region                    = var.region
-  tier                      = "production"
+  tier                      = "development"
   idle_scaling              = true
   idle_timeout_minutes      = 5
   password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
@@ -36,8 +36,8 @@ resource "clickhouse_service" "service" {
     }
   ]
 
-  min_replica_memory_gb  = 8
-  max_replica_memory_gb  = 120
+  min_replica_memory_gb = 8
+  max_replica_memory_gb = 120
 }
 
 output "service_endpoints" {

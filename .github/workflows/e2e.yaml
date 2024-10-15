@@ -46,11 +46,34 @@ jobs:
       - uses: ./.github/actions/find-tf-releases
         id: find
 
+  list-examples:
+    outputs:
+      examples: ${{ steps.list.outputs.examples }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: List examples
+        id: list
+        run: |
+          examples=()
+          pushd examples/full
+          for candidate in $(ls -1 .)
+          do
+            if [ -d $candidate ]
+            then
+              examples+=(${candidate})
+            fi
+          done
+          popd
+          json="$(printf '%s\n' "${examples[@]}" | jq -R . | jq -cs .)"
+          echo "examples=${json}" >> "$GITHUB_OUTPUT"
+
   # Run e2e tests
   e2e:
     outputs:
       status: ${{ steps.status.outputs.status }}
-    needs: [ "token", "find-tf-releases" ]
+    needs: [ "token", "find-tf-releases", "list-examples" ]
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -59,7 +82,7 @@ jobs:
       fail-fast: false
       max-parallel: 10
       matrix:
-        test: [ "basic", "private_endpoint" ]
+        test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "gcp", "azure" ]
     steps:

@@ -96,6 +96,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue("newtier")
+				src.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -176,6 +177,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierDevelopment)
 				src.MinReplicaMemoryGb = types.Int64{}
+				src.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -208,6 +210,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierDevelopment)
 				src.MaxTotalMemoryGb = types.Int64{}
+				src.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -240,6 +243,7 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
 				src.Tier = types.StringValue(api.TierDevelopment)
 				src.NumReplicas = types.Int64{}
+				src.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -466,7 +470,7 @@ func getInitialState() models.ServiceResourceModel {
 		Endpoints:                       endpoints,
 		CloudProvider:                   types.StringValue(""),
 		Region:                          types.StringValue(""),
-		Tier:                            types.StringValue(""),
+		Tier:                            types.StringValue("production"),
 		IdleScaling:                     types.BoolValue(false),
 		IpAccessList:                    ipAccessList,
 		MinTotalMemoryGb:                types.Int64{},
@@ -489,7 +493,7 @@ func getBaseResponse(id string) api.Service {
 		// Name: "newname",
 		// Provider:                        "",
 		// Region:                          "",
-		// Tier:                            "",
+		Tier:        "production",
 		IdleScaling: false,
 		// IPAccessList:                    nil,
 		// MinTotalMemoryGb:                nil,

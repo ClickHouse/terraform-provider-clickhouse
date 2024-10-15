@@ -36,8 +36,14 @@ resource "clickhouse_service" "service" {
     }
   ]
 
-  min_replica_memory_gb  = 8
-  max_replica_memory_gb  = 120
+  min_replica_memory_gb = 8
+  max_replica_memory_gb = 120
+
+  backup_configuration = {
+    backup_period_in_hours           = 24
+    backup_retention_period_in_hours = 24
+    backup_start_time                = null
+  }
 }
 
 output "service_endpoints" {
