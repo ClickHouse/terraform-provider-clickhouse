@@ -56,7 +56,6 @@ jobs:
       - name: List examples
         id: list
         run: |
-          set -x
           examples="$(echo '[]' | jq .)"
           pushd examples/full
           idx=0
@@ -75,7 +74,7 @@ jobs:
               done
               popd
               json="$(printf '%s\n' "${cloud_providers[@]}" | jq -R . | jq -cs .)"
-              examples="$(echo "$examples" | jq --argjson idx $idx --arg name "$candidate" '.[$idx].name |= $name' | jq --argjson idx $idx --argjson clouds "$json" '.[$idx].cloud |= $clouds')"
+              examples="$(echo "$examples" | jq -c --argjson idx $idx --arg name "$candidate" '.[$idx].name |= $name' | jq -c --argjson idx $idx --argjson clouds "$json" '.[$idx].cloud |= $clouds')"
               idx=$((idx + 1))
             fi
           done
