@@ -224,7 +224,7 @@ func (r *PrivateEndpointRegistrationResource) Delete(ctx context.Context, req re
 }
 
 func (r *PrivateEndpointRegistrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("private_endpoint_id"), req, resp)
 }
 
 func (r *PrivateEndpointRegistrationResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
