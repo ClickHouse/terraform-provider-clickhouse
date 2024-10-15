@@ -53,29 +53,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: List examples
+      - uses: ./.github/actions/list-examples
         id: list
-        run: |
-          examples="$(echo '[]' | jq .)"
-          pushd examples/full
-          for candidate in $(ls -1 .)
-          do
-            if [ -d $candidate ]
-            then
-              cloud_providers=()
-              pushd $candidate
-              for cloud in $(ls -1 .)
-              do
-                if [ -d $cloud ]
-                then
-                  examples="$(echo "$examples" | jq -c --arg name "$candidate" --arg cloud "$cloud" '.[. | length] = { "name": $name, "cloud": $cloud }')"
-                fi
-              done
-              popd
-            fi
-          done
-          popd
-          echo "examples=${examples}" >> "$GITHUB_OUTPUT"
 
   # Run e2e tests
   e2e:
