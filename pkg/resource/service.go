@@ -350,10 +350,24 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
+		if !plan.MinReplicaMemoryGb.IsNull() || !plan.MaxReplicaMemoryGb.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"min_replica_memory_gb and max_replica_memory_gb cannot be defined if the service tier is development",
+			)
+		}
+
 		if !plan.EncryptionKey.IsNull() || !plan.EncryptionAssumedRoleIdentifier.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"custom managed encryption cannot be defined if the service tier is development",
+				"encryption_key and encryption_assumed_role_identifier cannot be defined if the service tier is development",
+			)
+		}
+
+		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"backup_configuration cannot be defined if the service tier is development",
 			)
 		}
 	} else if plan.Tier.ValueString() == api.TierProduction {
@@ -383,6 +397,38 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				"Invalid Configuration",
 				"encryption_key and the encryption_assumed_role_identifier is only available for aws services",
 			)
+		}
+
+		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
+			bc := models.BackupConfiguration{}
+			diag := plan.BackupConfiguration.As(ctx, &bc, basetypes.ObjectAsOptions{
+				UnhandledNullAsEmpty:    false,
+				UnhandledUnknownAsEmpty: false,
+			})
+			if diag.HasError() {
+				resp.Diagnostics.Append(diag.Errors()...)
+			} else {
+				if !config.BackupConfiguration.IsNull() && !config.BackupConfiguration.IsUnknown() {
+					cfgBackupConfig := models.BackupConfiguration{}
+					diag := config.BackupConfiguration.As(ctx, &cfgBackupConfig, basetypes.ObjectAsOptions{
+						UnhandledNullAsEmpty:    false,
+						UnhandledUnknownAsEmpty: false,
+					})
+					if !diag.HasError() {
+						if !cfgBackupConfig.BackupStartTime.IsNull() && !cfgBackupConfig.BackupStartTime.IsUnknown() && cfgBackupConfig.BackupPeriodInHours.IsNull() {
+							// Make BackupPeriodInHours null if user only set BackupStartTime.
+							bc.BackupPeriodInHours = types.Int32Null()
+							plan.BackupConfiguration = bc.ObjectValue()
+							resp.Plan.Set(ctx, plan)
+						} else if cfgBackupConfig.BackupStartTime.IsNull() || cfgBackupConfig.BackupStartTime.IsUnknown() {
+							// Make BackupStartTime null if user only set BackupPeriodInHours.
+							bc.BackupStartTime = types.StringNull()
+							plan.BackupConfiguration = bc.ObjectValue()
+							resp.Plan.Set(ctx, plan)
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -419,38 +465,6 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			"Invalid Configuration",
 			"idle_timeout_minutes must be null if idle_scaling is disabled",
 		)
-	}
-
-	if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
-		bc := models.BackupConfiguration{}
-		diag := plan.BackupConfiguration.As(ctx, &bc, basetypes.ObjectAsOptions{
-			UnhandledNullAsEmpty:    false,
-			UnhandledUnknownAsEmpty: false,
-		})
-		if diag.HasError() {
-			resp.Diagnostics.Append(diag.Errors()...)
-		} else {
-			if !config.BackupConfiguration.IsNull() && !config.BackupConfiguration.IsUnknown() {
-				cfgBackupConfig := models.BackupConfiguration{}
-				diag := config.BackupConfiguration.As(ctx, &cfgBackupConfig, basetypes.ObjectAsOptions{
-					UnhandledNullAsEmpty:    false,
-					UnhandledUnknownAsEmpty: false,
-				})
-				if !diag.HasError() {
-					if !cfgBackupConfig.BackupStartTime.IsNull() && !cfgBackupConfig.BackupStartTime.IsUnknown() && cfgBackupConfig.BackupPeriodInHours.IsNull() {
-						// Make BackupPeriodInHours null if user only set BackupStartTime.
-						bc.BackupPeriodInHours = types.Int32Null()
-						plan.BackupConfiguration = bc.ObjectValue()
-						resp.Plan.Set(ctx, plan)
-					} else if cfgBackupConfig.BackupStartTime.IsNull() || cfgBackupConfig.BackupStartTime.IsUnknown() {
-						// Make BackupStartTime null if user only set BackupPeriodInHours.
-						bc.BackupStartTime = types.StringNull()
-						plan.BackupConfiguration = bc.ObjectValue()
-						resp.Plan.Set(ctx, plan)
-					}
-				}
-			}
-		}
 	}
 }
 
@@ -818,11 +832,6 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	// Set backup settings.
 	{
-		backupConfig := api.BackupConfiguration{
-			BackupPeriodInHours:          nil,
-			BackupRetentionPeriodInHours: nil,
-			BackupStartTime:              nil,
-		}
 		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
 			bc := models.BackupConfiguration{}
 			diag := plan.BackupConfiguration.As(ctx, &bc, basetypes.ObjectAsOptions{
@@ -832,6 +841,12 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			if diag.HasError() {
 				resp.Diagnostics.Append(diag.Errors()...)
 				return
+			}
+
+			backupConfig := api.BackupConfiguration{
+				BackupPeriodInHours:          nil,
+				BackupRetentionPeriodInHours: nil,
+				BackupStartTime:              nil,
 			}
 
 			if !bc.BackupPeriodInHours.IsUnknown() {
@@ -845,15 +860,15 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			if !bc.BackupStartTime.IsUnknown() {
 				backupConfig.BackupStartTime = bc.BackupStartTime.ValueStringPointer()
 			}
-		}
 
-		_, err := r.client.UpdateBackupConfiguration(ctx, serviceId, backupConfig)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error setting service backup configuration",
-				"Could not update service backup settings, unexpected error: "+err.Error(),
-			)
-			return
+			_, err := r.client.UpdateBackupConfiguration(ctx, serviceId, backupConfig)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error setting service backup configuration",
+					"Could not update service backup settings, unexpected error: "+err.Error(),
+				)
+				return
+			}
 		}
 	}
 
@@ -976,24 +991,28 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
 	}
 
-	if service.BackupConfiguration != nil {
-		backupConfiguration := models.BackupConfiguration{
-			BackupPeriodInHours:          types.Int32Null(),
-			BackupRetentionPeriodInHours: types.Int32Null(),
-			BackupStartTime:              types.StringNull(),
-		}
+	if service.Tier == api.TierProduction {
+		if service.BackupConfiguration != nil {
+			backupConfiguration := models.BackupConfiguration{
+				BackupPeriodInHours:          types.Int32Null(),
+				BackupRetentionPeriodInHours: types.Int32Null(),
+				BackupStartTime:              types.StringNull(),
+			}
 
-		if service.BackupConfiguration.BackupPeriodInHours != nil && *service.BackupConfiguration.BackupPeriodInHours > 0 {
-			backupConfiguration.BackupPeriodInHours = types.Int32Value(*service.BackupConfiguration.BackupPeriodInHours)
-		}
-		if service.BackupConfiguration.BackupRetentionPeriodInHours != nil && *service.BackupConfiguration.BackupRetentionPeriodInHours > 0 {
-			backupConfiguration.BackupRetentionPeriodInHours = types.Int32Value(*service.BackupConfiguration.BackupRetentionPeriodInHours)
-		}
-		if service.BackupConfiguration.BackupStartTime != nil && *service.BackupConfiguration.BackupStartTime != "" {
-			backupConfiguration.BackupStartTime = types.StringValue(*service.BackupConfiguration.BackupStartTime)
-		}
+			if service.BackupConfiguration.BackupPeriodInHours != nil && *service.BackupConfiguration.BackupPeriodInHours > 0 {
+				backupConfiguration.BackupPeriodInHours = types.Int32Value(*service.BackupConfiguration.BackupPeriodInHours)
+			}
+			if service.BackupConfiguration.BackupRetentionPeriodInHours != nil && *service.BackupConfiguration.BackupRetentionPeriodInHours > 0 {
+				backupConfiguration.BackupRetentionPeriodInHours = types.Int32Value(*service.BackupConfiguration.BackupRetentionPeriodInHours)
+			}
+			if service.BackupConfiguration.BackupStartTime != nil && *service.BackupConfiguration.BackupStartTime != "" {
+				backupConfiguration.BackupStartTime = types.StringValue(*service.BackupConfiguration.BackupStartTime)
+			}
 
-		state.BackupConfiguration = backupConfiguration.ObjectValue()
+			state.BackupConfiguration = backupConfiguration.ObjectValue()
+		}
+	} else {
+		state.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
 	}
 
 	return nil
