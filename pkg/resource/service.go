@@ -350,6 +350,13 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
+		if !plan.MinReplicaMemoryGb.IsNull() || !plan.MaxReplicaMemoryGb.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"min_replica_memory_gb and max_replica_memory_gb cannot be defined if the service tier is development",
+			)
+		}
+
 		if !plan.EncryptionKey.IsNull() || !plan.EncryptionAssumedRoleIdentifier.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",

@@ -35,9 +35,6 @@ resource "clickhouse_service" "service" {
       description = "Test IP"
     }
   ]
-
-  min_replica_memory_gb = 8
-  max_replica_memory_gb = 120
 }
 
 output "service_endpoints" {

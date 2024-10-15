@@ -56,18 +56,30 @@ jobs:
       - name: List examples
         id: list
         run: |
-          examples=()
+          examples="$(echo '[]' | jq .)"
           pushd examples/full
+          idx=0
           for candidate in $(ls -1 .)
           do
             if [ -d $candidate ]
             then
-              examples+=(${candidate})
+              cloud_providers=()
+              pushd $candidate
+              for cloud in $(ls -1 .)
+              do
+                if [ -d $cloud ]
+                then
+                  cloud_providers+=(${cloud})        
+                fi
+              done
+              popd
+              json="$(printf '%s\n' "${cloud_providers[@]}" | jq -R . | jq -cs .)"
+              examples="$(echo "$examples" | jq --argjson idx $idx --arg name "$candidate" '.[$idx].name |= $name' | jq --argjson idx $idx --argjson clouds "$json" '.[$idx].cloud |= $clouds')"
+              idx=$((idx + 1))
             fi
           done
           popd
-          json="$(printf '%s\n' "${examples[@]}" | jq -R . | jq -cs .)"
-          echo "examples=${json}" >> "$GITHUB_OUTPUT"
+          echo "examples=${examples}" >> "$GITHUB_OUTPUT"
 
   # Run e2e tests
   e2e:
@@ -82,9 +94,8 @@ jobs:
       fail-fast: false
       max-parallel: 10
       matrix:
-        test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
-        cloud_provider: [ "aws", "gcp", "azure" ]
+        test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,11 +110,11 @@ jobs:
             test_type=" upgrade"
           fi
           
-          echo "test_name=[e2e${test_type}]-${{ matrix.test }}-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
+          echo "test_name=[e2e${test_type}]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
       - name: Pick a cloud region
         id: region
         run: |
-          cloud="${{ matrix.cloud_provider }}"
+          cloud="${{ matrix.test.cloud }}"
           regions=()
           case $cloud in
           aws)
@@ -141,15 +152,15 @@ jobs:
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
           token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
           service_name: ${{steps.name.outputs.test_name}}
-          test_name: ${{ matrix.test }}
+          test_name: ${{ matrix.test.name }}
           tf_release: ${{ matrix.tf_release }}
-          cloud_provider: ${{ matrix.cloud_provider }}
+          cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: ${{ inputs.run_upgrade_test }}
           skip_build: "${{ !contains(inputs.skip_build_from_branch, 'false') }}"
           region: ${{steps.region.outputs.region}}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: cleanup
-        if: ${{ always() && matrix.cloud_provider == 'aws' && matrix.test == 'private_endpoint' }}
+        if: ${{ always() && matrix.test.cloud == 'aws' && matrix.test.name == 'private_endpoint' }}
         uses: ./.github/actions/cleanup-aws
         with:
           service_name: ${{steps.name.outputs.test_name}}
