@@ -68,6 +68,17 @@ jobs:
       - uses: ./.github/actions/find-tf-releases
         id: find
 
+  # List examples split by cloud provider as a JSON
+  list-examples:
+    outputs:
+      examples: ${{ steps.list.outputs.examples }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/list-examples
+        id: list
+
   # Run e2e tests
   e2e:
     outputs:
@@ -81,9 +92,8 @@ jobs:
       fail-fast: false
       max-parallel: 10
       matrix:
-        test: [ "basic", "private_endpoint" ]
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
-        cloud_provider: [ "aws", "gcp", "azure" ]
+        test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
         upgrade_test: ${{ fromJSON(needs.validate.outputs.test-upgrade-matrix) }}
     steps:
       - name: Checkout
@@ -99,12 +109,12 @@ jobs:
             test_type=" upgrade"
           fi
 
-          echo "test_name=[e2e${test_type}]-${{ matrix.test }}-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
+          echo "test_name=[e2e${test_type}]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
 
       - name: Pick a cloud region
         id: region
         run: |
-          cloud="${{ matrix.cloud_provider }}"
+          cloud="${{ matrix.test.cloud }}"
           regions=()
           case $cloud in
           aws)
@@ -143,9 +153,9 @@ jobs:
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
           token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
           service_name: ${{steps.name.outputs.test_name}}
-          test_name: ${{ matrix.test }}
+          test_name: ${{ matrix.test.name }}
           tf_release: ${{ matrix.tf_release }}
-          cloud_provider: ${{ matrix.cloud_provider }}
+          cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: ${{ matrix.upgrade_test }}
           region: ${{steps.region.outputs.region}}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
