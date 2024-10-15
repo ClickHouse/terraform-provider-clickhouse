@@ -70,6 +70,7 @@ jobs:
 
   # List examples split by cloud provider as a JSON
   list-examples:
+    needs: ["validate"]
     outputs:
       examples: ${{ steps.list.outputs.examples }}
     runs-on: ubuntu-latest
@@ -83,7 +84,7 @@ jobs:
   e2e:
     outputs:
       status: ${{ steps.status.outputs.status }}
-    needs: [ "validate", "token", "find-tf-releases" ]
+    needs: [ "validate", "token", "find-tf-releases", "list-examples" ]
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
