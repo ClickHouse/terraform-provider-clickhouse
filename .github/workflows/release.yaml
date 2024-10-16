@@ -107,7 +107,7 @@ jobs:
           test_type=""
           if [ "${{matrix.upgrade_test}}" == "true" ]
           then
-            test_type=" upgrade"
+            test_type=" upg"
           fi
 
           echo "test_name=[e2e${test_type}]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
