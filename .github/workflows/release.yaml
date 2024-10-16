@@ -233,6 +233,9 @@ jobs:
 
             sed -i '1s/^/# This file is generated automatically please do not edit\n/' $dst
           done
+          
+          # Refresh docs because they are generated starting based on files in `examples` folder.
+          make docs
       - name: Commit
         run: |
           git config --global user.name "Release Github Action"
