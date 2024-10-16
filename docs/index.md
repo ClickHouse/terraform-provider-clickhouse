@@ -36,10 +36,11 @@ then a manual process is required after the upgrade. Please visit [https://githu
 ## Example Usage
 
 ```terraform
+# This file is generated automatically please do not edit
 terraform {
   required_providers {
     clickhouse = {
-      version = "1.2.2"
+      version = "1.2.3"
       source  = "ClickHouse/clickhouse"
     }
   }
