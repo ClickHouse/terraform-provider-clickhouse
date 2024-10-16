@@ -123,6 +123,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"idle_scaling": schema.BoolAttribute{
 				Description: "When set to true the service is allowed to scale down to zero when idle.",
 				Optional:    true,
+				Computed:    true,
 			},
 			"ip_access": schema.ListNestedAttribute{
 				Description: "List of IP addresses allowed to access the service.",
@@ -456,7 +457,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	if plan.IdleTimeoutMinutes.IsNull() && plan.IdleScaling.ValueBool() {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
-			"idle_timeout_minutes should be defined if idle_scaling is enabled",
+			"idle_timeout_minutes must be defined if idle_scaling is enabled",
 		)
 	}
 

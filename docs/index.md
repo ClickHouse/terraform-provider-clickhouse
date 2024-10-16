@@ -36,6 +36,15 @@ then a manual process is required after the upgrade. Please visit [https://githu
 ## Example Usage
 
 ```terraform
+terraform {
+  required_providers {
+    clickhouse = {
+      version = "1.2.2"
+      source  = "ClickHouse/clickhouse"
+    }
+  }
+}
+
 # Configuration-based authentication
 # these keys are for example only and won't work when pointed to a deployed ClickHouse OpenAPI server
 provider "clickhouse" {
