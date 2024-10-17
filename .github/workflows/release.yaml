@@ -164,11 +164,18 @@ jobs:
           upgrade_test: ${{ matrix.upgrade_test }}
           region: ${{steps.region.outputs.region}}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+
       - name: Mark error
         id: status
-        if: failure()
+        if: always()
         run: |
-          echo "status=failure" >> $GITHUB_OUTPUT
+          if [ "${{ steps.e2e.outcome }}" == "success" ]
+          then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
   report:
     runs-on: ubuntu-latest

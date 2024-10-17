@@ -125,6 +125,7 @@ jobs:
           echo "Lucky winner region is: $random"
           echo "region=$random" >> $GITHUB_OUTPUT
       - name: e2e
+        id: e2e
         uses: ./.github/actions/e2e
         with:
           organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
@@ -147,9 +148,15 @@ jobs:
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: Mark error
         id: status
-        if: failure()
+        if: always()
         run: |
-          echo "status=failure" >> $GITHUB_OUTPUT
+          if [ "${{ steps.e2e.outcome }}" == "success" ]
+          then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
   report:
     runs-on: ubuntu-latest
