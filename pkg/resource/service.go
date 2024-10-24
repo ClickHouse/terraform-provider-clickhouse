@@ -524,7 +524,9 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 		if !plan.NumReplicas.IsNull() {
 			numReplicas := int(plan.NumReplicas.ValueInt64())
-			service.NumReplicas = &numReplicas
+			if numReplicas > 0 {
+				service.NumReplicas = &numReplicas
+			}
 		}
 
 		service.MinReplicaMemoryGb = &minReplicaMemoryGb
