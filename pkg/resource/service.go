@@ -183,10 +183,9 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 			},
 			"num_replicas": schema.Int64Attribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.",
-				PlanModifiers: nil,
+				Optional:    true,
+				Computed:    true,
+				Description: "Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.",
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
 				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled",
