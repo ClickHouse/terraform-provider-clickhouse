@@ -183,8 +183,9 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 			},
 			"num_replicas": schema.Int64Attribute{
-				Description: "Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.",
 				Optional:    true,
+				Computed:    true,
+				Description: "Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.",
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
 				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled",
@@ -344,10 +345,24 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	if plan.Tier.ValueString() == api.TierDevelopment {
-		if !plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull() || !plan.NumReplicas.IsNull() {
+		if !plan.MinTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"min_total_memory_gb, max_total_memory_gb and num_replicas cannot be defined if the service tier is development",
+				"min_total_memory_gb cannot be defined if the service tier is development",
+			)
+		}
+
+		if !plan.MaxTotalMemoryGb.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"max_total_memory_gb cannot be defined if the service tier is development",
+			)
+		}
+
+		if !plan.NumReplicas.IsNull() && !plan.NumReplicas.IsUnknown() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"num_replicas cannot be defined if the service tier is development",
 			)
 		}
 
@@ -505,6 +520,12 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same
 			// behaviour as before.
 			maxReplicaMemoryGb = int(plan.MaxTotalMemoryGb.ValueInt64() / 3)
+		}
+		if !plan.NumReplicas.IsNull() {
+			numReplicas := int(plan.NumReplicas.ValueInt64())
+			if numReplicas > 0 {
+				service.NumReplicas = &numReplicas
+			}
 		}
 
 		service.MinReplicaMemoryGb = &minReplicaMemoryGb
@@ -956,6 +977,8 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		if service.NumReplicas != nil {
 			state.NumReplicas = types.Int64Value(int64(*service.NumReplicas))
 		}
+	} else {
+		state.NumReplicas = types.Int64Null()
 	}
 
 	{
