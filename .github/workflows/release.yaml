@@ -167,15 +167,10 @@ jobs:
 
       - name: Mark error
         id: status
-        if: always()
+        if: failure()
         run: |
-          if [ "${{ steps.e2e.outcome }}" == "success" ]
-          then
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "status=failure" >> $GITHUB_OUTPUT
-            exit 1
-          fi
+          echo "status=failure" >> $GITHUB_OUTPUT
+          exit 1
 
   report:
     runs-on: ubuntu-latest
