@@ -185,6 +185,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"num_replicas": schema.Int64Attribute{
 				Description: "Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.",
 				Optional:    true,
+				Computed:    true,
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
 				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled",
@@ -218,10 +219,12 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"encryption_key": schema.StringAttribute{
 				Description: "Custom encryption key arn",
 				Optional:    true,
+				Computed:    true,
 			},
 			"encryption_assumed_role_identifier": schema.StringAttribute{
 				Description: "Custom role identifier arn ",
 				Optional:    true,
+				Computed:    true,
 			},
 			"backup_configuration": schema.SingleNestedAttribute{
 				Description: "Configuration of service backup settings",
