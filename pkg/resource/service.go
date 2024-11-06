@@ -114,7 +114,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"tier": schema.StringAttribute{
-				Description: "Tier of the service: 'development', 'production'. Production services scale, Development are fixed size.",
+				Description: "Tier of the service: 'development', 'production'. Production services scale and development is a fixed size.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOf(api.TierDevelopment, api.TierProduction),
@@ -175,7 +175,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				DeprecationMessage: "Please use max_replica_memory_gb instead",
 			},
 			"min_replica_memory_gb": schema.Int64Attribute{
-				Description: "Minimum memory of a singe replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Minimum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
@@ -188,7 +188,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.",
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
-				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled",
+				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.",
 				Optional:    true,
 			},
 			"iam_role": schema.StringAttribute{
@@ -203,11 +203,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 				Attributes: map[string]schema.Attribute{
 					"endpoint_service_id": schema.StringAttribute{
-						Description: "Unique identifier of the interface endpoint you created in your VPC with the AWS(Service Name) or GCP(Target Service) resource",
+						Description: "Unique identifier of the interface endpoint you created in your VPC with the AWS(Service Name) or GCP(Target Service) resource.",
 						Computed:    true,
 					},
 					"private_dns_hostname": schema.StringAttribute{
-						Description: "Private DNS Hostname of the VPC you created",
+						Description: "Private DNS Hostname of the VPC you created.",
 						Computed:    true,
 					},
 				},
@@ -217,15 +217,15 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"encryption_key": schema.StringAttribute{
-				Description: "Custom encryption key arn",
+				Description: "Custom encryption key ARN.",
 				Optional:    true,
 			},
 			"encryption_assumed_role_identifier": schema.StringAttribute{
-				Description: "Custom role identifier arn ",
+				Description: "Custom role identifier ARN.",
 				Optional:    true,
 			},
 			"backup_configuration": schema.SingleNestedAttribute{
-				Description: "Configuration of service backup settings",
+				Description: "Configuration of service backup settings.",
 				Optional:    true,
 				Computed:    true,
 				Attributes: map[string]schema.Attribute{
