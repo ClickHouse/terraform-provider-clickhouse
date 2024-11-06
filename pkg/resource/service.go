@@ -793,7 +793,8 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 	if plan.NumReplicas != state.NumReplicas {
 		scalingChange = true
-		if !plan.NumReplicas.IsNull() {
+
+		if !plan.NumReplicas.IsNull() && !plan.NumReplicas.IsUnknown() {
 			numReplicas := int(plan.NumReplicas.ValueInt64())
 			replicaScaling.NumReplicas = &numReplicas
 		}
