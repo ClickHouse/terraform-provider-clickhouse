@@ -44,19 +44,19 @@ resource "clickhouse_service" "service" {
 - `ip_access` (Attributes List) List of IP addresses allowed to access the service. (see [below for nested schema](#nestedatt--ip_access))
 - `name` (String) User defined identifier for the service.
 - `region` (String) Region within the cloud provider in which the service is deployed in.
-- `tier` (String) Tier of the service: 'development', 'production'. Production services scale, Development are fixed size.
+- `tier` (String) Tier of the service: 'development', 'production'. Production services scale and development is a fixed size.
 
 ### Optional
 
-- `backup_configuration` (Attributes) Configuration of service backup settings (see [below for nested schema](#nestedatt--backup_configuration))
+- `backup_configuration` (Attributes) Configuration of service backup settings. (see [below for nested schema](#nestedatt--backup_configuration))
 - `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.
-- `encryption_assumed_role_identifier` (String) Custom role identifier arn
-- `encryption_key` (String) Custom encryption key arn
+- `encryption_assumed_role_identifier` (String) Custom role identifier ARN.
+- `encryption_key` (String) Custom encryption key ARN.
 - `idle_scaling` (Boolean) When set to true the service is allowed to scale down to zero when idle.
-- `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled
+- `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.
 - `max_replica_memory_gb` (Number) Maximum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
 - `max_total_memory_gb` (Number, Deprecated) Maximum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.
-- `min_replica_memory_gb` (Number) Minimum memory of a singe replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
+- `min_replica_memory_gb` (Number) Minimum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
 - `min_total_memory_gb` (Number, Deprecated) Minimum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and greater than 24.
 - `num_replicas` (Number) Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.
 - `password` (String, Sensitive) Password for the default user. One of either `password` or `password_hash` must be specified.
@@ -106,8 +106,8 @@ Read-Only:
 
 Read-Only:
 
-- `endpoint_service_id` (String) Unique identifier of the interface endpoint you created in your VPC with the AWS(Service Name) or GCP(Target Service) resource
-- `private_dns_hostname` (String) Private DNS Hostname of the VPC you created
+- `endpoint_service_id` (String) Unique identifier of the interface endpoint you created in your VPC with the AWS(Service Name) or GCP(Target Service) resource.
+- `private_dns_hostname` (String) Private DNS Hostname of the VPC you created.
 
 ## Import
 
