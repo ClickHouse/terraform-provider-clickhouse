@@ -405,7 +405,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
-		if !plan.ReleaseChannel.IsUnknown() && plan.ReleaseChannel.String() != api.ReleaseChannelFast {
+		if !plan.ReleaseChannel.IsUnknown() && plan.ReleaseChannel.ValueString() != api.ReleaseChannelDefault {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"release_channel must be 'default' if the service tier is development",
