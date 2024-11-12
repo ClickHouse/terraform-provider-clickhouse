@@ -121,7 +121,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"release_channel": schema.StringAttribute{
-				Description: "Release channel to use for this service. Either 'default' or 'fast'. Only supported on 'production' services.",
+				Description: "Release channel to use for this service. Either 'default' or 'fast'. Only supported on 'production' services. Switching from 'fast' to 'default' release channel is not supported.",
 				Optional:    true,
 				Computed:    true,
 				Validators: []validator.String{
