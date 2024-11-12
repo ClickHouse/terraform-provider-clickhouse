@@ -106,6 +106,7 @@ type ServiceResourceModel struct {
 	CloudProvider                   types.String `tfsdk:"cloud_provider"`
 	Region                          types.String `tfsdk:"region"`
 	Tier                            types.String `tfsdk:"tier"`
+	ReleaseChannel                  types.String `tfsdk:"release_channel"`
 	IdleScaling                     types.Bool   `tfsdk:"idle_scaling"`
 	IpAccessList                    types.List   `tfsdk:"ip_access"`
 	MinTotalMemoryGb                types.Int64  `tfsdk:"min_total_memory_gb"`
@@ -131,6 +132,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.CloudProvider.Equal(b.CloudProvider) ||
 		!m.Region.Equal(b.Region) ||
 		!m.Tier.Equal(b.Tier) ||
+		!m.ReleaseChannel.Equal(b.ReleaseChannel) ||
 		!m.IdleScaling.Equal(b.IdleScaling) ||
 		!m.MinTotalMemoryGb.Equal(b.MinTotalMemoryGb) ||
 		!m.MaxTotalMemoryGb.Equal(b.MaxTotalMemoryGb) ||

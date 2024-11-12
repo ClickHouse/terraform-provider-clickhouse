@@ -120,6 +120,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringvalidator.OneOf(api.TierDevelopment, api.TierProduction),
 				},
 			},
+			"release_channel": schema.StringAttribute{
+				Description: "Release channel to use for this service. Either 'default' or 'fast'. Only supported on 'production' services. Switching from 'fast' to 'default' release channel is not supported.",
+				Optional:    true,
+				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf(api.ReleaseChannelDefault, api.ReleaseChannelFast),
+				},
+			},
 			"idle_scaling": schema.BoolAttribute{
 				Description: "When set to true the service is allowed to scale down to zero when idle.",
 				Optional:    true,
@@ -342,6 +350,16 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				"ClickHouse does not support changing encryption_assumed_role_identifier",
 			)
 		}
+
+		if !plan.ReleaseChannel.IsUnknown() && !plan.ReleaseChannel.IsNull() {
+			if plan.ReleaseChannel.ValueString() == api.ReleaseChannelDefault && state.ReleaseChannel.ValueString() == api.ReleaseChannelFast {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("release_channel"),
+					"Invalid Update",
+					"Switching from 'fast' to 'default' release channel is not supported",
+				)
+			}
+		}
 	}
 
 	if plan.Tier.ValueString() == api.TierDevelopment {
@@ -384,6 +402,13 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"backup_configuration cannot be defined if the service tier is development",
+			)
+		}
+
+		if !plan.ReleaseChannel.IsUnknown() && plan.ReleaseChannel.ValueString() != api.ReleaseChannelDefault {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"release_channel must be 'default' if the service tier is development",
 			)
 		}
 	} else if plan.Tier.ValueString() == api.TierProduction {
@@ -705,6 +730,11 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		serviceChange = true
 	}
 
+	if plan.ReleaseChannel != state.ReleaseChannel && !plan.ReleaseChannel.IsUnknown() {
+		service.ReleaseChannel = plan.ReleaseChannel.ValueString()
+		serviceChange = true
+	}
+
 	if !plan.IpAccessList.Equal(state.IpAccessList) {
 		serviceChange = true
 		var currentIPAccessList, desiredIPAccessList []models.IPAccessList
@@ -959,6 +989,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	state.CloudProvider = types.StringValue(service.Provider)
 	state.Region = types.StringValue(service.Region)
 	state.Tier = types.StringValue(service.Tier)
+	state.ReleaseChannel = types.StringValue(service.ReleaseChannel)
 	state.IdleScaling = types.BoolValue(service.IdleScaling)
 	if state.IdleScaling.ValueBool() {
 		if service.IdleTimeoutMinutes != nil {
