@@ -106,7 +106,7 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 		maxWaitSeconds = 5
 	}
 
-	err := backoff.Retry(checkState, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)))
+	err := backoff.Retry(checkState, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5))) //nolint:gosec
 	if err != nil {
 		return err
 	}
