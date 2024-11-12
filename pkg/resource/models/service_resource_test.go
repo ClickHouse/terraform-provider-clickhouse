@@ -125,6 +125,14 @@ func TestServiceResource_Equals(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "Release channel changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.ReleaseChannel = types.StringValue("changed")
+			}).Get(),
+			want: false,
+		},
+		{
 			name: "IdleScaling changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
@@ -237,6 +245,7 @@ func getBaseModel() ServiceResourceModel {
 		CloudProvider:                   types.StringValue(""),
 		Region:                          types.StringValue(""),
 		Tier:                            types.StringValue(""),
+		ReleaseChannel:                  types.StringValue(""),
 		IdleScaling:                     types.Bool{},
 		IpAccessList:                    tfutils.CreateEmptyList(IPAccessList{}.ObjectType()),
 		MinTotalMemoryGb:                types.Int64{},

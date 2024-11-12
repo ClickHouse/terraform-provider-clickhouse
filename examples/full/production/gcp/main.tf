@@ -20,11 +20,21 @@ variable "region" {
   default = "europe-west4"
 }
 
+variable "release_channel" {
+  type = string
+  default = "default"
+  validation {
+    condition     = var.release_channel == "default" || var.release_channel == "fast"
+    error_message = "Release channel can be either 'default' or 'fast'."
+  }
+}
+
 resource "clickhouse_service" "service" {
   name                      = var.service_name
   cloud_provider            = "gcp"
   region                    = var.region
   tier                      = "production"
+  release_channel           = var.release_channel
   idle_scaling              = true
   idle_timeout_minutes      = 5
   password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"

@@ -52,12 +52,14 @@ type Service struct {
 	EncryptionKey                   string                        `json:"encryptionKey,omitempty"`
 	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
 	BackupConfiguration             *BackupConfiguration          `json:"backupConfiguration,omitempty"`
+	ReleaseChannel                  string                        `json:"releaseChannel,omitempty"`
 }
 
 type ServiceUpdate struct {
 	Name               string                    `json:"name,omitempty"`
 	IpAccessList       *IpAccessUpdate           `json:"ipAccessList,omitempty"`
 	PrivateEndpointIds *PrivateEndpointIdsUpdate `json:"privateEndpointIds,omitempty"`
+	ReleaseChannel     string                    `json:"releaseChannel,omitempty"`
 }
 
 // FixMemoryBounds ensures the MinTotalMemoryGb and MaxTotalMemoryGb fields are set before doing an API call to create the service
