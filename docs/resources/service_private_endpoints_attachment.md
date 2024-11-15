@@ -4,6 +4,8 @@ page_title: "clickhouse_service_private_endpoints_attachment Resource - clickhou
 subcategory: ""
 description: |-
   Use the clickhouse_service_private_endpoints_attachment resource to attach a ClickHouse service to a Private Endpoint.
+  Important: Please note that if you want to attach the same ClickHouse service to multiple Private Endpoints you have to specify all the Private Endpoint IDs in a single clickhouse_service_private_endpoints_attachment resource.
+  Having multiple clickhouse_service_private_endpoints_attachment resources for the same service is unsupported and the outcome is unpredictable.
   See private_endpoint_registration https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs/resources/private_endpoint_registration for how to create a private endpoint.
   See full example https://github.com/ClickHouse/terraform-provider-clickhouse/tree/main/examples/full/private_endpoint on GitHub.
 ---
@@ -11,6 +13,8 @@ description: |-
 # clickhouse_service_private_endpoints_attachment (Resource)
 
 Use the *clickhouse_service_private_endpoints_attachment* resource to attach a ClickHouse *service* to a *Private Endpoint*.
+Important: Please note that if you want to attach the same ClickHouse *service* to multiple *Private Endpoints* you have to specify all the *Private Endpoint IDs* in a single *clickhouse_service_private_endpoints_attachment* resource.
+Having multiple *clickhouse_service_private_endpoints_attachment* resources for the same service is unsupported and the outcome is unpredictable.
 
 See [private_endpoint_registration](https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs/resources/private_endpoint_registration) for how to create a *private endpoint*.
 

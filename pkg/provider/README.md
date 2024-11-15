@@ -13,4 +13,4 @@ Visit [https://clickhouse.com/docs/en/cloud-quick-start](https://clickhouse.com/
 ### Upgrading to version >= 1.0.0 of the Clickhouse Terraform Provider
 
 If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the `clickhouse_private_endpoint_registration` resource or the `private_endpoint_ids` attribute of the `clickhouse_service` resource,
-then a manual process is required after the upgrade. Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes](https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes) for more details.
+then a manual process is required after the upgrade. Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations](https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations) for more details.

@@ -49,6 +49,8 @@ func (r *ServicePrivateEndpointsAttachmentResource) Schema(_ context.Context, _ 
 			},
 		},
 		MarkdownDescription: `Use the *clickhouse_service_private_endpoints_attachment* resource to attach a ClickHouse *service* to a *Private Endpoint*.
+Important: Please note that if you want to attach the same ClickHouse *service* to multiple *Private Endpoints* you have to specify all the *Private Endpoint IDs* in a single *clickhouse_service_private_endpoints_attachment* resource.
+Having multiple *clickhouse_service_private_endpoints_attachment* resources for the same service is unsupported and the outcome is unpredictable.
 
 See [private_endpoint_registration](https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs/resources/private_endpoint_registration) for how to create a *private endpoint*.
 
@@ -126,7 +128,14 @@ func (r *ServicePrivateEndpointsAttachmentResource) Create(ctx context.Context, 
 			return
 		}
 
-		serviceUpdate.PrivateEndpointIds.Remove = append(serviceUpdate.PrivateEndpointIds.Remove, service.PrivateEndpointIds...)
+		for _, existingEndpointID := range service.PrivateEndpointIds {
+			for _, desiredEndpointID := range plan.PrivateEndpointIDs.Elements() {
+				if desiredEndpointID.Equal(types.StringValue(existingEndpointID)) {
+					// Private endpoint needs to be recreated.
+					serviceUpdate.PrivateEndpointIds.Remove = append(serviceUpdate.PrivateEndpointIds.Remove, existingEndpointID)
+				}
+			}
+		}
 	}
 
 	servicePrivateEndpointIds := make([]types.String, 0, len(plan.PrivateEndpointIDs.Elements()))
@@ -210,7 +219,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Update(ctx context.Context, 
 	servicePrivateEndpointIds = make([]types.String, 0, len(state.PrivateEndpointIDs.Elements()))
 	state.PrivateEndpointIDs.ElementsAs(ctx, &servicePrivateEndpointIds, false)
 	for _, item := range servicePrivateEndpointIds {
-		service.PrivateEndpointIds.Remove = append(service.PrivateEndpointIds.Add, item.ValueString())
+		service.PrivateEndpointIds.Remove = append(service.PrivateEndpointIds.Remove, item.ValueString())
 	}
 
 	_, err := r.client.UpdateService(ctx, plan.ServiceID.ValueString(), service)

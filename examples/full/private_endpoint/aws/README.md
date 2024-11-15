@@ -48,7 +48,8 @@ To run this example, the AWS user you provide credentials for needs the followin
                 "ec2:RevokeSecurityGroupIngress",
                 "ec2:DeleteSubnet",
                 "ec2:DeleteVpc",
-                "ec2:DeleteSecurityGroup"
+                "ec2:DeleteSecurityGroup",
+                "ec2:DescribeAvailabilityZones"
             ],
             "Resource": "*"
         }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 
@@ -12,7 +13,12 @@ import (
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --provider-name clickhouse
 
 func main() {
-	providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{ // nolint:errcheck
+	var debug bool
+
+	flag.BoolVar(&debug, "debug", false, "set to true to run the provider with support for debuggers like delve")
+	flag.Parse()
+	providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{
 		Address: "clickhouse.cloud/terraform/clickhouse",
+		Debug:   debug,
 	})
 }
