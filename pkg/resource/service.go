@@ -185,10 +185,12 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"min_replica_memory_gb": schema.Int64Attribute{
 				Description: "Minimum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
+				Computed:    true,
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
 				Description: "Maximum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
+				Computed:    true,
 			},
 			"num_replicas": schema.Int64Attribute{
 				Optional:    true,
@@ -384,7 +386,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
-		if !plan.MinReplicaMemoryGb.IsNull() || !plan.MaxReplicaMemoryGb.IsNull() {
+		if !plan.MinReplicaMemoryGb.IsUnknown() || !plan.MaxReplicaMemoryGb.IsUnknown() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"min_replica_memory_gb and max_replica_memory_gb cannot be defined if the service tier is development",
@@ -419,7 +421,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
-		if plan.MaxReplicaMemoryGb.IsNull() && plan.MaxTotalMemoryGb.IsNull() {
+		if plan.MaxReplicaMemoryGb.IsUnknown() && plan.MaxTotalMemoryGb.IsUnknown() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"max_replica_memory_gb must be defined if the service tier is production",
@@ -473,21 +475,21 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 	}
 
-	if !plan.MinTotalMemoryGb.IsNull() && !plan.MinReplicaMemoryGb.IsNull() {
+	if !plan.MinTotalMemoryGb.IsNull() && !plan.MinReplicaMemoryGb.IsUnknown() {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"min_total_memory_gb and min_replica_memory_gb can't be specified at the same time. Please remove deprecated field min_total_memory_gb",
 		)
 	}
 
-	if !plan.MaxTotalMemoryGb.IsNull() && !plan.MaxReplicaMemoryGb.IsNull() {
+	if !plan.MaxTotalMemoryGb.IsNull() && !plan.MaxReplicaMemoryGb.IsUnknown() {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"max_total_memory_gb and max_replica_memory_gb can't be specified at the same time. Please remove deprecated field max_total_memory_gb",
 		)
 	}
 
-	if (!plan.MinReplicaMemoryGb.IsNull() || !plan.MaxReplicaMemoryGb.IsNull()) && (!plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull()) {
+	if (!plan.MinReplicaMemoryGb.IsUnknown() || !plan.MaxReplicaMemoryGb.IsUnknown()) && (!plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull()) {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"If you specify either min_replica_memory_gb or max_replica_memory_gb fields, you can't use deprecated min_total_memory_gb nor max_total_memory_gb fields any more.",
@@ -529,7 +531,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	if service.Tier == api.TierProduction {
 		var minReplicaMemoryGb, maxReplicaMemoryGb int
-		if !plan.MinReplicaMemoryGb.IsNull() {
+		if !plan.MinReplicaMemoryGb.IsUnknown() {
 			minReplicaMemoryGb = int(plan.MinReplicaMemoryGb.ValueInt64())
 		} else {
 			// Due to a bug on the API, we always assumed the MinTotalMemoryGb value was always related to 3 replicas.
@@ -538,7 +540,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			minReplicaMemoryGb = int(plan.MinTotalMemoryGb.ValueInt64() / 3)
 		}
 
-		if !plan.MaxReplicaMemoryGb.IsNull() {
+		if !plan.MaxReplicaMemoryGb.IsUnknown() {
 			maxReplicaMemoryGb = int(plan.MaxReplicaMemoryGb.ValueInt64())
 		} else {
 			// Due to a bug on the API, we always assumed the MaxTotalMemoryGb value was always related to 3 replicas.
@@ -816,7 +818,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 	if plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb {
 		scalingChange = true
-		if !plan.MaxReplicaMemoryGb.IsNull() {
+		if !plan.MaxReplicaMemoryGb.IsUnknown() {
 			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
 			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
