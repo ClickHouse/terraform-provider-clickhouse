@@ -9,4 +9,4 @@ dev/
 .idea/
 *.backup
 
-examples/full/**/variables.tfvars
+**/variables.tfvars

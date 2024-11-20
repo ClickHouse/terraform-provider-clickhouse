@@ -42,7 +42,7 @@ resource "clickhouse_service" "service" {
   ip_access = [
     {
       source      = "0.0.0.0"
-      description = "Test IP"
+      description = "Anywhere"
     }
   ]
 

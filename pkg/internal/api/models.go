@@ -40,8 +40,8 @@ type Service struct {
 	IpAccessList                    []IpAccess                    `json:"ipAccessList"`
 	MinTotalMemoryGb                *int                          `json:"minTotalMemoryGb,omitempty"`
 	MaxTotalMemoryGb                *int                          `json:"maxTotalMemoryGb,omitempty"`
-	MinReplicaMemoryGb              *int                          `json:"-"`
-	MaxReplicaMemoryGb              *int                          `json:"-"`
+	MinReplicaMemoryGb              *int                          `json:"minReplicaMemoryGb,omitempty"`
+	MaxReplicaMemoryGb              *int                          `json:"maxReplicaMemoryGb,omitempty"`
 	NumReplicas                     *int                          `json:"numReplicas,omitempty"`
 	IdleTimeoutMinutes              *int                          `json:"idleTimeoutMinutes,omitempty"`
 	State                           string                        `json:"state,omitempty"`
@@ -71,6 +71,7 @@ func (s *Service) FixMemoryBounds() {
 		// behaviour as before.
 		minReplicaMemory := *s.MinTotalMemoryGb / 3
 		s.MinReplicaMemoryGb = &minReplicaMemory
+		s.MinTotalMemoryGb = nil
 	}
 
 	if s.MaxReplicaMemoryGb == nil && s.MaxTotalMemoryGb != nil {
@@ -79,21 +80,6 @@ func (s *Service) FixMemoryBounds() {
 		// behaviour as before.
 		maxReplicaMemory := *s.MaxTotalMemoryGb / 3
 		s.MaxReplicaMemoryGb = &maxReplicaMemory
-	}
-
-	if s.MinTotalMemoryGb == nil && s.MinReplicaMemoryGb != nil {
-		// Due to a bug on the API, we always assumed the MinTotalMemoryGb value was always related to 3 replicas.
-		// Now we use a per-replica API to set the min total memory so we need to multiply by 3 to get the same
-		// behaviour as before.
-		minTotalMemory := *s.MinReplicaMemoryGb * 3
-		s.MinTotalMemoryGb = &minTotalMemory
-	}
-
-	if s.MaxTotalMemoryGb == nil && s.MaxReplicaMemoryGb != nil {
-		// Due to a bug on the API, we always assumed the MaxTotalMemoryGb value was always related to 3 replicas.
-		// Now we use a per-replica API to set the min total memory so we need to multiply by 3 to get the same
-		// behaviour as before.
-		maxTotalMemory := *s.MaxReplicaMemoryGb * 3
-		s.MaxTotalMemoryGb = &maxTotalMemory
+		s.MaxTotalMemoryGb = nil
 	}
 }

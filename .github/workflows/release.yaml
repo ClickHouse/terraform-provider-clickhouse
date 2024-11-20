@@ -101,16 +101,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Generate test name
-        id: name
-        run: |
-          test_type=""
-          if [ "${{matrix.upgrade_test}}" == "true" ]
-          then
-            test_type=" upg"
-          fi
-
-          echo "test_name=[e2e${test_type}]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
 
       - name: Pick a cloud region
         id: region
@@ -157,7 +147,7 @@ jobs:
           organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
           token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
-          service_name: ${{steps.name.outputs.test_name}}
+          service_name: "[e2e${test_type}]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}"
           test_name: ${{ matrix.test.name }}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
@@ -172,14 +162,88 @@ jobs:
           echo "status=failure" >> $GITHUB_OUTPUT
           exit 1
 
+  # Run import tests
+  import:
+    outputs:
+      status: ${{ steps.status.outputs.status }}
+    needs: [ "token", "find-tf-releases" ]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      id-token: write
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
+        cloud_provider: [ "aws", "azure", "gcp" ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Pick a cloud region
+        id: region
+        run: |
+          cloud="${{ matrix.cloud_provider }}"
+          regions=()
+          case $cloud in
+          aws)
+            regions+=('us-west-2')
+            regions+=('us-east-2')
+            regions+=('us-east-1')
+            regions+=('eu-west-1')
+            regions+=('eu-west-2')
+            regions+=('eu-central-1')
+            regions+=('ap-southeast-1')
+            regions+=('ap-southeast-2')
+            regions+=('ap-south-1')
+            regions+=('ap-northeast-1')
+            ;;
+          azure)
+            regions+=('germanywestcentral')
+            regions+=('eastus2')
+            regions+=('westus3')
+            ;;
+          gcp)
+            regions+=('us-east1')
+            regions+=('us-central1')
+            regions+=('europe-west4')
+            regions+=('asia-southeast1')
+            ;;
+          esac
+          
+          random=${regions[ $RANDOM % ${#regions[@]} ]}
+          echo "Lucky winner region is: $random"
+          echo "region=$random" >> $GITHUB_OUTPUT
+
+      - name: import
+        id: import
+        uses: ./.github/actions/import
+        with:
+          organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
+          token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
+          token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
+          resource_name: "[import]-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}"
+          tf_release: ${{ matrix.tf_release }}
+          cloud_provider: ${{ matrix.cloud_provider }}
+          region: ${{ steps.region.outputs.region }}
+
+      - name: Mark error
+        id: status
+        if: failure()
+        run: |
+          echo "status=failure" >> $GITHUB_OUTPUT
+          exit 1
+
   report:
     runs-on: ubuntu-latest
-    needs: [ "e2e" ]
-    if: ${{ needs.e2e.outputs.status == 'failure' }}
+    needs: [ "e2e", "import" ]
+    if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' }}
     steps:
       - name: Report Failure on slack
         uses: ravsamhq/notify-slack-action@v2
-        if: ${{ needs.e2e.outputs.status == 'failure' }}
+        if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: 'failure'
@@ -188,14 +252,14 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       - name: Report error on github UI
-        if: ${{ needs.e2e.outputs.status == 'failure' }}
+        if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' }}
         run: |
           exit 1
 
   # Delete any leftover service that might have failed deleting
   cleanup:
     runs-on: ubuntu-latest
-    needs: [ "e2e", "token" ]
+    needs: [ "e2e", "import", "token" ]
     continue-on-error: true
     env:
       organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
@@ -214,8 +278,8 @@ jobs:
 
   # Bump the provider version in the examples directory
   bump-examples:
-    needs: [ "e2e" ]
-    if: ${{ needs.e2e.outputs.status != 'failure' }}
+    needs: [ "e2e", "import" ]
+    if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -232,7 +296,7 @@ jobs:
 
           # Bump semver in examples
           export CLICKHOUSE_TERRAFORM_PROVIDER_VERSION="$version"
-          for f in `find examples -name provider.tf.template`
+          for f in `find . -name provider.tf.template`
           do
             dst="${f%.template}"
             cat $f | envsubst > $dst
@@ -255,8 +319,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    needs: [ "e2e", "bump-examples" ]
-    if: ${{ needs.e2e.outputs.status != 'failure' }}
+    needs: [ "e2e", "import", "bump-examples" ]
+    if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -273,8 +337,8 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    needs: [ "tag", "e2e" ]
-    if: ${{ needs.e2e.outputs.status != 'failure' }}
+    needs: [ "tag", "e2e", "import" ]
+    if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
