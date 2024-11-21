@@ -12,12 +12,14 @@ variable "token_secret" {
 
 variable "service_name" {
   type = string
-  default = "My Terraform Service"
+}
+
+variable "cloud_provider" {
+  type = string
 }
 
 variable "region" {
   type = string
-  default = "westus3"
 }
 
 variable "release_channel" {
@@ -29,19 +31,19 @@ variable "release_channel" {
   }
 }
 
-resource "clickhouse_service" "service" {
+resource "clickhouse_service" "import" {
   name                      = var.service_name
-  cloud_provider            = "azure"
+  cloud_provider            = var.cloud_provider
   region                    = var.region
   tier                      = "production"
   release_channel           = var.release_channel
   idle_scaling              = true
-  idle_timeout_minutes      = 5
+  idle_timeout_minutes      = 15
   password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
 
   ip_access = [
     {
-      source      = "0.0.0.0"
+      source      = "0.0.0.0/0"
       description = "Anywhere"
     }
   ]
@@ -56,10 +58,6 @@ resource "clickhouse_service" "service" {
   }
 }
 
-output "service_endpoints" {
-  value = clickhouse_service.service.endpoints
-}
-
-output "service_iam" {
-  value = clickhouse_service.service.iam_role
+output "service_uuid" {
+  value = clickhouse_service.import.id
 }

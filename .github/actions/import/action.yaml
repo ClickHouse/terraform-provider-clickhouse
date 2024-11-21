@@ -1,0 +1,122 @@
+name: "Import existing resource in terraform"
+description: "Import existing resource in terraform"
+inputs:
+  organization_id:
+    required: true
+    description: "The clickhouse organization ID"
+  token_key:
+    required: true
+    description: "The clickhouse token key"
+  token_secret:
+    required: true
+    description: "The clickhouse token secret"
+  resource_type:
+    required: true
+    default: "service"
+    description: "The type of resource to import. Only supported resource is 'service'"
+  resource_name:
+    required: true
+    description: "The name of the existing resource to import"
+  tf_release:
+    required: true
+    description: "The terraform cli version"
+  cloud_provider:
+    required: true
+    description: "The Cloud provider to use for import"
+  region:
+    required: true
+    description: "The Cloud region to use for import"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod'
+        cache: true
+
+    - name: Install terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.tf_release }}
+        terraform_wrapper: false
+
+    - shell: bash
+      name: Show terraform version
+      run: terraform version
+
+    - shell: bash
+      name: Set env variables
+      run: |
+        echo "::group::Setting env variables"
+        
+        cat <<EOF >tests/import/${{ inputs.resource_type }}/variables.tfvars
+        organization_id = "${{ inputs.organization_id }}"
+        token_key       = "${{ inputs.token_key }}"
+        token_secret    = "${{ inputs.token_secret }}"
+        cloud_provider  = "${{ inputs.cloud_provider }}"
+        region          = "${{ inputs.region }}"
+        EOF
+        
+        if [ "${{ inputs.resource_type }}" == "service" ]
+        then
+          cat <<EOF >>tests/import/${{ inputs.resource_type }}/variables.tfvars
+        service_name    = "${{ inputs.resource_name }}"
+        EOF
+        fi
+                
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Build provider from branch and create terraformrc to use it
+      run: |
+        git checkout ${{ github.ref }}        
+        echo "::group::Build provider from branch and create terraformrc to use it"
+        go get
+        go build -o terraform-provider-clickhouse
+
+        cat <<EOF >$HOME/.terraformrc
+        provider_installation {
+          dev_overrides {
+            "ClickHouse/clickhouse" = "$(pwd)"
+          }
+          direct {}
+        }
+        EOF
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Create the resource
+      id: apply
+      run: |
+        echo "::group::Create the resource"
+        cd "tests/import/${{ inputs.resource_type }}"
+        
+        terraform init -input=false -upgrade
+        terraform apply -no-color -var-file=variables.tfvars -auto-approve
+        
+        id="$(cat terraform.tfstate | jq '.resources[0].instances[0].attributes.id')"
+        echo "id=${id}" >> "$GITHUB_OUTPUT"
+                
+        # Ensure there is no state file
+        rm terraform.tfstate
+        
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Run terraform import
+      run: |
+        echo "::group::Run terraform"
+        cd "tests/import/${{ inputs.resource_type }}"
+                
+        terraform init -input=false -upgrade
+        terraform import -no-color -var-file=variables.tfvars clickhouse_${{ inputs.resource_type }}.import ${{ steps.apply.outputs.id }}
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Terraform destroy
+      run: |
+        echo "::group::Run terraform destroy"
+        cd "tests/import/${{ inputs.resource_type }}"
+        terraform destroy -no-color -auto-approve -var-file=variables.tfvars
+        echo "::endgroup::"
