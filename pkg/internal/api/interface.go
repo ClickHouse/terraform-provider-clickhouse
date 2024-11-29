@@ -17,4 +17,11 @@ type Client interface {
 	UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
 	GetBackupConfiguration(ctx context.Context, serviceId string) (*BackupConfiguration, error)
 	UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (*BackupConfiguration, error)
+	GetClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
+	CreateClickPipe(ctx context.Context, serviceId string, clickPipe ClickPipe) (*ClickPipe, error)
+	WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds int) (*ClickPipe, error)
+	ScaleClickPipe(ctx context.Context, serviceId string, clickPipeId string, desiredReplicas int64) (*ClickPipe, error)
+	PauseClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
+	ResumeClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
+	DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error
 }
