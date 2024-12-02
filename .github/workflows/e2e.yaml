@@ -64,7 +64,7 @@ jobs:
           token="$(date '+%s')"
           echo "token=${token}" >> $GITHUB_OUTPUT
 
-  # Find the 3 most recent releases of terraform CLI (one for each minor)
+  # Find the most recent release of terraform CLI
   find-tf-releases:
     outputs:
       releases: ${{ steps.find.outputs.releases }}
@@ -75,7 +75,6 @@ jobs:
       - uses: ./.github/actions/find-tf-releases
         id: find
         with:
-          # todo remove me
           count: '1'
 
   list-examples:

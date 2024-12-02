@@ -1,6 +1,10 @@
 name: "Import existing resource in terraform"
 description: "Import existing resource in terraform"
 inputs:
+  enable_debug:
+    required: false
+    default: "false"
+    description: "If true it adds TF_LOG=debug to terraform commands"
   api_url:
     required: false
     description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
@@ -102,6 +106,10 @@ runs:
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
         
+        if [ "${{ inputs.enable_debug }}" == "true" ]; then
+          export TF_LOG=debug
+        fi
+        
         terraform init -input=false -upgrade
         terraform apply -no-color -var-file=variables.tfvars -auto-approve
         
@@ -125,6 +133,10 @@ runs:
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
 
+        if [ "${{ inputs.enable_debug }}" == "true" ]; then
+          export TF_LOG=debug
+        fi
+
         terraform init -input=false -upgrade
         terraform import -no-color -var-file=variables.tfvars clickhouse_${{ inputs.resource_type }}.import ${{ steps.apply.outputs.id }}
         echo "::endgroup::"
@@ -139,6 +151,10 @@ runs:
         then
           export CLICKHOUSE_API_URL="${{inputs.api_url}}"
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
+        fi
+        
+        if [ "${{ inputs.enable_debug }}" == "true" ]; then
+          export TF_LOG=debug
         fi
         
         terraform destroy -no-color -auto-approve -var-file=variables.tfvars

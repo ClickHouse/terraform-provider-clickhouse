@@ -3,10 +3,35 @@ name: Test import
 on:
   workflow_dispatch:
     inputs:
+      api_env:
+        type: choice
+        default: "Production"
+        options:
+          - Production
+          - Staging
+          - Development
+          - Custom
+        description: "What API ENV to use as backend."
       api_url:
         type: string
         default: ""
-        description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
+        description: "(Optional) Full URL of the API service to use when API Env is 'Custom'"
+      organization_id:
+        type: string
+        default: ""
+        description: "(Optional) Organization ID to use when API Env is 'Custom'"
+      api_key_id:
+        type: string
+        default: ""
+        description: "(Optional) API Key ID to use when API Env is 'Custom'"
+      api_key_secret:
+        type: string
+        default: ""
+        description: "(Optional) API Key secret to use when API Env is 'Custom'"
+      enable_debug:
+        type: boolean
+        default: false
+        description: "Enable terraform debug log"
 
 defaults:
   run:
@@ -58,49 +83,29 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Pick a cloud region
-        id: region
+
+      - name: Get API details for env
+        id: credentials
+        env:
+          api_env: "${{ inputs.api_env }}"
+          api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
+          api_env_staging: "${{ secrets.API_ENV_STAGING }}"
+          api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
+          api_url: "${{ inputs.api_url }}"
+          organization_id: "${{ inputs.organization_id }}"
+          api_key_id: "${{ inputs.api_key_id }}"
+          api_key_secret: "${{ inputs.api_key_secret }}"
         run: |
-          cloud="${{ matrix.cloud_provider }}"
-          regions=()
-          case $cloud in
-          aws)
-            regions+=('us-west-2')
-            regions+=('us-east-2')
-            regions+=('us-east-1')
-            regions+=('eu-west-1')
-            regions+=('eu-west-2')
-            regions+=('eu-central-1')
-            regions+=('ap-southeast-1')
-            regions+=('ap-southeast-2')
-            regions+=('ap-south-1')
-            regions+=('ap-northeast-1')
-            ;;
-          azure)
-            regions+=('germanywestcentral')
-            regions+=('eastus2')
-            regions+=('westus3')
-            ;;
-          gcp)
-            regions+=('us-east1')
-            regions+=('us-central1')
-            regions+=('europe-west4')
-            regions+=('asia-southeast1')
-            ;;
-          esac
-          
-          random=${regions[ $RANDOM % ${#regions[@]} ]}
-          echo "Lucky winner region is: $random"
-          echo "region=$random" >> $GITHUB_OUTPUT
+          bash ./.github/scripts/set_api_env.sh ${{ matrix.cloud_provider }}
 
       - name: import
         id: import
         uses: ./.github/actions/import
         with:
-          api_url: ${{ inputs.api_url }}
-          organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
-          token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
-          token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
+          api_url: ${{ steps.credentials.outputs.api_url }}
+          organization_id: ${{ steps.credentials.outputs.organization_id }}
+          token_key: ${{ steps.credentials.outputs.api_key_id }}
+          token_secret: ${{ steps.credentials.outputs.api_key_secret }}
           resource_name: "[import]-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}"
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
