@@ -68,6 +68,7 @@ echo "api_url=${api_url}" >> $GITHUB_OUTPUT
 echo "organization_id=${organization_id}" >> $GITHUB_OUTPUT
 echo "api_key_id=${api_key_id}" >> $GITHUB_OUTPUT
 echo "api_key_secret=${api_key_secret}" >> $GITHUB_OUTPUT
+echo "region='${region}'"
 if [ "$region" != "" ]; then
   echo "region=${region}" >> $GITHUB_OUTPUT
 fi

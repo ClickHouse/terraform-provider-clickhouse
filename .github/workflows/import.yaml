@@ -110,6 +110,7 @@ jobs:
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
           region: ${{ steps.region.outputs.region }}
+          enable_debug: ${{ inputs.enable_debug }}
 
       - name: Mark error
         id: status
@@ -136,17 +137,27 @@ jobs:
     needs: [ "import", "token" ]
     if: always()
     continue-on-error: true
-    env:
-      organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
-      token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
-      token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Get API details for env
+        id: credentials
+        env:
+          api_env: "${{ inputs.api_env }}"
+          api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
+          api_env_staging: "${{ secrets.API_ENV_STAGING }}"
+          api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
+          api_url: "${{ inputs.api_url }}"
+          organization_id: "${{ inputs.organization_id }}"
+          api_key_id: "${{ inputs.api_key_id }}"
+          api_key_secret: "${{ inputs.api_key_secret }}"
+        run: |
+          bash ./.github/scripts/set_api_env.sh
       - name: cleanup
         uses: ./.github/actions/cleanup-clickhouse
         with:
-          organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
-          token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
-          token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
+          api_url: ${{ steps.credentials.outputs.api_url }}
+          organization_id: ${{ steps.credentials.outputs.organization_id }}
+          token_key: ${{ steps.credentials.outputs.api_key_id }}
+          token_secret: ${{ steps.credentials.outputs.api_key_secret }}
           token: ${{needs.token.outputs.token}}
