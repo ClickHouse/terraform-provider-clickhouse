@@ -2,7 +2,11 @@ name: Test import
 
 on:
   workflow_dispatch:
-    inputs: {}
+    inputs:
+      api_url:
+        type: string
+        default: ""
+        description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
 
 defaults:
   run:
@@ -93,6 +97,7 @@ jobs:
         id: import
         uses: ./.github/actions/import
         with:
+          api_url: ${{ inputs.api_url }}
           organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
           token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
           token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}

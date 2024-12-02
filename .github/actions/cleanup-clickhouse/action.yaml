@@ -1,6 +1,10 @@
 name: "Cleanup leftovers"
 description: "Cleanup any leftovers of e2e test"
 inputs:
+  api_url:
+    required: false
+    description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
+    default: ""
   organization_id:
     required: true
     description: "The clickhouse organization ID"
@@ -20,6 +24,11 @@ runs:
     - name: cleanup clikchouse
       shell: bash
       run: |
+        api_url="${{ inputs.api_url }}"
+        if [ "$api_url" == "" ]
+        then
+          api_url="https://api.clickhouse.cloud/v1"
+        fi
         organization_id="${{ inputs.organization_id }}"
         token_key="${{ inputs.token_key }}"
         token_secret="${{ inputs.token_secret }}"
@@ -28,7 +37,7 @@ runs:
         echo "Deleting any service with suffix ${suffix}"
         
         while :; do
-          output="$(curl -su ${token_key}:${token_secret} https://api.clickhouse.cloud/v1/organizations/${organization_id}/services)"
+          output="$(curl -su ${token_key}:${token_secret} ${api_url}/organizations/${organization_id}/services)"
           ids=$(echo "$output"|jq --arg suffix "${suffix}" -r '.result[]| select(.name | endswith($suffix)) |(.id + "," + .state)')
         
           if [ "$ids" == "" ]
@@ -47,14 +56,14 @@ runs:
             case "$status" in
             stopped)
               echo "Deleting service ${id}"
-              curl -su ${token_key}:${token_secret} -XDELETE "https://api.clickhouse.cloud/v1/organizations/${organization_id}/services/${id}" -o /dev/null
+              curl -su ${token_key}:${token_secret} -XDELETE "${api_url}/organizations/${organization_id}/services/${id}" -o /dev/null
               ;;
             stopping)
               echo "Service ${id} is stopping, waiting"
               ;;
             *)
               echo "Stopping service ${id}"
-              curl -su ${token_key}:${token_secret} -XPATCH "https://api.clickhouse.cloud/v1/organizations/${organization_id}/services/${id}/state" --data '{"command": "stop"}' -H 'Content-Type: application/json' -o /dev/null
+              curl -su ${token_key}:${token_secret} -XPATCH "${api_url}/organizations/${organization_id}/services/${id}/state" --data '{"command": "stop"}' -H 'Content-Type: application/json' -o /dev/null
               ;;
             esac
           done
