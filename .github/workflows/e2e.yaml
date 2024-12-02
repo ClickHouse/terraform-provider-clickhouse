@@ -187,10 +187,6 @@ jobs:
     needs: [ "e2e", "token" ]
     if: always()
     continue-on-error: true
-    env:
-      organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
-      token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
-      token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -206,7 +202,7 @@ jobs:
           api_key_id: "${{ inputs.api_key_id }}"
           api_key_secret: "${{ inputs.api_key_secret }}"
         run: |
-          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
+          bash ./.github/scripts/set_api_env.sh
       - name: cleanup
         uses: ./.github/actions/cleanup-clickhouse
         with:

@@ -16,7 +16,9 @@ api_url="$(echo "${api_env_production}" | jq -r .api_url)"
 organization_id="$(echo "${api_env_production}" | jq -r .organization_id)"
 api_key_id="$(echo "${api_env_production}" | jq -r .api_key_id)"
 api_key_secret="$(echo "${api_env_production}" | jq -r .api_key_secret)"
-region="$(echo "${api_env_production}" | jq -rc --arg cloud $cloud '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
+if [ "$cloud" != "" ]; then
+  region="$(echo "${api_env_production}" | jq -rc --arg cloud $cloud '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
+fi
 ;;
 
 Staging)
@@ -24,7 +26,9 @@ api_url="$(echo "${api_env_staging}" | jq -r .api_url)"
 organization_id="$(echo "${api_env_staging}" | jq -r .organization_id)"
 api_key_id="$(echo "${api_env_staging}" | jq -r .api_key_id)"
 api_key_secret="$(echo "${api_env_staging}" | jq -r .api_key_secret)"
-region="$(echo "${api_env_staging}" | jq -rc --arg cloud $cloud '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
+if [ "$cloud" != "" ]; then
+  region="$(echo "${api_env_staging}" | jq -rc --arg cloud $cloud '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
+fi
 ;;
 
 Development)
@@ -32,7 +36,9 @@ api_url="$(echo "${api_env_development}" | jq -r .api_url)"
 organization_id="$(echo "${api_env_development}" | jq -r .organization_id)"
 api_key_id="$(echo "${api_env_development}" | jq -r .api_key_id)"
 api_key_secret="$(echo "${api_env_development}" | jq -r .api_key_secret)"
-region="$(echo "${api_env_development}" | jq -rc --arg cloud $cloud '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
+if [ "$cloud" != "" ]; then
+  region="$(echo "${api_env_development}" | jq -rc --arg cloud $cloud '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
+fi
 ;;
 
 Custom)
@@ -62,4 +68,6 @@ echo "api_url=${api_url}" >> $GITHUB_OUTPUT
 echo "organization_id=${organization_id}" >> $GITHUB_OUTPUT
 echo "api_key_id=${api_key_id}" >> $GITHUB_OUTPUT
 echo "api_key_secret=${api_key_secret}" >> $GITHUB_OUTPUT
-echo "region=${region}" >> $GITHUB_OUTPUT
+if [ "$region" != "" ]; then
+  echo "region=${region}" >> $GITHUB_OUTPUT
+fi
