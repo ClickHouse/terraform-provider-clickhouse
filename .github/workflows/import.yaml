@@ -109,7 +109,7 @@ jobs:
           resource_name: "[import]-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}"
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
-          region: ${{ steps.region.outputs.region }}
+          region: ${{ steps.credentials.outputs.region }}
           enable_debug: ${{ inputs.enable_debug }}
 
       - name: Mark error
