@@ -15,19 +15,19 @@ on:
       api_url:
         type: string
         default: ""
-        description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
+        description: "(Optional) Full URL of the API service to use when API Env is 'Custom'"
       organization_id:
         type: string
         default: ""
-        description: "CHANGEME"
+        description: "(Optional) Organization ID to use when API Env is 'Custom'"
       api_key_id:
         type: string
         default: ""
-        description: "CHANGEME"
+        description: "(Optional) API Key ID to use when API Env is 'Custom'"
       api_key_secret:
         type: string
         default: ""
-        description: "CHANGEME"
+        description: "(Optional) API Key secret to use when API Env is 'Custom'"
       notify_errors:
         type: boolean
         default: false
@@ -40,6 +40,10 @@ on:
         type: boolean
         default: false
         description: "Create service using latest stable version, then upgrade to the current version"
+      enable_debug:
+        type: boolean
+        default: false
+        description: "Enable terraform debug log"
   schedule:
     - cron: "0 3 * * *"
 
@@ -133,6 +137,7 @@ jobs:
         id: e2e
         uses: ./.github/actions/e2e
         with:
+          enable_debug: ${{ inputs.enable_debug }}
           api_url: ${{ steps.credentials.outputs.api_url }}
           organization_id: ${{ steps.credentials.outputs.organization_id }}
           token_key: ${{ steps.credentials.outputs.api_key_id }}
