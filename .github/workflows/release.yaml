@@ -105,14 +105,10 @@ jobs:
       - name: Get API details for env
         id: credentials
         env:
-          api_env: "${{ inputs.api_env }}"
+          api_env: "Production"
           api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"
           api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
-          api_url: "${{ inputs.api_url }}"
-          organization_id: "${{ inputs.organization_id }}"
-          api_key_id: "${{ inputs.api_key_id }}"
-          api_key_secret: "${{ inputs.api_key_secret }}"
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
@@ -162,14 +158,10 @@ jobs:
       - name: Get API details for env
         id: credentials
         env:
-          api_env: "${{ inputs.api_env }}"
+          api_env: "Production"
           api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"
           api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
-          api_url: "${{ inputs.api_url }}"
-          organization_id: "${{ inputs.organization_id }}"
-          api_key_id: "${{ inputs.api_key_id }}"
-          api_key_secret: "${{ inputs.api_key_secret }}"
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.cloud_provider }}
 
@@ -224,14 +216,10 @@ jobs:
       - name: Get API details for env
         id: credentials
         env:
-          api_env: "${{ inputs.api_env }}"
+          api_env: "Production"
           api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"
           api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
-          api_url: "${{ inputs.api_url }}"
-          organization_id: "${{ inputs.organization_id }}"
-          api_key_id: "${{ inputs.api_key_id }}"
-          api_key_secret: "${{ inputs.api_key_secret }}"
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.cloud_provider }}
       - name: cleanup
