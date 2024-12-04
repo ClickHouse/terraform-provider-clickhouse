@@ -1,6 +1,14 @@
 name: "Import existing resource in terraform"
 description: "Import existing resource in terraform"
 inputs:
+  enable_debug:
+    required: false
+    default: "false"
+    description: "If true it adds TF_LOG=debug to terraform commands"
+  api_url:
+    required: false
+    description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
+    default: ""
   organization_id:
     required: true
     description: "The clickhouse organization ID"
@@ -92,6 +100,16 @@ runs:
         echo "::group::Create the resource"
         cd "tests/import/${{ inputs.resource_type }}"
         
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+          echo "Using '$CLICKHOUSE_API_URL' as API URL"
+        fi
+        
+        if [ "${{ inputs.enable_debug }}" == "true" ]; then
+          export TF_LOG=debug
+        fi
+        
         terraform init -input=false -upgrade
         terraform apply -no-color -var-file=variables.tfvars -auto-approve
         
@@ -108,7 +126,17 @@ runs:
       run: |
         echo "::group::Run terraform"
         cd "tests/import/${{ inputs.resource_type }}"
-                
+
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+          echo "Using '$CLICKHOUSE_API_URL' as API URL"
+        fi
+
+        if [ "${{ inputs.enable_debug }}" == "true" ]; then
+          export TF_LOG=debug
+        fi
+
         terraform init -input=false -upgrade
         terraform import -no-color -var-file=variables.tfvars clickhouse_${{ inputs.resource_type }}.import ${{ steps.apply.outputs.id }}
         echo "::endgroup::"
@@ -118,5 +146,16 @@ runs:
       run: |
         echo "::group::Run terraform destroy"
         cd "tests/import/${{ inputs.resource_type }}"
+        
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+          echo "Using '$CLICKHOUSE_API_URL' as API URL"
+        fi
+        
+        if [ "${{ inputs.enable_debug }}" == "true" ]; then
+          export TF_LOG=debug
+        fi
+        
         terraform destroy -no-color -auto-approve -var-file=variables.tfvars
         echo "::endgroup::"

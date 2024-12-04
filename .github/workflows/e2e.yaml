@@ -3,6 +3,31 @@ name: E2E tests
 on:
   workflow_dispatch:
     inputs:
+      api_env:
+        type: choice
+        default: "Production"
+        options:
+          - Production
+          - Staging
+          - Development
+          - Custom
+        description: "What API ENV to use as backend."
+      api_url:
+        type: string
+        default: ""
+        description: "(Optional) Full URL of the API service to use when API Env is 'Custom'"
+      organization_id:
+        type: string
+        default: ""
+        description: "(Optional) Organization ID to use when API Env is 'Custom'"
+      api_key_id:
+        type: string
+        default: ""
+        description: "(Optional) API Key ID to use when API Env is 'Custom'"
+      api_key_secret:
+        type: string
+        default: ""
+        description: "(Optional) API Key secret to use when API Env is 'Custom'"
       notify_errors:
         type: boolean
         default: false
@@ -15,6 +40,10 @@ on:
         type: boolean
         default: false
         description: "Create service using latest stable version, then upgrade to the current version"
+      enable_debug:
+        type: boolean
+        default: false
+        description: "Enable terraform debug log"
   schedule:
     - cron: "0 3 * * *"
 
@@ -35,7 +64,7 @@ jobs:
           token="$(date '+%s')"
           echo "token=${token}" >> $GITHUB_OUTPUT
 
-  # Find the 3 most recent releases of terraform CLI (one for each minor)
+  # Find the most recent release of terraform CLI
   find-tf-releases:
     outputs:
       releases: ${{ steps.find.outputs.releases }}
@@ -45,6 +74,8 @@ jobs:
         uses: actions/checkout@v4
       - uses: ./.github/actions/find-tf-releases
         id: find
+        with:
+          count: '1'
 
   list-examples:
     outputs:
@@ -86,65 +117,44 @@ jobs:
           fi
           
           echo "test_name=[e2e${test_type}]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
-      - name: Pick a cloud region
-        id: region
+
+      - name: Get API details for env
+        id: credentials
+        env:
+          api_env: "${{ inputs.api_env }}"
+          api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
+          api_env_staging: "${{ secrets.API_ENV_STAGING }}"
+          api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
+          api_url: "${{ inputs.api_url }}"
+          organization_id: "${{ inputs.organization_id }}"
+          api_key_id: "${{ inputs.api_key_id }}"
+          api_key_secret: "${{ inputs.api_key_secret }}"
         run: |
-          cloud="${{ matrix.test.cloud }}"
-          regions=()
-          case $cloud in
-          aws)
-            regions+=('us-west-2')
-            regions+=('us-east-2')
-            regions+=('us-east-1')
-            regions+=('eu-west-1')
-            regions+=('eu-west-2')
-            regions+=('eu-central-1')
-            regions+=('ap-southeast-1')
-            regions+=('ap-southeast-2')
-            regions+=('ap-south-1')
-          
-            if [ "${{ matrix.test.name }}" != "development" ]
-            then
-              regions+=('ap-northeast-1')
-            fi
-            ;;
-          azure)
-            regions+=('germanywestcentral')
-            regions+=('eastus2')
-            regions+=('westus3')
-            ;;
-          gcp)
-            regions+=('us-east1')
-            regions+=('us-central1')
-            regions+=('europe-west4')
-            regions+=('asia-southeast1')
-            ;;
-          esac
-          
-          random=${regions[ $RANDOM % ${#regions[@]} ]}
-          echo "Lucky winner region is: $random"
-          echo "region=$random" >> $GITHUB_OUTPUT
+          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
+
       - name: e2e
         id: e2e
         uses: ./.github/actions/e2e
         with:
-          organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
-          token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
-          token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
+          enable_debug: ${{ inputs.enable_debug }}
+          api_url: ${{ steps.credentials.outputs.api_url }}
+          organization_id: ${{ steps.credentials.outputs.organization_id }}
+          token_key: ${{ steps.credentials.outputs.api_key_id }}
+          token_secret: ${{ steps.credentials.outputs.api_key_secret }}
           service_name: ${{steps.name.outputs.test_name}}
           test_name: ${{ matrix.test.name }}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: ${{ inputs.run_upgrade_test }}
           skip_build: "${{ !contains(inputs.skip_build_from_branch, 'false') }}"
-          region: ${{steps.region.outputs.region}}
+          region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: cleanup
         if: ${{ always() && matrix.test.cloud == 'aws' && matrix.test.name == 'private_endpoint' }}
         uses: ./.github/actions/cleanup-aws
         with:
           service_name: ${{steps.name.outputs.test_name}}
-          aws_region: ${{steps.region.outputs.region}}
+          aws_region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: Mark error
         id: status
@@ -181,17 +191,27 @@ jobs:
     needs: [ "e2e", "token" ]
     if: always()
     continue-on-error: true
-    env:
-      organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
-      token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
-      token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Get API details for env
+        id: credentials
+        env:
+          api_env: "${{ inputs.api_env }}"
+          api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
+          api_env_staging: "${{ secrets.API_ENV_STAGING }}"
+          api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
+          api_url: "${{ inputs.api_url }}"
+          organization_id: "${{ inputs.organization_id }}"
+          api_key_id: "${{ inputs.api_key_id }}"
+          api_key_secret: "${{ inputs.api_key_secret }}"
+        run: |
+          bash ./.github/scripts/set_api_env.sh
       - name: cleanup
         uses: ./.github/actions/cleanup-clickhouse
         with:
-          organization_id: ${{ secrets.TF_VAR_ORGANIZATION_ID }}
-          token_key: ${{ secrets.TF_VAR_TOKEN_KEY }}
-          token_secret: ${{ secrets.TF_VAR_TOKEN_SECRET }}
+          api_url: ${{ steps.credentials.outputs.api_url }}
+          organization_id: ${{ steps.credentials.outputs.organization_id }}
+          token_key: ${{ steps.credentials.outputs.api_key_id }}
+          token_secret: ${{ steps.credentials.outputs.api_key_secret }}
           token: ${{needs.token.outputs.token}}
