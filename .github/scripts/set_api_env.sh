@@ -10,7 +10,10 @@ region=""
 
 cloud="$1"
 
-case "${api_env}" in
+# When this script is called by the cron schedule inputs are empty so we default to Production.
+ENV=${api_env:-"Production"}
+
+case "${ENV}" in
 Production)
 api_url="$(echo "${api_env_production}" | jq -r .api_url)"
 organization_id="$(echo "${api_env_production}" | jq -r .organization_id)"
