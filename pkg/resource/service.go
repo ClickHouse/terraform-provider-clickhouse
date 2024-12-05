@@ -63,6 +63,15 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"byoc_id": schema.StringAttribute{
+				// TODO
+				Description: "Put real description here.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"name": schema.StringAttribute{
 				Description: "User defined identifier for the service.",
 				Required:    true,
@@ -313,6 +322,14 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 	if !req.State.Raw.IsNull() {
 		// Validations for updates.
+		if !plan.BYOCId.IsNull() && plan.BYOCId != state.BYOCId {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("byocid"),
+				"Invalid Update",
+				"ClickHouse does not support changing BYOC ID for a service",
+			)
+		}
+
 		if !plan.CloudProvider.IsNull() && plan.CloudProvider != state.CloudProvider {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cloud_provider"),
@@ -365,6 +382,13 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	if plan.Tier.ValueString() == api.TierDevelopment {
+		if !plan.BYOCId.IsNull() && !plan.BYOCId.IsUnknown() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"byoc_id cannot be defined if the service tier is development",
+			)
+		}
+
 		if !plan.MinTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
@@ -415,6 +439,22 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 	} else if plan.Tier.ValueString() == api.TierProduction {
+		if !plan.BYOCId.IsNull() {
+			if plan.MinReplicaMemoryGb.IsNull() || plan.MinReplicaMemoryGb.IsUnknown() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"min_replica_memory_gb must be defined if byoc_id is set",
+				)
+			}
+
+			if plan.MaxReplicaMemoryGb.IsNull() || plan.MaxReplicaMemoryGb.IsUnknown() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"max_replica_memory_gb must be defined if byoc_id is set",
+				)
+			}
+		}
+
 		if plan.MinReplicaMemoryGb.IsNull() && plan.MinTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
@@ -528,6 +568,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		Provider: plan.CloudProvider.ValueString(),
 		Region:   plan.Region.ValueString(),
 		Tier:     plan.Tier.ValueString(),
+	}
+
+	if !plan.BYOCId.IsUnknown() && !plan.BYOCId.IsNull() {
+		service.BYOCId = plan.BYOCId.ValueStringPointer()
 	}
 
 	if service.Tier == api.TierProduction {
@@ -988,6 +1032,11 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	}
 
 	// Overwrite items with refreshed state
+	if service.BYOCId != nil {
+		state.BYOCId = types.StringValue(*service.BYOCId)
+	} else {
+		state.BYOCId = types.StringNull()
+	}
 	state.Name = types.StringValue(service.Name)
 	state.CloudProvider = types.StringValue(service.Provider)
 	state.Region = types.StringValue(service.Region)
