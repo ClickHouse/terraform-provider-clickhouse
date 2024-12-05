@@ -49,6 +49,7 @@ resource "clickhouse_service" "service" {
 ### Optional
 
 - `backup_configuration` (Attributes) Configuration of service backup settings. (see [below for nested schema](#nestedatt--backup_configuration))
+- `byoc_id` (String) Put real description here.
 - `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.
 - `encryption_assumed_role_identifier` (String) Custom role identifier ARN.
 - `encryption_key` (String) Custom encryption key ARN.
