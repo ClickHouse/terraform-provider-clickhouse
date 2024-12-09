@@ -45,7 +45,7 @@ resource "clickhouse_service_private_endpoints_attachment" "attachment" {
 ### Optional
 
 - `private_endpoint_ids` (List of String) List of private endpoint IDs
-- `service_id` (String) ClickHouse Servie ID
+- `service_id` (String) ClickHouse Service ID
 
 ## Import
 
