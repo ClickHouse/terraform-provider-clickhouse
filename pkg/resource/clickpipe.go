@@ -80,10 +80,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"replicas": schema.SingleNestedAttribute{
+			"scaling": schema.SingleNestedAttribute{
 				Attributes: map[string]schema.Attribute{
-					"desired": schema.Int64Attribute{
-						Description: "The number of replicas desired for the ClickPipe. (1-10). Defaults to 1.",
+					"replicas": schema.Int64Attribute{
+						Description: "The number of desired replicas for the ClickPipe. Default is 1. The maximum value is 10.",
 						Optional:    true,
 						Computed:    true,
 						Validators: []validator.Int64{
@@ -98,7 +98,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				},
 			},
 			"state": schema.StringAttribute{
-				MarkdownDescription: "The state of the ClickPipe. (`Running`, `Stopped`). Defaults to `Running`. Whenever the pipe state changes, the Terraform provider will try to ensure the actual state matches the planned value. If pipe is `Failed` and plan is `Running`, the provider will try to resume the pipe. If plan is `Stopped`, the provider will try to stop the pipe.",
+				MarkdownDescription: "The state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`. Whenever the pipe state changes, the Terraform provider will try to ensure the actual state matches the planned value. If pipe is `Failed` and plan is `Running`, the provider will try to resume the pipe. If plan is `Stopped`, the provider will try to stop the pipe. If the pipe is `InternalError`, no action will be taken.",
 				Optional:            true,
 				Default:             stringdefault.StaticString(api.ClickPipeRunningState),
 				Computed:            true,
@@ -113,10 +113,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Optional: true,
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
-								Description: "The type of the Kafka source. (kafka, msk, confluent). Defaults to 'kafka'.",
-								Computed:    true,
-								Optional:    true,
-								Default:     stringdefault.StaticString(api.ClickPipeKafkaSourceType),
+								MarkdownDescription: "The type of the Kafka source. (`kafka`, `msk`, `confluent`). Default is `kafka`.",
+								Computed:            true,
+								Optional:            true,
+								Default:             stringdefault.StaticString(api.ClickPipeKafkaSourceType),
 							},
 							"brokers": schema.StringAttribute{
 								Description: "The list of Kafka bootstrap brokers. (comma separated)",
@@ -127,15 +127,15 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Required:    true,
 							},
 							"consumer_group": schema.StringAttribute{
-								Description: "The Kafka consumer group. Defaults to 'clickpipes-<ID>'.",
-								Computed:    true,
-								Optional:    true,
+								MarkdownDescription: "The Kafka consumer group. Default is `clickpipes-<ID>`.",
+								Computed:            true,
+								Optional:            true,
 							},
 							"authentication": schema.StringAttribute{
-								Description: "The authentication method for the Kafka source. (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512). Defaults to PLAIN.",
-								Computed:    true,
-								Optional:    true,
-								Default:     stringdefault.StaticString("PLAIN"),
+								MarkdownDescription: "The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`). Default is `PLAIN`.",
+								Computed:            true,
+								Optional:            true,
+								Default:             stringdefault.StaticString("PLAIN"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										api.ClickPipeKafkaAuthenticationPlain,
@@ -165,8 +165,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Required: true,
 						Attributes: map[string]schema.Attribute{
 							"format": schema.StringAttribute{
-								Required:    true,
-								Description: "The format of the schema. (JSONEachRow, Avro)",
+								Required:            true,
+								MarkdownDescription: "The format of the schema. (`JSONEachRow`, `Avro`)",
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeJSONEachRowFormat, api.ClickPipesAvroFormat),
 								},
@@ -183,20 +183,20 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Description: "The destination for the ClickPipe.",
 				Attributes: map[string]schema.Attribute{
 					"database": schema.StringAttribute{
-						Description: "The name of the ClickHouse database. Defaults to 'default'.",
-						Default:     stringdefault.StaticString("default"),
-						Computed:    true,
-						Optional:    true,
+						MarkdownDescription: "The name of the ClickHouse database. Default is `default`.",
+						Default:             stringdefault.StaticString("default"),
+						Computed:            true,
+						Optional:            true,
 					},
 					"table": schema.StringAttribute{
 						Description: "The name of the ClickHouse table.",
 						Required:    true,
 					},
 					"managed_table": schema.BoolAttribute{
-						Description: "Whether the table is managed by ClickHouse Cloud. If false, the table must exist in the database. Defaults to true.",
-						Default:     booldefault.StaticBool(true),
-						Computed:    true,
-						Optional:    true,
+						MarkdownDescription: "Whether the table is managed by ClickHouse Cloud. If `false`, the table must exist in the database. Default is `true`.",
+						Default:             booldefault.StaticBool(true),
+						Computed:            true,
+						Optional:            true,
 					},
 					"columns": schema.ListNestedAttribute{
 						Description: "The list of columns for the ClickHouse table.",
@@ -293,12 +293,12 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		ServiceID:   plan.ServiceID.ValueString(),
 	}
 
-	if !plan.Replicas.IsNull() {
-		replicasModel := models.ClickPipeReplicasModel{}
-		response.Diagnostics.Append(plan.Replicas.As(ctx, &replicasModel, basetypes.ObjectAsOptions{})...)
+	if !plan.Scaling.IsNull() {
+		replicasModel := models.ClickPipeScalingModel{}
+		response.Diagnostics.Append(plan.Scaling.As(ctx, &replicasModel, basetypes.ObjectAsOptions{})...)
 
-		clickPipe.Replicas = &api.ClickPipeReplicas{
-			Desired: replicasModel.Desired.ValueInt64(),
+		clickPipe.Scaling = &api.ClickPipeScaling{
+			Replicas: replicasModel.Replicas.ValueInt64(),
 		}
 	}
 
@@ -410,9 +410,9 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	state.Description = types.StringValue(clickPipe.Description)
 	state.State = types.StringValue(clickPipe.State)
 
-	if clickPipe.Replicas != nil {
-		state.Replicas = models.ClickPipeReplicasModel{
-			Desired: types.Int64Value(clickPipe.Replicas.Desired),
+	if clickPipe.Scaling != nil {
+		state.Scaling = models.ClickPipeScalingModel{
+			Replicas: types.Int64Value(clickPipe.Scaling.Replicas),
 		}.ObjectValue()
 	}
 

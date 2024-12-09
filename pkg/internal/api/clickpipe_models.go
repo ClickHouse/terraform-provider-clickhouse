@@ -1,7 +1,9 @@
 package api
 
-type ClickPipeReplicas struct {
-	Desired int64 `json:"desired"`
+import "time"
+
+type ClickPipeScaling struct {
+	Replicas int64 `json:"replicas"`
 }
 
 type ClickPipeSourceCredentials struct {
@@ -48,10 +50,12 @@ type ClickPipe struct {
 	ID            string                  `json:"id,omitempty"`
 	ServiceID     string                  `json:"serviceId"`
 	Name          string                  `json:"name"`
-	Description   string                  `json:"description,omitempty"`
-	Replicas      *ClickPipeReplicas      `json:"replicas"`
+	Description   string                  `json:"description"`
+	Scaling       *ClickPipeScaling       `json:"replicas,omitempty"`
 	State         string                  `json:"state,omitempty"`
 	Source        ClickPipeSource         `json:"source"`
 	Destination   ClickPipeDestination    `json:"destination"`
 	FieldMappings []ClickPipeFieldMapping `json:"fieldMappings"`
+	CreatedAt     time.Time               `json:"createdAt,omitempty"`
+	UpdatedAt     time.Time               `json:"updatedAt,omitempty"`
 }

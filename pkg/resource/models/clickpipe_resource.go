@@ -5,20 +5,20 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type ClickPipeReplicasModel struct {
-	Desired types.Int64 `tfsdk:"desired"`
+type ClickPipeScalingModel struct {
+	Replicas types.Int64 `tfsdk:"replicas"`
 }
 
-func (m ClickPipeReplicasModel) ObjectValue() types.Object {
+func (m ClickPipeScalingModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"desired": m.Desired,
+		"replicas": m.Replicas,
 	})
 }
 
-func (m ClickPipeReplicasModel) ObjectType() types.ObjectType {
+func (m ClickPipeScalingModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"desired": types.Int64Type,
+			"replicas": types.Int64Type,
 		},
 	}
 }
@@ -68,7 +68,7 @@ type ClickPipeResourceModel struct {
 	ServiceID     types.String `tfsdk:"service_id"`
 	Name          types.String `tfsdk:"name"`
 	Description   types.String `tfsdk:"description"`
-	Replicas      types.Object `tfsdk:"replicas"`
+	Scaling       types.Object `tfsdk:"scaling"`
 	State         types.String `tfsdk:"state"`
 	Source        types.Object `tfsdk:"source"`
 	Destination   types.Object `tfsdk:"destination"`

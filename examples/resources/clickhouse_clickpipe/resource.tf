@@ -4,8 +4,8 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 
   service_id     = "e9465b4b-f7e5-4937-8e21-8d508b02843d"
 
-  replicas {
-    desired = 1
+  scaling {
+    replicas = 1
   }
 
   state = "Running"

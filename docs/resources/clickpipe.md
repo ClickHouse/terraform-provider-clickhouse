@@ -19,8 +19,8 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 
   service_id     = "e9465b4b-f7e5-4937-8e21-8d508b02843d"
 
-  replicas {
-    desired = 1
+  scaling {
+    replicas = 1
   }
 
   state = "Running"
@@ -82,8 +82,8 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 
 - `description` (String) The description of the ClickPipe.
 - `field_mappings` (Attributes List) Field mapping between source and destination table. (see [below for nested schema](#nestedatt--field_mappings))
-- `replicas` (Attributes) (see [below for nested schema](#nestedatt--replicas))
-- `state` (String) The state of the ClickPipe. (`Running`, `Stopped`). Defaults to `Running`. Whenever the pipe state changes, the Terraform provider will try to ensure the actual state matches the planned value. If pipe is `Failed` and plan is `Running`, the provider will try to resume the pipe. If plan is `Stopped`, the provider will try to stop the pipe.
+- `scaling` (Attributes) (see [below for nested schema](#nestedatt--scaling))
+- `state` (String) The state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`. Whenever the pipe state changes, the Terraform provider will try to ensure the actual state matches the planned value. If pipe is `Failed` and plan is `Running`, the provider will try to resume the pipe. If plan is `Stopped`, the provider will try to stop the pipe. If the pipe is `InternalError`, no action will be taken.
 
 ### Read-Only
 
@@ -99,8 +99,8 @@ Required:
 
 Optional:
 
-- `database` (String) The name of the ClickHouse database. Defaults to 'default'.
-- `managed_table` (Boolean) Whether the table is managed by ClickHouse Cloud. If false, the table must exist in the database. Defaults to true.
+- `database` (String) The name of the ClickHouse database. Default is `default`.
+- `managed_table` (Boolean) Whether the table is managed by ClickHouse Cloud. If `false`, the table must exist in the database. Default is `true`.
 
 <a id="nestedatt--destination--columns"></a>
 ### Nested Schema for `destination.columns`
@@ -128,7 +128,7 @@ Optional:
 
 Required:
 
-- `format` (String) The format of the schema. (JSONEachRow, Avro)
+- `format` (String) The format of the schema. (`JSONEachRow`, `Avro`)
 
 
 <a id="nestedatt--source--kafka"></a>
@@ -142,9 +142,9 @@ Required:
 
 Optional:
 
-- `authentication` (String) The authentication method for the Kafka source. (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512). Defaults to PLAIN.
-- `consumer_group` (String) The Kafka consumer group. Defaults to 'clickpipes-<ID>'.
-- `type` (String) The type of the Kafka source. (kafka, msk, confluent). Defaults to 'kafka'.
+- `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`). Default is `PLAIN`.
+- `consumer_group` (String) The Kafka consumer group. Default is `clickpipes-<ID>`.
+- `type` (String) The type of the Kafka source. (`kafka`, `msk`, `confluent`). Default is `kafka`.
 
 <a id="nestedatt--source--kafka--credentials"></a>
 ### Nested Schema for `source.kafka.credentials`
@@ -166,9 +166,9 @@ Required:
 - `source_field` (String) The name of the source field.
 
 
-<a id="nestedatt--replicas"></a>
-### Nested Schema for `replicas`
+<a id="nestedatt--scaling"></a>
+### Nested Schema for `scaling`
 
 Optional:
 
-- `desired` (Number) The number of replicas desired for the ClickPipe. (1-10). Defaults to 1.
+- `replicas` (Number) The number of desired replicas for the ClickPipe. Default is 1. The maximum value is 10.

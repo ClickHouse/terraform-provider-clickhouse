@@ -130,7 +130,7 @@ func (c *ClientImpl) ScaleClickPipe(ctx context.Context, serviceId string, click
 	}
 
 	return c.waitForClickPipe(ctx, serviceId, clickPipeId, func(clickPipe *ClickPipe) bool {
-		return clickPipe.Replicas != nil && clickPipe.Replicas.Desired == desiredReplicas
+		return clickPipe.Scaling != nil && clickPipe.Scaling.Replicas == desiredReplicas
 	}, 300)
 }
 
