@@ -24,8 +24,7 @@ func NewTableResource() resource.Resource {
 }
 
 // TableResource is the resource implementation.
-type TableResource struct {
-}
+type TableResource struct{}
 
 // Metadata returns the resource type name.
 func (r *TableResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -141,19 +140,15 @@ func tableFromPlan(ctx context.Context, plan models.TableResourceModel) (*tableB
 
 // Read refreshes the Terraform state with the latest data.
 func (r *TableResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *TableResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *TableResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
 }
 
 func (r *TableResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-
 }
