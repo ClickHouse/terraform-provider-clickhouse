@@ -31,7 +31,17 @@ func (t *builder) CreateTable(ctx context.Context, table Table) error {
 func (t *builder) createTableQuery(table Table) string {
 	var columns []string
 	for _, c := range table.Columns {
-		columns = append(columns, fmt.Sprintf("%s %s", c.Name, c.Type))
+		colType := c.Type
+		if c.Nullable {
+			colType = fmt.Sprintf("Nullable(%s)", c.Type)
+		}
+		if c.Default != "" {
+			colType = fmt.Sprintf("%s DEFAULT %s", colType, c.Default)
+		}
+		if c.Codec != "" {
+			colType = fmt.Sprintf("%s CODEC(%s)", colType, c.Codec)
+		}
+		columns = append(columns, fmt.Sprintf("%s %s", c.Name, colType))
 	}
-	return fmt.Sprintf("CREATE TABLE %s (%s);", table.Name, strings.Join(columns, ", "))
+	return fmt.Sprintf("CREATE TABLE %s (%s) ORDER BY %s;", table.Name, strings.Join(columns, ", "), table.OrderBy)
 }

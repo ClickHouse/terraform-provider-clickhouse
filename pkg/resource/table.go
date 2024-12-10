@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/queryApi"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tableBuilder"
@@ -44,6 +45,17 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						"type": schema.StringAttribute{
 							Required: true,
 						},
+						"nullable": schema.BoolAttribute{
+							Optional: true,
+							Computed: true,
+							Default:  booldefault.StaticBool(false),
+						},
+						"default": schema.StringAttribute{
+							Optional: true,
+						},
+						"codec": schema.StringAttribute{
+							Optional: true,
+						},
 					},
 				},
 			},
@@ -56,6 +68,11 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"name": schema.StringAttribute{
 				Required:    true,
 				Description: "Name of the table",
+				Validators:  nil,
+			},
+			"order_by": schema.StringAttribute{
+				Required:    true,
+				Description: "Primary key",
 				Validators:  nil,
 			},
 		},
@@ -125,14 +142,18 @@ func tableFromPlan(ctx context.Context, plan models.TableResourceModel) (*tableB
 	chColumns := make([]tableBuilder.Column, 0, len(tfColumns))
 	for _, tfColumn := range tfColumns {
 		chColumns = append(chColumns, tableBuilder.Column{
-			Name: tfColumn.Name.ValueString(),
-			Type: tfColumn.Type.ValueString(),
+			Name:     tfColumn.Name.ValueString(),
+			Type:     tfColumn.Type.ValueString(),
+			Nullable: tfColumn.Nullable.ValueBool(),
+			Default:  tfColumn.Default.ValueString(),
+			Codec:    tfColumn.Codec.ValueString(),
 		})
 	}
 
 	table := &tableBuilder.Table{
 		Name:    plan.Name.ValueString(),
 		Columns: chColumns,
+		OrderBy: plan.OrderBy.ValueString(),
 	}
 
 	return table, nil
