@@ -1,0 +1,37 @@
+package tableBuilder
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/queryApi"
+)
+
+type builder struct {
+	QueryApiClient queryApi.Client
+}
+
+func New(queryApiClient queryApi.Client) (Builder, error) {
+	// todo validate queryApiClient is not nil
+
+	return &builder{QueryApiClient: queryApiClient}, nil
+}
+
+func (t *builder) CreateTable(ctx context.Context, table Table) error {
+	query := t.createTableQuery(table)
+	err := t.QueryApiClient.RunQuery(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (t *builder) createTableQuery(table Table) string {
+	var columns []string
+	for _, c := range table.Columns {
+		columns = append(columns, fmt.Sprintf("%s %s", c.Name, c.Type))
+	}
+	return fmt.Sprintf("CREATE TABLE %s (%s);", table.Name, strings.Join(columns, ", "))
+}
