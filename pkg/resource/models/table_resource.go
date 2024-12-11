@@ -9,6 +9,7 @@ type TableResourceModel struct {
 	Name             types.String `tfsdk:"name"`
 	Columns          types.Set    `tfsdk:"column"`
 	OrderBy          types.String `tfsdk:"order_by"`
+	Comment          types.String `tfsdk:"comment"`
 }
 
 type Column struct {

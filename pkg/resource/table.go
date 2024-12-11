@@ -130,6 +130,11 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Description: "Primary key",
 				Validators:  nil,
 			},
+			"comment": schema.StringAttribute{
+				Required:    true,
+				Description: "Table comment",
+				Validators:  nil,
+			},
 		},
 		MarkdownDescription: `CHANGEME`,
 	}
@@ -228,6 +233,7 @@ func tableFromPlan(ctx context.Context, plan models.TableResourceModel) (*tableB
 		Name:    plan.Name.ValueString(),
 		Columns: chColumns,
 		OrderBy: plan.OrderBy.ValueString(),
+		Comment: plan.Comment.ValueString(),
 	}
 
 	return table, nil

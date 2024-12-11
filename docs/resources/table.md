@@ -17,6 +17,7 @@ CHANGEME
 
 ### Required
 
+- `comment` (String) Table comment
 - `name` (String) Name of the table
 - `order_by` (String) Primary key
 - `query_api_endpoint` (String) The URL for the query API endpoint
