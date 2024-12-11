@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestTableBuilder_createTableQuery(t1 *testing.T) {
+func TestTable_querySpec(t1 *testing.T) {
 	tests := []struct {
 		name  string
 		table Table
@@ -87,12 +87,44 @@ func TestTableBuilder_createTableQuery(t1 *testing.T) {
 			},
 			want: "CREATE TABLE tbl1 (col1 String DEFAULT def1) ORDER BY col1;",
 		},
+		{
+			name: "Comment for column",
+			table: Table{
+				Name: "tbl1",
+				Columns: []Column{
+					{
+						Name:    "col1",
+						Type:    "String",
+						Comment: "comm1",
+					},
+				},
+				OrderBy: "col1",
+			},
+			want: "CREATE TABLE tbl1 (col1 String COMMENT 'comm1') ORDER BY col1;",
+		},
+		{
+			name: "TTL for column",
+			table: Table{
+				Name: "tbl1",
+				Columns: []Column{
+					{
+						Name: "col1",
+						Type: "String",
+						TTL: &TTL{
+							TimeColumn: "created_at",
+							Interval:   "1 DAY",
+						},
+					},
+				},
+				OrderBy: "col1",
+			},
+			want: "CREATE TABLE tbl1 (col1 String TTL created_at + INTERVAL 1 DAY) ORDER BY col1;",
+		},
 	}
 	for _, tt := range tests {
 		t1.Run(tt.name, func(t1 *testing.T) {
-			t := &builder{}
-			if got := t.createTableQuery(tt.table); got != tt.want {
-				t1.Errorf("got %q, want %q", got, tt.want)
+			if got := tt.table.querySpec(); got != tt.want {
+				t1.Errorf("querySpec() = %v, want %v", got, tt.want)
 			}
 		})
 	}
