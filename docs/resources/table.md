@@ -17,7 +17,6 @@ CHANGEME
 
 ### Required
 
-- `comment` (String) Table comment
 - `name` (String) Name of the table
 - `order_by` (String) Primary key
 - `query_api_endpoint` (String) The URL for the query API endpoint
@@ -25,6 +24,9 @@ CHANGEME
 ### Optional
 
 - `column` (Block Set) (see [below for nested schema](#nestedblock--column))
+- `comment` (String) Table comment
+- `engine` (Attributes) (see [below for nested schema](#nestedatt--engine))
+- `settings` (Map of String)
 
 <a id="nestedblock--column"></a>
 ### Nested Schema for `column`
@@ -52,3 +54,13 @@ Required:
 
 - `interval` (String) Interval expression.
 - `time_column` (String) The name of the column to evaluate the interval from.
+
+
+
+<a id="nestedatt--engine"></a>
+### Nested Schema for `engine`
+
+Optional:
+
+- `name` (String) Table engine to use
+- `params` (List of String)
