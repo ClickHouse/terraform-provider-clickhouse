@@ -7,8 +7,10 @@ import (
 type TableResourceModel struct {
 	QueryAPIEndpoint types.String `tfsdk:"query_api_endpoint"`
 	Name             types.String `tfsdk:"name"`
+	Engine           types.Object `tfsdk:"engine"`
 	Columns          types.Set    `tfsdk:"column"`
 	OrderBy          types.String `tfsdk:"order_by"`
+	Settings         types.Map    `tfsdk:"settings"`
 	Comment          types.String `tfsdk:"comment"`
 }
 
@@ -28,4 +30,9 @@ type Column struct {
 type TTL struct {
 	TimeColumn types.String `tfsdk:"time_column"`
 	Interval   types.String `tfsdk:"interval"`
+}
+
+type Engine struct {
+	Name   types.String `tfsdk:"name"`
+	Params types.List   `tfsdk:"params"`
 }

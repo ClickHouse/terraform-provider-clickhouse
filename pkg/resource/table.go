@@ -10,7 +10,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/queryApi"
@@ -125,13 +127,34 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Description: "Name of the table",
 				Validators:  nil,
 			},
+			"engine": schema.SingleNestedAttribute{
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"name": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Table engine to use",
+						Validators:  nil,
+						Default:     stringdefault.StaticString("MergeTree"),
+					},
+					"params": schema.ListAttribute{
+						ElementType: types.StringType,
+						Optional:    true,
+					},
+				},
+			},
 			"order_by": schema.StringAttribute{
 				Required:    true,
 				Description: "Primary key",
 				Validators:  nil,
 			},
+			"settings": schema.MapAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				Computed:    true,
+			},
 			"comment": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "Table comment",
 				Validators:  nil,
 			},
@@ -195,7 +218,11 @@ func (r *TableResource) Create(ctx context.Context, req resource.CreateRequest, 
 func tableFromPlan(ctx context.Context, plan models.TableResourceModel) (*tableBuilder.Table, diag.Diagnostics) {
 	// get the set of columns from the .tf file and convert to a list of tableBuilder.Column
 	tfColumns := make([]models.Column, 0, len(plan.Columns.Elements()))
-	plan.Columns.ElementsAs(ctx, &tfColumns, false)
+	diagnostics := plan.Columns.ElementsAs(ctx, &tfColumns, false)
+	if diagnostics.HasError() {
+		return nil, diagnostics
+	}
+
 	chColumns := make([]tableBuilder.Column, 0, len(tfColumns))
 	for _, tfColumn := range tfColumns {
 		col := tableBuilder.Column{
@@ -234,6 +261,41 @@ func tableFromPlan(ctx context.Context, plan models.TableResourceModel) (*tableB
 		Columns: chColumns,
 		OrderBy: plan.OrderBy.ValueString(),
 		Comment: plan.Comment.ValueString(),
+	}
+
+	if !plan.Engine.IsNull() {
+		engine := models.Engine{}
+		diagnostics := plan.Engine.As(ctx, &engine, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    false,
+			UnhandledUnknownAsEmpty: false,
+		})
+		if diagnostics.HasError() {
+			return nil, diagnostics
+		}
+
+		params := make([]string, len(engine.Params.Elements()))
+		diagnostics = engine.Params.ElementsAs(ctx, &params, false)
+		if diagnostics.HasError() {
+			return nil, diagnostics
+		}
+
+		table.Engine = tableBuilder.Engine{
+			Name:   engine.Name.ValueString(),
+			Params: params,
+		}
+	}
+
+	if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
+		settings := make(map[string]types.String, len(plan.Settings.Elements()))
+		diagnostics := plan.Settings.ElementsAs(ctx, &settings, false)
+		if diagnostics.HasError() {
+			return nil, diagnostics
+		}
+
+		table.Settings = make(map[string]string)
+		for name, value := range settings {
+			table.Settings[name] = value.ValueString()
+		}
 	}
 
 	return table, nil

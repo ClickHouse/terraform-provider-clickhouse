@@ -120,6 +120,23 @@ func TestTable_querySpec(t1 *testing.T) {
 			},
 			want: "CREATE TABLE tbl1 (col1 String TTL created_at + INTERVAL 1 DAY) ORDER BY col1;",
 		},
+		{
+			name: "Settings",
+			table: Table{
+				Name: "tbl1",
+				Columns: []Column{
+					{
+						Name: "col1",
+						Type: "String",
+					},
+				},
+				OrderBy: "col1",
+				Settings: map[string]string{
+					"sett1": "123",
+				},
+			},
+			want: "CREATE TABLE tbl1 (col1 String) ORDER BY col1 SETTINGS sett1=123;",
+		},
 	}
 	for _, tt := range tests {
 		t1.Run(tt.name, func(t1 *testing.T) {
