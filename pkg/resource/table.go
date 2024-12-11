@@ -3,9 +3,15 @@ package resource
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/queryApi"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tableBuilder"
@@ -52,8 +58,57 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						},
 						"default": schema.StringAttribute{
 							Optional: true,
+							Validators: []validator.String{
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("materialized")),
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("ephemeral")),
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("alias")),
+							},
+						},
+						"materialized": schema.StringAttribute{
+							Optional: true,
+							Validators: []validator.String{
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("default")),
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("ephemeral")),
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("alias")),
+							},
+						},
+						"ephemeral": schema.BoolAttribute{
+							Optional: true,
+							Validators: []validator.Bool{
+								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("default")),
+								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("materialized")),
+								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("comment")),
+								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("codec")),
+								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("alias")),
+							},
+						},
+						"alias": schema.StringAttribute{
+							Optional: true,
+							Validators: []validator.String{
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("default")),
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("materialized")),
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("comment")),
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("ephemeral")),
+								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("codec")),
+							},
 						},
 						"codec": schema.StringAttribute{
+							Optional: true,
+						},
+						"ttl": schema.SingleNestedAttribute{
+							Optional: true,
+							Attributes: map[string]schema.Attribute{
+								"time_column": schema.StringAttribute{
+									Description: "The name of the column to evaluate the interval from.",
+									Required:    true,
+								},
+								"interval": schema.StringAttribute{
+									Description: "Interval expression.",
+									Required:    true,
+								},
+							},
+						},
+						"comment": schema.StringAttribute{
 							Optional: true,
 						},
 					},
@@ -116,12 +171,9 @@ func (r *TableResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	table, err := tableFromPlan(ctx, plan)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating table",
-			"Could not create table, unexpected error: "+err.Error(),
-		)
+	table, diagnostics := tableFromPlan(ctx, plan)
+	if diagnostics.HasError() {
+		resp.Diagnostics.Append(diagnostics.Errors()...)
 		return
 	}
 
@@ -135,19 +187,41 @@ func (r *TableResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 }
 
-func tableFromPlan(ctx context.Context, plan models.TableResourceModel) (*tableBuilder.Table, error) {
+func tableFromPlan(ctx context.Context, plan models.TableResourceModel) (*tableBuilder.Table, diag.Diagnostics) {
 	// get the set of columns from the .tf file and convert to a list of tableBuilder.Column
-	tfColumns := make([]models.TableColumnModel, 0, len(plan.Columns.Elements()))
+	tfColumns := make([]models.Column, 0, len(plan.Columns.Elements()))
 	plan.Columns.ElementsAs(ctx, &tfColumns, false)
 	chColumns := make([]tableBuilder.Column, 0, len(tfColumns))
 	for _, tfColumn := range tfColumns {
-		chColumns = append(chColumns, tableBuilder.Column{
-			Name:     tfColumn.Name.ValueString(),
-			Type:     tfColumn.Type.ValueString(),
-			Nullable: tfColumn.Nullable.ValueBool(),
-			Default:  tfColumn.Default.ValueString(),
-			Codec:    tfColumn.Codec.ValueString(),
-		})
+		col := tableBuilder.Column{
+			Name:         tfColumn.Name.ValueString(),
+			Type:         tfColumn.Type.ValueString(),
+			Nullable:     tfColumn.Nullable.ValueBool(),
+			Default:      tfColumn.Default.ValueString(),
+			Materialized: tfColumn.Materialized.ValueString(),
+			Ephemeral:    tfColumn.Ephemeral.ValueBool(),
+			Alias:        tfColumn.Alias.ValueString(),
+			Codec:        tfColumn.Codec.ValueString(),
+			Comment:      tfColumn.Comment.ValueString(),
+		}
+
+		if !tfColumn.TTL.IsNull() {
+			ttl := models.TTL{}
+			diagnostics := tfColumn.TTL.As(ctx, &ttl, basetypes.ObjectAsOptions{
+				UnhandledNullAsEmpty:    false,
+				UnhandledUnknownAsEmpty: false,
+			})
+			if diagnostics.HasError() {
+				return nil, diagnostics
+			}
+
+			col.TTL = &tableBuilder.TTL{
+				TimeColumn: ttl.TimeColumn.ValueString(),
+				Interval:   ttl.Interval.ValueString(),
+			}
+		}
+
+		chColumns = append(chColumns, col)
 	}
 
 	table := &tableBuilder.Table{
