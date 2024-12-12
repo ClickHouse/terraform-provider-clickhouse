@@ -43,13 +43,35 @@ func (r *TableResource) Metadata(_ context.Context, req resource.MetadataRequest
 // Schema defines the schema for the resource.
 func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Blocks: map[string]schema.Block{
-			"column": schema.SetNestedBlock{
-				NestedObject: schema.NestedBlockObject{
+		Attributes: map[string]schema.Attribute{
+			"query_api_endpoint": schema.StringAttribute{
+				Description: "The URL for the query API endpoint",
+				Required:    true,
+			},
+			"name": schema.StringAttribute{
+				Required:    true,
+				Description: "Name of the table",
+				Validators:  nil,
+			},
+			"engine": schema.SingleNestedAttribute{
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"name": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Table engine to use",
+						Validators:  nil,
+						Default:     stringdefault.StaticString("MergeTree"),
+					},
+					"params": schema.ListAttribute{
+						ElementType: types.StringType,
+						Optional:    true,
+					},
+				},
+			},
+			"columns": schema.MapNestedAttribute{
+				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"name": schema.StringAttribute{
-							Required: true,
-						},
 						"type": schema.StringAttribute{
 							Required: true,
 						},
@@ -76,11 +98,12 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						},
 						"ephemeral": schema.BoolAttribute{
 							Optional: true,
+							Computed: true,
+							Default:  booldefault.StaticBool(false),
 							Validators: []validator.Bool{
 								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("default")),
 								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("materialized")),
 								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("comment")),
-								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("codec")),
 								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("alias")),
 							},
 						},
@@ -91,23 +114,6 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("materialized")),
 								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("comment")),
 								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("ephemeral")),
-								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("codec")),
-							},
-						},
-						"codec": schema.StringAttribute{
-							Optional: true,
-						},
-						"ttl": schema.SingleNestedAttribute{
-							Optional: true,
-							Attributes: map[string]schema.Attribute{
-								"time_column": schema.StringAttribute{
-									Description: "The name of the column to evaluate the interval from.",
-									Required:    true,
-								},
-								"interval": schema.StringAttribute{
-									Description: "Interval expression.",
-									Required:    true,
-								},
 							},
 						},
 						"comment": schema.StringAttribute{
@@ -115,33 +121,7 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						},
 					},
 				},
-			},
-		},
-		Attributes: map[string]schema.Attribute{
-			"query_api_endpoint": schema.StringAttribute{
-				Description: "The URL for the query API endpoint",
-				Required:    true,
-			},
-			"name": schema.StringAttribute{
-				Required:    true,
-				Description: "Name of the table",
-				Validators:  nil,
-			},
-			"engine": schema.SingleNestedAttribute{
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"name": schema.StringAttribute{
-						Optional:    true,
-						Computed:    true,
-						Description: "Table engine to use",
-						Validators:  nil,
-						Default:     stringdefault.StaticString("MergeTree"),
-					},
-					"params": schema.ListAttribute{
-						ElementType: types.StringType,
-						Optional:    true,
-					},
-				},
+				Required: true,
 			},
 			"order_by": schema.StringAttribute{
 				Required:    true,
@@ -213,44 +193,140 @@ func (r *TableResource) Create(ctx context.Context, req resource.CreateRequest, 
 		)
 		return
 	}
+
+	state, diagnostics := r.syncTableState(ctx, builder, plan.Name.ValueString())
+	if diagnostics.HasError() {
+		resp.Diagnostics.Append(diagnostics...)
+		return
+	}
+
+	state.QueryAPIEndpoint = plan.QueryAPIEndpoint
+
+	diags = resp.State.Set(ctx, state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
+// Read refreshes the Terraform state with the latest data.
+func (r *TableResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+}
+
+// Update updates the resource and sets the updated Terraform state on success.
+func (r *TableResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+}
+
+// Delete deletes the resource and removes the Terraform state on success.
+func (r *TableResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+}
+
+func (r *TableResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+}
+
+// syncTableState reads table structure and settings from clickhouse and returns a TableResourceModel to be stored as terraform state.
+func (r *TableResource) syncTableState(ctx context.Context, builder tableBuilder.Builder, tableName string) (*models.TableResourceModel, diag.Diagnostics) {
+	// Read table spec and settings from clickhouse.
+	table, err := builder.GetTable(ctx, tableName)
+	if err != nil {
+		return nil, []diag.Diagnostic{diag.NewErrorDiagnostic("Error reading table state", err.Error())}
+	}
+
+	state := &models.TableResourceModel{
+		Name:    types.StringValue(table.Name),
+		OrderBy: types.StringValue(table.OrderBy),
+		Comment: types.StringValue(table.Comment),
+	}
+
+	// Engine
+	{
+		params, diagnostics := types.ListValueFrom(ctx, types.StringType, table.Engine.Params)
+		if diagnostics.HasError() {
+			return nil, diagnostics
+		}
+
+		engineModel := models.Engine{
+			Name:   types.StringValue(table.Engine.Name),
+			Params: params,
+		}
+
+		engine, diagnostics := types.ObjectValueFrom(ctx, engineModel.AttributeTypes(), engineModel)
+		if diagnostics.HasError() {
+			return nil, diagnostics
+		}
+
+		state.Engine = engine
+	}
+
+	// Settings
+	{
+		settings, diagnostics := types.MapValueFrom(ctx, types.StringType, table.Settings)
+		if diagnostics.HasError() {
+			return nil, diagnostics
+		}
+		state.Settings = settings
+	}
+
+	// Columns
+	{
+		modelColumns := make(map[string]models.Column)
+
+		for _, column := range table.Columns {
+			modelColumn := models.Column{
+				Type:      types.StringValue(column.Type),
+				Nullable:  types.BoolValue(column.Nullable),
+				Ephemeral: types.BoolValue(column.Ephemeral),
+			}
+
+			if column.Default != nil {
+				modelColumn.Default = types.StringValue(*column.Default)
+			}
+
+			if column.Materialized != nil {
+				modelColumn.Materialized = types.StringValue(*column.Materialized)
+			}
+
+			if column.Alias != nil {
+				modelColumn.Alias = types.StringValue(*column.Alias)
+			}
+
+			if column.Comment != nil {
+				modelColumn.Comment = types.StringValue(*column.Comment)
+			}
+
+			modelColumns[column.Name] = modelColumn
+		}
+
+		columns, diagnostics := types.MapValueFrom(ctx, models.Column{}.ObjectType(), modelColumns)
+		if diagnostics.HasError() {
+			return nil, diagnostics
+		}
+
+		state.Columns = columns
+	}
+	return state, nil
+}
+
+// tableFromPlan takes a terraform plan (TableResourceModel) and creates a Table struct to be used by tableBuilder
 func tableFromPlan(ctx context.Context, plan models.TableResourceModel) (*tableBuilder.Table, diag.Diagnostics) {
 	// get the set of columns from the .tf file and convert to a list of tableBuilder.Column
-	tfColumns := make([]models.Column, 0, len(plan.Columns.Elements()))
+	tfColumns := make(map[string]models.Column)
 	diagnostics := plan.Columns.ElementsAs(ctx, &tfColumns, false)
 	if diagnostics.HasError() {
 		return nil, diagnostics
 	}
 
 	chColumns := make([]tableBuilder.Column, 0, len(tfColumns))
-	for _, tfColumn := range tfColumns {
+	for name, tfColumn := range tfColumns {
 		col := tableBuilder.Column{
-			Name:         tfColumn.Name.ValueString(),
+			Name:         name,
 			Type:         tfColumn.Type.ValueString(),
 			Nullable:     tfColumn.Nullable.ValueBool(),
-			Default:      tfColumn.Default.ValueString(),
-			Materialized: tfColumn.Materialized.ValueString(),
+			Default:      tfColumn.Default.ValueStringPointer(),
+			Materialized: tfColumn.Materialized.ValueStringPointer(),
 			Ephemeral:    tfColumn.Ephemeral.ValueBool(),
-			Alias:        tfColumn.Alias.ValueString(),
-			Codec:        tfColumn.Codec.ValueString(),
-			Comment:      tfColumn.Comment.ValueString(),
-		}
-
-		if !tfColumn.TTL.IsNull() {
-			ttl := models.TTL{}
-			diagnostics := tfColumn.TTL.As(ctx, &ttl, basetypes.ObjectAsOptions{
-				UnhandledNullAsEmpty:    false,
-				UnhandledUnknownAsEmpty: false,
-			})
-			if diagnostics.HasError() {
-				return nil, diagnostics
-			}
-
-			col.TTL = &tableBuilder.TTL{
-				TimeColumn: ttl.TimeColumn.ValueString(),
-				Interval:   ttl.Interval.ValueString(),
-			}
+			Alias:        tfColumn.Alias.ValueStringPointer(),
+			Comment:      tfColumn.Comment.ValueStringPointer(),
 		}
 
 		chColumns = append(chColumns, col)
@@ -299,19 +375,4 @@ func tableFromPlan(ctx context.Context, plan models.TableResourceModel) (*tableB
 	}
 
 	return table, nil
-}
-
-// Read refreshes the Terraform state with the latest data.
-func (r *TableResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-}
-
-// Update updates the resource and sets the updated Terraform state on success.
-func (r *TableResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-}
-
-// Delete deletes the resource and removes the Terraform state on success.
-func (r *TableResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-}
-
-func (r *TableResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 }

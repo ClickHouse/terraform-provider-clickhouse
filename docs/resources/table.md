@@ -17,44 +17,32 @@ CHANGEME
 
 ### Required
 
+- `columns` (Attributes Map) (see [below for nested schema](#nestedatt--columns))
 - `name` (String) Name of the table
 - `order_by` (String) Primary key
 - `query_api_endpoint` (String) The URL for the query API endpoint
 
 ### Optional
 
-- `column` (Block Set) (see [below for nested schema](#nestedblock--column))
 - `comment` (String) Table comment
 - `engine` (Attributes) (see [below for nested schema](#nestedatt--engine))
 - `settings` (Map of String)
 
-<a id="nestedblock--column"></a>
-### Nested Schema for `column`
+<a id="nestedatt--columns"></a>
+### Nested Schema for `columns`
 
 Required:
 
-- `name` (String)
 - `type` (String)
 
 Optional:
 
 - `alias` (String)
-- `codec` (String)
 - `comment` (String)
 - `default` (String)
 - `ephemeral` (Boolean)
 - `materialized` (String)
 - `nullable` (Boolean)
-- `ttl` (Attributes) (see [below for nested schema](#nestedatt--column--ttl))
-
-<a id="nestedatt--column--ttl"></a>
-### Nested Schema for `column.ttl`
-
-Required:
-
-- `interval` (String) Interval expression.
-- `time_column` (String) The name of the column to evaluate the interval from.
-
 
 
 <a id="nestedatt--engine"></a>
