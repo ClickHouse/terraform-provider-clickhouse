@@ -58,21 +58,6 @@ func TestTable_querySpec(t1 *testing.T) {
 			want: "CREATE TABLE tbl1 (col1 Nullable(String)) ORDER BY col1;",
 		},
 		{
-			name: "Codec for column",
-			table: Table{
-				Name: "tbl1",
-				Columns: []Column{
-					{
-						Name:  "col1",
-						Type:  "String",
-						Codec: "cdc1",
-					},
-				},
-				OrderBy: "col1",
-			},
-			want: "CREATE TABLE tbl1 (col1 String CODEC(cdc1)) ORDER BY col1;",
-		},
-		{
 			name: "Default for column",
 			table: Table{
 				Name: "tbl1",
@@ -80,7 +65,7 @@ func TestTable_querySpec(t1 *testing.T) {
 					{
 						Name:    "col1",
 						Type:    "String",
-						Default: "def1",
+						Default: ptr("def1"),
 					},
 				},
 				OrderBy: "col1",
@@ -95,30 +80,12 @@ func TestTable_querySpec(t1 *testing.T) {
 					{
 						Name:    "col1",
 						Type:    "String",
-						Comment: "comm1",
+						Comment: ptr("comm1"),
 					},
 				},
 				OrderBy: "col1",
 			},
 			want: "CREATE TABLE tbl1 (col1 String COMMENT 'comm1') ORDER BY col1;",
-		},
-		{
-			name: "TTL for column",
-			table: Table{
-				Name: "tbl1",
-				Columns: []Column{
-					{
-						Name: "col1",
-						Type: "String",
-						TTL: &TTL{
-							TimeColumn: "created_at",
-							Interval:   "1 DAY",
-						},
-					},
-				},
-				OrderBy: "col1",
-			},
-			want: "CREATE TABLE tbl1 (col1 String TTL created_at + INTERVAL 1 DAY) ORDER BY col1;",
 		},
 		{
 			name: "Settings",

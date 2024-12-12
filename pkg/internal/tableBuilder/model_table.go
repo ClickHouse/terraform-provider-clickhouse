@@ -25,6 +25,11 @@ func (t *Table) querySpec() string {
 		columns = append(columns, c.querySpec())
 	}
 
+	var engine string
+	if t.Engine.Name != "" {
+		engine = fmt.Sprintf(" Engine=%s(%s)", t.Engine.Name, strings.Join(t.Engine.Params, ", "))
+	}
+
 	settingsList := make([]string, 0)
 	for name, value := range t.Settings {
 		settingsList = append(settingsList, fmt.Sprintf("%s=%s", name, value))
@@ -40,5 +45,5 @@ func (t *Table) querySpec() string {
 		comment = fmt.Sprintf(" COMMENT '%s'", t.Comment)
 	}
 
-	return fmt.Sprintf("CREATE OR REPLACE TABLE %s (%s) Engine=%s(%s) ORDER BY %s%s%s;", t.Name, strings.Join(columns, ", "), t.Engine.Name, strings.Join(t.Engine.Params, ", "), t.OrderBy, settings, comment)
+	return fmt.Sprintf("CREATE OR REPLACE TABLE %s (%s)%s ORDER BY %s%s%s;", t.Name, strings.Join(columns, ", "), engine, t.OrderBy, settings, comment)
 }

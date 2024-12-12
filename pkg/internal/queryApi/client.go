@@ -16,10 +16,37 @@ func New(BaseUrl string) (Client, error) {
 	}, nil
 }
 
-func (c *clientImpl) RunQuery(ctx context.Context, query string) error {
+func (c *clientImpl) RunQuery(ctx context.Context, query string, callback func(rows driver.Rows) error) error {
 	// todo implement me
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Protocol: clickhouse.Native,
+		Addr:     []string{"127.0.0.1:9000"},
+	})
+	if err != nil {
+		return err
+	}
 
-	panic(query)
+	err = conn.Ping(ctx)
+	if err != nil {
+		return err
+	}
+
+	if callback != nil {
+		rows, err := conn.Query(ctx, query, nil)
+		if err != nil {
+			return err
+		}
+
+		err = callback(rows)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = conn.Exec(ctx, query, nil)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

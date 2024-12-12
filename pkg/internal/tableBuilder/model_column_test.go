@@ -32,7 +32,7 @@ func TestColumn_querySpec(t *testing.T) {
 			Column: Column{
 				Name:    "id",
 				Type:    "UInt32",
-				Default: "3",
+				Default: ptr("3"),
 			},
 			want: "id UInt32 DEFAULT 3",
 		},
@@ -41,7 +41,7 @@ func TestColumn_querySpec(t *testing.T) {
 			Column: Column{
 				Name:         "id",
 				Type:         "UInt32",
-				Materialized: "3",
+				Materialized: ptr("3"),
 			},
 			want: "id UInt32 MATERIALIZED 3",
 		},
@@ -50,7 +50,7 @@ func TestColumn_querySpec(t *testing.T) {
 			Column: Column{
 				Name:  "id",
 				Type:  "UInt32",
-				Alias: "other_field + 1",
+				Alias: ptr("other_field + 1"),
 			},
 			want: "id UInt32 ALIAS other_field + 1",
 		},
@@ -64,44 +64,13 @@ func TestColumn_querySpec(t *testing.T) {
 			want: "id UInt32 EPHEMERAL",
 		},
 		{
-			name: "Codec",
-			Column: Column{
-				Name:  "id",
-				Type:  "UInt32",
-				Codec: "TEST",
-			},
-			want: "id UInt32 CODEC(TEST)",
-		},
-		{
-			name: "TTL",
-			Column: Column{
-				Name: "id",
-				Type: "UInt32",
-				TTL: &TTL{
-					TimeColumn: "ts",
-					Interval:   "1 hour",
-				},
-			},
-			want: "id UInt32 TTL ts + INTERVAL 1 hour",
-		},
-		{
 			name: "Comment",
 			Column: Column{
 				Name:    "id",
 				Type:    "UInt32",
-				Comment: "comment",
+				Comment: ptr("comment"),
 			},
 			want: "id UInt32 COMMENT 'comment'",
-		},
-		{
-			name: "Comment and Codec",
-			Column: Column{
-				Name:    "id",
-				Type:    "UInt32",
-				Comment: "comment",
-				Codec:   "codec",
-			},
-			want: "id UInt32 COMMENT 'comment' CODEC(codec)",
 		},
 	}
 	for _, tt := range tests {
@@ -111,4 +80,8 @@ func TestColumn_querySpec(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ptr[T any](val T) *T {
+	return &val
 }
