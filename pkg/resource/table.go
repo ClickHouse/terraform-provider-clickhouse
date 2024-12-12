@@ -211,6 +211,44 @@ func (r *TableResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 // Read refreshes the Terraform state with the latest data.
 func (r *TableResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var plan models.TableResourceModel
+	diags := req.State.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	queryApiClient, err := queryApi.New(plan.QueryAPIEndpoint.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating table",
+			"Could not create table, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	builder, err := tableBuilder.New(queryApiClient)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error creating table",
+			"Could not create table, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	state, diagnostics := r.syncTableState(ctx, builder, plan.Name.ValueString())
+	if diagnostics.HasError() {
+		resp.Diagnostics.Append(diagnostics...)
+		return
+	}
+
+	state.QueryAPIEndpoint = plan.QueryAPIEndpoint
+
+	diags = resp.State.Set(ctx, state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
@@ -222,6 +260,7 @@ func (r *TableResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 
 func (r *TableResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("name"), req, resp)
 }
 
 // syncTableState reads table structure and settings from clickhouse and returns a TableResourceModel to be stored as terraform state.
