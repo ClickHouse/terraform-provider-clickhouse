@@ -10,7 +10,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -52,6 +55,9 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Required:    true,
 				Description: "Name of the table",
 				Validators:  nil,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"engine": schema.SingleNestedAttribute{
 				Optional: true,
@@ -62,10 +68,16 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 						Description: "Table engine to use",
 						Validators:  nil,
 						Default:     stringdefault.StaticString("MergeTree"),
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.RequiresReplace(),
+						},
 					},
 					"params": schema.ListAttribute{
 						ElementType: types.StringType,
 						Optional:    true,
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.RequiresReplace(),
+						},
 					},
 				},
 			},
@@ -127,6 +139,9 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Required:    true,
 				Description: "Primary key",
 				Validators:  nil,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"settings": schema.MapAttribute{
 				ElementType: types.StringType,
@@ -235,6 +250,50 @@ func (r *TableResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *TableResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan models.TableResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	builder, err := getTableBuilder(plan)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading table",
+			"Could not create table builder, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	table, diagnostics := tableFromPlan(ctx, plan)
+	if diagnostics.HasError() {
+		resp.Diagnostics.Append(diagnostics.Errors()...)
+		return
+	}
+
+	err = builder.SyncTable(ctx, *table)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error syncing table",
+			"Could not sync table, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	state, diagnostics := r.syncTableState(ctx, builder, plan.Name.ValueString())
+	if diagnostics.HasError() {
+		resp.Diagnostics.Append(diagnostics...)
+		return
+	}
+
+	state.QueryAPIEndpoint = plan.QueryAPIEndpoint
+
+	diags = resp.State.Set(ctx, state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -263,7 +322,6 @@ func (r *TableResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		)
 		return
 	}
-
 }
 
 func (r *TableResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

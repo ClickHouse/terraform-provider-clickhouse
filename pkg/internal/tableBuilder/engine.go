@@ -9,42 +9,53 @@ import (
 func parseEngineFull(engineFull string) (*Engine, map[string]string, error) {
 	// CollapsingMergeTree(sign) ORDER BY id SETTINGS index_granularity = 1024, test = true
 
-	r := regexp.MustCompile(`^(?P<EngineName>[a-zA-Z]+)[(](?P<Params>.*)[)].*SETTINGS (?P<Settings>.*)$`)
-
-	if !r.Match([]byte(engineFull)) {
-		return nil, nil, errors.New("cannot parse engine_full field")
-	}
-
-	matches := r.FindStringSubmatch(engineFull)
-
+	// Parse Engine and params
+	var engineName string
 	var params []string
 	{
-		// "sign, other"
-		paramsString := matches[r.SubexpIndex("Params")]
+		i := strings.Index(engineFull, " ORDER BY")
+		if i < 0 {
+			return nil, nil, errors.New("Didn't find expected ' ORDER BY' substring in engine_full field")
+		}
 
-		dirtyParams := strings.Split(paramsString, ",")
-		for _, p := range dirtyParams {
-			params = append(params, strings.TrimSpace(p))
+		engine := engineFull[0:i]
+
+		r := regexp.MustCompile(`^(?P<EngineName>[a-zA-Z]+)[(]?(?P<Params>[^)]*)[)]?$`)
+		if !r.Match([]byte(engine)) {
+			return nil, nil, errors.New("cannot parse engine_full field")
+		}
+
+		matches := r.FindStringSubmatch(engine)
+
+		engineName = matches[r.SubexpIndex("EngineName")]
+
+		if r.SubexpIndex("Params") > 0 && matches[r.SubexpIndex("Params")] != "" {
+			// "sign, other"
+			paramsString := matches[r.SubexpIndex("Params")]
+
+			dirtyParams := strings.Split(paramsString, ",")
+			for _, p := range dirtyParams {
+				params = append(params, strings.TrimSpace(p))
+			}
 		}
 	}
+
 	settings := make(map[string]string)
 	{
-		// "index_granularity = 1024, test = true"
-		settingsString := matches[r.SubexpIndex("Settings")]
+		i := strings.Index(engineFull, "SETTINGS ")
+		if i > 0 {
+			rawSettingsList := strings.Split(engineFull[i+9:], ",")
+			for _, s := range rawSettingsList {
+				// "index_granularity = 1024"
+				splitted := strings.Split(s, "=")
 
-		rawSettingsList := strings.Split(settingsString, ",")
-
-		for _, s := range rawSettingsList {
-			// "index_granularity = 1024"
-			splitted := strings.Split(s, "=")
-
-			settings[strings.TrimSpace(splitted[0])] = strings.TrimSpace(splitted[1])
+				settings[strings.TrimSpace(splitted[0])] = strings.TrimSpace(splitted[1])
+			}
 		}
-
 	}
 
 	engine := &Engine{
-		Name:   matches[r.SubexpIndex("EngineName")],
+		Name:   engineName,
 		Params: params,
 	}
 
