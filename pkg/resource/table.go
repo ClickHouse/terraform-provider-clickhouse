@@ -161,20 +161,11 @@ func (r *TableResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	queryApiClient, err := queryApi.New(plan.QueryAPIEndpoint.ValueString())
+	builder, err := getTableBuilder(plan)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating table",
-			"Could not create table, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	builder, err := tableBuilder.New(queryApiClient)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating table",
-			"Could not create table, unexpected error: "+err.Error(),
+			"Error reading table",
+			"Could not create table builder, unexpected error: "+err.Error(),
 		)
 		return
 	}
@@ -218,20 +209,11 @@ func (r *TableResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	queryApiClient, err := queryApi.New(plan.QueryAPIEndpoint.ValueString())
+	builder, err := getTableBuilder(plan)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error creating table",
-			"Could not create table, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	builder, err := tableBuilder.New(queryApiClient)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating table",
-			"Could not create table, unexpected error: "+err.Error(),
+			"Error reading table",
+			"Could not create table builder, unexpected error: "+err.Error(),
 		)
 		return
 	}
@@ -257,10 +239,49 @@ func (r *TableResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *TableResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var plan models.TableResourceModel
+	diags := req.State.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	builder, err := getTableBuilder(plan)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading table",
+			"Could not create table builder, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	err = builder.DeleteTable(ctx, plan.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error deleting table",
+			"Could not delete table, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
 }
 
 func (r *TableResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("name"), req, resp)
+}
+
+func getTableBuilder(plan models.TableResourceModel) (tableBuilder.Builder, error) {
+	queryApiClient, err := queryApi.New(plan.QueryAPIEndpoint.ValueString())
+	if err != nil {
+		return nil, err
+	}
+
+	builder, err := tableBuilder.New(queryApiClient)
+	if err != nil {
+		return nil, err
+	}
+
+	return builder, nil
 }
 
 // syncTableState reads table structure and settings from clickhouse and returns a TableResourceModel to be stored as terraform state.

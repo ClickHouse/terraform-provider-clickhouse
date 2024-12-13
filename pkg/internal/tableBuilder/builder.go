@@ -69,3 +69,7 @@ func (t *builder) GetTable(ctx context.Context, name string) (*Table, error) {
 		Settings: settings,
 	}, nil
 }
+
+func (t *builder) DeleteTable(ctx context.Context, name string) error {
+	return t.QueryApiClient.RunQuery(ctx, fmt.Sprintf("DROP TABLE %s", name), nil)
+}
