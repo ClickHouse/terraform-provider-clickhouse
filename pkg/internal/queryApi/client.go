@@ -2,6 +2,9 @@ package queryApi
 
 import (
 	"context"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
 type clientImpl struct {
