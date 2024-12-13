@@ -2,6 +2,7 @@ package tableBuilder
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -40,14 +41,20 @@ func parseEngineFull(engineFull string) (*Engine, map[string]string, error) {
 		}
 	}
 
-	settings := make(map[string]string)
+	var settings map[string]string
 	{
 		i := strings.Index(engineFull, "SETTINGS ")
 		if i > 0 {
+			settings = make(map[string]string)
 			rawSettingsList := strings.Split(engineFull[i+9:], ",")
 			for _, s := range rawSettingsList {
 				// "index_granularity = 1024"
+
 				splitted := strings.Split(s, "=")
+
+				if len(splitted) != 2 {
+					return nil, nil, errors.New(fmt.Sprintf("cannot parse settings: expected exactly one = sign for each setting, got %d", len(splitted)))
+				}
 
 				settings[strings.TrimSpace(splitted[0])] = strings.TrimSpace(splitted[1])
 			}
