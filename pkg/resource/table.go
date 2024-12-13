@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -117,6 +118,9 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("materialized")),
 								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("comment")),
 								boolvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("alias")),
+							},
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.RequiresReplace(),
 							},
 						},
 						"alias": schema.StringAttribute{

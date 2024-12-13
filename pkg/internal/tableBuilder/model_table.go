@@ -47,3 +47,72 @@ func (t *Table) querySpec() string {
 
 	return fmt.Sprintf("CREATE OR REPLACE TABLE %s (%s)%s ORDER BY %s%s%s;", t.Name, strings.Join(columns, ", "), engine, t.OrderBy, settings, comment)
 }
+
+func (t *Table) diffQueries(new Table) []string {
+	queries := make([]string, 0)
+
+	// Comment
+	if t.Comment != new.Comment {
+		queries = append(queries, fmt.Sprintf("ALTER TABLE %s MODIFY COMMENT '%s';", t.Name, new.Comment))
+	}
+
+	// Settings
+	{
+		for name, current := range t.Settings {
+			desired, found := new.Settings[name]
+			if found {
+				if current != desired {
+					// Setting value changed.
+					queries = append(queries, fmt.Sprintf("ALTER TABLE %s MODIFY SETTING %s=%s;", t.Name, name, desired))
+				}
+			} else {
+				// Setting was removed from tf file
+				queries = append(queries, fmt.Sprintf("ALTER TABLE %s RESET SETTING %s;", t.Name, name))
+			}
+		}
+		for name, desired := range new.Settings {
+			_, found := t.Settings[name]
+			if !found {
+				// Setting was added.
+				queries = append(queries, fmt.Sprintf("ALTER TABLE %s MODIFY SETTING %s=%s;", t.Name, name, desired))
+			}
+		}
+	}
+
+	// Columns
+	{
+		oldColumns := make(map[string]Column)
+		newColumns := make(map[string]Column)
+
+		for _, oldCol := range t.Columns {
+			oldColumns[oldCol.Name] = oldCol
+		}
+		for _, newCol := range new.Columns {
+			newColumns[newCol.Name] = newCol
+		}
+
+		for name, existing := range oldColumns {
+			desired, found := newColumns[name]
+			if found {
+				if existing != desired {
+					// Column spec was changed
+					for _, q := range existing.diffQueries(desired) {
+						queries = append(queries, fmt.Sprintf("ALTER TABLE %s %s;", t.Name, q))
+					}
+				}
+			} else {
+				// Column was removed from tf file
+				queries = append(queries, fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s;", t.Name, name))
+			}
+		}
+		for name, desired := range newColumns {
+			_, found := oldColumns[name]
+			if !found {
+				// Column was added in tf file.
+				queries = append(queries, fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s;", t.Name, desired.querySpec()))
+			}
+		}
+	}
+
+	return queries
+}
