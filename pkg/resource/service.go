@@ -386,7 +386,8 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
-		if !plan.MinReplicaMemoryGb.IsUnknown() || !plan.MaxReplicaMemoryGb.IsUnknown() {
+		if (!plan.MinReplicaMemoryGb.IsNull() && !plan.MinReplicaMemoryGb.IsUnknown()) ||
+			(!plan.MaxReplicaMemoryGb.IsNull() && !plan.MaxReplicaMemoryGb.IsUnknown()) {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"min_replica_memory_gb and max_replica_memory_gb cannot be defined if the service tier is development",
@@ -1012,6 +1013,8 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 			state.NumReplicas = types.Int64Value(int64(*service.NumReplicas))
 		}
 	} else {
+		state.MinReplicaMemoryGb = types.Int64Null()
+		state.MaxReplicaMemoryGb = types.Int64Null()
 		state.NumReplicas = types.Int64Null()
 	}
 

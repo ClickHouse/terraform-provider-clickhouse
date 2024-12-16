@@ -91,7 +91,11 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 	// Wait until service is in desired state
 	checkState := func() error {
 		service, err := c.GetService(ctx, serviceId)
-		if err != nil {
+		if is5xx(err) {
+			// 500s are automatically retried in `GetService`.
+			// If we get it here, we consider it an unrecoverable error.
+			return backoff.Permanent(err)
+		} else if err != nil {
 			return err
 		}
 
