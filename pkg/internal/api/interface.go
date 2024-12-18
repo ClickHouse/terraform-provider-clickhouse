@@ -17,4 +17,9 @@ type Client interface {
 	UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
 	GetBackupConfiguration(ctx context.Context, serviceId string) (*BackupConfiguration, error)
 	UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (*BackupConfiguration, error)
+
+	CreateDatabase(ctx context.Context, serviceID string, db Database) error
+	GetDatabase(ctx context.Context, serviceID string, name string) (*Database, error)
+	DeleteDatabase(ctx context.Context, serviceID string, name string) error
+	SyncDatabase(ctx context.Context, serviceID string, db Database) error
 }

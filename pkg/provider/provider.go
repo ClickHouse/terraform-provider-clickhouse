@@ -35,6 +35,7 @@ type clickhouseProvider struct{}
 
 type clickhouseProviderModel struct {
 	ApiUrl         types.String `tfsdk:"api_url"`
+	QueryApiUrl    types.String `tfsdk:"query_api_url"`
 	OrganizationID types.String `tfsdk:"organization_id"`
 	TokenKey       types.String `tfsdk:"token_key"`
 	TokenSecret    types.String `tfsdk:"token_secret"`
@@ -51,6 +52,10 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 		Attributes: map[string]schema.Attribute{
 			"api_url": schema.StringAttribute{
 				Description: "API URL of the ClickHouse OpenAPI the provider will interact with. Alternatively, can be configured using the `CLICKHOUSE_API_URL` environment variable. Only specify if you have a specific deployment of the ClickHouse OpenAPI you want to run against.",
+				Optional:    true,
+			},
+			"query_api_url": schema.StringAttribute{
+				Description: "API URL of the ClickHouse Query API the provider will interact with. Alternatively, can be configured using the `CLICKHOUSE_QUERY_API_URL` environment variable. Only specify if you have a specific deployment of the ClickHouse Query API you want to run against.",
 				Optional:    true,
 			},
 			"organization_id": schema.StringAttribute{
@@ -93,6 +98,15 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		)
 	}
 
+	if config.QueryApiUrl.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("query_api_url"),
+			"Unknown ClickHouse Query API URL",
+			"The provider cannot create the ClickHouse Query API client as there is an unknown configuration value for the Environment. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the CLICKHOUSE_QUERY_API_URL environment variable.",
+		)
+	}
+
 	if config.OrganizationID.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("organization_id"),
@@ -128,6 +142,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	// with Terraform configuration value if set.
 
 	apiUrl := os.Getenv("CLICKHOUSE_API_URL")
+	queryApiUrl := os.Getenv("CLICKHOUSE_QUERY_API_URL")
 	organizationId := os.Getenv("CLICKHOUSE_ORG_ID")
 	tokenKey := os.Getenv("CLICKHOUSE_TOKEN_KEY")
 	tokenSecret := os.Getenv("CLICKHOUSE_TOKEN_SECRET")
@@ -138,6 +153,14 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 
 	if apiUrl == "" {
 		apiUrl = "https://api.clickhouse.cloud/v1"
+	}
+
+	if !config.QueryApiUrl.IsNull() {
+		queryApiUrl = config.QueryApiUrl.ValueString()
+	}
+
+	if queryApiUrl == "" {
+		queryApiUrl = "https://console-api.clickhouse.cloud"
 	}
 
 	if !config.OrganizationID.IsNull() {
@@ -161,6 +184,16 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 			"Missing ClickHouse OpenAPI API URL",
 			"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the API url. "+
 				"Set the API url value in the configuration or use the CLICKHOUSE_API_URL environment variable. "+
+				"If either is already set, ensure the value is not empty.",
+		)
+	}
+
+	if queryApiUrl == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("query_api_url"),
+			"Missing ClickHouse Query API URL",
+			"The provider cannot create the ClickHouse Query API client: missing or empty value for the API url. "+
+				"Set the API url value in the configuration or use the CLICKHOUSE_QUERY_API_URL environment variable. "+
 				"If either is already set, ensure the value is not empty.",
 		)
 	}
@@ -196,7 +229,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	}
 
 	// Create a new ClickHouse client using the configuration values
-	client, err := api.NewClient(apiUrl, organizationId, tokenKey, tokenSecret)
+	client, err := api.NewClient(apiUrl, queryApiUrl, organizationId, tokenKey, tokenSecret)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create ClickHouse OpenAPI Client",
@@ -226,5 +259,6 @@ func (p *clickhouseProvider) Resources(_ context.Context) []func() upstreamresou
 		resource.NewServiceResource,
 		resource.NewPrivateEndpointRegistrationResource,
 		resource.NewServicePrivateEndpointsAttachmentResource,
+		resource.NewDatabaseResource,
 	}
 }

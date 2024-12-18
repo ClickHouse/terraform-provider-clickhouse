@@ -62,5 +62,6 @@ provider "clickhouse" {
 
 - `api_url` (String) API URL of the ClickHouse OpenAPI the provider will interact with. Alternatively, can be configured using the `CLICKHOUSE_API_URL` environment variable. Only specify if you have a specific deployment of the ClickHouse OpenAPI you want to run against.
 - `organization_id` (String) ID of the organization the provider will create services under. Alternatively, can be configured using the `CLICKHOUSE_ORG_ID` environment variable.
+- `query_api_url` (String) API URL of the ClickHouse Query API the provider will interact with. Alternatively, can be configured using the `CLICKHOUSE_QUERY_API_URL` environment variable. Only specify if you have a specific deployment of the ClickHouse Query API you want to run against.
 - `token_key` (String) Token key of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_TOKEN_KEY` environment variable.
 - `token_secret` (String, Sensitive) Token secret of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_TOKEN_SECRET` environment variable.
