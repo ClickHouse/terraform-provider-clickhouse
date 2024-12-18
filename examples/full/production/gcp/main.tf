@@ -56,6 +56,12 @@ resource "clickhouse_service" "service" {
   }
 }
 
+resource "clickhouse_database" "test" {
+  service_id = clickhouse_service.service.id
+  name = "mydatabase"
+  comment = "This is a test database"
+}
+
 output "service_endpoints" {
   value = clickhouse_service.service.endpoints
 }
