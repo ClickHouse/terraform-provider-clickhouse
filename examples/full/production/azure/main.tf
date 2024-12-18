@@ -56,7 +56,7 @@ resource "clickhouse_service" "service" {
   }
 }
 
-resource "clickhouse_database" "test" {
+resource "clickhouse_database" "mydatabase" {
   service_id = clickhouse_service.service.id
   name = "mydatabase"
   comment = "This is a test database"
