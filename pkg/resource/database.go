@@ -199,7 +199,6 @@ func (r *DatabaseResource) ImportState(ctx context.Context, req resource.ImportS
 
 // syncDatabaseState reads database settings from clickhouse and returns a DatabaseResourceModel
 func (r *DatabaseResource) syncDatabaseState(ctx context.Context, serviceID string, dbName string) (*models.DatabaseResourceModel, diag.Diagnostics) {
-	// Read table spec and settings from clickhouse.
 	db, err := r.client.GetDatabase(ctx, serviceID, dbName)
 	if err != nil {
 		return nil, []diag.Diagnostic{diag.NewErrorDiagnostic("Error reading database state", err.Error())}
