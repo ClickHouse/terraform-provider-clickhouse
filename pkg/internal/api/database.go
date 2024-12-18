@@ -15,33 +15,20 @@ type Database struct {
 	Comment string `json:"comment"`
 }
 
-func (d *Database) createQuery() (string, []interface{}) {
+func (c *ClientImpl) CreateDatabase(ctx context.Context, serviceID string, db Database) error {
 	format := "CREATE DATABASE `$?`"
 	args := []interface{}{
-		sqlbuilder.Raw(sqlutil.EscapeBacktick(d.Name)),
+		sqlbuilder.Raw(sqlutil.EscapeBacktick(db.Name)),
 	}
 
-	if d.Comment != "" {
+	if db.Comment != "" {
 		format = fmt.Sprintf("%s COMMENT ${comment}", format)
-		args = append(args, sqlbuilder.Named("comment", d.Comment))
+		args = append(args, sqlbuilder.Named("comment", db.Comment))
 	}
 	sb := sqlbuilder.Build(format, args...)
 
 	sql, args := sb.Build()
 
-	return sql, args
-}
-
-func (d *Database) diffQueries(new Database) []string {
-	queries := make([]string, 0)
-
-	// There are no attributes that support being changed.
-
-	return queries
-}
-
-func (c *ClientImpl) CreateDatabase(ctx context.Context, serviceID string, db Database) error {
-	sql, args := db.createQuery()
 	_, err := c.runQuery(ctx, serviceID, sql, args...)
 	if err != nil {
 		return err
