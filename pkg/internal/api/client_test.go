@@ -11,7 +11,7 @@ import (
 func TestNewClient(t *testing.T) {
 	testClient := &ClientImpl{
 		BaseUrl:         "https://api.clickhouse.cloud/v1",
-		QueryAPIBaseUrl: "https://api.clickhouse.cloud/v1",
+		QueryAPIBaseUrl: "https://console-api.clickhouse.cloud",
 		HttpClient: &http.Client{
 			Timeout: time.Second * 30,
 		},
