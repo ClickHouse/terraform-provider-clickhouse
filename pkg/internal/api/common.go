@@ -149,12 +149,11 @@ func (c *ClientImpl) runQuery(ctx context.Context, serviceID string, sql string,
 		SQL: qry,
 	}
 
-	rb, err := json.Marshal(s)
-	if err != nil {
-		return nil, err
+	buffer := &bytes.Buffer{}
+	if err := json.NewEncoder(buffer).Encode(&s); err != nil {
+		return nil, fmt.Errorf("encoding query payload to JSON failed: %w", err)
 	}
-
-	req, err := http.NewRequest(http.MethodPost, c.getQueryAPIPath(serviceID), strings.NewReader(string(rb)))
+	req, err := http.NewRequest(http.MethodPost, c.getQueryAPIPath(serviceID), buffer)
 	if err != nil {
 		return nil, err
 	}
