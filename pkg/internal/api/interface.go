@@ -22,4 +22,9 @@ type Client interface {
 	GetDatabase(ctx context.Context, serviceID string, name string) (*Database, error)
 	DeleteDatabase(ctx context.Context, serviceID string, name string) error
 	SyncDatabase(ctx context.Context, serviceID string, db Database) error
+
+	CreateTable(ctx context.Context, serviceID string, table Table) error
+	GetTable(ctx context.Context, serviceID, database, name string) (*Table, error)
+	DeleteTable(ctx context.Context, serviceID, database, name string) error
+	//SyncTable(ctx context.Context, table Table) error
 }

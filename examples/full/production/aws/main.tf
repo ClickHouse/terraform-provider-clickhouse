@@ -62,6 +62,45 @@ resource "clickhouse_database" "mydatabase" {
   comment = "This is a test database"
 }
 
+resource "clickhouse_table" "mytable" {
+  service_id = clickhouse_service.service.id
+  database = clickhouse_database.mydatabase.name
+  name = "mytable"
+  order_by = "id"
+  engine = {
+    name = "MergeTree"
+  }
+  settings = {
+    index_granularity = 256
+  }
+  columns = {
+    id = {
+      type = "UInt8"
+    }
+    department = {
+      type = "String"
+      nullable = true
+    }
+    sector = {
+      type = "String"
+      ephemeral = true
+    }
+    def1 = {
+      type = "String"
+      default = "'test'"
+    }
+    mat1 = {
+      type = "String"
+      materialized = "'mat'"
+      comment = "test"
+    }
+    alias = {
+      type = "String"
+      alias = "'alias'"
+    }
+  }
+}
+
 output "service_endpoints" {
   value = clickhouse_service.service.endpoints
 }
