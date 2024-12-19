@@ -6,16 +6,18 @@ import (
 )
 
 type ClientImpl struct {
-	BaseUrl        string
-	HttpClient     *http.Client
-	OrganizationId string
-	TokenKey       string
-	TokenSecret    string
+	BaseUrl         string
+	QueryAPIBaseUrl string
+	HttpClient      *http.Client
+	OrganizationId  string
+	TokenKey        string
+	TokenSecret     string
 }
 
-func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecret string) (*ClientImpl, error) {
+func NewClient(apiUrl string, queryApiBaseUrl string, organizationId string, tokenKey string, tokenSecret string) (Client, error) {
 	client := &ClientImpl{
-		BaseUrl: apiUrl,
+		BaseUrl:         apiUrl,
+		QueryAPIBaseUrl: queryApiBaseUrl,
 		HttpClient: &http.Client{
 			Timeout: time.Second * 30,
 		},
