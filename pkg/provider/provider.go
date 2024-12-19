@@ -260,5 +260,6 @@ func (p *clickhouseProvider) Resources(_ context.Context) []func() upstreamresou
 		resource.NewPrivateEndpointRegistrationResource,
 		resource.NewServicePrivateEndpointsAttachmentResource,
 		resource.NewDatabaseResource,
+		resource.NewTableResource,
 	}
 }

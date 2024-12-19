@@ -36,8 +36,11 @@ func (c *ClientImpl) getPrivateEndpointConfigPath(cloudProvider string, region s
 	return c.getOrgPath(fmt.Sprintf("/privateEndpointConfig?cloud_provider=%s&region_id=%s", cloudProvider, region))
 }
 
-func (c *ClientImpl) getQueryAPIPath(serviceID string) string {
-	return fmt.Sprintf("%s/.api/services/%s/query", c.QueryAPIBaseUrl, serviceID)
+func (c *ClientImpl) getQueryAPIPath(serviceID string, format string) string {
+	if format == "" {
+		format = "JSONEachRow"
+	}
+	return fmt.Sprintf("%s/.api/services/%s/query?format=%s", c.QueryAPIBaseUrl, serviceID, format)
 }
 
 func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, error) {
@@ -136,7 +139,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 	return body, err
 }
 
-func (c *ClientImpl) runQuery(ctx context.Context, serviceID string, sql string, args ...interface{}) ([]byte, error) {
+func (c *ClientImpl) runQuery(ctx context.Context, serviceID string, format string, sql string, args ...interface{}) ([]byte, error) {
 	qry, err := sqlbuilder.ClickHouse.Interpolate(sql, args)
 	if err != nil {
 		return nil, err
@@ -152,7 +155,7 @@ func (c *ClientImpl) runQuery(ctx context.Context, serviceID string, sql string,
 	if err := json.NewEncoder(buffer).Encode(&s); err != nil {
 		return nil, fmt.Errorf("encoding query payload to JSON failed: %w", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, c.getQueryAPIPath(serviceID), buffer)
+	req, err := http.NewRequest(http.MethodPost, c.getQueryAPIPath(serviceID, format), buffer)
 	if err != nil {
 		return nil, err
 	}
