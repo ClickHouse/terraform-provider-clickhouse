@@ -144,9 +144,9 @@ func (c *ClientImpl) runQuery(ctx context.Context, serviceID string, sql string,
 	}
 
 	s := struct {
-		Sql string `json:"sql"`
+		SQL string `json:"sql"`
 	}{
-		Sql: qry,
+		SQL: qry,
 	}
 
 	rb, err := json.Marshal(s)
