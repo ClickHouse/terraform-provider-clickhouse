@@ -2,6 +2,8 @@ package resource
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -194,7 +196,18 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 }
 
 func (r *DatabaseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("name"), req, resp)
+	idParts := strings.Split(req.ID, ",")
+
+	if len(idParts) != 2 || idParts[0] == "" || idParts[1] == "" {
+		resp.Diagnostics.AddError(
+			"Unexpected Import Identifier",
+			fmt.Sprintf("Expected import identifier with format: service_id,database_name. Got: %q", req.ID),
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), idParts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), idParts[1])...)
 }
 
 // syncDatabaseState reads database settings from clickhouse and returns a DatabaseResourceModel
