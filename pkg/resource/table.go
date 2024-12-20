@@ -2,6 +2,8 @@ package resource
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -220,35 +222,24 @@ func (r *TableResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 // Read refreshes the Terraform state with the latest data.
 func (r *TableResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	//var plan models.TableResourceModel
-	//diags := req.State.Get(ctx, &plan)
-	//resp.Diagnostics.Append(diags...)
-	//if resp.Diagnostics.HasError() {
-	//	return
-	//}
-	//
-	//dbMgr, err := getDBManager(ctx, plan.QueryAPIEndpoint.ValueString())
-	//if err != nil {
-	//	resp.Diagnostics.AddError(
-	//		"Error reading table",
-	//		"Could not create dbMgr, unexpected error: "+err.Error(),
-	//	)
-	//	return
-	//}
-	//
-	//state, diagnostics := r.syncTableState(ctx, dbMgr, plan.Database.ValueString(), plan.Name.ValueString())
-	//if diagnostics.HasError() {
-	//	resp.Diagnostics.Append(diagnostics...)
-	//	return
-	//}
-	//
-	//state.QueryAPIEndpoint = plan.QueryAPIEndpoint
-	//
-	//diags = resp.State.Set(ctx, state)
-	//resp.Diagnostics.Append(diags...)
-	//if resp.Diagnostics.HasError() {
-	//	return
-	//}
+	var plan models.TableResourceModel
+	diags := req.State.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state, diagnostics := r.syncTableState(ctx, plan.ServiceID.ValueString(), plan.Database.ValueString(), plan.Name.ValueString())
+	if diagnostics.HasError() {
+		resp.Diagnostics.Append(diagnostics...)
+		return
+	}
+
+	diags = resp.State.Set(ctx, state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
@@ -319,7 +310,19 @@ func (r *TableResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 
 func (r *TableResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// resource.ImportStatePassthroughID(ctx, path.Root("name"), req, resp)
+	idParts := strings.Split(req.ID, ",")
+
+	if len(idParts) != 3 || idParts[0] == "" || idParts[1] == "" || idParts[2] == "" {
+		resp.Diagnostics.AddError(
+			"Unexpected Import Identifier",
+			fmt.Sprintf("Expected import identifier with format: service_id,database_name,table_name. Got: %q", req.ID),
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), idParts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("database"), idParts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), idParts[2])...)
 }
 
 // syncTableState reads table structure and settings from clickhouse and returns a TableResourceModel to be stored as terraform state.
