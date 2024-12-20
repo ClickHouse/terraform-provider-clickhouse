@@ -29,7 +29,7 @@ func (c *ClientImpl) CreateDatabase(ctx context.Context, serviceID string, db Da
 
 	sql, args := sb.Build()
 
-	_, err := c.runQuery(ctx, serviceID, "JSONEachRow", sql, args...)
+	_, err := c.runQuery(ctx, serviceID, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func (c *ClientImpl) GetDatabase(ctx context.Context, serviceID string, name str
 	sb := sqlbuilder.Build("SELECT name, comment FROM system.databases WHERE name=$?;", name)
 	sql, args := sb.Build()
 
-	body, err := c.runQuery(ctx, serviceID, "JSONEachRow", sql, args...)
+	body, err := c.runQuery(ctx, serviceID, sql, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (c *ClientImpl) GetDatabase(ctx context.Context, serviceID string, name str
 func (c *ClientImpl) DeleteDatabase(ctx context.Context, serviceID string, name string) error {
 	sb := sqlbuilder.Build("DROP DATABASE `$?`;", sqlbuilder.Raw(sqlutil.EscapeBacktick(name)))
 	sql, args := sb.Build()
-	_, err := c.runQuery(ctx, serviceID, "JSONEachRow", sql, args...)
+	_, err := c.runQuery(ctx, serviceID, sql, args...)
 	if err != nil {
 		return err
 	}

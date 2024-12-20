@@ -106,7 +106,7 @@ func (c *ClientImpl) CreateTable(ctx context.Context, serviceID string, table Ta
 
 	qry, args := builder.BuildWithFlavor(sqlbuilder.ClickHouse)
 
-	_, err := c.runQuery(ctx, serviceID, "JSONEachRow", qry, args...)
+	_, err := c.runQuery(ctx, serviceID, qry, args...)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (c *ClientImpl) GetTable(ctx context.Context, serviceID, database, name str
 
 		qry, args := builder.BuildWithFlavor(sqlbuilder.ClickHouse)
 
-		body, err := c.runQuery(ctx, serviceID, "JSONEachRow", qry, args...)
+		body, err := c.runQuery(ctx, serviceID, qry, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +140,7 @@ func (c *ClientImpl) GetTable(ctx context.Context, serviceID, database, name str
 	// Columns
 	{
 		qry, args := sqlbuilder.Build("DESCRIBE TABLE `$?`.`$?`;", sqlbuilder.Raw(sql.EscapeBacktick(database)), sqlbuilder.Raw(sql.EscapeBacktick(name))).BuildWithFlavor(sqlbuilder.ClickHouse)
-		body, err := c.runQuery(ctx, serviceID, "JSON", qry, args...)
+		body, err := c.runQueryWithFormat(ctx, serviceID, "JSON", qry, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +193,7 @@ func (c *ClientImpl) GetTable(ctx context.Context, serviceID, database, name str
 func (c *ClientImpl) DeleteTable(ctx context.Context, serviceID, database, name string) error {
 	sb := sqlbuilder.Build("DROP TABLE IF EXISTS `$?`.`$?`;", sqlbuilder.Raw(sql.EscapeBacktick(database)), sqlbuilder.Raw(sql.EscapeBacktick(name)))
 	qry, args := sb.Build()
-	_, err := c.runQuery(ctx, serviceID, "JSONEachRow", qry, args...)
+	_, err := c.runQuery(ctx, serviceID, qry, args...)
 	if err != nil {
 		return err
 	}
