@@ -13,16 +13,28 @@ import (
 	"github.com/gojuno/minimock/v3"
 )
 
-// ClientMock implements Client
+// ClientMock implements api.Client
 type ClientMock struct {
 	t          minimock.Tester
 	finishOnce sync.Once
+
+	funcCreateDatabase          func(ctx context.Context, serviceID string, db Database) (err error)
+	inspectFuncCreateDatabase   func(ctx context.Context, serviceID string, db Database)
+	afterCreateDatabaseCounter  uint64
+	beforeCreateDatabaseCounter uint64
+	CreateDatabaseMock          mClientMockCreateDatabase
 
 	funcCreateService          func(ctx context.Context, s Service) (sp1 *Service, s1 string, err error)
 	inspectFuncCreateService   func(ctx context.Context, s Service)
 	afterCreateServiceCounter  uint64
 	beforeCreateServiceCounter uint64
 	CreateServiceMock          mClientMockCreateService
+
+	funcDeleteDatabase          func(ctx context.Context, serviceID string, name string) (err error)
+	inspectFuncDeleteDatabase   func(ctx context.Context, serviceID string, name string)
+	afterDeleteDatabaseCounter  uint64
+	beforeDeleteDatabaseCounter uint64
+	DeleteDatabaseMock          mClientMockDeleteDatabase
 
 	funcDeleteService          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
 	inspectFuncDeleteService   func(ctx context.Context, serviceId string)
@@ -35,6 +47,12 @@ type ClientMock struct {
 	afterGetBackupConfigurationCounter  uint64
 	beforeGetBackupConfigurationCounter uint64
 	GetBackupConfigurationMock          mClientMockGetBackupConfiguration
+
+	funcGetDatabase          func(ctx context.Context, serviceID string, name string) (dp1 *Database, err error)
+	inspectFuncGetDatabase   func(ctx context.Context, serviceID string, name string)
+	afterGetDatabaseCounter  uint64
+	beforeGetDatabaseCounter uint64
+	GetDatabaseMock          mClientMockGetDatabase
 
 	funcGetOrgPrivateEndpointConfig          func(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error)
 	inspectFuncGetOrgPrivateEndpointConfig   func(ctx context.Context, cloudProvider string, region string)
@@ -53,6 +71,12 @@ type ClientMock struct {
 	afterGetServiceCounter  uint64
 	beforeGetServiceCounter uint64
 	GetServiceMock          mClientMockGetService
+
+	funcSyncDatabase          func(ctx context.Context, serviceID string, db Database) (err error)
+	inspectFuncSyncDatabase   func(ctx context.Context, serviceID string, db Database)
+	afterSyncDatabaseCounter  uint64
+	beforeSyncDatabaseCounter uint64
+	SyncDatabaseMock          mClientMockSyncDatabase
 
 	funcUpdateBackupConfiguration          func(ctx context.Context, serviceId string, b BackupConfiguration) (bp1 *BackupConfiguration, err error)
 	inspectFuncUpdateBackupConfiguration   func(ctx context.Context, serviceId string, b BackupConfiguration)
@@ -91,7 +115,7 @@ type ClientMock struct {
 	WaitForServiceStateMock          mClientMockWaitForServiceState
 }
 
-// NewClientMock returns a mock for Client
+// NewClientMock returns a mock for api.Client
 func NewClientMock(t minimock.Tester) *ClientMock {
 	m := &ClientMock{t: t}
 
@@ -99,14 +123,23 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 		controller.RegisterMocker(m)
 	}
 
+	m.CreateDatabaseMock = mClientMockCreateDatabase{mock: m}
+	m.CreateDatabaseMock.callArgs = []*ClientMockCreateDatabaseParams{}
+
 	m.CreateServiceMock = mClientMockCreateService{mock: m}
 	m.CreateServiceMock.callArgs = []*ClientMockCreateServiceParams{}
+
+	m.DeleteDatabaseMock = mClientMockDeleteDatabase{mock: m}
+	m.DeleteDatabaseMock.callArgs = []*ClientMockDeleteDatabaseParams{}
 
 	m.DeleteServiceMock = mClientMockDeleteService{mock: m}
 	m.DeleteServiceMock.callArgs = []*ClientMockDeleteServiceParams{}
 
 	m.GetBackupConfigurationMock = mClientMockGetBackupConfiguration{mock: m}
 	m.GetBackupConfigurationMock.callArgs = []*ClientMockGetBackupConfigurationParams{}
+
+	m.GetDatabaseMock = mClientMockGetDatabase{mock: m}
+	m.GetDatabaseMock.callArgs = []*ClientMockGetDatabaseParams{}
 
 	m.GetOrgPrivateEndpointConfigMock = mClientMockGetOrgPrivateEndpointConfig{mock: m}
 	m.GetOrgPrivateEndpointConfigMock.callArgs = []*ClientMockGetOrgPrivateEndpointConfigParams{}
@@ -116,6 +149,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
+
+	m.SyncDatabaseMock = mClientMockSyncDatabase{mock: m}
+	m.SyncDatabaseMock.callArgs = []*ClientMockSyncDatabaseParams{}
 
 	m.UpdateBackupConfigurationMock = mClientMockUpdateBackupConfiguration{mock: m}
 	m.UpdateBackupConfigurationMock.callArgs = []*ClientMockUpdateBackupConfigurationParams{}
@@ -138,6 +174,354 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	t.Cleanup(m.MinimockFinish)
 
 	return m
+}
+
+type mClientMockCreateDatabase struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateDatabaseExpectation
+	expectations       []*ClientMockCreateDatabaseExpectation
+
+	callArgs []*ClientMockCreateDatabaseParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockCreateDatabaseExpectation specifies expectation struct of the Client.CreateDatabase
+type ClientMockCreateDatabaseExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockCreateDatabaseParams
+	paramPtrs *ClientMockCreateDatabaseParamPtrs
+	results   *ClientMockCreateDatabaseResults
+	Counter   uint64
+}
+
+// ClientMockCreateDatabaseParams contains parameters of the Client.CreateDatabase
+type ClientMockCreateDatabaseParams struct {
+	ctx       context.Context
+	serviceID string
+	db        Database
+}
+
+// ClientMockCreateDatabaseParamPtrs contains pointers to parameters of the Client.CreateDatabase
+type ClientMockCreateDatabaseParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	db        *Database
+}
+
+// ClientMockCreateDatabaseResults contains results of the Client.CreateDatabase
+type ClientMockCreateDatabaseResults struct {
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateDatabase *mClientMockCreateDatabase) Optional() *mClientMockCreateDatabase {
+	mmCreateDatabase.optional = true
+	return mmCreateDatabase
+}
+
+// Expect sets up expected params for Client.CreateDatabase
+func (mmCreateDatabase *mClientMockCreateDatabase) Expect(ctx context.Context, serviceID string, db Database) *mClientMockCreateDatabase {
+	if mmCreateDatabase.mock.funcCreateDatabase != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by Set")
+	}
+
+	if mmCreateDatabase.defaultExpectation == nil {
+		mmCreateDatabase.defaultExpectation = &ClientMockCreateDatabaseExpectation{}
+	}
+
+	if mmCreateDatabase.defaultExpectation.paramPtrs != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by ExpectParams functions")
+	}
+
+	mmCreateDatabase.defaultExpectation.params = &ClientMockCreateDatabaseParams{ctx, serviceID, db}
+	for _, e := range mmCreateDatabase.expectations {
+		if minimock.Equal(e.params, mmCreateDatabase.defaultExpectation.params) {
+			mmCreateDatabase.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateDatabase.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateDatabase
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateDatabase
+func (mmCreateDatabase *mClientMockCreateDatabase) ExpectCtxParam1(ctx context.Context) *mClientMockCreateDatabase {
+	if mmCreateDatabase.mock.funcCreateDatabase != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by Set")
+	}
+
+	if mmCreateDatabase.defaultExpectation == nil {
+		mmCreateDatabase.defaultExpectation = &ClientMockCreateDatabaseExpectation{}
+	}
+
+	if mmCreateDatabase.defaultExpectation.params != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by Expect")
+	}
+
+	if mmCreateDatabase.defaultExpectation.paramPtrs == nil {
+		mmCreateDatabase.defaultExpectation.paramPtrs = &ClientMockCreateDatabaseParamPtrs{}
+	}
+	mmCreateDatabase.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmCreateDatabase
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.CreateDatabase
+func (mmCreateDatabase *mClientMockCreateDatabase) ExpectServiceIDParam2(serviceID string) *mClientMockCreateDatabase {
+	if mmCreateDatabase.mock.funcCreateDatabase != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by Set")
+	}
+
+	if mmCreateDatabase.defaultExpectation == nil {
+		mmCreateDatabase.defaultExpectation = &ClientMockCreateDatabaseExpectation{}
+	}
+
+	if mmCreateDatabase.defaultExpectation.params != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by Expect")
+	}
+
+	if mmCreateDatabase.defaultExpectation.paramPtrs == nil {
+		mmCreateDatabase.defaultExpectation.paramPtrs = &ClientMockCreateDatabaseParamPtrs{}
+	}
+	mmCreateDatabase.defaultExpectation.paramPtrs.serviceID = &serviceID
+
+	return mmCreateDatabase
+}
+
+// ExpectDbParam3 sets up expected param db for Client.CreateDatabase
+func (mmCreateDatabase *mClientMockCreateDatabase) ExpectDbParam3(db Database) *mClientMockCreateDatabase {
+	if mmCreateDatabase.mock.funcCreateDatabase != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by Set")
+	}
+
+	if mmCreateDatabase.defaultExpectation == nil {
+		mmCreateDatabase.defaultExpectation = &ClientMockCreateDatabaseExpectation{}
+	}
+
+	if mmCreateDatabase.defaultExpectation.params != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by Expect")
+	}
+
+	if mmCreateDatabase.defaultExpectation.paramPtrs == nil {
+		mmCreateDatabase.defaultExpectation.paramPtrs = &ClientMockCreateDatabaseParamPtrs{}
+	}
+	mmCreateDatabase.defaultExpectation.paramPtrs.db = &db
+
+	return mmCreateDatabase
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateDatabase
+func (mmCreateDatabase *mClientMockCreateDatabase) Inspect(f func(ctx context.Context, serviceID string, db Database)) *mClientMockCreateDatabase {
+	if mmCreateDatabase.mock.inspectFuncCreateDatabase != nil {
+		mmCreateDatabase.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateDatabase")
+	}
+
+	mmCreateDatabase.mock.inspectFuncCreateDatabase = f
+
+	return mmCreateDatabase
+}
+
+// Return sets up results that will be returned by Client.CreateDatabase
+func (mmCreateDatabase *mClientMockCreateDatabase) Return(err error) *ClientMock {
+	if mmCreateDatabase.mock.funcCreateDatabase != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by Set")
+	}
+
+	if mmCreateDatabase.defaultExpectation == nil {
+		mmCreateDatabase.defaultExpectation = &ClientMockCreateDatabaseExpectation{mock: mmCreateDatabase.mock}
+	}
+	mmCreateDatabase.defaultExpectation.results = &ClientMockCreateDatabaseResults{err}
+	return mmCreateDatabase.mock
+}
+
+// Set uses given function f to mock the Client.CreateDatabase method
+func (mmCreateDatabase *mClientMockCreateDatabase) Set(f func(ctx context.Context, serviceID string, db Database) (err error)) *ClientMock {
+	if mmCreateDatabase.defaultExpectation != nil {
+		mmCreateDatabase.mock.t.Fatalf("Default expectation is already set for the Client.CreateDatabase method")
+	}
+
+	if len(mmCreateDatabase.expectations) > 0 {
+		mmCreateDatabase.mock.t.Fatalf("Some expectations are already set for the Client.CreateDatabase method")
+	}
+
+	mmCreateDatabase.mock.funcCreateDatabase = f
+	return mmCreateDatabase.mock
+}
+
+// When sets expectation for the Client.CreateDatabase which will trigger the result defined by the following
+// Then helper
+func (mmCreateDatabase *mClientMockCreateDatabase) When(ctx context.Context, serviceID string, db Database) *ClientMockCreateDatabaseExpectation {
+	if mmCreateDatabase.mock.funcCreateDatabase != nil {
+		mmCreateDatabase.mock.t.Fatalf("ClientMock.CreateDatabase mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateDatabaseExpectation{
+		mock:   mmCreateDatabase.mock,
+		params: &ClientMockCreateDatabaseParams{ctx, serviceID, db},
+	}
+	mmCreateDatabase.expectations = append(mmCreateDatabase.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateDatabase return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateDatabaseExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockCreateDatabaseResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateDatabase should be invoked
+func (mmCreateDatabase *mClientMockCreateDatabase) Times(n uint64) *mClientMockCreateDatabase {
+	if n == 0 {
+		mmCreateDatabase.mock.t.Fatalf("Times of ClientMock.CreateDatabase mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateDatabase.expectedInvocations, n)
+	return mmCreateDatabase
+}
+
+func (mmCreateDatabase *mClientMockCreateDatabase) invocationsDone() bool {
+	if len(mmCreateDatabase.expectations) == 0 && mmCreateDatabase.defaultExpectation == nil && mmCreateDatabase.mock.funcCreateDatabase == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateDatabase.mock.afterCreateDatabaseCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateDatabase.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateDatabase implements api.Client
+func (mmCreateDatabase *ClientMock) CreateDatabase(ctx context.Context, serviceID string, db Database) (err error) {
+	mm_atomic.AddUint64(&mmCreateDatabase.beforeCreateDatabaseCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateDatabase.afterCreateDatabaseCounter, 1)
+
+	if mmCreateDatabase.inspectFuncCreateDatabase != nil {
+		mmCreateDatabase.inspectFuncCreateDatabase(ctx, serviceID, db)
+	}
+
+	mm_params := ClientMockCreateDatabaseParams{ctx, serviceID, db}
+
+	// Record call args
+	mmCreateDatabase.CreateDatabaseMock.mutex.Lock()
+	mmCreateDatabase.CreateDatabaseMock.callArgs = append(mmCreateDatabase.CreateDatabaseMock.callArgs, &mm_params)
+	mmCreateDatabase.CreateDatabaseMock.mutex.Unlock()
+
+	for _, e := range mmCreateDatabase.CreateDatabaseMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmCreateDatabase.CreateDatabaseMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateDatabase.CreateDatabaseMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateDatabase.CreateDatabaseMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateDatabase.CreateDatabaseMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateDatabaseParams{ctx, serviceID, db}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateDatabase.t.Errorf("ClientMock.CreateDatabase got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmCreateDatabase.t.Errorf("ClientMock.CreateDatabase got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.db != nil && !minimock.Equal(*mm_want_ptrs.db, mm_got.db) {
+				mmCreateDatabase.t.Errorf("ClientMock.CreateDatabase got unexpected parameter db, want: %#v, got: %#v%s\n", *mm_want_ptrs.db, mm_got.db, minimock.Diff(*mm_want_ptrs.db, mm_got.db))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateDatabase.t.Errorf("ClientMock.CreateDatabase got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateDatabase.CreateDatabaseMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateDatabase.t.Fatal("No results are set for the ClientMock.CreateDatabase")
+		}
+		return (*mm_results).err
+	}
+	if mmCreateDatabase.funcCreateDatabase != nil {
+		return mmCreateDatabase.funcCreateDatabase(ctx, serviceID, db)
+	}
+	mmCreateDatabase.t.Fatalf("Unexpected call to ClientMock.CreateDatabase. %v %v %v", ctx, serviceID, db)
+	return
+}
+
+// CreateDatabaseAfterCounter returns a count of finished ClientMock.CreateDatabase invocations
+func (mmCreateDatabase *ClientMock) CreateDatabaseAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateDatabase.afterCreateDatabaseCounter)
+}
+
+// CreateDatabaseBeforeCounter returns a count of ClientMock.CreateDatabase invocations
+func (mmCreateDatabase *ClientMock) CreateDatabaseBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateDatabase.beforeCreateDatabaseCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateDatabase.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateDatabase *mClientMockCreateDatabase) Calls() []*ClientMockCreateDatabaseParams {
+	mmCreateDatabase.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateDatabaseParams, len(mmCreateDatabase.callArgs))
+	copy(argCopy, mmCreateDatabase.callArgs)
+
+	mmCreateDatabase.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateDatabaseDone returns true if the count of the CreateDatabase invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateDatabaseDone() bool {
+	if m.CreateDatabaseMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateDatabaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateDatabaseMock.invocationsDone()
+}
+
+// MinimockCreateDatabaseInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateDatabaseInspect() {
+	for _, e := range m.CreateDatabaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateDatabase with params: %#v", *e.params)
+		}
+	}
+
+	afterCreateDatabaseCounter := mm_atomic.LoadUint64(&m.afterCreateDatabaseCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateDatabaseMock.defaultExpectation != nil && afterCreateDatabaseCounter < 1 {
+		if m.CreateDatabaseMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.CreateDatabase")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateDatabase with params: %#v", *m.CreateDatabaseMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateDatabase != nil && afterCreateDatabaseCounter < 1 {
+		m.t.Error("Expected call to ClientMock.CreateDatabase")
+	}
+
+	if !m.CreateDatabaseMock.invocationsDone() && afterCreateDatabaseCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateDatabase but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateDatabaseMock.expectedInvocations), afterCreateDatabaseCounter)
+	}
 }
 
 type mClientMockCreateService struct {
@@ -337,7 +721,7 @@ func (mmCreateService *mClientMockCreateService) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// CreateService implements Client
+// CreateService implements api.Client
 func (mmCreateService *ClientMock) CreateService(ctx context.Context, s Service) (sp1 *Service, s1 string, err error) {
 	mm_atomic.AddUint64(&mmCreateService.beforeCreateServiceCounter, 1)
 	defer mm_atomic.AddUint64(&mmCreateService.afterCreateServiceCounter, 1)
@@ -459,6 +843,354 @@ func (m *ClientMock) MinimockCreateServiceInspect() {
 	if !m.CreateServiceMock.invocationsDone() && afterCreateServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateService but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateServiceMock.expectedInvocations), afterCreateServiceCounter)
+	}
+}
+
+type mClientMockDeleteDatabase struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteDatabaseExpectation
+	expectations       []*ClientMockDeleteDatabaseExpectation
+
+	callArgs []*ClientMockDeleteDatabaseParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockDeleteDatabaseExpectation specifies expectation struct of the Client.DeleteDatabase
+type ClientMockDeleteDatabaseExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockDeleteDatabaseParams
+	paramPtrs *ClientMockDeleteDatabaseParamPtrs
+	results   *ClientMockDeleteDatabaseResults
+	Counter   uint64
+}
+
+// ClientMockDeleteDatabaseParams contains parameters of the Client.DeleteDatabase
+type ClientMockDeleteDatabaseParams struct {
+	ctx       context.Context
+	serviceID string
+	name      string
+}
+
+// ClientMockDeleteDatabaseParamPtrs contains pointers to parameters of the Client.DeleteDatabase
+type ClientMockDeleteDatabaseParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	name      *string
+}
+
+// ClientMockDeleteDatabaseResults contains results of the Client.DeleteDatabase
+type ClientMockDeleteDatabaseResults struct {
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteDatabase *mClientMockDeleteDatabase) Optional() *mClientMockDeleteDatabase {
+	mmDeleteDatabase.optional = true
+	return mmDeleteDatabase
+}
+
+// Expect sets up expected params for Client.DeleteDatabase
+func (mmDeleteDatabase *mClientMockDeleteDatabase) Expect(ctx context.Context, serviceID string, name string) *mClientMockDeleteDatabase {
+	if mmDeleteDatabase.mock.funcDeleteDatabase != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by Set")
+	}
+
+	if mmDeleteDatabase.defaultExpectation == nil {
+		mmDeleteDatabase.defaultExpectation = &ClientMockDeleteDatabaseExpectation{}
+	}
+
+	if mmDeleteDatabase.defaultExpectation.paramPtrs != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteDatabase.defaultExpectation.params = &ClientMockDeleteDatabaseParams{ctx, serviceID, name}
+	for _, e := range mmDeleteDatabase.expectations {
+		if minimock.Equal(e.params, mmDeleteDatabase.defaultExpectation.params) {
+			mmDeleteDatabase.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteDatabase.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteDatabase
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteDatabase
+func (mmDeleteDatabase *mClientMockDeleteDatabase) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteDatabase {
+	if mmDeleteDatabase.mock.funcDeleteDatabase != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by Set")
+	}
+
+	if mmDeleteDatabase.defaultExpectation == nil {
+		mmDeleteDatabase.defaultExpectation = &ClientMockDeleteDatabaseExpectation{}
+	}
+
+	if mmDeleteDatabase.defaultExpectation.params != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by Expect")
+	}
+
+	if mmDeleteDatabase.defaultExpectation.paramPtrs == nil {
+		mmDeleteDatabase.defaultExpectation.paramPtrs = &ClientMockDeleteDatabaseParamPtrs{}
+	}
+	mmDeleteDatabase.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmDeleteDatabase
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.DeleteDatabase
+func (mmDeleteDatabase *mClientMockDeleteDatabase) ExpectServiceIDParam2(serviceID string) *mClientMockDeleteDatabase {
+	if mmDeleteDatabase.mock.funcDeleteDatabase != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by Set")
+	}
+
+	if mmDeleteDatabase.defaultExpectation == nil {
+		mmDeleteDatabase.defaultExpectation = &ClientMockDeleteDatabaseExpectation{}
+	}
+
+	if mmDeleteDatabase.defaultExpectation.params != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by Expect")
+	}
+
+	if mmDeleteDatabase.defaultExpectation.paramPtrs == nil {
+		mmDeleteDatabase.defaultExpectation.paramPtrs = &ClientMockDeleteDatabaseParamPtrs{}
+	}
+	mmDeleteDatabase.defaultExpectation.paramPtrs.serviceID = &serviceID
+
+	return mmDeleteDatabase
+}
+
+// ExpectNameParam3 sets up expected param name for Client.DeleteDatabase
+func (mmDeleteDatabase *mClientMockDeleteDatabase) ExpectNameParam3(name string) *mClientMockDeleteDatabase {
+	if mmDeleteDatabase.mock.funcDeleteDatabase != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by Set")
+	}
+
+	if mmDeleteDatabase.defaultExpectation == nil {
+		mmDeleteDatabase.defaultExpectation = &ClientMockDeleteDatabaseExpectation{}
+	}
+
+	if mmDeleteDatabase.defaultExpectation.params != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by Expect")
+	}
+
+	if mmDeleteDatabase.defaultExpectation.paramPtrs == nil {
+		mmDeleteDatabase.defaultExpectation.paramPtrs = &ClientMockDeleteDatabaseParamPtrs{}
+	}
+	mmDeleteDatabase.defaultExpectation.paramPtrs.name = &name
+
+	return mmDeleteDatabase
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteDatabase
+func (mmDeleteDatabase *mClientMockDeleteDatabase) Inspect(f func(ctx context.Context, serviceID string, name string)) *mClientMockDeleteDatabase {
+	if mmDeleteDatabase.mock.inspectFuncDeleteDatabase != nil {
+		mmDeleteDatabase.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteDatabase")
+	}
+
+	mmDeleteDatabase.mock.inspectFuncDeleteDatabase = f
+
+	return mmDeleteDatabase
+}
+
+// Return sets up results that will be returned by Client.DeleteDatabase
+func (mmDeleteDatabase *mClientMockDeleteDatabase) Return(err error) *ClientMock {
+	if mmDeleteDatabase.mock.funcDeleteDatabase != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by Set")
+	}
+
+	if mmDeleteDatabase.defaultExpectation == nil {
+		mmDeleteDatabase.defaultExpectation = &ClientMockDeleteDatabaseExpectation{mock: mmDeleteDatabase.mock}
+	}
+	mmDeleteDatabase.defaultExpectation.results = &ClientMockDeleteDatabaseResults{err}
+	return mmDeleteDatabase.mock
+}
+
+// Set uses given function f to mock the Client.DeleteDatabase method
+func (mmDeleteDatabase *mClientMockDeleteDatabase) Set(f func(ctx context.Context, serviceID string, name string) (err error)) *ClientMock {
+	if mmDeleteDatabase.defaultExpectation != nil {
+		mmDeleteDatabase.mock.t.Fatalf("Default expectation is already set for the Client.DeleteDatabase method")
+	}
+
+	if len(mmDeleteDatabase.expectations) > 0 {
+		mmDeleteDatabase.mock.t.Fatalf("Some expectations are already set for the Client.DeleteDatabase method")
+	}
+
+	mmDeleteDatabase.mock.funcDeleteDatabase = f
+	return mmDeleteDatabase.mock
+}
+
+// When sets expectation for the Client.DeleteDatabase which will trigger the result defined by the following
+// Then helper
+func (mmDeleteDatabase *mClientMockDeleteDatabase) When(ctx context.Context, serviceID string, name string) *ClientMockDeleteDatabaseExpectation {
+	if mmDeleteDatabase.mock.funcDeleteDatabase != nil {
+		mmDeleteDatabase.mock.t.Fatalf("ClientMock.DeleteDatabase mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteDatabaseExpectation{
+		mock:   mmDeleteDatabase.mock,
+		params: &ClientMockDeleteDatabaseParams{ctx, serviceID, name},
+	}
+	mmDeleteDatabase.expectations = append(mmDeleteDatabase.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteDatabase return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteDatabaseExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteDatabaseResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteDatabase should be invoked
+func (mmDeleteDatabase *mClientMockDeleteDatabase) Times(n uint64) *mClientMockDeleteDatabase {
+	if n == 0 {
+		mmDeleteDatabase.mock.t.Fatalf("Times of ClientMock.DeleteDatabase mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteDatabase.expectedInvocations, n)
+	return mmDeleteDatabase
+}
+
+func (mmDeleteDatabase *mClientMockDeleteDatabase) invocationsDone() bool {
+	if len(mmDeleteDatabase.expectations) == 0 && mmDeleteDatabase.defaultExpectation == nil && mmDeleteDatabase.mock.funcDeleteDatabase == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteDatabase.mock.afterDeleteDatabaseCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteDatabase.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteDatabase implements api.Client
+func (mmDeleteDatabase *ClientMock) DeleteDatabase(ctx context.Context, serviceID string, name string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteDatabase.beforeDeleteDatabaseCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteDatabase.afterDeleteDatabaseCounter, 1)
+
+	if mmDeleteDatabase.inspectFuncDeleteDatabase != nil {
+		mmDeleteDatabase.inspectFuncDeleteDatabase(ctx, serviceID, name)
+	}
+
+	mm_params := ClientMockDeleteDatabaseParams{ctx, serviceID, name}
+
+	// Record call args
+	mmDeleteDatabase.DeleteDatabaseMock.mutex.Lock()
+	mmDeleteDatabase.DeleteDatabaseMock.callArgs = append(mmDeleteDatabase.DeleteDatabaseMock.callArgs, &mm_params)
+	mmDeleteDatabase.DeleteDatabaseMock.mutex.Unlock()
+
+	for _, e := range mmDeleteDatabase.DeleteDatabaseMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteDatabase.DeleteDatabaseMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteDatabase.DeleteDatabaseMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteDatabase.DeleteDatabaseMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteDatabase.DeleteDatabaseMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteDatabaseParams{ctx, serviceID, name}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteDatabase.t.Errorf("ClientMock.DeleteDatabase got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmDeleteDatabase.t.Errorf("ClientMock.DeleteDatabase got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.name != nil && !minimock.Equal(*mm_want_ptrs.name, mm_got.name) {
+				mmDeleteDatabase.t.Errorf("ClientMock.DeleteDatabase got unexpected parameter name, want: %#v, got: %#v%s\n", *mm_want_ptrs.name, mm_got.name, minimock.Diff(*mm_want_ptrs.name, mm_got.name))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteDatabase.t.Errorf("ClientMock.DeleteDatabase got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteDatabase.DeleteDatabaseMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteDatabase.t.Fatal("No results are set for the ClientMock.DeleteDatabase")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteDatabase.funcDeleteDatabase != nil {
+		return mmDeleteDatabase.funcDeleteDatabase(ctx, serviceID, name)
+	}
+	mmDeleteDatabase.t.Fatalf("Unexpected call to ClientMock.DeleteDatabase. %v %v %v", ctx, serviceID, name)
+	return
+}
+
+// DeleteDatabaseAfterCounter returns a count of finished ClientMock.DeleteDatabase invocations
+func (mmDeleteDatabase *ClientMock) DeleteDatabaseAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteDatabase.afterDeleteDatabaseCounter)
+}
+
+// DeleteDatabaseBeforeCounter returns a count of ClientMock.DeleteDatabase invocations
+func (mmDeleteDatabase *ClientMock) DeleteDatabaseBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteDatabase.beforeDeleteDatabaseCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteDatabase.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteDatabase *mClientMockDeleteDatabase) Calls() []*ClientMockDeleteDatabaseParams {
+	mmDeleteDatabase.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteDatabaseParams, len(mmDeleteDatabase.callArgs))
+	copy(argCopy, mmDeleteDatabase.callArgs)
+
+	mmDeleteDatabase.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteDatabaseDone returns true if the count of the DeleteDatabase invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteDatabaseDone() bool {
+	if m.DeleteDatabaseMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteDatabaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteDatabaseMock.invocationsDone()
+}
+
+// MinimockDeleteDatabaseInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteDatabaseInspect() {
+	for _, e := range m.DeleteDatabaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteDatabase with params: %#v", *e.params)
+		}
+	}
+
+	afterDeleteDatabaseCounter := mm_atomic.LoadUint64(&m.afterDeleteDatabaseCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteDatabaseMock.defaultExpectation != nil && afterDeleteDatabaseCounter < 1 {
+		if m.DeleteDatabaseMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.DeleteDatabase")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteDatabase with params: %#v", *m.DeleteDatabaseMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteDatabase != nil && afterDeleteDatabaseCounter < 1 {
+		m.t.Error("Expected call to ClientMock.DeleteDatabase")
+	}
+
+	if !m.DeleteDatabaseMock.invocationsDone() && afterDeleteDatabaseCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteDatabase but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteDatabaseMock.expectedInvocations), afterDeleteDatabaseCounter)
 	}
 }
 
@@ -658,7 +1390,7 @@ func (mmDeleteService *mClientMockDeleteService) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// DeleteService implements Client
+// DeleteService implements api.Client
 func (mmDeleteService *ClientMock) DeleteService(ctx context.Context, serviceId string) (sp1 *Service, err error) {
 	mm_atomic.AddUint64(&mmDeleteService.beforeDeleteServiceCounter, 1)
 	defer mm_atomic.AddUint64(&mmDeleteService.afterDeleteServiceCounter, 1)
@@ -979,7 +1711,7 @@ func (mmGetBackupConfiguration *mClientMockGetBackupConfiguration) invocationsDo
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetBackupConfiguration implements Client
+// GetBackupConfiguration implements api.Client
 func (mmGetBackupConfiguration *ClientMock) GetBackupConfiguration(ctx context.Context, serviceId string) (bp1 *BackupConfiguration, err error) {
 	mm_atomic.AddUint64(&mmGetBackupConfiguration.beforeGetBackupConfigurationCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetBackupConfiguration.afterGetBackupConfigurationCounter, 1)
@@ -1101,6 +1833,355 @@ func (m *ClientMock) MinimockGetBackupConfigurationInspect() {
 	if !m.GetBackupConfigurationMock.invocationsDone() && afterGetBackupConfigurationCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetBackupConfiguration but found %d calls",
 			mm_atomic.LoadUint64(&m.GetBackupConfigurationMock.expectedInvocations), afterGetBackupConfigurationCounter)
+	}
+}
+
+type mClientMockGetDatabase struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetDatabaseExpectation
+	expectations       []*ClientMockGetDatabaseExpectation
+
+	callArgs []*ClientMockGetDatabaseParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockGetDatabaseExpectation specifies expectation struct of the Client.GetDatabase
+type ClientMockGetDatabaseExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockGetDatabaseParams
+	paramPtrs *ClientMockGetDatabaseParamPtrs
+	results   *ClientMockGetDatabaseResults
+	Counter   uint64
+}
+
+// ClientMockGetDatabaseParams contains parameters of the Client.GetDatabase
+type ClientMockGetDatabaseParams struct {
+	ctx       context.Context
+	serviceID string
+	name      string
+}
+
+// ClientMockGetDatabaseParamPtrs contains pointers to parameters of the Client.GetDatabase
+type ClientMockGetDatabaseParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	name      *string
+}
+
+// ClientMockGetDatabaseResults contains results of the Client.GetDatabase
+type ClientMockGetDatabaseResults struct {
+	dp1 *Database
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetDatabase *mClientMockGetDatabase) Optional() *mClientMockGetDatabase {
+	mmGetDatabase.optional = true
+	return mmGetDatabase
+}
+
+// Expect sets up expected params for Client.GetDatabase
+func (mmGetDatabase *mClientMockGetDatabase) Expect(ctx context.Context, serviceID string, name string) *mClientMockGetDatabase {
+	if mmGetDatabase.mock.funcGetDatabase != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by Set")
+	}
+
+	if mmGetDatabase.defaultExpectation == nil {
+		mmGetDatabase.defaultExpectation = &ClientMockGetDatabaseExpectation{}
+	}
+
+	if mmGetDatabase.defaultExpectation.paramPtrs != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by ExpectParams functions")
+	}
+
+	mmGetDatabase.defaultExpectation.params = &ClientMockGetDatabaseParams{ctx, serviceID, name}
+	for _, e := range mmGetDatabase.expectations {
+		if minimock.Equal(e.params, mmGetDatabase.defaultExpectation.params) {
+			mmGetDatabase.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetDatabase.defaultExpectation.params)
+		}
+	}
+
+	return mmGetDatabase
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetDatabase
+func (mmGetDatabase *mClientMockGetDatabase) ExpectCtxParam1(ctx context.Context) *mClientMockGetDatabase {
+	if mmGetDatabase.mock.funcGetDatabase != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by Set")
+	}
+
+	if mmGetDatabase.defaultExpectation == nil {
+		mmGetDatabase.defaultExpectation = &ClientMockGetDatabaseExpectation{}
+	}
+
+	if mmGetDatabase.defaultExpectation.params != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by Expect")
+	}
+
+	if mmGetDatabase.defaultExpectation.paramPtrs == nil {
+		mmGetDatabase.defaultExpectation.paramPtrs = &ClientMockGetDatabaseParamPtrs{}
+	}
+	mmGetDatabase.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmGetDatabase
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.GetDatabase
+func (mmGetDatabase *mClientMockGetDatabase) ExpectServiceIDParam2(serviceID string) *mClientMockGetDatabase {
+	if mmGetDatabase.mock.funcGetDatabase != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by Set")
+	}
+
+	if mmGetDatabase.defaultExpectation == nil {
+		mmGetDatabase.defaultExpectation = &ClientMockGetDatabaseExpectation{}
+	}
+
+	if mmGetDatabase.defaultExpectation.params != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by Expect")
+	}
+
+	if mmGetDatabase.defaultExpectation.paramPtrs == nil {
+		mmGetDatabase.defaultExpectation.paramPtrs = &ClientMockGetDatabaseParamPtrs{}
+	}
+	mmGetDatabase.defaultExpectation.paramPtrs.serviceID = &serviceID
+
+	return mmGetDatabase
+}
+
+// ExpectNameParam3 sets up expected param name for Client.GetDatabase
+func (mmGetDatabase *mClientMockGetDatabase) ExpectNameParam3(name string) *mClientMockGetDatabase {
+	if mmGetDatabase.mock.funcGetDatabase != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by Set")
+	}
+
+	if mmGetDatabase.defaultExpectation == nil {
+		mmGetDatabase.defaultExpectation = &ClientMockGetDatabaseExpectation{}
+	}
+
+	if mmGetDatabase.defaultExpectation.params != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by Expect")
+	}
+
+	if mmGetDatabase.defaultExpectation.paramPtrs == nil {
+		mmGetDatabase.defaultExpectation.paramPtrs = &ClientMockGetDatabaseParamPtrs{}
+	}
+	mmGetDatabase.defaultExpectation.paramPtrs.name = &name
+
+	return mmGetDatabase
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetDatabase
+func (mmGetDatabase *mClientMockGetDatabase) Inspect(f func(ctx context.Context, serviceID string, name string)) *mClientMockGetDatabase {
+	if mmGetDatabase.mock.inspectFuncGetDatabase != nil {
+		mmGetDatabase.mock.t.Fatalf("Inspect function is already set for ClientMock.GetDatabase")
+	}
+
+	mmGetDatabase.mock.inspectFuncGetDatabase = f
+
+	return mmGetDatabase
+}
+
+// Return sets up results that will be returned by Client.GetDatabase
+func (mmGetDatabase *mClientMockGetDatabase) Return(dp1 *Database, err error) *ClientMock {
+	if mmGetDatabase.mock.funcGetDatabase != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by Set")
+	}
+
+	if mmGetDatabase.defaultExpectation == nil {
+		mmGetDatabase.defaultExpectation = &ClientMockGetDatabaseExpectation{mock: mmGetDatabase.mock}
+	}
+	mmGetDatabase.defaultExpectation.results = &ClientMockGetDatabaseResults{dp1, err}
+	return mmGetDatabase.mock
+}
+
+// Set uses given function f to mock the Client.GetDatabase method
+func (mmGetDatabase *mClientMockGetDatabase) Set(f func(ctx context.Context, serviceID string, name string) (dp1 *Database, err error)) *ClientMock {
+	if mmGetDatabase.defaultExpectation != nil {
+		mmGetDatabase.mock.t.Fatalf("Default expectation is already set for the Client.GetDatabase method")
+	}
+
+	if len(mmGetDatabase.expectations) > 0 {
+		mmGetDatabase.mock.t.Fatalf("Some expectations are already set for the Client.GetDatabase method")
+	}
+
+	mmGetDatabase.mock.funcGetDatabase = f
+	return mmGetDatabase.mock
+}
+
+// When sets expectation for the Client.GetDatabase which will trigger the result defined by the following
+// Then helper
+func (mmGetDatabase *mClientMockGetDatabase) When(ctx context.Context, serviceID string, name string) *ClientMockGetDatabaseExpectation {
+	if mmGetDatabase.mock.funcGetDatabase != nil {
+		mmGetDatabase.mock.t.Fatalf("ClientMock.GetDatabase mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetDatabaseExpectation{
+		mock:   mmGetDatabase.mock,
+		params: &ClientMockGetDatabaseParams{ctx, serviceID, name},
+	}
+	mmGetDatabase.expectations = append(mmGetDatabase.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetDatabase return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetDatabaseExpectation) Then(dp1 *Database, err error) *ClientMock {
+	e.results = &ClientMockGetDatabaseResults{dp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetDatabase should be invoked
+func (mmGetDatabase *mClientMockGetDatabase) Times(n uint64) *mClientMockGetDatabase {
+	if n == 0 {
+		mmGetDatabase.mock.t.Fatalf("Times of ClientMock.GetDatabase mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetDatabase.expectedInvocations, n)
+	return mmGetDatabase
+}
+
+func (mmGetDatabase *mClientMockGetDatabase) invocationsDone() bool {
+	if len(mmGetDatabase.expectations) == 0 && mmGetDatabase.defaultExpectation == nil && mmGetDatabase.mock.funcGetDatabase == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetDatabase.mock.afterGetDatabaseCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetDatabase.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetDatabase implements api.Client
+func (mmGetDatabase *ClientMock) GetDatabase(ctx context.Context, serviceID string, name string) (dp1 *Database, err error) {
+	mm_atomic.AddUint64(&mmGetDatabase.beforeGetDatabaseCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetDatabase.afterGetDatabaseCounter, 1)
+
+	if mmGetDatabase.inspectFuncGetDatabase != nil {
+		mmGetDatabase.inspectFuncGetDatabase(ctx, serviceID, name)
+	}
+
+	mm_params := ClientMockGetDatabaseParams{ctx, serviceID, name}
+
+	// Record call args
+	mmGetDatabase.GetDatabaseMock.mutex.Lock()
+	mmGetDatabase.GetDatabaseMock.callArgs = append(mmGetDatabase.GetDatabaseMock.callArgs, &mm_params)
+	mmGetDatabase.GetDatabaseMock.mutex.Unlock()
+
+	for _, e := range mmGetDatabase.GetDatabaseMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.dp1, e.results.err
+		}
+	}
+
+	if mmGetDatabase.GetDatabaseMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetDatabase.GetDatabaseMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetDatabase.GetDatabaseMock.defaultExpectation.params
+		mm_want_ptrs := mmGetDatabase.GetDatabaseMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetDatabaseParams{ctx, serviceID, name}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetDatabase.t.Errorf("ClientMock.GetDatabase got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmGetDatabase.t.Errorf("ClientMock.GetDatabase got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.name != nil && !minimock.Equal(*mm_want_ptrs.name, mm_got.name) {
+				mmGetDatabase.t.Errorf("ClientMock.GetDatabase got unexpected parameter name, want: %#v, got: %#v%s\n", *mm_want_ptrs.name, mm_got.name, minimock.Diff(*mm_want_ptrs.name, mm_got.name))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetDatabase.t.Errorf("ClientMock.GetDatabase got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetDatabase.GetDatabaseMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetDatabase.t.Fatal("No results are set for the ClientMock.GetDatabase")
+		}
+		return (*mm_results).dp1, (*mm_results).err
+	}
+	if mmGetDatabase.funcGetDatabase != nil {
+		return mmGetDatabase.funcGetDatabase(ctx, serviceID, name)
+	}
+	mmGetDatabase.t.Fatalf("Unexpected call to ClientMock.GetDatabase. %v %v %v", ctx, serviceID, name)
+	return
+}
+
+// GetDatabaseAfterCounter returns a count of finished ClientMock.GetDatabase invocations
+func (mmGetDatabase *ClientMock) GetDatabaseAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetDatabase.afterGetDatabaseCounter)
+}
+
+// GetDatabaseBeforeCounter returns a count of ClientMock.GetDatabase invocations
+func (mmGetDatabase *ClientMock) GetDatabaseBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetDatabase.beforeGetDatabaseCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetDatabase.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetDatabase *mClientMockGetDatabase) Calls() []*ClientMockGetDatabaseParams {
+	mmGetDatabase.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetDatabaseParams, len(mmGetDatabase.callArgs))
+	copy(argCopy, mmGetDatabase.callArgs)
+
+	mmGetDatabase.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetDatabaseDone returns true if the count of the GetDatabase invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetDatabaseDone() bool {
+	if m.GetDatabaseMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetDatabaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetDatabaseMock.invocationsDone()
+}
+
+// MinimockGetDatabaseInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetDatabaseInspect() {
+	for _, e := range m.GetDatabaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetDatabase with params: %#v", *e.params)
+		}
+	}
+
+	afterGetDatabaseCounter := mm_atomic.LoadUint64(&m.afterGetDatabaseCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetDatabaseMock.defaultExpectation != nil && afterGetDatabaseCounter < 1 {
+		if m.GetDatabaseMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.GetDatabase")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetDatabase with params: %#v", *m.GetDatabaseMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetDatabase != nil && afterGetDatabaseCounter < 1 {
+		m.t.Error("Expected call to ClientMock.GetDatabase")
+	}
+
+	if !m.GetDatabaseMock.invocationsDone() && afterGetDatabaseCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetDatabase but found %d calls",
+			mm_atomic.LoadUint64(&m.GetDatabaseMock.expectedInvocations), afterGetDatabaseCounter)
 	}
 }
 
@@ -1324,7 +2405,7 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) inv
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetOrgPrivateEndpointConfig implements Client
+// GetOrgPrivateEndpointConfig implements api.Client
 func (mmGetOrgPrivateEndpointConfig *ClientMock) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error) {
 	mm_atomic.AddUint64(&mmGetOrgPrivateEndpointConfig.beforeGetOrgPrivateEndpointConfigCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetOrgPrivateEndpointConfig.afterGetOrgPrivateEndpointConfigCounter, 1)
@@ -1625,7 +2706,7 @@ func (mmGetOrganizationPrivateEndpoints *mClientMockGetOrganizationPrivateEndpoi
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetOrganizationPrivateEndpoints implements Client
+// GetOrganizationPrivateEndpoints implements api.Client
 func (mmGetOrganizationPrivateEndpoints *ClientMock) GetOrganizationPrivateEndpoints(ctx context.Context) (pap1 *[]PrivateEndpoint, err error) {
 	mm_atomic.AddUint64(&mmGetOrganizationPrivateEndpoints.beforeGetOrganizationPrivateEndpointsCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetOrganizationPrivateEndpoints.afterGetOrganizationPrivateEndpointsCounter, 1)
@@ -1942,7 +3023,7 @@ func (mmGetService *mClientMockGetService) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetService implements Client
+// GetService implements api.Client
 func (mmGetService *ClientMock) GetService(ctx context.Context, serviceId string) (sp1 *Service, err error) {
 	mm_atomic.AddUint64(&mmGetService.beforeGetServiceCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetService.afterGetServiceCounter, 1)
@@ -2064,6 +3145,354 @@ func (m *ClientMock) MinimockGetServiceInspect() {
 	if !m.GetServiceMock.invocationsDone() && afterGetServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetService but found %d calls",
 			mm_atomic.LoadUint64(&m.GetServiceMock.expectedInvocations), afterGetServiceCounter)
+	}
+}
+
+type mClientMockSyncDatabase struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockSyncDatabaseExpectation
+	expectations       []*ClientMockSyncDatabaseExpectation
+
+	callArgs []*ClientMockSyncDatabaseParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockSyncDatabaseExpectation specifies expectation struct of the Client.SyncDatabase
+type ClientMockSyncDatabaseExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockSyncDatabaseParams
+	paramPtrs *ClientMockSyncDatabaseParamPtrs
+	results   *ClientMockSyncDatabaseResults
+	Counter   uint64
+}
+
+// ClientMockSyncDatabaseParams contains parameters of the Client.SyncDatabase
+type ClientMockSyncDatabaseParams struct {
+	ctx       context.Context
+	serviceID string
+	db        Database
+}
+
+// ClientMockSyncDatabaseParamPtrs contains pointers to parameters of the Client.SyncDatabase
+type ClientMockSyncDatabaseParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	db        *Database
+}
+
+// ClientMockSyncDatabaseResults contains results of the Client.SyncDatabase
+type ClientMockSyncDatabaseResults struct {
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmSyncDatabase *mClientMockSyncDatabase) Optional() *mClientMockSyncDatabase {
+	mmSyncDatabase.optional = true
+	return mmSyncDatabase
+}
+
+// Expect sets up expected params for Client.SyncDatabase
+func (mmSyncDatabase *mClientMockSyncDatabase) Expect(ctx context.Context, serviceID string, db Database) *mClientMockSyncDatabase {
+	if mmSyncDatabase.mock.funcSyncDatabase != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by Set")
+	}
+
+	if mmSyncDatabase.defaultExpectation == nil {
+		mmSyncDatabase.defaultExpectation = &ClientMockSyncDatabaseExpectation{}
+	}
+
+	if mmSyncDatabase.defaultExpectation.paramPtrs != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by ExpectParams functions")
+	}
+
+	mmSyncDatabase.defaultExpectation.params = &ClientMockSyncDatabaseParams{ctx, serviceID, db}
+	for _, e := range mmSyncDatabase.expectations {
+		if minimock.Equal(e.params, mmSyncDatabase.defaultExpectation.params) {
+			mmSyncDatabase.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmSyncDatabase.defaultExpectation.params)
+		}
+	}
+
+	return mmSyncDatabase
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.SyncDatabase
+func (mmSyncDatabase *mClientMockSyncDatabase) ExpectCtxParam1(ctx context.Context) *mClientMockSyncDatabase {
+	if mmSyncDatabase.mock.funcSyncDatabase != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by Set")
+	}
+
+	if mmSyncDatabase.defaultExpectation == nil {
+		mmSyncDatabase.defaultExpectation = &ClientMockSyncDatabaseExpectation{}
+	}
+
+	if mmSyncDatabase.defaultExpectation.params != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by Expect")
+	}
+
+	if mmSyncDatabase.defaultExpectation.paramPtrs == nil {
+		mmSyncDatabase.defaultExpectation.paramPtrs = &ClientMockSyncDatabaseParamPtrs{}
+	}
+	mmSyncDatabase.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmSyncDatabase
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.SyncDatabase
+func (mmSyncDatabase *mClientMockSyncDatabase) ExpectServiceIDParam2(serviceID string) *mClientMockSyncDatabase {
+	if mmSyncDatabase.mock.funcSyncDatabase != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by Set")
+	}
+
+	if mmSyncDatabase.defaultExpectation == nil {
+		mmSyncDatabase.defaultExpectation = &ClientMockSyncDatabaseExpectation{}
+	}
+
+	if mmSyncDatabase.defaultExpectation.params != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by Expect")
+	}
+
+	if mmSyncDatabase.defaultExpectation.paramPtrs == nil {
+		mmSyncDatabase.defaultExpectation.paramPtrs = &ClientMockSyncDatabaseParamPtrs{}
+	}
+	mmSyncDatabase.defaultExpectation.paramPtrs.serviceID = &serviceID
+
+	return mmSyncDatabase
+}
+
+// ExpectDbParam3 sets up expected param db for Client.SyncDatabase
+func (mmSyncDatabase *mClientMockSyncDatabase) ExpectDbParam3(db Database) *mClientMockSyncDatabase {
+	if mmSyncDatabase.mock.funcSyncDatabase != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by Set")
+	}
+
+	if mmSyncDatabase.defaultExpectation == nil {
+		mmSyncDatabase.defaultExpectation = &ClientMockSyncDatabaseExpectation{}
+	}
+
+	if mmSyncDatabase.defaultExpectation.params != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by Expect")
+	}
+
+	if mmSyncDatabase.defaultExpectation.paramPtrs == nil {
+		mmSyncDatabase.defaultExpectation.paramPtrs = &ClientMockSyncDatabaseParamPtrs{}
+	}
+	mmSyncDatabase.defaultExpectation.paramPtrs.db = &db
+
+	return mmSyncDatabase
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.SyncDatabase
+func (mmSyncDatabase *mClientMockSyncDatabase) Inspect(f func(ctx context.Context, serviceID string, db Database)) *mClientMockSyncDatabase {
+	if mmSyncDatabase.mock.inspectFuncSyncDatabase != nil {
+		mmSyncDatabase.mock.t.Fatalf("Inspect function is already set for ClientMock.SyncDatabase")
+	}
+
+	mmSyncDatabase.mock.inspectFuncSyncDatabase = f
+
+	return mmSyncDatabase
+}
+
+// Return sets up results that will be returned by Client.SyncDatabase
+func (mmSyncDatabase *mClientMockSyncDatabase) Return(err error) *ClientMock {
+	if mmSyncDatabase.mock.funcSyncDatabase != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by Set")
+	}
+
+	if mmSyncDatabase.defaultExpectation == nil {
+		mmSyncDatabase.defaultExpectation = &ClientMockSyncDatabaseExpectation{mock: mmSyncDatabase.mock}
+	}
+	mmSyncDatabase.defaultExpectation.results = &ClientMockSyncDatabaseResults{err}
+	return mmSyncDatabase.mock
+}
+
+// Set uses given function f to mock the Client.SyncDatabase method
+func (mmSyncDatabase *mClientMockSyncDatabase) Set(f func(ctx context.Context, serviceID string, db Database) (err error)) *ClientMock {
+	if mmSyncDatabase.defaultExpectation != nil {
+		mmSyncDatabase.mock.t.Fatalf("Default expectation is already set for the Client.SyncDatabase method")
+	}
+
+	if len(mmSyncDatabase.expectations) > 0 {
+		mmSyncDatabase.mock.t.Fatalf("Some expectations are already set for the Client.SyncDatabase method")
+	}
+
+	mmSyncDatabase.mock.funcSyncDatabase = f
+	return mmSyncDatabase.mock
+}
+
+// When sets expectation for the Client.SyncDatabase which will trigger the result defined by the following
+// Then helper
+func (mmSyncDatabase *mClientMockSyncDatabase) When(ctx context.Context, serviceID string, db Database) *ClientMockSyncDatabaseExpectation {
+	if mmSyncDatabase.mock.funcSyncDatabase != nil {
+		mmSyncDatabase.mock.t.Fatalf("ClientMock.SyncDatabase mock is already set by Set")
+	}
+
+	expectation := &ClientMockSyncDatabaseExpectation{
+		mock:   mmSyncDatabase.mock,
+		params: &ClientMockSyncDatabaseParams{ctx, serviceID, db},
+	}
+	mmSyncDatabase.expectations = append(mmSyncDatabase.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.SyncDatabase return parameters for the expectation previously defined by the When method
+func (e *ClientMockSyncDatabaseExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockSyncDatabaseResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.SyncDatabase should be invoked
+func (mmSyncDatabase *mClientMockSyncDatabase) Times(n uint64) *mClientMockSyncDatabase {
+	if n == 0 {
+		mmSyncDatabase.mock.t.Fatalf("Times of ClientMock.SyncDatabase mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmSyncDatabase.expectedInvocations, n)
+	return mmSyncDatabase
+}
+
+func (mmSyncDatabase *mClientMockSyncDatabase) invocationsDone() bool {
+	if len(mmSyncDatabase.expectations) == 0 && mmSyncDatabase.defaultExpectation == nil && mmSyncDatabase.mock.funcSyncDatabase == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmSyncDatabase.mock.afterSyncDatabaseCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmSyncDatabase.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// SyncDatabase implements api.Client
+func (mmSyncDatabase *ClientMock) SyncDatabase(ctx context.Context, serviceID string, db Database) (err error) {
+	mm_atomic.AddUint64(&mmSyncDatabase.beforeSyncDatabaseCounter, 1)
+	defer mm_atomic.AddUint64(&mmSyncDatabase.afterSyncDatabaseCounter, 1)
+
+	if mmSyncDatabase.inspectFuncSyncDatabase != nil {
+		mmSyncDatabase.inspectFuncSyncDatabase(ctx, serviceID, db)
+	}
+
+	mm_params := ClientMockSyncDatabaseParams{ctx, serviceID, db}
+
+	// Record call args
+	mmSyncDatabase.SyncDatabaseMock.mutex.Lock()
+	mmSyncDatabase.SyncDatabaseMock.callArgs = append(mmSyncDatabase.SyncDatabaseMock.callArgs, &mm_params)
+	mmSyncDatabase.SyncDatabaseMock.mutex.Unlock()
+
+	for _, e := range mmSyncDatabase.SyncDatabaseMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmSyncDatabase.SyncDatabaseMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmSyncDatabase.SyncDatabaseMock.defaultExpectation.Counter, 1)
+		mm_want := mmSyncDatabase.SyncDatabaseMock.defaultExpectation.params
+		mm_want_ptrs := mmSyncDatabase.SyncDatabaseMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockSyncDatabaseParams{ctx, serviceID, db}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmSyncDatabase.t.Errorf("ClientMock.SyncDatabase got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmSyncDatabase.t.Errorf("ClientMock.SyncDatabase got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.db != nil && !minimock.Equal(*mm_want_ptrs.db, mm_got.db) {
+				mmSyncDatabase.t.Errorf("ClientMock.SyncDatabase got unexpected parameter db, want: %#v, got: %#v%s\n", *mm_want_ptrs.db, mm_got.db, minimock.Diff(*mm_want_ptrs.db, mm_got.db))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmSyncDatabase.t.Errorf("ClientMock.SyncDatabase got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmSyncDatabase.SyncDatabaseMock.defaultExpectation.results
+		if mm_results == nil {
+			mmSyncDatabase.t.Fatal("No results are set for the ClientMock.SyncDatabase")
+		}
+		return (*mm_results).err
+	}
+	if mmSyncDatabase.funcSyncDatabase != nil {
+		return mmSyncDatabase.funcSyncDatabase(ctx, serviceID, db)
+	}
+	mmSyncDatabase.t.Fatalf("Unexpected call to ClientMock.SyncDatabase. %v %v %v", ctx, serviceID, db)
+	return
+}
+
+// SyncDatabaseAfterCounter returns a count of finished ClientMock.SyncDatabase invocations
+func (mmSyncDatabase *ClientMock) SyncDatabaseAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmSyncDatabase.afterSyncDatabaseCounter)
+}
+
+// SyncDatabaseBeforeCounter returns a count of ClientMock.SyncDatabase invocations
+func (mmSyncDatabase *ClientMock) SyncDatabaseBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmSyncDatabase.beforeSyncDatabaseCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.SyncDatabase.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmSyncDatabase *mClientMockSyncDatabase) Calls() []*ClientMockSyncDatabaseParams {
+	mmSyncDatabase.mutex.RLock()
+
+	argCopy := make([]*ClientMockSyncDatabaseParams, len(mmSyncDatabase.callArgs))
+	copy(argCopy, mmSyncDatabase.callArgs)
+
+	mmSyncDatabase.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockSyncDatabaseDone returns true if the count of the SyncDatabase invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockSyncDatabaseDone() bool {
+	if m.SyncDatabaseMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.SyncDatabaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.SyncDatabaseMock.invocationsDone()
+}
+
+// MinimockSyncDatabaseInspect logs each unmet expectation
+func (m *ClientMock) MinimockSyncDatabaseInspect() {
+	for _, e := range m.SyncDatabaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.SyncDatabase with params: %#v", *e.params)
+		}
+	}
+
+	afterSyncDatabaseCounter := mm_atomic.LoadUint64(&m.afterSyncDatabaseCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.SyncDatabaseMock.defaultExpectation != nil && afterSyncDatabaseCounter < 1 {
+		if m.SyncDatabaseMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.SyncDatabase")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.SyncDatabase with params: %#v", *m.SyncDatabaseMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcSyncDatabase != nil && afterSyncDatabaseCounter < 1 {
+		m.t.Error("Expected call to ClientMock.SyncDatabase")
+	}
+
+	if !m.SyncDatabaseMock.invocationsDone() && afterSyncDatabaseCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.SyncDatabase but found %d calls",
+			mm_atomic.LoadUint64(&m.SyncDatabaseMock.expectedInvocations), afterSyncDatabaseCounter)
 	}
 }
 
@@ -2287,7 +3716,7 @@ func (mmUpdateBackupConfiguration *mClientMockUpdateBackupConfiguration) invocat
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// UpdateBackupConfiguration implements Client
+// UpdateBackupConfiguration implements api.Client
 func (mmUpdateBackupConfiguration *ClientMock) UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (bp1 *BackupConfiguration, err error) {
 	mm_atomic.AddUint64(&mmUpdateBackupConfiguration.beforeUpdateBackupConfigurationCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdateBackupConfiguration.afterUpdateBackupConfigurationCounter, 1)
@@ -2612,7 +4041,7 @@ func (mmUpdateOrganizationPrivateEndpoints *mClientMockUpdateOrganizationPrivate
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// UpdateOrganizationPrivateEndpoints implements Client
+// UpdateOrganizationPrivateEndpoints implements api.Client
 func (mmUpdateOrganizationPrivateEndpoints *ClientMock) UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (pap1 *[]PrivateEndpoint, err error) {
 	mm_atomic.AddUint64(&mmUpdateOrganizationPrivateEndpoints.beforeUpdateOrganizationPrivateEndpointsCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdateOrganizationPrivateEndpoints.afterUpdateOrganizationPrivateEndpointsCounter, 1)
@@ -2957,7 +4386,7 @@ func (mmUpdateReplicaScaling *mClientMockUpdateReplicaScaling) invocationsDone()
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// UpdateReplicaScaling implements Client
+// UpdateReplicaScaling implements api.Client
 func (mmUpdateReplicaScaling *ClientMock) UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (sp1 *Service, err error) {
 	mm_atomic.AddUint64(&mmUpdateReplicaScaling.beforeUpdateReplicaScalingCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdateReplicaScaling.afterUpdateReplicaScalingCounter, 1)
@@ -3306,7 +4735,7 @@ func (mmUpdateService *mClientMockUpdateService) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// UpdateService implements Client
+// UpdateService implements api.Client
 func (mmUpdateService *ClientMock) UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (sp1 *Service, err error) {
 	mm_atomic.AddUint64(&mmUpdateService.beforeUpdateServiceCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdateService.afterUpdateServiceCounter, 1)
@@ -3655,7 +5084,7 @@ func (mmUpdateServicePassword *mClientMockUpdateServicePassword) invocationsDone
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// UpdateServicePassword implements Client
+// UpdateServicePassword implements api.Client
 func (mmUpdateServicePassword *ClientMock) UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (sp1 *ServicePasswordUpdateResult, err error) {
 	mm_atomic.AddUint64(&mmUpdateServicePassword.beforeUpdateServicePasswordCounter, 1)
 	defer mm_atomic.AddUint64(&mmUpdateServicePassword.afterUpdateServicePasswordCounter, 1)
@@ -4027,7 +5456,7 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) invocationsDone() b
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// WaitForServiceState implements Client
+// WaitForServiceState implements api.Client
 func (mmWaitForServiceState *ClientMock) WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error) {
 	mm_atomic.AddUint64(&mmWaitForServiceState.beforeWaitForServiceStateCounter, 1)
 	defer mm_atomic.AddUint64(&mmWaitForServiceState.afterWaitForServiceStateCounter, 1)
@@ -4164,17 +5593,25 @@ func (m *ClientMock) MinimockWaitForServiceStateInspect() {
 func (m *ClientMock) MinimockFinish() {
 	m.finishOnce.Do(func() {
 		if !m.minimockDone() {
+			m.MinimockCreateDatabaseInspect()
+
 			m.MinimockCreateServiceInspect()
+
+			m.MinimockDeleteDatabaseInspect()
 
 			m.MinimockDeleteServiceInspect()
 
 			m.MinimockGetBackupConfigurationInspect()
+
+			m.MinimockGetDatabaseInspect()
 
 			m.MinimockGetOrgPrivateEndpointConfigInspect()
 
 			m.MinimockGetOrganizationPrivateEndpointsInspect()
 
 			m.MinimockGetServiceInspect()
+
+			m.MinimockSyncDatabaseInspect()
 
 			m.MinimockUpdateBackupConfigurationInspect()
 
@@ -4210,12 +5647,16 @@ func (m *ClientMock) MinimockWait(timeout mm_time.Duration) {
 func (m *ClientMock) minimockDone() bool {
 	done := true
 	return done &&
+		m.MinimockCreateDatabaseDone() &&
 		m.MinimockCreateServiceDone() &&
+		m.MinimockDeleteDatabaseDone() &&
 		m.MinimockDeleteServiceDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
+		m.MinimockGetDatabaseDone() &&
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationPrivateEndpointsDone() &&
 		m.MinimockGetServiceDone() &&
+		m.MinimockSyncDatabaseDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdateReplicaScalingDone() &&
