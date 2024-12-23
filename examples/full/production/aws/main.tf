@@ -66,37 +66,46 @@ resource "clickhouse_table" "mytable" {
   service_id = clickhouse_service.service.id
   database = clickhouse_database.mydatabase.name
   name = "mytable"
+  comment = "This is a test table"
   order_by = "id"
   engine = {
-    name = "MergeTree"
+    name = "SharedMergeTree"
+    params = [
+      "'/clickhouse/tables/{uuid}/{shard}'",
+      "'{replica}'"
+    ]
   }
   settings = {
-    index_granularity = 256
+    index_granularity = 2048
   }
   columns = {
     id = {
       type = "UInt8"
     }
-    department = {
+    description = {
       type = "String"
       nullable = true
+      comment = "The product description"
     }
     sector = {
       type = "String"
       ephemeral = true
     }
-    def1 = {
+    function_default = {
       type = "String"
-      default = "'test'"
+      default = "now()"
+    }
+    literal_default = {
+      type = "String"
+      default = "'Department 1'"
     }
     mat1 = {
       type = "String"
-      materialized = "'mat'"
-      comment = "test"
+      materialized = "'Example literal'"
     }
     alias = {
-      type = "String"
-      alias = "'alias'"
+      type = "DateTime"
+      alias = "now()"
     }
   }
 }

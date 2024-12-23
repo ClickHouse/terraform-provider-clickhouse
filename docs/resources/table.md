@@ -3,12 +3,14 @@
 page_title: "clickhouse_table Resource - clickhouse"
 subcategory: ""
 description: |-
-  CHANGEME
+  Use the clickhouse_table resource to create a table in a ClickHouse cloud service.
+  WARNING: This is an experimental resource it might change without prior notice in the future. Please use with care.
 ---
 
 # clickhouse_table (Resource)
 
-CHANGEME
+Use the *clickhouse_table* resource to create a table in a ClickHouse cloud *service*.
+WARNING: This is an experimental resource it might change without prior notice in the future. Please use with care.
 
 
 

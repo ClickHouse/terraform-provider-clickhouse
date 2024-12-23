@@ -26,5 +26,5 @@ type Client interface {
 	CreateTable(ctx context.Context, serviceID string, table Table) error
 	GetTable(ctx context.Context, serviceID, database, name string) (*Table, error)
 	DeleteTable(ctx context.Context, serviceID, database, name string) error
-	//SyncTable(ctx context.Context, table Table) error
+	SyncTable(ctx context.Context, serviceID string, table Table) error
 }

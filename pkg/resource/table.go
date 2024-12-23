@@ -54,6 +54,9 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"service_id": schema.StringAttribute{
 				Description: "ClickHouse Service ID",
 				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"database": schema.StringAttribute{
 				Required:    true,
@@ -169,7 +172,9 @@ func (r *TableResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Validators:  nil,
 			},
 		},
-		MarkdownDescription: `CHANGEME`,
+		MarkdownDescription: `Use the *clickhouse_table* resource to create a table in a ClickHouse cloud *service*.
+WARNING: This is an experimental resource it might change without prior notice in the future. Please use with care.
+`,
 	}
 }
 
@@ -213,6 +218,14 @@ func (r *TableResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
+	if state == nil {
+		resp.Diagnostics.AddError(
+			"Error reading table",
+			"Could not find table, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -235,59 +248,61 @@ func (r *TableResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	diags = resp.State.Set(ctx, state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+	if state == nil {
+		// Table does not exist, remove from state.
+		resp.State.RemoveResource(ctx)
+	} else {
+		diags = resp.State.Set(ctx, state)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *TableResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	//var plan models.TableResourceModel
-	//diags := req.Plan.Get(ctx, &plan)
-	//resp.Diagnostics.Append(diags...)
-	//if resp.Diagnostics.HasError() {
-	//	return
-	//}
-	//
-	//dbMgr, err := getDBManager(ctx, plan.QueryAPIEndpoint.ValueString())
-	//if err != nil {
-	//	resp.Diagnostics.AddError(
-	//		"Error reading table",
-	//		"Could not create dbMgr, unexpected error: "+err.Error(),
-	//	)
-	//	return
-	//}
-	//
-	//table, diagnostics := tableFromPlan(ctx, plan)
-	//if diagnostics.HasError() {
-	//	resp.Diagnostics.Append(diagnostics.Errors()...)
-	//	return
-	//}
-	//
-	//err = dbMgr.SyncTable(ctx, *table)
-	//if err != nil {
-	//	resp.Diagnostics.AddError(
-	//		"Error syncing table",
-	//		"Could not sync table, unexpected error: "+err.Error(),
-	//	)
-	//	return
-	//}
-	//
-	//state, diagnostics := r.syncTableState(ctx, dbMgr, plan.Database.ValueString(), plan.Name.ValueString())
-	//if diagnostics.HasError() {
-	//	resp.Diagnostics.Append(diagnostics...)
-	//	return
-	//}
-	//
-	//state.QueryAPIEndpoint = plan.QueryAPIEndpoint
-	//
-	//diags = resp.State.Set(ctx, state)
-	//resp.Diagnostics.Append(diags...)
-	//if resp.Diagnostics.HasError() {
-	//	return
-	//}
+	var plan models.TableResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	table, diagnostics := tableFromPlan(ctx, plan)
+	if diagnostics.HasError() {
+		resp.Diagnostics.Append(diagnostics.Errors()...)
+		return
+	}
+
+	err := r.client.SyncTable(ctx, plan.ServiceID.ValueString(), *table)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error syncing table",
+			"Could not sync table, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	state, diagnostics := r.syncTableState(ctx, plan.ServiceID.ValueString(), plan.Database.ValueString(), plan.Name.ValueString())
+	if diagnostics.HasError() {
+		resp.Diagnostics.Append(diagnostics...)
+		return
+	}
+
+	if state == nil {
+		resp.Diagnostics.AddError(
+			"Error reading table",
+			"Could not find table, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	diags = resp.State.Set(ctx, state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -331,6 +346,10 @@ func (r *TableResource) syncTableState(ctx context.Context, serviceID, database,
 	table, err := r.client.GetTable(ctx, serviceID, database, tableName)
 	if err != nil {
 		return nil, []diag.Diagnostic{diag.NewErrorDiagnostic("Error reading table state", err.Error())}
+	}
+
+	if table == nil {
+		return nil, nil
 	}
 
 	state := &models.TableResourceModel{
