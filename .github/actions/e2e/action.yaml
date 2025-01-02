@@ -1,6 +1,14 @@
 name: "Run e2e tests"
 description: "Run end to end tests for terraform provider"
 inputs:
+  enable_debug:
+    required: false
+    default: "false"
+    description: "If true it adds TF_LOG=debug to terraform commands"
+  api_url:
+    required: false
+    description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
+    default: ""
   organization_id:
     required: true
     description: "The clickhouse organization ID"
@@ -119,6 +127,17 @@ runs:
         git checkout tags/${{ steps.get_latest_stable_release.outputs.tag }}
         echo "::group::Run terraform using latest stable version"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+        
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+          echo "Using '$CLICKHOUSE_API_URL' as API URL"
+        fi
+                
+        if [ "${{ inputs.enable_debug }}" == "true" ]; then
+          export TF_LOG=debug
+        fi
+                
         terraform init -input=false
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
@@ -150,6 +169,16 @@ runs:
         echo "::group::Run terraform"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
                 
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+          echo "Using '$CLICKHOUSE_API_URL' as API URL"
+        fi
+        
+        if [ "${{ inputs.enable_debug }}" == "true" ]; then
+          export TF_LOG=debug
+        fi
+                
         terraform init -input=false -upgrade
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
@@ -162,5 +191,16 @@ runs:
       run: |
         echo "::group::Run terraform destroy"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+        
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+          echo "Using '$CLICKHOUSE_API_URL' as API URL"
+        fi
+        
+        if [ "${{ inputs.enable_debug }}" == "true" ]; then
+          export TF_LOG=debug
+        fi
+        
         terraform destroy -no-color -auto-approve -var-file=variables.tfvars
         echo "::endgroup::"
