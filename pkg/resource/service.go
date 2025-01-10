@@ -321,7 +321,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 	if !req.State.Raw.IsNull() {
 		// Validations for updates.
-		if !plan.BYOCID.IsNull() && plan.BYOCID != state.BYOCID {
+		if !plan.BYOCID.IsNull() && !plan.BYOCID.IsUnknown() && plan.BYOCID != state.BYOCID {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("byocid"),
 				"Invalid Update",
