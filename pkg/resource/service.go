@@ -64,8 +64,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"byoc_id": schema.StringAttribute{
-				// TODO
-				Description: "Put real description here.",
+				Description: "BYOC ID related to the cloud provider account you want to create this service into.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
