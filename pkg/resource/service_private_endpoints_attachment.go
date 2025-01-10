@@ -44,7 +44,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Schema(_ context.Context, _ 
 				Default:     listdefault.StaticValue(tfutils.CreateEmptyList(types.StringType)),
 			},
 			"service_id": schema.StringAttribute{
-				Description: "ClickHouse Servie ID",
+				Description: "ClickHouse Service ID",
 				Optional:    true,
 			},
 		},
