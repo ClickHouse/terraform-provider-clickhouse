@@ -98,7 +98,7 @@ func (b BackupConfiguration) ObjectValue() basetypes.ObjectValue {
 
 type ServiceResourceModel struct {
 	ID                              types.String `tfsdk:"id"`
-	BYOCId                          types.String `tfsdk:"byoc_id"`
+	BYOCID                          types.String `tfsdk:"byoc_id"`
 	Name                            types.String `tfsdk:"name"`
 	Password                        types.String `tfsdk:"password"`
 	PasswordHash                    types.String `tfsdk:"password_hash"`
@@ -125,7 +125,7 @@ type ServiceResourceModel struct {
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 	if !m.ID.Equal(b.ID) ||
-		!m.BYOCId.Equal(b.BYOCId) ||
+		!m.BYOCID.Equal(b.BYOCID) ||
 		!m.Name.Equal(b.Name) ||
 		!m.Password.Equal(b.Password) ||
 		!m.PasswordHash.Equal(b.PasswordHash) ||

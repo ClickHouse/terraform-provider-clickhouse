@@ -321,7 +321,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 	if !req.State.Raw.IsNull() {
 		// Validations for updates.
-		if !plan.BYOCId.IsNull() && plan.BYOCId != state.BYOCId {
+		if !plan.BYOCID.IsNull() && plan.BYOCID != state.BYOCID {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("byocid"),
 				"Invalid Update",
@@ -381,7 +381,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	if plan.Tier.ValueString() == api.TierDevelopment {
-		if !plan.BYOCId.IsNull() && !plan.BYOCId.IsUnknown() {
+		if !plan.BYOCID.IsNull() && !plan.BYOCID.IsUnknown() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"byoc_id cannot be defined if the service tier is development",
@@ -438,7 +438,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 	} else if plan.Tier.ValueString() == api.TierProduction {
-		if !plan.BYOCId.IsNull() {
+		if !plan.BYOCID.IsNull() {
 			if plan.MinReplicaMemoryGb.IsNull() || plan.MinReplicaMemoryGb.IsUnknown() {
 				resp.Diagnostics.AddError(
 					"Invalid Configuration",
@@ -569,8 +569,8 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		Tier:     plan.Tier.ValueString(),
 	}
 
-	if !plan.BYOCId.IsUnknown() && !plan.BYOCId.IsNull() {
-		service.BYOCId = plan.BYOCId.ValueStringPointer()
+	if !plan.BYOCID.IsUnknown() && !plan.BYOCID.IsNull() {
+		service.BYOCId = plan.BYOCID.ValueStringPointer()
 	}
 
 	if service.Tier == api.TierProduction {
@@ -1032,9 +1032,9 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 
 	// Overwrite items with refreshed state
 	if service.BYOCId != nil {
-		state.BYOCId = types.StringValue(*service.BYOCId)
+		state.BYOCID = types.StringValue(*service.BYOCId)
 	} else {
-		state.BYOCId = types.StringNull()
+		state.BYOCID = types.StringNull()
 	}
 	state.Name = types.StringValue(service.Name)
 	state.CloudProvider = types.StringValue(service.Provider)

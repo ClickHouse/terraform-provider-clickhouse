@@ -39,7 +39,7 @@ func TestServiceResource_Equals(t *testing.T) {
 			name: "BYOC ID changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				src.BYOCId = types.StringValue("changed")
+				src.BYOCID = types.StringValue("changed")
 			}).Get(),
 			want: false,
 		},
@@ -245,7 +245,7 @@ func getBaseModel() ServiceResourceModel {
 
 	state := ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
-		BYOCId:                          types.StringNull(),
+		BYOCID:                          types.StringNull(),
 		Name:                            types.StringValue(""),
 		Password:                        types.String{},
 		PasswordHash:                    types.String{},
