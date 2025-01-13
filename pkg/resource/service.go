@@ -63,6 +63,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"byoc_id": schema.StringAttribute{
+				Description: "BYOC ID related to the cloud provider account you want to create this service into.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"name": schema.StringAttribute{
 				Description: "User defined identifier for the service.",
 				Required:    true,
@@ -313,6 +321,14 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 	if !req.State.Raw.IsNull() {
 		// Validations for updates.
+		if !plan.BYOCID.IsNull() && !plan.BYOCID.IsUnknown() && plan.BYOCID != state.BYOCID {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("byocid"),
+				"Invalid Update",
+				"ClickHouse does not support changing BYOC ID for a service",
+			)
+		}
+
 		if !plan.CloudProvider.IsNull() && plan.CloudProvider != state.CloudProvider {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cloud_provider"),
@@ -365,6 +381,13 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	if plan.Tier.ValueString() == api.TierDevelopment {
+		if !plan.BYOCID.IsNull() && !plan.BYOCID.IsUnknown() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"byoc_id cannot be defined if the service tier is development",
+			)
+		}
+
 		if !plan.MinTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
@@ -415,6 +438,22 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 	} else if plan.Tier.ValueString() == api.TierProduction {
+		if !plan.BYOCID.IsNull() {
+			if plan.MinReplicaMemoryGb.IsNull() || plan.MinReplicaMemoryGb.IsUnknown() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"min_replica_memory_gb must be defined if byoc_id is set",
+				)
+			}
+
+			if plan.MaxReplicaMemoryGb.IsNull() || plan.MaxReplicaMemoryGb.IsUnknown() {
+				resp.Diagnostics.AddError(
+					"Invalid Configuration",
+					"max_replica_memory_gb must be defined if byoc_id is set",
+				)
+			}
+		}
+
 		if plan.MinReplicaMemoryGb.IsNull() && plan.MinTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
@@ -528,6 +567,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		Provider: plan.CloudProvider.ValueString(),
 		Region:   plan.Region.ValueString(),
 		Tier:     plan.Tier.ValueString(),
+	}
+
+	if !plan.BYOCID.IsUnknown() && !plan.BYOCID.IsNull() {
+		service.BYOCId = plan.BYOCID.ValueStringPointer()
 	}
 
 	if service.Tier == api.TierProduction {
@@ -810,21 +853,21 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			replicaScaling.MaxReplicaMemoryGb = &maxTotalMemoryGb
 		}
 	}
-	if plan.MinReplicaMemoryGb != state.MinReplicaMemoryGb {
+	if !plan.MinReplicaMemoryGb.IsUnknown() && plan.MinReplicaMemoryGb != state.MinReplicaMemoryGb {
 		scalingChange = true
 		if !plan.MinReplicaMemoryGb.IsNull() {
 			minReplicaMemoryGb := int(plan.MinReplicaMemoryGb.ValueInt64())
 			replicaScaling.MinReplicaMemoryGb = &minReplicaMemoryGb
 		}
 	}
-	if plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb {
+	if !plan.MaxReplicaMemoryGb.IsUnknown() && plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb {
 		scalingChange = true
 		if !plan.MaxReplicaMemoryGb.IsUnknown() {
 			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
 			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
 	}
-	if plan.NumReplicas != state.NumReplicas {
+	if !plan.NumReplicas.IsUnknown() && plan.NumReplicas != state.NumReplicas {
 		scalingChange = true
 
 		if !plan.NumReplicas.IsNull() && !plan.NumReplicas.IsUnknown() {
@@ -988,6 +1031,11 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	}
 
 	// Overwrite items with refreshed state
+	if service.BYOCId != nil {
+		state.BYOCID = types.StringValue(*service.BYOCId)
+	} else {
+		state.BYOCID = types.StringNull()
+	}
 	state.Name = types.StringValue(service.Name)
 	state.CloudProvider = types.StringValue(service.Provider)
 	state.Region = types.StringValue(service.Region)
