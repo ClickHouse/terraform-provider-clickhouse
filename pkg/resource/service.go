@@ -853,21 +853,21 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			replicaScaling.MaxReplicaMemoryGb = &maxTotalMemoryGb
 		}
 	}
-	if plan.MinReplicaMemoryGb != state.MinReplicaMemoryGb {
+	if !plan.MinReplicaMemoryGb.IsUnknown() && plan.MinReplicaMemoryGb != state.MinReplicaMemoryGb {
 		scalingChange = true
 		if !plan.MinReplicaMemoryGb.IsNull() {
 			minReplicaMemoryGb := int(plan.MinReplicaMemoryGb.ValueInt64())
 			replicaScaling.MinReplicaMemoryGb = &minReplicaMemoryGb
 		}
 	}
-	if plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb {
+	if !plan.MaxReplicaMemoryGb.IsUnknown() && plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb {
 		scalingChange = true
 		if !plan.MaxReplicaMemoryGb.IsUnknown() {
 			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
 			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
 	}
-	if plan.NumReplicas != state.NumReplicas {
+	if !plan.NumReplicas.IsUnknown() && plan.NumReplicas != state.NumReplicas {
 		scalingChange = true
 
 		if !plan.NumReplicas.IsNull() && !plan.NumReplicas.IsUnknown() {
