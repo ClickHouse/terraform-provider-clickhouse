@@ -278,7 +278,7 @@ jobs:
   # Bump the provider version in the examples directory
   bump-examples:
     needs: [ "e2e", "import", "upgrade" ]
-    if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure' }}
+    if: ${{ needs.e2e.outputs.status != 'failure' && needs.import.outputs.status != 'failure' && needs.upgrade.outputs.status != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -319,7 +319,7 @@ jobs:
       contents: write
       pull-requests: write
     needs: [ "e2e", "import", "upgrade", "bump-examples" ]
-    if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure' }}
+    if: ${{ needs.e2e.outputs.status != 'failure' && needs.import.outputs.status != 'failure' && needs.upgrade.outputs.status != 'failure' }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -337,7 +337,7 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     needs: [ "tag", "e2e", "import", "upgrade" ]
-    if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure' }}
+    if: ${{ needs.e2e.outputs.status != 'failure' && needs.import.outputs.status != 'failure' && needs.upgrade.outputs.status != 'failure' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
