@@ -119,7 +119,7 @@ jobs:
           organization_id: ${{ steps.credentials.outputs.organization_id }}
           token_key: ${{ steps.credentials.outputs.api_key_id }}
           token_secret: ${{ steps.credentials.outputs.api_key_secret }}
-          service_name: "[e2e${test_type}]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}"
+          service_name: "[e2e]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ matrix.upgrade_test }}-${{ needs.token.outputs.token }}"
           test_name: ${{ matrix.test.name }}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
