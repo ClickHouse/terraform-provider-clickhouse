@@ -156,7 +156,7 @@ jobs:
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
       - name: upgrade
-        if: ${{inputs.test_upgrade == 'true' }}
+        if: ${{inputs.test_upgrade }}
         uses: ./.github/actions/e2e
         with:
           api_url: ${{ steps.credentials.outputs.api_url }}
