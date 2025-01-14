@@ -39,7 +39,7 @@ on:
       run_upgrade_test:
         type: boolean
         default: false
-        description: "Create service using latest stable version, then upgrade to the current version"
+        description: "If checked, additionally create service using latest stable version, then upgrade to the current version"
       enable_debug:
         type: boolean
         default: false
@@ -110,13 +110,7 @@ jobs:
       - name: Generate test name
         id: name
         run: |
-          test_type=""
-          if [ "${{inputs.run_upgrade_test}}" == "true" ]
-          then
-            test_type=" upg"
-          fi
-          
-          echo "test_name=[e2e${test_type}]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
+          echo "test_name=[e2e]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
 
       - name: Get API details for env
         id: credentials
@@ -145,7 +139,77 @@ jobs:
           test_name: ${{ matrix.test.name }}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
-          upgrade_test: ${{ inputs.run_upgrade_test }}
+          upgrade_test: "false"
+          skip_build: "${{ !contains(inputs.skip_build_from_branch, 'false') }}"
+          region: ${{ steps.credentials.outputs.region }}
+          aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+      - name: cleanup
+        if: ${{ always() && matrix.test.cloud == 'aws' && matrix.test.name == 'private_endpoint' }}
+        uses: ./.github/actions/cleanup-aws
+        with:
+          service_name: ${{steps.name.outputs.test_name}}
+          aws_region: ${{ steps.credentials.outputs.region }}
+          aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+      - name: Mark error
+        id: status
+        if: failure()
+        run: |
+          echo "status=failure" >> $GITHUB_OUTPUT
+          exit 1
+
+  upgrade:
+    outputs:
+      status: ${{ steps.status.outputs.status }}
+    needs: [ "token", "find-tf-releases", "list-examples" ]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      id-token: write
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
+        test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate test name
+        id: name
+        run: |
+          echo "test_name=[upgrade]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
+
+      - name: Get API details for env
+        id: credentials
+        env:
+          api_env: "${{ inputs.api_env }}"
+          api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
+          api_env_staging: "${{ secrets.API_ENV_STAGING }}"
+          api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
+          api_url: "${{ inputs.api_url }}"
+          organization_id: "${{ inputs.organization_id }}"
+          api_key_id: "${{ inputs.api_key_id }}"
+          api_key_secret: "${{ inputs.api_key_secret }}"
+        run: |
+          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
+
+      - name: upgrade
+        if: ${{ inputs.run_upgrade_test }}
+        id: upgrade
+        uses: ./.github/actions/e2e
+        with:
+          enable_debug: ${{ inputs.enable_debug }}
+          api_url: ${{ steps.credentials.outputs.api_url }}
+          organization_id: ${{ steps.credentials.outputs.organization_id }}
+          token_key: ${{ steps.credentials.outputs.api_key_id }}
+          token_secret: ${{ steps.credentials.outputs.api_key_secret }}
+          service_name: ${{steps.name.outputs.test_name}}
+          test_name: ${{ matrix.test.name }}
+          tf_release: ${{ matrix.tf_release }}
+          cloud_provider: ${{ matrix.test.cloud }}
+          upgrade_test: "true"
           skip_build: "${{ !contains(inputs.skip_build_from_branch, 'false') }}"
           region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
@@ -165,7 +229,7 @@ jobs:
 
   report:
     runs-on: ubuntu-latest
-    needs: [ "e2e" ]
+    needs: [ "e2e", "upgrade" ]
     if: ${{ needs.e2e.outputs.status == 'failure' }}
     steps:
       - name: Report Failure on slack
@@ -188,7 +252,7 @@ jobs:
   # Delete any leftover service that might have failed deleting
   cleanup:
     runs-on: ubuntu-latest
-    needs: [ "e2e", "token" ]
+    needs: [ "e2e", "upgrade", "token" ]
     if: always()
     continue-on-error: true
     steps:
