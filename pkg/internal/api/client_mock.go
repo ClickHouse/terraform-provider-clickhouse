@@ -3457,7 +3457,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) Optional() *mClientMockPauseC
 // Expect sets up expected params for Client.PauseClickPipe
 func (mmPauseClickPipe *mClientMockPauseClickPipe) Expect(ctx context.Context, serviceId string, clickPipeId string) *mClientMockPauseClickPipe {
 	if mmPauseClickPipe.mock.funcPauseClickPipe != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by Set")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by Set")
 	}
 
 	if mmPauseClickPipe.defaultExpectation == nil {
@@ -3465,7 +3465,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) Expect(ctx context.Context, s
 	}
 
 	if mmPauseClickPipe.defaultExpectation.paramPtrs != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by ExpectParams functions")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by ExpectParams functions")
 	}
 
 	mmPauseClickPipe.defaultExpectation.params = &ClientMockPauseClickPipeParams{ctx, serviceId, clickPipeId}
@@ -3482,7 +3482,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) Expect(ctx context.Context, s
 // ExpectCtxParam1 sets up expected param ctx for Client.PauseClickPipe
 func (mmPauseClickPipe *mClientMockPauseClickPipe) ExpectCtxParam1(ctx context.Context) *mClientMockPauseClickPipe {
 	if mmPauseClickPipe.mock.funcPauseClickPipe != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by Set")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by Set")
 	}
 
 	if mmPauseClickPipe.defaultExpectation == nil {
@@ -3490,7 +3490,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) ExpectCtxParam1(ctx context.C
 	}
 
 	if mmPauseClickPipe.defaultExpectation.params != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by Expect")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by Expect")
 	}
 
 	if mmPauseClickPipe.defaultExpectation.paramPtrs == nil {
@@ -3505,7 +3505,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) ExpectCtxParam1(ctx context.C
 // ExpectServiceIdParam2 sets up expected param serviceId for Client.PauseClickPipe
 func (mmPauseClickPipe *mClientMockPauseClickPipe) ExpectServiceIdParam2(serviceId string) *mClientMockPauseClickPipe {
 	if mmPauseClickPipe.mock.funcPauseClickPipe != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by Set")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by Set")
 	}
 
 	if mmPauseClickPipe.defaultExpectation == nil {
@@ -3513,7 +3513,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) ExpectServiceIdParam2(service
 	}
 
 	if mmPauseClickPipe.defaultExpectation.params != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by Expect")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by Expect")
 	}
 
 	if mmPauseClickPipe.defaultExpectation.paramPtrs == nil {
@@ -3528,7 +3528,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) ExpectServiceIdParam2(service
 // ExpectClickPipeIdParam3 sets up expected param clickPipeId for Client.PauseClickPipe
 func (mmPauseClickPipe *mClientMockPauseClickPipe) ExpectClickPipeIdParam3(clickPipeId string) *mClientMockPauseClickPipe {
 	if mmPauseClickPipe.mock.funcPauseClickPipe != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by Set")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by Set")
 	}
 
 	if mmPauseClickPipe.defaultExpectation == nil {
@@ -3536,7 +3536,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) ExpectClickPipeIdParam3(click
 	}
 
 	if mmPauseClickPipe.defaultExpectation.params != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by Expect")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by Expect")
 	}
 
 	if mmPauseClickPipe.defaultExpectation.paramPtrs == nil {
@@ -3551,7 +3551,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) ExpectClickPipeIdParam3(click
 // Inspect accepts an inspector function that has same arguments as the Client.PauseClickPipe
 func (mmPauseClickPipe *mClientMockPauseClickPipe) Inspect(f func(ctx context.Context, serviceId string, clickPipeId string)) *mClientMockPauseClickPipe {
 	if mmPauseClickPipe.mock.inspectFuncPauseClickPipe != nil {
-		mmPauseClickPipe.mock.t.Fatalf("Inspect function is already set for ClientMock.PauseClickPipe")
+		mmPauseClickPipe.mock.t.Fatalf("Inspect function is already set for ClientMock.ChangeClickPipeState")
 	}
 
 	mmPauseClickPipe.mock.inspectFuncPauseClickPipe = f
@@ -3562,7 +3562,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) Inspect(f func(ctx context.Co
 // Return sets up results that will be returned by Client.PauseClickPipe
 func (mmPauseClickPipe *mClientMockPauseClickPipe) Return(cp1 *ClickPipe, err error) *ClientMock {
 	if mmPauseClickPipe.mock.funcPauseClickPipe != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by Set")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by Set")
 	}
 
 	if mmPauseClickPipe.defaultExpectation == nil {
@@ -3576,11 +3576,11 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) Return(cp1 *ClickPipe, err er
 // Set uses given function f to mock the Client.PauseClickPipe method
 func (mmPauseClickPipe *mClientMockPauseClickPipe) Set(f func(ctx context.Context, serviceId string, clickPipeId string) (cp1 *ClickPipe, err error)) *ClientMock {
 	if mmPauseClickPipe.defaultExpectation != nil {
-		mmPauseClickPipe.mock.t.Fatalf("Default expectation is already set for the Client.PauseClickPipe method")
+		mmPauseClickPipe.mock.t.Fatalf("Default expectation is already set for the Client.ChangeClickPipeState method")
 	}
 
 	if len(mmPauseClickPipe.expectations) > 0 {
-		mmPauseClickPipe.mock.t.Fatalf("Some expectations are already set for the Client.PauseClickPipe method")
+		mmPauseClickPipe.mock.t.Fatalf("Some expectations are already set for the Client.ChangeClickPipeState method")
 	}
 
 	mmPauseClickPipe.mock.funcPauseClickPipe = f
@@ -3592,7 +3592,7 @@ func (mmPauseClickPipe *mClientMockPauseClickPipe) Set(f func(ctx context.Contex
 // Then helper
 func (mmPauseClickPipe *mClientMockPauseClickPipe) When(ctx context.Context, serviceId string, clickPipeId string) *ClientMockPauseClickPipeExpectation {
 	if mmPauseClickPipe.mock.funcPauseClickPipe != nil {
-		mmPauseClickPipe.mock.t.Fatalf("ClientMock.PauseClickPipe mock is already set by Set")
+		mmPauseClickPipe.mock.t.Fatalf("ClientMock.ChangeClickPipeState mock is already set by Set")
 	}
 
 	expectation := &ClientMockPauseClickPipeExpectation{
@@ -3613,7 +3613,7 @@ func (e *ClientMockPauseClickPipeExpectation) Then(cp1 *ClickPipe, err error) *C
 // Times sets number of times Client.PauseClickPipe should be invoked
 func (mmPauseClickPipe *mClientMockPauseClickPipe) Times(n uint64) *mClientMockPauseClickPipe {
 	if n == 0 {
-		mmPauseClickPipe.mock.t.Fatalf("Times of ClientMock.PauseClickPipe mock can not be zero")
+		mmPauseClickPipe.mock.t.Fatalf("Times of ClientMock.ChangeClickPipeState mock can not be zero")
 	}
 	mm_atomic.StoreUint64(&mmPauseClickPipe.expectedInvocations, n)
 	mmPauseClickPipe.expectedInvocationsOrigin = minimock.CallerInfo(1)
@@ -3666,35 +3666,35 @@ func (mmPauseClickPipe *ClientMock) PauseClickPipe(ctx context.Context, serviceI
 		if mm_want_ptrs != nil {
 
 			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
-				mmPauseClickPipe.t.Errorf("ClientMock.PauseClickPipe got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmPauseClickPipe.t.Errorf("ClientMock.ChangeClickPipeState got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmPauseClickPipe.PauseClickPipeMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
 			}
 
 			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
-				mmPauseClickPipe.t.Errorf("ClientMock.PauseClickPipe got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmPauseClickPipe.t.Errorf("ClientMock.ChangeClickPipeState got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmPauseClickPipe.PauseClickPipeMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
 			}
 
 			if mm_want_ptrs.clickPipeId != nil && !minimock.Equal(*mm_want_ptrs.clickPipeId, mm_got.clickPipeId) {
-				mmPauseClickPipe.t.Errorf("ClientMock.PauseClickPipe got unexpected parameter clickPipeId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmPauseClickPipe.t.Errorf("ClientMock.ChangeClickPipeState got unexpected parameter clickPipeId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmPauseClickPipe.PauseClickPipeMock.defaultExpectation.expectationOrigins.originClickPipeId, *mm_want_ptrs.clickPipeId, mm_got.clickPipeId, minimock.Diff(*mm_want_ptrs.clickPipeId, mm_got.clickPipeId))
 			}
 
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
-			mmPauseClickPipe.t.Errorf("ClientMock.PauseClickPipe got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+			mmPauseClickPipe.t.Errorf("ClientMock.ChangeClickPipeState got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 				mmPauseClickPipe.PauseClickPipeMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
 		}
 
 		mm_results := mmPauseClickPipe.PauseClickPipeMock.defaultExpectation.results
 		if mm_results == nil {
-			mmPauseClickPipe.t.Fatal("No results are set for the ClientMock.PauseClickPipe")
+			mmPauseClickPipe.t.Fatal("No results are set for the ClientMock.ChangeClickPipeState")
 		}
 		return (*mm_results).cp1, (*mm_results).err
 	}
 	if mmPauseClickPipe.funcPauseClickPipe != nil {
 		return mmPauseClickPipe.funcPauseClickPipe(ctx, serviceId, clickPipeId)
 	}
-	mmPauseClickPipe.t.Fatalf("Unexpected call to ClientMock.PauseClickPipe. %v %v %v", ctx, serviceId, clickPipeId)
+	mmPauseClickPipe.t.Fatalf("Unexpected call to ClientMock.ChangeClickPipeState. %v %v %v", ctx, serviceId, clickPipeId)
 	return
 }
 
@@ -3742,7 +3742,7 @@ func (m *ClientMock) MinimockPauseClickPipeDone() bool {
 func (m *ClientMock) MinimockPauseClickPipeInspect() {
 	for _, e := range m.PauseClickPipeMock.expectations {
 		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Errorf("Expected call to ClientMock.PauseClickPipe at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+			m.t.Errorf("Expected call to ClientMock.ChangeClickPipeState at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
 		}
 	}
 
@@ -3750,18 +3750,18 @@ func (m *ClientMock) MinimockPauseClickPipeInspect() {
 	// if default expectation was set then invocations count should be greater than zero
 	if m.PauseClickPipeMock.defaultExpectation != nil && afterPauseClickPipeCounter < 1 {
 		if m.PauseClickPipeMock.defaultExpectation.params == nil {
-			m.t.Errorf("Expected call to ClientMock.PauseClickPipe at\n%s", m.PauseClickPipeMock.defaultExpectation.returnOrigin)
+			m.t.Errorf("Expected call to ClientMock.ChangeClickPipeState at\n%s", m.PauseClickPipeMock.defaultExpectation.returnOrigin)
 		} else {
-			m.t.Errorf("Expected call to ClientMock.PauseClickPipe at\n%s with params: %#v", m.PauseClickPipeMock.defaultExpectation.expectationOrigins.origin, *m.PauseClickPipeMock.defaultExpectation.params)
+			m.t.Errorf("Expected call to ClientMock.ChangeClickPipeState at\n%s with params: %#v", m.PauseClickPipeMock.defaultExpectation.expectationOrigins.origin, *m.PauseClickPipeMock.defaultExpectation.params)
 		}
 	}
 	// if func was set then invocations count should be greater than zero
 	if m.funcPauseClickPipe != nil && afterPauseClickPipeCounter < 1 {
-		m.t.Errorf("Expected call to ClientMock.PauseClickPipe at\n%s", m.funcPauseClickPipeOrigin)
+		m.t.Errorf("Expected call to ClientMock.ChangeClickPipeState at\n%s", m.funcPauseClickPipeOrigin)
 	}
 
 	if !m.PauseClickPipeMock.invocationsDone() && afterPauseClickPipeCounter > 0 {
-		m.t.Errorf("Expected %d calls to ClientMock.PauseClickPipe at\n%s but found %d calls",
+		m.t.Errorf("Expected %d calls to ClientMock.ChangeClickPipeState at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.PauseClickPipeMock.expectedInvocations), m.PauseClickPipeMock.expectedInvocationsOrigin, afterPauseClickPipeCounter)
 	}
 }
@@ -4208,7 +4208,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) Optional() *mClientMockScaleC
 // Expect sets up expected params for Client.ScaleClickPipe
 func (mmScaleClickPipe *mClientMockScaleClickPipe) Expect(ctx context.Context, serviceId string, clickPipeId string, desiredReplicas int64) *mClientMockScaleClickPipe {
 	if mmScaleClickPipe.mock.funcScaleClickPipe != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Set")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Set")
 	}
 
 	if mmScaleClickPipe.defaultExpectation == nil {
@@ -4216,7 +4216,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) Expect(ctx context.Context, s
 	}
 
 	if mmScaleClickPipe.defaultExpectation.paramPtrs != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by ExpectParams functions")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by ExpectParams functions")
 	}
 
 	mmScaleClickPipe.defaultExpectation.params = &ClientMockScaleClickPipeParams{ctx, serviceId, clickPipeId, desiredReplicas}
@@ -4233,7 +4233,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) Expect(ctx context.Context, s
 // ExpectCtxParam1 sets up expected param ctx for Client.ScaleClickPipe
 func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectCtxParam1(ctx context.Context) *mClientMockScaleClickPipe {
 	if mmScaleClickPipe.mock.funcScaleClickPipe != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Set")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Set")
 	}
 
 	if mmScaleClickPipe.defaultExpectation == nil {
@@ -4241,7 +4241,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectCtxParam1(ctx context.C
 	}
 
 	if mmScaleClickPipe.defaultExpectation.params != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Expect")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Expect")
 	}
 
 	if mmScaleClickPipe.defaultExpectation.paramPtrs == nil {
@@ -4256,7 +4256,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectCtxParam1(ctx context.C
 // ExpectServiceIdParam2 sets up expected param serviceId for Client.ScaleClickPipe
 func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectServiceIdParam2(serviceId string) *mClientMockScaleClickPipe {
 	if mmScaleClickPipe.mock.funcScaleClickPipe != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Set")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Set")
 	}
 
 	if mmScaleClickPipe.defaultExpectation == nil {
@@ -4264,7 +4264,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectServiceIdParam2(service
 	}
 
 	if mmScaleClickPipe.defaultExpectation.params != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Expect")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Expect")
 	}
 
 	if mmScaleClickPipe.defaultExpectation.paramPtrs == nil {
@@ -4279,7 +4279,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectServiceIdParam2(service
 // ExpectClickPipeIdParam3 sets up expected param clickPipeId for Client.ScaleClickPipe
 func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectClickPipeIdParam3(clickPipeId string) *mClientMockScaleClickPipe {
 	if mmScaleClickPipe.mock.funcScaleClickPipe != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Set")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Set")
 	}
 
 	if mmScaleClickPipe.defaultExpectation == nil {
@@ -4287,7 +4287,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectClickPipeIdParam3(click
 	}
 
 	if mmScaleClickPipe.defaultExpectation.params != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Expect")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Expect")
 	}
 
 	if mmScaleClickPipe.defaultExpectation.paramPtrs == nil {
@@ -4302,7 +4302,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectClickPipeIdParam3(click
 // ExpectDesiredReplicasParam4 sets up expected param desiredReplicas for Client.ScaleClickPipe
 func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectDesiredReplicasParam4(desiredReplicas int64) *mClientMockScaleClickPipe {
 	if mmScaleClickPipe.mock.funcScaleClickPipe != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Set")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Set")
 	}
 
 	if mmScaleClickPipe.defaultExpectation == nil {
@@ -4310,7 +4310,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectDesiredReplicasParam4(d
 	}
 
 	if mmScaleClickPipe.defaultExpectation.params != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Expect")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Expect")
 	}
 
 	if mmScaleClickPipe.defaultExpectation.paramPtrs == nil {
@@ -4325,7 +4325,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) ExpectDesiredReplicasParam4(d
 // Inspect accepts an inspector function that has same arguments as the Client.ScaleClickPipe
 func (mmScaleClickPipe *mClientMockScaleClickPipe) Inspect(f func(ctx context.Context, serviceId string, clickPipeId string, desiredReplicas int64)) *mClientMockScaleClickPipe {
 	if mmScaleClickPipe.mock.inspectFuncScaleClickPipe != nil {
-		mmScaleClickPipe.mock.t.Fatalf("Inspect function is already set for ClientMock.ScaleClickPipe")
+		mmScaleClickPipe.mock.t.Fatalf("Inspect function is already set for ClientMock.ScalingClickPipe")
 	}
 
 	mmScaleClickPipe.mock.inspectFuncScaleClickPipe = f
@@ -4336,7 +4336,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) Inspect(f func(ctx context.Co
 // Return sets up results that will be returned by Client.ScaleClickPipe
 func (mmScaleClickPipe *mClientMockScaleClickPipe) Return(cp1 *ClickPipe, err error) *ClientMock {
 	if mmScaleClickPipe.mock.funcScaleClickPipe != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Set")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Set")
 	}
 
 	if mmScaleClickPipe.defaultExpectation == nil {
@@ -4350,11 +4350,11 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) Return(cp1 *ClickPipe, err er
 // Set uses given function f to mock the Client.ScaleClickPipe method
 func (mmScaleClickPipe *mClientMockScaleClickPipe) Set(f func(ctx context.Context, serviceId string, clickPipeId string, desiredReplicas int64) (cp1 *ClickPipe, err error)) *ClientMock {
 	if mmScaleClickPipe.defaultExpectation != nil {
-		mmScaleClickPipe.mock.t.Fatalf("Default expectation is already set for the Client.ScaleClickPipe method")
+		mmScaleClickPipe.mock.t.Fatalf("Default expectation is already set for the Client.ScalingClickPipe method")
 	}
 
 	if len(mmScaleClickPipe.expectations) > 0 {
-		mmScaleClickPipe.mock.t.Fatalf("Some expectations are already set for the Client.ScaleClickPipe method")
+		mmScaleClickPipe.mock.t.Fatalf("Some expectations are already set for the Client.ScalingClickPipe method")
 	}
 
 	mmScaleClickPipe.mock.funcScaleClickPipe = f
@@ -4366,7 +4366,7 @@ func (mmScaleClickPipe *mClientMockScaleClickPipe) Set(f func(ctx context.Contex
 // Then helper
 func (mmScaleClickPipe *mClientMockScaleClickPipe) When(ctx context.Context, serviceId string, clickPipeId string, desiredReplicas int64) *ClientMockScaleClickPipeExpectation {
 	if mmScaleClickPipe.mock.funcScaleClickPipe != nil {
-		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScaleClickPipe mock is already set by Set")
+		mmScaleClickPipe.mock.t.Fatalf("ClientMock.ScalingClickPipe mock is already set by Set")
 	}
 
 	expectation := &ClientMockScaleClickPipeExpectation{
@@ -4387,7 +4387,7 @@ func (e *ClientMockScaleClickPipeExpectation) Then(cp1 *ClickPipe, err error) *C
 // Times sets number of times Client.ScaleClickPipe should be invoked
 func (mmScaleClickPipe *mClientMockScaleClickPipe) Times(n uint64) *mClientMockScaleClickPipe {
 	if n == 0 {
-		mmScaleClickPipe.mock.t.Fatalf("Times of ClientMock.ScaleClickPipe mock can not be zero")
+		mmScaleClickPipe.mock.t.Fatalf("Times of ClientMock.ScalingClickPipe mock can not be zero")
 	}
 	mm_atomic.StoreUint64(&mmScaleClickPipe.expectedInvocations, n)
 	mmScaleClickPipe.expectedInvocationsOrigin = minimock.CallerInfo(1)
@@ -4440,40 +4440,40 @@ func (mmScaleClickPipe *ClientMock) ScaleClickPipe(ctx context.Context, serviceI
 		if mm_want_ptrs != nil {
 
 			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
-				mmScaleClickPipe.t.Errorf("ClientMock.ScaleClickPipe got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmScaleClickPipe.t.Errorf("ClientMock.ScalingClickPipe got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmScaleClickPipe.ScaleClickPipeMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
 			}
 
 			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
-				mmScaleClickPipe.t.Errorf("ClientMock.ScaleClickPipe got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmScaleClickPipe.t.Errorf("ClientMock.ScalingClickPipe got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmScaleClickPipe.ScaleClickPipeMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
 			}
 
 			if mm_want_ptrs.clickPipeId != nil && !minimock.Equal(*mm_want_ptrs.clickPipeId, mm_got.clickPipeId) {
-				mmScaleClickPipe.t.Errorf("ClientMock.ScaleClickPipe got unexpected parameter clickPipeId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmScaleClickPipe.t.Errorf("ClientMock.ScalingClickPipe got unexpected parameter clickPipeId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmScaleClickPipe.ScaleClickPipeMock.defaultExpectation.expectationOrigins.originClickPipeId, *mm_want_ptrs.clickPipeId, mm_got.clickPipeId, minimock.Diff(*mm_want_ptrs.clickPipeId, mm_got.clickPipeId))
 			}
 
 			if mm_want_ptrs.desiredReplicas != nil && !minimock.Equal(*mm_want_ptrs.desiredReplicas, mm_got.desiredReplicas) {
-				mmScaleClickPipe.t.Errorf("ClientMock.ScaleClickPipe got unexpected parameter desiredReplicas, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmScaleClickPipe.t.Errorf("ClientMock.ScalingClickPipe got unexpected parameter desiredReplicas, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmScaleClickPipe.ScaleClickPipeMock.defaultExpectation.expectationOrigins.originDesiredReplicas, *mm_want_ptrs.desiredReplicas, mm_got.desiredReplicas, minimock.Diff(*mm_want_ptrs.desiredReplicas, mm_got.desiredReplicas))
 			}
 
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
-			mmScaleClickPipe.t.Errorf("ClientMock.ScaleClickPipe got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+			mmScaleClickPipe.t.Errorf("ClientMock.ScalingClickPipe got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 				mmScaleClickPipe.ScaleClickPipeMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
 		}
 
 		mm_results := mmScaleClickPipe.ScaleClickPipeMock.defaultExpectation.results
 		if mm_results == nil {
-			mmScaleClickPipe.t.Fatal("No results are set for the ClientMock.ScaleClickPipe")
+			mmScaleClickPipe.t.Fatal("No results are set for the ClientMock.ScalingClickPipe")
 		}
 		return (*mm_results).cp1, (*mm_results).err
 	}
 	if mmScaleClickPipe.funcScaleClickPipe != nil {
 		return mmScaleClickPipe.funcScaleClickPipe(ctx, serviceId, clickPipeId, desiredReplicas)
 	}
-	mmScaleClickPipe.t.Fatalf("Unexpected call to ClientMock.ScaleClickPipe. %v %v %v %v", ctx, serviceId, clickPipeId, desiredReplicas)
+	mmScaleClickPipe.t.Fatalf("Unexpected call to ClientMock.ScalingClickPipe. %v %v %v %v", ctx, serviceId, clickPipeId, desiredReplicas)
 	return
 }
 
@@ -4521,7 +4521,7 @@ func (m *ClientMock) MinimockScaleClickPipeDone() bool {
 func (m *ClientMock) MinimockScaleClickPipeInspect() {
 	for _, e := range m.ScaleClickPipeMock.expectations {
 		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Errorf("Expected call to ClientMock.ScaleClickPipe at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+			m.t.Errorf("Expected call to ClientMock.ScalingClickPipe at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
 		}
 	}
 
@@ -4529,18 +4529,18 @@ func (m *ClientMock) MinimockScaleClickPipeInspect() {
 	// if default expectation was set then invocations count should be greater than zero
 	if m.ScaleClickPipeMock.defaultExpectation != nil && afterScaleClickPipeCounter < 1 {
 		if m.ScaleClickPipeMock.defaultExpectation.params == nil {
-			m.t.Errorf("Expected call to ClientMock.ScaleClickPipe at\n%s", m.ScaleClickPipeMock.defaultExpectation.returnOrigin)
+			m.t.Errorf("Expected call to ClientMock.ScalingClickPipe at\n%s", m.ScaleClickPipeMock.defaultExpectation.returnOrigin)
 		} else {
-			m.t.Errorf("Expected call to ClientMock.ScaleClickPipe at\n%s with params: %#v", m.ScaleClickPipeMock.defaultExpectation.expectationOrigins.origin, *m.ScaleClickPipeMock.defaultExpectation.params)
+			m.t.Errorf("Expected call to ClientMock.ScalingClickPipe at\n%s with params: %#v", m.ScaleClickPipeMock.defaultExpectation.expectationOrigins.origin, *m.ScaleClickPipeMock.defaultExpectation.params)
 		}
 	}
 	// if func was set then invocations count should be greater than zero
 	if m.funcScaleClickPipe != nil && afterScaleClickPipeCounter < 1 {
-		m.t.Errorf("Expected call to ClientMock.ScaleClickPipe at\n%s", m.funcScaleClickPipeOrigin)
+		m.t.Errorf("Expected call to ClientMock.ScalingClickPipe at\n%s", m.funcScaleClickPipeOrigin)
 	}
 
 	if !m.ScaleClickPipeMock.invocationsDone() && afterScaleClickPipeCounter > 0 {
-		m.t.Errorf("Expected %d calls to ClientMock.ScaleClickPipe at\n%s but found %d calls",
+		m.t.Errorf("Expected %d calls to ClientMock.ScalingClickPipe at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ScaleClickPipeMock.expectedInvocations), m.ScaleClickPipeMock.expectedInvocationsOrigin, afterScaleClickPipeCounter)
 	}
 }

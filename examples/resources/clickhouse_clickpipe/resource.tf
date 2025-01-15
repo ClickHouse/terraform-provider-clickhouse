@@ -13,6 +13,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
   source {
     kafka {
       type = "confluent"
+      format = "JSONEachRow"
       brokers = "my-kafka-broker:9092"
       topics = "my_topic"
 
@@ -23,15 +24,17 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
         password = "***"
       }
     }
-
-    schema {
-      format = "JSONEachRow"
-    }
   }
 
   destination {
     table    = "my_table"
     managed_table = true
+    
+    tableDefinition {
+      engine {
+        type = "MergeTree"
+      }
+    }
 
     columns {
       name = "my_field1"

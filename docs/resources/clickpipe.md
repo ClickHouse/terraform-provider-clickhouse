@@ -28,6 +28,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
   source {
     kafka {
       type = "confluent"
+      format = "JSONEachRow"
       brokers = "my-kafka-broker:9092"
       topics = "my_topic"
 
@@ -38,15 +39,17 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
         password = "***"
       }
     }
-
-    schema {
-      format = "JSONEachRow"
-    }
   }
 
   destination {
     table    = "my_table"
     managed_table = true
+    
+    tableDefinition {
+      engine {
+        type = "MergeTree"
+      }
+    }
 
     columns {
       name = "my_field1"
@@ -101,6 +104,8 @@ Optional:
 
 - `database` (String) The name of the ClickHouse database. Default is `default`.
 - `managed_table` (Boolean) Whether the table is managed by ClickHouse Cloud. If `false`, the table must exist in the database. Default is `true`.
+- `roles` (List of String) ClickPipe will create a ClickHouse user with these roles. Add your custom roles here if required.
+- `table_definition` (Attributes) Definition of the destination table. Required for ClickPipes managed tables. (see [below for nested schema](#nestedatt--destination--table_definition))
 
 <a id="nestedatt--destination--columns"></a>
 ### Nested Schema for `destination.columns`
@@ -111,25 +116,35 @@ Required:
 - `type` (String) The type of the column.
 
 
+<a id="nestedatt--destination--table_definition"></a>
+### Nested Schema for `destination.table_definition`
+
+Required:
+
+- `engine` (Attributes) The engine of the ClickHouse table. (see [below for nested schema](#nestedatt--destination--table_definition--engine))
+
+Optional:
+
+- `partition_by` (String) The column to partition the table by.
+- `primary_key` (String) The primary key of the table.
+- `sorting_key` (List of String) The list of columns for the sorting key.
+
+<a id="nestedatt--destination--table_definition--engine"></a>
+### Nested Schema for `destination.table_definition.engine`
+
+Required:
+
+- `type` (String) The type of the engine. Only `MergeTree` is supported.
+
+
+
 
 <a id="nestedatt--source"></a>
 ### Nested Schema for `source`
 
-Required:
-
-- `schema` (Attributes) (see [below for nested schema](#nestedatt--source--schema))
-
 Optional:
 
 - `kafka` (Attributes) (see [below for nested schema](#nestedatt--source--kafka))
-
-<a id="nestedatt--source--schema"></a>
-### Nested Schema for `source.schema`
-
-Required:
-
-- `format` (String) The format of the schema. (`JSONEachRow`, `Avro`)
-
 
 <a id="nestedatt--source--kafka"></a>
 ### Nested Schema for `source.kafka`
@@ -137,22 +152,61 @@ Required:
 Required:
 
 - `brokers` (String) The list of Kafka bootstrap brokers. (comma separated)
-- `credentials` (Attributes) (see [below for nested schema](#nestedatt--source--kafka--credentials))
+- `credentials` (Attributes) The credentials for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--credentials))
+- `format` (String) The format of the Kafka source. (`JSONEachRow`, `Avro`, `AvroConfluent`)
 - `topics` (String) The list of Kafka topics. (comma separated)
 
 Optional:
 
-- `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`). Default is `PLAIN`.
-- `consumer_group` (String) The Kafka consumer group. Default is `clickpipes-<ID>`.
-- `type` (String) The type of the Kafka source. (`kafka`, `msk`, `confluent`). Default is `kafka`.
+- `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `IAM_ROLE`, `IAM_USER`). Default is `PLAIN`.
+- `ca_certificate` (String) PEM encoded CA certificates to validate the broker's certificate.
+- `consumer_group` (String) Consumer group of the Kafka source. If not provided `clickpipes-<ID>` will be used.
+- `iam_role` (String) The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam)
+- `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
+- `schema_registry` (Attributes) The schema registry for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
+- `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`). Default is `kafka`.
 
 <a id="nestedatt--source--kafka--credentials"></a>
 ### Nested Schema for `source.kafka.credentials`
 
+Optional:
+
+- `access_key_id` (String, Sensitive) The access key ID for the Kafka source. Use with `IAM_USER` authentication.
+- `connection_string` (String, Sensitive) The connection string for the Kafka source. Use with `azureeventhub` Kafka source type. Use with `PLAIN` authentication.
+- `password` (String, Sensitive) The password for the Kafka source.
+- `secret_key` (String, Sensitive) The secret key for the Kafka source. Use with `IAM_USER` authentication.
+- `username` (String, Sensitive) The username for the Kafka source.
+
+
+<a id="nestedatt--source--kafka--offset"></a>
+### Nested Schema for `source.kafka.offset`
+
 Required:
 
-- `password` (String, Sensitive) The password for the Kafka source.
-- `username` (String, Sensitive) The username for the Kafka source.
+- `strategy` (String) The offset strategy for the Kafka source. (`from_beginning`, `from_latest`, `from_timestamp`)
+
+Optional:
+
+- `timestamp` (String) The timestamp for the Kafka offset. Use with `from_timestamp` offset strategy.
+
+
+<a id="nestedatt--source--kafka--schema_registry"></a>
+### Nested Schema for `source.kafka.schema_registry`
+
+Required:
+
+- `authentication` (String) The authentication method for the Schema Registry. Only supported is `PLAIN`.
+- `credentials` (Attributes) The credentials for the Schema Registry. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--credentials))
+- `url` (String) The URL of the schema registry.
+
+<a id="nestedatt--source--kafka--schema_registry--credentials"></a>
+### Nested Schema for `source.kafka.schema_registry.credentials`
+
+Required:
+
+- `password` (String, Sensitive) The password for the Schema Registry.
+- `username` (String, Sensitive) The username for the Schema Registry.
+
 
 
 

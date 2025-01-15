@@ -20,8 +20,7 @@ type Client interface {
 	GetClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
 	CreateClickPipe(ctx context.Context, serviceId string, clickPipe ClickPipe) (*ClickPipe, error)
 	WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds int) (*ClickPipe, error)
-	ScaleClickPipe(ctx context.Context, serviceId string, clickPipeId string, desiredReplicas int64) (*ClickPipe, error)
-	PauseClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
-	ResumeClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
+	ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling) (*ClickPipe, error)
+	ChangeClickPipeState(ctx context.Context, serviceId string, clickPipeId string, command string) (*ClickPipe, error)
 	DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error
 }

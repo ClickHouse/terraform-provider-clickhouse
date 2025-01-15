@@ -17,24 +17,79 @@ const (
 )
 
 const (
-	ClickPipeJSONEachRowFormat = "JSONEachRow"
-	ClickPipesAvroFormat       = "Avro"
+	ClickPipeStateStart = "start"
+	ClickPipeStateStop  = "stop"
 )
+
+const (
+	ClickPipeJSONEachRowFormat   = "JSONEachRow"
+	ClickPipeAvroFormat          = "Avro"
+	ClickPipeAvroConfluentFormat = "AvroConfluent"
+	ClickPipeCSVFormat           = "CSV"
+	ClickPipeCSVWithNamesFormat  = "CSVWithNames"
+	ClickPipeParquetFormat       = "Parquet"
+)
+
+var ClickPipeKafkaFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeAvroConfluentFormat,
+}
 
 const (
 	ClickPipeKafkaAuthenticationPlain       = "PLAIN"
 	ClickPipeKafkaAuthenticationScramSha256 = "SCRAM-SHA-256"
 	ClickPipeKafkaAuthenticationScramSha512 = "SCRAM-SHA-512"
+
+	ClickPipeAuthenticationIAMRole = "IAM_ROLE"
+	ClickPipeAuthenticationIAMUser = "IAM_USER"
 )
+
+var ClickPipeKafkaAuthenticationMethods = []string{
+	ClickPipeKafkaAuthenticationPlain,
+	ClickPipeKafkaAuthenticationScramSha256,
+	ClickPipeKafkaAuthenticationScramSha512,
+	ClickPipeAuthenticationIAMRole,
+	ClickPipeAuthenticationIAMUser,
+}
 
 const (
-	ClickPipeKafkaSourceType     = "kafka"
-	ClickPipeConfluentSourceType = "confluent"
-	ClickPipeMSKSourceType       = "msk"
+	ClickPipeKafkaSourceType              = "kafka"
+	ClickPipeKafkaRedpandaSourceType      = "redpanda"
+	ClickPipeKafkaConfluentSourceType     = "confluent"
+	ClickPipeKafkaMSKSourceType           = "msk"
+	ClickPipeKafkaWarpStreamSourceType    = "warpstream"
+	ClickPipeKafkaAzureEventHubSourceType = "azureeventhub"
 )
 
-type ClickPipeScaleRequest struct {
-	Desired int64 `json:"desired"`
+var ClickPipeKafkaSourceTypes = []string{
+	ClickPipeKafkaSourceType,
+	ClickPipeKafkaRedpandaSourceType,
+	ClickPipeKafkaConfluentSourceType,
+	ClickPipeKafkaMSKSourceType,
+	ClickPipeKafkaWarpStreamSourceType,
+	ClickPipeKafkaAzureEventHubSourceType,
+}
+
+const (
+	ClickPipeKafkaOffsetFromBeginningStrategy = "from_beginning"
+	ClickPipeKafkaOffsetFromLatestStrategy    = "from_latest"
+	ClickPipeKafkaOffsetFromTimestampStrategy = "from_timestamp"
+)
+
+var ClickPipeKafkaOffsetStrategies = []string{
+	ClickPipeKafkaOffsetFromBeginningStrategy,
+	ClickPipeKafkaOffsetFromLatestStrategy,
+	ClickPipeKafkaOffsetFromTimestampStrategy,
+}
+
+type ClickPipeScalingRequest struct {
+	Replicas    *int64 `json:"replicas,omitempty"`
+	Concurrency *int64 `json:"concurrency,omitempty"`
+}
+
+type ClickPipeStateRequest struct {
+	Command string `json:"command"`
 }
 
 func (c *ClientImpl) getClickPipePath(serviceId, clickPipeId, path string) string {
@@ -112,56 +167,53 @@ func (c *ClientImpl) WaitForClickPipeState(ctx context.Context, serviceId string
 	}, maxWaitSeconds)
 }
 
-func (c *ClientImpl) ScaleClickPipe(ctx context.Context, serviceId string, clickPipeId string, desiredReplicas int64) (*ClickPipe, error) {
+func (c *ClientImpl) ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling) (*ClickPipe, error) {
 	var payload bytes.Buffer
-	if err := json.NewEncoder(&payload).Encode(ClickPipeScaleRequest{
-		Desired: desiredReplicas,
+	if err := json.NewEncoder(&payload).Encode(request); err != nil {
+		return nil, fmt.Errorf("failed to encode ClickPipe: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.getClickPipePath(serviceId, clickPipeId, "/scaling"), &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	clickPipeResponse := ResponseWithResult[ClickPipe]{}
+	if err := json.Unmarshal(body, &clickPipeResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ClickPipe: %w", err)
+	}
+
+	return &clickPipeResponse.Result, nil
+}
+
+func (c *ClientImpl) ChangeClickPipeState(ctx context.Context, serviceId string, clickPipeId string, command string) (*ClickPipe, error) {
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(ClickPipeStateRequest{
+		Command: command,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to encode ClickPipe: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.getClickPipePath(serviceId, clickPipeId, "/scale"), &payload)
+	req, err := http.NewRequest(http.MethodPatch, c.getClickPipePath(serviceId, clickPipeId, "/state"), &payload)
 	if err != nil {
 		return nil, err
 	}
-	_, err = c.doRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.waitForClickPipe(ctx, serviceId, clickPipeId, func(clickPipe *ClickPipe) bool {
-		return clickPipe.Scaling != nil && clickPipe.Scaling.Replicas == desiredReplicas
-	}, 300)
-}
-
-func (c *ClientImpl) PauseClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error) {
-	req, err := http.NewRequest(http.MethodPost, c.getClickPipePath(serviceId, clickPipeId, "/pause"), nil)
-	if err != nil {
-		return nil, err
-	}
-	_, err = c.doRequest(ctx, req)
+	body, err := c.doRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.WaitForClickPipeState(ctx, serviceId, clickPipeId, func(state string) bool {
-		return state == ClickPipeStoppedState
-	}, 300)
-}
-
-func (c *ClientImpl) ResumeClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error) {
-	req, err := http.NewRequest(http.MethodPost, c.getClickPipePath(serviceId, clickPipeId, "/resume"), nil)
-	if err != nil {
-		return nil, err
-	}
-	_, err = c.doRequest(ctx, req)
-	if err != nil {
-		return nil, err
+	clickPipeResponse := ResponseWithResult[ClickPipe]{}
+	if err := json.Unmarshal(body, &clickPipeResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ClickPipe: %w", err)
 	}
 
-	return c.WaitForClickPipeState(ctx, serviceId, clickPipeId, func(state string) bool {
-		return state == ClickPipeRunningState
-	}, 300)
+	return &clickPipeResponse.Result, nil
 }
 
 func (c *ClientImpl) DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error {
