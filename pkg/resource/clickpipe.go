@@ -9,6 +9,7 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -708,6 +709,71 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	}
 
 	state.Source = sourceModel.ObjectValue()
+
+	destinationModel := models.ClickPipeDestinationModel{
+		Database:        types.StringValue(clickPipe.Destination.Database),
+		Table:           types.StringValue(clickPipe.Destination.Table),
+		ManagedTable:    types.BoolValue(clickPipe.Destination.ManagedTable),
+		TableDefinition: types.Object{},
+		Columns:         types.List{},
+		Roles:           types.List{},
+	}
+
+	stateDestinationModel := models.ClickPipeDestinationModel{}
+	if diags := state.Destination.As(ctx, &stateDestinationModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return fmt.Errorf("error reading ClickPipe destination: %v", diags)
+	}
+
+	if clickPipe.Destination.TableDefinition != nil {
+		engineModel := models.ClickPipeDestinationTableEngineModel{
+			Type: types.StringValue(clickPipe.Destination.TableDefinition.Engine.Type),
+		}
+
+		tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{
+			Engine:      engineModel.ObjectValue(),
+			PartitionBy: types.StringPointerValue(clickPipe.Destination.TableDefinition.PartitionBy),
+			PrimaryKey:  types.StringPointerValue(clickPipe.Destination.TableDefinition.PrimaryKey),
+		}
+
+		if len(clickPipe.Destination.TableDefinition.SortingKey) > 0 {
+			sortingKeyList := make([]attr.Value, len(clickPipe.Destination.TableDefinition.SortingKey))
+			for i, sortingKey := range clickPipe.Destination.TableDefinition.SortingKey {
+				sortingKeyList[i] = types.StringValue(sortingKey)
+			}
+			tableDefinitionModel.SortingKey, _ = types.ListValue(types.StringType, sortingKeyList)
+		} else {
+			tableDefinitionModel.SortingKey = types.ListNull(types.StringType)
+		}
+
+		destinationModel.TableDefinition = tableDefinitionModel.ObjectValue()
+
+		columnList := make([]attr.Value, len(clickPipe.Destination.Columns))
+		for i, column := range clickPipe.Destination.Columns {
+			columnList[i] = models.ClickPipeDestinationColumnModel{
+				Name: types.StringValue(column.Name),
+				Type: types.StringValue(column.Type),
+			}.ObjectValue()
+		}
+
+		destinationModel.Columns, _ = types.ListValue(models.ClickPipeDestinationColumnModel{}.ObjectType(), columnList)
+
+		// Destination roles are not persisted on ClickPipes side. Used only during pipe creation.
+		destinationModel.Roles = stateDestinationModel.Roles
+	} else {
+		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
+	}
+
+	state.Destination = destinationModel.ObjectValue()
+
+	fieldMappingList := make([]attr.Value, len(clickPipe.FieldMappings))
+	for i, fieldMapping := range clickPipe.FieldMappings {
+		fieldMappingList[i] = models.ClickPipeFieldMappingModel{
+			SourceField:      types.StringValue(fieldMapping.SourceField),
+			DestinationField: types.StringValue(fieldMapping.DestinationField),
+		}.ObjectValue()
+	}
+
+	state.FieldMappings, _ = types.ListValue(models.ClickPipeFieldMappingModel{}.ObjectType(), fieldMappingList)
 
 	return nil
 }
