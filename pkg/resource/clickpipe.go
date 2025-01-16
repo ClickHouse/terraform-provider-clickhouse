@@ -716,19 +716,14 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		replicasModel := models.ClickPipeScalingModel{}
 		response.Diagnostics.Append(plan.Scaling.As(ctx, &replicasModel, basetypes.ObjectAsOptions{})...)
 
-		var desiredReplicas, desiredConcurrency *int64
+		var desiredReplicas *int64
 		if !replicasModel.Replicas.IsNull() && createdClickPipe.Scaling.Replicas != nil && *createdClickPipe.Scaling.Replicas != replicasModel.Replicas.ValueInt64() {
 			desiredReplicas = replicasModel.Replicas.ValueInt64Pointer()
 		}
 
-		//if !replicasModel.Concurrency.IsNull() && createdClickPipe.Scaling.Concurrency != nil && *createdClickPipe.Scaling.Concurrency != replicasModel.Concurrency.ValueInt64() {
-		//	desiredConcurrency = replicasModel.Concurrency.ValueInt64Pointer()
-		//}
-
-		if desiredReplicas != nil || desiredConcurrency != nil {
+		if desiredReplicas != nil {
 			scalingRequest := api.ClickPipeScaling{
-				Replicas:    desiredReplicas,
-				Concurrency: desiredConcurrency,
+				Replicas: desiredReplicas,
 			}
 
 			if createdClickPipe, err = c.client.ScalingClickPipe(ctx, serviceID, createdClickPipe.ID, scalingRequest); err != nil {
@@ -796,7 +791,6 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	if clickPipe.Scaling != nil && clickPipe.Scaling.Replicas != nil {
 		scalingModel := models.ClickPipeScalingModel{
 			Replicas: types.Int64PointerValue(clickPipe.Scaling.Replicas),
-			//Concurrency: types.Int64PointerValue(clickPipe.Scaling.Concurrency),
 		}
 
 		state.Scaling = scalingModel.ObjectValue()

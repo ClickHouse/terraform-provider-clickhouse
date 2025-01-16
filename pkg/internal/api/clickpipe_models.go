@@ -3,8 +3,7 @@ package api
 import "time"
 
 type ClickPipeScaling struct {
-	Replicas    *int64 `json:"replicas,omitempty"`
-	Concurrency *int64 `json:"-"` // Concurrency is not available in API yet
+	Replicas *int64 `json:"replicas,omitempty"`
 }
 
 type ClickPipeSourceCredentials struct {
