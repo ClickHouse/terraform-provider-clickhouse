@@ -99,9 +99,16 @@ func (m ClickPipeSourceAccessKeyModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"access_key_id": types.StringType,
-			"secret_key: ":  types.StringType,
+			"secret_key":    types.StringType,
 		},
 	}
+}
+
+func (m ClickPipeSourceAccessKeyModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"access_key_id": m.AccessKeyID,
+		"secret_key":    m.SecretKey,
+	})
 }
 
 type ClickPipeKafkaSourceCredentialsModel struct {
@@ -189,21 +196,66 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeObjectStorageSourceModel struct {
+	Type           types.String `tfsdk:"type"`
+	Format         types.String `tfsdk:"format"`
+	URL            types.String `tfsdk:"url"`
+	Delimiter      types.String `tfsdk:"delimiter"`
+	Compression    types.String `tfsdk:"compression"`
+	IsContinuous   types.Bool   `tfsdk:"is_continuous"`
+	Authentication types.String `tfsdk:"authentication"`
+	AccessKey      types.Object `tfsdk:"access_key"`
+	IAMRole        types.String `tfsdk:"iam_role"`
+}
+
+func (m ClickPipeObjectStorageSourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"type":           types.StringType,
+			"format":         types.StringType,
+			"url":            types.StringType,
+			"delimiter":      types.StringType,
+			"compression":    types.StringType,
+			"is_continuous":  types.BoolType,
+			"authentication": types.StringType,
+			"access_key":     ClickPipeSourceAccessKeyModel{}.ObjectType(),
+			"iam_role":       types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeObjectStorageSourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"type":           m.Type,
+		"format":         m.Format,
+		"url":            m.URL,
+		"delimiter":      m.Delimiter,
+		"compression":    m.Compression,
+		"is_continuous":  m.IsContinuous,
+		"authentication": m.Authentication,
+		"access_key":     m.AccessKey,
+		"iam_role":       m.IAMRole,
+	})
+}
+
 type ClickPipeSourceModel struct {
-	Kafka types.Object `tfsdk:"kafka"`
+	Kafka         types.Object `tfsdk:"kafka"`
+	ObjectStorage types.Object `tfsdk:"object_storage"`
 }
 
 func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"kafka": ClickPipeKafkaSourceModel{}.ObjectType(),
+			"kafka":          ClickPipeKafkaSourceModel{}.ObjectType(),
+			"object_storage": ClickPipeObjectStorageSourceModel{}.ObjectType(),
 		},
 	}
 }
 
 func (m ClickPipeSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"kafka": m.Kafka,
+		"kafka":          m.Kafka,
+		"object_storage": m.ObjectStorage,
 	})
 }
 

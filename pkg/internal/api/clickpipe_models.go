@@ -64,7 +64,7 @@ type ClickPipeObjectStorageSource struct {
 
 	IsContinuous bool `json:"isContinuous"`
 
-	Authentication string                    `json:"authentication"`
+	Authentication *string                   `json:"authentication,omitempty"`
 	AccessKey      *ClickPipeSourceAccessKey `json:"accessKey,omitempty"`
 	IAMRole        *string                   `json:"iamRole,omitempty"`
 }

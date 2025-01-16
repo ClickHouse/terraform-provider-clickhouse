@@ -37,12 +37,12 @@ var ClickPipeKafkaFormats = []string{
 }
 
 const (
+	ClickPipeAuthenticationIAMRole = "IAM_ROLE"
+	ClickPipeAuthenticationIAMUser = "IAM_USER"
+
 	ClickPipeKafkaAuthenticationPlain       = "PLAIN"
 	ClickPipeKafkaAuthenticationScramSha256 = "SCRAM-SHA-256"
 	ClickPipeKafkaAuthenticationScramSha512 = "SCRAM-SHA-512"
-
-	ClickPipeAuthenticationIAMRole = "IAM_ROLE"
-	ClickPipeAuthenticationIAMUser = "IAM_USER"
 )
 
 var ClickPipeKafkaAuthenticationMethods = []string{
@@ -69,6 +69,48 @@ var ClickPipeKafkaSourceTypes = []string{
 	ClickPipeKafkaMSKSourceType,
 	ClickPipeKafkaWarpStreamSourceType,
 	ClickPipeKafkaAzureEventHubSourceType,
+}
+
+var ClickPipeObjectStorageAuthenticationMethods = []string{
+	ClickPipeAuthenticationIAMRole,
+	ClickPipeAuthenticationIAMUser,
+}
+
+var ClickPipeObjectStorageFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeCSVFormat,
+	ClickPipeCSVWithNamesFormat,
+	ClickPipeParquetFormat,
+}
+
+const (
+	ClickPipeObjectStorageS3Type  = "s3"
+	ClickPipeObjectStorageGCSType = "gcs"
+)
+
+var ClickPipeObjectStorageTypes = []string{
+	ClickPipeObjectStorageS3Type,
+	ClickPipeObjectStorageGCSType,
+}
+
+const (
+	ClickPipeObjectStorageCompressionAuto   = "auto"
+	ClickPipeObjectStorageCompressionGZIP   = "gzip"
+	ClickPipeObjectStorageCompressionBrotli = "brotli"
+	ClickPipeObjectStorageCompressionBr     = "br"
+	ClickPipeObjectStorageCompressionXZ     = "xz"
+	ClickPipeObjectStorageCompressionLZMA   = "LZMA"
+	ClickPipeObjectStorageCompressionZstd   = "zstd"
+)
+
+var ClickPipeObjectStorageCompressions = []string{
+	ClickPipeObjectStorageCompressionAuto,
+	ClickPipeObjectStorageCompressionGZIP,
+	ClickPipeObjectStorageCompressionBrotli,
+	ClickPipeObjectStorageCompressionBr,
+	ClickPipeObjectStorageCompressionXZ,
+	ClickPipeObjectStorageCompressionLZMA,
+	ClickPipeObjectStorageCompressionZstd,
 }
 
 const (

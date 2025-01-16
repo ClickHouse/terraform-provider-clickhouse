@@ -6,7 +6,7 @@ description: |-
   The ClickPipe resource allows you to create and manage ClickPipes data ingestion in ClickHouse Cloud.
   Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.
   Known limitations:
-  ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
+  ClickPipe is immutable. It means, any change to the ClickPipe will require a new resource to be created in-place. This does not apply to scaling and state changes.ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.Provider lacks validation logic. It means, the provider will not validate the ClickPipe configuration against the ClickHouse Cloud API. Any invalid configuration will be rejected by the API.
   Known bugs:
   Kafka pipe without a consumer group provided explicitly can be created, however, in case of any plan changes, provider will require force replace due to "unknown state" of the consumer group.
 ---
@@ -17,7 +17,9 @@ The ClickPipe resource allows you to create and manage ClickPipes data ingestion
 **Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.**
 
 Known limitations:
+- ClickPipe is immutable. It means, any change to the ClickPipe will require a new resource to be created in-place. This does not apply to scaling and state changes.
 - ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
+- Provider lacks validation logic. It means, the provider will not validate the ClickPipe configuration against the ClickHouse Cloud API. Any invalid configuration will be rejected by the API.
 
 Known bugs:
 - Kafka pipe without a consumer group provided explicitly can be created, however, in case of any plan changes, provider will require force replace due to "unknown state" of the consumer group.
@@ -91,7 +93,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 - `destination` (Attributes) The destination for the ClickPipe. (see [below for nested schema](#nestedatt--destination))
 - `name` (String) The name of the ClickPipe.
 - `service_id` (String) The ID of the service to which the ClickPipe belongs.
-- `source` (Attributes) The data source for the ClickPipe. (see [below for nested schema](#nestedatt--source))
+- `source` (Attributes) The data source for the ClickPipe. At least one source configuration must be provided. (see [below for nested schema](#nestedatt--source))
 
 ### Optional
 
@@ -156,7 +158,8 @@ Required:
 
 Optional:
 
-- `kafka` (Attributes) (see [below for nested schema](#nestedatt--source--kafka))
+- `kafka` (Attributes) The Kafka source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--kafka))
+- `object_storage` (Attributes) The Kafka source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--object_storage))
 
 <a id="nestedatt--source--kafka"></a>
 ### Nested Schema for `source.kafka`
@@ -173,7 +176,7 @@ Optional:
 - `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `IAM_ROLE`, `IAM_USER`). Default is `PLAIN`.
 - `ca_certificate` (String) PEM encoded CA certificates to validate the broker's certificate.
 - `consumer_group` (String) Consumer group of the Kafka source. If not provided `clickpipes-<ID>` will be used.
-- `iam_role` (String) The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam)
+- `iam_role` (String) The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam)
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
 - `schema_registry` (Attributes) The schema registry for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
 - `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`). Default is `kafka`.
@@ -219,6 +222,34 @@ Required:
 - `password` (String, Sensitive) The password for the Schema Registry.
 - `username` (String, Sensitive) The username for the Schema Registry.
 
+
+
+
+<a id="nestedatt--source--object_storage"></a>
+### Nested Schema for `source.object_storage`
+
+Required:
+
+- `format` (String) The format of the S3 objects. (`JSONEachRow`, `CSV`, `CSVWithNames`, `Parquet`)
+- `url` (String) The URL of the S3 bucket. Provide a path to the file(s) you want to ingest. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations
+
+Optional:
+
+- `access_key` (Attributes) Access key (see [below for nested schema](#nestedatt--source--object_storage--access_key))
+- `authentication` (String) Authentication method. If not provided, no authentication is used. It can be used to access public buckets.. (`IAM_ROLE`, `IAM_USER`).
+- `compression` (String) Compression algorithm used for the files.. (`auto`, `gzip`, `brotli`, `br`, `xz`, `LZMA`, `zstd`)
+- `delimiter` (String) The delimiter for the S3 source. Default is `,`.
+- `iam_role` (String) The IAM role for the S3 source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#authentication)
+- `is_continuous` (Boolean) If set to true, the pipe will continuously read new files from the source. If set to false, the pipe will read the files only once. New files have to be uploaded lexically order.
+- `type` (String) The type of the S3-compatbile source (`s3`, `gcs`). Default is `s3`.
+
+<a id="nestedatt--source--object_storage--access_key"></a>
+### Nested Schema for `source.object_storage.access_key`
+
+Optional:
+
+- `access_key_id` (String, Sensitive) The access key ID for the S3 source. Use with `IAM_USER` authentication.
+- `secret_key` (String, Sensitive) The secret key for the S3 source. Use with `IAM_USER` authentication.
 
 
 

@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -25,9 +26,10 @@ import (
 )
 
 var (
-	_ resource.Resource               = &ClickPipeResource{}
-	_ resource.ResourceWithModifyPlan = &ClickPipeResource{}
-	_ resource.ResourceWithConfigure  = &ClickPipeResource{}
+	_ resource.Resource                = &ClickPipeResource{}
+	_ resource.ResourceWithModifyPlan  = &ClickPipeResource{}
+	_ resource.ResourceWithConfigure   = &ClickPipeResource{}
+	_ resource.ResourceWithImportState = &ClickPipeResource{}
 )
 
 const clickPipeResourceDescription = `
@@ -35,11 +37,17 @@ The ClickPipe resource allows you to create and manage ClickPipes data ingestion
 **Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.**
 
 Known limitations:
+- ClickPipe is immutable. It means, any change to the ClickPipe will require a new resource to be created in-place. This does not apply to scaling and state changes.
 - ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
+- Provider lacks validation logic. It means, the provider will not validate the ClickPipe configuration against the ClickHouse Cloud API. Any invalid configuration will be rejected by the API.
 
 Known bugs:
 - Kafka pipe without a consumer group provided explicitly can be created, however, in case of any plan changes, provider will require force replace due to "unknown state" of the consumer group.
 `
+
+const (
+	clickPipeStateChangeMaxWaitSeconds = 60 * 2
+)
 
 type ClickPipeResource struct {
 	client api.Client
@@ -107,13 +115,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Description: "The number of desired replicas for the ClickPipe. Default is 1. The maximum value is 10.",
 						Optional:    true,
 						Computed:    true,
+						Default:     int64default.StaticInt64(1),
 						Validators: []validator.Int64{
 							int64validator.Between(1, 10),
 						},
 					},
 				},
 				Optional: true,
-				Computed: true,
 			},
 			"state": schema.StringAttribute{
 				MarkdownDescription: "The state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`. Whenever the pipe state changes, the Terraform provider will try to ensure the actual state matches the planned value. If pipe is `Failed` and plan is `Running`, the provider will try to resume the pipe. If plan is `Stopped`, the provider will try to stop the pipe. If the pipe is `InternalError`, no action will be taken.",
@@ -125,10 +133,11 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				},
 			},
 			"source": schema.SingleNestedAttribute{
-				Description: "The data source for the ClickPipe.",
+				Description: "The data source for the ClickPipe. At least one source configuration must be provided.",
 				Attributes: map[string]schema.Attribute{
 					"kafka": schema.SingleNestedAttribute{
-						Optional: true,
+						MarkdownDescription: "The Kafka source configuration for the ClickPipe.",
+						Optional:            true,
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -267,11 +276,94 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Required: true,
 							},
 							"iam_role": schema.StringAttribute{
-								MarkdownDescription: "The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam)",
+								MarkdownDescription: "The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam)",
 								Optional:            true,
 							},
 							"ca_certificate": schema.StringAttribute{
 								MarkdownDescription: "PEM encoded CA certificates to validate the broker's certificate.",
+								Optional:            true,
+							},
+						},
+					},
+					"object_storage": schema.SingleNestedAttribute{
+						MarkdownDescription: "The Kafka source configuration for the ClickPipe.",
+						Optional:            true,
+						Attributes: map[string]schema.Attribute{
+							"type": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The type of the S3-compatbile source (%s). Default is `%s`.",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeObjectStorageTypes),
+									api.ClickPipeObjectStorageS3Type,
+								),
+								Computed: true,
+								Optional: true,
+								Default:  stringdefault.StaticString(api.ClickPipeObjectStorageS3Type),
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeObjectStorageTypes...),
+								},
+							},
+							"format": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The format of the S3 objects. (%s)",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeObjectStorageFormats),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeObjectStorageFormats...),
+								},
+							},
+							"url": schema.StringAttribute{
+								MarkdownDescription: "The URL of the S3 bucket. Provide a path to the file(s) you want to ingest. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations",
+								Required:            true,
+							},
+							"delimiter": schema.StringAttribute{
+								MarkdownDescription: "The delimiter for the S3 source. Default is `,`.",
+								Optional:            true,
+							},
+							"compression": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"Compression algorithm used for the files.. (%s)",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeObjectStorageCompressions),
+								),
+								Optional: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeObjectStorageCompressions...),
+								},
+							},
+							"is_continuous": schema.BoolAttribute{
+								MarkdownDescription: "If set to true, the pipe will continuously read new files from the source. If set to false, the pipe will read the files only once. New files have to be uploaded lexically order.",
+								Optional:            true,
+								Computed:            true,
+								Default:             booldefault.StaticBool(false),
+							},
+							"authentication": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"Authentication method. If not provided, no authentication is used. It can be used to access public buckets.. (%s).",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeObjectStorageAuthenticationMethods),
+								),
+								Optional: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeObjectStorageAuthenticationMethods...),
+								},
+							},
+							"access_key": schema.SingleNestedAttribute{
+								MarkdownDescription: "Access key",
+								Optional:            true,
+								Attributes: map[string]schema.Attribute{
+									"access_key_id": schema.StringAttribute{
+										Description: "The access key ID for the S3 source. Use with `IAM_USER` authentication.",
+										Optional:    true,
+										Sensitive:   true,
+									},
+									"secret_key": schema.StringAttribute{
+										Description: "The secret key for the S3 source. Use with `IAM_USER` authentication.",
+										Optional:    true,
+										Sensitive:   true,
+									},
+								},
+							},
+							"iam_role": schema.StringAttribute{
+								MarkdownDescription: "The IAM role for the S3 source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#authentication)",
 								Optional:            true,
 							},
 						},
@@ -515,6 +607,39 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 				Timestamp: timestamp,
 			}
 		}
+	} else if !sourceModel.ObjectStorage.IsNull() {
+		objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
+
+		response.Diagnostics.Append(sourceModel.ObjectStorage.As(ctx, &objectStorageModel, basetypes.ObjectAsOptions{})...)
+
+		var accessKey *api.ClickPipeSourceAccessKey
+		if !objectStorageModel.AccessKey.IsUnknown() && !objectStorageModel.AccessKey.IsNull() {
+			accessKeyModel := models.ClickPipeSourceAccessKeyModel{}
+			response.Diagnostics.Append(objectStorageModel.AccessKey.As(ctx, &accessKeyModel, basetypes.ObjectAsOptions{})...)
+
+			accessKey = &api.ClickPipeSourceAccessKey{
+				AccessKeyID: accessKeyModel.AccessKeyID.ValueString(),
+				SecretKey:   accessKeyModel.SecretKey.ValueString(),
+			}
+		}
+
+		clickPipe.Source.ObjectStorage = &api.ClickPipeObjectStorageSource{
+			Type:           objectStorageModel.Type.ValueString(),
+			Format:         objectStorageModel.Format.ValueString(),
+			URL:            objectStorageModel.URL.ValueString(),
+			Delimiter:      objectStorageModel.Delimiter.ValueStringPointer(),
+			Compression:    objectStorageModel.Compression.ValueStringPointer(),
+			IsContinuous:   objectStorageModel.IsContinuous.ValueBool(),
+			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
+			AccessKey:      accessKey,
+			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
+		}
+	} else {
+		response.Diagnostics.AddError(
+			"Error Creating ClickPipe",
+			"ClickPipe requires at least one source configuration",
+		)
+		return
 	}
 
 	destinationModel := models.ClickPipeDestinationModel{}
@@ -625,12 +750,11 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	if _, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, func(state string) bool {
 		return state == plan.State.ValueString() // we expect the state to be the same as planned: "Running" or "Stopped"
-	}, 60); err != nil {
-		response.Diagnostics.AddError(
-			"Error retrieving ClickPipe state",
-			"Could not retrieve ClickPipe state, unexpected error: "+err.Error(),
+	}, clickPipeStateChangeMaxWaitSeconds); err != nil {
+		response.Diagnostics.AddWarning(
+			"ClickPipe didn't reach the desired state",
+			err.Error(),
 		)
-		return
 	}
 
 	plan.ID = types.StringValue(createdClickPipe.ID)
@@ -666,7 +790,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	state.Description = types.StringValue(clickPipe.Description)
 	state.State = types.StringValue(clickPipe.State)
 
-	if clickPipe.Scaling != nil {
+	if clickPipe.Scaling != nil && clickPipe.Scaling.Replicas != nil {
 		scalingModel := models.ClickPipeScalingModel{
 			Replicas: types.Int64PointerValue(clickPipe.Scaling.Replicas),
 			//Concurrency: types.Int64PointerValue(clickPipe.Scaling.Concurrency),
@@ -689,11 +813,6 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			return fmt.Errorf("error reading ClickPipe Kafka source: %v", diags)
 		}
 
-		credentialsModel := models.ClickPipeKafkaSourceCredentialsModel{}
-		if diags := stateKafkaModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{}); diags.HasError() {
-			return fmt.Errorf("error reading ClickPipe Kafka source credentials: %v", diags)
-		}
-
 		var consumerGroup string
 		if clickPipe.Source.Kafka.ConsumerGroup != nil {
 			consumerGroup = *clickPipe.Source.Kafka.ConsumerGroup
@@ -706,9 +825,18 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Topics:         types.StringValue(clickPipe.Source.Kafka.Topics),
 			ConsumerGroup:  types.StringValue(consumerGroup),
 			Authentication: types.StringValue(clickPipe.Source.Kafka.Authentication),
-			Credentials:    credentialsModel.ObjectValue(),
 			CACertificate:  types.StringPointerValue(clickPipe.Source.Kafka.CACertificate),
 			IAMRole:        types.StringPointerValue(clickPipe.Source.Kafka.IAMRole),
+		}
+
+		if !stateKafkaModel.Credentials.IsNull() {
+			stateCredentialsModel := models.ClickPipeKafkaSourceCredentialsModel{}
+			if diags := stateKafkaModel.Credentials.As(ctx, &stateCredentialsModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Kafka source credentials: %v", diags)
+			}
+			kafkaModel.Credentials = stateCredentialsModel.ObjectValue()
+		} else {
+			kafkaModel.Credentials = types.ObjectNull(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes)
 		}
 
 		if clickPipe.Source.Kafka.SchemaRegistry != nil {
@@ -742,6 +870,39 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		sourceModel.Kafka = kafkaModel.ObjectValue()
 	} else {
 		sourceModel.Kafka = types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes)
+	}
+
+	if clickPipe.Source.ObjectStorage != nil {
+		stateObjectStorageModel := models.ClickPipeObjectStorageSourceModel{}
+		if diags := stateSourceModel.ObjectStorage.As(ctx, &stateObjectStorageModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+			return fmt.Errorf("error reading ClickPipe object storage source: %v", diags)
+		}
+
+		objectStorageModel := models.ClickPipeObjectStorageSourceModel{
+			Type:           types.StringValue(clickPipe.Source.ObjectStorage.Type),
+			Format:         types.StringValue(clickPipe.Source.ObjectStorage.Format),
+			URL:            types.StringValue(clickPipe.Source.ObjectStorage.URL),
+			Delimiter:      types.StringPointerValue(clickPipe.Source.ObjectStorage.Delimiter),
+			Compression:    types.StringPointerValue(clickPipe.Source.ObjectStorage.Compression),
+			IsContinuous:   types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
+			Authentication: types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication),
+			IAMRole:        types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
+		}
+
+		if !stateObjectStorageModel.AccessKey.IsNull() {
+			stateAccessKeyModel := models.ClickPipeSourceAccessKeyModel{}
+			if diags := stateObjectStorageModel.AccessKey.As(ctx, &stateAccessKeyModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe object storage source access key: %v", diags)
+			}
+
+			objectStorageModel.AccessKey = stateAccessKeyModel.ObjectValue()
+		} else {
+			objectStorageModel.AccessKey = types.ObjectNull(models.ClickPipeSourceAccessKeyModel{}.ObjectType().AttrTypes)
+		}
+
+		sourceModel.ObjectStorage = objectStorageModel.ObjectValue()
+	} else {
+		sourceModel.ObjectStorage = types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes)
 	}
 
 	state.Source = sourceModel.ObjectValue()
@@ -871,12 +1032,11 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 		if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), func(state string) bool {
 			return state == plan.State.ValueString()
-		}, 60); err != nil {
-			response.Diagnostics.AddError(
-				"Error Retrieving ClickPipe State",
-				"Could not retrieve ClickPipe state, unexpected error: "+err.Error(),
+		}, clickPipeStateChangeMaxWaitSeconds); err != nil {
+			response.Diagnostics.AddWarning(
+				"ClickPipe didn't reach the desired state",
+				err.Error(),
 			)
-			return
 		}
 	}
 
@@ -923,4 +1083,9 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 			"Could not delete ClickPipe, unexpected error: "+err.Error(),
 		)
 	}
+}
+
+func (c *ClickPipeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
