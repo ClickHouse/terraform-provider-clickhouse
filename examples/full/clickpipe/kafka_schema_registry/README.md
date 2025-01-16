@@ -1,9 +1,7 @@
-## ClickPipe Kafka example
+## ClickPipe Kafka with schema registry example
 
-The Terraform code deploys following resources:
-- 1 ClickPipe Kafka on ClickHouse Cloud
-
-The ClickHouse service is available from anywhere.
+This example demonstrates how to deploy a Kafka ClickPipe with a Kafka cluster as the input source,
+with additional configuration for the Kafka schema registry.
 
 ## How to run
 

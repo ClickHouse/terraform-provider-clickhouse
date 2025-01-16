@@ -1,9 +1,6 @@
-## ClickPipe Kafka example
+## ClickPipe Kafka with Azure Event Hub example
 
-The Terraform code deploys following resources:
-- 1 ClickPipe Kafka on ClickHouse Cloud
-
-The ClickHouse service is available from anywhere.
+This example demonstrates how to deploy a Kafka ClickPipe with an Azure Event Hub as the input source.
 
 ## How to run
 

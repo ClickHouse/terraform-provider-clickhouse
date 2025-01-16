@@ -181,7 +181,7 @@ func (c *ClientImpl) CreateClickPipe(ctx context.Context, serviceId string, clic
 	return &clickPipeResponse.Result, nil
 }
 
-func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(*ClickPipe) bool, maxWaitSeconds int) (clickPipe *ClickPipe, err error) {
+func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(*ClickPipe) bool, maxWaitSeconds uint64) (clickPipe *ClickPipe, err error) {
 	checkState := func() error {
 		clickPipe, err = c.GetClickPipe(ctx, serviceId, clickPipeId)
 		if err != nil {
@@ -199,11 +199,11 @@ func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, cli
 		maxWaitSeconds = 5
 	}
 
-	err = backoff.Retry(checkState, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)))
+	err = backoff.Retry(checkState, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), maxWaitSeconds/5))
 	return
 }
 
-func (c *ClientImpl) WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, checker func(string) bool, maxWaitSeconds int) (clickPipe *ClickPipe, err error) {
+func (c *ClientImpl) WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, checker func(string) bool, maxWaitSeconds uint64) (clickPipe *ClickPipe, err error) {
 	return c.waitForClickPipe(ctx, serviceId, clickPipeId, func(cp *ClickPipe) bool {
 		return checker(cp.State)
 	}, maxWaitSeconds)

@@ -130,9 +130,9 @@ type ClientMock struct {
 	beforeUpdateServicePasswordCounter uint64
 	UpdateServicePasswordMock          mClientMockUpdateServicePassword
 
-	funcWaitForClickPipeState          func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds int) (cp1 *ClickPipe, err error)
+	funcWaitForClickPipeState          func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds uint64) (cp1 *ClickPipe, err error)
 	funcWaitForClickPipeStateOrigin    string
-	inspectFuncWaitForClickPipeState   func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds int)
+	inspectFuncWaitForClickPipeState   func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds uint64)
 	afterWaitForClickPipeStateCounter  uint64
 	beforeWaitForClickPipeStateCounter uint64
 	WaitForClickPipeStateMock          mClientMockWaitForClickPipeState
@@ -6071,7 +6071,7 @@ type ClientMockWaitForClickPipeStateParams struct {
 	serviceId      string
 	clickPipeId    string
 	stateChecker   func(string) bool
-	maxWaitSeconds int
+	maxWaitSeconds uint64
 }
 
 // ClientMockWaitForClickPipeStateParamPtrs contains pointers to parameters of the Client.WaitForClickPipeState
@@ -6080,7 +6080,7 @@ type ClientMockWaitForClickPipeStateParamPtrs struct {
 	serviceId      *string
 	clickPipeId    *string
 	stateChecker   *func(string) bool
-	maxWaitSeconds *int
+	maxWaitSeconds *uint64
 }
 
 // ClientMockWaitForClickPipeStateResults contains results of the Client.WaitForClickPipeState
@@ -6110,7 +6110,7 @@ func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) Optional() *mCl
 }
 
 // Expect sets up expected params for Client.WaitForClickPipeState
-func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) Expect(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds int) *mClientMockWaitForClickPipeState {
+func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) Expect(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds uint64) *mClientMockWaitForClickPipeState {
 	if mmWaitForClickPipeState.mock.funcWaitForClickPipeState != nil {
 		mmWaitForClickPipeState.mock.t.Fatalf("ClientMock.WaitForClickPipeState mock is already set by Set")
 	}
@@ -6227,7 +6227,7 @@ func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) ExpectStateChec
 }
 
 // ExpectMaxWaitSecondsParam5 sets up expected param maxWaitSeconds for Client.WaitForClickPipeState
-func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) ExpectMaxWaitSecondsParam5(maxWaitSeconds int) *mClientMockWaitForClickPipeState {
+func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) ExpectMaxWaitSecondsParam5(maxWaitSeconds uint64) *mClientMockWaitForClickPipeState {
 	if mmWaitForClickPipeState.mock.funcWaitForClickPipeState != nil {
 		mmWaitForClickPipeState.mock.t.Fatalf("ClientMock.WaitForClickPipeState mock is already set by Set")
 	}
@@ -6250,7 +6250,7 @@ func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) ExpectMaxWaitSe
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.WaitForClickPipeState
-func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) Inspect(f func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds int)) *mClientMockWaitForClickPipeState {
+func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) Inspect(f func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds uint64)) *mClientMockWaitForClickPipeState {
 	if mmWaitForClickPipeState.mock.inspectFuncWaitForClickPipeState != nil {
 		mmWaitForClickPipeState.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForClickPipeState")
 	}
@@ -6275,7 +6275,7 @@ func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) Return(cp1 *Cli
 }
 
 // Set uses given function f to mock the Client.WaitForClickPipeState method
-func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) Set(f func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds int) (cp1 *ClickPipe, err error)) *ClientMock {
+func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) Set(f func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds uint64) (cp1 *ClickPipe, err error)) *ClientMock {
 	if mmWaitForClickPipeState.defaultExpectation != nil {
 		mmWaitForClickPipeState.mock.t.Fatalf("Default expectation is already set for the Client.WaitForClickPipeState method")
 	}
@@ -6291,7 +6291,7 @@ func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) Set(f func(ctx 
 
 // When sets expectation for the Client.WaitForClickPipeState which will trigger the result defined by the following
 // Then helper
-func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) When(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds int) *ClientMockWaitForClickPipeStateExpectation {
+func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) When(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds uint64) *ClientMockWaitForClickPipeStateExpectation {
 	if mmWaitForClickPipeState.mock.funcWaitForClickPipeState != nil {
 		mmWaitForClickPipeState.mock.t.Fatalf("ClientMock.WaitForClickPipeState mock is already set by Set")
 	}
@@ -6333,7 +6333,7 @@ func (mmWaitForClickPipeState *mClientMockWaitForClickPipeState) invocationsDone
 }
 
 // WaitForClickPipeState implements Client
-func (mmWaitForClickPipeState *ClientMock) WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds int) (cp1 *ClickPipe, err error) {
+func (mmWaitForClickPipeState *ClientMock) WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds uint64) (cp1 *ClickPipe, err error) {
 	mm_atomic.AddUint64(&mmWaitForClickPipeState.beforeWaitForClickPipeStateCounter, 1)
 	defer mm_atomic.AddUint64(&mmWaitForClickPipeState.afterWaitForClickPipeStateCounter, 1)
 

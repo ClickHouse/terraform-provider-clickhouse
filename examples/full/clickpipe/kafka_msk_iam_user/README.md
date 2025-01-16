@@ -1,9 +1,7 @@
-## ClickPipe Kafka example
+## ClickPipe Kafka with MSK/IAM user
 
-The Terraform code deploys following resources:
-- 1 ClickPipe Kafka on ClickHouse Cloud
-
-The ClickHouse service is available from anywhere.
+This example demonstrates how to deploy a Kafka ClickPipe with a MSK cluster as the input source,
+authenticated with an IAM user.
 
 ## How to run
 

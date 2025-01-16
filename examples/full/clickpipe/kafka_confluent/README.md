@@ -1,9 +1,6 @@
-## ClickPipe Kafka example
+## ClickPipe Kafka with Confluent example
 
-The Terraform code deploys following resources:
-- 1 ClickPipe Kafka on ClickHouse Cloud
-
-The ClickHouse service is available from anywhere.
+This example demonstrates how to deploy a Kafka ClickPipe with a Confluent Kafka cluster as the input source.
 
 ## How to run
 

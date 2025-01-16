@@ -1,9 +1,7 @@
-## ClickPipe Kafka example
+## ClickPipe Object Storage with S3/IAM user example
 
-The Terraform code deploys following resources:
-- 1 ClickPipe Kafka on ClickHouse Cloud
-
-The ClickHouse service is available from anywhere.
+This example demonstrates how to deploy a ClickPipe with an S3 bucket as the input source,
+authenticated with an IAM user.
 
 ## How to run
 

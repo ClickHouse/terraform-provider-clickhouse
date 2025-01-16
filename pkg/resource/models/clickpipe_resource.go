@@ -7,7 +7,7 @@ import (
 
 type ClickPipeScalingModel struct {
 	Replicas types.Int64 `tfsdk:"replicas"`
-	//Concurrency types.Int64 `tfsdk:"concurrency"`
+	// Concurrency types.Int64 `tfsdk:"concurrency"`
 }
 
 func (m ClickPipeScalingModel) ObjectType() types.ObjectType {
