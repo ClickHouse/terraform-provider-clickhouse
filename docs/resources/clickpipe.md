@@ -105,7 +105,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 - `description` (String) The description of the ClickPipe.
 - `field_mappings` (Attributes List) Field mapping between source and destination table. (see [below for nested schema](#nestedatt--field_mappings))
 - `scaling` (Attributes) (see [below for nested schema](#nestedatt--scaling))
-- `state` (String) The state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`. Whenever the pipe state changes, the Terraform provider will try to ensure the actual state matches the planned value. If pipe is `Failed` and plan is `Running`, the provider will try to resume the pipe. If plan is `Stopped`, the provider will try to stop the pipe. If the pipe is `InternalError`, no action will be taken.
+- `state` (String) The desired state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`.
 
 ### Read-Only
 

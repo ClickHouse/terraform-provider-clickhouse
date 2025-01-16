@@ -129,7 +129,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional: true,
 			},
 			"state": schema.StringAttribute{
-				MarkdownDescription: "The state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`. Whenever the pipe state changes, the Terraform provider will try to ensure the actual state matches the planned value. If pipe is `Failed` and plan is `Running`, the provider will try to resume the pipe. If plan is `Stopped`, the provider will try to stop the pipe. If the pipe is `InternalError`, no action will be taken.",
+				MarkdownDescription: "The desired state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`.",
 				Optional:            true,
 				Default:             stringdefault.StaticString(api.ClickPipeRunningState),
 				Computed:            true,
