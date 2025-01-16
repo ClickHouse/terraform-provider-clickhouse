@@ -8,20 +8,20 @@ type ClickPipeScaling struct {
 }
 
 type ClickPipeSourceCredentials struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
 }
 
 type ClickPipeSourceAccessKey struct {
-	AccessKeyID string `json:"accessKeyId"`
-	SecretKey   string `json:"secretKey"`
+	AccessKeyID string `json:"accessKeyId,omitempty"`
+	SecretKey   string `json:"secretKey,omitempty"`
 }
 
 type ClickPipeKafkaSourceCredentials struct {
 	*ClickPipeSourceCredentials
 	*ClickPipeSourceAccessKey
 
-	ConnectionString *string `json:"connectionString"`
+	ConnectionString *string `json:"connectionString,omitempty"`
 }
 
 type ClickPipeKafkaOffset struct {

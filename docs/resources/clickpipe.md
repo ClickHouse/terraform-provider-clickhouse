@@ -4,11 +4,23 @@ page_title: "clickhouse_clickpipe Resource - clickhouse"
 subcategory: ""
 description: |-
   The ClickPipe resource allows you to create and manage ClickPipes data ingestion in ClickHouse Cloud.
+  Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.
+  Known limitations:
+  ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
+  Known bugs:
+  Kafka pipe without a consumer group provided explicitly can be created, however, in case of any plan changes, provider will require force replace due to "unknown state" of the consumer group.
 ---
 
 # clickhouse_clickpipe (Resource)
 
 The ClickPipe resource allows you to create and manage ClickPipes data ingestion in ClickHouse Cloud.
+**Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.**
+
+Known limitations:
+- ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
+
+Known bugs:
+- Kafka pipe without a consumer group provided explicitly can be created, however, in case of any plan changes, provider will require force replace due to "unknown state" of the consumer group.
 
 ## Example Usage
 
@@ -187,7 +199,7 @@ Required:
 
 Optional:
 
-- `timestamp` (String) The timestamp for the Kafka offset. Use with `from_timestamp` offset strategy.
+- `timestamp` (String) The timestamp for the Kafka offset. Use with `from_timestamp` offset strategy. (format `2021-01-01T00:00`)
 
 
 <a id="nestedatt--source--kafka--schema_registry"></a>
