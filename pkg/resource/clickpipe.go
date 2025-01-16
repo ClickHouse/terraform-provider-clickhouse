@@ -33,7 +33,10 @@ var (
 )
 
 const clickPipeResourceDescription = `
-The ClickPipe resource allows you to create and manage ClickPipes data ingestion in ClickHouse Cloud.
+This experimental resource allows you to create and manage ClickPipes data ingestion in ClickHouse Cloud.
+
+Feature needs to be enabled on your account. Please contact ClickHouse Cloud support for more information. 
+
 **Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.**
 
 Known limitations:
