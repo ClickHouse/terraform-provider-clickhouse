@@ -229,7 +229,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						Computed:    true,
 					},
 				},
-				DeprecationMessage: "Please use the `clickhouse_private_endpoint_config` data source instead.",
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.UseStateForUnknown(),
 				},
