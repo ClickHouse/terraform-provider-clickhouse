@@ -463,6 +463,10 @@ func getInitialState() models.ServiceResourceModel {
 
 	state := models.ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
+		BYOCID:                          types.StringNull(),
+		DataWarehouseID:                 types.StringNull(),
+		IsPrimary:                       types.BoolValue(true),
+		ReadOnly:                        types.BoolValue(false),
 		Name:                            types.StringValue(""),
 		Password:                        types.String{},
 		PasswordHash:                    types.String{},
@@ -489,14 +493,16 @@ func getInitialState() models.ServiceResourceModel {
 }
 
 func getBaseResponse(id string) api.Service {
+	trueVal := true
 	return api.Service{
-		Id: id,
+		Id:        id,
+		IsPrimary: &trueVal,
 		// Name: "newname",
 		// Provider:                        "",
 		// Region:                          "",
-		Tier:           "production",
-		ReleaseChannel: "default",
-		IdleScaling:    false,
+
+		Tier:        "production",
+		IdleScaling: false,
 		// IPAccessList:                    nil,
 		// MinTotalMemoryGb:                nil,
 		// MaxTotalMemoryGb:                nil,
@@ -516,5 +522,6 @@ func getBaseResponse(id string) api.Service {
 			BackupRetentionPeriodInHours: nil,
 			BackupStartTime:              nil,
 		},
+		ReleaseChannel: "default",
 	}
 }
