@@ -4,14 +4,17 @@ import (
 	"context"
 	"crypto/sha1" // nolint:gosec
 	"crypto/sha256"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"regexp"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32default"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -36,6 +39,9 @@ var (
 	_ resource.ResourceWithConfigure   = &ServiceResource{}
 	_ resource.ResourceWithImportState = &ServiceResource{}
 )
+
+//go:embed descriptions/service.md
+var serviceResourceDescription string
 
 // NewServiceResource is a helper function to simplify the provider implementation.
 func NewServiceResource() resource.Resource {
@@ -71,6 +77,34 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"warehouse_id": schema.StringAttribute{
+				Description: "ID of the warehouse to share the data with. Must be in the same cloud and region.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"readonly": schema.BoolAttribute{
+				Description: "Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+					boolplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.Bool{
+					boolvalidator.AlsoRequires(path.Expressions{path.MatchRoot("warehouse_id")}...),
+				},
+			},
+			"is_primary": schema.BoolAttribute{
+				Description: "If true, it indicates this is a primary service using its own data. If false it means this service is a secondary service, thus using data from a warehouse.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"name": schema.StringAttribute{
 				Description: "User defined identifier for the service.",
 				Required:    true,
@@ -83,6 +117,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
 					stringvalidator.AtLeastOneOf(path.Expressions{
 						path.MatchRoot("password_hash"),
+						path.MatchRoot("warehouse_id"),
 					}...),
 				},
 			},
@@ -95,7 +130,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						regexp.MustCompile(`^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$`),
 						"must be a base64 encoded hash",
 					),
-					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password")}...),
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password"), path.MatchRoot("warehouse_id")}...),
 				},
 			},
 			"double_sha1_password_hash": schema.StringAttribute{
@@ -280,7 +315,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 		},
-		MarkdownDescription: `You can use the *clickhouse_service* resource to deploy ClickHouse cloud instances on supported cloud providers.`,
+		MarkdownDescription: serviceResourceDescription,
 	}
 }
 
@@ -572,6 +607,11 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.BYOCId = plan.BYOCID.ValueStringPointer()
 	}
 
+	if !plan.DataWarehouseID.IsUnknown() && !plan.DataWarehouseID.IsNull() {
+		service.DataWarehouseId = plan.DataWarehouseID.ValueStringPointer()
+		service.ReadOnly = plan.ReadOnly.ValueBool()
+	}
+
 	if service.Tier == api.TierProduction {
 		var minReplicaMemoryGb, maxReplicaMemoryGb int
 		if !plan.MinReplicaMemoryGb.IsUnknown() {
@@ -645,60 +685,63 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	// Update service password if provided explicitly
-	planPassword := plan.Password.ValueString()
-	if len(planPassword) > 0 {
-		_, err := r.client.UpdateServicePassword(ctx, s.Id, servicePasswordUpdateFromPlainPassword(planPassword))
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error setting service password",
-				"Could not set service password after creation, unexpected error: "+err.Error(),
-			)
-			return
-		}
-	}
-
-	// Update hashed service password if provided explicitly
-	if passwordHash, doubleSha1PasswordHash := plan.PasswordHash.ValueString(), plan.DoubleSha1PasswordHash.ValueString(); len(passwordHash) > 0 || len(doubleSha1PasswordHash) > 0 {
-		passwordUpdate := api.ServicePasswordUpdate{
-			NewPasswordHash: passwordHash,
+	// Password and backup settings are only set on parent instances for hydra services
+	if plan.DataWarehouseID.IsUnknown() || plan.DataWarehouseID.IsNull() {
+		// Update service password if provided explicitly
+		planPassword := plan.Password.ValueString()
+		if len(planPassword) > 0 {
+			_, err := r.client.UpdateServicePassword(ctx, s.Id, servicePasswordUpdateFromPlainPassword(planPassword))
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error setting service password",
+					"Could not set service password after creation, unexpected error: "+err.Error(),
+				)
+				return
+			}
 		}
 
-		if len(doubleSha1PasswordHash) > 0 {
-			passwordUpdate.NewDoubleSha1Hash = doubleSha1PasswordHash
+		// Update hashed service password if provided explicitly
+		if passwordHash, doubleSha1PasswordHash := plan.PasswordHash.ValueString(), plan.DoubleSha1PasswordHash.ValueString(); len(passwordHash) > 0 || len(doubleSha1PasswordHash) > 0 {
+			passwordUpdate := api.ServicePasswordUpdate{
+				NewPasswordHash: passwordHash,
+			}
+
+			if len(doubleSha1PasswordHash) > 0 {
+				passwordUpdate.NewDoubleSha1Hash = doubleSha1PasswordHash
+			}
+
+			_, err := r.client.UpdateServicePassword(ctx, s.Id, passwordUpdate)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error setting service password",
+					"Could not set service password after creation, unexpected error: "+err.Error(),
+				)
+				return
+			}
 		}
 
-		_, err := r.client.UpdateServicePassword(ctx, s.Id, passwordUpdate)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error setting service password",
-				"Could not set service password after creation, unexpected error: "+err.Error(),
-			)
-			return
-		}
-	}
-
-	// Set backup settings.
-	if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
-		bc := models.BackupConfiguration{}
-		diag := plan.BackupConfiguration.As(ctx, &bc, basetypes.ObjectAsOptions{
-			UnhandledNullAsEmpty:    false,
-			UnhandledUnknownAsEmpty: false,
-		})
-		if diag.HasError() {
-			return
-		}
-		_, err = r.client.UpdateBackupConfiguration(ctx, s.Id, api.BackupConfiguration{
-			BackupPeriodInHours:          bc.BackupPeriodInHours.ValueInt32Pointer(),
-			BackupRetentionPeriodInHours: bc.BackupRetentionPeriodInHours.ValueInt32Pointer(),
-			BackupStartTime:              bc.BackupStartTime.ValueStringPointer(),
-		})
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error setting service backup configuration",
-				"Could not set service backup settings after creation, unexpected error: "+err.Error(),
-			)
-			return
+		// Set backup settings.
+		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
+			bc := models.BackupConfiguration{}
+			diag := plan.BackupConfiguration.As(ctx, &bc, basetypes.ObjectAsOptions{
+				UnhandledNullAsEmpty:    false,
+				UnhandledUnknownAsEmpty: false,
+			})
+			if diag.HasError() {
+				return
+			}
+			_, err = r.client.UpdateBackupConfiguration(ctx, s.Id, api.BackupConfiguration{
+				BackupPeriodInHours:          bc.BackupPeriodInHours.ValueInt32Pointer(),
+				BackupRetentionPeriodInHours: bc.BackupRetentionPeriodInHours.ValueInt32Pointer(),
+				BackupStartTime:              bc.BackupStartTime.ValueStringPointer(),
+			})
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error setting service backup configuration",
+					"Could not set service backup settings after creation, unexpected error: "+err.Error(),
+				)
+				return
+			}
 		}
 	}
 
@@ -1035,6 +1078,13 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	} else {
 		state.BYOCID = types.StringNull()
 	}
+	if service.DataWarehouseId != nil {
+		state.DataWarehouseID = types.StringValue(*service.DataWarehouseId)
+	} else {
+		state.DataWarehouseID = types.StringNull()
+	}
+	state.IsPrimary = types.BoolValue(*service.IsPrimary)
+	state.ReadOnly = types.BoolValue(service.ReadOnly)
 	state.Name = types.StringValue(service.Name)
 	state.CloudProvider = types.StringValue(service.Provider)
 	state.Region = types.StringValue(service.Region)

@@ -44,6 +44,30 @@ func TestServiceResource_Equals(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "Data Warehouse ID changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.DataWarehouseID = types.StringValue("changed")
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "Readonly changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.ReadOnly = types.BoolValue(true)
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "Is primary changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.IsPrimary = types.BoolValue(true)
+			}).Get(),
+			want: false,
+		},
+		{
 			name: "Name changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
@@ -246,6 +270,9 @@ func getBaseModel() ServiceResourceModel {
 	state := ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
 		BYOCID:                          types.StringNull(),
+		DataWarehouseID:                 types.StringNull(),
+		ReadOnly:                        types.BoolValue(false),
+		IsPrimary:                       types.BoolValue(false),
 		Name:                            types.StringValue(""),
 		Password:                        types.String{},
 		PasswordHash:                    types.String{},

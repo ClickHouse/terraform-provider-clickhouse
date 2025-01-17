@@ -33,6 +33,9 @@ type ServiceManagedEncryption struct {
 type Service struct {
 	Id                              string                        `json:"id,omitempty"`
 	BYOCId                          *string                       `json:"byocId,omitempty"`
+	DataWarehouseId                 *string                       `json:"dataWarehouseId,omitempty"`
+	IsPrimary                       *bool                         `json:"isPrimary,omitempty"`
+	ReadOnly                        bool                          `json:"isReadonly"`
 	Name                            string                        `json:"name"`
 	Provider                        string                        `json:"provider"`
 	Region                          string                        `json:"region"`
