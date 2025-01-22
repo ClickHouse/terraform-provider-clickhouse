@@ -24,7 +24,6 @@ resource "clickhouse_service" "primary" {
   name                      = "${var.service_name}-primary"
   cloud_provider            = "aws"
   region                    = var.region
-  tier                      = "production"
   num_replicas              = 3
   idle_scaling              = false
   idle_timeout_minutes      = null
@@ -53,7 +52,6 @@ resource "clickhouse_service" "secondary" {
   name                      = "${var.service_name}-secondary"
   cloud_provider            = "aws"
   region                    = var.region
-  tier                      = "production"
   num_replicas              = 1
   idle_scaling              = true
   idle_timeout_minutes      = 5
