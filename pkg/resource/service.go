@@ -385,15 +385,15 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			if !plan.Tier.IsNull() && !plan.Tier.IsUnknown() {
 				if state.Tier.IsNull() {
 					// Plan specifies a tier, but the API returned null for it.
-					// This means Service was switched from ppv1 to ppv2,
-					// so we ask the customer to remove the field from the .tf file.
+					// This means Organization was switched from ppv1 to ppv2,
+					// so we ask the customer to remove the tier field from the .tf file.
 					resp.Diagnostics.AddAttributeError(
 						path.Root("tier"),
 						"Action required",
 						"Please remove the `tier` field from the service definition",
 					)
 				} else {
-					// tier was changed in a legacy service, not allowed.
+					// tier was changed in an organization using legacy tier, this is not allowed.
 					resp.Diagnostics.AddAttributeError(
 						path.Root("tier"),
 						"Invalid Update",
