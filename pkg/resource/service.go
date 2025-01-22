@@ -381,7 +381,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 
 		if plan.Tier != state.Tier {
-			// Detect when a service is upgraded to ppv2.
+			// Check if organization tier was changed from ppv1 to ppv2.
 			if !plan.Tier.IsNull() && !plan.Tier.IsUnknown() {
 				if state.Tier.IsNull() {
 					// Plan specifies a tier, but the API returned null for it.
