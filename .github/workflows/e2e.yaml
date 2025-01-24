@@ -199,6 +199,9 @@ jobs:
           organization_id: "${{ inputs.organization_id }}"
           api_key_id: "${{ inputs.api_key_id }}"
           api_key_secret: "${{ inputs.api_key_secret }}"
+          aws_region: "${{ inputs.aws_region }}"
+          azure_region: "${{ inputs.azure_region }}"
+          gcp_region: "${{ inputs.gcp_region }}"
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
@@ -276,6 +279,9 @@ jobs:
           organization_id: "${{ inputs.organization_id }}"
           api_key_id: "${{ inputs.api_key_id }}"
           api_key_secret: "${{ inputs.api_key_secret }}"
+          aws_region: "${{ inputs.aws_region }}"
+          azure_region: "${{ inputs.azure_region }}"
+          gcp_region: "${{ inputs.gcp_region }}"
         run: |
           bash ./.github/scripts/set_api_env.sh
       - name: cleanup
