@@ -3,7 +3,7 @@
 set -e
 
 api_url=${api_url:-""}
-organization_id=${organization_id:-""}yes
+organization_id=${organization_id:-""}
 api_key_id=${api_key_id:-""}
 api_key_secret=${api_key_secret:-""}
 region=${region:-""}
