@@ -41,6 +41,9 @@ enable_git_hooks: ## Add githooks for code validation before commit, as symlink 
 docs: ensure-tfplugindocs
 	$(TFPLUGINDOCS) generate --provider-name=clickhouse
 
+docs-alpha: ensure-tfplugindocs
+	$(TFPLUGINDOCS) generate --provider-name=clickhouse
+
 fmt: ensure-golangci-lint
 	go fmt ./...
 	$(GOLANGCILINT) run --fix --allow-serial-runners

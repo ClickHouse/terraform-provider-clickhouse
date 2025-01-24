@@ -5,16 +5,15 @@ import (
 	_ "embed"
 	"os"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/datasource"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource"
-
 	upstreamdatasource "github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	upstreamresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/datasource"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 )
 
 // Ensure the implementation satisfies the expected interfaces
@@ -25,13 +24,18 @@ var (
 //go:embed README.md
 var providerDescription string
 
-// New is a helper function to simplify provider server and testing implementation.
-func New() provider.Provider {
-	return &clickhouseProvider{}
+func NewBuilder(resources []func() upstreamresource.Resource) func() provider.Provider {
+	return func() provider.Provider {
+		return &clickhouseProvider{
+			resources: resources,
+		}
+	}
 }
 
 // clickhouseProvider is the provider implementation.
-type clickhouseProvider struct{}
+type clickhouseProvider struct {
+	resources []func() upstreamresource.Resource
+}
 
 type clickhouseProviderModel struct {
 	ApiUrl         types.String `tfsdk:"api_url"`
@@ -222,10 +226,5 @@ func (p *clickhouseProvider) DataSources(_ context.Context) []func() upstreamdat
 
 // Resources defines the resources implemented in the provider.
 func (p *clickhouseProvider) Resources(_ context.Context) []func() upstreamresource.Resource {
-	return []func() upstreamresource.Resource{
-		resource.NewServiceResource,
-		resource.NewPrivateEndpointRegistrationResource,
-		resource.NewServicePrivateEndpointsAttachmentResource,
-		resource.NewClickPipeResource,
-	}
+	return p.resources
 }

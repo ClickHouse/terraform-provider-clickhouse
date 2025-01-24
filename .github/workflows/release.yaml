@@ -20,19 +20,37 @@ jobs:
   # Validate the input
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      enable_alpha: ${{ steps.check.outputs.enable_alpha }}
+      goreleaser_config: ${{ steps.check.outputs.goreleaser_config }}
     steps:
       - name: Check input
         id: check
         run: |
           version="${{ inputs.version }}"
+          enable_alpha=""
+          goreleaser_config=""
 
           # validate semver.
           if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
             echo "Valid release version: $version"
+          
+            if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              # Release is something like x.y.z
+              enable_alpha="false"
+              goreleaser_config=".goreleaser-stable.yml"
+            else
+              # Release is something like x.y.z-something
+              enable_alpha="true"
+              goreleaser_config=".goreleaser-alpha.yml"
+            fi
           else
             echo "Invalid semver: \"$version\". Must be something like 1.2.3 without leading \"v\""
             exit 1
           fi
+          
+          echo "enable_alpha=${enable_alpha}" >> $GITHUB_OUTPUT
+          echo "goreleaser_config=${goreleaser_config}" >> $GITHUB_OUTPUT
 
   # Generate a random token to tag the tests with
   token:
@@ -277,7 +295,7 @@ jobs:
 
   # Bump the provider version in the examples directory
   bump-examples:
-    needs: [ "e2e", "import", "upgrade" ]
+    needs: [ "validate", "e2e", "import", "upgrade" ]
     if: ${{ needs.e2e.outputs.status != 'failure' && needs.import.outputs.status != 'failure' && needs.upgrade.outputs.status != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
@@ -290,6 +308,7 @@ jobs:
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
       - name: Bump provider version in examples
         id: bump
+        if: ${{ needs.validate.outputs.enable_alpha == 'false' }}
         run: |
           version="${{ inputs.version }}"
 
@@ -302,15 +321,24 @@ jobs:
 
             sed -i '1s/^/# This file is generated automatically please do not edit\n/' $dst
           done
-          
-          # Refresh docs because they are generated starting based on files in `examples` folder.
+
+      - name: Build docs for stable release
+        if: ${{ needs.validate.outputs.enable_alpha == 'false' }}
+        run: |
           make docs
+
+      - name: Build docs for alpha release
+        if: ${{ needs.validate.outputs.enable_alpha == 'true' }}
+        run: |
+          make docs-alpha
+
       - name: Commit
         run: |
+          git diff --quiet --exit-code && (echo "No changes detected" && exit 0)
           git config --global user.name "Release Github Action"
           git config --global user.email "bot@users.noreply.github.com"
           git commit -a -m "Bump provider version in examples to ${{ inputs.version }}"
-          git push 
+          git push
 
   # Create tag for the release
   tag:
@@ -336,7 +364,7 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    needs: [ "tag", "e2e", "import", "upgrade" ]
+    needs: [ "validate", "tag", "e2e", "import", "upgrade" ]
     if: ${{ needs.e2e.outputs.status != 'failure' && needs.import.outputs.status != 'failure' && needs.upgrade.outputs.status != 'failure' }}
     steps:
       - name: Checkout
@@ -362,7 +390,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          args: release --clean
+          args: release --clean --config ${{ needs.validate.outputs.goreleaser_config }}
         env:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
