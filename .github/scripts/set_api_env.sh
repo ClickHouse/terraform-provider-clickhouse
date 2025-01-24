@@ -2,11 +2,11 @@
 
 set -e
 
-api_url=""
-organization_id=""
-api_key_id=""
-api_key_secret=""
-region=""
+api_url=${api_url:-""}
+organization_id=${organization_id:-""}yes
+api_key_id=${api_key_id:-""}
+api_key_secret=${api_key_secret:-""}
+region=${region:-""}
 
 cloud="$1"
 
