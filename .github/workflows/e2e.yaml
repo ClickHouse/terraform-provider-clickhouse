@@ -28,6 +28,18 @@ on:
         type: string
         default: ""
         description: "(Optional) API Key secret to use when API Env is 'Custom'"
+      aws_region:
+        type: string
+        default: ""
+        description: "(Optional) AWS region to run tests in when API Env is 'Custom'"
+      azure_region:
+        type: string
+        default: ""
+        description: "(Optional) Azure region to run tests in when API Env is 'Custom'"
+      gcp_region:
+        type: string
+        default: ""
+        description: "(Optional) GCP region to run tests in when API Env is 'Custom'"
       notify_errors:
         type: boolean
         default: false
@@ -123,6 +135,9 @@ jobs:
           organization_id: "${{ inputs.organization_id }}"
           api_key_id: "${{ inputs.api_key_id }}"
           api_key_secret: "${{ inputs.api_key_secret }}"
+          aws_region: "${{ inputs.aws_region }}"
+          azure_region: "${{ inputs.azure_region }}"
+          gcp_region: "${{ inputs.gcp_region }}"
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
