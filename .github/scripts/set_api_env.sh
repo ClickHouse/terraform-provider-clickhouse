@@ -10,6 +10,11 @@ aws_region=${aws_region:-""}
 azure_region=${azure_region:-""}
 gcp_region=${gcp_region:-""}
 
+echo "aws_region=${aws_region}"
+echo "azure_region=${azure_region}"
+echo "gcp_region=${gcp_region}"
+env
+
 cloud="$1"
 region=""
 
