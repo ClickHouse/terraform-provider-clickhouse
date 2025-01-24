@@ -42,19 +42,15 @@ docs: ensure-tfplugindocs
 	$(TFPLUGINDOCS) generate --provider-name=clickhouse
 
 docs-alpha: ensure-tfplugindocs
-	$(TFPLUGINDOCS) generate --provider-name=clickhouse
+	$(TFPLUGINDOCS) generate --provider-name=clickhouse --additional-go-build-args="-tags alpha"
 
 fmt: ensure-golangci-lint
 	go fmt ./...
 	$(GOLANGCILINT) run --fix --allow-serial-runners
 
-TFPLUGINDOCS = $(shell go env GOPATH)/bin/tfplugindocs
-# Test if tfplugindocs is available in the GOPATH, if not, set to local and download if needed
-ifneq ($(shell test -f $(TFPLUGINDOCS) && echo -n yes),yes)
-TFPLUGINDOCS = /tmp/tfplugindocs
-endif
+TFPLUGINDOCS = /tmp/tfplugindocs-patched
 ensure-tfplugindocs: ## Download tfplugindocs locally if necessary.
-	$(call go-get-tool,$(TFPLUGINDOCS),github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.19.4)
+	$(call get-tfplugindocs,$(TFPLUGINDOCS),github.com/whites11/terraform-plugin-docs)
 
 GOLANGCILINT = $(shell go env GOPATH)/bin/golangci-lint
 # Test if golangci-lint is available in the GOPATH, if not, set to local and download if needed
@@ -74,6 +70,20 @@ go mod init tmp ;\
 gobin="$$(dirname $(1))" ;\
 echo "Downloading $(2) into $$gobin" ;\
 GOBIN=$$gobin go install $(2) ;\
+rm -rf $$TMP_DIR ;\
+}
+endef
+
+define get-tfplugindocs
+@[ -f $(1) ] || { \
+set -e ;\
+TMP_DIR=$$(mktemp -d) ;\
+cd $$TMP_DIR ;\
+echo "Cloning https://$(2).git into $$TMP_DIR" ;\
+git clone https://$(2).git tfplugindocs ;\
+cd tfplugindocs ;\
+echo "Building tfplugindocs into $(1)" ;\
+go build -o $(1) cmd/tfplugindocs/main.go ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
