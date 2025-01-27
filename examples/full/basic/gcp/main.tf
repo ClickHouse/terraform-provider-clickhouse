@@ -33,7 +33,6 @@ resource "clickhouse_service" "service" {
   name                      = var.service_name
   cloud_provider            = "gcp"
   region                    = var.region
-  tier                      = "production"
   release_channel           = var.release_channel
   idle_scaling              = true
   idle_timeout_minutes      = 5

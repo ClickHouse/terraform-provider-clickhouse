@@ -2,7 +2,6 @@ resource "clickhouse_service" "service" {
   name           = "My Service"
   cloud_provider = "aws"
   region         = "us-east-1"
-  tier           = "production"
   idle_scaling   = true
 
   ip_access = [

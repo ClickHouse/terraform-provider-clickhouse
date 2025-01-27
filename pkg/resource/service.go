@@ -157,8 +157,9 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"tier": schema.StringAttribute{
-				Description: "Tier of the service: 'development', 'production'. Production services scale and development is a fixed size.",
-				Required:    true,
+				Description: "Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.",
+				Optional:    true,
+				Computed:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOf(api.TierDevelopment, api.TierProduction),
 				},
@@ -379,12 +380,27 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
-		if !plan.Tier.IsNull() && plan.Tier != state.Tier {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("tier"),
-				"Invalid Update",
-				"ClickHouse does not support changing service tiers",
-			)
+		if plan.Tier != state.Tier {
+			// Check if organization tier was changed from ppv1 to ppv2.
+			if !plan.Tier.IsNull() && !plan.Tier.IsUnknown() {
+				if state.Tier.IsNull() {
+					// Plan specifies a tier, but the API returned null for it.
+					// This means Organization was switched from ppv1 to ppv2,
+					// so we ask the customer to remove the tier field from the .tf file.
+					resp.Diagnostics.AddAttributeError(
+						path.Root("tier"),
+						"Action required",
+						"Please remove the `tier` field from the service definition",
+					)
+				} else {
+					// tier was changed in an organization using legacy tier, this is not allowed.
+					resp.Diagnostics.AddAttributeError(
+						path.Root("tier"),
+						"Invalid Update",
+						"ClickHouse does not support changing service tiers",
+					)
+				}
+			}
 		}
 
 		if !plan.EncryptionKey.IsNull() && plan.EncryptionKey != state.EncryptionKey {
@@ -612,7 +628,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.ReadOnly = plan.ReadOnly.ValueBool()
 	}
 
-	if service.Tier == api.TierProduction {
+	if service.Tier == api.TierProduction || service.Tier == api.TierPPv2 {
 		var minReplicaMemoryGb, maxReplicaMemoryGb int
 		if !plan.MinReplicaMemoryGb.IsUnknown() {
 			minReplicaMemoryGb = int(plan.MinReplicaMemoryGb.ValueInt64())
@@ -730,10 +746,16 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			if diag.HasError() {
 				return
 			}
+
+			var startTime *string
+			if !bc.BackupStartTime.IsUnknown() {
+				startTime = bc.BackupStartTime.ValueStringPointer()
+			}
+
 			_, err = r.client.UpdateBackupConfiguration(ctx, s.Id, api.BackupConfiguration{
 				BackupPeriodInHours:          bc.BackupPeriodInHours.ValueInt32Pointer(),
 				BackupRetentionPeriodInHours: bc.BackupRetentionPeriodInHours.ValueInt32Pointer(),
-				BackupStartTime:              bc.BackupStartTime.ValueStringPointer(),
+				BackupStartTime:              startTime,
 			})
 			if err != nil {
 				resp.Diagnostics.AddError(
@@ -1088,7 +1110,11 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	state.Name = types.StringValue(service.Name)
 	state.CloudProvider = types.StringValue(service.Provider)
 	state.Region = types.StringValue(service.Region)
-	state.Tier = types.StringValue(service.Tier)
+	if service.Tier != api.TierPPv2 {
+		state.Tier = types.StringValue(service.Tier)
+	} else {
+		state.Tier = types.StringNull()
+	}
 	state.ReleaseChannel = types.StringValue(service.ReleaseChannel)
 	state.IdleScaling = types.BoolValue(service.IdleScaling)
 	if state.IdleScaling.ValueBool() {
@@ -1099,7 +1125,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.IdleTimeoutMinutes = types.Int64Null()
 	}
 
-	if service.Tier == api.TierProduction {
+	if service.Tier == api.TierProduction || service.Tier == api.TierPPv2 {
 		if service.MinReplicaMemoryGb != nil {
 			state.MinReplicaMemoryGb = types.Int64Value(int64(*service.MinReplicaMemoryGb))
 		}
@@ -1149,7 +1175,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
 	}
 
-	if service.Tier == api.TierProduction {
+	if service.Tier == api.TierProduction || service.Tier == api.TierPPv2 {
 		if service.BackupConfiguration != nil {
 			backupConfiguration := models.BackupConfiguration{
 				BackupPeriodInHours:          types.Int32Null(),

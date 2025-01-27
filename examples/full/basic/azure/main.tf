@@ -17,14 +17,23 @@ variable "service_name" {
 
 variable "region" {
   type = string
-  default = "europe-west4"
+  default = "westus3"
+}
+
+variable "release_channel" {
+  type = string
+  default = "default"
+  validation {
+    condition     = var.release_channel == "default" || var.release_channel == "fast"
+    error_message = "Release channel can be either 'default' or 'fast'."
+  }
 }
 
 resource "clickhouse_service" "service" {
   name                      = var.service_name
-  cloud_provider            = "gcp"
+  cloud_provider            = "azure"
   region                    = var.region
-  tier                      = "development"
+  release_channel           = var.release_channel
   idle_scaling              = true
   idle_timeout_minutes      = 5
   password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
@@ -35,6 +44,15 @@ resource "clickhouse_service" "service" {
       description = "Anywhere"
     }
   ]
+
+  min_replica_memory_gb = 8
+  max_replica_memory_gb = 120
+
+  backup_configuration = {
+    backup_period_in_hours           = 24
+    backup_retention_period_in_hours = 24
+    backup_start_time                = null
+  }
 }
 
 output "service_endpoints" {

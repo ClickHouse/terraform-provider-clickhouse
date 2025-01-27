@@ -39,7 +39,7 @@ type Service struct {
 	Name                            string                        `json:"name"`
 	Provider                        string                        `json:"provider"`
 	Region                          string                        `json:"region"`
-	Tier                            string                        `json:"tier"`
+	Tier                            string                        `json:"tier,omitempty"`
 	IdleScaling                     bool                          `json:"idleScaling"`
 	IpAccessList                    []IpAccess                    `json:"ipAccessList"`
 	MinTotalMemoryGb                *int                          `json:"minTotalMemoryGb,omitempty"`

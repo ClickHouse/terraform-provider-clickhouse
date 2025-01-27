@@ -3,6 +3,7 @@ package api
 const (
 	TierDevelopment = "development"
 	TierProduction  = "production"
+	TierPPv2        = ""
 
 	ReleaseChannelDefault = "default"
 	ReleaseChannelFast    = "fast"

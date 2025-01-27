@@ -24,7 +24,6 @@ resource "clickhouse_service" "aws_red" {
   name                 = var.service_name
   cloud_provider       = "aws"
   region               = var.region
-  tier                 = "production"
   idle_scaling         = true
   idle_timeout_minutes = 5
   password_hash        = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"

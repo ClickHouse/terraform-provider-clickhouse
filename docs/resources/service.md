@@ -24,7 +24,6 @@ resource "clickhouse_service" "service" {
   name           = "My Service"
   cloud_provider = "aws"
   region         = "us-east-1"
-  tier           = "production"
   idle_scaling   = true
 
   ip_access = [
@@ -51,7 +50,6 @@ resource "clickhouse_service" "service" {
 - `ip_access` (Attributes List) List of IP addresses allowed to access the service. (see [below for nested schema](#nestedatt--ip_access))
 - `name` (String) User defined identifier for the service.
 - `region` (String) Region within the cloud provider in which the service is deployed in.
-- `tier` (String) Tier of the service: 'development', 'production'. Production services scale and development is a fixed size.
 
 ### Optional
 
@@ -71,6 +69,7 @@ resource "clickhouse_service" "service" {
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
 - `release_channel` (String) Release channel to use for this service. Either 'default' or 'fast'. Only supported on 'production' services. Switching from 'fast' to 'default' release channel is not supported.
+- `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
 - `warehouse_id` (String) ID of the warehouse to share the data with. Must be in the same cloud and region.
 
 ### Read-Only

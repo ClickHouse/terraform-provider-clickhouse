@@ -17,7 +17,7 @@ variable "service_name" {
 
 variable "region" {
   type = string
-  default = "westus3"
+  default = "us-east-2"
 }
 
 variable "release_channel" {
@@ -31,9 +31,8 @@ variable "release_channel" {
 
 resource "clickhouse_service" "service" {
   name                      = var.service_name
-  cloud_provider            = "azure"
+  cloud_provider            = "aws"
   region                    = var.region
-  tier                      = "production"
   release_channel           = var.release_channel
   idle_scaling              = true
   idle_timeout_minutes      = 5
