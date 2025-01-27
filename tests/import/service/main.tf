@@ -35,7 +35,6 @@ resource "clickhouse_service" "import" {
   name                      = var.service_name
   cloud_provider            = var.cloud_provider
   region                    = var.region
-  tier                      = "production"
   release_channel           = var.release_channel
   idle_scaling              = true
   idle_timeout_minutes      = 15
