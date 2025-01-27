@@ -28,14 +28,18 @@ on:
         type: string
         default: ""
         description: "(Optional) API Key secret to use when API Env is 'Custom'"
-      notify_errors:
-        type: boolean
-        default: false
-        description: "If checked, send any errors in e2e tests to the #proj-api-terraform slack channel"
-      skip_build_from_branch:
-        type: boolean
-        default: false
-        description: "If checked, the latest stable release of the clickhouse terraform plugin is used for the tests"
+      aws_region:
+        type: string
+        default: ""
+        description: "(Optional) AWS region to run tests in when API Env is 'Custom'"
+      azure_region:
+        type: string
+        default: ""
+        description: "(Optional) Azure region to run tests in when API Env is 'Custom'"
+      gcp_region:
+        type: string
+        default: ""
+        description: "(Optional) GCP region to run tests in when API Env is 'Custom'"
       run_upgrade_test:
         type: boolean
         default: false
@@ -123,6 +127,9 @@ jobs:
           organization_id: "${{ inputs.organization_id }}"
           api_key_id: "${{ inputs.api_key_id }}"
           api_key_secret: "${{ inputs.api_key_secret }}"
+          aws_region: "${{ inputs.aws_region }}"
+          azure_region: "${{ inputs.azure_region }}"
+          gcp_region: "${{ inputs.gcp_region }}"
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
@@ -140,7 +147,7 @@ jobs:
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: "false"
-          skip_build: "${{ !contains(inputs.skip_build_from_branch, 'false') }}"
+          skip_build: "false"
           region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: cleanup
@@ -192,6 +199,9 @@ jobs:
           organization_id: "${{ inputs.organization_id }}"
           api_key_id: "${{ inputs.api_key_id }}"
           api_key_secret: "${{ inputs.api_key_secret }}"
+          aws_region: "${{ inputs.aws_region }}"
+          azure_region: "${{ inputs.azure_region }}"
+          gcp_region: "${{ inputs.gcp_region }}"
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
@@ -210,7 +220,7 @@ jobs:
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: "true"
-          skip_build: "${{ !contains(inputs.skip_build_from_branch, 'false') }}"
+          skip_build: "false"
           region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: cleanup
@@ -233,7 +243,7 @@ jobs:
     if: ${{ needs.e2e.outputs.status == 'failure' }}
     steps:
       - name: Report Failure on slack
-        if: ${{ needs.e2e.outputs.status == 'failure' && !contains(inputs.notify_errors, 'false') }}
+        if: ${{ needs.e2e.outputs.status == 'failure' }}
         uses: ravsamhq/notify-slack-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -269,6 +279,9 @@ jobs:
           organization_id: "${{ inputs.organization_id }}"
           api_key_id: "${{ inputs.api_key_id }}"
           api_key_secret: "${{ inputs.api_key_secret }}"
+          aws_region: "${{ inputs.aws_region }}"
+          azure_region: "${{ inputs.azure_region }}"
+          gcp_region: "${{ inputs.gcp_region }}"
         run: |
           bash ./.github/scripts/set_api_env.sh
       - name: cleanup

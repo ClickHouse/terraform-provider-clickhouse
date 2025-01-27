@@ -2,13 +2,16 @@
 
 set -e
 
-api_url=""
-organization_id=""
-api_key_id=""
-api_key_secret=""
-region=""
+api_url=${api_url:-""}
+organization_id=${organization_id:-""}
+api_key_id=${api_key_id:-""}
+api_key_secret=${api_key_secret:-""}
+aws_region=${aws_region:-""}
+azure_region=${azure_region:-""}
+gcp_region=${gcp_region:-""}
 
 cloud="$1"
+region=""
 
 # When this script is called by the cron schedule inputs are empty so we default to Production.
 ENV=${api_env:-"Production"}
@@ -63,6 +66,26 @@ fi
 if [ "${api_key_secret}" == "" ]; then
   echo "api_key_secret input must be set when api_env is set to 'Custom'"
   exit 1
+fi
+
+if [ "${region}" == "" ]; then
+  echo "Setting default region for ${cloud}"
+  case "${cloud}" in
+  aws)
+    region="${aws_region}"
+    ;;
+  azure)
+    region="${azure_region}"
+    ;;
+  gcp)
+    region="${gcp_region}"
+    ;;
+  esac
+
+  if [ "${region}" == "" ]; then
+      echo "${cloud}_region input must be set when api_env is set to 'Custom'"
+      exit 1
+    fi
 fi
 ;;
 esac
