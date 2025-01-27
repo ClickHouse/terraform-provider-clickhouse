@@ -1,3 +1,5 @@
+//go:build alpha
+
 package resource
 
 import (
