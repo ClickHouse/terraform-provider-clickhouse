@@ -179,6 +179,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "Consumer group of the Kafka source. If not provided `clickpipes-<ID>` will be used.",
 								Computed:            true,
 								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"offset": schema.SingleNestedAttribute{
 								MarkdownDescription: "The Kafka offset.",
