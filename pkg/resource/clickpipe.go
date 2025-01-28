@@ -798,6 +798,21 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		state.Description = types.StringNull()
 	}
 
+	// In case ClickPipe status is not as expected,
+	// we should return an error that clearly states the issue so the user can take action.
+	if clickPipe.State != state.State.ValueString() {
+		if clickPipe.State == api.ClickPipeFailedState {
+			return fmt.Errorf("ClickPipe is in a failed state: %s. Review the ClickPipe logs in the ClickHouse Cloud Console", clickPipe.State)
+		}
+
+		if clickPipe.State == api.ClickPipeInternalErrorState {
+			return fmt.Errorf("ClickPipe is in an internal error state. Contact ClickHouse Cloud support for assistance")
+		}
+
+		// this should never happen, but let's handle it just in case
+		return fmt.Errorf("ClickPipe is in an unexpected state: %s", clickPipe.State)
+	}
+
 	state.State = types.StringValue(clickPipe.State)
 
 	if clickPipe.Scaling != nil && clickPipe.Scaling.Replicas != nil {

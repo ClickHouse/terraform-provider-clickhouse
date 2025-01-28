@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	ClickPipeRunningState = "Running"
-	ClickPipeStoppedState = "Stopped"
+	ClickPipeRunningState       = "Running"
+	ClickPipeStoppedState       = "Stopped"
+	ClickPipeFailedState        = "Failed"
+	ClickPipeInternalErrorState = "InternalError"
 )
 
 const (
