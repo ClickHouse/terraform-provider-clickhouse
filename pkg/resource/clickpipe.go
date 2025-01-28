@@ -1054,6 +1054,16 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			)
 			return
 		}
+
+		// scaling event is asynchronous, we need to wait for the scaling to finish in a desired plan state
+		if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), func(state string) bool {
+			return state == plan.State.ValueString()
+		}, clickPipeStateChangeMaxWaitSeconds); err != nil {
+			response.Diagnostics.AddWarning(
+				"ClickPipe didn't reach the desired state",
+				err.Error(),
+			)
+		}
 	}
 
 	if err := c.syncClickPipeState(ctx, &plan); err != nil {
