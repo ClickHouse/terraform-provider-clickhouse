@@ -45,9 +45,6 @@ Known limitations:
 - ClickPipe is immutable. It means, any change to the ClickPipe will require a new resource to be created in-place. This does not apply to scaling and state changes.
 - ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
 - Provider lacks validation logic. It means, the provider will not validate the ClickPipe configuration against the ClickHouse Cloud API. Any invalid configuration will be rejected by the API.
-
-Known bugs:
-- Kafka pipe without a consumer group provided explicitly can be created, however, in case of any plan changes, provider will require force replace due to "unknown state" of the consumer group.
 `
 
 const (
