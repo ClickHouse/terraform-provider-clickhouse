@@ -29,10 +29,9 @@ import (
 )
 
 var (
-	_ resource.Resource                = &ClickPipeResource{}
-	_ resource.ResourceWithModifyPlan  = &ClickPipeResource{}
-	_ resource.ResourceWithConfigure   = &ClickPipeResource{}
-	_ resource.ResourceWithImportState = &ClickPipeResource{}
+	_ resource.Resource               = &ClickPipeResource{}
+	_ resource.ResourceWithModifyPlan = &ClickPipeResource{}
+	_ resource.ResourceWithConfigure  = &ClickPipeResource{}
 )
 
 const clickPipeResourceDescription = `
@@ -49,7 +48,6 @@ Known limitations:
 
 Known bugs:
 - Kafka pipe without a consumer group provided explicitly can be created, however, in case of any plan changes, provider will require force replace due to "unknown state" of the consumer group.
-- Resource import is not functional. It will be implemented in future releases.
 `
 
 const (
@@ -1084,11 +1082,4 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 			"Could not delete ClickPipe, unexpected error: "+err.Error(),
 		)
 	}
-}
-
-func (c *ClickPipeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-
-	// Import seems broken now. Requires further investigation.
 }
