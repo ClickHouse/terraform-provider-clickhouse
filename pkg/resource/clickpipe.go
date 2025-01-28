@@ -536,7 +536,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	clickPipe := api.ClickPipe{
 		Name:        plan.Name.ValueString(),
-		Description: plan.Description.ValueString(),
+		Description: plan.Description.ValueStringPointer(),
 	}
 
 	sourceModel := models.ClickPipeSourceModel{}
@@ -790,7 +790,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	state.ID = types.StringValue(clickPipe.ID)
 	state.Name = types.StringValue(clickPipe.Name)
-	state.Description = types.StringValue(clickPipe.Description)
+
+	// ideally, we shouldn't receive an empty description from the API, but we should handle it just in case
+	if clickPipe.Description != nil && *clickPipe.Description != "" {
+		state.Description = types.StringPointerValue(clickPipe.Description)
+	} else {
+		state.Description = types.StringNull()
+	}
+
 	state.State = types.StringValue(clickPipe.State)
 
 	if clickPipe.Scaling != nil && clickPipe.Scaling.Replicas != nil {

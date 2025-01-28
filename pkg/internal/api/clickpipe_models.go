@@ -106,7 +106,7 @@ type ClickPipeFieldMapping struct {
 type ClickPipe struct {
 	ID            string                  `json:"id,omitempty"`
 	Name          string                  `json:"name"`
-	Description   string                  `json:"description"`
+	Description   *string                 `json:"description,omitempty"`
 	Scaling       *ClickPipeScaling       `json:"scaling,omitempty"`
 	State         string                  `json:"state,omitempty"`
 	Source        ClickPipeSource         `json:"source"`
