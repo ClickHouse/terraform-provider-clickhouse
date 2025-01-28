@@ -25,7 +25,7 @@ type ClickPipeKafkaSourceCredentials struct {
 
 type ClickPipeKafkaOffset struct {
 	Strategy  string  `json:"strategy"`
-	Timestamp *string `json:"timestamp"`
+	Timestamp *string `json:"timestamp,omitempty"`
 }
 
 type ClickPipeKafkaSchemaRegistry struct {
