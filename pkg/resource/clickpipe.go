@@ -29,10 +29,9 @@ import (
 )
 
 var (
-	_ resource.Resource                = &ClickPipeResource{}
-	_ resource.ResourceWithModifyPlan  = &ClickPipeResource{}
-	_ resource.ResourceWithConfigure   = &ClickPipeResource{}
-	_ resource.ResourceWithImportState = &ClickPipeResource{}
+	_ resource.Resource               = &ClickPipeResource{}
+	_ resource.ResourceWithModifyPlan = &ClickPipeResource{}
+	_ resource.ResourceWithConfigure  = &ClickPipeResource{}
 )
 
 const clickPipeResourceDescription = `
@@ -46,10 +45,6 @@ Known limitations:
 - ClickPipe is immutable. It means, any change to the ClickPipe will require a new resource to be created in-place. This does not apply to scaling and state changes.
 - ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
 - Provider lacks validation logic. It means, the provider will not validate the ClickPipe configuration against the ClickHouse Cloud API. Any invalid configuration will be rejected by the API.
-
-Known bugs:
-- Kafka pipe without a consumer group provided explicitly can be created, however, in case of any plan changes, provider will require force replace due to "unknown state" of the consumer group.
-- Resource import is not functional. It will be implemented in future releases.
 `
 
 const (
@@ -181,6 +176,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "Consumer group of the Kafka source. If not provided `clickpipes-<ID>` will be used.",
 								Computed:            true,
 								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"offset": schema.SingleNestedAttribute{
 								MarkdownDescription: "The Kafka offset.",
@@ -535,7 +533,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	clickPipe := api.ClickPipe{
 		Name:        plan.Name.ValueString(),
-		Description: plan.Description.ValueString(),
+		Description: plan.Description.ValueStringPointer(),
 	}
 
 	sourceModel := models.ClickPipeSourceModel{}
@@ -789,7 +787,29 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	state.ID = types.StringValue(clickPipe.ID)
 	state.Name = types.StringValue(clickPipe.Name)
-	state.Description = types.StringValue(clickPipe.Description)
+
+	// ideally, we shouldn't receive an empty description from the API, but we should handle it just in case
+	if clickPipe.Description != nil && *clickPipe.Description != "" {
+		state.Description = types.StringPointerValue(clickPipe.Description)
+	} else {
+		state.Description = types.StringNull()
+	}
+
+	// In case ClickPipe status is not as expected,
+	// we should return an error that clearly states the issue so the user can take action.
+	if clickPipe.State != state.State.ValueString() {
+		if clickPipe.State == api.ClickPipeFailedState {
+			return fmt.Errorf("ClickPipe is in a failed state: %s. Review the ClickPipe logs in the ClickHouse Cloud Console", clickPipe.State)
+		}
+
+		if clickPipe.State == api.ClickPipeInternalErrorState {
+			return fmt.Errorf("ClickPipe is in an internal error state. Contact ClickHouse Cloud support for assistance")
+		}
+
+		// this should never happen, but let's handle it just in case
+		return fmt.Errorf("ClickPipe is in an unexpected state: %s", clickPipe.State)
+	}
+
 	state.State = types.StringValue(clickPipe.State)
 
 	if clickPipe.Scaling != nil && clickPipe.Scaling.Replicas != nil {
@@ -1056,6 +1076,16 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			)
 			return
 		}
+
+		// scaling event is asynchronous, we need to wait for the scaling to finish in a desired plan state
+		if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), func(state string) bool {
+			return state == plan.State.ValueString()
+		}, clickPipeStateChangeMaxWaitSeconds); err != nil {
+			response.Diagnostics.AddWarning(
+				"ClickPipe didn't reach the desired state",
+				err.Error(),
+			)
+		}
 	}
 
 	if err := c.syncClickPipeState(ctx, &plan); err != nil {
@@ -1084,11 +1114,4 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 			"Could not delete ClickPipe, unexpected error: "+err.Error(),
 		)
 	}
-}
-
-func (c *ClickPipeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-
-	// Import seems broken now. Requires further investigation.
 }
