@@ -67,6 +67,7 @@ resource "clickhouse_service" "service" {
 - `num_replicas` (Number) Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.
 - `password` (String, Sensitive) Password for the default user. One of either `password` or `password_hash` must be specified.
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.
+- `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
 - `release_channel` (String) Release channel to use for this service. Either 'default' or 'fast'. Only supported on 'production' services. Switching from 'fast' to 'default' release channel is not supported.
 - `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
@@ -100,6 +101,19 @@ Optional:
 - `backup_period_in_hours` (Number) Interval in hours between each backup.
 - `backup_retention_period_in_hours` (Number) How long in hours to keep a backup before deleting it.
 - `backup_start_time` (String) Time of the day in UTC that indicates the start time of a 2 hours window to be used for backup. If set, backup_period_in_hours must be null and backups are created once a day.
+
+
+<a id="nestedatt--query_api_endpoints"></a>
+### Nested Schema for `query_api_endpoints`
+
+Required:
+
+- `api_key_ids` (List of String) The UUIDs of the API Keys to grant access to the query API.
+- `roles` (List of String) The Database role that will be used to run the query.
+
+Optional:
+
+- `allowed_origins` (String) Comma separated list of domain names to be allowed cross-origin resource sharing (CORS) access to the query API. Leave this field empty to restrict access to backend servers only
 
 
 <a id="nestedatt--endpoints"></a>

@@ -57,6 +57,7 @@ type Service struct {
 	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
 	BackupConfiguration             *BackupConfiguration          `json:"backupConfiguration,omitempty"`
 	ReleaseChannel                  string                        `json:"releaseChannel,omitempty"`
+	QueryAPIEndpoints               *ServiceQueryEndpoint         `json:"-"`
 }
 
 type ServiceUpdate struct {

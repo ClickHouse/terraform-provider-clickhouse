@@ -277,6 +277,29 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Custom role identifier ARN.",
 				Optional:    true,
 			},
+			"query_api_endpoints": schema.SingleNestedAttribute{
+				Description: "Configuration of the query API endpoints feature.",
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"api_key_ids": schema.ListAttribute{
+						ElementType: types.StringType,
+						Required:    true,
+						Description: "The UUIDs of the API Keys to grant access to the query API.",
+					},
+					"roles": schema.ListAttribute{
+						ElementType: types.StringType,
+						Required:    true,
+						Description: "The Database role that will be used to run the query.",
+					},
+					"allowed_origins": schema.StringAttribute{
+						Optional:    true,
+						Description: "Comma separated list of domain names to be allowed cross-origin resource sharing (CORS) access to the query API. Leave this field empty to restrict access to backend servers only",
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
+					},
+				},
+			},
 			"backup_configuration": schema.SingleNestedAttribute{
 				Description: "Configuration of service backup settings.",
 				Optional:    true,
@@ -736,6 +759,46 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			}
 		}
 
+		// Set query api endpoints
+		if !plan.QueryAPIEndpoints.IsNull() {
+			qae := models.QueryAPIEndpoints{}
+			diag := plan.QueryAPIEndpoints.As(ctx, &qae, basetypes.ObjectAsOptions{
+				UnhandledNullAsEmpty:    false,
+				UnhandledUnknownAsEmpty: false,
+			})
+			if diag.HasError() {
+				resp.Diagnostics.Append(diag.Errors()...)
+				return
+			}
+
+			roles := make([]string, 0)
+			diag = qae.Roles.ElementsAs(ctx, &roles, false)
+			if diag.HasError() {
+				resp.Diagnostics.Append(diag.Errors()...)
+				return
+			}
+
+			keys := make([]string, 0)
+			diag = qae.APIKeyIDs.ElementsAs(ctx, &keys, false)
+			if diag.HasError() {
+				resp.Diagnostics.Append(diag.Errors()...)
+				return
+			}
+
+			_, err := r.client.CreateQueryEndpoint(ctx, s.Id, api.ServiceQueryEndpoint{
+				Roles:          roles,
+				OpenApiKeys:    keys,
+				AllowedOrigins: qae.AllowedOrigins.ValueString(),
+			})
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error setting service query API endpoints",
+					"Could not set service query API endpoints, unexpected error: "+err.Error(),
+				)
+				return
+			}
+		}
+
 		// Set backup settings.
 		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
 			bc := models.BackupConfiguration{}
@@ -993,6 +1056,57 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	// Update Query API endpoints settings.
+	if !plan.QueryAPIEndpoints.IsNull() {
+		qae := models.QueryAPIEndpoints{}
+		diag := plan.QueryAPIEndpoints.As(ctx, &qae, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    false,
+			UnhandledUnknownAsEmpty: false,
+		})
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag.Errors()...)
+			return
+		}
+
+		roles := make([]string, 0)
+		diag = qae.Roles.ElementsAs(ctx, &roles, false)
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag.Errors()...)
+			return
+		}
+
+		keys := make([]string, 0)
+		diag = qae.APIKeyIDs.ElementsAs(ctx, &keys, false)
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag.Errors()...)
+			return
+		}
+
+		_, err := r.client.CreateQueryEndpoint(ctx, serviceId, api.ServiceQueryEndpoint{
+			Roles:          roles,
+			OpenApiKeys:    keys,
+			AllowedOrigins: qae.AllowedOrigins.ValueString(),
+		})
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error setting service query API endpoints",
+				"Could not set service query API endpoints, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	} else if !state.QueryAPIEndpoints.IsNull() {
+		// query_api_endpoints was removed from tf file
+		// or there was an external change
+		err := r.client.DeleteQueryEndpoint(ctx, serviceId)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error deleting service query API endpoints",
+				"Could not delete service query API endpoints, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
 	// Set backup settings.
 	{
 		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
@@ -1173,6 +1287,32 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
 	} else {
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
+	}
+
+	if service.QueryAPIEndpoints != nil {
+		queryApiEndpoint := models.QueryAPIEndpoints{}
+
+		apiKeys := make([]attr.Value, 0)
+		for _, k := range service.QueryAPIEndpoints.OpenApiKeys {
+			apiKeys = append(apiKeys, types.StringValue(k))
+		}
+		queryApiEndpoint.APIKeyIDs, _ = types.ListValue(types.StringType, apiKeys)
+
+		roles := make([]attr.Value, 0)
+		for _, k := range service.QueryAPIEndpoints.Roles {
+			roles = append(roles, types.StringValue(k))
+		}
+		queryApiEndpoint.Roles, _ = types.ListValue(types.StringType, roles)
+
+		if service.QueryAPIEndpoints.AllowedOrigins != "" {
+			queryApiEndpoint.AllowedOrigins = types.StringValue(service.QueryAPIEndpoints.AllowedOrigins)
+		} else {
+			queryApiEndpoint.AllowedOrigins = types.StringNull()
+		}
+
+		state.QueryAPIEndpoints = queryApiEndpoint.ObjectValue()
+	} else {
+		state.QueryAPIEndpoints = types.ObjectNull(models.QueryAPIEndpoints{}.ObjectType().AttrTypes)
 	}
 
 	if service.Tier == api.TierProduction || service.Tier == api.TierPPv2 {
