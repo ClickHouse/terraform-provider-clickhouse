@@ -5,7 +5,7 @@ import (
 )
 
 type Client interface {
-	GetApiKeyID(ctx context.Context) (string, error)
+	GetApiKeyID(ctx context.Context, name *string) (*ApiKey, error)
 
 	GetService(ctx context.Context, serviceId string) (*Service, error)
 	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)

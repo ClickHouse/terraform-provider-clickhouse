@@ -36,7 +36,8 @@ func (d *apiKeyIdDataSource) Metadata(ctx context.Context, req datasource.Metada
 }
 
 type apiKeyIdDataSourceModel struct {
-	Id types.String `tfsdk:"id"`
+	Id   types.String `tfsdk:"id"`
+	Name types.String `tfsdk:"name"`
 }
 
 func (d *apiKeyIdDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
@@ -45,6 +46,11 @@ func (d *apiKeyIdDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 			"id": schema.StringAttribute{
 				Description: "The ID of the API key used by the provider to connect to the service. This is a read-only attribute.",
 				Computed:    true,
+			},
+			"name": schema.StringAttribute{
+				Description: "The name of the API key to retrieve information about. If left empty, the API key used by the Terraform provider is used instead.",
+				Computed:    true,
+				Optional:    true,
 			},
 		},
 	}
@@ -55,13 +61,19 @@ func (d *apiKeyIdDataSource) Read(ctx context.Context, req datasource.ReadReques
 	// Read Terraform configuration data into the model
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
+	var name *string
+	if !data.Name.IsNull() && !data.Name.IsUnknown() {
+		name = data.Name.ValueStringPointer()
+	}
+
 	// Make the API request to get the apiKeyID
-	apiKeyId, err := d.client.GetApiKeyID(ctx)
+	apiKeyId, err := d.client.GetApiKeyID(ctx, name)
 	if err != nil {
-		resp.Diagnostics.AddError("failed get", fmt.Sprintf("error getting privateEndpointConfig: %v", err))
+		resp.Diagnostics.AddError("failed get", fmt.Sprintf("error getting ID of the API key: %v", err))
 		return
 	}
-	data.Id = types.StringValue(apiKeyId)
+	data.Id = types.StringValue(apiKeyId.ID)
+	data.Name = types.StringValue(apiKeyId.Name)
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
