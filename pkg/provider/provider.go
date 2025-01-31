@@ -221,6 +221,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 func (p *clickhouseProvider) DataSources(_ context.Context) []func() upstreamdatasource.DataSource {
 	return []func() upstreamdatasource.DataSource{
 		datasource.NewPrivateEndpointConfigDataSource,
+		datasource.NewApiKeyIDDataSource,
 	}
 }
 

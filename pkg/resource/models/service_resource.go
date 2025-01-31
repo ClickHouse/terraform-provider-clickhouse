@@ -72,6 +72,30 @@ func (p PrivateEndpointConfig) ObjectValue() basetypes.ObjectValue {
 	})
 }
 
+type QueryAPIEndpoints struct {
+	APIKeyIDs      types.List   `tfsdk:"api_key_ids"`
+	Roles          types.List   `tfsdk:"roles"`
+	AllowedOrigins types.String `tfsdk:"allowed_origins"`
+}
+
+func (q QueryAPIEndpoints) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"api_key_ids":     types.ListType{ElemType: types.StringType},
+			"roles":           types.ListType{ElemType: types.StringType},
+			"allowed_origins": types.StringType,
+		},
+	}
+}
+
+func (q QueryAPIEndpoints) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(q.ObjectType().AttrTypes, map[string]attr.Value{
+		"api_key_ids":     q.APIKeyIDs,
+		"roles":           q.Roles,
+		"allowed_origins": q.AllowedOrigins,
+	})
+}
+
 type BackupConfiguration struct {
 	BackupPeriodInHours          types.Int32  `tfsdk:"backup_period_in_hours"`
 	BackupRetentionPeriodInHours types.Int32  `tfsdk:"backup_retention_period_in_hours"`
@@ -123,6 +147,7 @@ type ServiceResourceModel struct {
 	PrivateEndpointConfig           types.Object `tfsdk:"private_endpoint_config"`
 	EncryptionKey                   types.String `tfsdk:"encryption_key"`
 	EncryptionAssumedRoleIdentifier types.String `tfsdk:"encryption_assumed_role_identifier"`
+	QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
 }
 
@@ -151,6 +176,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.EncryptionKey.Equal(b.EncryptionKey) ||
 		!m.EncryptionAssumedRoleIdentifier.Equal(b.EncryptionAssumedRoleIdentifier) ||
 		!m.IpAccessList.Equal(b.IpAccessList) ||
+		!m.QueryAPIEndpoints.Equal(b.QueryAPIEndpoints) ||
 		!m.BackupConfiguration.Equal(b.BackupConfiguration) {
 		return false
 	}

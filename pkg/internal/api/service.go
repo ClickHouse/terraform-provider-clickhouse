@@ -57,6 +57,13 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 
 	service.BackupConfiguration = backupConfiguration
 
+	queryEndpoints, err := c.GetQueryEndpoint(ctx, service.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	service.QueryAPIEndpoints = queryEndpoints
+
 	return &service, nil
 }
 

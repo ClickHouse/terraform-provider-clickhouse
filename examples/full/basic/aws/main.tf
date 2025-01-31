@@ -29,6 +29,9 @@ variable "release_channel" {
   }
 }
 
+data "clickhouse_api_key_id" "self" {
+}
+
 resource "clickhouse_service" "service" {
   name                      = var.service_name
   cloud_provider            = "aws"
@@ -44,6 +47,17 @@ resource "clickhouse_service" "service" {
       description = "Anywhere"
     }
   ]
+
+  query_api_endpoints = {
+    api_key_ids = [
+      data.clickhouse_api_key_id.self.id,
+    ]
+    roles = [
+      "sql_console_read_only",
+      "sql_console_admin"
+    ]
+    allowed_origins = null
+  }
 
   min_replica_memory_gb = 8
   max_replica_memory_gb = 120

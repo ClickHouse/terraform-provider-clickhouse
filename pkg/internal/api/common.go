@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,10 +38,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 	ctx = tflog.SetField(ctx, "method", req.Method)
 	ctx = tflog.SetField(ctx, "URL", req.URL.String())
 
-	credentials := fmt.Sprintf("%s:%s", c.TokenKey, c.TokenSecret)
-	base64Credentials := base64.StdEncoding.EncodeToString([]byte(credentials))
-	authHeader := fmt.Sprintf("Basic %s", base64Credentials)
-	req.Header.Set("Authorization", authHeader)
+	req.SetBasicAuth(c.TokenKey, c.TokenSecret)
 
 	currentExponentialBackoff := float64(1)
 	attempt := 1
