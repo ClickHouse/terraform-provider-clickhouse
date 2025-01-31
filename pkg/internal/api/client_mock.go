@@ -60,8 +60,8 @@ type ClientMock struct {
 	beforeDeleteServiceCounter uint64
 	DeleteServiceMock          mClientMockDeleteService
 
-	funcGetApiKeyID          func(ctx context.Context) (s1 string, err error)
-	inspectFuncGetApiKeyID   func(ctx context.Context)
+	funcGetApiKeyID          func(ctx context.Context, name *string) (ap1 *ApiKey, err error)
+	inspectFuncGetApiKeyID   func(ctx context.Context, name *string)
 	afterGetApiKeyIDCounter  uint64
 	beforeGetApiKeyIDCounter uint64
 	GetApiKeyIDMock          mClientMockGetApiKeyID
@@ -2639,17 +2639,19 @@ type ClientMockGetApiKeyIDExpectation struct {
 
 // ClientMockGetApiKeyIDParams contains parameters of the Client.GetApiKeyID
 type ClientMockGetApiKeyIDParams struct {
-	ctx context.Context
+	ctx  context.Context
+	name *string
 }
 
 // ClientMockGetApiKeyIDParamPtrs contains pointers to parameters of the Client.GetApiKeyID
 type ClientMockGetApiKeyIDParamPtrs struct {
-	ctx *context.Context
+	ctx  *context.Context
+	name **string
 }
 
 // ClientMockGetApiKeyIDResults contains results of the Client.GetApiKeyID
 type ClientMockGetApiKeyIDResults struct {
-	s1  string
+	ap1 *ApiKey
 	err error
 }
 
@@ -2664,7 +2666,7 @@ func (mmGetApiKeyID *mClientMockGetApiKeyID) Optional() *mClientMockGetApiKeyID 
 }
 
 // Expect sets up expected params for Client.GetApiKeyID
-func (mmGetApiKeyID *mClientMockGetApiKeyID) Expect(ctx context.Context) *mClientMockGetApiKeyID {
+func (mmGetApiKeyID *mClientMockGetApiKeyID) Expect(ctx context.Context, name *string) *mClientMockGetApiKeyID {
 	if mmGetApiKeyID.mock.funcGetApiKeyID != nil {
 		mmGetApiKeyID.mock.t.Fatalf("ClientMock.GetApiKeyID mock is already set by Set")
 	}
@@ -2677,7 +2679,7 @@ func (mmGetApiKeyID *mClientMockGetApiKeyID) Expect(ctx context.Context) *mClien
 		mmGetApiKeyID.mock.t.Fatalf("ClientMock.GetApiKeyID mock is already set by ExpectParams functions")
 	}
 
-	mmGetApiKeyID.defaultExpectation.params = &ClientMockGetApiKeyIDParams{ctx}
+	mmGetApiKeyID.defaultExpectation.params = &ClientMockGetApiKeyIDParams{ctx, name}
 	for _, e := range mmGetApiKeyID.expectations {
 		if minimock.Equal(e.params, mmGetApiKeyID.defaultExpectation.params) {
 			mmGetApiKeyID.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetApiKeyID.defaultExpectation.params)
@@ -2709,8 +2711,30 @@ func (mmGetApiKeyID *mClientMockGetApiKeyID) ExpectCtxParam1(ctx context.Context
 	return mmGetApiKeyID
 }
 
+// ExpectNameParam2 sets up expected param name for Client.GetApiKeyID
+func (mmGetApiKeyID *mClientMockGetApiKeyID) ExpectNameParam2(name *string) *mClientMockGetApiKeyID {
+	if mmGetApiKeyID.mock.funcGetApiKeyID != nil {
+		mmGetApiKeyID.mock.t.Fatalf("ClientMock.GetApiKeyID mock is already set by Set")
+	}
+
+	if mmGetApiKeyID.defaultExpectation == nil {
+		mmGetApiKeyID.defaultExpectation = &ClientMockGetApiKeyIDExpectation{}
+	}
+
+	if mmGetApiKeyID.defaultExpectation.params != nil {
+		mmGetApiKeyID.mock.t.Fatalf("ClientMock.GetApiKeyID mock is already set by Expect")
+	}
+
+	if mmGetApiKeyID.defaultExpectation.paramPtrs == nil {
+		mmGetApiKeyID.defaultExpectation.paramPtrs = &ClientMockGetApiKeyIDParamPtrs{}
+	}
+	mmGetApiKeyID.defaultExpectation.paramPtrs.name = &name
+
+	return mmGetApiKeyID
+}
+
 // Inspect accepts an inspector function that has same arguments as the Client.GetApiKeyID
-func (mmGetApiKeyID *mClientMockGetApiKeyID) Inspect(f func(ctx context.Context)) *mClientMockGetApiKeyID {
+func (mmGetApiKeyID *mClientMockGetApiKeyID) Inspect(f func(ctx context.Context, name *string)) *mClientMockGetApiKeyID {
 	if mmGetApiKeyID.mock.inspectFuncGetApiKeyID != nil {
 		mmGetApiKeyID.mock.t.Fatalf("Inspect function is already set for ClientMock.GetApiKeyID")
 	}
@@ -2721,7 +2745,7 @@ func (mmGetApiKeyID *mClientMockGetApiKeyID) Inspect(f func(ctx context.Context)
 }
 
 // Return sets up results that will be returned by Client.GetApiKeyID
-func (mmGetApiKeyID *mClientMockGetApiKeyID) Return(s1 string, err error) *ClientMock {
+func (mmGetApiKeyID *mClientMockGetApiKeyID) Return(ap1 *ApiKey, err error) *ClientMock {
 	if mmGetApiKeyID.mock.funcGetApiKeyID != nil {
 		mmGetApiKeyID.mock.t.Fatalf("ClientMock.GetApiKeyID mock is already set by Set")
 	}
@@ -2729,12 +2753,12 @@ func (mmGetApiKeyID *mClientMockGetApiKeyID) Return(s1 string, err error) *Clien
 	if mmGetApiKeyID.defaultExpectation == nil {
 		mmGetApiKeyID.defaultExpectation = &ClientMockGetApiKeyIDExpectation{mock: mmGetApiKeyID.mock}
 	}
-	mmGetApiKeyID.defaultExpectation.results = &ClientMockGetApiKeyIDResults{s1, err}
+	mmGetApiKeyID.defaultExpectation.results = &ClientMockGetApiKeyIDResults{ap1, err}
 	return mmGetApiKeyID.mock
 }
 
 // Set uses given function f to mock the Client.GetApiKeyID method
-func (mmGetApiKeyID *mClientMockGetApiKeyID) Set(f func(ctx context.Context) (s1 string, err error)) *ClientMock {
+func (mmGetApiKeyID *mClientMockGetApiKeyID) Set(f func(ctx context.Context, name *string) (ap1 *ApiKey, err error)) *ClientMock {
 	if mmGetApiKeyID.defaultExpectation != nil {
 		mmGetApiKeyID.mock.t.Fatalf("Default expectation is already set for the Client.GetApiKeyID method")
 	}
@@ -2749,22 +2773,22 @@ func (mmGetApiKeyID *mClientMockGetApiKeyID) Set(f func(ctx context.Context) (s1
 
 // When sets expectation for the Client.GetApiKeyID which will trigger the result defined by the following
 // Then helper
-func (mmGetApiKeyID *mClientMockGetApiKeyID) When(ctx context.Context) *ClientMockGetApiKeyIDExpectation {
+func (mmGetApiKeyID *mClientMockGetApiKeyID) When(ctx context.Context, name *string) *ClientMockGetApiKeyIDExpectation {
 	if mmGetApiKeyID.mock.funcGetApiKeyID != nil {
 		mmGetApiKeyID.mock.t.Fatalf("ClientMock.GetApiKeyID mock is already set by Set")
 	}
 
 	expectation := &ClientMockGetApiKeyIDExpectation{
 		mock:   mmGetApiKeyID.mock,
-		params: &ClientMockGetApiKeyIDParams{ctx},
+		params: &ClientMockGetApiKeyIDParams{ctx, name},
 	}
 	mmGetApiKeyID.expectations = append(mmGetApiKeyID.expectations, expectation)
 	return expectation
 }
 
 // Then sets up Client.GetApiKeyID return parameters for the expectation previously defined by the When method
-func (e *ClientMockGetApiKeyIDExpectation) Then(s1 string, err error) *ClientMock {
-	e.results = &ClientMockGetApiKeyIDResults{s1, err}
+func (e *ClientMockGetApiKeyIDExpectation) Then(ap1 *ApiKey, err error) *ClientMock {
+	e.results = &ClientMockGetApiKeyIDResults{ap1, err}
 	return e.mock
 }
 
@@ -2789,15 +2813,15 @@ func (mmGetApiKeyID *mClientMockGetApiKeyID) invocationsDone() bool {
 }
 
 // GetApiKeyID implements Client
-func (mmGetApiKeyID *ClientMock) GetApiKeyID(ctx context.Context) (s1 string, err error) {
+func (mmGetApiKeyID *ClientMock) GetApiKeyID(ctx context.Context, name *string) (ap1 *ApiKey, err error) {
 	mm_atomic.AddUint64(&mmGetApiKeyID.beforeGetApiKeyIDCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetApiKeyID.afterGetApiKeyIDCounter, 1)
 
 	if mmGetApiKeyID.inspectFuncGetApiKeyID != nil {
-		mmGetApiKeyID.inspectFuncGetApiKeyID(ctx)
+		mmGetApiKeyID.inspectFuncGetApiKeyID(ctx, name)
 	}
 
-	mm_params := ClientMockGetApiKeyIDParams{ctx}
+	mm_params := ClientMockGetApiKeyIDParams{ctx, name}
 
 	// Record call args
 	mmGetApiKeyID.GetApiKeyIDMock.mutex.Lock()
@@ -2807,7 +2831,7 @@ func (mmGetApiKeyID *ClientMock) GetApiKeyID(ctx context.Context) (s1 string, er
 	for _, e := range mmGetApiKeyID.GetApiKeyIDMock.expectations {
 		if minimock.Equal(*e.params, mm_params) {
 			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.s1, e.results.err
+			return e.results.ap1, e.results.err
 		}
 	}
 
@@ -2816,12 +2840,16 @@ func (mmGetApiKeyID *ClientMock) GetApiKeyID(ctx context.Context) (s1 string, er
 		mm_want := mmGetApiKeyID.GetApiKeyIDMock.defaultExpectation.params
 		mm_want_ptrs := mmGetApiKeyID.GetApiKeyIDMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockGetApiKeyIDParams{ctx}
+		mm_got := ClientMockGetApiKeyIDParams{ctx, name}
 
 		if mm_want_ptrs != nil {
 
 			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
 				mmGetApiKeyID.t.Errorf("ClientMock.GetApiKeyID got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.name != nil && !minimock.Equal(*mm_want_ptrs.name, mm_got.name) {
+				mmGetApiKeyID.t.Errorf("ClientMock.GetApiKeyID got unexpected parameter name, want: %#v, got: %#v%s\n", *mm_want_ptrs.name, mm_got.name, minimock.Diff(*mm_want_ptrs.name, mm_got.name))
 			}
 
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
@@ -2832,12 +2860,12 @@ func (mmGetApiKeyID *ClientMock) GetApiKeyID(ctx context.Context) (s1 string, er
 		if mm_results == nil {
 			mmGetApiKeyID.t.Fatal("No results are set for the ClientMock.GetApiKeyID")
 		}
-		return (*mm_results).s1, (*mm_results).err
+		return (*mm_results).ap1, (*mm_results).err
 	}
 	if mmGetApiKeyID.funcGetApiKeyID != nil {
-		return mmGetApiKeyID.funcGetApiKeyID(ctx)
+		return mmGetApiKeyID.funcGetApiKeyID(ctx, name)
 	}
-	mmGetApiKeyID.t.Fatalf("Unexpected call to ClientMock.GetApiKeyID. %v", ctx)
+	mmGetApiKeyID.t.Fatalf("Unexpected call to ClientMock.GetApiKeyID. %v %v", ctx, name)
 	return
 }
 

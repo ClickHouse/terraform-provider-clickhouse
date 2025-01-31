@@ -2,6 +2,7 @@ package datasource
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 )
+
+//go:embed descriptions/api_key_id.md
+var apiKeyIdDataSourceDescription string
 
 // Ensure the implementation satisfies the desired interfaces.
 var _ datasource.DataSource = &apiKeyIdDataSource{}
@@ -53,6 +57,7 @@ func (d *apiKeyIdDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				Optional:    true,
 			},
 		},
+		MarkdownDescription: apiKeyIdDataSourceDescription,
 	}
 }
 

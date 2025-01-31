@@ -3,12 +3,48 @@
 page_title: "clickhouse_api_key_id Data Source - clickhouse"
 subcategory: ""
 description: |-
+  The clickhouse_api_key_id data source can be used to retried the UUID of a ClickHouse cloud API key.
+  It is meant to be used in the clickhouse_service resource to set the query_api_endpoints attribute.
+  It can be used in two ways:
+  To retrieve information about an API Key, by providing its name:
   
+  data "clickhouse_api_key_id" "apikeyname" {
+    name = "apikeyname"
+  }
+  
+  To retrieve information about the API Key currently configured for running the terraform provider:
+  
+  data "clickhouse_api_key_id" "self" {
+    # No arguments
+  }
+  
+  In both cases the data source will contain the id and name attributes.
 ---
 
 # clickhouse_api_key_id (Data Source)
 
+The *clickhouse_api_key_id* data source can be used to retried the UUID of a ClickHouse cloud API key.
+It is meant to be used in the *clickhouse_service* resource to set the `query_api_endpoints` attribute.
 
+It can be used in two ways:
+
+1) To retrieve information about an API Key, by providing its name:
+
+```
+data "clickhouse_api_key_id" "apikeyname" {
+  name = "apikeyname"
+}
+```
+
+2) To retrieve information about the API Key currently configured for running the terraform provider:
+
+```
+data "clickhouse_api_key_id" "self" {
+  # No arguments
+}
+```
+
+In both cases the data source will contain the `id` and `name` attributes.
 
 
 
