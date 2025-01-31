@@ -33,10 +33,6 @@ data "clickhouse_api_key_id" "self" {
 
 }
 
-data "clickhouse_api_key_id" "terraform" {
-  name = "terraform"
-}
-
 resource "clickhouse_service" "service" {
   name                      = var.service_name
   cloud_provider            = "aws"

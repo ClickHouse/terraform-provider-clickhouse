@@ -3,20 +3,7 @@ It is meant to be used in the *clickhouse_service* resource to set the `query_ap
 
 It can be used in two ways:
 
-1) To retrieve information about an API Key, by providing its name:
-
-```
-data "clickhouse_api_key_id" "apikeyname" {
-  name = "apikeyname"
-}
-```
-
-2) To retrieve information about the API Key currently configured for running the terraform provider:
-
-```
-data "clickhouse_api_key_id" "self" {
-  # No arguments
-}
-```
+1) To retrieve information about an API Key, by providing its name
+2) To retrieve information about the API Key currently configured for running the terraform provider
 
 In both cases the data source will contain the `id` and `name` attributes.
