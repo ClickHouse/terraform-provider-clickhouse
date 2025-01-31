@@ -20,8 +20,8 @@ var apiKeyIdDataSourceDescription string
 // Ensure the implementation satisfies the desired interfaces.
 var _ datasource.DataSource = &apiKeyIdDataSource{}
 
-// NewApiKeyIdDataSource is a helper function to simplify the provider implementation.
-func NewApiKeyIdDataSource() datasource.DataSource {
+// NewApiKeyIDDataSource is a helper function to simplify the provider implementation.
+func NewApiKeyIDDataSource() datasource.DataSource {
 	return &apiKeyIdDataSource{}
 }
 
