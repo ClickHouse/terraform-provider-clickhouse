@@ -53,5 +53,5 @@ func (c *ClientImpl) GetApiKeyID(ctx context.Context, name *string) (*ApiKey, er
 		errorMsg = fmt.Sprintf("API key named %q was not found", *name)
 	}
 
-	return nil, fmt.Errorf(errorMsg)
+	return nil, fmt.Errorf(errorMsg) //nolint
 }
