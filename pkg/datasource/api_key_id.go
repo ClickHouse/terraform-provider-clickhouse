@@ -5,8 +5,10 @@ import (
 	_ "embed"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
@@ -52,9 +54,12 @@ func (d *apiKeyIdDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				Computed:    true,
 			},
 			"name": schema.StringAttribute{
-				Description: "The name of the API key to retrieve information about. If left empty, the API key used by the Terraform provider is used instead.",
-				Computed:    true,
 				Optional:    true,
+				Computed:    true,
+				Description: "The name of the API key to retrieve information about. If left empty, the API key used by the Terraform provider is used instead.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 		},
 		MarkdownDescription: apiKeyIdDataSourceDescription,

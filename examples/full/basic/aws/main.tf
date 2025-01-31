@@ -30,7 +30,6 @@ variable "release_channel" {
 }
 
 data "clickhouse_api_key_id" "self" {
-
 }
 
 resource "clickhouse_service" "service" {
