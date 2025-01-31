@@ -1,4 +1,4 @@
-The *clickhouse_api_key_id* data source can be used to retried the UUID of a ClickHouse cloud API key.
+The *clickhouse_api_key_id* data source can be used to retrieve the UUID of a ClickHouse cloud API key.
 It is meant to be used in the *clickhouse_service* resource to set the `query_api_endpoints` attribute.
 
 It can be used in two ways:
