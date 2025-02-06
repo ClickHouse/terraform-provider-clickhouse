@@ -942,6 +942,19 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		return fmt.Errorf("error reading ClickPipe destination: %v", diags)
 	}
 
+	// Destination roles are not persisted on ClickPipes side. Used only during pipe creation.
+	destinationModel.Roles = stateDestinationModel.Roles
+
+	columnList := make([]attr.Value, len(clickPipe.Destination.Columns))
+	for i, column := range clickPipe.Destination.Columns {
+		columnList[i] = models.ClickPipeDestinationColumnModel{
+			Name: types.StringValue(column.Name),
+			Type: types.StringValue(column.Type),
+		}.ObjectValue()
+	}
+
+	destinationModel.Columns, _ = types.ListValue(models.ClickPipeDestinationColumnModel{}.ObjectType(), columnList)
+
 	if clickPipe.Destination.TableDefinition != nil {
 		engineModel := models.ClickPipeDestinationTableEngineModel{
 			Type: types.StringValue(clickPipe.Destination.TableDefinition.Engine.Type),
@@ -964,19 +977,6 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		}
 
 		destinationModel.TableDefinition = tableDefinitionModel.ObjectValue()
-
-		columnList := make([]attr.Value, len(clickPipe.Destination.Columns))
-		for i, column := range clickPipe.Destination.Columns {
-			columnList[i] = models.ClickPipeDestinationColumnModel{
-				Name: types.StringValue(column.Name),
-				Type: types.StringValue(column.Type),
-			}.ObjectValue()
-		}
-
-		destinationModel.Columns, _ = types.ListValue(models.ClickPipeDestinationColumnModel{}.ObjectType(), columnList)
-
-		// Destination roles are not persisted on ClickPipes side. Used only during pipe creation.
-		destinationModel.Roles = stateDestinationModel.Roles
 	} else {
 		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
 	}
