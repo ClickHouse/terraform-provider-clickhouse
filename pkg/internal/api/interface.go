@@ -30,4 +30,9 @@ type Client interface {
 	ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling) (*ClickPipe, error)
 	ChangeClickPipeState(ctx context.Context, serviceId string, clickPipeId string, command string) (*ClickPipe, error)
 	DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error
+
+	CreateDatabase(ctx context.Context, serviceID string, db Database) error
+	GetDatabase(ctx context.Context, serviceID string, name string) (*Database, error)
+	DeleteDatabase(ctx context.Context, serviceID string, name string) error
+	SyncDatabase(ctx context.Context, serviceID string, db Database) error
 }
