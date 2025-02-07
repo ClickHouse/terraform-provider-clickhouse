@@ -53,7 +53,6 @@ resource "clickhouse_service" "service" {
       data.clickhouse_api_key_id.self.id,
     ]
     roles = [
-      "sql_console_read_only",
       "sql_console_admin"
     ]
     allowed_origins = null
