@@ -30,4 +30,8 @@ type Client interface {
 	ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling) (*ClickPipe, error)
 	ChangeClickPipeState(ctx context.Context, serviceId string, clickPipeId string, command string) (*ClickPipe, error)
 	DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error
+
+	CreateUser(ctx context.Context, serviceId string, user User) (*User, error)
+	GetUser(ctx context.Context, serviceID string, name string) (*User, error)
+	DeleteUser(ctx context.Context, serviceID string, name string) error
 }

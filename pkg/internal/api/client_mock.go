@@ -42,6 +42,12 @@ type ClientMock struct {
 	beforeCreateServiceCounter uint64
 	CreateServiceMock          mClientMockCreateService
 
+	funcCreateUser          func(ctx context.Context, serviceId string, user User) (up1 *User, err error)
+	inspectFuncCreateUser   func(ctx context.Context, serviceId string, user User)
+	afterCreateUserCounter  uint64
+	beforeCreateUserCounter uint64
+	CreateUserMock          mClientMockCreateUser
+
 	funcDeleteClickPipe          func(ctx context.Context, serviceId string, clickPipeId string) (err error)
 	inspectFuncDeleteClickPipe   func(ctx context.Context, serviceId string, clickPipeId string)
 	afterDeleteClickPipeCounter  uint64
@@ -59,6 +65,12 @@ type ClientMock struct {
 	afterDeleteServiceCounter  uint64
 	beforeDeleteServiceCounter uint64
 	DeleteServiceMock          mClientMockDeleteService
+
+	funcDeleteUser          func(ctx context.Context, serviceID string, name string) (err error)
+	inspectFuncDeleteUser   func(ctx context.Context, serviceID string, name string)
+	afterDeleteUserCounter  uint64
+	beforeDeleteUserCounter uint64
+	DeleteUserMock          mClientMockDeleteUser
 
 	funcGetApiKeyID          func(ctx context.Context, name *string) (ap1 *ApiKey, err error)
 	inspectFuncGetApiKeyID   func(ctx context.Context, name *string)
@@ -101,6 +113,12 @@ type ClientMock struct {
 	afterGetServiceCounter  uint64
 	beforeGetServiceCounter uint64
 	GetServiceMock          mClientMockGetService
+
+	funcGetUser          func(ctx context.Context, serviceID string, name string) (up1 *User, err error)
+	inspectFuncGetUser   func(ctx context.Context, serviceID string, name string)
+	afterGetUserCounter  uint64
+	beforeGetUserCounter uint64
+	GetUserMock          mClientMockGetUser
 
 	funcScalingClickPipe          func(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling) (cp1 *ClickPipe, err error)
 	inspectFuncScalingClickPipe   func(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling)
@@ -171,6 +189,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateServiceMock = mClientMockCreateService{mock: m}
 	m.CreateServiceMock.callArgs = []*ClientMockCreateServiceParams{}
 
+	m.CreateUserMock = mClientMockCreateUser{mock: m}
+	m.CreateUserMock.callArgs = []*ClientMockCreateUserParams{}
+
 	m.DeleteClickPipeMock = mClientMockDeleteClickPipe{mock: m}
 	m.DeleteClickPipeMock.callArgs = []*ClientMockDeleteClickPipeParams{}
 
@@ -179,6 +200,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeleteServiceMock = mClientMockDeleteService{mock: m}
 	m.DeleteServiceMock.callArgs = []*ClientMockDeleteServiceParams{}
+
+	m.DeleteUserMock = mClientMockDeleteUser{mock: m}
+	m.DeleteUserMock.callArgs = []*ClientMockDeleteUserParams{}
 
 	m.GetApiKeyIDMock = mClientMockGetApiKeyID{mock: m}
 	m.GetApiKeyIDMock.callArgs = []*ClientMockGetApiKeyIDParams{}
@@ -200,6 +224,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
+
+	m.GetUserMock = mClientMockGetUser{mock: m}
+	m.GetUserMock.callArgs = []*ClientMockGetUserParams{}
 
 	m.ScalingClickPipeMock = mClientMockScalingClickPipe{mock: m}
 	m.ScalingClickPipeMock.callArgs = []*ClientMockScalingClickPipeParams{}
@@ -1627,6 +1654,355 @@ func (m *ClientMock) MinimockCreateServiceInspect() {
 	}
 }
 
+type mClientMockCreateUser struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateUserExpectation
+	expectations       []*ClientMockCreateUserExpectation
+
+	callArgs []*ClientMockCreateUserParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockCreateUserExpectation specifies expectation struct of the Client.CreateUser
+type ClientMockCreateUserExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockCreateUserParams
+	paramPtrs *ClientMockCreateUserParamPtrs
+	results   *ClientMockCreateUserResults
+	Counter   uint64
+}
+
+// ClientMockCreateUserParams contains parameters of the Client.CreateUser
+type ClientMockCreateUserParams struct {
+	ctx       context.Context
+	serviceId string
+	user      User
+}
+
+// ClientMockCreateUserParamPtrs contains pointers to parameters of the Client.CreateUser
+type ClientMockCreateUserParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	user      *User
+}
+
+// ClientMockCreateUserResults contains results of the Client.CreateUser
+type ClientMockCreateUserResults struct {
+	up1 *User
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateUser *mClientMockCreateUser) Optional() *mClientMockCreateUser {
+	mmCreateUser.optional = true
+	return mmCreateUser
+}
+
+// Expect sets up expected params for Client.CreateUser
+func (mmCreateUser *mClientMockCreateUser) Expect(ctx context.Context, serviceId string, user User) *mClientMockCreateUser {
+	if mmCreateUser.mock.funcCreateUser != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by Set")
+	}
+
+	if mmCreateUser.defaultExpectation == nil {
+		mmCreateUser.defaultExpectation = &ClientMockCreateUserExpectation{}
+	}
+
+	if mmCreateUser.defaultExpectation.paramPtrs != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by ExpectParams functions")
+	}
+
+	mmCreateUser.defaultExpectation.params = &ClientMockCreateUserParams{ctx, serviceId, user}
+	for _, e := range mmCreateUser.expectations {
+		if minimock.Equal(e.params, mmCreateUser.defaultExpectation.params) {
+			mmCreateUser.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateUser.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateUser
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateUser
+func (mmCreateUser *mClientMockCreateUser) ExpectCtxParam1(ctx context.Context) *mClientMockCreateUser {
+	if mmCreateUser.mock.funcCreateUser != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by Set")
+	}
+
+	if mmCreateUser.defaultExpectation == nil {
+		mmCreateUser.defaultExpectation = &ClientMockCreateUserExpectation{}
+	}
+
+	if mmCreateUser.defaultExpectation.params != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by Expect")
+	}
+
+	if mmCreateUser.defaultExpectation.paramPtrs == nil {
+		mmCreateUser.defaultExpectation.paramPtrs = &ClientMockCreateUserParamPtrs{}
+	}
+	mmCreateUser.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmCreateUser
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.CreateUser
+func (mmCreateUser *mClientMockCreateUser) ExpectServiceIdParam2(serviceId string) *mClientMockCreateUser {
+	if mmCreateUser.mock.funcCreateUser != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by Set")
+	}
+
+	if mmCreateUser.defaultExpectation == nil {
+		mmCreateUser.defaultExpectation = &ClientMockCreateUserExpectation{}
+	}
+
+	if mmCreateUser.defaultExpectation.params != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by Expect")
+	}
+
+	if mmCreateUser.defaultExpectation.paramPtrs == nil {
+		mmCreateUser.defaultExpectation.paramPtrs = &ClientMockCreateUserParamPtrs{}
+	}
+	mmCreateUser.defaultExpectation.paramPtrs.serviceId = &serviceId
+
+	return mmCreateUser
+}
+
+// ExpectUserParam3 sets up expected param user for Client.CreateUser
+func (mmCreateUser *mClientMockCreateUser) ExpectUserParam3(user User) *mClientMockCreateUser {
+	if mmCreateUser.mock.funcCreateUser != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by Set")
+	}
+
+	if mmCreateUser.defaultExpectation == nil {
+		mmCreateUser.defaultExpectation = &ClientMockCreateUserExpectation{}
+	}
+
+	if mmCreateUser.defaultExpectation.params != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by Expect")
+	}
+
+	if mmCreateUser.defaultExpectation.paramPtrs == nil {
+		mmCreateUser.defaultExpectation.paramPtrs = &ClientMockCreateUserParamPtrs{}
+	}
+	mmCreateUser.defaultExpectation.paramPtrs.user = &user
+
+	return mmCreateUser
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateUser
+func (mmCreateUser *mClientMockCreateUser) Inspect(f func(ctx context.Context, serviceId string, user User)) *mClientMockCreateUser {
+	if mmCreateUser.mock.inspectFuncCreateUser != nil {
+		mmCreateUser.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateUser")
+	}
+
+	mmCreateUser.mock.inspectFuncCreateUser = f
+
+	return mmCreateUser
+}
+
+// Return sets up results that will be returned by Client.CreateUser
+func (mmCreateUser *mClientMockCreateUser) Return(up1 *User, err error) *ClientMock {
+	if mmCreateUser.mock.funcCreateUser != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by Set")
+	}
+
+	if mmCreateUser.defaultExpectation == nil {
+		mmCreateUser.defaultExpectation = &ClientMockCreateUserExpectation{mock: mmCreateUser.mock}
+	}
+	mmCreateUser.defaultExpectation.results = &ClientMockCreateUserResults{up1, err}
+	return mmCreateUser.mock
+}
+
+// Set uses given function f to mock the Client.CreateUser method
+func (mmCreateUser *mClientMockCreateUser) Set(f func(ctx context.Context, serviceId string, user User) (up1 *User, err error)) *ClientMock {
+	if mmCreateUser.defaultExpectation != nil {
+		mmCreateUser.mock.t.Fatalf("Default expectation is already set for the Client.CreateUser method")
+	}
+
+	if len(mmCreateUser.expectations) > 0 {
+		mmCreateUser.mock.t.Fatalf("Some expectations are already set for the Client.CreateUser method")
+	}
+
+	mmCreateUser.mock.funcCreateUser = f
+	return mmCreateUser.mock
+}
+
+// When sets expectation for the Client.CreateUser which will trigger the result defined by the following
+// Then helper
+func (mmCreateUser *mClientMockCreateUser) When(ctx context.Context, serviceId string, user User) *ClientMockCreateUserExpectation {
+	if mmCreateUser.mock.funcCreateUser != nil {
+		mmCreateUser.mock.t.Fatalf("ClientMock.CreateUser mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateUserExpectation{
+		mock:   mmCreateUser.mock,
+		params: &ClientMockCreateUserParams{ctx, serviceId, user},
+	}
+	mmCreateUser.expectations = append(mmCreateUser.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateUser return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateUserExpectation) Then(up1 *User, err error) *ClientMock {
+	e.results = &ClientMockCreateUserResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateUser should be invoked
+func (mmCreateUser *mClientMockCreateUser) Times(n uint64) *mClientMockCreateUser {
+	if n == 0 {
+		mmCreateUser.mock.t.Fatalf("Times of ClientMock.CreateUser mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateUser.expectedInvocations, n)
+	return mmCreateUser
+}
+
+func (mmCreateUser *mClientMockCreateUser) invocationsDone() bool {
+	if len(mmCreateUser.expectations) == 0 && mmCreateUser.defaultExpectation == nil && mmCreateUser.mock.funcCreateUser == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateUser.mock.afterCreateUserCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateUser.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateUser implements Client
+func (mmCreateUser *ClientMock) CreateUser(ctx context.Context, serviceId string, user User) (up1 *User, err error) {
+	mm_atomic.AddUint64(&mmCreateUser.beforeCreateUserCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateUser.afterCreateUserCounter, 1)
+
+	if mmCreateUser.inspectFuncCreateUser != nil {
+		mmCreateUser.inspectFuncCreateUser(ctx, serviceId, user)
+	}
+
+	mm_params := ClientMockCreateUserParams{ctx, serviceId, user}
+
+	// Record call args
+	mmCreateUser.CreateUserMock.mutex.Lock()
+	mmCreateUser.CreateUserMock.callArgs = append(mmCreateUser.CreateUserMock.callArgs, &mm_params)
+	mmCreateUser.CreateUserMock.mutex.Unlock()
+
+	for _, e := range mmCreateUser.CreateUserMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmCreateUser.CreateUserMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateUser.CreateUserMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateUser.CreateUserMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateUser.CreateUserMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateUserParams{ctx, serviceId, user}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateUser.t.Errorf("ClientMock.CreateUser got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmCreateUser.t.Errorf("ClientMock.CreateUser got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.user != nil && !minimock.Equal(*mm_want_ptrs.user, mm_got.user) {
+				mmCreateUser.t.Errorf("ClientMock.CreateUser got unexpected parameter user, want: %#v, got: %#v%s\n", *mm_want_ptrs.user, mm_got.user, minimock.Diff(*mm_want_ptrs.user, mm_got.user))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateUser.t.Errorf("ClientMock.CreateUser got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateUser.CreateUserMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateUser.t.Fatal("No results are set for the ClientMock.CreateUser")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmCreateUser.funcCreateUser != nil {
+		return mmCreateUser.funcCreateUser(ctx, serviceId, user)
+	}
+	mmCreateUser.t.Fatalf("Unexpected call to ClientMock.CreateUser. %v %v %v", ctx, serviceId, user)
+	return
+}
+
+// CreateUserAfterCounter returns a count of finished ClientMock.CreateUser invocations
+func (mmCreateUser *ClientMock) CreateUserAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateUser.afterCreateUserCounter)
+}
+
+// CreateUserBeforeCounter returns a count of ClientMock.CreateUser invocations
+func (mmCreateUser *ClientMock) CreateUserBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateUser.beforeCreateUserCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateUser.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateUser *mClientMockCreateUser) Calls() []*ClientMockCreateUserParams {
+	mmCreateUser.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateUserParams, len(mmCreateUser.callArgs))
+	copy(argCopy, mmCreateUser.callArgs)
+
+	mmCreateUser.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateUserDone returns true if the count of the CreateUser invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateUserDone() bool {
+	if m.CreateUserMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateUserMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateUserMock.invocationsDone()
+}
+
+// MinimockCreateUserInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateUserInspect() {
+	for _, e := range m.CreateUserMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateUser with params: %#v", *e.params)
+		}
+	}
+
+	afterCreateUserCounter := mm_atomic.LoadUint64(&m.afterCreateUserCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateUserMock.defaultExpectation != nil && afterCreateUserCounter < 1 {
+		if m.CreateUserMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.CreateUser")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateUser with params: %#v", *m.CreateUserMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateUser != nil && afterCreateUserCounter < 1 {
+		m.t.Error("Expected call to ClientMock.CreateUser")
+	}
+
+	if !m.CreateUserMock.invocationsDone() && afterCreateUserCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateUser but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateUserMock.expectedInvocations), afterCreateUserCounter)
+	}
+}
+
 type mClientMockDeleteClickPipe struct {
 	optional           bool
 	mock               *ClientMock
@@ -2613,6 +2989,354 @@ func (m *ClientMock) MinimockDeleteServiceInspect() {
 	if !m.DeleteServiceMock.invocationsDone() && afterDeleteServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteService but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteServiceMock.expectedInvocations), afterDeleteServiceCounter)
+	}
+}
+
+type mClientMockDeleteUser struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteUserExpectation
+	expectations       []*ClientMockDeleteUserExpectation
+
+	callArgs []*ClientMockDeleteUserParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockDeleteUserExpectation specifies expectation struct of the Client.DeleteUser
+type ClientMockDeleteUserExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockDeleteUserParams
+	paramPtrs *ClientMockDeleteUserParamPtrs
+	results   *ClientMockDeleteUserResults
+	Counter   uint64
+}
+
+// ClientMockDeleteUserParams contains parameters of the Client.DeleteUser
+type ClientMockDeleteUserParams struct {
+	ctx       context.Context
+	serviceID string
+	name      string
+}
+
+// ClientMockDeleteUserParamPtrs contains pointers to parameters of the Client.DeleteUser
+type ClientMockDeleteUserParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	name      *string
+}
+
+// ClientMockDeleteUserResults contains results of the Client.DeleteUser
+type ClientMockDeleteUserResults struct {
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteUser *mClientMockDeleteUser) Optional() *mClientMockDeleteUser {
+	mmDeleteUser.optional = true
+	return mmDeleteUser
+}
+
+// Expect sets up expected params for Client.DeleteUser
+func (mmDeleteUser *mClientMockDeleteUser) Expect(ctx context.Context, serviceID string, name string) *mClientMockDeleteUser {
+	if mmDeleteUser.mock.funcDeleteUser != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by Set")
+	}
+
+	if mmDeleteUser.defaultExpectation == nil {
+		mmDeleteUser.defaultExpectation = &ClientMockDeleteUserExpectation{}
+	}
+
+	if mmDeleteUser.defaultExpectation.paramPtrs != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteUser.defaultExpectation.params = &ClientMockDeleteUserParams{ctx, serviceID, name}
+	for _, e := range mmDeleteUser.expectations {
+		if minimock.Equal(e.params, mmDeleteUser.defaultExpectation.params) {
+			mmDeleteUser.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteUser.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteUser
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteUser
+func (mmDeleteUser *mClientMockDeleteUser) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteUser {
+	if mmDeleteUser.mock.funcDeleteUser != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by Set")
+	}
+
+	if mmDeleteUser.defaultExpectation == nil {
+		mmDeleteUser.defaultExpectation = &ClientMockDeleteUserExpectation{}
+	}
+
+	if mmDeleteUser.defaultExpectation.params != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by Expect")
+	}
+
+	if mmDeleteUser.defaultExpectation.paramPtrs == nil {
+		mmDeleteUser.defaultExpectation.paramPtrs = &ClientMockDeleteUserParamPtrs{}
+	}
+	mmDeleteUser.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmDeleteUser
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.DeleteUser
+func (mmDeleteUser *mClientMockDeleteUser) ExpectServiceIDParam2(serviceID string) *mClientMockDeleteUser {
+	if mmDeleteUser.mock.funcDeleteUser != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by Set")
+	}
+
+	if mmDeleteUser.defaultExpectation == nil {
+		mmDeleteUser.defaultExpectation = &ClientMockDeleteUserExpectation{}
+	}
+
+	if mmDeleteUser.defaultExpectation.params != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by Expect")
+	}
+
+	if mmDeleteUser.defaultExpectation.paramPtrs == nil {
+		mmDeleteUser.defaultExpectation.paramPtrs = &ClientMockDeleteUserParamPtrs{}
+	}
+	mmDeleteUser.defaultExpectation.paramPtrs.serviceID = &serviceID
+
+	return mmDeleteUser
+}
+
+// ExpectNameParam3 sets up expected param name for Client.DeleteUser
+func (mmDeleteUser *mClientMockDeleteUser) ExpectNameParam3(name string) *mClientMockDeleteUser {
+	if mmDeleteUser.mock.funcDeleteUser != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by Set")
+	}
+
+	if mmDeleteUser.defaultExpectation == nil {
+		mmDeleteUser.defaultExpectation = &ClientMockDeleteUserExpectation{}
+	}
+
+	if mmDeleteUser.defaultExpectation.params != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by Expect")
+	}
+
+	if mmDeleteUser.defaultExpectation.paramPtrs == nil {
+		mmDeleteUser.defaultExpectation.paramPtrs = &ClientMockDeleteUserParamPtrs{}
+	}
+	mmDeleteUser.defaultExpectation.paramPtrs.name = &name
+
+	return mmDeleteUser
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteUser
+func (mmDeleteUser *mClientMockDeleteUser) Inspect(f func(ctx context.Context, serviceID string, name string)) *mClientMockDeleteUser {
+	if mmDeleteUser.mock.inspectFuncDeleteUser != nil {
+		mmDeleteUser.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteUser")
+	}
+
+	mmDeleteUser.mock.inspectFuncDeleteUser = f
+
+	return mmDeleteUser
+}
+
+// Return sets up results that will be returned by Client.DeleteUser
+func (mmDeleteUser *mClientMockDeleteUser) Return(err error) *ClientMock {
+	if mmDeleteUser.mock.funcDeleteUser != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by Set")
+	}
+
+	if mmDeleteUser.defaultExpectation == nil {
+		mmDeleteUser.defaultExpectation = &ClientMockDeleteUserExpectation{mock: mmDeleteUser.mock}
+	}
+	mmDeleteUser.defaultExpectation.results = &ClientMockDeleteUserResults{err}
+	return mmDeleteUser.mock
+}
+
+// Set uses given function f to mock the Client.DeleteUser method
+func (mmDeleteUser *mClientMockDeleteUser) Set(f func(ctx context.Context, serviceID string, name string) (err error)) *ClientMock {
+	if mmDeleteUser.defaultExpectation != nil {
+		mmDeleteUser.mock.t.Fatalf("Default expectation is already set for the Client.DeleteUser method")
+	}
+
+	if len(mmDeleteUser.expectations) > 0 {
+		mmDeleteUser.mock.t.Fatalf("Some expectations are already set for the Client.DeleteUser method")
+	}
+
+	mmDeleteUser.mock.funcDeleteUser = f
+	return mmDeleteUser.mock
+}
+
+// When sets expectation for the Client.DeleteUser which will trigger the result defined by the following
+// Then helper
+func (mmDeleteUser *mClientMockDeleteUser) When(ctx context.Context, serviceID string, name string) *ClientMockDeleteUserExpectation {
+	if mmDeleteUser.mock.funcDeleteUser != nil {
+		mmDeleteUser.mock.t.Fatalf("ClientMock.DeleteUser mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteUserExpectation{
+		mock:   mmDeleteUser.mock,
+		params: &ClientMockDeleteUserParams{ctx, serviceID, name},
+	}
+	mmDeleteUser.expectations = append(mmDeleteUser.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteUser return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteUserExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteUserResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteUser should be invoked
+func (mmDeleteUser *mClientMockDeleteUser) Times(n uint64) *mClientMockDeleteUser {
+	if n == 0 {
+		mmDeleteUser.mock.t.Fatalf("Times of ClientMock.DeleteUser mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteUser.expectedInvocations, n)
+	return mmDeleteUser
+}
+
+func (mmDeleteUser *mClientMockDeleteUser) invocationsDone() bool {
+	if len(mmDeleteUser.expectations) == 0 && mmDeleteUser.defaultExpectation == nil && mmDeleteUser.mock.funcDeleteUser == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteUser.mock.afterDeleteUserCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteUser.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteUser implements Client
+func (mmDeleteUser *ClientMock) DeleteUser(ctx context.Context, serviceID string, name string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteUser.beforeDeleteUserCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteUser.afterDeleteUserCounter, 1)
+
+	if mmDeleteUser.inspectFuncDeleteUser != nil {
+		mmDeleteUser.inspectFuncDeleteUser(ctx, serviceID, name)
+	}
+
+	mm_params := ClientMockDeleteUserParams{ctx, serviceID, name}
+
+	// Record call args
+	mmDeleteUser.DeleteUserMock.mutex.Lock()
+	mmDeleteUser.DeleteUserMock.callArgs = append(mmDeleteUser.DeleteUserMock.callArgs, &mm_params)
+	mmDeleteUser.DeleteUserMock.mutex.Unlock()
+
+	for _, e := range mmDeleteUser.DeleteUserMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteUser.DeleteUserMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteUser.DeleteUserMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteUser.DeleteUserMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteUser.DeleteUserMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteUserParams{ctx, serviceID, name}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteUser.t.Errorf("ClientMock.DeleteUser got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmDeleteUser.t.Errorf("ClientMock.DeleteUser got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.name != nil && !minimock.Equal(*mm_want_ptrs.name, mm_got.name) {
+				mmDeleteUser.t.Errorf("ClientMock.DeleteUser got unexpected parameter name, want: %#v, got: %#v%s\n", *mm_want_ptrs.name, mm_got.name, minimock.Diff(*mm_want_ptrs.name, mm_got.name))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteUser.t.Errorf("ClientMock.DeleteUser got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteUser.DeleteUserMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteUser.t.Fatal("No results are set for the ClientMock.DeleteUser")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteUser.funcDeleteUser != nil {
+		return mmDeleteUser.funcDeleteUser(ctx, serviceID, name)
+	}
+	mmDeleteUser.t.Fatalf("Unexpected call to ClientMock.DeleteUser. %v %v %v", ctx, serviceID, name)
+	return
+}
+
+// DeleteUserAfterCounter returns a count of finished ClientMock.DeleteUser invocations
+func (mmDeleteUser *ClientMock) DeleteUserAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteUser.afterDeleteUserCounter)
+}
+
+// DeleteUserBeforeCounter returns a count of ClientMock.DeleteUser invocations
+func (mmDeleteUser *ClientMock) DeleteUserBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteUser.beforeDeleteUserCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteUser.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteUser *mClientMockDeleteUser) Calls() []*ClientMockDeleteUserParams {
+	mmDeleteUser.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteUserParams, len(mmDeleteUser.callArgs))
+	copy(argCopy, mmDeleteUser.callArgs)
+
+	mmDeleteUser.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteUserDone returns true if the count of the DeleteUser invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteUserDone() bool {
+	if m.DeleteUserMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteUserMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteUserMock.invocationsDone()
+}
+
+// MinimockDeleteUserInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteUserInspect() {
+	for _, e := range m.DeleteUserMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteUser with params: %#v", *e.params)
+		}
+	}
+
+	afterDeleteUserCounter := mm_atomic.LoadUint64(&m.afterDeleteUserCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteUserMock.defaultExpectation != nil && afterDeleteUserCounter < 1 {
+		if m.DeleteUserMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.DeleteUser")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteUser with params: %#v", *m.DeleteUserMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteUser != nil && afterDeleteUserCounter < 1 {
+		m.t.Error("Expected call to ClientMock.DeleteUser")
+	}
+
+	if !m.DeleteUserMock.invocationsDone() && afterDeleteUserCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteUser but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteUserMock.expectedInvocations), afterDeleteUserCounter)
 	}
 }
 
@@ -4888,6 +5612,355 @@ func (m *ClientMock) MinimockGetServiceInspect() {
 	if !m.GetServiceMock.invocationsDone() && afterGetServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetService but found %d calls",
 			mm_atomic.LoadUint64(&m.GetServiceMock.expectedInvocations), afterGetServiceCounter)
+	}
+}
+
+type mClientMockGetUser struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetUserExpectation
+	expectations       []*ClientMockGetUserExpectation
+
+	callArgs []*ClientMockGetUserParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockGetUserExpectation specifies expectation struct of the Client.GetUser
+type ClientMockGetUserExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockGetUserParams
+	paramPtrs *ClientMockGetUserParamPtrs
+	results   *ClientMockGetUserResults
+	Counter   uint64
+}
+
+// ClientMockGetUserParams contains parameters of the Client.GetUser
+type ClientMockGetUserParams struct {
+	ctx       context.Context
+	serviceID string
+	name      string
+}
+
+// ClientMockGetUserParamPtrs contains pointers to parameters of the Client.GetUser
+type ClientMockGetUserParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	name      *string
+}
+
+// ClientMockGetUserResults contains results of the Client.GetUser
+type ClientMockGetUserResults struct {
+	up1 *User
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetUser *mClientMockGetUser) Optional() *mClientMockGetUser {
+	mmGetUser.optional = true
+	return mmGetUser
+}
+
+// Expect sets up expected params for Client.GetUser
+func (mmGetUser *mClientMockGetUser) Expect(ctx context.Context, serviceID string, name string) *mClientMockGetUser {
+	if mmGetUser.mock.funcGetUser != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by Set")
+	}
+
+	if mmGetUser.defaultExpectation == nil {
+		mmGetUser.defaultExpectation = &ClientMockGetUserExpectation{}
+	}
+
+	if mmGetUser.defaultExpectation.paramPtrs != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by ExpectParams functions")
+	}
+
+	mmGetUser.defaultExpectation.params = &ClientMockGetUserParams{ctx, serviceID, name}
+	for _, e := range mmGetUser.expectations {
+		if minimock.Equal(e.params, mmGetUser.defaultExpectation.params) {
+			mmGetUser.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetUser.defaultExpectation.params)
+		}
+	}
+
+	return mmGetUser
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetUser
+func (mmGetUser *mClientMockGetUser) ExpectCtxParam1(ctx context.Context) *mClientMockGetUser {
+	if mmGetUser.mock.funcGetUser != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by Set")
+	}
+
+	if mmGetUser.defaultExpectation == nil {
+		mmGetUser.defaultExpectation = &ClientMockGetUserExpectation{}
+	}
+
+	if mmGetUser.defaultExpectation.params != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by Expect")
+	}
+
+	if mmGetUser.defaultExpectation.paramPtrs == nil {
+		mmGetUser.defaultExpectation.paramPtrs = &ClientMockGetUserParamPtrs{}
+	}
+	mmGetUser.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmGetUser
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.GetUser
+func (mmGetUser *mClientMockGetUser) ExpectServiceIDParam2(serviceID string) *mClientMockGetUser {
+	if mmGetUser.mock.funcGetUser != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by Set")
+	}
+
+	if mmGetUser.defaultExpectation == nil {
+		mmGetUser.defaultExpectation = &ClientMockGetUserExpectation{}
+	}
+
+	if mmGetUser.defaultExpectation.params != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by Expect")
+	}
+
+	if mmGetUser.defaultExpectation.paramPtrs == nil {
+		mmGetUser.defaultExpectation.paramPtrs = &ClientMockGetUserParamPtrs{}
+	}
+	mmGetUser.defaultExpectation.paramPtrs.serviceID = &serviceID
+
+	return mmGetUser
+}
+
+// ExpectNameParam3 sets up expected param name for Client.GetUser
+func (mmGetUser *mClientMockGetUser) ExpectNameParam3(name string) *mClientMockGetUser {
+	if mmGetUser.mock.funcGetUser != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by Set")
+	}
+
+	if mmGetUser.defaultExpectation == nil {
+		mmGetUser.defaultExpectation = &ClientMockGetUserExpectation{}
+	}
+
+	if mmGetUser.defaultExpectation.params != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by Expect")
+	}
+
+	if mmGetUser.defaultExpectation.paramPtrs == nil {
+		mmGetUser.defaultExpectation.paramPtrs = &ClientMockGetUserParamPtrs{}
+	}
+	mmGetUser.defaultExpectation.paramPtrs.name = &name
+
+	return mmGetUser
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetUser
+func (mmGetUser *mClientMockGetUser) Inspect(f func(ctx context.Context, serviceID string, name string)) *mClientMockGetUser {
+	if mmGetUser.mock.inspectFuncGetUser != nil {
+		mmGetUser.mock.t.Fatalf("Inspect function is already set for ClientMock.GetUser")
+	}
+
+	mmGetUser.mock.inspectFuncGetUser = f
+
+	return mmGetUser
+}
+
+// Return sets up results that will be returned by Client.GetUser
+func (mmGetUser *mClientMockGetUser) Return(up1 *User, err error) *ClientMock {
+	if mmGetUser.mock.funcGetUser != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by Set")
+	}
+
+	if mmGetUser.defaultExpectation == nil {
+		mmGetUser.defaultExpectation = &ClientMockGetUserExpectation{mock: mmGetUser.mock}
+	}
+	mmGetUser.defaultExpectation.results = &ClientMockGetUserResults{up1, err}
+	return mmGetUser.mock
+}
+
+// Set uses given function f to mock the Client.GetUser method
+func (mmGetUser *mClientMockGetUser) Set(f func(ctx context.Context, serviceID string, name string) (up1 *User, err error)) *ClientMock {
+	if mmGetUser.defaultExpectation != nil {
+		mmGetUser.mock.t.Fatalf("Default expectation is already set for the Client.GetUser method")
+	}
+
+	if len(mmGetUser.expectations) > 0 {
+		mmGetUser.mock.t.Fatalf("Some expectations are already set for the Client.GetUser method")
+	}
+
+	mmGetUser.mock.funcGetUser = f
+	return mmGetUser.mock
+}
+
+// When sets expectation for the Client.GetUser which will trigger the result defined by the following
+// Then helper
+func (mmGetUser *mClientMockGetUser) When(ctx context.Context, serviceID string, name string) *ClientMockGetUserExpectation {
+	if mmGetUser.mock.funcGetUser != nil {
+		mmGetUser.mock.t.Fatalf("ClientMock.GetUser mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetUserExpectation{
+		mock:   mmGetUser.mock,
+		params: &ClientMockGetUserParams{ctx, serviceID, name},
+	}
+	mmGetUser.expectations = append(mmGetUser.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetUser return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetUserExpectation) Then(up1 *User, err error) *ClientMock {
+	e.results = &ClientMockGetUserResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetUser should be invoked
+func (mmGetUser *mClientMockGetUser) Times(n uint64) *mClientMockGetUser {
+	if n == 0 {
+		mmGetUser.mock.t.Fatalf("Times of ClientMock.GetUser mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetUser.expectedInvocations, n)
+	return mmGetUser
+}
+
+func (mmGetUser *mClientMockGetUser) invocationsDone() bool {
+	if len(mmGetUser.expectations) == 0 && mmGetUser.defaultExpectation == nil && mmGetUser.mock.funcGetUser == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetUser.mock.afterGetUserCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetUser.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetUser implements Client
+func (mmGetUser *ClientMock) GetUser(ctx context.Context, serviceID string, name string) (up1 *User, err error) {
+	mm_atomic.AddUint64(&mmGetUser.beforeGetUserCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetUser.afterGetUserCounter, 1)
+
+	if mmGetUser.inspectFuncGetUser != nil {
+		mmGetUser.inspectFuncGetUser(ctx, serviceID, name)
+	}
+
+	mm_params := ClientMockGetUserParams{ctx, serviceID, name}
+
+	// Record call args
+	mmGetUser.GetUserMock.mutex.Lock()
+	mmGetUser.GetUserMock.callArgs = append(mmGetUser.GetUserMock.callArgs, &mm_params)
+	mmGetUser.GetUserMock.mutex.Unlock()
+
+	for _, e := range mmGetUser.GetUserMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmGetUser.GetUserMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetUser.GetUserMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetUser.GetUserMock.defaultExpectation.params
+		mm_want_ptrs := mmGetUser.GetUserMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetUserParams{ctx, serviceID, name}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetUser.t.Errorf("ClientMock.GetUser got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmGetUser.t.Errorf("ClientMock.GetUser got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.name != nil && !minimock.Equal(*mm_want_ptrs.name, mm_got.name) {
+				mmGetUser.t.Errorf("ClientMock.GetUser got unexpected parameter name, want: %#v, got: %#v%s\n", *mm_want_ptrs.name, mm_got.name, minimock.Diff(*mm_want_ptrs.name, mm_got.name))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetUser.t.Errorf("ClientMock.GetUser got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetUser.GetUserMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetUser.t.Fatal("No results are set for the ClientMock.GetUser")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmGetUser.funcGetUser != nil {
+		return mmGetUser.funcGetUser(ctx, serviceID, name)
+	}
+	mmGetUser.t.Fatalf("Unexpected call to ClientMock.GetUser. %v %v %v", ctx, serviceID, name)
+	return
+}
+
+// GetUserAfterCounter returns a count of finished ClientMock.GetUser invocations
+func (mmGetUser *ClientMock) GetUserAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUser.afterGetUserCounter)
+}
+
+// GetUserBeforeCounter returns a count of ClientMock.GetUser invocations
+func (mmGetUser *ClientMock) GetUserBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUser.beforeGetUserCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetUser.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetUser *mClientMockGetUser) Calls() []*ClientMockGetUserParams {
+	mmGetUser.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetUserParams, len(mmGetUser.callArgs))
+	copy(argCopy, mmGetUser.callArgs)
+
+	mmGetUser.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetUserDone returns true if the count of the GetUser invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetUserDone() bool {
+	if m.GetUserMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetUserMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetUserMock.invocationsDone()
+}
+
+// MinimockGetUserInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetUserInspect() {
+	for _, e := range m.GetUserMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetUser with params: %#v", *e.params)
+		}
+	}
+
+	afterGetUserCounter := mm_atomic.LoadUint64(&m.afterGetUserCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetUserMock.defaultExpectation != nil && afterGetUserCounter < 1 {
+		if m.GetUserMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.GetUser")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetUser with params: %#v", *m.GetUserMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetUser != nil && afterGetUserCounter < 1 {
+		m.t.Error("Expected call to ClientMock.GetUser")
+	}
+
+	if !m.GetUserMock.invocationsDone() && afterGetUserCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetUser but found %d calls",
+			mm_atomic.LoadUint64(&m.GetUserMock.expectedInvocations), afterGetUserCounter)
 	}
 }
 
@@ -7778,11 +8851,15 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateServiceInspect()
 
+			m.MinimockCreateUserInspect()
+
 			m.MinimockDeleteClickPipeInspect()
 
 			m.MinimockDeleteQueryEndpointInspect()
 
 			m.MinimockDeleteServiceInspect()
+
+			m.MinimockDeleteUserInspect()
 
 			m.MinimockGetApiKeyIDInspect()
 
@@ -7797,6 +8874,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetQueryEndpointInspect()
 
 			m.MinimockGetServiceInspect()
+
+			m.MinimockGetUserInspect()
 
 			m.MinimockScalingClickPipeInspect()
 
@@ -7840,9 +8919,11 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreateQueryEndpointDone() &&
 		m.MinimockCreateServiceDone() &&
+		m.MinimockCreateUserDone() &&
 		m.MinimockDeleteClickPipeDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
 		m.MinimockDeleteServiceDone() &&
+		m.MinimockDeleteUserDone() &&
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetClickPipeDone() &&
@@ -7850,6 +8931,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetOrganizationPrivateEndpointsDone() &&
 		m.MinimockGetQueryEndpointDone() &&
 		m.MinimockGetServiceDone() &&
+		m.MinimockGetUserDone() &&
 		m.MinimockScalingClickPipeDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&

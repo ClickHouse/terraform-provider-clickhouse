@@ -48,6 +48,9 @@ fmt: ensure-golangci-lint
 	go fmt ./...
 	$(GOLANGCILINT) run --fix --allow-serial-runners
 
+mock:
+	cd ./pkg/internal/api && minimock -i github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api.Client -o client_mock.go -n ClientMock -p api && cd ../../..
+
 TFPLUGINDOCS = /tmp/tfplugindocs-patched
 ensure-tfplugindocs: ## Download tfplugindocs locally if necessary.
 	$(call get-tfplugindocs,$(TFPLUGINDOCS),github.com/whites11/terraform-plugin-docs)
