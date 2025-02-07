@@ -46,8 +46,8 @@ github.com/go-git/go-billy/v5 v5.5.0 h1:yEY4yhzCDuMGSv83oGxiBotRzhwhNr8VZyphhiu+
 github.com/go-git/go-billy/v5 v5.5.0/go.mod h1:hmexnoNsr2SJU1Ju67OaNz5ASJY3+sHgFRpCtpDCKow=
 github.com/go-git/go-git/v5 v5.12.0 h1:7Md+ndsjrzZxbddRDZjF14qK+NN56sy6wkqaVrjZtys=
 github.com/go-git/go-git/v5 v5.12.0/go.mod h1:FTM9VKtnI2m65hNI/TenDDDnUf2Q9FHnXYjuz9i5OEY=
-github.com/gojuno/minimock/v3 v3.4.3 h1:CGH14iGxTd6kW6ZetOA/teusRN710VQ2nq8SdEuI3OQ=
-github.com/gojuno/minimock/v3 v3.4.3/go.mod h1:b+hbQhEU0Csi1eyzpvi0LhlmjDHyCDPzwhXbDaKTSrQ=
+github.com/gojuno/minimock/v3 v3.4.4 h1:OiHAfpI593SUg+4W8yhe3Ka5+pt/sba41KylfHWkn5o=
+github.com/gojuno/minimock/v3 v3.4.4/go.mod h1:b+hbQhEU0Csi1eyzpvi0LhlmjDHyCDPzwhXbDaKTSrQ=
 github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da h1:oI5xCqsCo564l8iNU+DwB5epxmsaqB+rhGL0m5jtYqE=
 github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da/go.mod h1:cIg4eruTrX1D+g88fzRXU5OdNfaM+9IcxsU14FzY7Hc=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
