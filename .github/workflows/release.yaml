@@ -324,7 +324,7 @@ jobs:
           done
 
       - name: Bump provider version in examples for alpha version
-        id: bump
+        id: bump-alpha
         if: ${{ needs.validate.outputs.enable_alpha == 'true' }}
         run: |
           version="${{ inputs.version }}"
