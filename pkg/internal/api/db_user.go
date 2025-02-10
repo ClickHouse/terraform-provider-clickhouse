@@ -42,6 +42,8 @@ func (c *ClientImpl) CreateUser(ctx context.Context, serviceID string, user User
 }
 
 func (c *ClientImpl) GetUser(ctx context.Context, serviceID string, name string) (*User, error) {
+	// Users we create with terraform are by default created with the 'replicated' storage thus we filter the
+	// select query to ensure we're not retrieving another user with the same username and a different storage type.
 	format := "SELECT name FROM system.users WHERE name = ${name} and storage = 'replicated'"
 	args := []interface{}{
 		sqlbuilder.Named("name", name),
