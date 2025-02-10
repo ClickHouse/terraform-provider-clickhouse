@@ -306,7 +306,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
-      - name: Bump provider version in examples
+
+      - name: Bump provider version in examples for stable version
         id: bump
         if: ${{ needs.validate.outputs.enable_alpha == 'false' }}
         run: |
@@ -317,6 +318,22 @@ jobs:
           for f in `find . -name provider.tf.template`
           do
             dst="${f%.template}"
+            cat $f | envsubst > $dst
+
+            sed -i '1s/^/# This file is generated automatically please do not edit\n/' $dst
+          done
+
+      - name: Bump provider version in examples for alpha version
+        id: bump
+        if: ${{ needs.validate.outputs.enable_alpha == 'true' }}
+        run: |
+          version="${{ inputs.version }}"
+
+          # Bump semver in examples
+          export CLICKHOUSE_TERRAFORM_PROVIDER_VERSION="$version"
+          for f in `find . -name provider.tf.template.alpha`
+          do
+            dst="${f%.template.alpha}"
             cat $f | envsubst > $dst
 
             sed -i '1s/^/# This file is generated automatically please do not edit\n/' $dst

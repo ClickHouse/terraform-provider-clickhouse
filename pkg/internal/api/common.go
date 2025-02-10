@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/huandu/go-sqlbuilder"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/project"
 )
@@ -32,6 +34,13 @@ func (c *ClientImpl) getServicePath(serviceId string, path string) string {
 
 func (c *ClientImpl) getPrivateEndpointConfigPath(cloudProvider string, region string) string {
 	return c.getOrgPath(fmt.Sprintf("/privateEndpointConfig?cloud_provider=%s&region_id=%s", cloudProvider, region))
+}
+
+func (c *ClientImpl) getQueryAPIPath(queryAPIBaseUrl string, serviceID string, format string) string { //nolint
+	if format == "" {
+		panic("format can't be empty in getQueryAPIPath")
+	}
+	return fmt.Sprintf("%s/.api/services/%s/query?format=%s", queryAPIBaseUrl, serviceID, format)
 }
 
 func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, error) {
@@ -128,4 +137,35 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 	})
 
 	return body, err
+}
+
+func (c *ClientImpl) runQuery(ctx context.Context, serviceID string, sql string, args ...interface{}) ([]byte, error) { //nolint
+	return c.runQueryWithFormat(ctx, serviceID, "JSONEachRow", sql, args...)
+}
+
+func (c *ClientImpl) runQueryWithFormat(ctx context.Context, serviceID string, format string, sql string, args ...interface{}) ([]byte, error) { //nolint
+	// TODO once openAPI will expose this information, make a call to get it dynamically.
+	queryAPIBaseUrl := "https://console-api.clickhouse.cloud"
+
+	qry, err := sqlbuilder.ClickHouse.Interpolate(sql, args)
+	if err != nil {
+		return nil, err
+	}
+
+	s := struct {
+		SQL string `json:"sql"`
+	}{
+		SQL: qry,
+	}
+
+	buffer := &bytes.Buffer{}
+	if err := json.NewEncoder(buffer).Encode(&s); err != nil {
+		return nil, fmt.Errorf("encoding query payload to JSON failed: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, c.getQueryAPIPath(queryAPIBaseUrl, serviceID, format), buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.doRequest(ctx, req)
 }
