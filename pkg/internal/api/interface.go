@@ -34,4 +34,8 @@ type Client interface {
 	CreateUser(ctx context.Context, serviceId string, user User) (*User, error)
 	GetUser(ctx context.Context, serviceID string, name string) (*User, error)
 	DeleteUser(ctx context.Context, serviceID string, name string) error
+
+	CreateRole(ctx context.Context, serviceId string, role Role) (*Role, error)
+	GetRole(ctx context.Context, serviceID string, name string) (*Role, error)
+	DeleteRole(ctx context.Context, serviceID string, name string) error
 }
