@@ -38,4 +38,8 @@ type Client interface {
 	CreateRole(ctx context.Context, serviceId string, role Role) (*Role, error)
 	GetRole(ctx context.Context, serviceID string, name string) (*Role, error)
 	DeleteRole(ctx context.Context, serviceID string, name string) error
+
+	CreateGrant(ctx context.Context, serviceId string, grantRole GrantRole) (*GrantRole, error)
+	GetGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (*GrantRole, error)
+	DeleteGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) error
 }

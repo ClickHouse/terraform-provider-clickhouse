@@ -79,10 +79,21 @@ resource "clickhouse_role" "writer" {
   name                 = "writer"
 }
 
-output "service_endpoints" {
-  value = clickhouse_service.service.endpoints
+resource "clickhouse_grant_role" "writer_to_john" {
+  service_id        = clickhouse_service.service.id
+  role_name         = clickhouse_role.writer.name
+  grantee_user_name = clickhouse_user.john.name
+  admin_option      = false
 }
 
-output "service_iam" {
-  value = clickhouse_service.service.iam_role
+resource "clickhouse_role" "manager" {
+  service_id           = clickhouse_service.service.id
+  name                 = "manager"
+}
+
+resource "clickhouse_grant_role" "writer_to_manager" {
+  service_id        = clickhouse_service.service.id
+  role_name         = clickhouse_role.writer.name
+  grantee_role_name = clickhouse_role.manager.name
+  admin_option      = false
 }
