@@ -74,6 +74,11 @@ resource "clickhouse_user" "john" {
   password_sha256_hash = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" # sha256 of 'test'
 }
 
+resource "clickhouse_role" "writer" {
+  service_id           = clickhouse_service.service.id
+  name                 = "writer"
+}
+
 output "service_endpoints" {
   value = clickhouse_service.service.endpoints
 }
