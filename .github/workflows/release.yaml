@@ -308,7 +308,6 @@ jobs:
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
 
       - name: Bump provider version in examples for stable version
-        id: bump
         if: ${{ needs.validate.outputs.enable_alpha == 'false' }}
         run: |
           version="${{ inputs.version }}"
@@ -324,7 +323,6 @@ jobs:
           done
 
       - name: Bump provider version in examples for alpha version
-        id: bump-alpha
         if: ${{ needs.validate.outputs.enable_alpha == 'true' }}
         run: |
           version="${{ inputs.version }}"
