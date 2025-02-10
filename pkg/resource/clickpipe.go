@@ -278,7 +278,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Sensitive:   true,
 									},
 								},
-								Required: true,
+								Optional: true,
 							},
 							"iam_role": schema.StringAttribute{
 								MarkdownDescription: "The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam)",
@@ -492,11 +492,6 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 	if !request.State.Raw.IsNull() {
 		diags = request.State.Get(ctx, &state)
 		response.Diagnostics.Append(diags...)
-
-		// ignore source.kafka.consumer_group if already exists in state, and is unknown in the plan
-		if kafkaAttr, ok := state.Source.Attributes()["kafka"].(types.Object); ok && !kafkaAttr.IsNull() {
-			plan.Source.Attributes()["kafka"].(types.Object).Attributes()["consumer_group"] = kafkaAttr.Attributes()["consumer_group"]
-		}
 	}
 	if response.Diagnostics.HasError() {
 		return
@@ -541,35 +536,11 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	if !sourceModel.Kafka.IsNull() {
 		kafkaModel := models.ClickPipeKafkaSourceModel{}
-		credentialsModel := models.ClickPipeKafkaSourceCredentialsModel{}
 		response.Diagnostics.Append(sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{})...)
-		response.Diagnostics.Append(kafkaModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
 
 		var consumerGroup *string
 		if !kafkaModel.ConsumerGroup.IsUnknown() {
 			consumerGroup = kafkaModel.ConsumerGroup.ValueStringPointer()
-		}
-
-		credentials := &api.ClickPipeKafkaSourceCredentials{}
-
-		if !credentialsModel.Username.IsNull() && !credentialsModel.Password.IsNull() {
-			credentials.ClickPipeSourceCredentials = &api.ClickPipeSourceCredentials{
-				Username: credentialsModel.Username.ValueString(),
-				Password: credentialsModel.Password.ValueString(),
-			}
-		} else if !credentialsModel.AccessKeyID.IsNull() && !credentialsModel.SecretKey.IsNull() {
-			credentials.ClickPipeSourceAccessKey = &api.ClickPipeSourceAccessKey{
-				AccessKeyID: credentialsModel.AccessKeyID.ValueString(),
-				SecretKey:   credentialsModel.SecretKey.ValueString(),
-			}
-		} else if !credentialsModel.ConnectionString.IsNull() {
-			credentials.ConnectionString = credentialsModel.ConnectionString.ValueStringPointer()
-		} else {
-			response.Diagnostics.AddError(
-				"Error Creating ClickPipe",
-				"Kafka source requires credentials",
-			)
-			return
 		}
 
 		clickPipe.Source.Kafka = &api.ClickPipeKafkaSource{
@@ -579,7 +550,49 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 			Topics:         kafkaModel.Topics.ValueString(),
 			ConsumerGroup:  consumerGroup,
 			Authentication: kafkaModel.Authentication.ValueString(),
-			Credentials:    credentials,
+			IAMRole:        kafkaModel.IAMRole.ValueStringPointer(),
+			CACertificate:  kafkaModel.CACertificate.ValueStringPointer(),
+		}
+
+		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
+			if !kafkaModel.Credentials.IsNull() {
+				credentialsModel := models.ClickPipeKafkaSourceCredentialsModel{}
+				response.Diagnostics.Append(kafkaModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+
+				var credentials *api.ClickPipeKafkaSourceCredentials
+
+				if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
+					credentials = &api.ClickPipeKafkaSourceCredentials{}
+
+					if !credentialsModel.Username.IsNull() && !credentialsModel.Password.IsNull() {
+						credentials.ClickPipeSourceCredentials = &api.ClickPipeSourceCredentials{
+							Username: credentialsModel.Username.ValueString(),
+							Password: credentialsModel.Password.ValueString(),
+						}
+					} else if !credentialsModel.AccessKeyID.IsNull() && !credentialsModel.SecretKey.IsNull() {
+						credentials.ClickPipeSourceAccessKey = &api.ClickPipeSourceAccessKey{
+							AccessKeyID: credentialsModel.AccessKeyID.ValueString(),
+							SecretKey:   credentialsModel.SecretKey.ValueString(),
+						}
+					} else if !credentialsModel.ConnectionString.IsNull() {
+						credentials.ConnectionString = credentialsModel.ConnectionString.ValueStringPointer()
+					} else {
+						response.Diagnostics.AddError(
+							"Error Creating ClickPipe",
+							"Kafka source requires credentials",
+						)
+						return
+					}
+				}
+
+				clickPipe.Source.Kafka.Credentials = credentials
+			} else {
+				response.Diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"Kafka source requires credentials",
+				)
+				return
+			}
 		}
 
 		if !kafkaModel.SchemaRegistry.IsNull() {
@@ -983,15 +996,19 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	state.Destination = destinationModel.ObjectValue()
 
-	fieldMappingList := make([]attr.Value, len(clickPipe.FieldMappings))
-	for i, fieldMapping := range clickPipe.FieldMappings {
-		fieldMappingList[i] = models.ClickPipeFieldMappingModel{
-			SourceField:      types.StringValue(fieldMapping.SourceField),
-			DestinationField: types.StringValue(fieldMapping.DestinationField),
-		}.ObjectValue()
-	}
+	if clickPipe.FieldMappings == nil || len(clickPipe.FieldMappings) == 0 {
+		state.FieldMappings = types.ListNull(models.ClickPipeFieldMappingModel{}.ObjectType())
+	} else {
+		fieldMappingList := make([]attr.Value, len(clickPipe.FieldMappings))
+		for i, fieldMapping := range clickPipe.FieldMappings {
+			fieldMappingList[i] = models.ClickPipeFieldMappingModel{
+				SourceField:      types.StringValue(fieldMapping.SourceField),
+				DestinationField: types.StringValue(fieldMapping.DestinationField),
+			}.ObjectValue()
+		}
 
-	state.FieldMappings, _ = types.ListValue(models.ClickPipeFieldMappingModel{}.ObjectType(), fieldMappingList)
+		state.FieldMappings, _ = types.ListValue(models.ClickPipeFieldMappingModel{}.ObjectType(), fieldMappingList)
+	}
 
 	return nil
 }
