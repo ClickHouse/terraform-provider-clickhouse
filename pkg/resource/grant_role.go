@@ -153,7 +153,7 @@ func (r *GrantRoleResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	grant, err := r.client.GetGrant(ctx, state.ServiceID.ValueString(), state.RoleName.ValueString(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
+	grant, err := r.client.GetGrantRole(ctx, state.ServiceID.ValueString(), state.RoleName.ValueString(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading ClickHouse Role Grant",
@@ -187,7 +187,7 @@ func (r *GrantRoleResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	err := r.client.RevokeGrant(ctx, state.ServiceID.ValueString(), state.RoleName.ValueString(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
+	err := r.client.RevokeGrantRole(ctx, state.ServiceID.ValueString(), state.RoleName.ValueString(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting ClickHouse Role Grant",

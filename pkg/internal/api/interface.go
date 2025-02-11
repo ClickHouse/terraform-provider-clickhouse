@@ -40,6 +40,6 @@ type Client interface {
 	DeleteRole(ctx context.Context, serviceID string, name string) error
 
 	GrantRole(ctx context.Context, serviceId string, grantRole GrantRole) (*GrantRole, error)
-	GetGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (*GrantRole, error)
-	RevokeGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) error
+	GetGrantRole(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (*GrantRole, error)
+	RevokeGrantRole(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) error
 }

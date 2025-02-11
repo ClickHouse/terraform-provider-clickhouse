@@ -43,7 +43,7 @@ func (c *ClientImpl) GrantRole(ctx context.Context, serviceID string, grantRole 
 		return nil, err
 	}
 
-	createdGrant, err := c.GetGrant(ctx, serviceID, grantRole.RoleName, grantRole.GranteeUserName, grantRole.GranteeRoleName)
+	createdGrant, err := c.GetGrantRole(ctx, serviceID, grantRole.RoleName, grantRole.GranteeUserName, grantRole.GranteeRoleName)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (c *ClientImpl) GrantRole(ctx context.Context, serviceID string, grantRole 
 	return createdGrant, nil
 }
 
-func (c *ClientImpl) GetGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (*GrantRole, error) {
+func (c *ClientImpl) GetGrantRole(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (*GrantRole, error) {
 	var fieldName, fieldValue string
 	if granteeUserName != nil {
 		fieldName = "user_name"
@@ -100,7 +100,7 @@ func (c *ClientImpl) GetGrant(ctx context.Context, serviceID string, grantedRole
 	return &grant, nil
 }
 
-func (c *ClientImpl) RevokeGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) error {
+func (c *ClientImpl) RevokeGrantRole(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) error {
 	format := "REVOKE `$?` FROM `$?`"
 	args := []interface{}{
 		sqlbuilder.Raw(sqlutil.EscapeBacktick(grantedRoleName)),
