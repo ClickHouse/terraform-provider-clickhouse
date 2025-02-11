@@ -59,7 +59,7 @@ func (r *GrantRoleResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"grantee_user_name": schema.StringAttribute{
 				Optional:    true,
-				Description: "Name of the `user` to assign `role_name` to.",
+				Description: "Name of the `user` to grant `role_name` to.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -73,7 +73,7 @@ func (r *GrantRoleResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"grantee_role_name": schema.StringAttribute{
 				Optional:    true,
-				Description: "Name of the `role` to assign `role_name` to.",
+				Description: "Name of the `role` to grant `role_name` to.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
