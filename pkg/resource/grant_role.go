@@ -121,7 +121,7 @@ func (r *GrantRoleResource) Create(ctx context.Context, req resource.CreateReque
 		AdminOption:     plan.AdminOption.ValueBool(),
 	}
 
-	createdGrant, err := r.client.CreateGrant(ctx, plan.ServiceID.ValueString(), grant)
+	createdGrant, err := r.client.GrantRole(ctx, plan.ServiceID.ValueString(), grant)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Creating ClickHouse Role Grant",
@@ -187,7 +187,7 @@ func (r *GrantRoleResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	err := r.client.DeleteGrant(ctx, state.ServiceID.ValueString(), state.RoleName.ValueString(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
+	err := r.client.RevokeGrant(ctx, state.ServiceID.ValueString(), state.RoleName.ValueString(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting ClickHouse Role Grant",

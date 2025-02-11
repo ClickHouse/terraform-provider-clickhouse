@@ -30,12 +30,6 @@ type ClientMock struct {
 	beforeCreateClickPipeCounter uint64
 	CreateClickPipeMock          mClientMockCreateClickPipe
 
-	funcCreateGrant          func(ctx context.Context, serviceId string, grantRole GrantRole) (gp1 *GrantRole, err error)
-	inspectFuncCreateGrant   func(ctx context.Context, serviceId string, grantRole GrantRole)
-	afterCreateGrantCounter  uint64
-	beforeCreateGrantCounter uint64
-	CreateGrantMock          mClientMockCreateGrant
-
 	funcCreateQueryEndpoint          func(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint) (sp1 *ServiceQueryEndpoint, err error)
 	inspectFuncCreateQueryEndpoint   func(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint)
 	afterCreateQueryEndpointCounter  uint64
@@ -65,12 +59,6 @@ type ClientMock struct {
 	afterDeleteClickPipeCounter  uint64
 	beforeDeleteClickPipeCounter uint64
 	DeleteClickPipeMock          mClientMockDeleteClickPipe
-
-	funcDeleteGrant          func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (err error)
-	inspectFuncDeleteGrant   func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string)
-	afterDeleteGrantCounter  uint64
-	beforeDeleteGrantCounter uint64
-	DeleteGrantMock          mClientMockDeleteGrant
 
 	funcDeleteQueryEndpoint          func(ctx context.Context, serviceID string) (err error)
 	inspectFuncDeleteQueryEndpoint   func(ctx context.Context, serviceID string)
@@ -156,6 +144,18 @@ type ClientMock struct {
 	beforeGetUserCounter uint64
 	GetUserMock          mClientMockGetUser
 
+	funcGrantRole          func(ctx context.Context, serviceId string, grantRole GrantRole) (gp1 *GrantRole, err error)
+	inspectFuncGrantRole   func(ctx context.Context, serviceId string, grantRole GrantRole)
+	afterGrantRoleCounter  uint64
+	beforeGrantRoleCounter uint64
+	GrantRoleMock          mClientMockGrantRole
+
+	funcRevokeGrant          func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (err error)
+	inspectFuncRevokeGrant   func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string)
+	afterRevokeGrantCounter  uint64
+	beforeRevokeGrantCounter uint64
+	RevokeGrantMock          mClientMockRevokeGrant
+
 	funcScalingClickPipe          func(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling) (cp1 *ClickPipe, err error)
 	inspectFuncScalingClickPipe   func(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling)
 	afterScalingClickPipeCounter  uint64
@@ -219,9 +219,6 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateClickPipeMock = mClientMockCreateClickPipe{mock: m}
 	m.CreateClickPipeMock.callArgs = []*ClientMockCreateClickPipeParams{}
 
-	m.CreateGrantMock = mClientMockCreateGrant{mock: m}
-	m.CreateGrantMock.callArgs = []*ClientMockCreateGrantParams{}
-
 	m.CreateQueryEndpointMock = mClientMockCreateQueryEndpoint{mock: m}
 	m.CreateQueryEndpointMock.callArgs = []*ClientMockCreateQueryEndpointParams{}
 
@@ -236,9 +233,6 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeleteClickPipeMock = mClientMockDeleteClickPipe{mock: m}
 	m.DeleteClickPipeMock.callArgs = []*ClientMockDeleteClickPipeParams{}
-
-	m.DeleteGrantMock = mClientMockDeleteGrant{mock: m}
-	m.DeleteGrantMock.callArgs = []*ClientMockDeleteGrantParams{}
 
 	m.DeleteQueryEndpointMock = mClientMockDeleteQueryEndpoint{mock: m}
 	m.DeleteQueryEndpointMock.callArgs = []*ClientMockDeleteQueryEndpointParams{}
@@ -281,6 +275,12 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetUserMock = mClientMockGetUser{mock: m}
 	m.GetUserMock.callArgs = []*ClientMockGetUserParams{}
+
+	m.GrantRoleMock = mClientMockGrantRole{mock: m}
+	m.GrantRoleMock.callArgs = []*ClientMockGrantRoleParams{}
+
+	m.RevokeGrantMock = mClientMockRevokeGrant{mock: m}
+	m.RevokeGrantMock.callArgs = []*ClientMockRevokeGrantParams{}
 
 	m.ScalingClickPipeMock = mClientMockScalingClickPipe{mock: m}
 	m.ScalingClickPipeMock.callArgs = []*ClientMockScalingClickPipeParams{}
@@ -1034,355 +1034,6 @@ func (m *ClientMock) MinimockCreateClickPipeInspect() {
 	if !m.CreateClickPipeMock.invocationsDone() && afterCreateClickPipeCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateClickPipe but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateClickPipeMock.expectedInvocations), afterCreateClickPipeCounter)
-	}
-}
-
-type mClientMockCreateGrant struct {
-	optional           bool
-	mock               *ClientMock
-	defaultExpectation *ClientMockCreateGrantExpectation
-	expectations       []*ClientMockCreateGrantExpectation
-
-	callArgs []*ClientMockCreateGrantParams
-	mutex    sync.RWMutex
-
-	expectedInvocations uint64
-}
-
-// ClientMockCreateGrantExpectation specifies expectation struct of the Client.CreateGrant
-type ClientMockCreateGrantExpectation struct {
-	mock      *ClientMock
-	params    *ClientMockCreateGrantParams
-	paramPtrs *ClientMockCreateGrantParamPtrs
-	results   *ClientMockCreateGrantResults
-	Counter   uint64
-}
-
-// ClientMockCreateGrantParams contains parameters of the Client.CreateGrant
-type ClientMockCreateGrantParams struct {
-	ctx       context.Context
-	serviceId string
-	grantRole GrantRole
-}
-
-// ClientMockCreateGrantParamPtrs contains pointers to parameters of the Client.CreateGrant
-type ClientMockCreateGrantParamPtrs struct {
-	ctx       *context.Context
-	serviceId *string
-	grantRole *GrantRole
-}
-
-// ClientMockCreateGrantResults contains results of the Client.CreateGrant
-type ClientMockCreateGrantResults struct {
-	gp1 *GrantRole
-	err error
-}
-
-// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
-// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
-// Optional() makes method check to work in '0 or more' mode.
-// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
-// catch the problems when the expected method call is totally skipped during test run.
-func (mmCreateGrant *mClientMockCreateGrant) Optional() *mClientMockCreateGrant {
-	mmCreateGrant.optional = true
-	return mmCreateGrant
-}
-
-// Expect sets up expected params for Client.CreateGrant
-func (mmCreateGrant *mClientMockCreateGrant) Expect(ctx context.Context, serviceId string, grantRole GrantRole) *mClientMockCreateGrant {
-	if mmCreateGrant.mock.funcCreateGrant != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by Set")
-	}
-
-	if mmCreateGrant.defaultExpectation == nil {
-		mmCreateGrant.defaultExpectation = &ClientMockCreateGrantExpectation{}
-	}
-
-	if mmCreateGrant.defaultExpectation.paramPtrs != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by ExpectParams functions")
-	}
-
-	mmCreateGrant.defaultExpectation.params = &ClientMockCreateGrantParams{ctx, serviceId, grantRole}
-	for _, e := range mmCreateGrant.expectations {
-		if minimock.Equal(e.params, mmCreateGrant.defaultExpectation.params) {
-			mmCreateGrant.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateGrant.defaultExpectation.params)
-		}
-	}
-
-	return mmCreateGrant
-}
-
-// ExpectCtxParam1 sets up expected param ctx for Client.CreateGrant
-func (mmCreateGrant *mClientMockCreateGrant) ExpectCtxParam1(ctx context.Context) *mClientMockCreateGrant {
-	if mmCreateGrant.mock.funcCreateGrant != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by Set")
-	}
-
-	if mmCreateGrant.defaultExpectation == nil {
-		mmCreateGrant.defaultExpectation = &ClientMockCreateGrantExpectation{}
-	}
-
-	if mmCreateGrant.defaultExpectation.params != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by Expect")
-	}
-
-	if mmCreateGrant.defaultExpectation.paramPtrs == nil {
-		mmCreateGrant.defaultExpectation.paramPtrs = &ClientMockCreateGrantParamPtrs{}
-	}
-	mmCreateGrant.defaultExpectation.paramPtrs.ctx = &ctx
-
-	return mmCreateGrant
-}
-
-// ExpectServiceIdParam2 sets up expected param serviceId for Client.CreateGrant
-func (mmCreateGrant *mClientMockCreateGrant) ExpectServiceIdParam2(serviceId string) *mClientMockCreateGrant {
-	if mmCreateGrant.mock.funcCreateGrant != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by Set")
-	}
-
-	if mmCreateGrant.defaultExpectation == nil {
-		mmCreateGrant.defaultExpectation = &ClientMockCreateGrantExpectation{}
-	}
-
-	if mmCreateGrant.defaultExpectation.params != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by Expect")
-	}
-
-	if mmCreateGrant.defaultExpectation.paramPtrs == nil {
-		mmCreateGrant.defaultExpectation.paramPtrs = &ClientMockCreateGrantParamPtrs{}
-	}
-	mmCreateGrant.defaultExpectation.paramPtrs.serviceId = &serviceId
-
-	return mmCreateGrant
-}
-
-// ExpectGrantRoleParam3 sets up expected param grantRole for Client.CreateGrant
-func (mmCreateGrant *mClientMockCreateGrant) ExpectGrantRoleParam3(grantRole GrantRole) *mClientMockCreateGrant {
-	if mmCreateGrant.mock.funcCreateGrant != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by Set")
-	}
-
-	if mmCreateGrant.defaultExpectation == nil {
-		mmCreateGrant.defaultExpectation = &ClientMockCreateGrantExpectation{}
-	}
-
-	if mmCreateGrant.defaultExpectation.params != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by Expect")
-	}
-
-	if mmCreateGrant.defaultExpectation.paramPtrs == nil {
-		mmCreateGrant.defaultExpectation.paramPtrs = &ClientMockCreateGrantParamPtrs{}
-	}
-	mmCreateGrant.defaultExpectation.paramPtrs.grantRole = &grantRole
-
-	return mmCreateGrant
-}
-
-// Inspect accepts an inspector function that has same arguments as the Client.CreateGrant
-func (mmCreateGrant *mClientMockCreateGrant) Inspect(f func(ctx context.Context, serviceId string, grantRole GrantRole)) *mClientMockCreateGrant {
-	if mmCreateGrant.mock.inspectFuncCreateGrant != nil {
-		mmCreateGrant.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateGrant")
-	}
-
-	mmCreateGrant.mock.inspectFuncCreateGrant = f
-
-	return mmCreateGrant
-}
-
-// Return sets up results that will be returned by Client.CreateGrant
-func (mmCreateGrant *mClientMockCreateGrant) Return(gp1 *GrantRole, err error) *ClientMock {
-	if mmCreateGrant.mock.funcCreateGrant != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by Set")
-	}
-
-	if mmCreateGrant.defaultExpectation == nil {
-		mmCreateGrant.defaultExpectation = &ClientMockCreateGrantExpectation{mock: mmCreateGrant.mock}
-	}
-	mmCreateGrant.defaultExpectation.results = &ClientMockCreateGrantResults{gp1, err}
-	return mmCreateGrant.mock
-}
-
-// Set uses given function f to mock the Client.CreateGrant method
-func (mmCreateGrant *mClientMockCreateGrant) Set(f func(ctx context.Context, serviceId string, grantRole GrantRole) (gp1 *GrantRole, err error)) *ClientMock {
-	if mmCreateGrant.defaultExpectation != nil {
-		mmCreateGrant.mock.t.Fatalf("Default expectation is already set for the Client.CreateGrant method")
-	}
-
-	if len(mmCreateGrant.expectations) > 0 {
-		mmCreateGrant.mock.t.Fatalf("Some expectations are already set for the Client.CreateGrant method")
-	}
-
-	mmCreateGrant.mock.funcCreateGrant = f
-	return mmCreateGrant.mock
-}
-
-// When sets expectation for the Client.CreateGrant which will trigger the result defined by the following
-// Then helper
-func (mmCreateGrant *mClientMockCreateGrant) When(ctx context.Context, serviceId string, grantRole GrantRole) *ClientMockCreateGrantExpectation {
-	if mmCreateGrant.mock.funcCreateGrant != nil {
-		mmCreateGrant.mock.t.Fatalf("ClientMock.CreateGrant mock is already set by Set")
-	}
-
-	expectation := &ClientMockCreateGrantExpectation{
-		mock:   mmCreateGrant.mock,
-		params: &ClientMockCreateGrantParams{ctx, serviceId, grantRole},
-	}
-	mmCreateGrant.expectations = append(mmCreateGrant.expectations, expectation)
-	return expectation
-}
-
-// Then sets up Client.CreateGrant return parameters for the expectation previously defined by the When method
-func (e *ClientMockCreateGrantExpectation) Then(gp1 *GrantRole, err error) *ClientMock {
-	e.results = &ClientMockCreateGrantResults{gp1, err}
-	return e.mock
-}
-
-// Times sets number of times Client.CreateGrant should be invoked
-func (mmCreateGrant *mClientMockCreateGrant) Times(n uint64) *mClientMockCreateGrant {
-	if n == 0 {
-		mmCreateGrant.mock.t.Fatalf("Times of ClientMock.CreateGrant mock can not be zero")
-	}
-	mm_atomic.StoreUint64(&mmCreateGrant.expectedInvocations, n)
-	return mmCreateGrant
-}
-
-func (mmCreateGrant *mClientMockCreateGrant) invocationsDone() bool {
-	if len(mmCreateGrant.expectations) == 0 && mmCreateGrant.defaultExpectation == nil && mmCreateGrant.mock.funcCreateGrant == nil {
-		return true
-	}
-
-	totalInvocations := mm_atomic.LoadUint64(&mmCreateGrant.mock.afterCreateGrantCounter)
-	expectedInvocations := mm_atomic.LoadUint64(&mmCreateGrant.expectedInvocations)
-
-	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
-}
-
-// CreateGrant implements Client
-func (mmCreateGrant *ClientMock) CreateGrant(ctx context.Context, serviceId string, grantRole GrantRole) (gp1 *GrantRole, err error) {
-	mm_atomic.AddUint64(&mmCreateGrant.beforeCreateGrantCounter, 1)
-	defer mm_atomic.AddUint64(&mmCreateGrant.afterCreateGrantCounter, 1)
-
-	if mmCreateGrant.inspectFuncCreateGrant != nil {
-		mmCreateGrant.inspectFuncCreateGrant(ctx, serviceId, grantRole)
-	}
-
-	mm_params := ClientMockCreateGrantParams{ctx, serviceId, grantRole}
-
-	// Record call args
-	mmCreateGrant.CreateGrantMock.mutex.Lock()
-	mmCreateGrant.CreateGrantMock.callArgs = append(mmCreateGrant.CreateGrantMock.callArgs, &mm_params)
-	mmCreateGrant.CreateGrantMock.mutex.Unlock()
-
-	for _, e := range mmCreateGrant.CreateGrantMock.expectations {
-		if minimock.Equal(*e.params, mm_params) {
-			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.gp1, e.results.err
-		}
-	}
-
-	if mmCreateGrant.CreateGrantMock.defaultExpectation != nil {
-		mm_atomic.AddUint64(&mmCreateGrant.CreateGrantMock.defaultExpectation.Counter, 1)
-		mm_want := mmCreateGrant.CreateGrantMock.defaultExpectation.params
-		mm_want_ptrs := mmCreateGrant.CreateGrantMock.defaultExpectation.paramPtrs
-
-		mm_got := ClientMockCreateGrantParams{ctx, serviceId, grantRole}
-
-		if mm_want_ptrs != nil {
-
-			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
-				mmCreateGrant.t.Errorf("ClientMock.CreateGrant got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
-			}
-
-			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
-				mmCreateGrant.t.Errorf("ClientMock.CreateGrant got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
-			}
-
-			if mm_want_ptrs.grantRole != nil && !minimock.Equal(*mm_want_ptrs.grantRole, mm_got.grantRole) {
-				mmCreateGrant.t.Errorf("ClientMock.CreateGrant got unexpected parameter grantRole, want: %#v, got: %#v%s\n", *mm_want_ptrs.grantRole, mm_got.grantRole, minimock.Diff(*mm_want_ptrs.grantRole, mm_got.grantRole))
-			}
-
-		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
-			mmCreateGrant.t.Errorf("ClientMock.CreateGrant got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
-		}
-
-		mm_results := mmCreateGrant.CreateGrantMock.defaultExpectation.results
-		if mm_results == nil {
-			mmCreateGrant.t.Fatal("No results are set for the ClientMock.CreateGrant")
-		}
-		return (*mm_results).gp1, (*mm_results).err
-	}
-	if mmCreateGrant.funcCreateGrant != nil {
-		return mmCreateGrant.funcCreateGrant(ctx, serviceId, grantRole)
-	}
-	mmCreateGrant.t.Fatalf("Unexpected call to ClientMock.CreateGrant. %v %v %v", ctx, serviceId, grantRole)
-	return
-}
-
-// CreateGrantAfterCounter returns a count of finished ClientMock.CreateGrant invocations
-func (mmCreateGrant *ClientMock) CreateGrantAfterCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmCreateGrant.afterCreateGrantCounter)
-}
-
-// CreateGrantBeforeCounter returns a count of ClientMock.CreateGrant invocations
-func (mmCreateGrant *ClientMock) CreateGrantBeforeCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmCreateGrant.beforeCreateGrantCounter)
-}
-
-// Calls returns a list of arguments used in each call to ClientMock.CreateGrant.
-// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
-func (mmCreateGrant *mClientMockCreateGrant) Calls() []*ClientMockCreateGrantParams {
-	mmCreateGrant.mutex.RLock()
-
-	argCopy := make([]*ClientMockCreateGrantParams, len(mmCreateGrant.callArgs))
-	copy(argCopy, mmCreateGrant.callArgs)
-
-	mmCreateGrant.mutex.RUnlock()
-
-	return argCopy
-}
-
-// MinimockCreateGrantDone returns true if the count of the CreateGrant invocations corresponds
-// the number of defined expectations
-func (m *ClientMock) MinimockCreateGrantDone() bool {
-	if m.CreateGrantMock.optional {
-		// Optional methods provide '0 or more' call count restriction.
-		return true
-	}
-
-	for _, e := range m.CreateGrantMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			return false
-		}
-	}
-
-	return m.CreateGrantMock.invocationsDone()
-}
-
-// MinimockCreateGrantInspect logs each unmet expectation
-func (m *ClientMock) MinimockCreateGrantInspect() {
-	for _, e := range m.CreateGrantMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Errorf("Expected call to ClientMock.CreateGrant with params: %#v", *e.params)
-		}
-	}
-
-	afterCreateGrantCounter := mm_atomic.LoadUint64(&m.afterCreateGrantCounter)
-	// if default expectation was set then invocations count should be greater than zero
-	if m.CreateGrantMock.defaultExpectation != nil && afterCreateGrantCounter < 1 {
-		if m.CreateGrantMock.defaultExpectation.params == nil {
-			m.t.Error("Expected call to ClientMock.CreateGrant")
-		} else {
-			m.t.Errorf("Expected call to ClientMock.CreateGrant with params: %#v", *m.CreateGrantMock.defaultExpectation.params)
-		}
-	}
-	// if func was set then invocations count should be greater than zero
-	if m.funcCreateGrant != nil && afterCreateGrantCounter < 1 {
-		m.t.Error("Expected call to ClientMock.CreateGrant")
-	}
-
-	if !m.CreateGrantMock.invocationsDone() && afterCreateGrantCounter > 0 {
-		m.t.Errorf("Expected %d calls to ClientMock.CreateGrant but found %d calls",
-			mm_atomic.LoadUint64(&m.CreateGrantMock.expectedInvocations), afterCreateGrantCounter)
 	}
 }
 
@@ -3100,410 +2751,6 @@ func (m *ClientMock) MinimockDeleteClickPipeInspect() {
 	if !m.DeleteClickPipeMock.invocationsDone() && afterDeleteClickPipeCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteClickPipe but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteClickPipeMock.expectedInvocations), afterDeleteClickPipeCounter)
-	}
-}
-
-type mClientMockDeleteGrant struct {
-	optional           bool
-	mock               *ClientMock
-	defaultExpectation *ClientMockDeleteGrantExpectation
-	expectations       []*ClientMockDeleteGrantExpectation
-
-	callArgs []*ClientMockDeleteGrantParams
-	mutex    sync.RWMutex
-
-	expectedInvocations uint64
-}
-
-// ClientMockDeleteGrantExpectation specifies expectation struct of the Client.DeleteGrant
-type ClientMockDeleteGrantExpectation struct {
-	mock      *ClientMock
-	params    *ClientMockDeleteGrantParams
-	paramPtrs *ClientMockDeleteGrantParamPtrs
-	results   *ClientMockDeleteGrantResults
-	Counter   uint64
-}
-
-// ClientMockDeleteGrantParams contains parameters of the Client.DeleteGrant
-type ClientMockDeleteGrantParams struct {
-	ctx             context.Context
-	serviceID       string
-	grantedRoleName string
-	granteeUserName *string
-	granteeRoleName *string
-}
-
-// ClientMockDeleteGrantParamPtrs contains pointers to parameters of the Client.DeleteGrant
-type ClientMockDeleteGrantParamPtrs struct {
-	ctx             *context.Context
-	serviceID       *string
-	grantedRoleName *string
-	granteeUserName **string
-	granteeRoleName **string
-}
-
-// ClientMockDeleteGrantResults contains results of the Client.DeleteGrant
-type ClientMockDeleteGrantResults struct {
-	err error
-}
-
-// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
-// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
-// Optional() makes method check to work in '0 or more' mode.
-// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
-// catch the problems when the expected method call is totally skipped during test run.
-func (mmDeleteGrant *mClientMockDeleteGrant) Optional() *mClientMockDeleteGrant {
-	mmDeleteGrant.optional = true
-	return mmDeleteGrant
-}
-
-// Expect sets up expected params for Client.DeleteGrant
-func (mmDeleteGrant *mClientMockDeleteGrant) Expect(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) *mClientMockDeleteGrant {
-	if mmDeleteGrant.mock.funcDeleteGrant != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Set")
-	}
-
-	if mmDeleteGrant.defaultExpectation == nil {
-		mmDeleteGrant.defaultExpectation = &ClientMockDeleteGrantExpectation{}
-	}
-
-	if mmDeleteGrant.defaultExpectation.paramPtrs != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by ExpectParams functions")
-	}
-
-	mmDeleteGrant.defaultExpectation.params = &ClientMockDeleteGrantParams{ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName}
-	for _, e := range mmDeleteGrant.expectations {
-		if minimock.Equal(e.params, mmDeleteGrant.defaultExpectation.params) {
-			mmDeleteGrant.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteGrant.defaultExpectation.params)
-		}
-	}
-
-	return mmDeleteGrant
-}
-
-// ExpectCtxParam1 sets up expected param ctx for Client.DeleteGrant
-func (mmDeleteGrant *mClientMockDeleteGrant) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteGrant {
-	if mmDeleteGrant.mock.funcDeleteGrant != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Set")
-	}
-
-	if mmDeleteGrant.defaultExpectation == nil {
-		mmDeleteGrant.defaultExpectation = &ClientMockDeleteGrantExpectation{}
-	}
-
-	if mmDeleteGrant.defaultExpectation.params != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Expect")
-	}
-
-	if mmDeleteGrant.defaultExpectation.paramPtrs == nil {
-		mmDeleteGrant.defaultExpectation.paramPtrs = &ClientMockDeleteGrantParamPtrs{}
-	}
-	mmDeleteGrant.defaultExpectation.paramPtrs.ctx = &ctx
-
-	return mmDeleteGrant
-}
-
-// ExpectServiceIDParam2 sets up expected param serviceID for Client.DeleteGrant
-func (mmDeleteGrant *mClientMockDeleteGrant) ExpectServiceIDParam2(serviceID string) *mClientMockDeleteGrant {
-	if mmDeleteGrant.mock.funcDeleteGrant != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Set")
-	}
-
-	if mmDeleteGrant.defaultExpectation == nil {
-		mmDeleteGrant.defaultExpectation = &ClientMockDeleteGrantExpectation{}
-	}
-
-	if mmDeleteGrant.defaultExpectation.params != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Expect")
-	}
-
-	if mmDeleteGrant.defaultExpectation.paramPtrs == nil {
-		mmDeleteGrant.defaultExpectation.paramPtrs = &ClientMockDeleteGrantParamPtrs{}
-	}
-	mmDeleteGrant.defaultExpectation.paramPtrs.serviceID = &serviceID
-
-	return mmDeleteGrant
-}
-
-// ExpectGrantedRoleNameParam3 sets up expected param grantedRoleName for Client.DeleteGrant
-func (mmDeleteGrant *mClientMockDeleteGrant) ExpectGrantedRoleNameParam3(grantedRoleName string) *mClientMockDeleteGrant {
-	if mmDeleteGrant.mock.funcDeleteGrant != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Set")
-	}
-
-	if mmDeleteGrant.defaultExpectation == nil {
-		mmDeleteGrant.defaultExpectation = &ClientMockDeleteGrantExpectation{}
-	}
-
-	if mmDeleteGrant.defaultExpectation.params != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Expect")
-	}
-
-	if mmDeleteGrant.defaultExpectation.paramPtrs == nil {
-		mmDeleteGrant.defaultExpectation.paramPtrs = &ClientMockDeleteGrantParamPtrs{}
-	}
-	mmDeleteGrant.defaultExpectation.paramPtrs.grantedRoleName = &grantedRoleName
-
-	return mmDeleteGrant
-}
-
-// ExpectGranteeUserNameParam4 sets up expected param granteeUserName for Client.DeleteGrant
-func (mmDeleteGrant *mClientMockDeleteGrant) ExpectGranteeUserNameParam4(granteeUserName *string) *mClientMockDeleteGrant {
-	if mmDeleteGrant.mock.funcDeleteGrant != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Set")
-	}
-
-	if mmDeleteGrant.defaultExpectation == nil {
-		mmDeleteGrant.defaultExpectation = &ClientMockDeleteGrantExpectation{}
-	}
-
-	if mmDeleteGrant.defaultExpectation.params != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Expect")
-	}
-
-	if mmDeleteGrant.defaultExpectation.paramPtrs == nil {
-		mmDeleteGrant.defaultExpectation.paramPtrs = &ClientMockDeleteGrantParamPtrs{}
-	}
-	mmDeleteGrant.defaultExpectation.paramPtrs.granteeUserName = &granteeUserName
-
-	return mmDeleteGrant
-}
-
-// ExpectGranteeRoleNameParam5 sets up expected param granteeRoleName for Client.DeleteGrant
-func (mmDeleteGrant *mClientMockDeleteGrant) ExpectGranteeRoleNameParam5(granteeRoleName *string) *mClientMockDeleteGrant {
-	if mmDeleteGrant.mock.funcDeleteGrant != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Set")
-	}
-
-	if mmDeleteGrant.defaultExpectation == nil {
-		mmDeleteGrant.defaultExpectation = &ClientMockDeleteGrantExpectation{}
-	}
-
-	if mmDeleteGrant.defaultExpectation.params != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Expect")
-	}
-
-	if mmDeleteGrant.defaultExpectation.paramPtrs == nil {
-		mmDeleteGrant.defaultExpectation.paramPtrs = &ClientMockDeleteGrantParamPtrs{}
-	}
-	mmDeleteGrant.defaultExpectation.paramPtrs.granteeRoleName = &granteeRoleName
-
-	return mmDeleteGrant
-}
-
-// Inspect accepts an inspector function that has same arguments as the Client.DeleteGrant
-func (mmDeleteGrant *mClientMockDeleteGrant) Inspect(f func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string)) *mClientMockDeleteGrant {
-	if mmDeleteGrant.mock.inspectFuncDeleteGrant != nil {
-		mmDeleteGrant.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteGrant")
-	}
-
-	mmDeleteGrant.mock.inspectFuncDeleteGrant = f
-
-	return mmDeleteGrant
-}
-
-// Return sets up results that will be returned by Client.DeleteGrant
-func (mmDeleteGrant *mClientMockDeleteGrant) Return(err error) *ClientMock {
-	if mmDeleteGrant.mock.funcDeleteGrant != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Set")
-	}
-
-	if mmDeleteGrant.defaultExpectation == nil {
-		mmDeleteGrant.defaultExpectation = &ClientMockDeleteGrantExpectation{mock: mmDeleteGrant.mock}
-	}
-	mmDeleteGrant.defaultExpectation.results = &ClientMockDeleteGrantResults{err}
-	return mmDeleteGrant.mock
-}
-
-// Set uses given function f to mock the Client.DeleteGrant method
-func (mmDeleteGrant *mClientMockDeleteGrant) Set(f func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (err error)) *ClientMock {
-	if mmDeleteGrant.defaultExpectation != nil {
-		mmDeleteGrant.mock.t.Fatalf("Default expectation is already set for the Client.DeleteGrant method")
-	}
-
-	if len(mmDeleteGrant.expectations) > 0 {
-		mmDeleteGrant.mock.t.Fatalf("Some expectations are already set for the Client.DeleteGrant method")
-	}
-
-	mmDeleteGrant.mock.funcDeleteGrant = f
-	return mmDeleteGrant.mock
-}
-
-// When sets expectation for the Client.DeleteGrant which will trigger the result defined by the following
-// Then helper
-func (mmDeleteGrant *mClientMockDeleteGrant) When(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) *ClientMockDeleteGrantExpectation {
-	if mmDeleteGrant.mock.funcDeleteGrant != nil {
-		mmDeleteGrant.mock.t.Fatalf("ClientMock.DeleteGrant mock is already set by Set")
-	}
-
-	expectation := &ClientMockDeleteGrantExpectation{
-		mock:   mmDeleteGrant.mock,
-		params: &ClientMockDeleteGrantParams{ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName},
-	}
-	mmDeleteGrant.expectations = append(mmDeleteGrant.expectations, expectation)
-	return expectation
-}
-
-// Then sets up Client.DeleteGrant return parameters for the expectation previously defined by the When method
-func (e *ClientMockDeleteGrantExpectation) Then(err error) *ClientMock {
-	e.results = &ClientMockDeleteGrantResults{err}
-	return e.mock
-}
-
-// Times sets number of times Client.DeleteGrant should be invoked
-func (mmDeleteGrant *mClientMockDeleteGrant) Times(n uint64) *mClientMockDeleteGrant {
-	if n == 0 {
-		mmDeleteGrant.mock.t.Fatalf("Times of ClientMock.DeleteGrant mock can not be zero")
-	}
-	mm_atomic.StoreUint64(&mmDeleteGrant.expectedInvocations, n)
-	return mmDeleteGrant
-}
-
-func (mmDeleteGrant *mClientMockDeleteGrant) invocationsDone() bool {
-	if len(mmDeleteGrant.expectations) == 0 && mmDeleteGrant.defaultExpectation == nil && mmDeleteGrant.mock.funcDeleteGrant == nil {
-		return true
-	}
-
-	totalInvocations := mm_atomic.LoadUint64(&mmDeleteGrant.mock.afterDeleteGrantCounter)
-	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteGrant.expectedInvocations)
-
-	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
-}
-
-// DeleteGrant implements Client
-func (mmDeleteGrant *ClientMock) DeleteGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (err error) {
-	mm_atomic.AddUint64(&mmDeleteGrant.beforeDeleteGrantCounter, 1)
-	defer mm_atomic.AddUint64(&mmDeleteGrant.afterDeleteGrantCounter, 1)
-
-	if mmDeleteGrant.inspectFuncDeleteGrant != nil {
-		mmDeleteGrant.inspectFuncDeleteGrant(ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName)
-	}
-
-	mm_params := ClientMockDeleteGrantParams{ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName}
-
-	// Record call args
-	mmDeleteGrant.DeleteGrantMock.mutex.Lock()
-	mmDeleteGrant.DeleteGrantMock.callArgs = append(mmDeleteGrant.DeleteGrantMock.callArgs, &mm_params)
-	mmDeleteGrant.DeleteGrantMock.mutex.Unlock()
-
-	for _, e := range mmDeleteGrant.DeleteGrantMock.expectations {
-		if minimock.Equal(*e.params, mm_params) {
-			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.err
-		}
-	}
-
-	if mmDeleteGrant.DeleteGrantMock.defaultExpectation != nil {
-		mm_atomic.AddUint64(&mmDeleteGrant.DeleteGrantMock.defaultExpectation.Counter, 1)
-		mm_want := mmDeleteGrant.DeleteGrantMock.defaultExpectation.params
-		mm_want_ptrs := mmDeleteGrant.DeleteGrantMock.defaultExpectation.paramPtrs
-
-		mm_got := ClientMockDeleteGrantParams{ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName}
-
-		if mm_want_ptrs != nil {
-
-			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
-				mmDeleteGrant.t.Errorf("ClientMock.DeleteGrant got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
-			}
-
-			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
-				mmDeleteGrant.t.Errorf("ClientMock.DeleteGrant got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
-			}
-
-			if mm_want_ptrs.grantedRoleName != nil && !minimock.Equal(*mm_want_ptrs.grantedRoleName, mm_got.grantedRoleName) {
-				mmDeleteGrant.t.Errorf("ClientMock.DeleteGrant got unexpected parameter grantedRoleName, want: %#v, got: %#v%s\n", *mm_want_ptrs.grantedRoleName, mm_got.grantedRoleName, minimock.Diff(*mm_want_ptrs.grantedRoleName, mm_got.grantedRoleName))
-			}
-
-			if mm_want_ptrs.granteeUserName != nil && !minimock.Equal(*mm_want_ptrs.granteeUserName, mm_got.granteeUserName) {
-				mmDeleteGrant.t.Errorf("ClientMock.DeleteGrant got unexpected parameter granteeUserName, want: %#v, got: %#v%s\n", *mm_want_ptrs.granteeUserName, mm_got.granteeUserName, minimock.Diff(*mm_want_ptrs.granteeUserName, mm_got.granteeUserName))
-			}
-
-			if mm_want_ptrs.granteeRoleName != nil && !minimock.Equal(*mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName) {
-				mmDeleteGrant.t.Errorf("ClientMock.DeleteGrant got unexpected parameter granteeRoleName, want: %#v, got: %#v%s\n", *mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName, minimock.Diff(*mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName))
-			}
-
-		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
-			mmDeleteGrant.t.Errorf("ClientMock.DeleteGrant got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
-		}
-
-		mm_results := mmDeleteGrant.DeleteGrantMock.defaultExpectation.results
-		if mm_results == nil {
-			mmDeleteGrant.t.Fatal("No results are set for the ClientMock.DeleteGrant")
-		}
-		return (*mm_results).err
-	}
-	if mmDeleteGrant.funcDeleteGrant != nil {
-		return mmDeleteGrant.funcDeleteGrant(ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName)
-	}
-	mmDeleteGrant.t.Fatalf("Unexpected call to ClientMock.DeleteGrant. %v %v %v %v %v", ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName)
-	return
-}
-
-// DeleteGrantAfterCounter returns a count of finished ClientMock.DeleteGrant invocations
-func (mmDeleteGrant *ClientMock) DeleteGrantAfterCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmDeleteGrant.afterDeleteGrantCounter)
-}
-
-// DeleteGrantBeforeCounter returns a count of ClientMock.DeleteGrant invocations
-func (mmDeleteGrant *ClientMock) DeleteGrantBeforeCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmDeleteGrant.beforeDeleteGrantCounter)
-}
-
-// Calls returns a list of arguments used in each call to ClientMock.DeleteGrant.
-// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
-func (mmDeleteGrant *mClientMockDeleteGrant) Calls() []*ClientMockDeleteGrantParams {
-	mmDeleteGrant.mutex.RLock()
-
-	argCopy := make([]*ClientMockDeleteGrantParams, len(mmDeleteGrant.callArgs))
-	copy(argCopy, mmDeleteGrant.callArgs)
-
-	mmDeleteGrant.mutex.RUnlock()
-
-	return argCopy
-}
-
-// MinimockDeleteGrantDone returns true if the count of the DeleteGrant invocations corresponds
-// the number of defined expectations
-func (m *ClientMock) MinimockDeleteGrantDone() bool {
-	if m.DeleteGrantMock.optional {
-		// Optional methods provide '0 or more' call count restriction.
-		return true
-	}
-
-	for _, e := range m.DeleteGrantMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			return false
-		}
-	}
-
-	return m.DeleteGrantMock.invocationsDone()
-}
-
-// MinimockDeleteGrantInspect logs each unmet expectation
-func (m *ClientMock) MinimockDeleteGrantInspect() {
-	for _, e := range m.DeleteGrantMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Errorf("Expected call to ClientMock.DeleteGrant with params: %#v", *e.params)
-		}
-	}
-
-	afterDeleteGrantCounter := mm_atomic.LoadUint64(&m.afterDeleteGrantCounter)
-	// if default expectation was set then invocations count should be greater than zero
-	if m.DeleteGrantMock.defaultExpectation != nil && afterDeleteGrantCounter < 1 {
-		if m.DeleteGrantMock.defaultExpectation.params == nil {
-			m.t.Error("Expected call to ClientMock.DeleteGrant")
-		} else {
-			m.t.Errorf("Expected call to ClientMock.DeleteGrant with params: %#v", *m.DeleteGrantMock.defaultExpectation.params)
-		}
-	}
-	// if func was set then invocations count should be greater than zero
-	if m.funcDeleteGrant != nil && afterDeleteGrantCounter < 1 {
-		m.t.Error("Expected call to ClientMock.DeleteGrant")
-	}
-
-	if !m.DeleteGrantMock.invocationsDone() && afterDeleteGrantCounter > 0 {
-		m.t.Errorf("Expected %d calls to ClientMock.DeleteGrant but found %d calls",
-			mm_atomic.LoadUint64(&m.DeleteGrantMock.expectedInvocations), afterDeleteGrantCounter)
 	}
 }
 
@@ -8222,6 +7469,759 @@ func (m *ClientMock) MinimockGetUserInspect() {
 	}
 }
 
+type mClientMockGrantRole struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGrantRoleExpectation
+	expectations       []*ClientMockGrantRoleExpectation
+
+	callArgs []*ClientMockGrantRoleParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockGrantRoleExpectation specifies expectation struct of the Client.GrantRole
+type ClientMockGrantRoleExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockGrantRoleParams
+	paramPtrs *ClientMockGrantRoleParamPtrs
+	results   *ClientMockGrantRoleResults
+	Counter   uint64
+}
+
+// ClientMockGrantRoleParams contains parameters of the Client.GrantRole
+type ClientMockGrantRoleParams struct {
+	ctx       context.Context
+	serviceId string
+	grantRole GrantRole
+}
+
+// ClientMockGrantRoleParamPtrs contains pointers to parameters of the Client.GrantRole
+type ClientMockGrantRoleParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	grantRole *GrantRole
+}
+
+// ClientMockGrantRoleResults contains results of the Client.GrantRole
+type ClientMockGrantRoleResults struct {
+	gp1 *GrantRole
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGrantRole *mClientMockGrantRole) Optional() *mClientMockGrantRole {
+	mmGrantRole.optional = true
+	return mmGrantRole
+}
+
+// Expect sets up expected params for Client.GrantRole
+func (mmGrantRole *mClientMockGrantRole) Expect(ctx context.Context, serviceId string, grantRole GrantRole) *mClientMockGrantRole {
+	if mmGrantRole.mock.funcGrantRole != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by Set")
+	}
+
+	if mmGrantRole.defaultExpectation == nil {
+		mmGrantRole.defaultExpectation = &ClientMockGrantRoleExpectation{}
+	}
+
+	if mmGrantRole.defaultExpectation.paramPtrs != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by ExpectParams functions")
+	}
+
+	mmGrantRole.defaultExpectation.params = &ClientMockGrantRoleParams{ctx, serviceId, grantRole}
+	for _, e := range mmGrantRole.expectations {
+		if minimock.Equal(e.params, mmGrantRole.defaultExpectation.params) {
+			mmGrantRole.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGrantRole.defaultExpectation.params)
+		}
+	}
+
+	return mmGrantRole
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GrantRole
+func (mmGrantRole *mClientMockGrantRole) ExpectCtxParam1(ctx context.Context) *mClientMockGrantRole {
+	if mmGrantRole.mock.funcGrantRole != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by Set")
+	}
+
+	if mmGrantRole.defaultExpectation == nil {
+		mmGrantRole.defaultExpectation = &ClientMockGrantRoleExpectation{}
+	}
+
+	if mmGrantRole.defaultExpectation.params != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by Expect")
+	}
+
+	if mmGrantRole.defaultExpectation.paramPtrs == nil {
+		mmGrantRole.defaultExpectation.paramPtrs = &ClientMockGrantRoleParamPtrs{}
+	}
+	mmGrantRole.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmGrantRole
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GrantRole
+func (mmGrantRole *mClientMockGrantRole) ExpectServiceIdParam2(serviceId string) *mClientMockGrantRole {
+	if mmGrantRole.mock.funcGrantRole != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by Set")
+	}
+
+	if mmGrantRole.defaultExpectation == nil {
+		mmGrantRole.defaultExpectation = &ClientMockGrantRoleExpectation{}
+	}
+
+	if mmGrantRole.defaultExpectation.params != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by Expect")
+	}
+
+	if mmGrantRole.defaultExpectation.paramPtrs == nil {
+		mmGrantRole.defaultExpectation.paramPtrs = &ClientMockGrantRoleParamPtrs{}
+	}
+	mmGrantRole.defaultExpectation.paramPtrs.serviceId = &serviceId
+
+	return mmGrantRole
+}
+
+// ExpectGrantRoleParam3 sets up expected param grantRole for Client.GrantRole
+func (mmGrantRole *mClientMockGrantRole) ExpectGrantRoleParam3(grantRole GrantRole) *mClientMockGrantRole {
+	if mmGrantRole.mock.funcGrantRole != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by Set")
+	}
+
+	if mmGrantRole.defaultExpectation == nil {
+		mmGrantRole.defaultExpectation = &ClientMockGrantRoleExpectation{}
+	}
+
+	if mmGrantRole.defaultExpectation.params != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by Expect")
+	}
+
+	if mmGrantRole.defaultExpectation.paramPtrs == nil {
+		mmGrantRole.defaultExpectation.paramPtrs = &ClientMockGrantRoleParamPtrs{}
+	}
+	mmGrantRole.defaultExpectation.paramPtrs.grantRole = &grantRole
+
+	return mmGrantRole
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GrantRole
+func (mmGrantRole *mClientMockGrantRole) Inspect(f func(ctx context.Context, serviceId string, grantRole GrantRole)) *mClientMockGrantRole {
+	if mmGrantRole.mock.inspectFuncGrantRole != nil {
+		mmGrantRole.mock.t.Fatalf("Inspect function is already set for ClientMock.GrantRole")
+	}
+
+	mmGrantRole.mock.inspectFuncGrantRole = f
+
+	return mmGrantRole
+}
+
+// Return sets up results that will be returned by Client.GrantRole
+func (mmGrantRole *mClientMockGrantRole) Return(gp1 *GrantRole, err error) *ClientMock {
+	if mmGrantRole.mock.funcGrantRole != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by Set")
+	}
+
+	if mmGrantRole.defaultExpectation == nil {
+		mmGrantRole.defaultExpectation = &ClientMockGrantRoleExpectation{mock: mmGrantRole.mock}
+	}
+	mmGrantRole.defaultExpectation.results = &ClientMockGrantRoleResults{gp1, err}
+	return mmGrantRole.mock
+}
+
+// Set uses given function f to mock the Client.GrantRole method
+func (mmGrantRole *mClientMockGrantRole) Set(f func(ctx context.Context, serviceId string, grantRole GrantRole) (gp1 *GrantRole, err error)) *ClientMock {
+	if mmGrantRole.defaultExpectation != nil {
+		mmGrantRole.mock.t.Fatalf("Default expectation is already set for the Client.GrantRole method")
+	}
+
+	if len(mmGrantRole.expectations) > 0 {
+		mmGrantRole.mock.t.Fatalf("Some expectations are already set for the Client.GrantRole method")
+	}
+
+	mmGrantRole.mock.funcGrantRole = f
+	return mmGrantRole.mock
+}
+
+// When sets expectation for the Client.GrantRole which will trigger the result defined by the following
+// Then helper
+func (mmGrantRole *mClientMockGrantRole) When(ctx context.Context, serviceId string, grantRole GrantRole) *ClientMockGrantRoleExpectation {
+	if mmGrantRole.mock.funcGrantRole != nil {
+		mmGrantRole.mock.t.Fatalf("ClientMock.GrantRole mock is already set by Set")
+	}
+
+	expectation := &ClientMockGrantRoleExpectation{
+		mock:   mmGrantRole.mock,
+		params: &ClientMockGrantRoleParams{ctx, serviceId, grantRole},
+	}
+	mmGrantRole.expectations = append(mmGrantRole.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GrantRole return parameters for the expectation previously defined by the When method
+func (e *ClientMockGrantRoleExpectation) Then(gp1 *GrantRole, err error) *ClientMock {
+	e.results = &ClientMockGrantRoleResults{gp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GrantRole should be invoked
+func (mmGrantRole *mClientMockGrantRole) Times(n uint64) *mClientMockGrantRole {
+	if n == 0 {
+		mmGrantRole.mock.t.Fatalf("Times of ClientMock.GrantRole mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGrantRole.expectedInvocations, n)
+	return mmGrantRole
+}
+
+func (mmGrantRole *mClientMockGrantRole) invocationsDone() bool {
+	if len(mmGrantRole.expectations) == 0 && mmGrantRole.defaultExpectation == nil && mmGrantRole.mock.funcGrantRole == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGrantRole.mock.afterGrantRoleCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGrantRole.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GrantRole implements Client
+func (mmGrantRole *ClientMock) GrantRole(ctx context.Context, serviceId string, grantRole GrantRole) (gp1 *GrantRole, err error) {
+	mm_atomic.AddUint64(&mmGrantRole.beforeGrantRoleCounter, 1)
+	defer mm_atomic.AddUint64(&mmGrantRole.afterGrantRoleCounter, 1)
+
+	if mmGrantRole.inspectFuncGrantRole != nil {
+		mmGrantRole.inspectFuncGrantRole(ctx, serviceId, grantRole)
+	}
+
+	mm_params := ClientMockGrantRoleParams{ctx, serviceId, grantRole}
+
+	// Record call args
+	mmGrantRole.GrantRoleMock.mutex.Lock()
+	mmGrantRole.GrantRoleMock.callArgs = append(mmGrantRole.GrantRoleMock.callArgs, &mm_params)
+	mmGrantRole.GrantRoleMock.mutex.Unlock()
+
+	for _, e := range mmGrantRole.GrantRoleMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.gp1, e.results.err
+		}
+	}
+
+	if mmGrantRole.GrantRoleMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGrantRole.GrantRoleMock.defaultExpectation.Counter, 1)
+		mm_want := mmGrantRole.GrantRoleMock.defaultExpectation.params
+		mm_want_ptrs := mmGrantRole.GrantRoleMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGrantRoleParams{ctx, serviceId, grantRole}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGrantRole.t.Errorf("ClientMock.GrantRole got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGrantRole.t.Errorf("ClientMock.GrantRole got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.grantRole != nil && !minimock.Equal(*mm_want_ptrs.grantRole, mm_got.grantRole) {
+				mmGrantRole.t.Errorf("ClientMock.GrantRole got unexpected parameter grantRole, want: %#v, got: %#v%s\n", *mm_want_ptrs.grantRole, mm_got.grantRole, minimock.Diff(*mm_want_ptrs.grantRole, mm_got.grantRole))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGrantRole.t.Errorf("ClientMock.GrantRole got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGrantRole.GrantRoleMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGrantRole.t.Fatal("No results are set for the ClientMock.GrantRole")
+		}
+		return (*mm_results).gp1, (*mm_results).err
+	}
+	if mmGrantRole.funcGrantRole != nil {
+		return mmGrantRole.funcGrantRole(ctx, serviceId, grantRole)
+	}
+	mmGrantRole.t.Fatalf("Unexpected call to ClientMock.GrantRole. %v %v %v", ctx, serviceId, grantRole)
+	return
+}
+
+// GrantRoleAfterCounter returns a count of finished ClientMock.GrantRole invocations
+func (mmGrantRole *ClientMock) GrantRoleAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGrantRole.afterGrantRoleCounter)
+}
+
+// GrantRoleBeforeCounter returns a count of ClientMock.GrantRole invocations
+func (mmGrantRole *ClientMock) GrantRoleBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGrantRole.beforeGrantRoleCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GrantRole.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGrantRole *mClientMockGrantRole) Calls() []*ClientMockGrantRoleParams {
+	mmGrantRole.mutex.RLock()
+
+	argCopy := make([]*ClientMockGrantRoleParams, len(mmGrantRole.callArgs))
+	copy(argCopy, mmGrantRole.callArgs)
+
+	mmGrantRole.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGrantRoleDone returns true if the count of the GrantRole invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGrantRoleDone() bool {
+	if m.GrantRoleMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GrantRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GrantRoleMock.invocationsDone()
+}
+
+// MinimockGrantRoleInspect logs each unmet expectation
+func (m *ClientMock) MinimockGrantRoleInspect() {
+	for _, e := range m.GrantRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GrantRole with params: %#v", *e.params)
+		}
+	}
+
+	afterGrantRoleCounter := mm_atomic.LoadUint64(&m.afterGrantRoleCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GrantRoleMock.defaultExpectation != nil && afterGrantRoleCounter < 1 {
+		if m.GrantRoleMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.GrantRole")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GrantRole with params: %#v", *m.GrantRoleMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGrantRole != nil && afterGrantRoleCounter < 1 {
+		m.t.Error("Expected call to ClientMock.GrantRole")
+	}
+
+	if !m.GrantRoleMock.invocationsDone() && afterGrantRoleCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GrantRole but found %d calls",
+			mm_atomic.LoadUint64(&m.GrantRoleMock.expectedInvocations), afterGrantRoleCounter)
+	}
+}
+
+type mClientMockRevokeGrant struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockRevokeGrantExpectation
+	expectations       []*ClientMockRevokeGrantExpectation
+
+	callArgs []*ClientMockRevokeGrantParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockRevokeGrantExpectation specifies expectation struct of the Client.RevokeGrant
+type ClientMockRevokeGrantExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockRevokeGrantParams
+	paramPtrs *ClientMockRevokeGrantParamPtrs
+	results   *ClientMockRevokeGrantResults
+	Counter   uint64
+}
+
+// ClientMockRevokeGrantParams contains parameters of the Client.RevokeGrant
+type ClientMockRevokeGrantParams struct {
+	ctx             context.Context
+	serviceID       string
+	grantedRoleName string
+	granteeUserName *string
+	granteeRoleName *string
+}
+
+// ClientMockRevokeGrantParamPtrs contains pointers to parameters of the Client.RevokeGrant
+type ClientMockRevokeGrantParamPtrs struct {
+	ctx             *context.Context
+	serviceID       *string
+	grantedRoleName *string
+	granteeUserName **string
+	granteeRoleName **string
+}
+
+// ClientMockRevokeGrantResults contains results of the Client.RevokeGrant
+type ClientMockRevokeGrantResults struct {
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmRevokeGrant *mClientMockRevokeGrant) Optional() *mClientMockRevokeGrant {
+	mmRevokeGrant.optional = true
+	return mmRevokeGrant
+}
+
+// Expect sets up expected params for Client.RevokeGrant
+func (mmRevokeGrant *mClientMockRevokeGrant) Expect(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) *mClientMockRevokeGrant {
+	if mmRevokeGrant.mock.funcRevokeGrant != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Set")
+	}
+
+	if mmRevokeGrant.defaultExpectation == nil {
+		mmRevokeGrant.defaultExpectation = &ClientMockRevokeGrantExpectation{}
+	}
+
+	if mmRevokeGrant.defaultExpectation.paramPtrs != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by ExpectParams functions")
+	}
+
+	mmRevokeGrant.defaultExpectation.params = &ClientMockRevokeGrantParams{ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName}
+	for _, e := range mmRevokeGrant.expectations {
+		if minimock.Equal(e.params, mmRevokeGrant.defaultExpectation.params) {
+			mmRevokeGrant.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmRevokeGrant.defaultExpectation.params)
+		}
+	}
+
+	return mmRevokeGrant
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.RevokeGrant
+func (mmRevokeGrant *mClientMockRevokeGrant) ExpectCtxParam1(ctx context.Context) *mClientMockRevokeGrant {
+	if mmRevokeGrant.mock.funcRevokeGrant != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Set")
+	}
+
+	if mmRevokeGrant.defaultExpectation == nil {
+		mmRevokeGrant.defaultExpectation = &ClientMockRevokeGrantExpectation{}
+	}
+
+	if mmRevokeGrant.defaultExpectation.params != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Expect")
+	}
+
+	if mmRevokeGrant.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrant.defaultExpectation.paramPtrs = &ClientMockRevokeGrantParamPtrs{}
+	}
+	mmRevokeGrant.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmRevokeGrant
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.RevokeGrant
+func (mmRevokeGrant *mClientMockRevokeGrant) ExpectServiceIDParam2(serviceID string) *mClientMockRevokeGrant {
+	if mmRevokeGrant.mock.funcRevokeGrant != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Set")
+	}
+
+	if mmRevokeGrant.defaultExpectation == nil {
+		mmRevokeGrant.defaultExpectation = &ClientMockRevokeGrantExpectation{}
+	}
+
+	if mmRevokeGrant.defaultExpectation.params != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Expect")
+	}
+
+	if mmRevokeGrant.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrant.defaultExpectation.paramPtrs = &ClientMockRevokeGrantParamPtrs{}
+	}
+	mmRevokeGrant.defaultExpectation.paramPtrs.serviceID = &serviceID
+
+	return mmRevokeGrant
+}
+
+// ExpectGrantedRoleNameParam3 sets up expected param grantedRoleName for Client.RevokeGrant
+func (mmRevokeGrant *mClientMockRevokeGrant) ExpectGrantedRoleNameParam3(grantedRoleName string) *mClientMockRevokeGrant {
+	if mmRevokeGrant.mock.funcRevokeGrant != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Set")
+	}
+
+	if mmRevokeGrant.defaultExpectation == nil {
+		mmRevokeGrant.defaultExpectation = &ClientMockRevokeGrantExpectation{}
+	}
+
+	if mmRevokeGrant.defaultExpectation.params != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Expect")
+	}
+
+	if mmRevokeGrant.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrant.defaultExpectation.paramPtrs = &ClientMockRevokeGrantParamPtrs{}
+	}
+	mmRevokeGrant.defaultExpectation.paramPtrs.grantedRoleName = &grantedRoleName
+
+	return mmRevokeGrant
+}
+
+// ExpectGranteeUserNameParam4 sets up expected param granteeUserName for Client.RevokeGrant
+func (mmRevokeGrant *mClientMockRevokeGrant) ExpectGranteeUserNameParam4(granteeUserName *string) *mClientMockRevokeGrant {
+	if mmRevokeGrant.mock.funcRevokeGrant != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Set")
+	}
+
+	if mmRevokeGrant.defaultExpectation == nil {
+		mmRevokeGrant.defaultExpectation = &ClientMockRevokeGrantExpectation{}
+	}
+
+	if mmRevokeGrant.defaultExpectation.params != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Expect")
+	}
+
+	if mmRevokeGrant.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrant.defaultExpectation.paramPtrs = &ClientMockRevokeGrantParamPtrs{}
+	}
+	mmRevokeGrant.defaultExpectation.paramPtrs.granteeUserName = &granteeUserName
+
+	return mmRevokeGrant
+}
+
+// ExpectGranteeRoleNameParam5 sets up expected param granteeRoleName for Client.RevokeGrant
+func (mmRevokeGrant *mClientMockRevokeGrant) ExpectGranteeRoleNameParam5(granteeRoleName *string) *mClientMockRevokeGrant {
+	if mmRevokeGrant.mock.funcRevokeGrant != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Set")
+	}
+
+	if mmRevokeGrant.defaultExpectation == nil {
+		mmRevokeGrant.defaultExpectation = &ClientMockRevokeGrantExpectation{}
+	}
+
+	if mmRevokeGrant.defaultExpectation.params != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Expect")
+	}
+
+	if mmRevokeGrant.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrant.defaultExpectation.paramPtrs = &ClientMockRevokeGrantParamPtrs{}
+	}
+	mmRevokeGrant.defaultExpectation.paramPtrs.granteeRoleName = &granteeRoleName
+
+	return mmRevokeGrant
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.RevokeGrant
+func (mmRevokeGrant *mClientMockRevokeGrant) Inspect(f func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string)) *mClientMockRevokeGrant {
+	if mmRevokeGrant.mock.inspectFuncRevokeGrant != nil {
+		mmRevokeGrant.mock.t.Fatalf("Inspect function is already set for ClientMock.RevokeGrant")
+	}
+
+	mmRevokeGrant.mock.inspectFuncRevokeGrant = f
+
+	return mmRevokeGrant
+}
+
+// Return sets up results that will be returned by Client.RevokeGrant
+func (mmRevokeGrant *mClientMockRevokeGrant) Return(err error) *ClientMock {
+	if mmRevokeGrant.mock.funcRevokeGrant != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Set")
+	}
+
+	if mmRevokeGrant.defaultExpectation == nil {
+		mmRevokeGrant.defaultExpectation = &ClientMockRevokeGrantExpectation{mock: mmRevokeGrant.mock}
+	}
+	mmRevokeGrant.defaultExpectation.results = &ClientMockRevokeGrantResults{err}
+	return mmRevokeGrant.mock
+}
+
+// Set uses given function f to mock the Client.RevokeGrant method
+func (mmRevokeGrant *mClientMockRevokeGrant) Set(f func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (err error)) *ClientMock {
+	if mmRevokeGrant.defaultExpectation != nil {
+		mmRevokeGrant.mock.t.Fatalf("Default expectation is already set for the Client.RevokeGrant method")
+	}
+
+	if len(mmRevokeGrant.expectations) > 0 {
+		mmRevokeGrant.mock.t.Fatalf("Some expectations are already set for the Client.RevokeGrant method")
+	}
+
+	mmRevokeGrant.mock.funcRevokeGrant = f
+	return mmRevokeGrant.mock
+}
+
+// When sets expectation for the Client.RevokeGrant which will trigger the result defined by the following
+// Then helper
+func (mmRevokeGrant *mClientMockRevokeGrant) When(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) *ClientMockRevokeGrantExpectation {
+	if mmRevokeGrant.mock.funcRevokeGrant != nil {
+		mmRevokeGrant.mock.t.Fatalf("ClientMock.RevokeGrant mock is already set by Set")
+	}
+
+	expectation := &ClientMockRevokeGrantExpectation{
+		mock:   mmRevokeGrant.mock,
+		params: &ClientMockRevokeGrantParams{ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName},
+	}
+	mmRevokeGrant.expectations = append(mmRevokeGrant.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.RevokeGrant return parameters for the expectation previously defined by the When method
+func (e *ClientMockRevokeGrantExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockRevokeGrantResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.RevokeGrant should be invoked
+func (mmRevokeGrant *mClientMockRevokeGrant) Times(n uint64) *mClientMockRevokeGrant {
+	if n == 0 {
+		mmRevokeGrant.mock.t.Fatalf("Times of ClientMock.RevokeGrant mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmRevokeGrant.expectedInvocations, n)
+	return mmRevokeGrant
+}
+
+func (mmRevokeGrant *mClientMockRevokeGrant) invocationsDone() bool {
+	if len(mmRevokeGrant.expectations) == 0 && mmRevokeGrant.defaultExpectation == nil && mmRevokeGrant.mock.funcRevokeGrant == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmRevokeGrant.mock.afterRevokeGrantCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmRevokeGrant.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// RevokeGrant implements Client
+func (mmRevokeGrant *ClientMock) RevokeGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (err error) {
+	mm_atomic.AddUint64(&mmRevokeGrant.beforeRevokeGrantCounter, 1)
+	defer mm_atomic.AddUint64(&mmRevokeGrant.afterRevokeGrantCounter, 1)
+
+	if mmRevokeGrant.inspectFuncRevokeGrant != nil {
+		mmRevokeGrant.inspectFuncRevokeGrant(ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName)
+	}
+
+	mm_params := ClientMockRevokeGrantParams{ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName}
+
+	// Record call args
+	mmRevokeGrant.RevokeGrantMock.mutex.Lock()
+	mmRevokeGrant.RevokeGrantMock.callArgs = append(mmRevokeGrant.RevokeGrantMock.callArgs, &mm_params)
+	mmRevokeGrant.RevokeGrantMock.mutex.Unlock()
+
+	for _, e := range mmRevokeGrant.RevokeGrantMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmRevokeGrant.RevokeGrantMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmRevokeGrant.RevokeGrantMock.defaultExpectation.Counter, 1)
+		mm_want := mmRevokeGrant.RevokeGrantMock.defaultExpectation.params
+		mm_want_ptrs := mmRevokeGrant.RevokeGrantMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockRevokeGrantParams{ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmRevokeGrant.t.Errorf("ClientMock.RevokeGrant got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmRevokeGrant.t.Errorf("ClientMock.RevokeGrant got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.grantedRoleName != nil && !minimock.Equal(*mm_want_ptrs.grantedRoleName, mm_got.grantedRoleName) {
+				mmRevokeGrant.t.Errorf("ClientMock.RevokeGrant got unexpected parameter grantedRoleName, want: %#v, got: %#v%s\n", *mm_want_ptrs.grantedRoleName, mm_got.grantedRoleName, minimock.Diff(*mm_want_ptrs.grantedRoleName, mm_got.grantedRoleName))
+			}
+
+			if mm_want_ptrs.granteeUserName != nil && !minimock.Equal(*mm_want_ptrs.granteeUserName, mm_got.granteeUserName) {
+				mmRevokeGrant.t.Errorf("ClientMock.RevokeGrant got unexpected parameter granteeUserName, want: %#v, got: %#v%s\n", *mm_want_ptrs.granteeUserName, mm_got.granteeUserName, minimock.Diff(*mm_want_ptrs.granteeUserName, mm_got.granteeUserName))
+			}
+
+			if mm_want_ptrs.granteeRoleName != nil && !minimock.Equal(*mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName) {
+				mmRevokeGrant.t.Errorf("ClientMock.RevokeGrant got unexpected parameter granteeRoleName, want: %#v, got: %#v%s\n", *mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName, minimock.Diff(*mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmRevokeGrant.t.Errorf("ClientMock.RevokeGrant got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmRevokeGrant.RevokeGrantMock.defaultExpectation.results
+		if mm_results == nil {
+			mmRevokeGrant.t.Fatal("No results are set for the ClientMock.RevokeGrant")
+		}
+		return (*mm_results).err
+	}
+	if mmRevokeGrant.funcRevokeGrant != nil {
+		return mmRevokeGrant.funcRevokeGrant(ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName)
+	}
+	mmRevokeGrant.t.Fatalf("Unexpected call to ClientMock.RevokeGrant. %v %v %v %v %v", ctx, serviceID, grantedRoleName, granteeUserName, granteeRoleName)
+	return
+}
+
+// RevokeGrantAfterCounter returns a count of finished ClientMock.RevokeGrant invocations
+func (mmRevokeGrant *ClientMock) RevokeGrantAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmRevokeGrant.afterRevokeGrantCounter)
+}
+
+// RevokeGrantBeforeCounter returns a count of ClientMock.RevokeGrant invocations
+func (mmRevokeGrant *ClientMock) RevokeGrantBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmRevokeGrant.beforeRevokeGrantCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.RevokeGrant.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmRevokeGrant *mClientMockRevokeGrant) Calls() []*ClientMockRevokeGrantParams {
+	mmRevokeGrant.mutex.RLock()
+
+	argCopy := make([]*ClientMockRevokeGrantParams, len(mmRevokeGrant.callArgs))
+	copy(argCopy, mmRevokeGrant.callArgs)
+
+	mmRevokeGrant.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockRevokeGrantDone returns true if the count of the RevokeGrant invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockRevokeGrantDone() bool {
+	if m.RevokeGrantMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.RevokeGrantMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.RevokeGrantMock.invocationsDone()
+}
+
+// MinimockRevokeGrantInspect logs each unmet expectation
+func (m *ClientMock) MinimockRevokeGrantInspect() {
+	for _, e := range m.RevokeGrantMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.RevokeGrant with params: %#v", *e.params)
+		}
+	}
+
+	afterRevokeGrantCounter := mm_atomic.LoadUint64(&m.afterRevokeGrantCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.RevokeGrantMock.defaultExpectation != nil && afterRevokeGrantCounter < 1 {
+		if m.RevokeGrantMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.RevokeGrant")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.RevokeGrant with params: %#v", *m.RevokeGrantMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcRevokeGrant != nil && afterRevokeGrantCounter < 1 {
+		m.t.Error("Expected call to ClientMock.RevokeGrant")
+	}
+
+	if !m.RevokeGrantMock.invocationsDone() && afterRevokeGrantCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.RevokeGrant but found %d calls",
+			mm_atomic.LoadUint64(&m.RevokeGrantMock.expectedInvocations), afterRevokeGrantCounter)
+	}
+}
+
 type mClientMockScalingClickPipe struct {
 	optional           bool
 	mock               *ClientMock
@@ -11105,8 +11105,6 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateClickPipeInspect()
 
-			m.MinimockCreateGrantInspect()
-
 			m.MinimockCreateQueryEndpointInspect()
 
 			m.MinimockCreateRoleInspect()
@@ -11116,8 +11114,6 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockCreateUserInspect()
 
 			m.MinimockDeleteClickPipeInspect()
-
-			m.MinimockDeleteGrantInspect()
 
 			m.MinimockDeleteQueryEndpointInspect()
 
@@ -11146,6 +11142,10 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetServiceInspect()
 
 			m.MinimockGetUserInspect()
+
+			m.MinimockGrantRoleInspect()
+
+			m.MinimockRevokeGrantInspect()
 
 			m.MinimockScalingClickPipeInspect()
 
@@ -11187,13 +11187,11 @@ func (m *ClientMock) minimockDone() bool {
 	return done &&
 		m.MinimockChangeClickPipeStateDone() &&
 		m.MinimockCreateClickPipeDone() &&
-		m.MinimockCreateGrantDone() &&
 		m.MinimockCreateQueryEndpointDone() &&
 		m.MinimockCreateRoleDone() &&
 		m.MinimockCreateServiceDone() &&
 		m.MinimockCreateUserDone() &&
 		m.MinimockDeleteClickPipeDone() &&
-		m.MinimockDeleteGrantDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
 		m.MinimockDeleteRoleDone() &&
 		m.MinimockDeleteServiceDone() &&
@@ -11208,6 +11206,8 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetRoleDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockGetUserDone() &&
+		m.MinimockGrantRoleDone() &&
+		m.MinimockRevokeGrantDone() &&
 		m.MinimockScalingClickPipeDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&

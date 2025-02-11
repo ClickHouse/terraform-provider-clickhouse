@@ -17,7 +17,7 @@ type GrantRole struct {
 	AdminOption     bool    `json:"with_admin_option"`
 }
 
-func (c *ClientImpl) CreateGrant(ctx context.Context, serviceID string, grantRole GrantRole) (*GrantRole, error) {
+func (c *ClientImpl) GrantRole(ctx context.Context, serviceID string, grantRole GrantRole) (*GrantRole, error) {
 	format := "GRANT `$?` TO `$?`"
 	if grantRole.AdminOption {
 		format = fmt.Sprintf("%s WITH ADMIN OPTION", format)
@@ -100,7 +100,7 @@ func (c *ClientImpl) GetGrant(ctx context.Context, serviceID string, grantedRole
 	return &grant, nil
 }
 
-func (c *ClientImpl) DeleteGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) error {
+func (c *ClientImpl) RevokeGrant(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) error {
 	format := "REVOKE `$?` FROM `$?`"
 	args := []interface{}{
 		sqlbuilder.Raw(sqlutil.EscapeBacktick(grantedRoleName)),
