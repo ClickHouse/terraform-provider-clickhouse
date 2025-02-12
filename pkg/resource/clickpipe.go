@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -516,16 +515,6 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 	if response.Diagnostics.HasError() {
 		return
 	}
-
-	if !request.State.Raw.IsNull() {
-		if !plan.ServiceID.IsNull() && plan.ServiceID != state.ServiceID {
-			response.Diagnostics.AddAttributeError(
-				path.Root("service_id"),
-				"Invalid Update",
-				"ClickPipe cannot be moved between services. Please delete and recreate the ClickPipe.",
-			)
-		}
-	}
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
@@ -846,8 +835,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			return fmt.Errorf("ClickPipe is in an internal error state. Contact ClickHouse Cloud support for assistance")
 		}
 
-		// this should never happen, but let's handle it just in case
-		return fmt.Errorf("ClickPipe is in an unexpected state: %s", clickPipe.State)
+		if clickPipe.State == api.ClickPipeProvisioningState {
+			// In usual scenarios, ClickPipe is in Provisioning after update/create operations.
+			// After it should transit to a Running state.
+			// We would like to avoid any plan errors when the ClickPipe is in Provisioning state.
+			clickPipe.State = api.ClickPipeRunningState
+		}
 	}
 
 	state.State = types.StringValue(clickPipe.State)
@@ -1077,6 +1070,73 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
+	var pipeChanged bool
+	var clickPipeUpdate api.ClickPipeUpdate
+
+	if !plan.Name.Equal(state.Name) {
+		pipeChanged = true
+		clickPipeUpdate.Name = plan.Name.ValueStringPointer()
+	}
+
+	if !plan.Description.Equal(state.Description) {
+		pipeChanged = true
+		clickPipeUpdate.Description = plan.Description.ValueStringPointer()
+	}
+
+	if !plan.Source.Equal(state.Source) {
+		source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+
+		if source.Kafka != nil {
+			pipeChanged = true
+			clickPipeUpdate.Source = source
+		} else {
+			response.Diagnostics.AddError(
+				"ClickPipe only supports Kafka source updates",
+				"Only Kafka source updates are supported",
+			)
+		}
+	}
+
+	if !plan.Destination.Attributes()["columns"].Equal(state.Destination.Attributes()["columns"]) || !plan.FieldMappings.Equal(state.FieldMappings) {
+		pipeChanged = true
+		destinationModel := models.ClickPipeDestinationModel{}
+		response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
+		destinationColumnsModels := make([]models.ClickPipeDestinationColumnModel, len(destinationModel.Columns.Elements()))
+		response.Diagnostics.Append(destinationModel.Columns.ElementsAs(ctx, &destinationColumnsModels, false)...)
+
+		clickPipeUpdate.Destination = &api.ClickPipeDestinationUpdate{
+			Columns: make([]api.ClickPipeDestinationColumn, len(destinationColumnsModels)),
+		}
+
+		for i, columnModel := range destinationColumnsModels {
+			clickPipeUpdate.Destination.Columns[i] = api.ClickPipeDestinationColumn{
+				Name: columnModel.Name.ValueString(),
+				Type: columnModel.Type.ValueString(),
+			}
+		}
+
+		fieldMappingsModels := make([]models.ClickPipeFieldMappingModel, len(plan.FieldMappings.Elements()))
+		response.Diagnostics.Append(plan.FieldMappings.ElementsAs(ctx, &fieldMappingsModels, false)...)
+
+		clickPipeUpdate.FieldMappings = make([]api.ClickPipeFieldMapping, len(fieldMappingsModels))
+		for i, fieldMappingModel := range fieldMappingsModels {
+			clickPipeUpdate.FieldMappings[i] = api.ClickPipeFieldMapping{
+				SourceField:      fieldMappingModel.SourceField.ValueString(),
+				DestinationField: fieldMappingModel.DestinationField.ValueString(),
+			}
+		}
+	}
+
+	if pipeChanged {
+		if _, err := c.client.UpdateClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), clickPipeUpdate); err != nil {
+			response.Diagnostics.AddError(
+				"Error Updating ClickPipe",
+				"Could not update ClickPipe, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
 	if !plan.State.Equal(state.State) {
 		var command string
 
@@ -1108,76 +1168,6 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			response.Diagnostics.AddError(
 				"Error Scaling ClickPipe",
 				"Could not scale ClickPipe, unexpected error: "+err.Error(),
-			)
-			return
-		}
-	}
-
-	var pipeChanged bool
-	var clickPipeUpdate api.ClickPipeUpdate
-
-	if !plan.Name.Equal(state.Name) {
-		pipeChanged = true
-		clickPipeUpdate.Name = plan.Name.ValueStringPointer()
-	}
-
-	if !plan.Description.Equal(state.Description) {
-		pipeChanged = true
-		clickPipeUpdate.Description = plan.Description.ValueStringPointer()
-	}
-
-	if !plan.Source.Equal(state.Source) {
-		source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
-
-		if source.Kafka != nil {
-			pipeChanged = true
-			clickPipeUpdate.Source = source
-		} else {
-			response.Diagnostics.AddError(
-				"ClickPipe only supports Kafka source updates",
-				"Only Kafka source updates are supported",
-			)
-		}
-	}
-
-	if !plan.Destination.Attributes()["columns"].Equal(state.Destination.Attributes()["columns"]) {
-		pipeChanged = true
-		destinationModel := models.ClickPipeDestinationModel{}
-		response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
-		destinationColumnsModels := make([]models.ClickPipeDestinationColumnModel, len(destinationModel.Columns.Elements()))
-		response.Diagnostics.Append(destinationModel.Columns.ElementsAs(ctx, &destinationColumnsModels, false)...)
-
-		clickPipeUpdate.Destination = &api.ClickPipeDestinationUpdate{
-			Columns: make([]api.ClickPipeDestinationColumn, len(destinationColumnsModels)),
-		}
-
-		for i, columnModel := range destinationColumnsModels {
-			clickPipeUpdate.Destination.Columns[i] = api.ClickPipeDestinationColumn{
-				Name: columnModel.Name.ValueString(),
-				Type: columnModel.Type.ValueString(),
-			}
-		}
-	}
-
-	if !plan.FieldMappings.Equal(state.FieldMappings) {
-		pipeChanged = true
-		fieldMappingsModels := make([]models.ClickPipeFieldMappingModel, len(plan.FieldMappings.Elements()))
-		response.Diagnostics.Append(plan.FieldMappings.ElementsAs(ctx, &fieldMappingsModels, false)...)
-
-		clickPipeUpdate.FieldMappings = make([]api.ClickPipeFieldMapping, len(fieldMappingsModels))
-		for i, fieldMappingModel := range fieldMappingsModels {
-			clickPipeUpdate.FieldMappings[i] = api.ClickPipeFieldMapping{
-				SourceField:      fieldMappingModel.SourceField.ValueString(),
-				DestinationField: fieldMappingModel.DestinationField.ValueString(),
-			}
-		}
-	}
-
-	if pipeChanged {
-		if _, err := c.client.UpdateClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), clickPipeUpdate); err != nil {
-			response.Diagnostics.AddError(
-				"Error Updating ClickPipe",
-				"Could not update ClickPipe, unexpected error: "+err.Error(),
 			)
 			return
 		}

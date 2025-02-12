@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	ClickPipeProvisioningState  = "Provisioning"
 	ClickPipeRunningState       = "Running"
 	ClickPipeStoppedState       = "Stopped"
 	ClickPipeFailedState        = "Failed"
