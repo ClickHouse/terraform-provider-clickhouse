@@ -97,3 +97,11 @@ resource "clickhouse_grant_role" "writer_to_manager" {
   grantee_role_name = clickhouse_role.manager.name
   admin_option      = false
 }
+
+resource "clickhouse_grant_privilege" "writer" {
+  service_id        = clickhouse_service.service.id
+  privilege_name    = "SELECT"
+  database_name     = "default"
+  grantee_role_name = clickhouse_role.writer.name
+  grant_option      = false
+}
