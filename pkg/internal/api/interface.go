@@ -26,6 +26,7 @@ type Client interface {
 
 	GetClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
 	CreateClickPipe(ctx context.Context, serviceId string, clickPipe ClickPipe) (*ClickPipe, error)
+	UpdateClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeUpdate) (*ClickPipe, error)
 	WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds uint64) (*ClickPipe, error)
 	ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling) (*ClickPipe, error)
 	ChangeClickPipeState(ctx context.Context, serviceId string, clickPipeId string, command string) (*ClickPipe, error)

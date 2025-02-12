@@ -10,10 +10,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
@@ -100,16 +102,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"name": schema.StringAttribute{
 				Description: "The name of the ClickPipe.",
 				Required:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"description": schema.StringAttribute{
 				Description: "The description of the ClickPipe.",
 				Optional:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"scaling": schema.SingleNestedAttribute{
 				Attributes: map[string]schema.Attribute{
@@ -153,6 +149,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeKafkaSourceTypes...),
 								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"format": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -162,6 +161,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Required: true,
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeKafkaFormats...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"brokers": schema.StringAttribute{
@@ -372,12 +374,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Optional:            true,
 							},
 						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.RequiresReplace(),
+						},
 					},
 				},
 				Required: true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.RequiresReplace(),
-				},
 			},
 			"destination": schema.SingleNestedAttribute{
 				Description: "The destination for the ClickPipe.",
@@ -387,16 +389,25 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Default:             stringdefault.StaticString("default"),
 						Computed:            true,
 						Optional:            true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.RequiresReplace(),
+						},
 					},
 					"table": schema.StringAttribute{
 						Description: "The name of the ClickHouse table.",
 						Required:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.RequiresReplace(),
+						},
 					},
 					"managed_table": schema.BoolAttribute{
 						MarkdownDescription: "Whether the table is managed by ClickHouse Cloud. If `false`, the table must exist in the database. Default is `true`.",
 						Default:             booldefault.StaticBool(true),
 						Computed:            true,
 						Optional:            true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.RequiresReplace(),
+						},
 					},
 					"table_definition": schema.SingleNestedAttribute{
 						MarkdownDescription: "Definition of the destination table. Required for ClickPipes managed tables.",
@@ -429,6 +440,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Optional:            true,
 							},
 						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.RequiresReplace(),
+						},
 					},
 					"columns": schema.ListNestedAttribute{
 						Description: "The list of columns for the ClickHouse table.",
@@ -450,12 +464,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						MarkdownDescription: "ClickPipe will create a ClickHouse user with these roles. Add your custom roles here if required.",
 						ElementType:         types.StringType,
 						Optional:            true,
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.RequiresReplace(),
+						},
 					},
 				},
 				Required: true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.RequiresReplace(),
-				},
 			},
 			"field_mappings": schema.ListNestedAttribute{
 				Description: "Field mapping between source and destination table.",
@@ -471,9 +485,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							Required:    true,
 						},
 					},
-				},
-				PlanModifiers: []planmodifier.List{
-					listplanmodifier.RequiresReplace(),
 				},
 			},
 		},
@@ -531,132 +542,9 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		Description: plan.Description.ValueStringPointer(),
 	}
 
-	sourceModel := models.ClickPipeSourceModel{}
-	response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
-
-	if !sourceModel.Kafka.IsNull() {
-		kafkaModel := models.ClickPipeKafkaSourceModel{}
-		response.Diagnostics.Append(sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{})...)
-
-		var consumerGroup *string
-		if !kafkaModel.ConsumerGroup.IsUnknown() {
-			consumerGroup = kafkaModel.ConsumerGroup.ValueStringPointer()
-		}
-
-		clickPipe.Source.Kafka = &api.ClickPipeKafkaSource{
-			Type:           kafkaModel.Type.ValueString(),
-			Format:         kafkaModel.Format.ValueString(),
-			Brokers:        kafkaModel.Brokers.ValueString(),
-			Topics:         kafkaModel.Topics.ValueString(),
-			ConsumerGroup:  consumerGroup,
-			Authentication: kafkaModel.Authentication.ValueString(),
-			IAMRole:        kafkaModel.IAMRole.ValueStringPointer(),
-			CACertificate:  kafkaModel.CACertificate.ValueStringPointer(),
-		}
-
-		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
-			if !kafkaModel.Credentials.IsNull() {
-				credentialsModel := models.ClickPipeKafkaSourceCredentialsModel{}
-				response.Diagnostics.Append(kafkaModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
-
-				var credentials *api.ClickPipeKafkaSourceCredentials
-
-				if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
-					credentials = &api.ClickPipeKafkaSourceCredentials{}
-
-					if !credentialsModel.Username.IsNull() && !credentialsModel.Password.IsNull() {
-						credentials.ClickPipeSourceCredentials = &api.ClickPipeSourceCredentials{
-							Username: credentialsModel.Username.ValueString(),
-							Password: credentialsModel.Password.ValueString(),
-						}
-					} else if !credentialsModel.AccessKeyID.IsNull() && !credentialsModel.SecretKey.IsNull() {
-						credentials.ClickPipeSourceAccessKey = &api.ClickPipeSourceAccessKey{
-							AccessKeyID: credentialsModel.AccessKeyID.ValueString(),
-							SecretKey:   credentialsModel.SecretKey.ValueString(),
-						}
-					} else if !credentialsModel.ConnectionString.IsNull() {
-						credentials.ConnectionString = credentialsModel.ConnectionString.ValueStringPointer()
-					} else {
-						response.Diagnostics.AddError(
-							"Error Creating ClickPipe",
-							"Kafka source requires credentials",
-						)
-						return
-					}
-				}
-
-				clickPipe.Source.Kafka.Credentials = credentials
-			} else {
-				response.Diagnostics.AddError(
-					"Error Creating ClickPipe",
-					"Kafka source requires credentials",
-				)
-				return
-			}
-		}
-
-		if !kafkaModel.SchemaRegistry.IsNull() {
-			schemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{}
-			response.Diagnostics.Append(kafkaModel.SchemaRegistry.As(ctx, &schemaRegistryModel, basetypes.ObjectAsOptions{})...)
-			credentialsModel := models.ClickPipeSourceCredentialsModel{}
-			response.Diagnostics.Append(schemaRegistryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
-
-			clickPipe.Source.Kafka.SchemaRegistry = &api.ClickPipeKafkaSchemaRegistry{
-				URL:            schemaRegistryModel.URL.ValueString(),
-				Authentication: schemaRegistryModel.Authentication.ValueString(),
-				Credentials: &api.ClickPipeSourceCredentials{
-					Username: credentialsModel.Username.ValueString(),
-					Password: credentialsModel.Password.ValueString(),
-				},
-			}
-		}
-
-		if !kafkaModel.Offset.IsNull() {
-			offsetModel := models.ClickPipeKafkaOffsetModel{}
-			response.Diagnostics.Append(kafkaModel.Offset.As(ctx, &offsetModel, basetypes.ObjectAsOptions{})...)
-
-			var timestamp *string
-			if !offsetModel.Timestamp.IsUnknown() {
-				timestamp = offsetModel.Timestamp.ValueStringPointer()
-			}
-
-			clickPipe.Source.Kafka.Offset = &api.ClickPipeKafkaOffset{
-				Strategy:  offsetModel.Strategy.ValueString(),
-				Timestamp: timestamp,
-			}
-		}
-	} else if !sourceModel.ObjectStorage.IsNull() {
-		objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
-
-		response.Diagnostics.Append(sourceModel.ObjectStorage.As(ctx, &objectStorageModel, basetypes.ObjectAsOptions{})...)
-
-		var accessKey *api.ClickPipeSourceAccessKey
-		if !objectStorageModel.AccessKey.IsUnknown() && !objectStorageModel.AccessKey.IsNull() {
-			accessKeyModel := models.ClickPipeSourceAccessKeyModel{}
-			response.Diagnostics.Append(objectStorageModel.AccessKey.As(ctx, &accessKeyModel, basetypes.ObjectAsOptions{})...)
-
-			accessKey = &api.ClickPipeSourceAccessKey{
-				AccessKeyID: accessKeyModel.AccessKeyID.ValueString(),
-				SecretKey:   accessKeyModel.SecretKey.ValueString(),
-			}
-		}
-
-		clickPipe.Source.ObjectStorage = &api.ClickPipeObjectStorageSource{
-			Type:           objectStorageModel.Type.ValueString(),
-			Format:         objectStorageModel.Format.ValueString(),
-			URL:            objectStorageModel.URL.ValueString(),
-			Delimiter:      objectStorageModel.Delimiter.ValueStringPointer(),
-			Compression:    objectStorageModel.Compression.ValueStringPointer(),
-			IsContinuous:   objectStorageModel.IsContinuous.ValueBool(),
-			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
-			AccessKey:      accessKey,
-			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
-		}
+	if source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, false); source != nil {
+		clickPipe.Source = *source
 	} else {
-		response.Diagnostics.AddError(
-			"Error Creating ClickPipe",
-			"ClickPipe requires at least one source configuration",
-		)
 		return
 	}
 
@@ -782,6 +670,144 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	diags = response.State.Set(ctx, plan)
 	response.Diagnostics.Append(diags...)
+}
+
+func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics diag.Diagnostics, plan models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
+	source := &api.ClickPipeSource{}
+
+	sourceModel := models.ClickPipeSourceModel{}
+	diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+	if !sourceModel.Kafka.IsNull() {
+		kafkaModel := models.ClickPipeKafkaSourceModel{}
+		diagnostics.Append(sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{})...)
+
+		var consumerGroup *string
+		if !kafkaModel.ConsumerGroup.IsUnknown() {
+			consumerGroup = kafkaModel.ConsumerGroup.ValueStringPointer()
+		}
+
+		source.Kafka = &api.ClickPipeKafkaSource{
+			Brokers:        kafkaModel.Brokers.ValueString(),
+			Topics:         kafkaModel.Topics.ValueString(),
+			ConsumerGroup:  consumerGroup,
+			Authentication: kafkaModel.Authentication.ValueString(),
+			IAMRole:        kafkaModel.IAMRole.ValueStringPointer(),
+			CACertificate:  kafkaModel.CACertificate.ValueStringPointer(),
+		}
+
+		if !isUpdate {
+			source.Kafka.Type = kafkaModel.Type.ValueString()
+			source.Kafka.Format = kafkaModel.Format.ValueString()
+		}
+
+		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
+			if !kafkaModel.Credentials.IsNull() {
+				credentialsModel := models.ClickPipeKafkaSourceCredentialsModel{}
+				diagnostics.Append(kafkaModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+
+				var credentials *api.ClickPipeKafkaSourceCredentials
+
+				if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
+					credentials = &api.ClickPipeKafkaSourceCredentials{}
+
+					if !credentialsModel.Username.IsNull() && !credentialsModel.Password.IsNull() {
+						credentials.ClickPipeSourceCredentials = &api.ClickPipeSourceCredentials{
+							Username: credentialsModel.Username.ValueString(),
+							Password: credentialsModel.Password.ValueString(),
+						}
+					} else if !credentialsModel.AccessKeyID.IsNull() && !credentialsModel.SecretKey.IsNull() {
+						credentials.ClickPipeSourceAccessKey = &api.ClickPipeSourceAccessKey{
+							AccessKeyID: credentialsModel.AccessKeyID.ValueString(),
+							SecretKey:   credentialsModel.SecretKey.ValueString(),
+						}
+					} else if !credentialsModel.ConnectionString.IsNull() {
+						credentials.ConnectionString = credentialsModel.ConnectionString.ValueStringPointer()
+					} else {
+						diagnostics.AddError(
+							"Error Creating ClickPipe",
+							"Kafka source requires credentials",
+						)
+						return nil
+					}
+				}
+
+				source.Kafka.Credentials = credentials
+			} else {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"Kafka source requires credentials",
+				)
+				return nil
+			}
+		}
+
+		if !kafkaModel.SchemaRegistry.IsNull() {
+			schemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{}
+			diagnostics.Append(kafkaModel.SchemaRegistry.As(ctx, &schemaRegistryModel, basetypes.ObjectAsOptions{})...)
+			credentialsModel := models.ClickPipeSourceCredentialsModel{}
+			diagnostics.Append(schemaRegistryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+
+			source.Kafka.SchemaRegistry = &api.ClickPipeKafkaSchemaRegistry{
+				URL:            schemaRegistryModel.URL.ValueString(),
+				Authentication: schemaRegistryModel.Authentication.ValueString(),
+				Credentials: &api.ClickPipeSourceCredentials{
+					Username: credentialsModel.Username.ValueString(),
+					Password: credentialsModel.Password.ValueString(),
+				},
+			}
+		}
+
+		if !kafkaModel.Offset.IsNull() {
+			offsetModel := models.ClickPipeKafkaOffsetModel{}
+			diagnostics.Append(kafkaModel.Offset.As(ctx, &offsetModel, basetypes.ObjectAsOptions{})...)
+
+			var timestamp *string
+			if !offsetModel.Timestamp.IsUnknown() {
+				timestamp = offsetModel.Timestamp.ValueStringPointer()
+			}
+
+			source.Kafka.Offset = &api.ClickPipeKafkaOffset{
+				Strategy:  offsetModel.Strategy.ValueString(),
+				Timestamp: timestamp,
+			}
+		}
+	} else if !sourceModel.ObjectStorage.IsNull() {
+		objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
+
+		diagnostics.Append(sourceModel.ObjectStorage.As(ctx, &objectStorageModel, basetypes.ObjectAsOptions{})...)
+
+		var accessKey *api.ClickPipeSourceAccessKey
+		if !objectStorageModel.AccessKey.IsUnknown() && !objectStorageModel.AccessKey.IsNull() {
+			accessKeyModel := models.ClickPipeSourceAccessKeyModel{}
+			diagnostics.Append(objectStorageModel.AccessKey.As(ctx, &accessKeyModel, basetypes.ObjectAsOptions{})...)
+
+			accessKey = &api.ClickPipeSourceAccessKey{
+				AccessKeyID: accessKeyModel.AccessKeyID.ValueString(),
+				SecretKey:   accessKeyModel.SecretKey.ValueString(),
+			}
+		}
+
+		source.ObjectStorage = &api.ClickPipeObjectStorageSource{
+			Type:           objectStorageModel.Type.ValueString(),
+			Format:         objectStorageModel.Format.ValueString(),
+			URL:            objectStorageModel.URL.ValueString(),
+			Delimiter:      objectStorageModel.Delimiter.ValueStringPointer(),
+			Compression:    objectStorageModel.Compression.ValueStringPointer(),
+			IsContinuous:   objectStorageModel.IsContinuous.ValueBool(),
+			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
+			AccessKey:      accessKey,
+			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
+		}
+	} else {
+		diagnostics.AddError(
+			"Error Creating ClickPipe",
+			"ClickPipe requires at least one source configuration",
+		)
+		return nil
+	}
+
+	return source
 }
 
 func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *models.ClickPipeResourceModel) error {
@@ -1067,15 +1093,6 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			)
 			return
 		}
-
-		if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), func(state string) bool {
-			return state == plan.State.ValueString()
-		}, clickPipeStateChangeMaxWaitSeconds); err != nil {
-			response.Diagnostics.AddWarning(
-				"ClickPipe didn't reach the desired state",
-				err.Error(),
-			)
-		}
 	}
 
 	if !plan.Scaling.Equal(state.Scaling) {
@@ -1093,16 +1110,85 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			)
 			return
 		}
+	}
 
-		// scaling event is asynchronous, we need to wait for the scaling to finish in a desired plan state
-		if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), func(state string) bool {
-			return state == plan.State.ValueString()
-		}, clickPipeStateChangeMaxWaitSeconds); err != nil {
-			response.Diagnostics.AddWarning(
-				"ClickPipe didn't reach the desired state",
-				err.Error(),
+	var pipeChanged bool
+	var clickPipeUpdate api.ClickPipeUpdate
+
+	if !plan.Name.Equal(state.Name) {
+		pipeChanged = true
+		clickPipeUpdate.Name = plan.Name.ValueStringPointer()
+	}
+
+	if !plan.Description.Equal(state.Description) {
+		pipeChanged = true
+		clickPipeUpdate.Description = plan.Description.ValueStringPointer()
+	}
+
+	if !plan.Source.Equal(state.Source) {
+		source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+
+		if source.Kafka != nil {
+			pipeChanged = true
+			clickPipeUpdate.Source = source
+		} else {
+			response.Diagnostics.AddError(
+				"ClickPipe only supports Kafka source updates",
+				"Only Kafka source updates are supported",
 			)
 		}
+	}
+
+	if !plan.Destination.Attributes()["columns"].Equal(state.Destination.Attributes()["columns"]) {
+		pipeChanged = true
+		destinationModel := models.ClickPipeDestinationModel{}
+		response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
+		destinationColumnsModels := make([]models.ClickPipeDestinationColumnModel, len(destinationModel.Columns.Elements()))
+		response.Diagnostics.Append(destinationModel.Columns.ElementsAs(ctx, &destinationColumnsModels, false)...)
+
+		clickPipeUpdate.Destination = &api.ClickPipeDestinationUpdate{
+			Columns: make([]api.ClickPipeDestinationColumn, len(destinationColumnsModels)),
+		}
+
+		for i, columnModel := range destinationColumnsModels {
+			clickPipeUpdate.Destination.Columns[i] = api.ClickPipeDestinationColumn{
+				Name: columnModel.Name.ValueString(),
+				Type: columnModel.Type.ValueString(),
+			}
+		}
+	}
+
+	if !plan.FieldMappings.Equal(state.FieldMappings) {
+		pipeChanged = true
+		fieldMappingsModels := make([]models.ClickPipeFieldMappingModel, len(plan.FieldMappings.Elements()))
+		response.Diagnostics.Append(plan.FieldMappings.ElementsAs(ctx, &fieldMappingsModels, false)...)
+
+		clickPipeUpdate.FieldMappings = make([]api.ClickPipeFieldMapping, len(fieldMappingsModels))
+		for i, fieldMappingModel := range fieldMappingsModels {
+			clickPipeUpdate.FieldMappings[i] = api.ClickPipeFieldMapping{
+				SourceField:      fieldMappingModel.SourceField.ValueString(),
+				DestinationField: fieldMappingModel.DestinationField.ValueString(),
+			}
+		}
+	}
+
+	if pipeChanged {
+		if _, err := c.client.UpdateClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), clickPipeUpdate); err != nil {
+			response.Diagnostics.AddError(
+				"Error Updating ClickPipe",
+				"Could not update ClickPipe, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
+	if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), func(state string) bool {
+		return state == plan.State.ValueString()
+	}, clickPipeStateChangeMaxWaitSeconds); err != nil {
+		response.Diagnostics.AddWarning(
+			"ClickPipe didn't reach the desired state",
+			err.Error(),
+		)
 	}
 
 	if err := c.syncClickPipeState(ctx, &plan); err != nil {

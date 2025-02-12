@@ -183,6 +183,30 @@ func (c *ClientImpl) CreateClickPipe(ctx context.Context, serviceId string, clic
 	return &clickPipeResponse.Result, nil
 }
 
+func (c *ClientImpl) UpdateClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeUpdate) (*ClickPipe, error) {
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(request); err != nil {
+		return nil, fmt.Errorf("failed to encode ClickPipe: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.getClickPipePath(serviceId, clickPipeId, ""), &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	clickPipeResponse := ResponseWithResult[ClickPipe]{}
+	if err := json.Unmarshal(body, &clickPipeResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ClickPipe: %w", err)
+	}
+
+	return &clickPipeResponse.Result, nil
+}
+
 func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(*ClickPipe) bool, maxWaitSeconds uint64) (clickPipe *ClickPipe, err error) {
 	checkState := func() error {
 		clickPipe, err = c.GetClickPipe(ctx, serviceId, clickPipeId)
