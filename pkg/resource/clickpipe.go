@@ -44,9 +44,7 @@ Feature needs to be enabled on your account. Please contact ClickHouse Cloud sup
 **Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.**
 
 Known limitations:
-- ClickPipe is immutable. It means, any change to the ClickPipe will require a new resource to be created in-place. This does not apply to scaling and state changes.
 - ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
-- Provider lacks validation logic. It means, the provider will not validate the ClickPipe configuration against the ClickHouse Cloud API. Any invalid configuration will be rejected by the API.
 `
 
 const (
@@ -203,6 +201,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										),
 										Optional: true,
 									},
+								},
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.RequiresReplace(),
 								},
 							},
 							"schema_registry": schema.SingleNestedAttribute{
@@ -640,7 +641,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	}
 
 	if plan.State.ValueString() == api.ClickPipeStoppedState {
-		if _, err := c.client.ChangeClickPipeState(ctx, serviceID, createdClickPipe.ID, api.ClickPipeStoppedState); err != nil {
+		if _, err := c.client.ChangeClickPipeState(ctx, serviceID, createdClickPipe.ID, api.ClickPipeStateStop); err != nil {
 			response.Diagnostics.AddError(
 				"Error Stopping ClickPipe",
 				"Could not stop ClickPipe, unexpected error: "+err.Error(),
