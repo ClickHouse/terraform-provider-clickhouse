@@ -168,11 +168,15 @@ func getGrantPrivilegeQuery(accessType string, database string, table *string, c
 	if table != nil {
 		query = fmt.Sprintf("%s AND table = ${table}", query)
 		args = append(args, sqlbuilder.Named("table", *table))
+	} else {
+		query = fmt.Sprintf("%s AND table IS NULL", query)
 	}
 
 	if column != nil {
 		query = fmt.Sprintf("%s AND column = ${column}", query)
 		args = append(args, sqlbuilder.Named("column", *column))
+	} else {
+		query = fmt.Sprintf("%s AND column IS NULL", query)
 	}
 
 	if granteeUserName != nil {
