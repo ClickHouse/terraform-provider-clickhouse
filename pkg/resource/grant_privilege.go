@@ -85,12 +85,13 @@ func (r *GrantPrivilegeResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"column_name": schema.StringAttribute{
 				Optional:    true,
-				Description: "The access type",
+				Description: "The name of the column in `table_name` to grant privilege on.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
+					stringvalidator.AlsoRequires(path.Expressions{path.MatchRoot("table_name")}...),
 				},
 			},
 			"grantee_user_name": schema.StringAttribute{
@@ -124,7 +125,7 @@ func (r *GrantPrivilegeResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"grant_option": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "If true, the grantee will be able to grant the same privileges others.",
+				Description: "If true, the grantee will be able to grant the same privileges to others.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.RequiresReplace(),
 				},
