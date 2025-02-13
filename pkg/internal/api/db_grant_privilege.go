@@ -40,6 +40,12 @@ func (c *ClientImpl) GrantPrivilege(ctx context.Context, serviceID string, grant
 		return nil, err
 	}
 
+	if createdGrant == nil {
+		// We got a successful response from the `GRANT` query but when selecting the grant we didn't find any.
+		// This usually means there is an overlapping grant already present that prevents this one from being applied.
+		return nil, fmt.Errorf("error granting privilege: grant operation succeeded but it didn't change current grants")
+	}
+
 	return createdGrant, nil
 }
 

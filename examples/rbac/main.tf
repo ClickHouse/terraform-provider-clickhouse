@@ -98,10 +98,29 @@ resource "clickhouse_grant_role" "writer_to_manager" {
   admin_option      = false
 }
 
-resource "clickhouse_grant_privilege" "writer" {
+resource "clickhouse_grant_privilege" "grant_show_to_role" {
   service_id        = clickhouse_service.service.id
-  privilege_name    = "SELECT"
+  privilege_name    = "SHOW"
   database_name     = "default"
   grantee_role_name = clickhouse_role.writer.name
   grant_option      = false
+}
+
+resource "clickhouse_grant_privilege" "grant_insert_on_table_to_user" {
+  service_id        = clickhouse_service.service.id
+  privilege_name    = "INSERT"
+  database_name     = "default"
+  table_name        = "tbl1"
+  grantee_user_name = clickhouse_user.john.name
+  grant_option      = true
+}
+
+resource "clickhouse_grant_privilege" "grant_select_on_single_column_on_table_to_user" {
+  service_id        = clickhouse_service.service.id
+  privilege_name    = "SELECT"
+  database_name     = "default"
+  table_name        = "tbl1"
+  column_name       = "count"
+  grantee_user_name = clickhouse_user.john.name
+  grant_option      = true
 }
