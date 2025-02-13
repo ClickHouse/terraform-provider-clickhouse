@@ -1,6 +1,6 @@
 *WARNING:* This is an alpha resource. Specification can change at any time and no backward compatibilty is guaranteed at this stage.
 
-You can use the `clickhouse_grant_privilege` resource to grant privileges on databases and tables to either a `clickhouse_user` or to another `clickhouse_role`.
+You can use the `clickhouse_grant_privilege` resource to grant privileges on databases and tables to either a `clickhouse_user` or a `clickhouse_role`.
 
 Known limitations:
 
