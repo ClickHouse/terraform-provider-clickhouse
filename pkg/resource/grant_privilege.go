@@ -199,8 +199,8 @@ func (r *GrantPrivilegeResource) Read(ctx context.Context, req resource.ReadRequ
 	grant, err := r.client.GetGrantPrivilege(ctx, state.ServiceID.ValueString(), state.Privilege.ValueString(), state.Database.ValueString(), state.Table.ValueStringPointer(), state.Column.ValueStringPointer(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error Reading ClickHouse Role Grant",
-			"Could not read role grant, unexpected error: "+err.Error(),
+			"Error Reading ClickHouse Privilege Grant",
+			"Could not read privilege grant, unexpected error: "+err.Error(),
 		)
 		return
 	}
@@ -236,8 +236,8 @@ func (r *GrantPrivilegeResource) Delete(ctx context.Context, req resource.Delete
 	err := r.client.RevokeGrantPrivilege(ctx, state.ServiceID.ValueString(), state.Privilege.ValueString(), state.Database.ValueString(), state.Table.ValueStringPointer(), state.Column.ValueStringPointer(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error Deleting ClickHouse Role Grant",
-			"Could not delete role grant, unexpected error: "+err.Error(),
+			"Error Deleting ClickHouse Privilege Grant",
+			"Could not delete privilege grant, unexpected error: "+err.Error(),
 		)
 		return
 	}
