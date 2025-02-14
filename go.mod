@@ -4,7 +4,7 @@ go 1.22.7
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/gojuno/minimock/v3 v3.4.4
+	github.com/gojuno/minimock/v3 v3.4.5
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/terraform-plugin-docs v0.20.1
 	github.com/hashicorp/terraform-plugin-framework v1.13.0
