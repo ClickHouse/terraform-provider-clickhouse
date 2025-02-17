@@ -166,10 +166,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"brokers": schema.StringAttribute{
 								Description: "The list of Kafka bootstrap brokers. (comma separated)",
 								Required:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"topics": schema.StringAttribute{
 								Description: "The list of Kafka topics. (comma separated)",
 								Required:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"consumer_group": schema.StringAttribute{
 								MarkdownDescription: "Consumer group of the Kafka source. If not provided `clickpipes-<ID>` will be used.",
@@ -177,6 +183,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Optional:            true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"offset": schema.SingleNestedAttribute{
@@ -236,6 +243,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											},
 										},
 									},
+								},
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.RequiresReplace(),
 								},
 							},
 							"authentication": schema.StringAttribute{
@@ -308,6 +318,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeObjectStorageTypes...),
 								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"format": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -318,14 +331,23 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeObjectStorageFormats...),
 								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"url": schema.StringAttribute{
 								MarkdownDescription: "The URL of the S3 bucket. Provide a path to the file(s) you want to ingest. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations",
 								Required:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"delimiter": schema.StringAttribute{
 								MarkdownDescription: "The delimiter for the S3 source. Default is `,`.",
 								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"compression": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -336,12 +358,18 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeObjectStorageCompressions...),
 								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"is_continuous": schema.BoolAttribute{
 								MarkdownDescription: "If set to true, the pipe will continuously read new files from the source. If set to false, the pipe will read the files only once. New files have to be uploaded lexically order.",
 								Optional:            true,
 								Computed:            true,
 								Default:             booldefault.StaticBool(false),
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.RequiresReplace(),
+								},
 							},
 							"authentication": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -373,9 +401,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "The IAM role for the S3 source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#authentication)",
 								Optional:            true,
 							},
-						},
-						PlanModifiers: []planmodifier.Object{
-							objectplanmodifier.RequiresReplace(),
 						},
 					},
 				},
@@ -1087,6 +1112,9 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
 
 		if source.Kafka != nil {
+			pipeChanged = true
+			clickPipeUpdate.Source = source
+		} else if source.ObjectStorage != nil {
 			pipeChanged = true
 			clickPipeUpdate.Source = source
 		} else {
