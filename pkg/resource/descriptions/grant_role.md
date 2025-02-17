@@ -1,3 +1,5 @@
+*WARNING:* This is an alpha resource. Specification can change at any time and no backward compatibilty is guaranteed at this stage.
+
 You can use the `clickhouse_grant_role` resource to grant a `clickhouse_role` to either a `clickhouse_user` or to another `clickhouse_role`.
 
 Known limitations:
