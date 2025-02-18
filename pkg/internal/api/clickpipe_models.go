@@ -35,11 +35,11 @@ type ClickPipeKafkaSchemaRegistry struct {
 }
 
 type ClickPipeKafkaSource struct {
-	Type   string `json:"type"`
-	Format string `json:"format"`
+	Type   string `json:"type,omitempty"`
+	Format string `json:"format,omitempty"`
 
-	Brokers string `json:"brokers"`
-	Topics  string `json:"topics"`
+	Brokers string `json:"brokers,omitempty"`
+	Topics  string `json:"topics,omitempty"`
 
 	ConsumerGroup *string `json:"consumerGroup,omitempty"`
 
@@ -47,7 +47,7 @@ type ClickPipeKafkaSource struct {
 
 	SchemaRegistry *ClickPipeKafkaSchemaRegistry `json:"schemaRegistry,omitempty"`
 
-	Authentication string                           `json:"authentication"`
+	Authentication string                           `json:"authentication,omitempty"`
 	Credentials    *ClickPipeKafkaSourceCredentials `json:"credentials,omitempty"`
 	IAMRole        *string                          `json:"iamRole,omitempty"`
 	CACertificate  *string                          `json:"caCertificate,omitempty"`
@@ -98,6 +98,10 @@ type ClickPipeDestination struct {
 	Columns         []ClickPipeDestinationColumn         `json:"columns"`
 }
 
+type ClickPipeDestinationUpdate struct {
+	Columns []ClickPipeDestinationColumn `json:"columns"`
+}
+
 type ClickPipeFieldMapping struct {
 	SourceField      string `json:"sourceField"`
 	DestinationField string `json:"destinationField"`
@@ -114,4 +118,12 @@ type ClickPipe struct {
 	FieldMappings []ClickPipeFieldMapping `json:"fieldMappings"`
 	CreatedAt     *time.Time              `json:"createdAt,omitempty"`
 	UpdatedAt     *time.Time              `json:"updatedAt,omitempty"`
+}
+
+type ClickPipeUpdate struct {
+	Name          *string                     `json:"name,omitempty"`
+	Description   *string                     `json:"description,omitempty"`
+	Source        *ClickPipeSource            `json:"source,omitempty"`
+	Destination   *ClickPipeDestinationUpdate `json:"destination,omitempty"`
+	FieldMappings []ClickPipeFieldMapping     `json:"fieldMappings,omitempty"`
 }
