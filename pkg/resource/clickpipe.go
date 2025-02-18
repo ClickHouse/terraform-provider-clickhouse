@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -24,9 +26,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
 var (
@@ -519,26 +518,18 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.ModifyPlanRequest, response *resource.ModifyPlanResponse) {
 	if request.Plan.Raw.IsNull() {
 		// If the entire plan is null, the resource is planned for destruction.
+		// This logic is buggy. Plan should be null for destruction, but in fact contains a state/config.
+		// Checked with Terraform v1.15 and v1.5. Thus, `Completed` state is checked explicit in Update method.
 		return
 	}
 
 	var plan, state, config models.ClickPipeResourceModel
-	diags := request.Plan.Get(ctx, &plan)
-	response.Diagnostics.Append(diags...)
+	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
 	if !request.State.Raw.IsNull() {
-		diags = request.State.Get(ctx, &state)
-		response.Diagnostics.Append(diags...)
+		response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	}
-	if response.Diagnostics.HasError() {
-		return
-	}
-
 	if !request.Config.Raw.IsNull() {
-		diags = request.Config.Get(ctx, &config)
-		response.Diagnostics.Append(diags...)
-	}
-	if response.Diagnostics.HasError() {
-		return
+		response.Diagnostics.Append(request.Config.Get(ctx, &config)...)
 	}
 }
 
@@ -1092,6 +1083,15 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	response.Diagnostics.Append(diags...)
 
 	if response.Diagnostics.HasError() {
+		return
+	}
+
+	if state.State.ValueString() == api.ClickPipeCompletedState {
+		response.Diagnostics.AddError(
+			"Error Modifying ClickPipe",
+			fmt.Sprintf("ClickPipe is in the %s state and cannot be modified", api.ClickPipeCompletedState),
+		)
+
 		return
 	}
 
