@@ -15,5 +15,6 @@ func GetResourceFactories() []func() upstreamresource.Resource {
 		NewUserResource,
 		NewRoleResource,
 		NewGrantRoleResource,
+		NewGrantPrivilegeResource,
 	}
 }

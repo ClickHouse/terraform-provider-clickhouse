@@ -116,6 +116,12 @@ type ClientMock struct {
 	beforeGetClickPipeCounter uint64
 	GetClickPipeMock          mClientMockGetClickPipe
 
+	funcGetGrantPrivilege          func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantPrivilege, err error)
+	inspectFuncGetGrantPrivilege   func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string)
+	afterGetGrantPrivilegeCounter  uint64
+	beforeGetGrantPrivilegeCounter uint64
+	GetGrantPrivilegeMock          mClientMockGetGrantPrivilege
+
 	funcGetGrantRole          func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantRole, err error)
 	funcGetGrantRoleOrigin    string
 	inspectFuncGetGrantRole   func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string)
@@ -165,12 +171,24 @@ type ClientMock struct {
 	beforeGetUserCounter uint64
 	GetUserMock          mClientMockGetUser
 
+	funcGrantPrivilege          func(ctx context.Context, serviceId string, grantPrivilege GrantPrivilege) (gp1 *GrantPrivilege, err error)
+	inspectFuncGrantPrivilege   func(ctx context.Context, serviceId string, grantPrivilege GrantPrivilege)
+	afterGrantPrivilegeCounter  uint64
+	beforeGrantPrivilegeCounter uint64
+	GrantPrivilegeMock          mClientMockGrantPrivilege
+
 	funcGrantRole          func(ctx context.Context, serviceId string, grantRole GrantRole) (gp1 *GrantRole, err error)
 	funcGrantRoleOrigin    string
 	inspectFuncGrantRole   func(ctx context.Context, serviceId string, grantRole GrantRole)
 	afterGrantRoleCounter  uint64
 	beforeGrantRoleCounter uint64
 	GrantRoleMock          mClientMockGrantRole
+
+	funcRevokeGrantPrivilege          func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (err error)
+	inspectFuncRevokeGrantPrivilege   func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string)
+	afterRevokeGrantPrivilegeCounter  uint64
+	beforeRevokeGrantPrivilegeCounter uint64
+	RevokeGrantPrivilegeMock          mClientMockRevokeGrantPrivilege
 
 	funcRevokeGrantRole          func(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (err error)
 	funcRevokeGrantRoleOrigin    string
@@ -293,6 +311,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetClickPipeMock = mClientMockGetClickPipe{mock: m}
 	m.GetClickPipeMock.callArgs = []*ClientMockGetClickPipeParams{}
 
+	m.GetGrantPrivilegeMock = mClientMockGetGrantPrivilege{mock: m}
+	m.GetGrantPrivilegeMock.callArgs = []*ClientMockGetGrantPrivilegeParams{}
+
 	m.GetGrantRoleMock = mClientMockGetGrantRole{mock: m}
 	m.GetGrantRoleMock.callArgs = []*ClientMockGetGrantRoleParams{}
 
@@ -314,8 +335,14 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetUserMock = mClientMockGetUser{mock: m}
 	m.GetUserMock.callArgs = []*ClientMockGetUserParams{}
 
+	m.GrantPrivilegeMock = mClientMockGrantPrivilege{mock: m}
+	m.GrantPrivilegeMock.callArgs = []*ClientMockGrantPrivilegeParams{}
+
 	m.GrantRoleMock = mClientMockGrantRole{mock: m}
 	m.GrantRoleMock.callArgs = []*ClientMockGrantRoleParams{}
+
+	m.RevokeGrantPrivilegeMock = mClientMockRevokeGrantPrivilege{mock: m}
+	m.RevokeGrantPrivilegeMock.callArgs = []*ClientMockRevokeGrantPrivilegeParams{}
 
 	m.RevokeGrantRoleMock = mClientMockRevokeGrantRole{mock: m}
 	m.RevokeGrantRoleMock.callArgs = []*ClientMockRevokeGrantRoleParams{}
@@ -5461,6 +5488,495 @@ func (m *ClientMock) MinimockGetClickPipeInspect() {
 	}
 }
 
+type mClientMockGetGrantPrivilege struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetGrantPrivilegeExpectation
+	expectations       []*ClientMockGetGrantPrivilegeExpectation
+
+	callArgs []*ClientMockGetGrantPrivilegeParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockGetGrantPrivilegeExpectation specifies expectation struct of the Client.GetGrantPrivilege
+type ClientMockGetGrantPrivilegeExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockGetGrantPrivilegeParams
+	paramPtrs *ClientMockGetGrantPrivilegeParamPtrs
+	results   *ClientMockGetGrantPrivilegeResults
+	Counter   uint64
+}
+
+// ClientMockGetGrantPrivilegeParams contains parameters of the Client.GetGrantPrivilege
+type ClientMockGetGrantPrivilegeParams struct {
+	ctx             context.Context
+	serviceID       string
+	accessType      string
+	database        string
+	table           *string
+	column          *string
+	granteeUserName *string
+	granteeRoleName *string
+}
+
+// ClientMockGetGrantPrivilegeParamPtrs contains pointers to parameters of the Client.GetGrantPrivilege
+type ClientMockGetGrantPrivilegeParamPtrs struct {
+	ctx             *context.Context
+	serviceID       *string
+	accessType      *string
+	database        *string
+	table           **string
+	column          **string
+	granteeUserName **string
+	granteeRoleName **string
+}
+
+// ClientMockGetGrantPrivilegeResults contains results of the Client.GetGrantPrivilege
+type ClientMockGetGrantPrivilegeResults struct {
+	gp1 *GrantPrivilege
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Optional() *mClientMockGetGrantPrivilege {
+	mmGetGrantPrivilege.optional = true
+	return mmGetGrantPrivilege
+}
+
+// Expect sets up expected params for Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Expect(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{}
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.paramPtrs != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by ExpectParams functions")
+	}
+
+	mmGetGrantPrivilege.defaultExpectation.params = &ClientMockGetGrantPrivilegeParams{ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName}
+	for _, e := range mmGetGrantPrivilege.expectations {
+		if minimock.Equal(e.params, mmGetGrantPrivilege.defaultExpectation.params) {
+			mmGetGrantPrivilege.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetGrantPrivilege.defaultExpectation.params)
+		}
+	}
+
+	return mmGetGrantPrivilege
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectCtxParam1(ctx context.Context) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{}
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.params != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGetGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGetGrantPrivilegeParamPtrs{}
+	}
+	mmGetGrantPrivilege.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmGetGrantPrivilege
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectServiceIDParam2(serviceID string) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{}
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.params != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGetGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGetGrantPrivilegeParamPtrs{}
+	}
+	mmGetGrantPrivilege.defaultExpectation.paramPtrs.serviceID = &serviceID
+
+	return mmGetGrantPrivilege
+}
+
+// ExpectAccessTypeParam3 sets up expected param accessType for Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectAccessTypeParam3(accessType string) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{}
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.params != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGetGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGetGrantPrivilegeParamPtrs{}
+	}
+	mmGetGrantPrivilege.defaultExpectation.paramPtrs.accessType = &accessType
+
+	return mmGetGrantPrivilege
+}
+
+// ExpectDatabaseParam4 sets up expected param database for Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectDatabaseParam4(database string) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{}
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.params != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGetGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGetGrantPrivilegeParamPtrs{}
+	}
+	mmGetGrantPrivilege.defaultExpectation.paramPtrs.database = &database
+
+	return mmGetGrantPrivilege
+}
+
+// ExpectTableParam5 sets up expected param table for Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectTableParam5(table *string) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{}
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.params != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGetGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGetGrantPrivilegeParamPtrs{}
+	}
+	mmGetGrantPrivilege.defaultExpectation.paramPtrs.table = &table
+
+	return mmGetGrantPrivilege
+}
+
+// ExpectColumnParam6 sets up expected param column for Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectColumnParam6(column *string) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{}
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.params != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGetGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGetGrantPrivilegeParamPtrs{}
+	}
+	mmGetGrantPrivilege.defaultExpectation.paramPtrs.column = &column
+
+	return mmGetGrantPrivilege
+}
+
+// ExpectGranteeUserNameParam7 sets up expected param granteeUserName for Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectGranteeUserNameParam7(granteeUserName *string) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{}
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.params != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGetGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGetGrantPrivilegeParamPtrs{}
+	}
+	mmGetGrantPrivilege.defaultExpectation.paramPtrs.granteeUserName = &granteeUserName
+
+	return mmGetGrantPrivilege
+}
+
+// ExpectGranteeRoleNameParam8 sets up expected param granteeRoleName for Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectGranteeRoleNameParam8(granteeRoleName *string) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{}
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.params != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGetGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGetGrantPrivilegeParamPtrs{}
+	}
+	mmGetGrantPrivilege.defaultExpectation.paramPtrs.granteeRoleName = &granteeRoleName
+
+	return mmGetGrantPrivilege
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Inspect(f func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string)) *mClientMockGetGrantPrivilege {
+	if mmGetGrantPrivilege.mock.inspectFuncGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("Inspect function is already set for ClientMock.GetGrantPrivilege")
+	}
+
+	mmGetGrantPrivilege.mock.inspectFuncGetGrantPrivilege = f
+
+	return mmGetGrantPrivilege
+}
+
+// Return sets up results that will be returned by Client.GetGrantPrivilege
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Return(gp1 *GrantPrivilege, err error) *ClientMock {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	if mmGetGrantPrivilege.defaultExpectation == nil {
+		mmGetGrantPrivilege.defaultExpectation = &ClientMockGetGrantPrivilegeExpectation{mock: mmGetGrantPrivilege.mock}
+	}
+	mmGetGrantPrivilege.defaultExpectation.results = &ClientMockGetGrantPrivilegeResults{gp1, err}
+	return mmGetGrantPrivilege.mock
+}
+
+// Set uses given function f to mock the Client.GetGrantPrivilege method
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Set(f func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantPrivilege, err error)) *ClientMock {
+	if mmGetGrantPrivilege.defaultExpectation != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("Default expectation is already set for the Client.GetGrantPrivilege method")
+	}
+
+	if len(mmGetGrantPrivilege.expectations) > 0 {
+		mmGetGrantPrivilege.mock.t.Fatalf("Some expectations are already set for the Client.GetGrantPrivilege method")
+	}
+
+	mmGetGrantPrivilege.mock.funcGetGrantPrivilege = f
+	return mmGetGrantPrivilege.mock
+}
+
+// When sets expectation for the Client.GetGrantPrivilege which will trigger the result defined by the following
+// Then helper
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) When(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *ClientMockGetGrantPrivilegeExpectation {
+	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetGrantPrivilegeExpectation{
+		mock:   mmGetGrantPrivilege.mock,
+		params: &ClientMockGetGrantPrivilegeParams{ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName},
+	}
+	mmGetGrantPrivilege.expectations = append(mmGetGrantPrivilege.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetGrantPrivilege return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetGrantPrivilegeExpectation) Then(gp1 *GrantPrivilege, err error) *ClientMock {
+	e.results = &ClientMockGetGrantPrivilegeResults{gp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetGrantPrivilege should be invoked
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Times(n uint64) *mClientMockGetGrantPrivilege {
+	if n == 0 {
+		mmGetGrantPrivilege.mock.t.Fatalf("Times of ClientMock.GetGrantPrivilege mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetGrantPrivilege.expectedInvocations, n)
+	return mmGetGrantPrivilege
+}
+
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) invocationsDone() bool {
+	if len(mmGetGrantPrivilege.expectations) == 0 && mmGetGrantPrivilege.defaultExpectation == nil && mmGetGrantPrivilege.mock.funcGetGrantPrivilege == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetGrantPrivilege.mock.afterGetGrantPrivilegeCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetGrantPrivilege.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetGrantPrivilege implements Client
+func (mmGetGrantPrivilege *ClientMock) GetGrantPrivilege(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantPrivilege, err error) {
+	mm_atomic.AddUint64(&mmGetGrantPrivilege.beforeGetGrantPrivilegeCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetGrantPrivilege.afterGetGrantPrivilegeCounter, 1)
+
+	if mmGetGrantPrivilege.inspectFuncGetGrantPrivilege != nil {
+		mmGetGrantPrivilege.inspectFuncGetGrantPrivilege(ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName)
+	}
+
+	mm_params := ClientMockGetGrantPrivilegeParams{ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName}
+
+	// Record call args
+	mmGetGrantPrivilege.GetGrantPrivilegeMock.mutex.Lock()
+	mmGetGrantPrivilege.GetGrantPrivilegeMock.callArgs = append(mmGetGrantPrivilege.GetGrantPrivilegeMock.callArgs, &mm_params)
+	mmGetGrantPrivilege.GetGrantPrivilegeMock.mutex.Unlock()
+
+	for _, e := range mmGetGrantPrivilege.GetGrantPrivilegeMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.gp1, e.results.err
+		}
+	}
+
+	if mmGetGrantPrivilege.GetGrantPrivilegeMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetGrantPrivilege.GetGrantPrivilegeMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetGrantPrivilege.GetGrantPrivilegeMock.defaultExpectation.params
+		mm_want_ptrs := mmGetGrantPrivilege.GetGrantPrivilegeMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetGrantPrivilegeParams{ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetGrantPrivilege.t.Errorf("ClientMock.GetGrantPrivilege got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmGetGrantPrivilege.t.Errorf("ClientMock.GetGrantPrivilege got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.accessType != nil && !minimock.Equal(*mm_want_ptrs.accessType, mm_got.accessType) {
+				mmGetGrantPrivilege.t.Errorf("ClientMock.GetGrantPrivilege got unexpected parameter accessType, want: %#v, got: %#v%s\n", *mm_want_ptrs.accessType, mm_got.accessType, minimock.Diff(*mm_want_ptrs.accessType, mm_got.accessType))
+			}
+
+			if mm_want_ptrs.database != nil && !minimock.Equal(*mm_want_ptrs.database, mm_got.database) {
+				mmGetGrantPrivilege.t.Errorf("ClientMock.GetGrantPrivilege got unexpected parameter database, want: %#v, got: %#v%s\n", *mm_want_ptrs.database, mm_got.database, minimock.Diff(*mm_want_ptrs.database, mm_got.database))
+			}
+
+			if mm_want_ptrs.table != nil && !minimock.Equal(*mm_want_ptrs.table, mm_got.table) {
+				mmGetGrantPrivilege.t.Errorf("ClientMock.GetGrantPrivilege got unexpected parameter table, want: %#v, got: %#v%s\n", *mm_want_ptrs.table, mm_got.table, minimock.Diff(*mm_want_ptrs.table, mm_got.table))
+			}
+
+			if mm_want_ptrs.column != nil && !minimock.Equal(*mm_want_ptrs.column, mm_got.column) {
+				mmGetGrantPrivilege.t.Errorf("ClientMock.GetGrantPrivilege got unexpected parameter column, want: %#v, got: %#v%s\n", *mm_want_ptrs.column, mm_got.column, minimock.Diff(*mm_want_ptrs.column, mm_got.column))
+			}
+
+			if mm_want_ptrs.granteeUserName != nil && !minimock.Equal(*mm_want_ptrs.granteeUserName, mm_got.granteeUserName) {
+				mmGetGrantPrivilege.t.Errorf("ClientMock.GetGrantPrivilege got unexpected parameter granteeUserName, want: %#v, got: %#v%s\n", *mm_want_ptrs.granteeUserName, mm_got.granteeUserName, minimock.Diff(*mm_want_ptrs.granteeUserName, mm_got.granteeUserName))
+			}
+
+			if mm_want_ptrs.granteeRoleName != nil && !minimock.Equal(*mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName) {
+				mmGetGrantPrivilege.t.Errorf("ClientMock.GetGrantPrivilege got unexpected parameter granteeRoleName, want: %#v, got: %#v%s\n", *mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName, minimock.Diff(*mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetGrantPrivilege.t.Errorf("ClientMock.GetGrantPrivilege got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetGrantPrivilege.GetGrantPrivilegeMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetGrantPrivilege.t.Fatal("No results are set for the ClientMock.GetGrantPrivilege")
+		}
+		return (*mm_results).gp1, (*mm_results).err
+	}
+	if mmGetGrantPrivilege.funcGetGrantPrivilege != nil {
+		return mmGetGrantPrivilege.funcGetGrantPrivilege(ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName)
+	}
+	mmGetGrantPrivilege.t.Fatalf("Unexpected call to ClientMock.GetGrantPrivilege. %v %v %v %v %v %v %v %v", ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName)
+	return
+}
+
+// GetGrantPrivilegeAfterCounter returns a count of finished ClientMock.GetGrantPrivilege invocations
+func (mmGetGrantPrivilege *ClientMock) GetGrantPrivilegeAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetGrantPrivilege.afterGetGrantPrivilegeCounter)
+}
+
+// GetGrantPrivilegeBeforeCounter returns a count of ClientMock.GetGrantPrivilege invocations
+func (mmGetGrantPrivilege *ClientMock) GetGrantPrivilegeBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetGrantPrivilege.beforeGetGrantPrivilegeCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetGrantPrivilege.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Calls() []*ClientMockGetGrantPrivilegeParams {
+	mmGetGrantPrivilege.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetGrantPrivilegeParams, len(mmGetGrantPrivilege.callArgs))
+	copy(argCopy, mmGetGrantPrivilege.callArgs)
+
+	mmGetGrantPrivilege.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetGrantPrivilegeDone returns true if the count of the GetGrantPrivilege invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetGrantPrivilegeDone() bool {
+	if m.GetGrantPrivilegeMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetGrantPrivilegeMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetGrantPrivilegeMock.invocationsDone()
+}
+
+// MinimockGetGrantPrivilegeInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetGrantPrivilegeInspect() {
+	for _, e := range m.GetGrantPrivilegeMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetGrantPrivilege with params: %#v", *e.params)
+		}
+	}
+
+	afterGetGrantPrivilegeCounter := mm_atomic.LoadUint64(&m.afterGetGrantPrivilegeCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetGrantPrivilegeMock.defaultExpectation != nil && afterGetGrantPrivilegeCounter < 1 {
+		if m.GetGrantPrivilegeMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.GetGrantPrivilege")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetGrantPrivilege with params: %#v", *m.GetGrantPrivilegeMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetGrantPrivilege != nil && afterGetGrantPrivilegeCounter < 1 {
+		m.t.Error("Expected call to ClientMock.GetGrantPrivilege")
+	}
+
+	if !m.GetGrantPrivilegeMock.invocationsDone() && afterGetGrantPrivilegeCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetGrantPrivilege but found %d calls",
+			mm_atomic.LoadUint64(&m.GetGrantPrivilegeMock.expectedInvocations), afterGetGrantPrivilegeCounter)
+	}
+}
+
 type mClientMockGetGrantRole struct {
 	optional           bool
 	mock               *ClientMock
@@ -8017,6 +8533,355 @@ func (m *ClientMock) MinimockGetUserInspect() {
 	}
 }
 
+type mClientMockGrantPrivilege struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGrantPrivilegeExpectation
+	expectations       []*ClientMockGrantPrivilegeExpectation
+
+	callArgs []*ClientMockGrantPrivilegeParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockGrantPrivilegeExpectation specifies expectation struct of the Client.GrantPrivilege
+type ClientMockGrantPrivilegeExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockGrantPrivilegeParams
+	paramPtrs *ClientMockGrantPrivilegeParamPtrs
+	results   *ClientMockGrantPrivilegeResults
+	Counter   uint64
+}
+
+// ClientMockGrantPrivilegeParams contains parameters of the Client.GrantPrivilege
+type ClientMockGrantPrivilegeParams struct {
+	ctx            context.Context
+	serviceId      string
+	grantPrivilege GrantPrivilege
+}
+
+// ClientMockGrantPrivilegeParamPtrs contains pointers to parameters of the Client.GrantPrivilege
+type ClientMockGrantPrivilegeParamPtrs struct {
+	ctx            *context.Context
+	serviceId      *string
+	grantPrivilege *GrantPrivilege
+}
+
+// ClientMockGrantPrivilegeResults contains results of the Client.GrantPrivilege
+type ClientMockGrantPrivilegeResults struct {
+	gp1 *GrantPrivilege
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGrantPrivilege *mClientMockGrantPrivilege) Optional() *mClientMockGrantPrivilege {
+	mmGrantPrivilege.optional = true
+	return mmGrantPrivilege
+}
+
+// Expect sets up expected params for Client.GrantPrivilege
+func (mmGrantPrivilege *mClientMockGrantPrivilege) Expect(ctx context.Context, serviceId string, grantPrivilege GrantPrivilege) *mClientMockGrantPrivilege {
+	if mmGrantPrivilege.mock.funcGrantPrivilege != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by Set")
+	}
+
+	if mmGrantPrivilege.defaultExpectation == nil {
+		mmGrantPrivilege.defaultExpectation = &ClientMockGrantPrivilegeExpectation{}
+	}
+
+	if mmGrantPrivilege.defaultExpectation.paramPtrs != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by ExpectParams functions")
+	}
+
+	mmGrantPrivilege.defaultExpectation.params = &ClientMockGrantPrivilegeParams{ctx, serviceId, grantPrivilege}
+	for _, e := range mmGrantPrivilege.expectations {
+		if minimock.Equal(e.params, mmGrantPrivilege.defaultExpectation.params) {
+			mmGrantPrivilege.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGrantPrivilege.defaultExpectation.params)
+		}
+	}
+
+	return mmGrantPrivilege
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GrantPrivilege
+func (mmGrantPrivilege *mClientMockGrantPrivilege) ExpectCtxParam1(ctx context.Context) *mClientMockGrantPrivilege {
+	if mmGrantPrivilege.mock.funcGrantPrivilege != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by Set")
+	}
+
+	if mmGrantPrivilege.defaultExpectation == nil {
+		mmGrantPrivilege.defaultExpectation = &ClientMockGrantPrivilegeExpectation{}
+	}
+
+	if mmGrantPrivilege.defaultExpectation.params != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGrantPrivilegeParamPtrs{}
+	}
+	mmGrantPrivilege.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmGrantPrivilege
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GrantPrivilege
+func (mmGrantPrivilege *mClientMockGrantPrivilege) ExpectServiceIdParam2(serviceId string) *mClientMockGrantPrivilege {
+	if mmGrantPrivilege.mock.funcGrantPrivilege != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by Set")
+	}
+
+	if mmGrantPrivilege.defaultExpectation == nil {
+		mmGrantPrivilege.defaultExpectation = &ClientMockGrantPrivilegeExpectation{}
+	}
+
+	if mmGrantPrivilege.defaultExpectation.params != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGrantPrivilegeParamPtrs{}
+	}
+	mmGrantPrivilege.defaultExpectation.paramPtrs.serviceId = &serviceId
+
+	return mmGrantPrivilege
+}
+
+// ExpectGrantPrivilegeParam3 sets up expected param grantPrivilege for Client.GrantPrivilege
+func (mmGrantPrivilege *mClientMockGrantPrivilege) ExpectGrantPrivilegeParam3(grantPrivilege GrantPrivilege) *mClientMockGrantPrivilege {
+	if mmGrantPrivilege.mock.funcGrantPrivilege != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by Set")
+	}
+
+	if mmGrantPrivilege.defaultExpectation == nil {
+		mmGrantPrivilege.defaultExpectation = &ClientMockGrantPrivilegeExpectation{}
+	}
+
+	if mmGrantPrivilege.defaultExpectation.params != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by Expect")
+	}
+
+	if mmGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockGrantPrivilegeParamPtrs{}
+	}
+	mmGrantPrivilege.defaultExpectation.paramPtrs.grantPrivilege = &grantPrivilege
+
+	return mmGrantPrivilege
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GrantPrivilege
+func (mmGrantPrivilege *mClientMockGrantPrivilege) Inspect(f func(ctx context.Context, serviceId string, grantPrivilege GrantPrivilege)) *mClientMockGrantPrivilege {
+	if mmGrantPrivilege.mock.inspectFuncGrantPrivilege != nil {
+		mmGrantPrivilege.mock.t.Fatalf("Inspect function is already set for ClientMock.GrantPrivilege")
+	}
+
+	mmGrantPrivilege.mock.inspectFuncGrantPrivilege = f
+
+	return mmGrantPrivilege
+}
+
+// Return sets up results that will be returned by Client.GrantPrivilege
+func (mmGrantPrivilege *mClientMockGrantPrivilege) Return(gp1 *GrantPrivilege, err error) *ClientMock {
+	if mmGrantPrivilege.mock.funcGrantPrivilege != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by Set")
+	}
+
+	if mmGrantPrivilege.defaultExpectation == nil {
+		mmGrantPrivilege.defaultExpectation = &ClientMockGrantPrivilegeExpectation{mock: mmGrantPrivilege.mock}
+	}
+	mmGrantPrivilege.defaultExpectation.results = &ClientMockGrantPrivilegeResults{gp1, err}
+	return mmGrantPrivilege.mock
+}
+
+// Set uses given function f to mock the Client.GrantPrivilege method
+func (mmGrantPrivilege *mClientMockGrantPrivilege) Set(f func(ctx context.Context, serviceId string, grantPrivilege GrantPrivilege) (gp1 *GrantPrivilege, err error)) *ClientMock {
+	if mmGrantPrivilege.defaultExpectation != nil {
+		mmGrantPrivilege.mock.t.Fatalf("Default expectation is already set for the Client.GrantPrivilege method")
+	}
+
+	if len(mmGrantPrivilege.expectations) > 0 {
+		mmGrantPrivilege.mock.t.Fatalf("Some expectations are already set for the Client.GrantPrivilege method")
+	}
+
+	mmGrantPrivilege.mock.funcGrantPrivilege = f
+	return mmGrantPrivilege.mock
+}
+
+// When sets expectation for the Client.GrantPrivilege which will trigger the result defined by the following
+// Then helper
+func (mmGrantPrivilege *mClientMockGrantPrivilege) When(ctx context.Context, serviceId string, grantPrivilege GrantPrivilege) *ClientMockGrantPrivilegeExpectation {
+	if mmGrantPrivilege.mock.funcGrantPrivilege != nil {
+		mmGrantPrivilege.mock.t.Fatalf("ClientMock.GrantPrivilege mock is already set by Set")
+	}
+
+	expectation := &ClientMockGrantPrivilegeExpectation{
+		mock:   mmGrantPrivilege.mock,
+		params: &ClientMockGrantPrivilegeParams{ctx, serviceId, grantPrivilege},
+	}
+	mmGrantPrivilege.expectations = append(mmGrantPrivilege.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GrantPrivilege return parameters for the expectation previously defined by the When method
+func (e *ClientMockGrantPrivilegeExpectation) Then(gp1 *GrantPrivilege, err error) *ClientMock {
+	e.results = &ClientMockGrantPrivilegeResults{gp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GrantPrivilege should be invoked
+func (mmGrantPrivilege *mClientMockGrantPrivilege) Times(n uint64) *mClientMockGrantPrivilege {
+	if n == 0 {
+		mmGrantPrivilege.mock.t.Fatalf("Times of ClientMock.GrantPrivilege mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGrantPrivilege.expectedInvocations, n)
+	return mmGrantPrivilege
+}
+
+func (mmGrantPrivilege *mClientMockGrantPrivilege) invocationsDone() bool {
+	if len(mmGrantPrivilege.expectations) == 0 && mmGrantPrivilege.defaultExpectation == nil && mmGrantPrivilege.mock.funcGrantPrivilege == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGrantPrivilege.mock.afterGrantPrivilegeCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGrantPrivilege.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GrantPrivilege implements Client
+func (mmGrantPrivilege *ClientMock) GrantPrivilege(ctx context.Context, serviceId string, grantPrivilege GrantPrivilege) (gp1 *GrantPrivilege, err error) {
+	mm_atomic.AddUint64(&mmGrantPrivilege.beforeGrantPrivilegeCounter, 1)
+	defer mm_atomic.AddUint64(&mmGrantPrivilege.afterGrantPrivilegeCounter, 1)
+
+	if mmGrantPrivilege.inspectFuncGrantPrivilege != nil {
+		mmGrantPrivilege.inspectFuncGrantPrivilege(ctx, serviceId, grantPrivilege)
+	}
+
+	mm_params := ClientMockGrantPrivilegeParams{ctx, serviceId, grantPrivilege}
+
+	// Record call args
+	mmGrantPrivilege.GrantPrivilegeMock.mutex.Lock()
+	mmGrantPrivilege.GrantPrivilegeMock.callArgs = append(mmGrantPrivilege.GrantPrivilegeMock.callArgs, &mm_params)
+	mmGrantPrivilege.GrantPrivilegeMock.mutex.Unlock()
+
+	for _, e := range mmGrantPrivilege.GrantPrivilegeMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.gp1, e.results.err
+		}
+	}
+
+	if mmGrantPrivilege.GrantPrivilegeMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGrantPrivilege.GrantPrivilegeMock.defaultExpectation.Counter, 1)
+		mm_want := mmGrantPrivilege.GrantPrivilegeMock.defaultExpectation.params
+		mm_want_ptrs := mmGrantPrivilege.GrantPrivilegeMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGrantPrivilegeParams{ctx, serviceId, grantPrivilege}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGrantPrivilege.t.Errorf("ClientMock.GrantPrivilege got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGrantPrivilege.t.Errorf("ClientMock.GrantPrivilege got unexpected parameter serviceId, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.grantPrivilege != nil && !minimock.Equal(*mm_want_ptrs.grantPrivilege, mm_got.grantPrivilege) {
+				mmGrantPrivilege.t.Errorf("ClientMock.GrantPrivilege got unexpected parameter grantPrivilege, want: %#v, got: %#v%s\n", *mm_want_ptrs.grantPrivilege, mm_got.grantPrivilege, minimock.Diff(*mm_want_ptrs.grantPrivilege, mm_got.grantPrivilege))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGrantPrivilege.t.Errorf("ClientMock.GrantPrivilege got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGrantPrivilege.GrantPrivilegeMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGrantPrivilege.t.Fatal("No results are set for the ClientMock.GrantPrivilege")
+		}
+		return (*mm_results).gp1, (*mm_results).err
+	}
+	if mmGrantPrivilege.funcGrantPrivilege != nil {
+		return mmGrantPrivilege.funcGrantPrivilege(ctx, serviceId, grantPrivilege)
+	}
+	mmGrantPrivilege.t.Fatalf("Unexpected call to ClientMock.GrantPrivilege. %v %v %v", ctx, serviceId, grantPrivilege)
+	return
+}
+
+// GrantPrivilegeAfterCounter returns a count of finished ClientMock.GrantPrivilege invocations
+func (mmGrantPrivilege *ClientMock) GrantPrivilegeAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGrantPrivilege.afterGrantPrivilegeCounter)
+}
+
+// GrantPrivilegeBeforeCounter returns a count of ClientMock.GrantPrivilege invocations
+func (mmGrantPrivilege *ClientMock) GrantPrivilegeBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGrantPrivilege.beforeGrantPrivilegeCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GrantPrivilege.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGrantPrivilege *mClientMockGrantPrivilege) Calls() []*ClientMockGrantPrivilegeParams {
+	mmGrantPrivilege.mutex.RLock()
+
+	argCopy := make([]*ClientMockGrantPrivilegeParams, len(mmGrantPrivilege.callArgs))
+	copy(argCopy, mmGrantPrivilege.callArgs)
+
+	mmGrantPrivilege.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGrantPrivilegeDone returns true if the count of the GrantPrivilege invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGrantPrivilegeDone() bool {
+	if m.GrantPrivilegeMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GrantPrivilegeMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GrantPrivilegeMock.invocationsDone()
+}
+
+// MinimockGrantPrivilegeInspect logs each unmet expectation
+func (m *ClientMock) MinimockGrantPrivilegeInspect() {
+	for _, e := range m.GrantPrivilegeMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GrantPrivilege with params: %#v", *e.params)
+		}
+	}
+
+	afterGrantPrivilegeCounter := mm_atomic.LoadUint64(&m.afterGrantPrivilegeCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GrantPrivilegeMock.defaultExpectation != nil && afterGrantPrivilegeCounter < 1 {
+		if m.GrantPrivilegeMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.GrantPrivilege")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GrantPrivilege with params: %#v", *m.GrantPrivilegeMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGrantPrivilege != nil && afterGrantPrivilegeCounter < 1 {
+		m.t.Error("Expected call to ClientMock.GrantPrivilege")
+	}
+
+	if !m.GrantPrivilegeMock.invocationsDone() && afterGrantPrivilegeCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GrantPrivilege but found %d calls",
+			mm_atomic.LoadUint64(&m.GrantPrivilegeMock.expectedInvocations), afterGrantPrivilegeCounter)
+	}
+}
+
 type mClientMockGrantRole struct {
 	optional           bool
 	mock               *ClientMock
@@ -8388,6 +9253,494 @@ func (m *ClientMock) MinimockGrantRoleInspect() {
 	if !m.GrantRoleMock.invocationsDone() && afterGrantRoleCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GrantRole at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GrantRoleMock.expectedInvocations), m.GrantRoleMock.expectedInvocationsOrigin, afterGrantRoleCounter)
+	}
+}
+
+type mClientMockRevokeGrantPrivilege struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockRevokeGrantPrivilegeExpectation
+	expectations       []*ClientMockRevokeGrantPrivilegeExpectation
+
+	callArgs []*ClientMockRevokeGrantPrivilegeParams
+	mutex    sync.RWMutex
+
+	expectedInvocations uint64
+}
+
+// ClientMockRevokeGrantPrivilegeExpectation specifies expectation struct of the Client.RevokeGrantPrivilege
+type ClientMockRevokeGrantPrivilegeExpectation struct {
+	mock      *ClientMock
+	params    *ClientMockRevokeGrantPrivilegeParams
+	paramPtrs *ClientMockRevokeGrantPrivilegeParamPtrs
+	results   *ClientMockRevokeGrantPrivilegeResults
+	Counter   uint64
+}
+
+// ClientMockRevokeGrantPrivilegeParams contains parameters of the Client.RevokeGrantPrivilege
+type ClientMockRevokeGrantPrivilegeParams struct {
+	ctx             context.Context
+	serviceID       string
+	accessType      string
+	database        string
+	table           *string
+	column          *string
+	granteeUserName *string
+	granteeRoleName *string
+}
+
+// ClientMockRevokeGrantPrivilegeParamPtrs contains pointers to parameters of the Client.RevokeGrantPrivilege
+type ClientMockRevokeGrantPrivilegeParamPtrs struct {
+	ctx             *context.Context
+	serviceID       *string
+	accessType      *string
+	database        *string
+	table           **string
+	column          **string
+	granteeUserName **string
+	granteeRoleName **string
+}
+
+// ClientMockRevokeGrantPrivilegeResults contains results of the Client.RevokeGrantPrivilege
+type ClientMockRevokeGrantPrivilegeResults struct {
+	err error
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Optional() *mClientMockRevokeGrantPrivilege {
+	mmRevokeGrantPrivilege.optional = true
+	return mmRevokeGrantPrivilege
+}
+
+// Expect sets up expected params for Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Expect(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{}
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.paramPtrs != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by ExpectParams functions")
+	}
+
+	mmRevokeGrantPrivilege.defaultExpectation.params = &ClientMockRevokeGrantPrivilegeParams{ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName}
+	for _, e := range mmRevokeGrantPrivilege.expectations {
+		if minimock.Equal(e.params, mmRevokeGrantPrivilege.defaultExpectation.params) {
+			mmRevokeGrantPrivilege.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmRevokeGrantPrivilege.defaultExpectation.params)
+		}
+	}
+
+	return mmRevokeGrantPrivilege
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectCtxParam1(ctx context.Context) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{}
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.params != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockRevokeGrantPrivilegeParamPtrs{}
+	}
+	mmRevokeGrantPrivilege.defaultExpectation.paramPtrs.ctx = &ctx
+
+	return mmRevokeGrantPrivilege
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectServiceIDParam2(serviceID string) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{}
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.params != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockRevokeGrantPrivilegeParamPtrs{}
+	}
+	mmRevokeGrantPrivilege.defaultExpectation.paramPtrs.serviceID = &serviceID
+
+	return mmRevokeGrantPrivilege
+}
+
+// ExpectAccessTypeParam3 sets up expected param accessType for Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectAccessTypeParam3(accessType string) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{}
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.params != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockRevokeGrantPrivilegeParamPtrs{}
+	}
+	mmRevokeGrantPrivilege.defaultExpectation.paramPtrs.accessType = &accessType
+
+	return mmRevokeGrantPrivilege
+}
+
+// ExpectDatabaseParam4 sets up expected param database for Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectDatabaseParam4(database string) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{}
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.params != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockRevokeGrantPrivilegeParamPtrs{}
+	}
+	mmRevokeGrantPrivilege.defaultExpectation.paramPtrs.database = &database
+
+	return mmRevokeGrantPrivilege
+}
+
+// ExpectTableParam5 sets up expected param table for Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectTableParam5(table *string) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{}
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.params != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockRevokeGrantPrivilegeParamPtrs{}
+	}
+	mmRevokeGrantPrivilege.defaultExpectation.paramPtrs.table = &table
+
+	return mmRevokeGrantPrivilege
+}
+
+// ExpectColumnParam6 sets up expected param column for Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectColumnParam6(column *string) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{}
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.params != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockRevokeGrantPrivilegeParamPtrs{}
+	}
+	mmRevokeGrantPrivilege.defaultExpectation.paramPtrs.column = &column
+
+	return mmRevokeGrantPrivilege
+}
+
+// ExpectGranteeUserNameParam7 sets up expected param granteeUserName for Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectGranteeUserNameParam7(granteeUserName *string) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{}
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.params != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockRevokeGrantPrivilegeParamPtrs{}
+	}
+	mmRevokeGrantPrivilege.defaultExpectation.paramPtrs.granteeUserName = &granteeUserName
+
+	return mmRevokeGrantPrivilege
+}
+
+// ExpectGranteeRoleNameParam8 sets up expected param granteeRoleName for Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectGranteeRoleNameParam8(granteeRoleName *string) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{}
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.params != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Expect")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation.paramPtrs == nil {
+		mmRevokeGrantPrivilege.defaultExpectation.paramPtrs = &ClientMockRevokeGrantPrivilegeParamPtrs{}
+	}
+	mmRevokeGrantPrivilege.defaultExpectation.paramPtrs.granteeRoleName = &granteeRoleName
+
+	return mmRevokeGrantPrivilege
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Inspect(f func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string)) *mClientMockRevokeGrantPrivilege {
+	if mmRevokeGrantPrivilege.mock.inspectFuncRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("Inspect function is already set for ClientMock.RevokeGrantPrivilege")
+	}
+
+	mmRevokeGrantPrivilege.mock.inspectFuncRevokeGrantPrivilege = f
+
+	return mmRevokeGrantPrivilege
+}
+
+// Return sets up results that will be returned by Client.RevokeGrantPrivilege
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Return(err error) *ClientMock {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	if mmRevokeGrantPrivilege.defaultExpectation == nil {
+		mmRevokeGrantPrivilege.defaultExpectation = &ClientMockRevokeGrantPrivilegeExpectation{mock: mmRevokeGrantPrivilege.mock}
+	}
+	mmRevokeGrantPrivilege.defaultExpectation.results = &ClientMockRevokeGrantPrivilegeResults{err}
+	return mmRevokeGrantPrivilege.mock
+}
+
+// Set uses given function f to mock the Client.RevokeGrantPrivilege method
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Set(f func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (err error)) *ClientMock {
+	if mmRevokeGrantPrivilege.defaultExpectation != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("Default expectation is already set for the Client.RevokeGrantPrivilege method")
+	}
+
+	if len(mmRevokeGrantPrivilege.expectations) > 0 {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("Some expectations are already set for the Client.RevokeGrantPrivilege method")
+	}
+
+	mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege = f
+	return mmRevokeGrantPrivilege.mock
+}
+
+// When sets expectation for the Client.RevokeGrantPrivilege which will trigger the result defined by the following
+// Then helper
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) When(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *ClientMockRevokeGrantPrivilegeExpectation {
+	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
+	}
+
+	expectation := &ClientMockRevokeGrantPrivilegeExpectation{
+		mock:   mmRevokeGrantPrivilege.mock,
+		params: &ClientMockRevokeGrantPrivilegeParams{ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName},
+	}
+	mmRevokeGrantPrivilege.expectations = append(mmRevokeGrantPrivilege.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.RevokeGrantPrivilege return parameters for the expectation previously defined by the When method
+func (e *ClientMockRevokeGrantPrivilegeExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockRevokeGrantPrivilegeResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.RevokeGrantPrivilege should be invoked
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Times(n uint64) *mClientMockRevokeGrantPrivilege {
+	if n == 0 {
+		mmRevokeGrantPrivilege.mock.t.Fatalf("Times of ClientMock.RevokeGrantPrivilege mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmRevokeGrantPrivilege.expectedInvocations, n)
+	return mmRevokeGrantPrivilege
+}
+
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) invocationsDone() bool {
+	if len(mmRevokeGrantPrivilege.expectations) == 0 && mmRevokeGrantPrivilege.defaultExpectation == nil && mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmRevokeGrantPrivilege.mock.afterRevokeGrantPrivilegeCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmRevokeGrantPrivilege.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// RevokeGrantPrivilege implements Client
+func (mmRevokeGrantPrivilege *ClientMock) RevokeGrantPrivilege(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (err error) {
+	mm_atomic.AddUint64(&mmRevokeGrantPrivilege.beforeRevokeGrantPrivilegeCounter, 1)
+	defer mm_atomic.AddUint64(&mmRevokeGrantPrivilege.afterRevokeGrantPrivilegeCounter, 1)
+
+	if mmRevokeGrantPrivilege.inspectFuncRevokeGrantPrivilege != nil {
+		mmRevokeGrantPrivilege.inspectFuncRevokeGrantPrivilege(ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName)
+	}
+
+	mm_params := ClientMockRevokeGrantPrivilegeParams{ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName}
+
+	// Record call args
+	mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.mutex.Lock()
+	mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.callArgs = append(mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.callArgs, &mm_params)
+	mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.mutex.Unlock()
+
+	for _, e := range mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.defaultExpectation.Counter, 1)
+		mm_want := mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.defaultExpectation.params
+		mm_want_ptrs := mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockRevokeGrantPrivilegeParams{ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmRevokeGrantPrivilege.t.Errorf("ClientMock.RevokeGrantPrivilege got unexpected parameter ctx, want: %#v, got: %#v%s\n", *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmRevokeGrantPrivilege.t.Errorf("ClientMock.RevokeGrantPrivilege got unexpected parameter serviceID, want: %#v, got: %#v%s\n", *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.accessType != nil && !minimock.Equal(*mm_want_ptrs.accessType, mm_got.accessType) {
+				mmRevokeGrantPrivilege.t.Errorf("ClientMock.RevokeGrantPrivilege got unexpected parameter accessType, want: %#v, got: %#v%s\n", *mm_want_ptrs.accessType, mm_got.accessType, minimock.Diff(*mm_want_ptrs.accessType, mm_got.accessType))
+			}
+
+			if mm_want_ptrs.database != nil && !minimock.Equal(*mm_want_ptrs.database, mm_got.database) {
+				mmRevokeGrantPrivilege.t.Errorf("ClientMock.RevokeGrantPrivilege got unexpected parameter database, want: %#v, got: %#v%s\n", *mm_want_ptrs.database, mm_got.database, minimock.Diff(*mm_want_ptrs.database, mm_got.database))
+			}
+
+			if mm_want_ptrs.table != nil && !minimock.Equal(*mm_want_ptrs.table, mm_got.table) {
+				mmRevokeGrantPrivilege.t.Errorf("ClientMock.RevokeGrantPrivilege got unexpected parameter table, want: %#v, got: %#v%s\n", *mm_want_ptrs.table, mm_got.table, minimock.Diff(*mm_want_ptrs.table, mm_got.table))
+			}
+
+			if mm_want_ptrs.column != nil && !minimock.Equal(*mm_want_ptrs.column, mm_got.column) {
+				mmRevokeGrantPrivilege.t.Errorf("ClientMock.RevokeGrantPrivilege got unexpected parameter column, want: %#v, got: %#v%s\n", *mm_want_ptrs.column, mm_got.column, minimock.Diff(*mm_want_ptrs.column, mm_got.column))
+			}
+
+			if mm_want_ptrs.granteeUserName != nil && !minimock.Equal(*mm_want_ptrs.granteeUserName, mm_got.granteeUserName) {
+				mmRevokeGrantPrivilege.t.Errorf("ClientMock.RevokeGrantPrivilege got unexpected parameter granteeUserName, want: %#v, got: %#v%s\n", *mm_want_ptrs.granteeUserName, mm_got.granteeUserName, minimock.Diff(*mm_want_ptrs.granteeUserName, mm_got.granteeUserName))
+			}
+
+			if mm_want_ptrs.granteeRoleName != nil && !minimock.Equal(*mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName) {
+				mmRevokeGrantPrivilege.t.Errorf("ClientMock.RevokeGrantPrivilege got unexpected parameter granteeRoleName, want: %#v, got: %#v%s\n", *mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName, minimock.Diff(*mm_want_ptrs.granteeRoleName, mm_got.granteeRoleName))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmRevokeGrantPrivilege.t.Errorf("ClientMock.RevokeGrantPrivilege got unexpected parameters, want: %#v, got: %#v%s\n", *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmRevokeGrantPrivilege.RevokeGrantPrivilegeMock.defaultExpectation.results
+		if mm_results == nil {
+			mmRevokeGrantPrivilege.t.Fatal("No results are set for the ClientMock.RevokeGrantPrivilege")
+		}
+		return (*mm_results).err
+	}
+	if mmRevokeGrantPrivilege.funcRevokeGrantPrivilege != nil {
+		return mmRevokeGrantPrivilege.funcRevokeGrantPrivilege(ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName)
+	}
+	mmRevokeGrantPrivilege.t.Fatalf("Unexpected call to ClientMock.RevokeGrantPrivilege. %v %v %v %v %v %v %v %v", ctx, serviceID, accessType, database, table, column, granteeUserName, granteeRoleName)
+	return
+}
+
+// RevokeGrantPrivilegeAfterCounter returns a count of finished ClientMock.RevokeGrantPrivilege invocations
+func (mmRevokeGrantPrivilege *ClientMock) RevokeGrantPrivilegeAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmRevokeGrantPrivilege.afterRevokeGrantPrivilegeCounter)
+}
+
+// RevokeGrantPrivilegeBeforeCounter returns a count of ClientMock.RevokeGrantPrivilege invocations
+func (mmRevokeGrantPrivilege *ClientMock) RevokeGrantPrivilegeBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmRevokeGrantPrivilege.beforeRevokeGrantPrivilegeCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.RevokeGrantPrivilege.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Calls() []*ClientMockRevokeGrantPrivilegeParams {
+	mmRevokeGrantPrivilege.mutex.RLock()
+
+	argCopy := make([]*ClientMockRevokeGrantPrivilegeParams, len(mmRevokeGrantPrivilege.callArgs))
+	copy(argCopy, mmRevokeGrantPrivilege.callArgs)
+
+	mmRevokeGrantPrivilege.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockRevokeGrantPrivilegeDone returns true if the count of the RevokeGrantPrivilege invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockRevokeGrantPrivilegeDone() bool {
+	if m.RevokeGrantPrivilegeMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.RevokeGrantPrivilegeMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.RevokeGrantPrivilegeMock.invocationsDone()
+}
+
+// MinimockRevokeGrantPrivilegeInspect logs each unmet expectation
+func (m *ClientMock) MinimockRevokeGrantPrivilegeInspect() {
+	for _, e := range m.RevokeGrantPrivilegeMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.RevokeGrantPrivilege with params: %#v", *e.params)
+		}
+	}
+
+	afterRevokeGrantPrivilegeCounter := mm_atomic.LoadUint64(&m.afterRevokeGrantPrivilegeCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.RevokeGrantPrivilegeMock.defaultExpectation != nil && afterRevokeGrantPrivilegeCounter < 1 {
+		if m.RevokeGrantPrivilegeMock.defaultExpectation.params == nil {
+			m.t.Error("Expected call to ClientMock.RevokeGrantPrivilege")
+		} else {
+			m.t.Errorf("Expected call to ClientMock.RevokeGrantPrivilege with params: %#v", *m.RevokeGrantPrivilegeMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcRevokeGrantPrivilege != nil && afterRevokeGrantPrivilegeCounter < 1 {
+		m.t.Error("Expected call to ClientMock.RevokeGrantPrivilege")
+	}
+
+	if !m.RevokeGrantPrivilegeMock.invocationsDone() && afterRevokeGrantPrivilegeCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.RevokeGrantPrivilege but found %d calls",
+			mm_atomic.LoadUint64(&m.RevokeGrantPrivilegeMock.expectedInvocations), afterRevokeGrantPrivilegeCounter)
 	}
 }
 
@@ -12347,6 +13700,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetClickPipeInspect()
 
+			m.MinimockGetGrantPrivilegeInspect()
+
 			m.MinimockGetGrantRoleInspect()
 
 			m.MinimockGetOrgPrivateEndpointConfigInspect()
@@ -12361,7 +13716,11 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetUserInspect()
 
+			m.MinimockGrantPrivilegeInspect()
+
 			m.MinimockGrantRoleInspect()
+
+			m.MinimockRevokeGrantPrivilegeInspect()
 
 			m.MinimockRevokeGrantRoleInspect()
 
@@ -12419,6 +13778,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetClickPipeDone() &&
+		m.MinimockGetGrantPrivilegeDone() &&
 		m.MinimockGetGrantRoleDone() &&
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationPrivateEndpointsDone() &&
@@ -12426,7 +13786,9 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetRoleDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockGetUserDone() &&
+		m.MinimockGrantPrivilegeDone() &&
 		m.MinimockGrantRoleDone() &&
+		m.MinimockRevokeGrantPrivilegeDone() &&
 		m.MinimockRevokeGrantRoleDone() &&
 		m.MinimockScalingClickPipeDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
