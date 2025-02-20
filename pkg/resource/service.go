@@ -229,9 +229,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						},
 					},
 				},
-				PlanModifiers: []planmodifier.List{
-					// listplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"min_total_memory_gb": schema.Int64Attribute{
 				Description:        "Minimum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and greater than 24.",
