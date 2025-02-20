@@ -186,7 +186,7 @@ jobs:
       - name: Generate test name
         id: name
         run: |
-          echo "test_name=[upgrade]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
+          echo "test_name=[upg]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}" >> $GITHUB_OUTPUT
 
       - name: Get API details for env
         id: credentials

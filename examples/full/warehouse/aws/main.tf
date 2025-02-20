@@ -21,7 +21,7 @@ variable "region" {
 }
 
 resource "clickhouse_service" "primary" {
-  name                      = "${var.service_name}-primary"
+  name                      = "${var.service_name}-pri"
   cloud_provider            = "aws"
   region                    = var.region
   idle_scaling              = false
@@ -48,7 +48,7 @@ resource "clickhouse_service" "primary" {
 resource "clickhouse_service" "secondary" {
   warehouse_id              = clickhouse_service.primary.warehouse_id
   readonly                  = true
-  name                      = "${var.service_name}-secondary"
+  name                      = "${var.service_name}-sec"
   cloud_provider            = "aws"
   region                    = var.region
   idle_scaling              = true
