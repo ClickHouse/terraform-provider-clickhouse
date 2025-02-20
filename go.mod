@@ -7,7 +7,7 @@ require (
 	github.com/gojuno/minimock/v3 v3.4.5
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/terraform-plugin-docs v0.20.1
-	github.com/hashicorp/terraform-plugin-framework v1.14.0
+	github.com/hashicorp/terraform-plugin-framework v1.14.1
 	github.com/hashicorp/terraform-plugin-framework-validators v0.17.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/huandu/go-sqlbuilder v1.34.0
