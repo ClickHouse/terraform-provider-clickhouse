@@ -48,6 +48,12 @@ resource "clickhouse_service" "service" {
     }
   ]
 
+  endpoints_configuration = {
+    mysql = {
+      enabled = true
+    }
+  }
+
   query_api_endpoints = {
     api_key_ids = [
       data.clickhouse_api_key_id.self.id,

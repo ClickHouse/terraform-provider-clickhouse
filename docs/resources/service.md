@@ -58,6 +58,7 @@ resource "clickhouse_service" "service" {
 - `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.
 - `encryption_assumed_role_identifier` (String) Custom role identifier ARN.
 - `encryption_key` (String) Custom encryption key ARN.
+- `endpoints_configuration` (Attributes) Allow to enable and configure additional endpoints (read protocols) to expose on the ClickHouse service. (see [below for nested schema](#nestedatt--endpoints_configuration))
 - `idle_scaling` (Boolean) When set to true the service is allowed to scale down to zero when idle.
 - `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.
 - `max_replica_memory_gb` (Number) Maximum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
@@ -101,6 +102,22 @@ Optional:
 - `backup_period_in_hours` (Number) Interval in hours between each backup.
 - `backup_retention_period_in_hours` (Number) How long in hours to keep a backup before deleting it.
 - `backup_start_time` (String) Time of the day in UTC that indicates the start time of a 2 hours window to be used for backup. If set, backup_period_in_hours must be null and backups are created once a day.
+
+
+<a id="nestedatt--endpoints_configuration"></a>
+### Nested Schema for `endpoints_configuration`
+
+Required:
+
+- `mysql` (Attributes) (see [below for nested schema](#nestedatt--endpoints_configuration--mysql))
+
+<a id="nestedatt--endpoints_configuration--mysql"></a>
+### Nested Schema for `endpoints_configuration.mysql`
+
+Required:
+
+- `enabled` (Boolean) Wether to enable the mysql endpoint or not. The value of this flag can only be true. If you want to disable the MySQL endpoint, please avoid specifying the `endpoints_configuration` attribute.
+
 
 
 <a id="nestedatt--query_api_endpoints"></a>

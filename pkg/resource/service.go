@@ -26,7 +26,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -193,6 +192,24 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
+			"endpoints_configuration": schema.SingleNestedAttribute{
+				Description: "Allow to enable and configure additional endpoints (read protocols) to expose on the ClickHouse service.",
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"mysql": schema.SingleNestedAttribute{
+						Attributes: map[string]schema.Attribute{
+							"enabled": schema.BoolAttribute{
+								Required:    true,
+								Description: "Wether to enable the mysql endpoint or not. The value of this flag can only be true. If you want to disable the MySQL endpoint, please avoid specifying the `endpoints_configuration` attribute.",
+								Validators: []validator.Bool{
+									boolvalidator.Equals(true),
+								},
+							},
+						},
+						Required: true,
+					},
+				},
+			},
 			"endpoints": schema.ListNestedAttribute{
 				Description: "List of public endpoints.",
 				Computed:    true,
@@ -213,7 +230,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 				PlanModifiers: []planmodifier.List{
-					listplanmodifier.UseStateForUnknown(),
+					// listplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"min_total_memory_gb": schema.Int64Attribute{
@@ -705,6 +722,38 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 	service.IpAccessList = ipAccessLists
 
+	// EndpointsConfiguration
+	if !plan.EndpointsConfiguration.IsNull() {
+		endpointsConfig := models.EndpointsConfiguration{}
+		diag := plan.EndpointsConfiguration.As(ctx, &endpointsConfig, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    false,
+			UnhandledUnknownAsEmpty: false,
+		})
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag.Errors()...)
+			return
+		}
+
+		if !endpointsConfig.Mysql.IsNull() {
+			mysql := models.EndpointEnabled{}
+			diag = endpointsConfig.Mysql.As(ctx, &mysql, basetypes.ObjectAsOptions{
+				UnhandledNullAsEmpty:    false,
+				UnhandledUnknownAsEmpty: false,
+			})
+			if diag.HasError() {
+				resp.Diagnostics.Append(diag.Errors()...)
+				return
+			}
+
+			if mysql.Enabled.ValueBool() {
+				service.Endpoints = append(service.Endpoints, api.Endpoint{
+					Protocol: api.PROTOCOL_MYSQL,
+					Enabled:  true,
+				})
+			}
+		}
+	}
+
 	// Create new service
 	s, _, err := r.client.CreateService(ctx, service)
 	if err != nil {
@@ -933,6 +982,62 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		service.IpAccessList = &api.IpAccessUpdate{
 			Add:    add,
 			Remove: remove,
+		}
+	}
+
+	// EndpointsConfiguration
+	if !plan.EndpointsConfiguration.Equal(state.EndpointsConfiguration) {
+		serviceChange = true
+		if !plan.EndpointsConfiguration.IsNull() {
+			endpointsConfig := models.EndpointsConfiguration{}
+			diag := plan.EndpointsConfiguration.As(ctx, &endpointsConfig, basetypes.ObjectAsOptions{
+				UnhandledNullAsEmpty:    false,
+				UnhandledUnknownAsEmpty: false,
+			})
+			if diag.HasError() {
+				resp.Diagnostics.Append(diag.Errors()...)
+				return
+			}
+
+			if !endpointsConfig.Mysql.IsNull() {
+				mysql := models.EndpointEnabled{}
+				diag = endpointsConfig.Mysql.As(ctx, &mysql, basetypes.ObjectAsOptions{
+					UnhandledNullAsEmpty:    false,
+					UnhandledUnknownAsEmpty: false,
+				})
+				if diag.HasError() {
+					resp.Diagnostics.Append(diag.Errors()...)
+					return
+				}
+
+				if mysql.Enabled.ValueBool() {
+					service.Endpoints = append(service.Endpoints, api.Endpoint{
+						Protocol: api.PROTOCOL_MYSQL,
+						Enabled:  true,
+					})
+				} else {
+					// Mysql endpoint was enabled, but now the enabled flag was set to false.
+					// We need to disable mysql endpoint.
+					service.Endpoints = append(service.Endpoints, api.Endpoint{
+						Protocol: api.PROTOCOL_MYSQL,
+						Enabled:  false,
+					})
+				}
+			} else {
+				// Mysql endpoint was enabled, but now the 'mysql' attribute was removed.
+				// We need to disable mysql endpoint.
+				service.Endpoints = append(service.Endpoints, api.Endpoint{
+					Protocol: api.PROTOCOL_MYSQL,
+					Enabled:  false,
+				})
+			}
+		} else {
+			// Mysql endpoint was enabled, but now the whole `endpoints_configuration` attribute was removed.
+			// We need to disable mysql endpoint.
+			service.Endpoints = append(service.Endpoints, api.Endpoint{
+				Protocol: api.PROTOCOL_MYSQL,
+				Enabled:  false,
+			})
 		}
 	}
 
@@ -1265,10 +1370,23 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 
 	{
 		var endpoints []attr.Value
+		var endpointsConfiguration *models.EndpointsConfiguration
 		for _, endpoint := range service.Endpoints {
 			endpoints = append(endpoints, models.Endpoint{Protocol: types.StringValue(endpoint.Protocol), Host: types.StringValue(endpoint.Host), Port: types.Int64Value(int64(endpoint.Port))}.ObjectValue())
+
+			if endpoint.Protocol == api.PROTOCOL_MYSQL {
+				enabled := models.EndpointEnabled{Enabled: types.BoolValue(true)}
+				endpointsConfiguration = &models.EndpointsConfiguration{
+					Mysql: enabled.ObjectValue(),
+				}
+			}
 		}
 		state.Endpoints, _ = types.ListValue(models.Endpoint{}.ObjectType(), endpoints)
+		if endpointsConfiguration != nil {
+			state.EndpointsConfiguration = endpointsConfiguration.ObjectValue()
+		} else {
+			state.EndpointsConfiguration = types.ObjectNull(models.EndpointsConfiguration{}.ObjectType().AttrTypes)
+		}
 	}
 
 	state.IAMRole = types.StringValue(service.IAMRole)
