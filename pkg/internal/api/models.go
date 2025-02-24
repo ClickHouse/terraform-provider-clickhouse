@@ -1,7 +1,7 @@
 package api
 
 const (
-	PROTOCOL_MYSQL = "mysql"
+	EndpointProtocolMysql = "mysql"
 )
 
 type IpAccess struct {

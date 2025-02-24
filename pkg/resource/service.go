@@ -731,9 +731,9 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			return
 		}
 
-		if !endpointsConfig.Mysql.IsNull() {
+		if !endpointsConfig.MySQL.IsNull() {
 			mysql := models.EndpointEnabled{}
-			diag = endpointsConfig.Mysql.As(ctx, &mysql, basetypes.ObjectAsOptions{
+			diag = endpointsConfig.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{
 				UnhandledNullAsEmpty:    false,
 				UnhandledUnknownAsEmpty: false,
 			})
@@ -744,7 +744,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 			if mysql.Enabled.ValueBool() {
 				service.Endpoints = append(service.Endpoints, api.Endpoint{
-					Protocol: api.PROTOCOL_MYSQL,
+					Protocol: api.EndpointProtocolMysql,
 					Enabled:  true,
 				})
 			}
@@ -996,9 +996,9 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 				return
 			}
 
-			if !endpointsConfig.Mysql.IsNull() {
+			if !endpointsConfig.MySQL.IsNull() {
 				mysql := models.EndpointEnabled{}
-				diag = endpointsConfig.Mysql.As(ctx, &mysql, basetypes.ObjectAsOptions{
+				diag = endpointsConfig.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{
 					UnhandledNullAsEmpty:    false,
 					UnhandledUnknownAsEmpty: false,
 				})
@@ -1009,30 +1009,30 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 				if mysql.Enabled.ValueBool() {
 					service.Endpoints = append(service.Endpoints, api.Endpoint{
-						Protocol: api.PROTOCOL_MYSQL,
+						Protocol: api.EndpointProtocolMysql,
 						Enabled:  true,
 					})
 				} else {
-					// Mysql endpoint was enabled, but now the enabled flag was set to false.
+					// MySQL endpoint was enabled, but now the enabled flag was set to false.
 					// We need to disable mysql endpoint.
 					service.Endpoints = append(service.Endpoints, api.Endpoint{
-						Protocol: api.PROTOCOL_MYSQL,
+						Protocol: api.EndpointProtocolMysql,
 						Enabled:  false,
 					})
 				}
 			} else {
-				// Mysql endpoint was enabled, but now the 'mysql' attribute was removed.
+				// MySQL endpoint was enabled, but now the 'mysql' attribute was removed.
 				// We need to disable mysql endpoint.
 				service.Endpoints = append(service.Endpoints, api.Endpoint{
-					Protocol: api.PROTOCOL_MYSQL,
+					Protocol: api.EndpointProtocolMysql,
 					Enabled:  false,
 				})
 			}
 		} else {
-			// Mysql endpoint was enabled, but now the whole `endpoints_configuration` attribute was removed.
+			// MySQL endpoint was enabled, but now the whole `endpoints_configuration` attribute was removed.
 			// We need to disable mysql endpoint.
 			service.Endpoints = append(service.Endpoints, api.Endpoint{
-				Protocol: api.PROTOCOL_MYSQL,
+				Protocol: api.EndpointProtocolMysql,
 				Enabled:  false,
 			})
 		}
@@ -1371,10 +1371,10 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		for _, endpoint := range service.Endpoints {
 			endpoints = append(endpoints, models.Endpoint{Protocol: types.StringValue(endpoint.Protocol), Host: types.StringValue(endpoint.Host), Port: types.Int64Value(int64(endpoint.Port))}.ObjectValue())
 
-			if endpoint.Protocol == api.PROTOCOL_MYSQL {
+			if endpoint.Protocol == api.EndpointProtocolMysql {
 				enabled := models.EndpointEnabled{Enabled: types.BoolValue(true)}
 				endpointsConfiguration = &models.EndpointsConfiguration{
-					Mysql: enabled.ObjectValue(),
+					MySQL: enabled.ObjectValue(),
 				}
 			}
 		}

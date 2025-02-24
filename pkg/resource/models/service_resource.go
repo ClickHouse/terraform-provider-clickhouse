@@ -73,7 +73,7 @@ func (p PrivateEndpointConfig) ObjectValue() basetypes.ObjectValue {
 }
 
 type EndpointsConfiguration struct {
-	Mysql types.Object `tfsdk:"mysql"`
+	MySQL types.Object `tfsdk:"mysql"`
 }
 
 func (q EndpointsConfiguration) ObjectType() types.ObjectType {
@@ -90,7 +90,7 @@ func (q EndpointsConfiguration) ObjectType() types.ObjectType {
 
 func (q EndpointsConfiguration) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(q.ObjectType().AttrTypes, map[string]attr.Value{
-		"mysql": q.Mysql,
+		"mysql": q.MySQL,
 	})
 }
 
