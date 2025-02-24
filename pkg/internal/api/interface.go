@@ -47,4 +47,9 @@ type Client interface {
 	GrantPrivilege(ctx context.Context, serviceId string, grantPrivilege GrantPrivilege) (*GrantPrivilege, error)
 	GetGrantPrivilege(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (*GrantPrivilege, error)
 	RevokeGrantPrivilege(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) error
+
+	CreateDatabase(ctx context.Context, serviceID string, db Database) error
+	GetDatabase(ctx context.Context, serviceID string, name string) (*Database, error)
+	DeleteDatabase(ctx context.Context, serviceID string, name string) error
+	SyncDatabase(ctx context.Context, serviceID string, db Database) error
 }
