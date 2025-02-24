@@ -1,5 +1,9 @@
 package api
 
+const (
+	EndpointProtocolMysql = "mysql"
+)
+
 type IpAccess struct {
 	Source      string `json:"source,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -9,6 +13,7 @@ type Endpoint struct {
 	Protocol string `json:"protocol,omitempty"`
 	Host     string `json:"host,omitempty"`
 	Port     int    `json:"port,omitempty"`
+	Enabled  bool   `json:"enabled"`
 }
 
 type IpAccessUpdate struct {
@@ -65,6 +70,7 @@ type ServiceUpdate struct {
 	IpAccessList       *IpAccessUpdate           `json:"ipAccessList,omitempty"`
 	PrivateEndpointIds *PrivateEndpointIdsUpdate `json:"privateEndpointIds,omitempty"`
 	ReleaseChannel     string                    `json:"releaseChannel,omitempty"`
+	Endpoints          []Endpoint                `json:"endpoints,omitempty"`
 }
 
 // FixMemoryBounds ensures the MinTotalMemoryGb and MaxTotalMemoryGb fields are set before doing an API call to create the service

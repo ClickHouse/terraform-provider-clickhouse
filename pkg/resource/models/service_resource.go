@@ -72,6 +72,46 @@ func (p PrivateEndpointConfig) ObjectValue() basetypes.ObjectValue {
 	})
 }
 
+type EndpointsConfiguration struct {
+	MySQL types.Object `tfsdk:"mysql"`
+}
+
+func (q EndpointsConfiguration) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"mysql": types.ObjectType{
+				AttrTypes: map[string]attr.Type{
+					"enabled": types.BoolType,
+				},
+			},
+		},
+	}
+}
+
+func (q EndpointsConfiguration) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(q.ObjectType().AttrTypes, map[string]attr.Value{
+		"mysql": q.MySQL,
+	})
+}
+
+type EndpointEnabled struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+func (e EndpointEnabled) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"enabled": types.BoolType,
+		},
+	}
+}
+
+func (e EndpointEnabled) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(e.ObjectType().AttrTypes, map[string]attr.Value{
+		"enabled": e.Enabled,
+	})
+}
+
 type QueryAPIEndpoints struct {
 	APIKeyIDs      types.List   `tfsdk:"api_key_ids"`
 	Roles          types.List   `tfsdk:"roles"`
@@ -130,6 +170,7 @@ type ServiceResourceModel struct {
 	Password                        types.String `tfsdk:"password"`
 	PasswordHash                    types.String `tfsdk:"password_hash"`
 	DoubleSha1PasswordHash          types.String `tfsdk:"double_sha1_password_hash"`
+	EndpointsConfiguration          types.Object `tfsdk:"endpoints_configuration"`
 	Endpoints                       types.List   `tfsdk:"endpoints"`
 	CloudProvider                   types.String `tfsdk:"cloud_provider"`
 	Region                          types.String `tfsdk:"region"`
@@ -161,6 +202,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.Password.Equal(b.Password) ||
 		!m.PasswordHash.Equal(b.PasswordHash) ||
 		!m.DoubleSha1PasswordHash.Equal(b.DoubleSha1PasswordHash) ||
+		!m.EndpointsConfiguration.Equal(b.EndpointsConfiguration) ||
 		!m.Endpoints.Equal(b.Endpoints) ||
 		!m.CloudProvider.Equal(b.CloudProvider) ||
 		!m.Region.Equal(b.Region) ||
