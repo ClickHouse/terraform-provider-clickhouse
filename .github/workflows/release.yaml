@@ -62,7 +62,8 @@ jobs:
       - name: Generate
         id: generate
         run: |
-          token="$(date '+%s')"
+          # Number of seconds since January first 2025.
+          token=$(( $(date +%s) - $(date -d "Jan 1, 2025 00:00:00" +%s) ))
           echo "token=${token}" >> $GITHUB_OUTPUT
 
   # Find the 3 most recent releases of terraform CLI (one for each minor)
@@ -181,7 +182,7 @@ jobs:
           organization_id: ${{ steps.credentials.outputs.organization_id }}
           token_key: ${{ steps.credentials.outputs.api_key_id }}
           token_secret: ${{ steps.credentials.outputs.api_key_secret }}
-          service_name: "[upgrade]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}"
+          service_name: "[upg]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}"
           test_name: ${{ matrix.test.name }}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
