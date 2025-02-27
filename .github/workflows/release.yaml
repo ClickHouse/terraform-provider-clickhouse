@@ -416,7 +416,7 @@ jobs:
   # After an alpha release, remove the alpha docs from main branch
   cleanup-alpha-examples:
     needs: [ "validate", "goreleaser" ]
-    if: ${{ needs.validate.outputs.enable_alpha == 'true' }}
+    if: ${{ github.ref_name == 'main' && needs.validate.outputs.enable_alpha == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -426,6 +426,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          ref: "main"
 
       - name: Build docs for stable release
         run: |
