@@ -412,3 +412,30 @@ jobs:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+
+  # After an alpha release, remove the alpha docs from main branch
+  cleanup-alpha-examples:
+    needs: [ "validate", "goreleaser" ]
+    if: ${{ needs.validate.outputs.enable_alpha == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
+
+      - name: Build docs for stable release
+        run: |
+          make docs
+
+      - name: Commit
+        run: |
+          git add docs/resources/
+          git diff --quiet --exit-code && (echo "No changes detected" && exit 0)
+          git config --global user.name "Release Github Action"
+          git config --global user.email "bot@users.noreply.github.com"
+          git commit -a -m "Remove alpha docs from main branch"
+          git push
