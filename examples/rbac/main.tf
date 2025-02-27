@@ -48,6 +48,7 @@ resource "clickhouse_service" "service" {
     }
   ]
 
+  # Required in order to create 'clickhouse_user', 'clickhouse_role' and 'clickhouse_grant*' resources below.
   query_api_endpoints = {
     api_key_ids = [
       data.clickhouse_api_key_id.self.id,
@@ -68,17 +69,20 @@ resource "clickhouse_service" "service" {
   }
 }
 
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_user" "john" {
   service_id           = clickhouse_service.service.id
   name                 = "john"
   password_sha256_hash = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" # sha256 of 'test'
 }
 
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_role" "writer" {
   service_id           = clickhouse_service.service.id
   name                 = "writer"
 }
 
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_grant_role" "writer_to_john" {
   service_id        = clickhouse_service.service.id
   role_name         = clickhouse_role.writer.name
@@ -86,11 +90,13 @@ resource "clickhouse_grant_role" "writer_to_john" {
   admin_option      = false
 }
 
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_role" "manager" {
   service_id           = clickhouse_service.service.id
   name                 = "manager"
 }
 
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_grant_role" "writer_to_manager" {
   service_id        = clickhouse_service.service.id
   role_name         = clickhouse_role.writer.name
@@ -98,6 +104,7 @@ resource "clickhouse_grant_role" "writer_to_manager" {
   admin_option      = false
 }
 
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_grant_privilege" "grant_show_to_role" {
   service_id        = clickhouse_service.service.id
   privilege_name    = "SHOW"
@@ -106,6 +113,7 @@ resource "clickhouse_grant_privilege" "grant_show_to_role" {
   grant_option      = false
 }
 
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_grant_privilege" "grant_insert_on_table_to_user" {
   service_id        = clickhouse_service.service.id
   privilege_name    = "INSERT"
@@ -115,6 +123,7 @@ resource "clickhouse_grant_privilege" "grant_insert_on_table_to_user" {
   grant_option      = true
 }
 
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_grant_privilege" "grant_select_on_single_column_on_table_to_user" {
   service_id        = clickhouse_service.service.id
   privilege_name    = "SELECT"

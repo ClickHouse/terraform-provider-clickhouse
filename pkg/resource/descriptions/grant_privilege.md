@@ -2,6 +2,9 @@
 
 You can use the `clickhouse_grant_privilege` resource to grant privileges on databases and tables to either a `clickhouse_user` or a `clickhouse_role`.
 
+Attention: in order to use the `clickhouse_grant_privilege` resource you need to set the `query_api_endpoint` attribute in the `clickhouse_service`.
+Please check [full example](https://github.com/ClickHouse/terraform-provider-clickhouse/blob/main/examples/rbac/main.tf).
+
 Known limitations:
 
 - Only a subset of privileges can be granted on ClickHouse cloud. For example the `ALL` privilege can't be granted. See https://clickhouse.com/docs/en/sql-reference/statements/grant#all
