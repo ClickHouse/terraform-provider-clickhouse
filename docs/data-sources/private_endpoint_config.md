@@ -20,6 +20,11 @@ description: |-
 - `cloud_provider` (String) The cloud provider for the private endpoint. Valid values are 'aws', 'gcp', or 'azure'.
 - `region` (String) The region for the private endpoint. Valid values are specific to the cloud provider i.e. us-east-2
 
+### Optional
+
+- `service_id` (String) The ClickHouse Cloud Service ID to get the private endpoint configuration for. If left out it defaults to the deprecated organization private endpoint.
+
 ### Read-Only
 
 - `endpoint_service_id` (String) The ID of the private endpoint that is used to securely connect to ClickHouse. This is a read-only attribute.
+- `private_dns_hostname` (String) Private DNS Hostname of the VPC you created.
