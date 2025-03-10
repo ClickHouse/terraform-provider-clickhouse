@@ -8,7 +8,7 @@ type Client interface {
 	GetApiKeyID(ctx context.Context, name *string) (*ApiKey, error)
 
 	GetService(ctx context.Context, serviceId string) (*Service, error)
-	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
+	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*PrivateEndpointConfig, error)
 	CreateService(ctx context.Context, s Service) (*Service, string, error)
 	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error
 	UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error)
@@ -19,6 +19,7 @@ type Client interface {
 	UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
 	GetBackupConfiguration(ctx context.Context, serviceId string) (*BackupConfiguration, error)
 	UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (*BackupConfiguration, error)
+	GetServicePrivateEndpointConfig(ctx context.Context, serviceId string) (*PrivateEndpointConfig, error)
 
 	GetQueryEndpoint(ctx context.Context, serviceID string) (*ServiceQueryEndpoint, error)
 	CreateQueryEndpoint(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint) (*ServiceQueryEndpoint, error)

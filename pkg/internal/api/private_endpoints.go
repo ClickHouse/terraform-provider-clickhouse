@@ -30,7 +30,7 @@ type OrgResult struct {
 	PrivateEndpoints []PrivateEndpoint `json:"privateEndpoints,omitempty"`
 }
 
-type OrgPrivateEndpointConfig struct {
+type PrivateEndpointConfig struct {
 	EndpointServiceId string `json:"endpointServiceId,omitempty"`
 }
 
@@ -54,7 +54,7 @@ func (c *ClientImpl) GetServicePrivateEndpointConfig(ctx context.Context, servic
 	return &endpointConfigResponse.Result, nil
 }
 
-func (c *ClientImpl) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error) {
+func (c *ClientImpl) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*PrivateEndpointConfig, error) {
 	privateEndpointConfigPath := c.getPrivateEndpointConfigPath(cloudProvider, region)
 
 	req, err := http.NewRequest(http.MethodGet, privateEndpointConfigPath, nil)
@@ -67,7 +67,7 @@ func (c *ClientImpl) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvi
 		return nil, err
 	}
 
-	privateEndpointConfigResponse := ResponseWithResult[OrgPrivateEndpointConfig]{}
+	privateEndpointConfigResponse := ResponseWithResult[PrivateEndpointConfig]{}
 	if err = json.Unmarshal(body, &privateEndpointConfigResponse); err != nil {
 		return nil, err
 	}

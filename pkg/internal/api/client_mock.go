@@ -132,7 +132,7 @@ type ClientMock struct {
 	beforeGetGrantRoleCounter uint64
 	GetGrantRoleMock          mClientMockGetGrantRole
 
-	funcGetOrgPrivateEndpointConfig          func(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error)
+	funcGetOrgPrivateEndpointConfig          func(ctx context.Context, cloudProvider string, region string) (op1 *PrivateEndpointConfig, err error)
 	inspectFuncGetOrgPrivateEndpointConfig   func(ctx context.Context, cloudProvider string, region string)
 	afterGetOrgPrivateEndpointConfigCounter  uint64
 	beforeGetOrgPrivateEndpointConfigCounter uint64
@@ -7130,7 +7130,7 @@ type ClientMockGetOrgPrivateEndpointConfigParamPtrs struct {
 
 // ClientMockGetOrgPrivateEndpointConfigResults contains results of the Client.GetOrgPrivateEndpointConfig
 type ClientMockGetOrgPrivateEndpointConfigResults struct {
-	op1 *OrgPrivateEndpointConfig
+	op1 *PrivateEndpointConfig
 	err error
 }
 
@@ -7246,7 +7246,7 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Ins
 }
 
 // Return sets up results that will be returned by Client.GetOrgPrivateEndpointConfig
-func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Return(op1 *OrgPrivateEndpointConfig, err error) *ClientMock {
+func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Return(op1 *PrivateEndpointConfig, err error) *ClientMock {
 	if mmGetOrgPrivateEndpointConfig.mock.funcGetOrgPrivateEndpointConfig != nil {
 		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetOrgPrivateEndpointConfig mock is already set by Set")
 	}
@@ -7259,7 +7259,7 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Ret
 }
 
 // Set uses given function f to mock the Client.GetOrgPrivateEndpointConfig method
-func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Set(f func(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error)) *ClientMock {
+func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Set(f func(ctx context.Context, cloudProvider string, region string) (op1 *PrivateEndpointConfig, err error)) *ClientMock {
 	if mmGetOrgPrivateEndpointConfig.defaultExpectation != nil {
 		mmGetOrgPrivateEndpointConfig.mock.t.Fatalf("Default expectation is already set for the Client.GetOrgPrivateEndpointConfig method")
 	}
@@ -7288,7 +7288,7 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) Whe
 }
 
 // Then sets up Client.GetOrgPrivateEndpointConfig return parameters for the expectation previously defined by the When method
-func (e *ClientMockGetOrgPrivateEndpointConfigExpectation) Then(op1 *OrgPrivateEndpointConfig, err error) *ClientMock {
+func (e *ClientMockGetOrgPrivateEndpointConfigExpectation) Then(op1 *PrivateEndpointConfig, err error) *ClientMock {
 	e.results = &ClientMockGetOrgPrivateEndpointConfigResults{op1, err}
 	return e.mock
 }
@@ -7314,7 +7314,7 @@ func (mmGetOrgPrivateEndpointConfig *mClientMockGetOrgPrivateEndpointConfig) inv
 }
 
 // GetOrgPrivateEndpointConfig implements Client
-func (mmGetOrgPrivateEndpointConfig *ClientMock) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error) {
+func (mmGetOrgPrivateEndpointConfig *ClientMock) GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (op1 *PrivateEndpointConfig, err error) {
 	mm_atomic.AddUint64(&mmGetOrgPrivateEndpointConfig.beforeGetOrgPrivateEndpointConfigCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetOrgPrivateEndpointConfig.afterGetOrgPrivateEndpointConfigCounter, 1)
 

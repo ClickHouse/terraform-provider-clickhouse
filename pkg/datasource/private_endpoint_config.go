@@ -44,9 +44,11 @@ func (d *privateEndpointConfigDataSource) Metadata(ctx context.Context, req data
 }
 
 type privateEndpointConfigDataSourceModel struct {
-	CloudProvider     types.String `tfsdk:"cloud_provider"`
-	Region            types.String `tfsdk:"region"`
-	EndpointServiceID types.String `tfsdk:"endpoint_service_id"`
+	CloudProvider      types.String `tfsdk:"cloud_provider"`
+	Region             types.String `tfsdk:"region"`
+	ServiceID          types.String `tfsdk:"service_id"`
+	EndpointServiceID  types.String `tfsdk:"endpoint_service_id"`
+	PrivateDNSHostname types.String `tfsdk:"private_dns_hostname"`
 }
 
 func (d *privateEndpointConfigDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
@@ -63,8 +65,16 @@ func (d *privateEndpointConfigDataSource) Schema(ctx context.Context, req dataso
 				Description: "The region for the private endpoint. Valid values are specific to the cloud provider i.e. us-east-2",
 				Required:    true,
 			},
+			"service_id": schema.StringAttribute{
+				Description: "The ClickHouse Cloud Service ID to get the private endpoint configuration for. If left out it defaults to the deprecated organization private endpoint.",
+				Optional:    true,
+			},
 			"endpoint_service_id": schema.StringAttribute{
 				Description: "The ID of the private endpoint that is used to securely connect to ClickHouse. This is a read-only attribute.",
+				Computed:    true,
+			},
+			"private_dns_hostname": schema.StringAttribute{
+				Description: "Private DNS Hostname of the VPC you created.",
 				Computed:    true,
 			},
 		},
@@ -79,13 +89,18 @@ func (d *privateEndpointConfigDataSource) Read(ctx context.Context, req datasour
 	cloudProvider := data.CloudProvider.ValueString()
 	region := data.Region.ValueString()
 
-	// Make the API request to get the private endpoint config
-	privateEndpointConfig, err := d.client.GetOrgPrivateEndpointConfig(ctx, cloudProvider, region)
-	if err != nil {
-		resp.Diagnostics.AddError("failed get", fmt.Sprintf("error getting privateEndpointConfig: %v", err))
-		return
+	if data.ServiceID.IsNull() {
+		// Getting org level private endpoints
+		// Make the API request to get the private endpoint config
+		privateEndpointConfig, err := d.client.GetOrgPrivateEndpointConfig(ctx, cloudProvider, region)
+		if err != nil {
+			resp.Diagnostics.AddError("failed get", fmt.Sprintf("error getting privateEndpointConfig: %v", err))
+			return
+		}
+		data.EndpointServiceID = types.StringValue(privateEndpointConfig.EndpointServiceId)
+	} else {
+
 	}
-	data.EndpointServiceID = types.StringValue(privateEndpointConfig.EndpointServiceId)
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
