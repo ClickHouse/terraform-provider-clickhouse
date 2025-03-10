@@ -59,7 +59,7 @@ func (r *GrantPrivilegeResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
-					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Z0-9 ]+$`), "Invalid privilege name"),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z0-9 ]+$`), "Invalid privilege name"),
 					stringvalidator.NoneOfCaseInsensitive("ALL"),
 				},
 			},
