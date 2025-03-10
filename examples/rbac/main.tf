@@ -114,6 +114,15 @@ resource "clickhouse_grant_privilege" "grant_show_to_role" {
 }
 
 # Requires 'query_api_endpoints' to be enabled in the service.
+resource "clickhouse_grant_privilege" "grant_dictget_to_role" {
+  service_id        = clickhouse_service.service.id
+  privilege_name    = "dictGet"
+  database_name     = "default"
+  grantee_role_name = clickhouse_role.writer.name
+  grant_option      = false
+}
+
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_grant_privilege" "grant_insert_on_table_to_user" {
   service_id        = clickhouse_service.service.id
   privilege_name    = "INSERT"
