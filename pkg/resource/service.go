@@ -187,7 +187,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						},
 						"description": schema.StringAttribute{
 							Description: "Description of the IP address.",
-							Optional:    true,
+							Required:    true,
 						},
 					},
 				},

@@ -87,11 +87,8 @@ resource "clickhouse_service" "service" {
 
 Required:
 
-- `source` (String) IP address allowed to access the service. In case you want to set the ip_access to anywhere you should set source to 0.0.0.0/0
-
-Optional:
-
 - `description` (String) Description of the IP address.
+- `source` (String) IP address allowed to access the service. In case you want to set the ip_access to anywhere you should set source to 0.0.0.0/0
 
 
 <a id="nestedatt--backup_configuration"></a>
