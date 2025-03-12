@@ -32,6 +32,12 @@ variable "release_channel" {
 data "clickhouse_api_key_id" "self" {
 }
 
+ephemeral "random_password" "password" {
+  length           = 15
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
 resource "clickhouse_service" "service" {
   name                      = var.service_name
   cloud_provider            = "aws"
@@ -39,7 +45,7 @@ resource "clickhouse_service" "service" {
   release_channel           = var.release_channel
   idle_scaling              = true
   idle_timeout_minutes      = 5
-  password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
+  password_wo               = base64sha256(ephemeral.random_password.password.result)
 
   ip_access = [
     {

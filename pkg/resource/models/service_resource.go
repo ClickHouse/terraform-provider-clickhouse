@@ -168,6 +168,7 @@ type ServiceResourceModel struct {
 	ReadOnly                        types.Bool   `tfsdk:"readonly"`
 	Name                            types.String `tfsdk:"name"`
 	Password                        types.String `tfsdk:"password"`
+	PasswordWO                      types.String `tfsdk:"password_wo"`
 	PasswordHash                    types.String `tfsdk:"password_hash"`
 	DoubleSha1PasswordHash          types.String `tfsdk:"double_sha1_password_hash"`
 	EndpointsConfiguration          types.Object `tfsdk:"endpoints_configuration"`

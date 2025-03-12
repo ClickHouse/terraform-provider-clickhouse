@@ -109,19 +109,34 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"password": schema.StringAttribute{
-				Description: "Password for the default user. One of either `password` or `password_hash` must be specified.",
+				Description: "Password for the default user. One of either `password`, `password_wo` or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
 					stringvalidator.AtLeastOneOf(path.Expressions{
+						path.MatchRoot("password_wo"),
 						path.MatchRoot("password_hash"),
 						path.MatchRoot("warehouse_id"),
 					}...),
 				},
 			},
+			"password_wo": schema.StringAttribute{
+				Description: "Write-Only version of the Password attribute, to be used to set a password for the default user. One of either `password`, `password_wo` or `password_hash` must be specified.",
+				Optional:    true,
+				Sensitive:   true,
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
+					stringvalidator.AtLeastOneOf(path.Expressions{
+						path.MatchRoot("password"),
+						path.MatchRoot("password_hash"),
+						path.MatchRoot("warehouse_id"),
+					}...),
+				},
+				WriteOnly: true,
+			},
 			"password_hash": schema.StringAttribute{
-				Description: "SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.",
+				Description: "SHA256 hash of password for the default user. One of either `password`, `password_wo` or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
 				Validators: []validator.String{
@@ -129,7 +144,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						regexp.MustCompile(`^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$`),
 						"must be a base64 encoded hash",
 					),
-					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password"), path.MatchRoot("warehouse_id")}...),
+					stringvalidator.ConflictsWith(path.Expressions{
+						path.MatchRoot("password"),
+						path.MatchRoot("password_wo"),
+						path.MatchRoot("warehouse_id"),
+					}...),
 				},
 			},
 			"double_sha1_password_hash": schema.StringAttribute{
