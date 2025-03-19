@@ -57,7 +57,17 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 		bodyBytes, _ := io.ReadAll(req.Body)
 		req.Body.Close()
 		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		ctx = tflog.SetField(ctx, "requestBody", string(bodyBytes))
+		{
+			var buf bytes.Buffer
+			err := json.Indent(&buf, bodyBytes, "", "  ")
+			if err != nil {
+				// Parsing/indentation failed, fallback to raw body
+				ctx = tflog.SetField(ctx, "requestBody", string(bodyBytes))
+			} else {
+				// Parsing ok, use formatted body.
+				ctx = tflog.SetField(ctx, "responseBody", buf.String())
+			}
+		}
 
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	}
@@ -83,7 +93,17 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 
 			ctx = tflog.SetField(ctx, "statusCode", res.StatusCode)
 			ctx = tflog.SetField(ctx, "responseHeaders", res.Header)
-			ctx = tflog.SetField(ctx, "responseBody", string(body))
+			{
+				var buf bytes.Buffer
+				err = json.Indent(&buf, body, "", "  ")
+				if err != nil {
+					// Parsing/indentation failed, fallback to raw body
+					ctx = tflog.SetField(ctx, "responseBody", string(body))
+				} else {
+					// Parsing ok, use formatted body.
+					ctx = tflog.SetField(ctx, "responseBody", buf.String())
+				}
+			}
 			tflog.Debug(ctx, "API request")
 
 			if res.StatusCode != http.StatusOK {

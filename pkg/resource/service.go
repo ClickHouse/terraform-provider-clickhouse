@@ -660,6 +660,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.BYOCId = plan.BYOCID.ValueStringPointer()
 	}
 
+	if !plan.ReleaseChannel.IsUnknown() && !plan.ReleaseChannel.IsNull() {
+		service.ReleaseChannel = plan.ReleaseChannel.ValueString()
+	}
+
 	if !plan.DataWarehouseID.IsUnknown() && !plan.DataWarehouseID.IsNull() {
 		service.DataWarehouseId = plan.DataWarehouseID.ValueStringPointer()
 		service.ReadOnly = plan.ReadOnly.ValueBool()
