@@ -11,7 +11,7 @@ linters:
     - dupl
     - goconst
     - goimports
-    - exportloopref
+    - copyloopvar
     - gofumpt
 
 linters-settings:
