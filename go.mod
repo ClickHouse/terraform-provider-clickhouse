@@ -2,8 +2,6 @@ module github.com/ClickHouse/terraform-provider-clickhouse
 
 go 1.23.0
 
-toolchain go1.24.1
-
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/gojuno/minimock/v3 v3.4.5
