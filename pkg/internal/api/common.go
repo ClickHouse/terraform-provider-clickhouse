@@ -65,7 +65,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 				ctx = tflog.SetField(ctx, "requestBody", string(bodyBytes))
 			} else {
 				// Parsing ok, use formatted body.
-				ctx = tflog.SetField(ctx, "responseBody", buf.String())
+				ctx = tflog.SetField(ctx, "requestBody", buf.String())
 			}
 		}
 
