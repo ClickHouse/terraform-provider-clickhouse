@@ -71,6 +71,7 @@ func (r *GrantPrivilegeResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
+					stringvalidator.NoneOf("*"),
 				},
 			},
 			"table_name": schema.StringAttribute{

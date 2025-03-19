@@ -22,7 +22,7 @@ variable "region" {
 
 variable "release_channel" {
   type = string
-  default = "default"
+  default = "fast"
   validation {
     condition     = var.release_channel == "default" || var.release_channel == "fast"
     error_message = "Release channel can be either 'default' or 'fast'."
