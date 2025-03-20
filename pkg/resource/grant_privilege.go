@@ -5,6 +5,7 @@ package resource
 import (
 	"context"
 	_ "embed"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -306,29 +307,29 @@ func (r *GrantPrivilegeResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
-	//if plan.Database.IsNull() {
-	//	for _, p := range validDatabasePrivileges {
-	//		if p == plan.Privilege.ValueString() {
-	//			resp.Diagnostics.AddAttributeError(
-	//				path.Root("database"),
-	//				"Invalid Grant Privilege",
-	//				fmt.Sprintf("'database' must be set when privilege_name is %q", p),
-	//			)
-	//			return
-	//		}
-	//	}
-	//} else {
-	//	for _, p := range validGlobalPrivileges {
-	//		if p == plan.Privilege.ValueString() {
-	//			resp.Diagnostics.AddAttributeError(
-	//				path.Root("database"),
-	//				"Invalid Grant Privilege",
-	//				fmt.Sprintf("'database' must be null when 'privilege_name' is %q", p),
-	//			)
-	//			return
-	//		}
-	//	}
-	//}
+	if plan.Database.IsNull() {
+		for _, p := range validDatabasePrivileges {
+			if p == plan.Privilege.ValueString() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("database"),
+					"Invalid Grant Privilege",
+					fmt.Sprintf("'database' must be set when privilege_name is %q", p),
+				)
+				return
+			}
+		}
+	} else {
+		for _, p := range validGlobalPrivileges {
+			if p == plan.Privilege.ValueString() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("database"),
+					"Invalid Grant Privilege",
+					fmt.Sprintf("'database' must be null when 'privilege_name' is %q", p),
+				)
+				return
+			}
+		}
+	}
 }
 
 func (r *GrantPrivilegeResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
