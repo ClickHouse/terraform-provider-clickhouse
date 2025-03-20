@@ -120,8 +120,8 @@ type ClientMock struct {
 	beforeGetDatabaseCounter uint64
 	GetDatabaseMock          mClientMockGetDatabase
 
-	funcGetGrantPrivilege          func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantPrivilege, err error)
-	inspectFuncGetGrantPrivilege   func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string)
+	funcGetGrantPrivilege          func(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantPrivilege, err error)
+	inspectFuncGetGrantPrivilege   func(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string)
 	afterGetGrantPrivilegeCounter  uint64
 	beforeGetGrantPrivilegeCounter uint64
 	GetGrantPrivilegeMock          mClientMockGetGrantPrivilege
@@ -180,8 +180,8 @@ type ClientMock struct {
 	beforeGrantRoleCounter uint64
 	GrantRoleMock          mClientMockGrantRole
 
-	funcRevokeGrantPrivilege          func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (err error)
-	inspectFuncRevokeGrantPrivilege   func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string)
+	funcRevokeGrantPrivilege          func(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (err error)
+	inspectFuncRevokeGrantPrivilege   func(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string)
 	afterRevokeGrantPrivilegeCounter  uint64
 	beforeRevokeGrantPrivilegeCounter uint64
 	RevokeGrantPrivilegeMock          mClientMockRevokeGrantPrivilege
@@ -6225,7 +6225,7 @@ type ClientMockGetGrantPrivilegeParams struct {
 	ctx             context.Context
 	serviceID       string
 	accessType      string
-	database        string
+	database        *string
 	table           *string
 	column          *string
 	granteeUserName *string
@@ -6237,7 +6237,7 @@ type ClientMockGetGrantPrivilegeParamPtrs struct {
 	ctx             *context.Context
 	serviceID       *string
 	accessType      *string
-	database        *string
+	database        **string
 	table           **string
 	column          **string
 	granteeUserName **string
@@ -6261,7 +6261,7 @@ func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Optional() *mClientMock
 }
 
 // Expect sets up expected params for Client.GetGrantPrivilege
-func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Expect(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *mClientMockGetGrantPrivilege {
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Expect(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *mClientMockGetGrantPrivilege {
 	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
 		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
 	}
@@ -6351,7 +6351,7 @@ func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectAccessTypeParam3(
 }
 
 // ExpectDatabaseParam4 sets up expected param database for Client.GetGrantPrivilege
-func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectDatabaseParam4(database string) *mClientMockGetGrantPrivilege {
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectDatabaseParam4(database *string) *mClientMockGetGrantPrivilege {
 	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
 		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
 	}
@@ -6461,7 +6461,7 @@ func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) ExpectGranteeRoleNamePa
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.GetGrantPrivilege
-func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Inspect(f func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string)) *mClientMockGetGrantPrivilege {
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Inspect(f func(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string)) *mClientMockGetGrantPrivilege {
 	if mmGetGrantPrivilege.mock.inspectFuncGetGrantPrivilege != nil {
 		mmGetGrantPrivilege.mock.t.Fatalf("Inspect function is already set for ClientMock.GetGrantPrivilege")
 	}
@@ -6485,7 +6485,7 @@ func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Return(gp1 *GrantPrivil
 }
 
 // Set uses given function f to mock the Client.GetGrantPrivilege method
-func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Set(f func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantPrivilege, err error)) *ClientMock {
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Set(f func(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantPrivilege, err error)) *ClientMock {
 	if mmGetGrantPrivilege.defaultExpectation != nil {
 		mmGetGrantPrivilege.mock.t.Fatalf("Default expectation is already set for the Client.GetGrantPrivilege method")
 	}
@@ -6500,7 +6500,7 @@ func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) Set(f func(ctx context.
 
 // When sets expectation for the Client.GetGrantPrivilege which will trigger the result defined by the following
 // Then helper
-func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) When(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *ClientMockGetGrantPrivilegeExpectation {
+func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) When(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *ClientMockGetGrantPrivilegeExpectation {
 	if mmGetGrantPrivilege.mock.funcGetGrantPrivilege != nil {
 		mmGetGrantPrivilege.mock.t.Fatalf("ClientMock.GetGrantPrivilege mock is already set by Set")
 	}
@@ -6540,7 +6540,7 @@ func (mmGetGrantPrivilege *mClientMockGetGrantPrivilege) invocationsDone() bool 
 }
 
 // GetGrantPrivilege implements Client
-func (mmGetGrantPrivilege *ClientMock) GetGrantPrivilege(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantPrivilege, err error) {
+func (mmGetGrantPrivilege *ClientMock) GetGrantPrivilege(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (gp1 *GrantPrivilege, err error) {
 	mm_atomic.AddUint64(&mmGetGrantPrivilege.beforeGetGrantPrivilegeCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetGrantPrivilege.afterGetGrantPrivilegeCounter, 1)
 
@@ -9799,7 +9799,7 @@ type ClientMockRevokeGrantPrivilegeParams struct {
 	ctx             context.Context
 	serviceID       string
 	accessType      string
-	database        string
+	database        *string
 	table           *string
 	column          *string
 	granteeUserName *string
@@ -9811,7 +9811,7 @@ type ClientMockRevokeGrantPrivilegeParamPtrs struct {
 	ctx             *context.Context
 	serviceID       *string
 	accessType      *string
-	database        *string
+	database        **string
 	table           **string
 	column          **string
 	granteeUserName **string
@@ -9834,7 +9834,7 @@ func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Optional() *mClie
 }
 
 // Expect sets up expected params for Client.RevokeGrantPrivilege
-func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Expect(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *mClientMockRevokeGrantPrivilege {
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Expect(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *mClientMockRevokeGrantPrivilege {
 	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
 		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
 	}
@@ -9924,7 +9924,7 @@ func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectAccessTypeP
 }
 
 // ExpectDatabaseParam4 sets up expected param database for Client.RevokeGrantPrivilege
-func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectDatabaseParam4(database string) *mClientMockRevokeGrantPrivilege {
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectDatabaseParam4(database *string) *mClientMockRevokeGrantPrivilege {
 	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
 		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
 	}
@@ -10034,7 +10034,7 @@ func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) ExpectGranteeRole
 }
 
 // Inspect accepts an inspector function that has same arguments as the Client.RevokeGrantPrivilege
-func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Inspect(f func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string)) *mClientMockRevokeGrantPrivilege {
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Inspect(f func(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string)) *mClientMockRevokeGrantPrivilege {
 	if mmRevokeGrantPrivilege.mock.inspectFuncRevokeGrantPrivilege != nil {
 		mmRevokeGrantPrivilege.mock.t.Fatalf("Inspect function is already set for ClientMock.RevokeGrantPrivilege")
 	}
@@ -10058,7 +10058,7 @@ func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Return(err error)
 }
 
 // Set uses given function f to mock the Client.RevokeGrantPrivilege method
-func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Set(f func(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (err error)) *ClientMock {
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Set(f func(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (err error)) *ClientMock {
 	if mmRevokeGrantPrivilege.defaultExpectation != nil {
 		mmRevokeGrantPrivilege.mock.t.Fatalf("Default expectation is already set for the Client.RevokeGrantPrivilege method")
 	}
@@ -10073,7 +10073,7 @@ func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) Set(f func(ctx co
 
 // When sets expectation for the Client.RevokeGrantPrivilege which will trigger the result defined by the following
 // Then helper
-func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) When(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *ClientMockRevokeGrantPrivilegeExpectation {
+func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) When(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) *ClientMockRevokeGrantPrivilegeExpectation {
 	if mmRevokeGrantPrivilege.mock.funcRevokeGrantPrivilege != nil {
 		mmRevokeGrantPrivilege.mock.t.Fatalf("ClientMock.RevokeGrantPrivilege mock is already set by Set")
 	}
@@ -10113,7 +10113,7 @@ func (mmRevokeGrantPrivilege *mClientMockRevokeGrantPrivilege) invocationsDone()
 }
 
 // RevokeGrantPrivilege implements Client
-func (mmRevokeGrantPrivilege *ClientMock) RevokeGrantPrivilege(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (err error) {
+func (mmRevokeGrantPrivilege *ClientMock) RevokeGrantPrivilege(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (err error) {
 	mm_atomic.AddUint64(&mmRevokeGrantPrivilege.beforeRevokeGrantPrivilegeCounter, 1)
 	defer mm_atomic.AddUint64(&mmRevokeGrantPrivilege.afterRevokeGrantPrivilegeCounter, 1)
 

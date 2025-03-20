@@ -19,7 +19,7 @@ func Test_grantPrivilegeQuery(t *testing.T) {
 			name: "ALL on all tables in default to user",
 			grantPrivilege: GrantPrivilege{
 				AccessType:      "ALL",
-				DatabaseName:    "default",
+				DatabaseName:    toStrPtr("default"),
 				TableName:       nil,
 				ColumnName:      nil,
 				GranteeUserName: toStrPtr("john"),
@@ -34,7 +34,7 @@ func Test_grantPrivilegeQuery(t *testing.T) {
 			name: "ALL on all tables in default to role",
 			grantPrivilege: GrantPrivilege{
 				AccessType:      "ALL",
-				DatabaseName:    "default",
+				DatabaseName:    toStrPtr("default"),
 				TableName:       nil,
 				ColumnName:      nil,
 				GranteeUserName: nil,
@@ -49,7 +49,7 @@ func Test_grantPrivilegeQuery(t *testing.T) {
 			name: "ALL on specific table in default to user",
 			grantPrivilege: GrantPrivilege{
 				AccessType:      "ALL",
-				DatabaseName:    "default",
+				DatabaseName:    toStrPtr("default"),
 				TableName:       toStrPtr("tbl1"),
 				ColumnName:      nil,
 				GranteeUserName: toStrPtr("john"),
@@ -64,7 +64,7 @@ func Test_grantPrivilegeQuery(t *testing.T) {
 			name: "SELECT on specific column and specific table in default to user",
 			grantPrivilege: GrantPrivilege{
 				AccessType:      "SELECT",
-				DatabaseName:    "default",
+				DatabaseName:    toStrPtr("default"),
 				TableName:       toStrPtr("tbl1"),
 				ColumnName:      toStrPtr("col1"),
 				GranteeUserName: toStrPtr("john"),
@@ -79,7 +79,7 @@ func Test_grantPrivilegeQuery(t *testing.T) {
 			name: "UPDATE TABLE on specific column and specific table in default to user",
 			grantPrivilege: GrantPrivilege{
 				AccessType:      "UPDATE TABLE",
-				DatabaseName:    "default",
+				DatabaseName:    toStrPtr("default"),
 				TableName:       toStrPtr("tbl1"),
 				ColumnName:      toStrPtr("col1"),
 				GranteeUserName: toStrPtr("john"),
@@ -94,7 +94,7 @@ func Test_grantPrivilegeQuery(t *testing.T) {
 			name: "ALL on specific column and specific table in default to user with grant option",
 			grantPrivilege: GrantPrivilege{
 				AccessType:      "ALL",
-				DatabaseName:    "default",
+				DatabaseName:    toStrPtr("default"),
 				TableName:       toStrPtr("tbl1"),
 				ColumnName:      nil,
 				GranteeUserName: toStrPtr("john"),
@@ -109,7 +109,7 @@ func Test_grantPrivilegeQuery(t *testing.T) {
 			name: "No user nor role set",
 			grantPrivilege: GrantPrivilege{
 				AccessType:      "ALL",
-				DatabaseName:    "default",
+				DatabaseName:    toStrPtr("default"),
 				TableName:       nil,
 				ColumnName:      nil,
 				GranteeUserName: nil,
@@ -147,7 +147,7 @@ func Test_getGrantPrivilegeQuery(t *testing.T) {
 	tests := []struct {
 		name            string
 		accessType      string
-		database        string
+		database        *string
 		table           *string
 		column          *string
 		granteeUserName *string
@@ -159,7 +159,7 @@ func Test_getGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "ALL on all tables in default to user",
 			accessType:      "ALL",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           nil,
 			column:          nil,
 			granteeUserName: toStrPtr("john"),
@@ -171,7 +171,7 @@ func Test_getGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "ALL on all tables in default to role",
 			accessType:      "ALL",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           nil,
 			column:          nil,
 			granteeUserName: nil,
@@ -183,7 +183,7 @@ func Test_getGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "ALL on specific table in default to user",
 			accessType:      "ALL",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           toStrPtr("tbl1"),
 			column:          nil,
 			granteeUserName: toStrPtr("john"),
@@ -195,7 +195,7 @@ func Test_getGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "SELECT on specific column and specific table in default to user",
 			accessType:      "SELECT",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           toStrPtr("tbl1"),
 			column:          toStrPtr("col1"),
 			granteeUserName: toStrPtr("john"),
@@ -207,7 +207,7 @@ func Test_getGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "UPDATE TABLE on specific column and specific table in default to user",
 			accessType:      "UPDATE TABLE",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           toStrPtr("tbl1"),
 			column:          toStrPtr("col1"),
 			granteeUserName: toStrPtr("john"),
@@ -219,7 +219,7 @@ func Test_getGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "No user nor role set",
 			accessType:      "ALL",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           nil,
 			column:          nil,
 			granteeUserName: nil,
@@ -255,7 +255,7 @@ func Test_revokeGrantPrivilegeQuery(t *testing.T) {
 	tests := []struct {
 		name            string
 		accessType      string
-		database        string
+		database        *string
 		table           *string
 		column          *string
 		granteeUserName *string
@@ -267,7 +267,7 @@ func Test_revokeGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "ALL on all tables in default to user",
 			accessType:      "ALL",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           nil,
 			column:          nil,
 			granteeUserName: toStrPtr("john"),
@@ -279,7 +279,7 @@ func Test_revokeGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "ALL on all tables in default to role",
 			accessType:      "ALL",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           nil,
 			column:          nil,
 			granteeUserName: nil,
@@ -291,7 +291,7 @@ func Test_revokeGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "ALL on specific table in default to user",
 			accessType:      "ALL",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           toStrPtr("tbl1"),
 			column:          nil,
 			granteeUserName: toStrPtr("john"),
@@ -303,7 +303,7 @@ func Test_revokeGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "SELECT on specific column and specific table in default to user",
 			accessType:      "SELECT",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           toStrPtr("tbl1"),
 			column:          toStrPtr("col1"),
 			granteeUserName: toStrPtr("john"),
@@ -315,7 +315,7 @@ func Test_revokeGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "UPDATE TABLE on specific column and specific table in default to user",
 			accessType:      "UPDATE TABLE",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           toStrPtr("tbl1"),
 			column:          toStrPtr("col1"),
 			granteeUserName: toStrPtr("john"),
@@ -327,7 +327,7 @@ func Test_revokeGrantPrivilegeQuery(t *testing.T) {
 		{
 			name:            "No user nor role set",
 			accessType:      "ALL",
-			database:        "default",
+			database:        toStrPtr("default"),
 			table:           nil,
 			column:          nil,
 			granteeUserName: nil,

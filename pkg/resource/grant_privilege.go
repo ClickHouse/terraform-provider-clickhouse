@@ -5,7 +5,7 @@ package resource
 import (
 	"context"
 	_ "embed"
-	"regexp"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -23,6 +23,146 @@ import (
 
 //go:embed descriptions/grant_privilege.md
 var grantPrivilegeDescription string
+
+var (
+	validDatabasePrivileges = []string{
+		"SHOW COLUMNS",
+		"ALTER UPDATE",
+		"ALTER DELETE",
+		"ALTER ADD COLUMN",
+		"ALTER MODIFY COLUMN",
+		"ALTER DROP COLUMN",
+		"ALTER COMMENT COLUMN",
+		"ALTER CLEAR COLUMN",
+		"ALTER RENAME COLUMN",
+		"ALTER MATERIALIZE COLUMN",
+		"ALTER COLUMN",
+		"ALTER MODIFY COMMENT",
+		"ALTER ORDER BY",
+		"ALTER SAMPLE BY",
+		"ALTER ADD INDEX",
+		"ALTER DROP INDEX",
+		"ALTER MATERIALIZE INDEX",
+		"ALTER CLEAR INDEX",
+		"ALTER INDEX",
+		"ALTER ADD STATISTICS",
+		"ALTER DROP STATISTICS",
+		"ALTER MODIFY STATISTICS",
+		"ALTER MATERIALIZE STATISTICS",
+		"ALTER STATISTICS",
+		"ALTER ADD PROJECTION",
+		"ALTER DROP PROJECTION",
+		"ALTER MATERIALIZE PROJECTION",
+		"ALTER CLEAR PROJECTION",
+		"ALTER PROJECTION",
+		"ALTER ADD CONSTRAINT",
+		"ALTER DROP CONSTRAINT",
+		"ALTER CONSTRAINT",
+		"ALTER TTL",
+		"ALTER MATERIALIZE TTL",
+		"ALTER SETTINGS",
+		"ALTER MOVE PARTITION",
+		"ALTER FETCH PARTITION",
+		"ALTER FREEZE PARTITION",
+		"ALTER TABLE",
+		"ALTER DATABASE",
+		"ALTER VIEW MODIFY QUERY",
+		"ALTER VIEW MODIFY REFRESH",
+		"ALTER VIEW MODIFY SQL SECURITY",
+		"ALTER VIEW",
+		"CREATE TABLE",
+		"CREATE VIEW",
+		"CREATE DICTIONARY",
+		"DROP TABLE",
+		"DROP VIEW",
+		"DROP DICTIONARY",
+		"TRUNCATE",
+		"OPTIMIZE",
+		"CREATE ROW POLICY",
+		"ALTER ROW POLICY",
+		"DROP ROW POLICY",
+		"SHOW ROW POLICIES",
+		"SYSTEM VIEWS",
+		"dictGet",
+	}
+
+	validGlobalPrivileges = []string{
+		"CREATE TEMPORARY TABLE",
+		"CREATE ARBITRARY TEMPORARY TABLE",
+		"CREATE FUNCTION",
+		"DROP FUNCTION",
+		"KILL QUERY",
+		"CREATE USER",
+		"ALTER USER",
+		"DROP USER",
+		"CREATE ROLE",
+		"ALTER ROLE",
+		"DROP ROLE",
+		"ROLE ADMIN",
+		"CREATE QUOTA",
+		"ALTER QUOTA",
+		"DROP QUOTA",
+		"CREATE SETTINGS PROFILE",
+		"ALTER SETTINGS PROFILE",
+		"DROP SETTINGS PROFILE",
+		"ALLOW SQL SECURITY NONE",
+		"SHOW USERS",
+		"SHOW ROLES",
+		"SHOW QUOTAS",
+		"SHOW SETTINGS PROFILES",
+		"SYSTEM DROP DNS CACHE",
+		"SYSTEM DROP CONNECTIONS CACHE",
+		"SYSTEM PREWARM PRIMARY INDEX CACHE",
+		"SYSTEM DROP MARK CACHE",
+		"SYSTEM PREWARM PRIMARY INDEX CACHE",
+		"SYSTEM DROP PRIMARY INDEX CACHE",
+		"SYSTEM DROP UNCOMPRESSED CACHE",
+		"SYSTEM DROP MMAP CACHE",
+		"SYSTEM DROP QUERY CACHE",
+		"SYSTEM DROP COMPILED EXPRESSION CACHE",
+		"SYSTEM DROP FILESYSTEM CACHE",
+		"SYSTEM DROP DISTRIBUTED CACHE",
+		"SYSTEM DROP PAGE CACHE",
+		"SYSTEM DROP SCHEMA CACHE",
+		// "SYSTEM DROP FORMAT SCHEMA CACHE", // Server side error
+		"SYSTEM DROP S3 CLIENT CACHE",
+		"SYSTEM DROP CACHE",
+		"SYSTEM RELOAD CONFIG",
+		"SYSTEM RELOAD DICTIONARY",
+		"SYSTEM RELOAD MODEL",
+		"SYSTEM RELOAD FUNCTION",
+		"SYSTEM RELOAD EMBEDDED DICTIONARIES",
+		"SYSTEM FLUSH LOGS",
+		"addressToLine",
+		"addressToLineWithInlines",
+		"addressToSymbol",
+		"demangle",
+		"INTROSPECTION",
+		"URL",
+		"REMOTE",
+		"MONGO",
+		"REDIS",
+		"MYSQL",
+		"POSTGRES",
+		"S3",
+		"AZURE",
+		"KAFKA",
+		"NATS",
+		"RABBITMQ",
+		"CLUSTER",
+	}
+
+	validGlobalOrDatabasePrivileges = []string{
+		"SHOW DATABASES",
+		"SHOW TABLES",
+		"SHOW DICTIONARIES",
+		"CREATE DATABASE",
+		"SYSTEM SYNC REPLICA",
+		"SYSTEM RESTART REPLICA",
+		"SYSTEM SYNC DATABASE REPLICA",
+		"SYSTEM FLUSH DISTRIBUTED",
+	}
+)
 
 var (
 	_ resource.Resource              = &GrantPrivilegeResource{}
@@ -53,19 +193,17 @@ func (r *GrantPrivilegeResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"privilege_name": schema.StringAttribute{
 				Required:    true,
-				Description: "The privilege to grant, such as `SELECT`, `INSERT`, etc. See https://clickhouse.com/docs/en/sql-reference/statements/grant#privileges.",
+				Description: "The privilege to grant, such as `CREATE DATABASE`, `SELECT`, etc. See https://clickhouse.com/docs/en/sql-reference/statements/grant#privileges.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z0-9 ]+$`), "Invalid privilege name"),
-					stringvalidator.NoneOfCaseInsensitive("ALL"),
+					//stringvalidator.OneOf(append(validDatabasePrivileges, append(validGlobalPrivileges, validGlobalOrDatabasePrivileges...)...)...),
 				},
 			},
 			"database_name": schema.StringAttribute{
-				Required:    true,
-				Description: "The name of the database to grant privilege on.",
+				Optional:    true,
+				Description: "The name of the database to grant privilege on. Defaults to all databases if left null",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -144,6 +282,56 @@ func (r *GrantPrivilegeResource) Configure(_ context.Context, req resource.Confi
 	r.client = req.ProviderData.(api.Client)
 }
 
+func (r *GrantPrivilegeResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		// If the entire plan is null, the resource is planned for destruction.
+		return
+	}
+
+	var plan, state, config models.GrantPrivilege
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if !req.State.Raw.IsNull() {
+		diags = req.State.Get(ctx, &state)
+		resp.Diagnostics.Append(diags...)
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !req.Config.Raw.IsNull() {
+		diags = req.Config.Get(ctx, &config)
+		resp.Diagnostics.Append(diags...)
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.Database.IsNull() {
+		for _, p := range validDatabasePrivileges {
+			if p == plan.Privilege.ValueString() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("database"),
+					"Invalid Grant Privilege",
+					fmt.Sprintf("'database' must be set when privilege_name is %q", p),
+				)
+				return
+			}
+		}
+	} else {
+		for _, p := range validGlobalPrivileges {
+			if p == plan.Privilege.ValueString() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("database"),
+					"Invalid Grant Privilege",
+					fmt.Sprintf("'database' must be null when 'privilege_name' is %q", p),
+				)
+				return
+			}
+		}
+	}
+}
+
 func (r *GrantPrivilegeResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan models.GrantPrivilege
 	diags := req.Plan.Get(ctx, &plan)
@@ -154,7 +342,7 @@ func (r *GrantPrivilegeResource) Create(ctx context.Context, req resource.Create
 
 	grant := api.GrantPrivilege{
 		AccessType:      plan.Privilege.ValueString(),
-		DatabaseName:    plan.Database.ValueString(),
+		DatabaseName:    plan.Database.ValueStringPointer(),
 		TableName:       plan.Table.ValueStringPointer(),
 		ColumnName:      plan.Column.ValueStringPointer(),
 		GranteeUserName: plan.GranteeUserName.ValueStringPointer(),
@@ -174,7 +362,7 @@ func (r *GrantPrivilegeResource) Create(ctx context.Context, req resource.Create
 	state := models.GrantPrivilege{
 		ServiceID:       plan.ServiceID,
 		Privilege:       types.StringValue(createdGrant.AccessType),
-		Database:        types.StringValue(createdGrant.DatabaseName),
+		Database:        types.StringPointerValue(createdGrant.DatabaseName),
 		Table:           types.StringPointerValue(createdGrant.TableName),
 		Column:          types.StringPointerValue(createdGrant.ColumnName),
 		GranteeUserName: types.StringPointerValue(createdGrant.GranteeUserName),
@@ -197,7 +385,7 @@ func (r *GrantPrivilegeResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	grant, err := r.client.GetGrantPrivilege(ctx, state.ServiceID.ValueString(), state.Privilege.ValueString(), state.Database.ValueString(), state.Table.ValueStringPointer(), state.Column.ValueStringPointer(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
+	grant, err := r.client.GetGrantPrivilege(ctx, state.ServiceID.ValueString(), state.Privilege.ValueString(), state.Database.ValueStringPointer(), state.Table.ValueStringPointer(), state.Column.ValueStringPointer(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading ClickHouse Privilege Grant",
@@ -208,7 +396,7 @@ func (r *GrantPrivilegeResource) Read(ctx context.Context, req resource.ReadRequ
 
 	if grant != nil {
 		state.Privilege = types.StringValue(grant.AccessType)
-		state.Database = types.StringValue(grant.DatabaseName)
+		state.Database = types.StringPointerValue(grant.DatabaseName)
 		state.Table = types.StringPointerValue(grant.TableName)
 		state.Column = types.StringPointerValue(grant.ColumnName)
 		state.GranteeUserName = types.StringPointerValue(grant.GranteeUserName)
@@ -234,7 +422,7 @@ func (r *GrantPrivilegeResource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
-	err := r.client.RevokeGrantPrivilege(ctx, state.ServiceID.ValueString(), state.Privilege.ValueString(), state.Database.ValueString(), state.Table.ValueStringPointer(), state.Column.ValueStringPointer(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
+	err := r.client.RevokeGrantPrivilege(ctx, state.ServiceID.ValueString(), state.Privilege.ValueString(), state.Database.ValueStringPointer(), state.Table.ValueStringPointer(), state.Column.ValueStringPointer(), state.GranteeUserName.ValueStringPointer(), state.GranteeRoleName.ValueStringPointer())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting ClickHouse Privilege Grant",
