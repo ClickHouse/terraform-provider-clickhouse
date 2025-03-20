@@ -58,9 +58,9 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 		req.Body.Close()
 		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		{
-			//var buf bytes.Buffer
-			//err := json.Indent(&buf, bodyBytes, "", "  ")
-			//if err != nil {
+			// var buf bytes.Buffer
+			// err := json.Indent(&buf, bodyBytes, "", "  ")
+			// if err != nil {
 			// Parsing/indentation failed, fallback to raw body
 			ctx = tflog.SetField(ctx, "requestBody", string(bodyBytes))
 			//} else {
