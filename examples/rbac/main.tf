@@ -114,6 +114,14 @@ resource "clickhouse_grant_privilege" "grant_show_to_role" {
 }
 
 # Requires 'query_api_endpoints' to be enabled in the service.
+resource "clickhouse_grant_privilege" "grant_global_privilege" {
+  service_id        = clickhouse_service.service.id
+  privilege_name    = "REMOTE"
+  grantee_role_name = clickhouse_role.writer.name
+  grant_option      = false
+}
+
+# Requires 'query_api_endpoints' to be enabled in the service.
 resource "clickhouse_grant_privilege" "grant_dictget_to_role" {
   service_id        = clickhouse_service.service.id
   privilege_name    = "dictGet"

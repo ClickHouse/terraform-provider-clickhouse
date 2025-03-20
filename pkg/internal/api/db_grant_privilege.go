@@ -12,7 +12,7 @@ import (
 
 type GrantPrivilege struct {
 	AccessType      string  `json:"access_type"`
-	DatabaseName    string  `json:"database"`
+	DatabaseName    *string `json:"database"`
 	TableName       *string `json:"table"`
 	ColumnName      *string `json:"column"`
 	GranteeUserName *string `json:"user_name"`
@@ -49,7 +49,7 @@ func (c *ClientImpl) GrantPrivilege(ctx context.Context, serviceID string, grant
 	return createdGrant, nil
 }
 
-func (c *ClientImpl) GetGrantPrivilege(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (*GrantPrivilege, error) {
+func (c *ClientImpl) GetGrantPrivilege(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (*GrantPrivilege, error) {
 	query, args, err := getGrantPrivilegeQuery(accessType, database, table, column, granteeUserName, granteeRoleName)
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func (c *ClientImpl) GetGrantPrivilege(ctx context.Context, serviceID string, ac
 	return &grant, nil
 }
 
-func (c *ClientImpl) RevokeGrantPrivilege(ctx context.Context, serviceID string, accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) error {
+func (c *ClientImpl) RevokeGrantPrivilege(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) error {
 	query, args, err := revokePrivilegeQuery(accessType, database, table, column, granteeUserName, granteeRoleName)
 	if err != nil {
 		return err
@@ -125,13 +125,17 @@ func grantPrivilegeQuery(grantPrivilege GrantPrivilege) (string, []interface{}, 
 
 	// Target database/table
 	{
-		args = append(args, sqlbuilder.Raw(sqlutil.EscapeBacktick(grantPrivilege.DatabaseName)))
+		if grantPrivilege.DatabaseName != nil {
+			args = append(args, sqlbuilder.Raw(sqlutil.EscapeBacktick(*grantPrivilege.DatabaseName)))
 
-		if grantPrivilege.TableName == nil {
-			query = fmt.Sprintf("%s ON `$?`.*", query)
+			if grantPrivilege.TableName == nil {
+				query = fmt.Sprintf("%s ON `$?`.*", query)
+			} else {
+				query = fmt.Sprintf("%s ON `$?`.`$?`", query)
+				args = append(args, sqlbuilder.Raw(sqlutil.EscapeBacktick(*grantPrivilege.TableName)))
+			}
 		} else {
-			query = fmt.Sprintf("%s ON `$?`.`$?`", query)
-			args = append(args, sqlbuilder.Raw(sqlutil.EscapeBacktick(*grantPrivilege.TableName)))
+			query = fmt.Sprintf("%s ON *.*", query)
 		}
 	}
 
@@ -158,11 +162,17 @@ func grantPrivilegeQuery(grantPrivilege GrantPrivilege) (string, []interface{}, 
 	return query, args, nil
 }
 
-func getGrantPrivilegeQuery(accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (string, []interface{}, error) {
-	query := "SELECT access_type, database, table, column, user_name, role_name, toBool(grant_option) as grant_option FROM system.grants WHERE access_type = ${access_type} AND database = ${database}"
+func getGrantPrivilegeQuery(accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (string, []interface{}, error) {
+	query := "SELECT access_type, database, table, column, user_name, role_name, toBool(grant_option) as grant_option FROM system.grants WHERE access_type = ${access_type}"
 	args := []interface{}{
 		sqlbuilder.Named("access_type", accessType),
-		sqlbuilder.Named("database", database),
+	}
+
+	if database != nil {
+		query = fmt.Sprintf("%s AND database = ${database}", query)
+		args = append(args, sqlbuilder.Named("database", *database))
+	} else {
+		query = fmt.Sprintf("%s AND database IS NULL", query)
 	}
 
 	if table != nil {
@@ -192,7 +202,7 @@ func getGrantPrivilegeQuery(accessType string, database string, table *string, c
 	return query, args, nil
 }
 
-func revokePrivilegeQuery(accessType string, database string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (string, []interface{}, error) {
+func revokePrivilegeQuery(accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (string, []interface{}, error) {
 	query := "REVOKE $?"
 	args := make([]interface{}, 0)
 
@@ -208,13 +218,17 @@ func revokePrivilegeQuery(accessType string, database string, table *string, col
 
 	// Target database/table
 	{
-		args = append(args, sqlbuilder.Raw(sqlutil.EscapeBacktick(database)))
+		if database != nil {
+			args = append(args, sqlbuilder.Raw(sqlutil.EscapeBacktick(*database)))
 
-		if table == nil {
-			query = fmt.Sprintf("%s ON `$?`.*", query)
+			if table == nil {
+				query = fmt.Sprintf("%s ON `$?`.*", query)
+			} else {
+				query = fmt.Sprintf("%s ON `$?`.`$?`", query)
+				args = append(args, sqlbuilder.Raw(sqlutil.EscapeBacktick(*table)))
+			}
 		} else {
-			query = fmt.Sprintf("%s ON `$?`.`$?`", query)
-			args = append(args, sqlbuilder.Raw(sqlutil.EscapeBacktick(*table)))
+			query = fmt.Sprintf("%s ON *.*", query)
 		}
 	}
 
