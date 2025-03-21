@@ -68,9 +68,9 @@ resource "clickhouse_service" "service" {
   max_replica_memory_gb = 120
 
   backup_configuration = {
-    backup_period_in_hours           = 24
+    backup_period_in_hours           = null
     backup_retention_period_in_hours = 24
-    backup_start_time                = null
+    backup_start_time                = "02:00"
   }
 }
 
