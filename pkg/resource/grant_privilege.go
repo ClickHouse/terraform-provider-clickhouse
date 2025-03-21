@@ -66,6 +66,10 @@ func (r *GrantPrivilegeResource) Schema(_ context.Context, _ resource.SchemaRequ
 		validPrivileges = append(validPrivileges, alias)
 	}
 
+	for groupName := range upstrGrts.Groups {
+		validPrivileges = append(validPrivileges, groupName)
+	}
+
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_id": schema.StringAttribute{
