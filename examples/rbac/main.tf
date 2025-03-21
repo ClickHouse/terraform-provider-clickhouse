@@ -76,77 +76,85 @@ resource "clickhouse_user" "john" {
   password_sha256_hash = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" # sha256 of 'test'
 }
 
-# Requires 'query_api_endpoints' to be enabled in the service.
-resource "clickhouse_role" "writer" {
-  service_id           = clickhouse_service.service.id
-  name                 = "writer"
-}
-
-# Requires 'query_api_endpoints' to be enabled in the service.
-resource "clickhouse_grant_role" "writer_to_john" {
+resource "clickhouse_grant_privilege" "grant" {
   service_id        = clickhouse_service.service.id
-  role_name         = clickhouse_role.writer.name
+  privilege_name    = "ALTER VIEW MODIFY QUERY"
+  # database_name     = "default"
   grantee_user_name = clickhouse_user.john.name
-  admin_option      = false
-}
-
-# Requires 'query_api_endpoints' to be enabled in the service.
-resource "clickhouse_role" "manager" {
-  service_id           = clickhouse_service.service.id
-  name                 = "manager"
-}
-
-# Requires 'query_api_endpoints' to be enabled in the service.
-resource "clickhouse_grant_role" "writer_to_manager" {
-  service_id        = clickhouse_service.service.id
-  role_name         = clickhouse_role.writer.name
-  grantee_role_name = clickhouse_role.manager.name
-  admin_option      = false
-}
-
-# Requires 'query_api_endpoints' to be enabled in the service.
-resource "clickhouse_grant_privilege" "grant_show_to_role" {
-  service_id        = clickhouse_service.service.id
-  privilege_name    = "SHOW"
-  database_name     = "default"
-  grantee_role_name = clickhouse_role.writer.name
   grant_option      = false
 }
 
-# Requires 'query_api_endpoints' to be enabled in the service.
-resource "clickhouse_grant_privilege" "grant_global_privilege" {
-  service_id        = clickhouse_service.service.id
-  privilege_name    = "REMOTE"
-  grantee_role_name = clickhouse_role.writer.name
-  grant_option      = false
-}
-
-# Requires 'query_api_endpoints' to be enabled in the service.
-resource "clickhouse_grant_privilege" "grant_dictget_to_role" {
-  service_id        = clickhouse_service.service.id
-  privilege_name    = "dictGet"
-  database_name     = "default"
-  grantee_role_name = clickhouse_role.writer.name
-  grant_option      = false
-}
-
-# Requires 'query_api_endpoints' to be enabled in the service.
-resource "clickhouse_grant_privilege" "grant_insert_on_table_to_user" {
-  service_id        = clickhouse_service.service.id
-  privilege_name    = "INSERT"
-  database_name     = "default"
-  table_name        = "tbl1"
-  grantee_user_name = clickhouse_user.john.name
-  grant_option      = true
-}
-
-# Requires 'query_api_endpoints' to be enabled in the service.
-resource "clickhouse_grant_privilege" "grant_select_on_single_column_on_table_to_user" {
-  service_id        = clickhouse_service.service.id
-  privilege_name    = "SELECT"
-  database_name     = "default"
-  table_name        = "tbl1"
-  column_name       = "count"
-  grantee_user_name = clickhouse_user.john.name
-  grant_option      = true
-}
+# # Requires 'query_api_endpoints' to be enabled in the service.
+# resource "clickhouse_role" "writer" {
+#   service_id           = clickhouse_service.service.id
+#   name                 = "writer"
+# }
+#
+# # Requires 'query_api_endpoints' to be enabled in the service.
+# resource "clickhouse_grant_role" "writer_to_john" {
+#   service_id        = clickhouse_service.service.id
+#   role_name         = clickhouse_role.writer.name
+#   grantee_user_name = clickhouse_user.john.name
+#   admin_option      = false
+# }
+#
+# # Requires 'query_api_endpoints' to be enabled in the service.
+# resource "clickhouse_role" "manager" {
+#   service_id           = clickhouse_service.service.id
+#   name                 = "manager"
+# }
+#
+# # Requires 'query_api_endpoints' to be enabled in the service.
+# resource "clickhouse_grant_role" "writer_to_manager" {
+#   service_id        = clickhouse_service.service.id
+#   role_name         = clickhouse_role.writer.name
+#   grantee_role_name = clickhouse_role.manager.name
+#   admin_option      = false
+# }
+#
+# # Requires 'query_api_endpoints' to be enabled in the service.
+# resource "clickhouse_grant_privilege" "grant_show_to_role" {
+#   service_id        = clickhouse_service.service.id
+#   privilege_name    = "SHOW"
+#   database_name     = "default"
+#   grantee_role_name = clickhouse_role.writer.name
+#   grant_option      = false
+# }
+#
+# # Requires 'query_api_endpoints' to be enabled in the service.
+# resource "clickhouse_grant_privilege" "grant_global_privilege" {
+#   service_id        = clickhouse_service.service.id
+#   privilege_name    = "REMOTE"
+#   grantee_role_name = clickhouse_role.writer.name
+#   grant_option      = false
+# }
+#
+# # Requires 'query_api_endpoints' to be enabled in the service.
+# resource "clickhouse_grant_privilege" "grant_dictget_to_role" {
+#   service_id        = clickhouse_service.service.id
+#   privilege_name    = "dictGet"
+#   database_name     = "default"
+#   grantee_role_name = clickhouse_role.writer.name
+#   grant_option      = false
+# }
+#
+# # Requires 'query_api_endpoints' to be enabled in the service.
+# resource "clickhouse_grant_privilege" "grant_insert_on_table_to_user" {
+#   service_id        = clickhouse_service.service.id
+#   privilege_name    = "INSERT"
+#   database_name     = "default"
+#   table_name        = "tbl1"
+#   grantee_user_name = clickhouse_user.john.name
+#   grant_option      = true
+# }
+#
+# # Requires 'query_api_endpoints' to be enabled in the service.
+# resource "clickhouse_grant_privilege" "grant_select_on_single_column_on_table_to_user" {
+#   service_id        = clickhouse_service.service.id
+#   privilege_name    = "SELECT"
+#   database_name     = "default"
+#   table_name        = "tbl1"
+#   column_name       = "count"
+#   grantee_user_name = clickhouse_user.john.name
+#   grant_option      = true
+# }
