@@ -2,7 +2,7 @@
 terraform {
   required_providers {
     clickhouse = {
-      version = "2.2.0-alpha4"
+      version = "2.2.0-alpha5"
       source  = "ClickHouse/clickhouse"
     }
   }
