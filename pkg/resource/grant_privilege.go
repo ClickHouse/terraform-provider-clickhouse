@@ -3,9 +3,12 @@
 package resource
 
 import (
+	"bufio"
 	"context"
 	_ "embed"
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -24,145 +27,14 @@ import (
 //go:embed descriptions/grant_privilege.md
 var grantPrivilegeDescription string
 
-var (
-	validDatabasePrivileges = []string{
-		"SHOW COLUMNS",
-		"ALTER UPDATE",
-		"ALTER DELETE",
-		"ALTER ADD COLUMN",
-		"ALTER MODIFY COLUMN",
-		"ALTER DROP COLUMN",
-		"ALTER COMMENT COLUMN",
-		"ALTER CLEAR COLUMN",
-		"ALTER RENAME COLUMN",
-		"ALTER MATERIALIZE COLUMN",
-		"ALTER COLUMN",
-		"ALTER MODIFY COMMENT",
-		"ALTER ORDER BY",
-		"ALTER SAMPLE BY",
-		"ALTER ADD INDEX",
-		"ALTER DROP INDEX",
-		"ALTER MATERIALIZE INDEX",
-		"ALTER CLEAR INDEX",
-		"ALTER INDEX",
-		"ALTER ADD STATISTICS",
-		"ALTER DROP STATISTICS",
-		"ALTER MODIFY STATISTICS",
-		"ALTER MATERIALIZE STATISTICS",
-		"ALTER STATISTICS",
-		"ALTER ADD PROJECTION",
-		"ALTER DROP PROJECTION",
-		"ALTER MATERIALIZE PROJECTION",
-		"ALTER CLEAR PROJECTION",
-		"ALTER PROJECTION",
-		"ALTER ADD CONSTRAINT",
-		"ALTER DROP CONSTRAINT",
-		"ALTER CONSTRAINT",
-		"ALTER TTL",
-		"ALTER MATERIALIZE TTL",
-		"ALTER SETTINGS",
-		"ALTER MOVE PARTITION",
-		"ALTER FETCH PARTITION",
-		"ALTER FREEZE PARTITION",
-		"ALTER TABLE",
-		"ALTER DATABASE",
-		"ALTER VIEW MODIFY QUERY",
-		"ALTER VIEW MODIFY REFRESH",
-		"ALTER VIEW MODIFY SQL SECURITY",
-		"ALTER VIEW",
-		"CREATE TABLE",
-		"CREATE VIEW",
-		"CREATE DICTIONARY",
-		"DROP TABLE",
-		"DROP VIEW",
-		"DROP DICTIONARY",
-		"TRUNCATE",
-		"OPTIMIZE",
-		"CREATE ROW POLICY",
-		"ALTER ROW POLICY",
-		"DROP ROW POLICY",
-		"SHOW ROW POLICIES",
-		"SYSTEM VIEWS",
-		"dictGet",
-	}
+//go:embed data/grants.tsv
+var grants string
 
-	validGlobalPrivileges = []string{
-		"CREATE TEMPORARY TABLE",
-		"CREATE ARBITRARY TEMPORARY TABLE",
-		"CREATE FUNCTION",
-		"DROP FUNCTION",
-		"KILL QUERY",
-		"CREATE USER",
-		"ALTER USER",
-		"DROP USER",
-		"CREATE ROLE",
-		"ALTER ROLE",
-		"DROP ROLE",
-		"ROLE ADMIN",
-		"CREATE QUOTA",
-		"ALTER QUOTA",
-		"DROP QUOTA",
-		"CREATE SETTINGS PROFILE",
-		"ALTER SETTINGS PROFILE",
-		"DROP SETTINGS PROFILE",
-		"ALLOW SQL SECURITY NONE",
-		"SHOW USERS",
-		"SHOW ROLES",
-		"SHOW QUOTAS",
-		"SHOW SETTINGS PROFILES",
-		"SYSTEM DROP DNS CACHE",
-		"SYSTEM DROP CONNECTIONS CACHE",
-		"SYSTEM PREWARM PRIMARY INDEX CACHE",
-		"SYSTEM DROP MARK CACHE",
-		"SYSTEM PREWARM PRIMARY INDEX CACHE",
-		"SYSTEM DROP PRIMARY INDEX CACHE",
-		"SYSTEM DROP UNCOMPRESSED CACHE",
-		"SYSTEM DROP MMAP CACHE",
-		"SYSTEM DROP QUERY CACHE",
-		"SYSTEM DROP COMPILED EXPRESSION CACHE",
-		"SYSTEM DROP FILESYSTEM CACHE",
-		"SYSTEM DROP DISTRIBUTED CACHE",
-		"SYSTEM DROP PAGE CACHE",
-		"SYSTEM DROP SCHEMA CACHE",
-		// "SYSTEM DROP FORMAT SCHEMA CACHE", // Server side error
-		"SYSTEM DROP S3 CLIENT CACHE",
-		"SYSTEM DROP CACHE",
-		"SYSTEM RELOAD CONFIG",
-		"SYSTEM RELOAD DICTIONARY",
-		"SYSTEM RELOAD MODEL",
-		"SYSTEM RELOAD FUNCTION",
-		"SYSTEM RELOAD EMBEDDED DICTIONARIES",
-		"SYSTEM FLUSH LOGS",
-		"addressToLine",
-		"addressToLineWithInlines",
-		"addressToSymbol",
-		"demangle",
-		"INTROSPECTION",
-		"URL",
-		"REMOTE",
-		"MONGO",
-		"REDIS",
-		"MYSQL",
-		"POSTGRES",
-		"S3",
-		"AZURE",
-		"KAFKA",
-		"NATS",
-		"RABBITMQ",
-		"CLUSTER",
-	}
-
-	validGlobalOrDatabasePrivileges = []string{
-		"SHOW DATABASES",
-		"SHOW TABLES",
-		"SHOW DICTIONARIES",
-		"CREATE DATABASE",
-		"SYSTEM SYNC REPLICA",
-		"SYSTEM RESTART REPLICA",
-		"SYSTEM SYNC DATABASE REPLICA",
-		"SYSTEM FLUSH DISTRIBUTED",
-	}
-)
+type availableGrants struct {
+	Aliases map[string]string   `json:"aliases"`
+	Groups  map[string][]string `json:"groups"`
+	Scopes  map[string]string   `json:"scopes"`
+}
 
 var (
 	_ resource.Resource              = &GrantPrivilegeResource{}
@@ -182,6 +54,22 @@ func (r *GrantPrivilegeResource) Metadata(_ context.Context, req resource.Metada
 }
 
 func (r *GrantPrivilegeResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	validPrivileges := make([]string, 0)
+
+	upstrGrts := parseGrants()
+
+	for privilege := range upstrGrts.Scopes {
+		validPrivileges = append(validPrivileges, privilege)
+	}
+
+	for alias := range upstrGrts.Aliases {
+		validPrivileges = append(validPrivileges, alias)
+	}
+
+	for groupName := range upstrGrts.Groups {
+		validPrivileges = append(validPrivileges, groupName)
+	}
+
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_id": schema.StringAttribute{
@@ -198,7 +86,7 @@ func (r *GrantPrivilegeResource) Schema(_ context.Context, _ resource.SchemaRequ
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					//stringvalidator.OneOf(append(validDatabasePrivileges, append(validGlobalPrivileges, validGlobalOrDatabasePrivileges...)...)...),
+					stringvalidator.OneOf(validPrivileges...),
 				},
 			},
 			"database_name": schema.StringAttribute{
@@ -288,6 +176,8 @@ func (r *GrantPrivilegeResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
+	upstrGrts := parseGrants()
+
 	var plan, state, config models.GrantPrivilege
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -307,27 +197,54 @@ func (r *GrantPrivilegeResource) ModifyPlan(ctx context.Context, req resource.Mo
 		return
 	}
 
-	if plan.Database.IsNull() {
-		for _, p := range validDatabasePrivileges {
-			if p == plan.Privilege.ValueString() {
+	// Check if using an alias.
+	if alias := upstrGrts.Aliases[plan.Privilege.ValueString()]; alias != "" {
+		// Using an alias, block.
+		resp.Diagnostics.AddAttributeError(
+			path.Root("privilege_name"),
+			"Cannot use alias",
+			fmt.Sprintf("%q is an alias for %q. Please use %q instead", plan.Privilege.ValueString(), alias, alias),
+		)
+		return
+	}
+
+	// Check required fields which depend on the grant's scope.
+	{
+		scope := upstrGrts.Scopes[plan.Privilege.ValueString()]
+		switch scope {
+		case "GLOBAL":
+			if !plan.Database.IsNull() {
 				resp.Diagnostics.AddAttributeError(
 					path.Root("database"),
 					"Invalid Grant Privilege",
-					fmt.Sprintf("'database' must be set when privilege_name is %q", p),
+					fmt.Sprintf("'database' must be null when 'privilege_name' is %q", plan.Privilege.ValueString()),
 				)
 				return
 			}
-		}
-	} else {
-		for _, p := range validGlobalPrivileges {
-			if p == plan.Privilege.ValueString() {
+		case "COLUMN":
+			fallthrough
+		case "DICTIONARY":
+			fallthrough
+		case "VIEW":
+			if plan.Database.IsNull() {
 				resp.Diagnostics.AddAttributeError(
 					path.Root("database"),
 					"Invalid Grant Privilege",
-					fmt.Sprintf("'database' must be null when 'privilege_name' is %q", p),
+					fmt.Sprintf("'database' must be set when privilege_name is %q", plan.Privilege.ValueString()),
 				)
 				return
 			}
+		case "NAMED_COLLECTION":
+			fallthrough
+		case "USER_NAME":
+			fallthrough
+		case "TABLE ENGINE":
+			resp.Diagnostics.AddAttributeError(
+				path.Root("privilege_name"),
+				"Unsupported Privilege",
+				fmt.Sprintf("%q privilege_name is currently unsupported", plan.Privilege.ValueString()),
+			)
+			return
 		}
 	}
 }
@@ -430,4 +347,49 @@ func (r *GrantPrivilegeResource) Delete(ctx context.Context, req resource.Delete
 		)
 		return
 	}
+}
+
+func parseGrants() availableGrants {
+	aliases := make(map[string]string)
+	groups := make(map[string][]string)
+	scopes := make(map[string]string)
+
+	scanner := bufio.NewScanner(strings.NewReader(grants))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		splitted := strings.Split(line, "\t")
+
+		clean := strings.ReplaceAll(strings.Trim(splitted[1], "[]"), "'", "")
+		if clean != "" {
+			for _, a := range strings.Split(clean, ",") {
+				if a != splitted[0] {
+					aliases[a] = splitted[0]
+				}
+			}
+		}
+
+		if splitted[3] != "\\N" {
+			if groups[splitted[3]] == nil {
+				groups[splitted[3]] = make([]string, 0)
+			}
+			groups[splitted[3]] = append(groups[splitted[3]], splitted[0])
+		}
+
+		if splitted[2] != "\\N" {
+			scopes[splitted[0]] = splitted[2]
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	ret := availableGrants{
+		Aliases: aliases,
+		Groups:  groups,
+		Scopes:  scopes,
+	}
+
+	return ret
 }
