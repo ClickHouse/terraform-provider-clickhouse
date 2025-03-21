@@ -33,9 +33,9 @@ func (c *ClientImpl) GetBackupConfiguration(ctx context.Context, serviceId strin
 	// The API returns a default value of 24 for BackupPeriodInHours field even when BackupStartTime is set.
 	// This is logically wrong as both fields can't be set at the same time.
 	// We fix this by setting BackupPeriodInHours to nil in such case.
-	if backupConfigResponse.Result.BackupStartTime != nil && *backupConfigResponse.Result.BackupStartTime != "" {
-		backupConfigResponse.Result.BackupPeriodInHours = nil
-	}
+	//if backupConfigResponse.Result.BackupStartTime != nil && *backupConfigResponse.Result.BackupStartTime != "" {
+	//	backupConfigResponse.Result.BackupPeriodInHours = nil
+	//}
 
 	return &backupConfigResponse.Result, nil
 }
