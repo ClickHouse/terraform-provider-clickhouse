@@ -5,7 +5,7 @@ tmp_dir = "tmp"
 [build]
   args_bin = []
   bin = "./tmp/terraform-provider-clickhouse"
-  cmd = "go build -tags alpha -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=local-dev -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=dirty' -o ./tmp/terraform-provider-clickhouse ."
+  cmd = "go build -tags alpha -o ./tmp/terraform-provider-clickhouse ."
   delay = 1000
   exclude_dir = ["tmp"]
   exclude_file = []

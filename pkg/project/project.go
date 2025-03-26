@@ -1,8 +1,8 @@
 package project
 
 var (
-	version = ""
-	commit  = ""
+	version = "dirty"
+	commit  = "NA"
 )
 
 func Version() string {

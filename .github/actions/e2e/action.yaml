@@ -144,7 +144,7 @@ runs:
         git checkout ${{ github.ref }}        
         echo "::group::Build provider from branch and create terraformrc to use it"
         go get
-        go build -o terraform-provider-clickhouse
+        go build -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
 
         cat <<EOF >$HOME/.terraformrc
         provider_installation {
