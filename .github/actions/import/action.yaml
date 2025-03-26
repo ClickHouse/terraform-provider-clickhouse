@@ -1,10 +1,6 @@
 name: "Import existing resource in terraform"
 description: "Import existing resource in terraform"
 inputs:
-  enable_debug:
-    required: false
-    default: "false"
-    description: "If true it adds TF_LOG=debug to terraform commands"
   api_url:
     required: false
     description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
@@ -81,7 +77,7 @@ runs:
         git checkout ${{ github.ref }}        
         echo "::group::Build provider from branch and create terraformrc to use it"
         go get
-        go build -o terraform-provider-clickhouse
+        go build -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
 
         cat <<EOF >$HOME/.terraformrc
         provider_installation {
@@ -106,9 +102,7 @@ runs:
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
         
-        if [ "${{ inputs.enable_debug }}" == "true" ]; then
-          export TF_LOG=debug
-        fi
+        export TF_LOG=debug
         
         terraform init -input=false -upgrade
         terraform apply -no-color -var-file=variables.tfvars -auto-approve
@@ -133,10 +127,8 @@ runs:
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
 
-        if [ "${{ inputs.enable_debug }}" == "true" ]; then
-          export TF_LOG=debug
-        fi
-
+        export TF_LOG=debug
+        
         terraform init -input=false -upgrade
         terraform import -no-color -var-file=variables.tfvars clickhouse_${{ inputs.resource_type }}.import ${{ steps.apply.outputs.id }}
         echo "::endgroup::"
@@ -153,9 +145,7 @@ runs:
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
         
-        if [ "${{ inputs.enable_debug }}" == "true" ]; then
-          export TF_LOG=debug
-        fi
+        export TF_LOG=debug
         
         terraform destroy -no-color -auto-approve -var-file=variables.tfvars
         echo "::endgroup::"

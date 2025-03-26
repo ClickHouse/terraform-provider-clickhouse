@@ -76,7 +76,12 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 		return func() ([]byte, error) {
 			req.Header.Set("User-Agent", fmt.Sprintf("terraform-provider-clickhouse/%s Commit/%s", project.Version(), project.Commit()))
 
-			ctx = tflog.SetField(ctx, "requestHeaders", req.Header)
+			{
+				// Redact sensitive headers from logs.
+				headers := req.Header.Clone()
+				headers.Set("Authorization", "Basic REDACTED")
+				ctx = tflog.SetField(ctx, "requestHeaders", headers)
+			}
 			ctx = tflog.SetField(ctx, "attempt", attempt)
 			attempt = attempt + 1
 
