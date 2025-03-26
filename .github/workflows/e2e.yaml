@@ -76,7 +76,7 @@ jobs:
       - uses: ./.github/actions/find-tf-releases
         id: find
         with:
-          count: '1'
+          count: '3'
 
   list-examples:
     outputs:
