@@ -28,10 +28,6 @@ on:
         type: string
         default: ""
         description: "(Optional) API Key secret to use when API Env is 'Custom'"
-      enable_debug:
-        type: boolean
-        default: false
-        description: "Enable terraform debug log"
 
 defaults:
   run:
@@ -110,7 +106,6 @@ jobs:
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
           region: ${{ steps.credentials.outputs.region }}
-          enable_debug: ${{ inputs.enable_debug }}
 
       - name: Mark error
         id: status
