@@ -85,6 +85,9 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 			ctx = tflog.SetField(ctx, "attempt", attempt)
 			attempt = attempt + 1
 
+			start := time.Now()
+			ctx = tflog.SetField(ctx, "requestStartedAt", start.Format(time.RFC3339Nano))
+
 			res, err := c.HttpClient.Do(req)
 			if err != nil {
 				return nil, err
@@ -96,6 +99,10 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 				return nil, err
 			}
 
+			stop := time.Now()
+
+			ctx = tflog.SetField(ctx, "responseReceivedAt", stop.Format(time.RFC3339Nano))
+			ctx = tflog.SetField(ctx, "requestTimeMS", stop.Sub(start).Milliseconds())
 			ctx = tflog.SetField(ctx, "statusCode", res.StatusCode)
 			ctx = tflog.SetField(ctx, "responseHeaders", res.Header)
 			{
