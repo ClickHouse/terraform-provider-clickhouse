@@ -45,7 +45,7 @@ on:
         default: false
         description: "If checked, additionally create service using latest stable version, then upgrade to the current version"
   schedule:
-    - cron: "0/30 * * * *"
+    - cron: "0 3 * * *"
 
 defaults:
   run:
