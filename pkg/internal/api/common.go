@@ -49,7 +49,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 
 	req.SetBasicAuth(c.TokenKey, c.TokenSecret)
 
-	currentExponentialBackoff := float64(1)
+	currentExponentialBackoff := float64(4)
 	attempt := 1
 
 	// Copy the request body as a tflog field to have it logged.
@@ -160,7 +160,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 	// Real waiting times happen in the makeRequest function depending on the server's response.
 	backoffSettings := backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(1*time.Second),
-		backoff.WithMaxElapsedTime(81*time.Second),
+		backoff.WithMaxElapsedTime(61*time.Second),
 		backoff.WithMultiplier(1),
 	)
 
