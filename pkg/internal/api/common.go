@@ -138,6 +138,9 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 				} else if res.StatusCode >= http.StatusInternalServerError { // 500
 					resetSeconds = currentExponentialBackoff
 					tflog.Warn(ctx, fmt.Sprintf("Server side error (5xx): waiting %f.1 seconds before retrying", resetSeconds))
+				} else if res.StatusCode >= http.StatusBadRequest {
+					resetSeconds = currentExponentialBackoff
+					tflog.Warn(ctx, fmt.Sprintf("Server side error (400): waiting %f.1 seconds before retrying", resetSeconds))
 				} else {
 					return nil, backoff.Permanent(fmt.Errorf("status: %d, body: %s", res.StatusCode, body))
 				}
