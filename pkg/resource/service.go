@@ -157,7 +157,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"tier": schema.StringAttribute{
 				Description: "Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.",
 				Optional:    true,
-				Computed:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOf(api.TierDevelopment, api.TierProduction),
 				},
