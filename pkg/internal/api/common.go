@@ -44,8 +44,8 @@ func (c *ClientImpl) getQueryAPIPath(queryAPIBaseUrl string, serviceID string, f
 }
 
 func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([]byte, error) {
-	ctx = tflog.SetField(ctx, "method", initialReq.Method)
-	ctx = tflog.SetField(ctx, "URL", initialReq.URL.String())
+	debugctx := tflog.SetField(ctx, "method", initialReq.Method)
+	debugctx = tflog.SetField(debugctx, "URL", initialReq.URL.String())
 
 	initialReq.SetBasicAuth(c.TokenKey, c.TokenSecret)
 
@@ -63,10 +63,10 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 			err := json.Indent(&buf, bodyBytes, "", "  ")
 			if err != nil {
 				// Parsing/indentation failed, fallback to raw body
-				ctx = tflog.SetField(ctx, "requestBody", string(bodyBytes))
+				debugctx = tflog.SetField(debugctx, "requestBody", string(bodyBytes))
 			} else {
 				// Parsing ok, use formatted body.
-				ctx = tflog.SetField(ctx, "requestBody", buf.String())
+				debugctx = tflog.SetField(debugctx, "requestBody", buf.String())
 			}
 		}
 
@@ -79,7 +79,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		// Redact sensitive headers from logs.
 		headers := initialReq.Header.Clone()
 		headers.Set("Authorization", "Basic REDACTED")
-		ctx = tflog.SetField(ctx, "requestHeaders", headers)
+		debugctx = tflog.SetField(debugctx, "requestHeaders", headers)
 	}
 
 	makeRequest := func() ([]byte, error) {
@@ -88,11 +88,11 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		if bodyBytes != nil {
 			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
-		ctx = tflog.SetField(ctx, "attempt", attempt)
+		debugctx = tflog.SetField(debugctx, "attempt", attempt)
 		attempt = attempt + 1
 
 		start := time.Now()
-		ctx = tflog.SetField(ctx, "requestStartedAt", start.Format(time.RFC3339Nano))
+		debugctx = tflog.SetField(debugctx, "requestStartedAt", start.Format(time.RFC3339Nano))
 
 		res, err := c.HttpClient.Do(req)
 		if err != nil {
@@ -107,22 +107,22 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 
 		stop := time.Now()
 
-		ctx = tflog.SetField(ctx, "responseReceivedAt", stop.Format(time.RFC3339Nano))
-		ctx = tflog.SetField(ctx, "requestTimeMS", stop.Sub(start).Milliseconds())
-		ctx = tflog.SetField(ctx, "statusCode", res.StatusCode)
-		ctx = tflog.SetField(ctx, "responseHeaders", res.Header)
+		debugctx = tflog.SetField(debugctx, "responseReceivedAt", stop.Format(time.RFC3339Nano))
+		debugctx = tflog.SetField(debugctx, "requestTimeMS", stop.Sub(start).Milliseconds())
+		debugctx = tflog.SetField(debugctx, "statusCode", res.StatusCode)
+		debugctx = tflog.SetField(debugctx, "responseHeaders", res.Header)
 		{
 			var buf bytes.Buffer
 			err = json.Indent(&buf, body, "", "  ")
 			if err != nil {
 				// Parsing/indentation failed, fallback to raw body
-				ctx = tflog.SetField(ctx, "responseBody", string(body))
+				debugctx = tflog.SetField(debugctx, "responseBody", string(body))
 			} else {
 				// Parsing ok, use formatted body.
-				ctx = tflog.SetField(ctx, "responseBody", buf.String())
+				debugctx = tflog.SetField(debugctx, "responseBody", buf.String())
 			}
 		}
-		tflog.Debug(ctx, "API request")
+		tflog.Debug(debugctx, "API request")
 
 		if res.StatusCode != http.StatusOK {
 			var resetSeconds float64
