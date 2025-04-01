@@ -43,119 +43,121 @@ func (c *ClientImpl) getQueryAPIPath(queryAPIBaseUrl string, serviceID string, f
 	return fmt.Sprintf("%s/.api/services/%s/query?format=%s", queryAPIBaseUrl, serviceID, format)
 }
 
-func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, error) {
-	ctx = tflog.SetField(ctx, "method", req.Method)
-	ctx = tflog.SetField(ctx, "URL", req.URL.String())
+func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([]byte, error) {
+	debugctx := tflog.SetField(ctx, "method", initialReq.Method)
+	debugctx = tflog.SetField(debugctx, "URL", initialReq.URL.String())
 
-	req.SetBasicAuth(c.TokenKey, c.TokenSecret)
+	initialReq.SetBasicAuth(c.TokenKey, c.TokenSecret)
 
 	currentExponentialBackoff := float64(4)
 	attempt := 1
 
 	// Copy the request body as a tflog field to have it logged.
-	if req.Body != nil {
-		bodyBytes, _ := io.ReadAll(req.Body)
-		req.Body.Close()
-		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	var bodyBytes []byte
+	if initialReq.Body != nil {
+		bodyBytes, _ = io.ReadAll(initialReq.Body)
+		initialReq.Body.Close()
+		initialReq.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		{
 			var buf bytes.Buffer
 			err := json.Indent(&buf, bodyBytes, "", "  ")
 			if err != nil {
 				// Parsing/indentation failed, fallback to raw body
-				ctx = tflog.SetField(ctx, "requestBody", string(bodyBytes))
+				debugctx = tflog.SetField(debugctx, "requestBody", string(bodyBytes))
 			} else {
 				// Parsing ok, use formatted body.
-				ctx = tflog.SetField(ctx, "requestBody", buf.String())
+				debugctx = tflog.SetField(debugctx, "requestBody", buf.String())
 			}
 		}
 
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+		initialReq.Header.Set("Content-Type", "application/json; charset=utf-8")
 	}
 
-	makeRequest := func(req *http.Request) func() ([]byte, error) {
-		return func() ([]byte, error) {
-			req.Header.Set("User-Agent", fmt.Sprintf("terraform-provider-clickhouse/%s Commit/%s", project.Version(), project.Commit()))
+	initialReq.Header.Set("User-Agent", fmt.Sprintf("terraform-provider-clickhouse/%s Commit/%s", project.Version(), project.Commit()))
 
-			{
-				// Redact sensitive headers from logs.
-				headers := req.Header.Clone()
-				headers.Set("Authorization", "Basic REDACTED")
-				ctx = tflog.SetField(ctx, "requestHeaders", headers)
-			}
-			ctx = tflog.SetField(ctx, "attempt", attempt)
-			attempt = attempt + 1
+	{
+		// Redact sensitive headers from logs.
+		headers := initialReq.Header.Clone()
+		headers.Set("Authorization", "Basic REDACTED")
+		debugctx = tflog.SetField(debugctx, "requestHeaders", headers)
+	}
 
-			start := time.Now()
-			ctx = tflog.SetField(ctx, "requestStartedAt", start.Format(time.RFC3339Nano))
-
-			res, err := c.HttpClient.Do(req)
-			if err != nil {
-				return nil, err
-			}
-			defer res.Body.Close()
-
-			body, err := io.ReadAll(res.Body)
-			if err != nil {
-				return nil, err
-			}
-
-			stop := time.Now()
-
-			ctx = tflog.SetField(ctx, "responseReceivedAt", stop.Format(time.RFC3339Nano))
-			ctx = tflog.SetField(ctx, "requestTimeMS", stop.Sub(start).Milliseconds())
-			ctx = tflog.SetField(ctx, "statusCode", res.StatusCode)
-			ctx = tflog.SetField(ctx, "responseHeaders", res.Header)
-			{
-				var buf bytes.Buffer
-				err = json.Indent(&buf, body, "", "  ")
-				if err != nil {
-					// Parsing/indentation failed, fallback to raw body
-					ctx = tflog.SetField(ctx, "responseBody", string(body))
-				} else {
-					// Parsing ok, use formatted body.
-					ctx = tflog.SetField(ctx, "responseBody", buf.String())
-				}
-			}
-			tflog.Debug(ctx, "API request")
-
-			if res.StatusCode != http.StatusOK {
-				var resetSeconds float64
-				if res.StatusCode == http.StatusTooManyRequests { // 429
-					// Try to read rate limiting headers from the response.
-					resetSecondsStr := res.Header.Get(ResponseHeaderRateLimitReset)
-					if resetSecondsStr != "" {
-						// Try parsing the string as an integer
-						i, err := strconv.ParseFloat(resetSecondsStr, 64)
-						if err != nil {
-							tflog.Warn(ctx, fmt.Sprintf("Error parsing X-RateLimit-Reset header %q as a float64: %s", resetSecondsStr, err))
-						} else {
-							// Give 1 more second after the server returned reset.
-							resetSeconds = i + 1
-
-							tflog.Warn(ctx, fmt.Sprintf("Server side throttling (429): waiting %f.1 seconds before retrying", resetSeconds))
-						}
-					}
-				} else if res.StatusCode >= http.StatusInternalServerError { // 500
-					resetSeconds = currentExponentialBackoff
-					tflog.Warn(ctx, fmt.Sprintf("Server side error (5xx): waiting %f.1 seconds before retrying", resetSeconds))
-				} else if res.StatusCode >= http.StatusBadRequest {
-					resetSeconds = currentExponentialBackoff
-					tflog.Warn(ctx, fmt.Sprintf("Server side error (400): waiting %f.1 seconds before retrying", resetSeconds))
-				} else {
-					return nil, backoff.Permanent(fmt.Errorf("status: %d, body: %s", res.StatusCode, body))
-				}
-
-				// Wait for the calculated exponential backoff number of seconds.
-				time.Sleep(time.Second * time.Duration(resetSeconds))
-
-				// Double wait time for next loop
-				currentExponentialBackoff = currentExponentialBackoff * 2
-
-				return nil, fmt.Errorf("status: %d, body: %s", res.StatusCode, body)
-			}
-
-			return body, nil
+	makeRequest := func() ([]byte, error) {
+		req := initialReq.Clone(ctx)
+		// Set the body again to make the stream go back to the beginning.
+		if bodyBytes != nil {
+			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
+		debugctx = tflog.SetField(debugctx, "attempt", attempt)
+		attempt = attempt + 1
+
+		start := time.Now()
+		debugctx = tflog.SetField(debugctx, "requestStartedAt", start.Format(time.RFC3339Nano))
+
+		res, err := c.HttpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		stop := time.Now()
+
+		debugctx = tflog.SetField(debugctx, "responseReceivedAt", stop.Format(time.RFC3339Nano))
+		debugctx = tflog.SetField(debugctx, "requestTimeMS", stop.Sub(start).Milliseconds())
+		debugctx = tflog.SetField(debugctx, "statusCode", res.StatusCode)
+		debugctx = tflog.SetField(debugctx, "responseHeaders", res.Header)
+		{
+			var buf bytes.Buffer
+			err = json.Indent(&buf, body, "", "  ")
+			if err != nil {
+				// Parsing/indentation failed, fallback to raw body
+				debugctx = tflog.SetField(debugctx, "responseBody", string(body))
+			} else {
+				// Parsing ok, use formatted body.
+				debugctx = tflog.SetField(debugctx, "responseBody", buf.String())
+			}
+		}
+		tflog.Debug(debugctx, "API request")
+
+		if res.StatusCode != http.StatusOK {
+			var resetSeconds float64
+			if res.StatusCode == http.StatusTooManyRequests { // 429
+				// Try to read rate limiting headers from the response.
+				resetSecondsStr := res.Header.Get(ResponseHeaderRateLimitReset)
+				if resetSecondsStr != "" {
+					// Try parsing the string as an integer
+					i, err := strconv.ParseFloat(resetSecondsStr, 64)
+					if err != nil {
+						tflog.Warn(ctx, fmt.Sprintf("Error parsing X-RateLimit-Reset header %q as a float64: %s", resetSecondsStr, err))
+					} else {
+						// Give 1 more second after the server returned reset.
+						resetSeconds = i + 1
+
+						tflog.Warn(ctx, fmt.Sprintf("Server side throttling (429): waiting %f.1 seconds before retrying", resetSeconds))
+					}
+				}
+			} else if res.StatusCode >= http.StatusInternalServerError { // 500
+				resetSeconds = currentExponentialBackoff
+				tflog.Warn(ctx, fmt.Sprintf("Server side error (5xx): waiting %f.1 seconds before retrying", resetSeconds))
+			} else {
+				return nil, backoff.Permanent(fmt.Errorf("status: %d, body: %s", res.StatusCode, body))
+			}
+
+			// Wait for the calculated exponential backoff number of seconds.
+			time.Sleep(time.Second * time.Duration(resetSeconds))
+
+			// Double wait time for next loop
+			currentExponentialBackoff = currentExponentialBackoff * 2
+
+			return nil, fmt.Errorf("status: %d, body: %s", res.StatusCode, body)
+		}
+
+		return body, nil
 	}
 
 	// This is a fake exponential backoff, because multiplier is only 1.
@@ -167,9 +169,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, req *http.Request) ([]byte, 
 		backoff.WithMultiplier(1),
 	)
 
-	body, err := backoff.RetryNotifyWithData[[]byte](makeRequest(req), backoffSettings, func(err error, next time.Duration) {
-		tflog.Warn(ctx, fmt.Sprintf("API request %s %s failed with error: %s.", req.Method, req.URL, err))
-	})
+	body, err := backoff.RetryWithData[[]byte](makeRequest, backoffSettings)
 
 	return body, err
 }
