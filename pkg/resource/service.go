@@ -346,7 +346,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					"backup_start_time": schema.StringAttribute{
 						Optional:    true,
 						Description: "Time of the day in UTC that indicates the start time of a 2 hours window to be used for backup. If set, backup_period_in_hours must be null and backups are created once a day.",
-						Computed:    true,
 						Validators: []validator.String{
 							stringvalidator.RegexMatches(
 								regexp.MustCompile(`^(?:[0-9]|0[0-9]|1[0-9]|2[0-3]):00$`),
