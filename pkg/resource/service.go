@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
@@ -162,11 +163,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"release_channel": schema.StringAttribute{
-				Description: "Release channel to use for this service. Either 'default' or 'fast'. Only supported on 'production' services. Switching from 'fast' to 'default' release channel is not supported.",
+				Description: "Release channel to use for this service. Either 'default' or 'fast'. Switching from 'fast' to 'default' release channel is not supported.",
 				Optional:    true,
 				Computed:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOf(api.ReleaseChannelDefault, api.ReleaseChannelFast),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"idle_scaling": schema.BoolAttribute{
@@ -229,29 +233,32 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"min_total_memory_gb": schema.Int64Attribute{
-				Description:        "Minimum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and greater than 24.",
+				Description:        "Minimum total memory of all workers during auto-scaling in Gb. Must be a multiple of 12 and greater than 24.",
 				Optional:           true,
 				DeprecationMessage: "Please use min_replica_memory_gb instead",
 			},
 			"max_total_memory_gb": schema.Int64Attribute{
-				Description:        "Maximum total memory of all workers during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.",
+				Description:        "Maximum total memory of all workers during auto-scaling in Gb. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.",
 				Optional:           true,
 				DeprecationMessage: "Please use max_replica_memory_gb instead",
 			},
 			"min_replica_memory_gb": schema.Int64Attribute{
-				Description: "Minimum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
-				Description: "Maximum memory of a single replica during auto-scaling in Gb. Available only for 'production' services. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
 			},
 			"num_replicas": schema.Int64Attribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Number of replicas for the service. Available only for 'production' services. Must be between 3 and 20. Contact support to enable this feature.",
+				Description: "Number of replicas for the service. Must be between 3 and 20. Contact support to enable this feature.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
 				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.",
@@ -339,7 +346,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					"backup_start_time": schema.StringAttribute{
 						Optional:    true,
 						Description: "Time of the day in UTC that indicates the start time of a 2 hours window to be used for backup. If set, backup_period_in_hours must be null and backups are created once a day.",
-						Computed:    true,
 						Validators: []validator.String{
 							stringvalidator.RegexMatches(
 								regexp.MustCompile(`^(?:[0-9]|0[0-9]|1[0-9]|2[0-3]):00$`),
