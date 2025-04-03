@@ -17,7 +17,7 @@ func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecre
 	client := &ClientImpl{
 		BaseUrl: apiUrl,
 		HttpClient: &http.Client{
-			Timeout: time.Second * 30,
+			Timeout: time.Minute * 5,
 		},
 		OrganizationId: organizationId,
 		TokenKey:       tokenKey,
