@@ -25,8 +25,6 @@ In version 3.0.0 we revisited how to deal with `clickhouse_service` endpoints.
 If you are using the `endpoint_config` attribute or the `endpoints` read only attribute, this breaking change affects you.
 Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations](https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations) for more details.
 
-1. the `endpoint_config` (used to enablefield was removed
-
 ### Upgrading to version >= 1.0.0 of the Clickhouse Terraform Provider
 
 If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the `clickhouse_private_endpoint_registration` resource or the `private_endpoint_ids` attribute of the `clickhouse_service` resource,
