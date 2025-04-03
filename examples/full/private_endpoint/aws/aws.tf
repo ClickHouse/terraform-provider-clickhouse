@@ -92,7 +92,7 @@ resource "aws_vpc_endpoint" "pl_vpc_foo" {
     aws_subnet.subnet1.id,
     aws_subnet.subnet2.id
   ]
-  private_dns_enabled = true
+  private_dns_enabled = false
 
   tags = local.tags
 }

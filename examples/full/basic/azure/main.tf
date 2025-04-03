@@ -48,7 +48,7 @@ resource "clickhouse_service" "service" {
     }
   ]
 
-  endpoints_configuration = {
+  endpoints = {
     mysql = {
       enabled = true
     }

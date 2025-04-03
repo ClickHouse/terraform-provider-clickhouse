@@ -14,16 +14,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	internalplanmodifier "github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/planmodifier"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -194,10 +196,57 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
-			"endpoints_configuration": schema.SingleNestedAttribute{
+			"endpoints": schema.SingleNestedAttribute{
 				Description: "Allow to enable and configure additional endpoints (read protocols) to expose on the ClickHouse service.",
 				Optional:    true,
+				Computed:    true,
 				Attributes: map[string]schema.Attribute{
+					"nativesecure": schema.SingleNestedAttribute{
+						Attributes: map[string]schema.Attribute{
+							"host": schema.StringAttribute{
+								Description: "Endpoint host.",
+								Computed:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
+							},
+							"port": schema.Int32Attribute{
+								Description: "Endpoint port.",
+								Computed:    true,
+								PlanModifiers: []planmodifier.Int32{
+									int32planmodifier.UseStateForUnknown(),
+								},
+							},
+						},
+						Optional: true,
+						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"https": schema.SingleNestedAttribute{
+						Attributes: map[string]schema.Attribute{
+							"host": schema.StringAttribute{
+								Description: "Endpoint host.",
+								Computed:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
+							},
+							"port": schema.Int32Attribute{
+								Description: "Endpoint port.",
+								Computed:    true,
+								PlanModifiers: []planmodifier.Int32{
+									int32planmodifier.UseStateForUnknown(),
+								},
+							},
+						},
+						Optional: true,
+						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+					},
 					"mysql": schema.SingleNestedAttribute{
 						Attributes: map[string]schema.Attribute{
 							"enabled": schema.BoolAttribute{
@@ -207,29 +256,22 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 									boolvalidator.Equals(true),
 								},
 							},
+							"host": schema.StringAttribute{
+								Description: "Endpoint host.",
+								Computed:    true,
+							},
+							"port": schema.Int32Attribute{
+								Description: "Endpoint port.",
+								Computed:    true,
+							},
 						},
 						Required: true,
 					},
 				},
-			},
-			"endpoints": schema.ListNestedAttribute{
-				Description: "List of public endpoints.",
-				Computed:    true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"protocol": schema.StringAttribute{
-							Description: "Endpoint protocol: https or nativesecure",
-							Computed:    true,
-						},
-						"host": schema.StringAttribute{
-							Description: "Endpoint host.",
-							Computed:    true,
-						},
-						"port": schema.Int64Attribute{
-							Description: "Endpoint port.",
-							Computed:    true,
-						},
-					},
+				PlanModifiers: []planmodifier.Object{
+					internalplanmodifier.UseStateForUnknownExcept(map[string]map[string]attr.Type{
+						"mysql": models.OptionalEndpoint{}.ObjectType().AttrTypes,
+					}),
 				},
 			},
 			"min_total_memory_gb": schema.Int64Attribute{
@@ -358,6 +400,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 		},
 		MarkdownDescription: serviceResourceDescription,
+		Version:             1,
 	}
 }
 
@@ -727,10 +770,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 	service.IpAccessList = ipAccessLists
 
-	// EndpointsConfiguration
-	if !plan.EndpointsConfiguration.IsNull() {
-		endpointsConfig := models.EndpointsConfiguration{}
-		diag := plan.EndpointsConfiguration.As(ctx, &endpointsConfig, basetypes.ObjectAsOptions{
+	// Endpoints
+	if !plan.Endpoints.IsNull() && !plan.Endpoints.IsUnknown() {
+		endpointsConfig := models.Endpoints{}
+		diag := plan.Endpoints.As(ctx, &endpointsConfig, basetypes.ObjectAsOptions{
 			UnhandledNullAsEmpty:    false,
 			UnhandledUnknownAsEmpty: false,
 		})
@@ -740,7 +783,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 
 		if !endpointsConfig.MySQL.IsNull() {
-			mysql := models.EndpointEnabled{}
+			mysql := models.OptionalEndpoint{}
 			diag = endpointsConfig.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{
 				UnhandledNullAsEmpty:    false,
 				UnhandledUnknownAsEmpty: false,
@@ -990,12 +1033,12 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	// EndpointsConfiguration
-	if !plan.EndpointsConfiguration.Equal(state.EndpointsConfiguration) {
+	// Endpoints
+	if !plan.Endpoints.Equal(state.Endpoints) {
 		serviceChange = true
-		if !plan.EndpointsConfiguration.IsNull() {
-			endpointsConfig := models.EndpointsConfiguration{}
-			diag := plan.EndpointsConfiguration.As(ctx, &endpointsConfig, basetypes.ObjectAsOptions{
+		if !plan.Endpoints.IsNull() && !plan.Endpoints.IsUnknown() {
+			endpointsConfig := models.Endpoints{}
+			diag := plan.Endpoints.As(ctx, &endpointsConfig, basetypes.ObjectAsOptions{
 				UnhandledNullAsEmpty:    false,
 				UnhandledUnknownAsEmpty: false,
 			})
@@ -1004,8 +1047,8 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 				return
 			}
 
-			if !endpointsConfig.MySQL.IsNull() {
-				mysql := models.EndpointEnabled{}
+			if !endpointsConfig.MySQL.IsNull() && !endpointsConfig.MySQL.IsUnknown() {
+				mysql := models.OptionalEndpoint{}
 				diag = endpointsConfig.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{
 					UnhandledNullAsEmpty:    false,
 					UnhandledUnknownAsEmpty: false,
@@ -1301,6 +1344,308 @@ func (r *ServiceResource) ImportState(ctx context.Context, req resource.ImportSt
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		// In version 3.0.0 we changed the `endpoints` field from a list to a map and we removed the `endpoints_configuration` field.
+		0: {
+			PriorSchema: &schema.Schema{
+				Attributes: map[string]schema.Attribute{
+					"id": schema.StringAttribute{
+						Computed: true,
+					},
+					"byoc_id": schema.StringAttribute{
+						Optional: true,
+					},
+					"warehouse_id": schema.StringAttribute{
+						Optional: true,
+						Computed: true,
+					},
+					"readonly": schema.BoolAttribute{
+						Optional: true,
+						Computed: true,
+					},
+					"is_primary": schema.BoolAttribute{
+						Computed: true,
+					},
+					"name": schema.StringAttribute{
+						Required: true,
+					},
+					"password": schema.StringAttribute{
+						Optional:  true,
+						Sensitive: true,
+					},
+					"password_hash": schema.StringAttribute{
+						Optional:  true,
+						Sensitive: true,
+					},
+					"double_sha1_password_hash": schema.StringAttribute{
+						Optional:  true,
+						Sensitive: true,
+					},
+					"cloud_provider": schema.StringAttribute{
+						Required: true,
+					},
+					"region": schema.StringAttribute{
+						Required: true,
+					},
+					"tier": schema.StringAttribute{
+						Optional: true,
+					},
+					"release_channel": schema.StringAttribute{
+						Optional: true,
+						Computed: true,
+					},
+					"idle_scaling": schema.BoolAttribute{
+						Optional: true,
+						Computed: true,
+					},
+					"ip_access": schema.ListNestedAttribute{
+						Required: true,
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"source": schema.StringAttribute{
+									Required: true,
+								},
+								"description": schema.StringAttribute{
+									Required: true,
+								},
+							},
+						},
+					},
+					"endpoints_configuration": schema.SingleNestedAttribute{
+						Optional: true,
+						Attributes: map[string]schema.Attribute{
+							"mysql": schema.SingleNestedAttribute{
+								Attributes: map[string]schema.Attribute{
+									"enabled": schema.BoolAttribute{
+										Required: true,
+									},
+								},
+								Required: true,
+							},
+						},
+					},
+					"endpoints": schema.ListNestedAttribute{
+						Computed: true,
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"protocol": schema.StringAttribute{
+									Computed: true,
+								},
+								"host": schema.StringAttribute{
+									Computed: true,
+								},
+								"port": schema.Int64Attribute{
+									Computed: true,
+								},
+							},
+						},
+					},
+					"min_total_memory_gb": schema.Int64Attribute{
+						Optional: true,
+					},
+					"max_total_memory_gb": schema.Int64Attribute{
+						Optional: true,
+					},
+					"min_replica_memory_gb": schema.Int64Attribute{
+						Optional: true,
+						Computed: true,
+					},
+					"max_replica_memory_gb": schema.Int64Attribute{
+						Optional: true,
+						Computed: true,
+					},
+					"num_replicas": schema.Int64Attribute{
+						Optional: true,
+						Computed: true,
+					},
+					"idle_timeout_minutes": schema.Int64Attribute{
+						Optional: true,
+					},
+					"iam_role": schema.StringAttribute{
+						Computed: true,
+					},
+					"private_endpoint_config": schema.SingleNestedAttribute{
+						Computed: true,
+						Attributes: map[string]schema.Attribute{
+							"endpoint_service_id": schema.StringAttribute{
+								Computed: true,
+							},
+							"private_dns_hostname": schema.StringAttribute{
+								Computed: true,
+							},
+						},
+					},
+					"encryption_key": schema.StringAttribute{
+						Optional: true,
+					},
+					"encryption_assumed_role_identifier": schema.StringAttribute{
+						Optional: true,
+					},
+					"query_api_endpoints": schema.SingleNestedAttribute{
+						Optional: true,
+						Attributes: map[string]schema.Attribute{
+							"api_key_ids": schema.ListAttribute{
+								ElementType: types.StringType,
+								Required:    true,
+							},
+							"roles": schema.ListAttribute{
+								ElementType: types.StringType,
+								Required:    true,
+							},
+							"allowed_origins": schema.StringAttribute{
+								Optional: true,
+							},
+						},
+					},
+					"backup_configuration": schema.SingleNestedAttribute{
+						Optional: true,
+						Computed: true,
+						Attributes: map[string]schema.Attribute{
+							"backup_period_in_hours": schema.Int32Attribute{
+								Optional: true,
+								Computed: true,
+							},
+							"backup_retention_period_in_hours": schema.Int32Attribute{
+								Optional: true,
+								Computed: true,
+							},
+							"backup_start_time": schema.StringAttribute{
+								Optional: true,
+							},
+						},
+					},
+				},
+			},
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				type oldService struct {
+					ID                              types.String `tfsdk:"id"`
+					BYOCID                          types.String `tfsdk:"byoc_id"`
+					DataWarehouseID                 types.String `tfsdk:"warehouse_id"`
+					IsPrimary                       types.Bool   `tfsdk:"is_primary"`
+					ReadOnly                        types.Bool   `tfsdk:"readonly"`
+					Name                            types.String `tfsdk:"name"`
+					Password                        types.String `tfsdk:"password"`
+					PasswordHash                    types.String `tfsdk:"password_hash"`
+					DoubleSha1PasswordHash          types.String `tfsdk:"double_sha1_password_hash"`
+					EndpointsConfiguration          types.Object `tfsdk:"endpoints_configuration"`
+					Endpoints                       types.List   `tfsdk:"endpoints"`
+					CloudProvider                   types.String `tfsdk:"cloud_provider"`
+					Region                          types.String `tfsdk:"region"`
+					Tier                            types.String `tfsdk:"tier"`
+					ReleaseChannel                  types.String `tfsdk:"release_channel"`
+					IdleScaling                     types.Bool   `tfsdk:"idle_scaling"`
+					IpAccessList                    types.List   `tfsdk:"ip_access"`
+					MinTotalMemoryGb                types.Int64  `tfsdk:"min_total_memory_gb"`
+					MaxTotalMemoryGb                types.Int64  `tfsdk:"max_total_memory_gb"`
+					MinReplicaMemoryGb              types.Int64  `tfsdk:"min_replica_memory_gb"`
+					MaxReplicaMemoryGb              types.Int64  `tfsdk:"max_replica_memory_gb"`
+					NumReplicas                     types.Int64  `tfsdk:"num_replicas"`
+					IdleTimeoutMinutes              types.Int64  `tfsdk:"idle_timeout_minutes"`
+					IAMRole                         types.String `tfsdk:"iam_role"`
+					PrivateEndpointConfig           types.Object `tfsdk:"private_endpoint_config"`
+					EncryptionKey                   types.String `tfsdk:"encryption_key"`
+					EncryptionAssumedRoleIdentifier types.String `tfsdk:"encryption_assumed_role_identifier"`
+					QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
+					BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
+				}
+
+				var priorStateData oldService
+
+				resp.Diagnostics.Append(req.State.Get(ctx, &priorStateData)...)
+
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				var endpoints models.Endpoints
+				{
+					endpoints = models.Endpoints{
+						NativeSecure: models.Endpoint{
+							Host: types.StringNull(),
+							Port: types.Int32Null(),
+						}.ObjectValue(),
+						HTTPS: models.Endpoint{
+							Host: types.StringNull(),
+							Port: types.Int32Null(),
+						}.ObjectValue(),
+						MySQL: models.OptionalEndpoint{
+							Enabled: types.BoolValue(false),
+							Host:    types.StringNull(),
+							Port:    types.Int32Null(),
+						}.ObjectValue(),
+					}
+
+					oldEndpoints := make([]struct {
+						Protocol string `tfsdk:"protocol"`
+						Host     string `tfsdk:"host"`
+						Port     int32  `tfsdk:"port"`
+					}, 0)
+					diag := priorStateData.Endpoints.ElementsAs(ctx, &oldEndpoints, false)
+					if diag.HasError() {
+						resp.Diagnostics.Append(diag...)
+						return
+					}
+
+					for _, ep := range oldEndpoints {
+						switch ep.Protocol {
+						case api.EndpointProtocolNativeSecure:
+							endpoints.NativeSecure = models.Endpoint{
+								Host: types.StringValue(ep.Host),
+								Port: types.Int32Value(ep.Port),
+							}.ObjectValue()
+						case api.EndpointProtocolHTTPS:
+							endpoints.HTTPS = models.Endpoint{
+								Host: types.StringValue(ep.Host),
+								Port: types.Int32Value(ep.Port),
+							}.ObjectValue()
+						case api.EndpointProtocolMysql:
+							endpoints.MySQL = models.OptionalEndpoint{
+								Enabled: types.BoolValue(true),
+								Host:    types.StringValue(ep.Host),
+								Port:    types.Int32Value(ep.Port),
+							}.ObjectValue()
+						}
+					}
+				}
+
+				upgradedStateData := models.ServiceResourceModel{
+					ID:                              priorStateData.ID,
+					BYOCID:                          priorStateData.BYOCID,
+					DataWarehouseID:                 priorStateData.DataWarehouseID,
+					IsPrimary:                       priorStateData.IsPrimary,
+					ReadOnly:                        priorStateData.ReadOnly,
+					Name:                            priorStateData.Name,
+					Password:                        priorStateData.Password,
+					PasswordHash:                    priorStateData.PasswordHash,
+					DoubleSha1PasswordHash:          priorStateData.DoubleSha1PasswordHash,
+					Endpoints:                       endpoints.ObjectValue(),
+					CloudProvider:                   priorStateData.CloudProvider,
+					Region:                          priorStateData.Region,
+					Tier:                            priorStateData.Tier,
+					ReleaseChannel:                  priorStateData.ReleaseChannel,
+					IdleScaling:                     priorStateData.IdleScaling,
+					IpAccessList:                    priorStateData.IpAccessList,
+					MinTotalMemoryGb:                priorStateData.MinTotalMemoryGb,
+					MaxTotalMemoryGb:                priorStateData.MaxTotalMemoryGb,
+					MinReplicaMemoryGb:              priorStateData.MinReplicaMemoryGb,
+					MaxReplicaMemoryGb:              priorStateData.MaxReplicaMemoryGb,
+					NumReplicas:                     priorStateData.NumReplicas,
+					IdleTimeoutMinutes:              priorStateData.IdleTimeoutMinutes,
+					IAMRole:                         priorStateData.IAMRole,
+					PrivateEndpointConfig:           priorStateData.PrivateEndpointConfig,
+					EncryptionKey:                   priorStateData.EncryptionKey,
+					EncryptionAssumedRoleIdentifier: priorStateData.EncryptionAssumedRoleIdentifier,
+					QueryAPIEndpoints:               priorStateData.QueryAPIEndpoints,
+					BackupConfiguration:             priorStateData.BackupConfiguration,
+				}
+
+				resp.Diagnostics.Append(resp.State.Set(ctx, upgradedStateData)...)
+			},
+		},
+	}
+}
+
 // syncServiceState fetches the latest state ClickHouse Cloud API and updates the Terraform state.
 func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.ServiceResourceModel, updateTimestamp bool) error {
 	if state.ID.IsNull() {
@@ -1374,24 +1719,42 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	}
 
 	{
-		var endpoints []attr.Value
-		var endpointsConfiguration *models.EndpointsConfiguration
+		endpointsConfiguration := models.Endpoints{
+			NativeSecure: models.Endpoint{
+				Host: types.StringNull(),
+				Port: types.Int32Null(),
+			}.ObjectValue(),
+			HTTPS: models.Endpoint{
+				Host: types.StringNull(),
+				Port: types.Int32Null(),
+			}.ObjectValue(),
+			MySQL: models.OptionalEndpoint{
+				Enabled: types.BoolValue(false),
+				Host:    types.StringNull(),
+				Port:    types.Int32Null(),
+			}.ObjectValue(),
+		}
 		for _, endpoint := range service.Endpoints {
-			endpoints = append(endpoints, models.Endpoint{Protocol: types.StringValue(endpoint.Protocol), Host: types.StringValue(endpoint.Host), Port: types.Int64Value(int64(endpoint.Port))}.ObjectValue())
-
-			if endpoint.Protocol == api.EndpointProtocolMysql {
-				enabled := models.EndpointEnabled{Enabled: types.BoolValue(true)}
-				endpointsConfiguration = &models.EndpointsConfiguration{
-					MySQL: enabled.ObjectValue(),
-				}
+			switch endpoint.Protocol {
+			case api.EndpointProtocolNativeSecure:
+				endpointsConfiguration.NativeSecure = models.Endpoint{
+					Host: types.StringValue(endpoint.Host),
+					Port: types.Int32Value(int32(endpoint.Port)), //nolint:gosec
+				}.ObjectValue()
+			case api.EndpointProtocolHTTPS:
+				endpointsConfiguration.HTTPS = models.Endpoint{
+					Host: types.StringValue(endpoint.Host),
+					Port: types.Int32Value(int32(endpoint.Port)), //nolint:gosec
+				}.ObjectValue()
+			case api.EndpointProtocolMysql:
+				endpointsConfiguration.MySQL = models.OptionalEndpoint{
+					Enabled: types.BoolValue(true),
+					Host:    types.StringValue(endpoint.Host),
+					Port:    types.Int32Value(int32(endpoint.Port)), //nolint:gosec
+				}.ObjectValue()
 			}
 		}
-		state.Endpoints, _ = types.ListValue(models.Endpoint{}.ObjectType(), endpoints)
-		if endpointsConfiguration != nil {
-			state.EndpointsConfiguration = endpointsConfiguration.ObjectValue()
-		} else {
-			state.EndpointsConfiguration = types.ObjectNull(models.EndpointsConfiguration{}.ObjectType().AttrTypes)
-		}
+		state.Endpoints = endpointsConfiguration.ObjectValue()
 	}
 
 	state.IAMRole = types.StringValue(service.IAMRole)

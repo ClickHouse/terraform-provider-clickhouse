@@ -6,30 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
-type Endpoint struct {
-	Protocol types.String `tfsdk:"protocol"`
-	Host     types.String `tfsdk:"host"`
-	Port     types.Int64  `tfsdk:"port"`
-}
-
-func (e Endpoint) ObjectType() types.ObjectType {
-	return types.ObjectType{
-		AttrTypes: map[string]attr.Type{
-			"protocol": types.StringType,
-			"host":     types.StringType,
-			"port":     types.Int64Type,
-		},
-	}
-}
-
-func (e Endpoint) ObjectValue() basetypes.ObjectValue {
-	return types.ObjectValueMust(e.ObjectType().AttrTypes, map[string]attr.Value{
-		"protocol": e.Protocol,
-		"host":     e.Host,
-		"port":     e.Port,
-	})
-}
-
 type IPAccessList struct {
 	Source      types.String `tfsdk:"source"`
 	Description types.String `tfsdk:"description"`
@@ -72,43 +48,88 @@ func (p PrivateEndpointConfig) ObjectValue() basetypes.ObjectValue {
 	})
 }
 
-type EndpointsConfiguration struct {
-	MySQL types.Object `tfsdk:"mysql"`
+type Endpoints struct {
+	NativeSecure types.Object `tfsdk:"nativesecure"`
+	HTTPS        types.Object `tfsdk:"https"`
+	MySQL        types.Object `tfsdk:"mysql"`
 }
 
-func (q EndpointsConfiguration) ObjectType() types.ObjectType {
+func (q Endpoints) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
+			"nativesecure": types.ObjectType{
+				AttrTypes: map[string]attr.Type{
+					"host": types.StringType,
+					"port": types.Int32Type,
+				},
+			},
+			"https": types.ObjectType{
+				AttrTypes: map[string]attr.Type{
+					"host": types.StringType,
+					"port": types.Int32Type,
+				},
+			},
 			"mysql": types.ObjectType{
 				AttrTypes: map[string]attr.Type{
 					"enabled": types.BoolType,
+					"host":    types.StringType,
+					"port":    types.Int32Type,
 				},
 			},
 		},
 	}
 }
 
-func (q EndpointsConfiguration) ObjectValue() basetypes.ObjectValue {
+func (q Endpoints) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(q.ObjectType().AttrTypes, map[string]attr.Value{
-		"mysql": q.MySQL,
+		"nativesecure": q.NativeSecure,
+		"https":        q.HTTPS,
+		"mysql":        q.MySQL,
 	})
 }
 
-type EndpointEnabled struct {
-	Enabled types.Bool `tfsdk:"enabled"`
+type Endpoint struct {
+	Host types.String `tfsdk:"host"`
+	Port types.Int32  `tfsdk:"port"`
 }
 
-func (e EndpointEnabled) ObjectType() types.ObjectType {
+func (e Endpoint) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"enabled": types.BoolType,
+			"host": types.StringType,
+			"port": types.Int32Type,
 		},
 	}
 }
 
-func (e EndpointEnabled) ObjectValue() basetypes.ObjectValue {
+func (e Endpoint) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(e.ObjectType().AttrTypes, map[string]attr.Value{
+		"host": e.Host,
+		"port": e.Port,
+	})
+}
+
+type OptionalEndpoint struct {
+	Enabled types.Bool   `tfsdk:"enabled"`
+	Host    types.String `tfsdk:"host"`
+	Port    types.Int32  `tfsdk:"port"`
+}
+
+func (e OptionalEndpoint) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"enabled": types.BoolType,
+			"host":    types.StringType,
+			"port":    types.Int32Type,
+		},
+	}
+}
+
+func (e OptionalEndpoint) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(e.ObjectType().AttrTypes, map[string]attr.Value{
 		"enabled": e.Enabled,
+		"host":    e.Host,
+		"port":    e.Port,
 	})
 }
 
@@ -170,8 +191,7 @@ type ServiceResourceModel struct {
 	Password                        types.String `tfsdk:"password"`
 	PasswordHash                    types.String `tfsdk:"password_hash"`
 	DoubleSha1PasswordHash          types.String `tfsdk:"double_sha1_password_hash"`
-	EndpointsConfiguration          types.Object `tfsdk:"endpoints_configuration"`
-	Endpoints                       types.List   `tfsdk:"endpoints"`
+	Endpoints                       types.Object `tfsdk:"endpoints"`
 	CloudProvider                   types.String `tfsdk:"cloud_provider"`
 	Region                          types.String `tfsdk:"region"`
 	Tier                            types.String `tfsdk:"tier"`
@@ -202,7 +222,6 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.Password.Equal(b.Password) ||
 		!m.PasswordHash.Equal(b.PasswordHash) ||
 		!m.DoubleSha1PasswordHash.Equal(b.DoubleSha1PasswordHash) ||
-		!m.EndpointsConfiguration.Equal(b.EndpointsConfiguration) ||
 		!m.Endpoints.Equal(b.Endpoints) ||
 		!m.CloudProvider.Equal(b.CloudProvider) ||
 		!m.Region.Equal(b.Region) ||

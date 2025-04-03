@@ -1,7 +1,9 @@
 package api
 
 const (
-	EndpointProtocolMysql = "mysql"
+	EndpointProtocolNativeSecure = "nativesecure"
+	EndpointProtocolHTTPS        = "https"
+	EndpointProtocolMysql        = "mysql"
 )
 
 type IpAccess struct {

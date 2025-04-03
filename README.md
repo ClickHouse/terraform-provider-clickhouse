@@ -14,6 +14,82 @@ Please refer to the [official docs](https://registry.terraform.io/providers/Clic
 
 ## Breaking changes and deprecations
 
+### Upgrading to version >= 3.0.0
+
+In version 3.0.0 we revisited how to deal with `clickhouse_service` endpoints.
+
+If you are using the `clickhouse_service.endpoints_configuration attribute` or reading the `clickhouse_service.endpoints` read only attribute, then you might be affected.
+
+This is a list of all the changes:
+
+- the `endpoints_configuration` attribute was removed. Please use the `endpoints` attribute in a similar fashion. For example if you had
+
+```
+resource "clickhouse_service" "service" {
+  ...
+  endpoints_configuration = {
+    mysql = {
+      enabled = true
+    }
+  }
+  ...
+}
+```
+
+you need to replace it with
+
+```
+resource "clickhouse_service" "service" {
+...
+  endpoints = {
+    mysql = {
+      enabled = true
+    }
+  }
+...
+}
+```
+
+- the `endpoints` attribute's type changes from a list to a map.
+
+Where before you had:
+
+```
+endpoints = [
+  {
+    protocol = "https"
+    host = "ql5ek38hzz.us-east-2.aws.clickhouse.cloud"
+    port: 8443
+  },
+  {
+    protocol: "mysql"
+    host: "ql5ek38hzz.us-east-2.aws.clickhouse.cloud",
+    port: 3306
+  },
+  ...
+]
+```
+
+Now you'll have:
+
+```
+endpoints = {
+  "https": {
+    "host": "ql5ek38hzz.us-east-2.aws.clickhouse.cloud",
+    "port": 8443
+  },
+  "mysql": {
+    "enabled": false,
+    "host": null,
+    "port": null
+  },
+  "nativesecure": {
+    "host": "ql5ek38hzz.us-east-2.aws.clickhouse.cloud",
+    "port": 9440
+  }
+}
+```
+
 ### Upgrading to version >= 1.1.0
 
 In version 1.1.0 we deprecated the `min_total_memory_gb` and `max_total_memory_gb` fields. You can keep using them, but they will eventually be removed.
