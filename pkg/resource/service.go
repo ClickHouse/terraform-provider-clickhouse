@@ -1739,18 +1739,18 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 			case api.EndpointProtocolNativeSecure:
 				endpointsConfiguration.NativeSecure = models.Endpoint{
 					Host: types.StringValue(endpoint.Host),
-					Port: types.Int32Value(int32(endpoint.Port)),
+					Port: types.Int32Value(int32(endpoint.Port)), //nolint:gosec
 				}.ObjectValue()
 			case api.EndpointProtocolHTTPS:
 				endpointsConfiguration.HTTPS = models.Endpoint{
 					Host: types.StringValue(endpoint.Host),
-					Port: types.Int32Value(int32(endpoint.Port)),
+					Port: types.Int32Value(int32(endpoint.Port)), //nolint:gosec
 				}.ObjectValue()
 			case api.EndpointProtocolMysql:
 				endpointsConfiguration.MySQL = models.OptionalEndpoint{
 					Enabled: types.BoolValue(true),
 					Host:    types.StringValue(endpoint.Host),
-					Port:    types.Int32Value(int32(endpoint.Port)),
+					Port:    types.Int32Value(int32(endpoint.Port)), //nolint:gosec
 				}.ObjectValue()
 			}
 		}
