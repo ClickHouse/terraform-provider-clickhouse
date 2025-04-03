@@ -40,23 +40,82 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			wantErr:         false,
 		},
 		{
-			name:  "Update Endpoints field",
+			name:  "Update Endpoints field with mysql disabled",
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
 				src.Endpoints = []api.Endpoint{
 					{
-						Protocol: "TCP",
+						Protocol: "nativesecure",
 						Host:     "a.b.c.d",
 						Port:     1234,
+					},
+					{
+						Protocol: "https",
+						Host:     "e.f.g.h",
+						Port:     5678,
 					},
 				}
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
-				endpoints := []attr.Value{
-					models.Endpoint{Protocol: types.StringValue("TCP"), Host: types.StringValue("a.b.c.d"), Port: types.Int64Value(1234)}.ObjectValue(),
+				src.Endpoints = models.Endpoints{
+					NativeSecure: models.Endpoint{
+						Host: types.StringValue("a.b.c.d"),
+						Port: types.Int32Value(1234),
+					}.ObjectValue(),
+					HTTPS: models.Endpoint{
+						Host: types.StringValue("e.f.g.h"),
+						Port: types.Int32Value(5678),
+					}.ObjectValue(),
+					MySQL: models.OptionalEndpoint{
+						Enabled: types.BoolValue(false),
+						Host:    types.StringNull(),
+						Port:    types.Int32Null(),
+					}.ObjectValue(),
+				}.ObjectValue()
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			name:  "Update Endpoints field with mysql enabled",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.Endpoints = []api.Endpoint{
+					{
+						Protocol: "nativesecure",
+						Host:     "a.b.c.d",
+						Port:     1234,
+					},
+					{
+						Protocol: "https",
+						Host:     "e.f.g.h",
+						Port:     5678,
+					},
+					{
+						Protocol: "mysql",
+						Host:     "i.j.k.l",
+						Port:     9012,
+					},
 				}
-				src.Endpoints, _ = types.ListValue(models.Endpoint{}.ObjectType(), endpoints)
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.Endpoints = models.Endpoints{
+					NativeSecure: models.Endpoint{
+						Host: types.StringValue("a.b.c.d"),
+						Port: types.Int32Value(1234),
+					}.ObjectValue(),
+					HTTPS: models.Endpoint{
+						Host: types.StringValue("e.f.g.h"),
+						Port: types.Int32Value(5678),
+					}.ObjectValue(),
+					MySQL: models.OptionalEndpoint{
+						Enabled: types.BoolValue(true),
+						Host:    types.StringValue("i.j.k.l"),
+						Port:    types.Int32Value(9012),
+					}.ObjectValue(),
+				}.ObjectValue()
 			}).Get(),
 			updateTimestamp: false,
 			wantErr:         false,
@@ -449,7 +508,21 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 func getInitialState() models.ServiceResourceModel {
 	uuid := "773bb8b4-34e8-4ecf-8e23-4f7e20aa14b3"
 
-	endpoints, _ := types.ListValue(models.Endpoint{}.ObjectType(), []attr.Value{})
+	endpoints := models.Endpoints{
+		NativeSecure: models.Endpoint{
+			Host: types.StringNull(),
+			Port: types.Int32Null(),
+		}.ObjectValue(),
+		HTTPS: models.Endpoint{
+			Host: types.StringNull(),
+			Port: types.Int32Null(),
+		}.ObjectValue(),
+		MySQL: models.OptionalEndpoint{
+			Enabled: types.BoolValue(false),
+			Host:    types.StringNull(),
+			Port:    types.Int32Null(),
+		}.ObjectValue(),
+	}.ObjectValue()
 	ipAccessList, _ := types.ListValue(models.IPAccessList{}.ObjectType(), []attr.Value{})
 	privateEndpointConfig := models.PrivateEndpointConfig{
 		EndpointServiceID:  types.StringValue(""),

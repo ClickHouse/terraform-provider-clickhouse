@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/test"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
@@ -100,35 +100,60 @@ func TestServiceResource_Equals(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "Endpoints added",
+			name: "Nativesecure host changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				data := append(src.Endpoints.Elements(), Endpoint{Protocol: types.StringValue("changed"), Host: types.StringValue("changed"), Port: types.Int64Value(1236)}.ObjectValue())
+				endpoints := Endpoints{}
+				diag := src.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{
+					UnhandledNullAsEmpty:    false,
+					UnhandledUnknownAsEmpty: false,
+				})
+				if diag.HasError() {
+					t.Fatal(diag.Errors())
+				}
 
-				src.Endpoints, _ = types.ListValueFrom(ctx, src.Endpoints.ElementType(ctx).(types.ObjectType), data)
+				ep := Endpoint{}
+				diag = endpoints.NativeSecure.As(ctx, &ep, basetypes.ObjectAsOptions{
+					UnhandledNullAsEmpty:    false,
+					UnhandledUnknownAsEmpty: false,
+				})
+				if diag.HasError() {
+					t.Fatal(diag.Errors())
+				}
+
+				ep.Host = types.StringValue("changed")
+				endpoints.NativeSecure = ep.ObjectValue()
+
+				src.Endpoints = endpoints.ObjectValue()
 			}).Get(),
 			want: false,
 		},
 		{
-			name: "Endpoints deleted",
+			name: "Mysql Endpoint disabled",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				current := src.Endpoints.Elements()
-				var endpoints []attr.Value
-				endpoints = append(endpoints, current[0])
-				src.Endpoints, _ = types.ListValue(src.Endpoints.ElementType(ctx).(types.ObjectType), endpoints)
-			}).Get(),
-			want: false,
-		},
-		{
-			name: "Endpoints order changed",
-			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				current := src.Endpoints.Elements()
-				var endpoints []attr.Value
-				endpoints = append(endpoints, current[1])
-				endpoints = append(endpoints, current[0])
-				src.Endpoints, _ = types.ListValue(src.Endpoints.ElementType(ctx).(types.ObjectType), endpoints)
+				endpoints := Endpoints{}
+				diag := src.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{
+					UnhandledNullAsEmpty:    false,
+					UnhandledUnknownAsEmpty: false,
+				})
+				if diag.HasError() {
+					t.Fatal(diag.Errors())
+				}
+
+				ep := OptionalEndpoint{}
+				diag = endpoints.MySQL.As(ctx, &ep, basetypes.ObjectAsOptions{
+					UnhandledNullAsEmpty:    false,
+					UnhandledUnknownAsEmpty: false,
+				})
+				if diag.HasError() {
+					t.Fatal(diag.Errors())
+				}
+
+				ep.Enabled = types.BoolValue(false)
+				endpoints.MySQL = ep.ObjectValue()
+
+				src.Endpoints = endpoints.ObjectValue()
 			}).Get(),
 			want: false,
 		},
@@ -262,10 +287,21 @@ func TestServiceResource_Equals(t *testing.T) {
 func getBaseModel() ServiceResourceModel {
 	uuid := "773bb8b4-34e8-4ecf-8e23-4f7e20aa14b3"
 
-	var endpoints []attr.Value
-	endpoints = append(endpoints, Endpoint{Protocol: types.StringValue("changed"), Host: types.StringValue("changed"), Port: types.Int64Value(1234)}.ObjectValue())
-	endpoints = append(endpoints, Endpoint{Protocol: types.StringValue("changed"), Host: types.StringValue("changed"), Port: types.Int64Value(1235)}.ObjectValue())
-	ep, _ := types.ListValue(Endpoint{}.ObjectType(), endpoints)
+	endpoints := Endpoints{
+		NativeSecure: Endpoint{
+			Host: types.StringValue("hostname"),
+			Port: types.Int32Value(80),
+		}.ObjectValue(),
+		HTTPS: Endpoint{
+			Host: types.StringValue("hostname2"),
+			Port: types.Int32Value(8080),
+		}.ObjectValue(),
+		MySQL: OptionalEndpoint{
+			Enabled: types.BoolValue(true),
+			Host:    types.StringValue("hostname3"),
+			Port:    types.Int32Value(8081),
+		}.ObjectValue(),
+	}
 
 	state := ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
@@ -277,7 +313,7 @@ func getBaseModel() ServiceResourceModel {
 		Password:                        types.String{},
 		PasswordHash:                    types.String{},
 		DoubleSha1PasswordHash:          types.String{},
-		Endpoints:                       ep,
+		Endpoints:                       endpoints.ObjectValue(),
 		CloudProvider:                   types.StringValue(""),
 		Region:                          types.StringValue(""),
 		Tier:                            types.StringValue(""),
