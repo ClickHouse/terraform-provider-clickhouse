@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -13,15 +14,39 @@ type ClientImpl struct {
 	TokenSecret    string
 }
 
-func NewClient(apiUrl string, organizationId string, tokenKey string, tokenSecret string) (*ClientImpl, error) {
+type ClientConfig struct {
+	ApiURL         string
+	OrganizationID string
+	TokenKey       string
+	TokenSecret    string
+	Timeout        time.Duration
+}
+
+func NewClient(config ClientConfig) (*ClientImpl, error) {
+	if config.ApiURL == "" {
+		return nil, fmt.Errorf("ApiURL cannot be empty")
+	}
+	if config.OrganizationID == "" {
+		return nil, fmt.Errorf("OrganizationID cannot be empty")
+	}
+	if config.TokenKey == "" {
+		return nil, fmt.Errorf("TokenKey cannot be empty")
+	}
+	if config.TokenSecret == "" {
+		return nil, fmt.Errorf("TokenSecret cannot be empty")
+	}
+	if config.Timeout == 0 {
+		config.Timeout = time.Minute * 5
+	}
+
 	client := &ClientImpl{
-		BaseUrl: apiUrl,
+		BaseUrl: config.ApiURL,
 		HttpClient: &http.Client{
-			Timeout: time.Minute * 5,
+			Timeout: config.Timeout,
 		},
-		OrganizationId: organizationId,
-		TokenKey:       tokenKey,
-		TokenSecret:    tokenSecret,
+		OrganizationId: config.OrganizationID,
+		TokenKey:       config.TokenKey,
+		TokenSecret:    config.TokenSecret,
 	}
 
 	return client, nil

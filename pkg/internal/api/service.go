@@ -152,7 +152,10 @@ func (c *ClientImpl) UpdateService(ctx context.Context, serviceId string, s Serv
 
 func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Service, error) {
 	service, err := c.GetService(ctx, serviceId)
-	if err != nil {
+	if IsNotFound(err) {
+		// That is what we want
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 
@@ -166,13 +169,19 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 		}
 
 		_, err = c.doRequest(ctx, req)
-		if err != nil {
+		if IsNotFound(err) {
+			// That is what we want
+			return nil, nil
+		} else if err != nil {
 			return nil, err
 		}
 	}
 
 	err = c.WaitForServiceState(ctx, serviceId, func(state string) bool { return state == StateStopped }, 10*60)
-	if err != nil {
+	if IsNotFound(err) {
+		// That is what we want
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 
@@ -182,7 +191,10 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 	}
 
 	body, err := c.doRequest(ctx, req)
-	if err != nil {
+	if IsNotFound(err) {
+		// That is what we want
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 

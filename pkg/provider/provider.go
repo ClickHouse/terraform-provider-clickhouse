@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"os"
+	"time"
 
 	upstreamdatasource "github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -42,6 +43,7 @@ type clickhouseProviderModel struct {
 	OrganizationID types.String `tfsdk:"organization_id"`
 	TokenKey       types.String `tfsdk:"token_key"`
 	TokenSecret    types.String `tfsdk:"token_secret"`
+	TimeoutSeconds types.Int32  `tfsdk:"timeout_seconds"`
 }
 
 // Metadata returns the provider type name.
@@ -69,6 +71,10 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 				Description: "Token secret of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_TOKEN_SECRET` environment variable.",
 				Optional:    true,
 				Sensitive:   true,
+			},
+			"timeout_seconds": schema.Int32Attribute{
+				Description: "Timeout in seconds for the HTTP client.",
+				Optional:    true,
 			},
 		},
 		MarkdownDescription: providerDescription,
@@ -159,48 +165,69 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	// If any of the expected configurations are missing, return
 	// errors with provider-specific guidance.
 
-	if apiUrl == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("api_url"),
-			"Missing ClickHouse OpenAPI API URL",
-			"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the API url. "+
-				"Set the API url value in the configuration or use the CLICKHOUSE_API_URL environment variable. "+
-				"If either is already set, ensure the value is not empty.",
-		)
+	clientConfig := api.ClientConfig{}
+
+	{
+		if apiUrl == "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("api_url"),
+				"Missing ClickHouse OpenAPI API URL",
+				"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the API url. "+
+					"Set the API url value in the configuration or use the CLICKHOUSE_API_URL environment variable. "+
+					"If either is already set, ensure the value is not empty.",
+			)
+		}
+
+		clientConfig.ApiURL = apiUrl
 	}
 
-	if organizationId == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("organizationId"),
-			"Missing ClickHouse OpenAPI Organization ID",
-			"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the organization id. "+
-				"Set the organization_id value in the configuration or use the CLICKHOUSE_ORG_ID environment variable. "+
-				"If either is already set, ensure the value is not empty.",
-		)
+	{
+		if organizationId == "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("organizationId"),
+				"Missing ClickHouse OpenAPI Organization ID",
+				"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the organization id. "+
+					"Set the organization_id value in the configuration or use the CLICKHOUSE_ORG_ID environment variable. "+
+					"If either is already set, ensure the value is not empty.",
+			)
+		}
+		clientConfig.OrganizationID = organizationId
 	}
 
-	if tokenKey == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("token_key"),
-			"Missing ClickHouse OpenAPI Token Key",
-			"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the token key. "+
-				"Set the token_key value in the configuration or use the CLICKHOUSE_TOKEN_KEY environment variable. "+
-				"If either is already set, ensure the value is not empty.",
-		)
+	{
+		if tokenKey == "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("token_key"),
+				"Missing ClickHouse OpenAPI Token Key",
+				"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the token key. "+
+					"Set the token_key value in the configuration or use the CLICKHOUSE_TOKEN_KEY environment variable. "+
+					"If either is already set, ensure the value is not empty.",
+			)
+		}
+		clientConfig.TokenKey = tokenKey
 	}
 
-	if tokenSecret == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("token_secret"),
-			"Missing ClickHouse OpenAPI Token Key",
-			"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the token secret. "+
-				"Set the token_secret value in the configuration or use the CLICKHOUSE_TOKEN_SECRET environment variable. "+
-				"If either is already set, ensure the value is not empty.",
-		)
+	{
+		if tokenSecret == "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("token_secret"),
+				"Missing ClickHouse OpenAPI Token Key",
+				"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the token secret. "+
+					"Set the token_secret value in the configuration or use the CLICKHOUSE_TOKEN_SECRET environment variable. "+
+					"If either is already set, ensure the value is not empty.",
+			)
+		}
+		clientConfig.TokenSecret = tokenSecret
+	}
+
+	{
+		if !config.TimeoutSeconds.IsUnknown() && !config.TimeoutSeconds.IsNull() {
+			clientConfig.Timeout = time.Second * time.Duration(config.TimeoutSeconds.ValueInt32())
+		}
 	}
 
 	// Create a new ClickHouse client using the configuration values
-	client, err := api.NewClient(apiUrl, organizationId, tokenKey, tokenSecret)
+	client, err := api.NewClient(clientConfig)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create ClickHouse OpenAPI Client",
