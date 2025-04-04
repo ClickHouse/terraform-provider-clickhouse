@@ -44,8 +44,8 @@ func (c *ClientImpl) getQueryAPIPath(queryAPIBaseUrl string, serviceID string, f
 }
 
 func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([]byte, error) {
-	debugctx := tflog.SetField(ctx, "method", initialReq.Method)
-	debugctx = tflog.SetField(debugctx, "URL", initialReq.URL.String())
+	debugctx := tflog.SetField(ctx, "request", fmt.Sprintf("%s %s", initialReq.Method, initialReq.URL.String()))
+	debugctx = tflog.SetField(debugctx, "clientTimeout", c.HttpClient.Timeout.String())
 
 	initialReq.SetBasicAuth(c.TokenKey, c.TokenSecret)
 
@@ -96,6 +96,8 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 
 		res, err := c.HttpClient.Do(req)
 		if err != nil {
+			debugctx = tflog.SetField(debugctx, "error", err.Error())
+			tflog.Debug(debugctx, "API request failed")
 			return nil, err
 		}
 		defer res.Body.Close()
