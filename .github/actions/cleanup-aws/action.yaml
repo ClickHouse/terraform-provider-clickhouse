@@ -28,7 +28,7 @@ runs:
         attempts=10
         while [ $attempts -gt 0 ]; do
           attempts=$((attempts - 1))
-          endpointids="$(aws ec2 --region eu-west-2 describe-vpc-endpoints|jq --arg name "${{ inputs.service_name }}" -r '.VpcEndpoints[] | select(.Tags[0].Value == $name) | .VpcEndpointId')"
+          endpointids="$(aws ec2 --region ${{ inputs.aws_region }} describe-vpc-endpoints|jq --arg name "${{ inputs.service_name }}" -r '.VpcEndpoints[] | select(.Tags[0].Value == $name) | .VpcEndpointId')"
           if [ "$endpointids" == "" ]
           then
             break
