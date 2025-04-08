@@ -79,7 +79,7 @@ func (c *ClientImpl) ListReversePrivateEndpoints(ctx context.Context, serviceId 
 
 	result := make([]*ReversePrivateEndpoint, len(response.Result))
 	for i, rpe := range response.Result {
-		rpe := rpe // Copy for proper reference
+		// Copy for proper reference
 		result[i] = &rpe
 	}
 
