@@ -13,6 +13,7 @@ func GetResourceFactories() []func() upstreamresource.Resource {
 		NewServicePrivateEndpointsAttachmentResource,
 		NewDatabaseResource,
 		NewClickPipeResource,
+		NewClickPipeReversePrivateEndpointResource,
 		NewUserResource,
 		NewRoleResource,
 		NewGrantRoleResource,

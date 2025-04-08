@@ -32,6 +32,13 @@ type Client interface {
 	ChangeClickPipeState(ctx context.Context, serviceId string, clickPipeId string, command string) (*ClickPipe, error)
 	DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error
 
+	GetReversePrivateEndpointPath(serviceId, reversePrivateEndpointId string) string
+	ListReversePrivateEndpoints(ctx context.Context, serviceId string) ([]*ReversePrivateEndpoint, error)
+	GetReversePrivateEndpoint(ctx context.Context, serviceId, reversePrivateEndpointId string) (*ReversePrivateEndpoint, error)
+	CreateReversePrivateEndpoint(ctx context.Context, serviceId string, request CreateReversePrivateEndpoint) (*ReversePrivateEndpoint, error)
+	DeleteReversePrivateEndpoint(ctx context.Context, serviceId, reversePrivateEndpointId string) error
+	WaitForReversePrivateEndpointState(ctx context.Context, serviceId string, reversePrivateEndpointId string, stateChecker func(string) bool, maxWaitSeconds uint64) (*ReversePrivateEndpoint, error)
+
 	CreateUser(ctx context.Context, serviceId string, user User) (*User, error)
 	GetUser(ctx context.Context, serviceID string, name string) (*User, error)
 	DeleteUser(ctx context.Context, serviceID string, name string) error
