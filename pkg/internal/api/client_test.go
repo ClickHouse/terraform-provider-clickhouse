@@ -12,14 +12,19 @@ func TestNewClient(t *testing.T) {
 	testClient := &ClientImpl{
 		BaseUrl: "https://api.clickhouse.cloud/v1",
 		HttpClient: &http.Client{
-			Timeout: time.Second * 30,
+			Timeout: time.Minute * 5,
 		},
 		OrganizationId: "10ead720-7ca1-48c9-aaf7-7230f42b56c0",
 		TokenKey:       "dE8jvpSRVurZCLcLZllb",
 		TokenSecret:    "4b1dZbh9bFV9uHQ7Aay4vHHbsTL1HkD2CyZyFBlOLc",
 	}
 
-	client, err := NewClient(testClient.BaseUrl, testClient.OrganizationId, testClient.TokenKey, testClient.TokenSecret)
+	client, err := NewClient(ClientConfig{
+		ApiURL:         testClient.BaseUrl,
+		OrganizationID: testClient.OrganizationId,
+		TokenKey:       testClient.TokenKey,
+		TokenSecret:    testClient.TokenSecret,
+	})
 	if err != nil {
 		t.Fatalf("new client err: %v", err)
 	}
