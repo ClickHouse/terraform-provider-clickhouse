@@ -1,3 +1,7 @@
+variable "organization_id" {}
+variable "token_key" {}
+variable "token_secret" {}
+
 variable "service_id" {
   description = "ClickHouse service ID"
 }
