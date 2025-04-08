@@ -161,39 +161,43 @@ type ClickPipeKafkaSourceModel struct {
 	Credentials    types.Object `tfsdk:"credentials"`
 	IAMRole        types.String `tfsdk:"iam_role"`
 	CACertificate  types.String `tfsdk:"ca_certificate"`
+
+	ReversePrivateEndpointIDs types.List `tfsdk:"reverse_private_endpoint_ids"`
 }
 
 func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"type":            types.StringType,
-			"format":          types.StringType,
-			"brokers":         types.StringType,
-			"topics":          types.StringType,
-			"consumer_group":  types.StringType,
-			"offset":          ClickPipeKafkaOffsetModel{}.ObjectType(),
-			"schema_registry": ClickPipeKafkaSchemaRegistryModel{}.ObjectType(),
-			"authentication":  types.StringType,
-			"credentials":     ClickPipeKafkaSourceCredentialsModel{}.ObjectType(),
-			"iam_role":        types.StringType,
-			"ca_certificate":  types.StringType,
+			"type":                         types.StringType,
+			"format":                       types.StringType,
+			"brokers":                      types.StringType,
+			"topics":                       types.StringType,
+			"consumer_group":               types.StringType,
+			"offset":                       ClickPipeKafkaOffsetModel{}.ObjectType(),
+			"schema_registry":              ClickPipeKafkaSchemaRegistryModel{}.ObjectType(),
+			"authentication":               types.StringType,
+			"credentials":                  ClickPipeKafkaSourceCredentialsModel{}.ObjectType(),
+			"iam_role":                     types.StringType,
+			"ca_certificate":               types.StringType,
+			"reverse_private_endpoint_ids": types.ListType{ElemType: types.StringType},
 		},
 	}
 }
 
 func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"type":            m.Type,
-		"format":          m.Format,
-		"brokers":         m.Brokers,
-		"topics":          m.Topics,
-		"consumer_group":  m.ConsumerGroup,
-		"offset":          m.Offset,
-		"schema_registry": m.SchemaRegistry,
-		"authentication":  m.Authentication,
-		"credentials":     m.Credentials,
-		"iam_role":        m.IAMRole,
-		"ca_certificate":  m.CACertificate,
+		"type":                         m.Type,
+		"format":                       m.Format,
+		"brokers":                      m.Brokers,
+		"topics":                       m.Topics,
+		"consumer_group":               m.ConsumerGroup,
+		"offset":                       m.Offset,
+		"schema_registry":              m.SchemaRegistry,
+		"authentication":               m.Authentication,
+		"credentials":                  m.Credentials,
+		"iam_role":                     m.IAMRole,
+		"ca_certificate":               m.CACertificate,
+		"reverse_private_endpoint_ids": m.ReversePrivateEndpointIDs,
 	})
 }
 

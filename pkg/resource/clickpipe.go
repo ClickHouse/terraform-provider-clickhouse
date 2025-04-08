@@ -37,8 +37,6 @@ var (
 const clickPipeResourceDescription = `
 This experimental resource allows you to create and manage ClickPipes data ingestion in ClickHouse Cloud.
 
-Feature needs to be enabled on your account. Please contact ClickHouse Cloud support for more information. 
-
 **Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.**
 
 Known limitations:
@@ -298,6 +296,14 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"ca_certificate": schema.StringAttribute{
 								MarkdownDescription: "PEM encoded CA certificates to validate the broker's certificate.",
 								Optional:            true,
+							},
+							"reverse_private_endpoint_ids": schema.ListAttribute{
+								MarkdownDescription: "The list of reverse private endpoint IDs for the Kafka source. (comma separated)",
+								Optional:            true,
+								ElementType:         types.StringType,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.RequiresReplace(),
+								},
 							},
 						},
 					},
@@ -778,6 +784,12 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 				Timestamp: timestamp,
 			}
 		}
+
+		if !kafkaModel.ReversePrivateEndpointIDs.IsNull() {
+			reversePrivateEndpointIDs := make([]string, len(kafkaModel.ReversePrivateEndpointIDs.Elements()))
+			diagnostics.Append(kafkaModel.ReversePrivateEndpointIDs.ElementsAs(ctx, &reversePrivateEndpointIDs, false)...)
+			source.Kafka.ReversePrivateEndpointIDs = reversePrivateEndpointIDs
+		}
 	} else if !sourceModel.ObjectStorage.IsNull() {
 		objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
 
@@ -935,6 +947,16 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			kafkaModel.Offset = offsetModel.ObjectValue()
 		} else {
 			kafkaModel.Offset = types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes)
+		}
+
+		if clickPipe.Source.Kafka.ReversePrivateEndpointIDs != nil {
+			reversePrivateEndpointIDs := make([]attr.Value, len(clickPipe.Source.Kafka.ReversePrivateEndpointIDs))
+			for i, id := range clickPipe.Source.Kafka.ReversePrivateEndpointIDs {
+				reversePrivateEndpointIDs[i] = types.StringValue(id)
+			}
+			kafkaModel.ReversePrivateEndpointIDs, _ = types.ListValue(types.StringType, reversePrivateEndpointIDs)
+		} else {
+			kafkaModel.ReversePrivateEndpointIDs = types.ListNull(types.StringType)
 		}
 
 		sourceModel.Kafka = kafkaModel.ObjectValue()

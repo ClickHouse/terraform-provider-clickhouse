@@ -51,6 +51,8 @@ type ClickPipeKafkaSource struct {
 	Credentials    *ClickPipeKafkaSourceCredentials `json:"credentials,omitempty"`
 	IAMRole        *string                          `json:"iamRole,omitempty"`
 	CACertificate  *string                          `json:"caCertificate,omitempty"`
+
+	ReversePrivateEndpointIDs []string `json:"reversePrivateEndpointIds,omitempty"`
 }
 
 type ClickPipeObjectStorageSource struct {
