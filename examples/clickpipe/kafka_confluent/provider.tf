@@ -8,11 +8,6 @@ terraform {
   }
 }
 
-variable "organization_id" {}
-variable "token_key" {}
-variable "token_secret" {}
-
-
 provider "clickhouse" {
   organization_id = var.organization_id
   token_key       = var.token_key
