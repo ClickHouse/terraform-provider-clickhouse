@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -29,9 +30,10 @@ import (
 )
 
 var (
-	_ resource.Resource               = &ClickPipeResource{}
-	_ resource.ResourceWithModifyPlan = &ClickPipeResource{}
-	_ resource.ResourceWithConfigure  = &ClickPipeResource{}
+	_ resource.Resource                = &ClickPipeResource{}
+	_ resource.ResourceWithModifyPlan  = &ClickPipeResource{}
+	_ resource.ResourceWithConfigure   = &ClickPipeResource{}
+	_ resource.ResourceWithImportState = &ClickPipeResource{}
 )
 
 const clickPipeResourceDescription = `
@@ -884,15 +886,19 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	}
 
 	stateSourceModel := models.ClickPipeSourceModel{}
-	if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
-		return fmt.Errorf("error reading ClickPipe source: %v", diags)
+	if !state.Source.IsNull() {
+		if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+			return fmt.Errorf("error reading ClickPipe source: %v", diags)
+		}
 	}
 
 	sourceModel := models.ClickPipeSourceModel{}
 	if clickPipe.Source.Kafka != nil {
 		stateKafkaModel := models.ClickPipeKafkaSourceModel{}
-		if diags := stateSourceModel.Kafka.As(ctx, &stateKafkaModel, basetypes.ObjectAsOptions{}); diags.HasError() {
-			return fmt.Errorf("error reading ClickPipe Kafka source: %v", diags)
+		if !stateSourceModel.Kafka.IsNull() {
+			if diags := stateSourceModel.Kafka.As(ctx, &stateKafkaModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Kafka source: %v", diags)
+			}
 		}
 
 		var consumerGroup string
@@ -923,8 +929,10 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		if clickPipe.Source.Kafka.SchemaRegistry != nil {
 			var stateSchemaRegistryModel models.ClickPipeKafkaSchemaRegistryModel
-			if diags := stateKafkaModel.SchemaRegistry.As(ctx, &stateSchemaRegistryModel, basetypes.ObjectAsOptions{}); diags.HasError() {
-				return fmt.Errorf("error reading ClickPipe Kafka source schema registry: %v", diags)
+			if !stateKafkaModel.SchemaRegistry.IsNull() {
+				if diags := stateKafkaModel.SchemaRegistry.As(ctx, &stateSchemaRegistryModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+					return fmt.Errorf("error reading ClickPipe Kafka source schema registry: %v", diags)
+				}
 			}
 
 			schemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{
@@ -966,8 +974,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	if clickPipe.Source.ObjectStorage != nil {
 		stateObjectStorageModel := models.ClickPipeObjectStorageSourceModel{}
-		if diags := stateSourceModel.ObjectStorage.As(ctx, &stateObjectStorageModel, basetypes.ObjectAsOptions{}); diags.HasError() {
-			return fmt.Errorf("error reading ClickPipe object storage source: %v", diags)
+
+		if !stateSourceModel.ObjectStorage.IsNull() {
+			if diags := stateSourceModel.ObjectStorage.As(ctx, &stateObjectStorageModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe object storage source: %v", diags)
+			}
 		}
 
 		objectStorageModel := models.ClickPipeObjectStorageSourceModel{
@@ -1009,12 +1020,19 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	}
 
 	stateDestinationModel := models.ClickPipeDestinationModel{}
-	if diags := state.Destination.As(ctx, &stateDestinationModel, basetypes.ObjectAsOptions{}); diags.HasError() {
-		return fmt.Errorf("error reading ClickPipe destination: %v", diags)
+
+	if !state.Destination.IsNull() {
+		if diags := state.Destination.As(ctx, &stateDestinationModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+			return fmt.Errorf("error reading ClickPipe destination: %v", diags)
+		}
 	}
 
 	// Destination roles are not persisted on ClickPipes side. Used only during pipe creation.
-	destinationModel.Roles = stateDestinationModel.Roles
+	if !stateDestinationModel.Roles.IsNull() {
+		destinationModel.Roles = stateDestinationModel.Roles
+	} else {
+		destinationModel.Roles = types.ListNull(types.StringType)
+	}
 
 	columnList := make([]attr.Value, len(clickPipe.Destination.Columns))
 	for i, column := range clickPipe.Destination.Columns {
@@ -1258,4 +1276,33 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 			"Could not delete ClickPipe, unexpected error: "+err.Error(),
 		)
 	}
+}
+
+// ImportState imports a ClickPipe reverse private endpoint into the state.
+// We don't have access to configuration/plan, so service id is required
+// to be provided as a part of the import id.
+func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	idParts := strings.Split(req.ID, ":")
+
+	if len(idParts) != 2 {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			fmt.Sprintf("Expected import identifier with format: service_id:id. Got: %q", req.ID),
+		)
+		return
+	}
+
+	id := idParts[0]
+	endpointID := idParts[1]
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), id)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), endpointID)...)
+
+	resp.Diagnostics.AddWarning(
+		"Credentials state diverge",
+		"Importing a ClickPipe will not persist credentials into your state.\n"+
+			"Sensitive values are only stored in your state and provider is not able to import them.\n"+
+			"Run a `terraform apply` to ensure sensitive values state is up to date with a ClickPipe.\n"+
+			"Important: your configuration (in *.tf files) has to provide valid credentials.",
+	)
 }

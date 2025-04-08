@@ -23,8 +23,11 @@ import (
 )
 
 // Ensure provider defined types fully satisfy framework interfaces
-var _ resource.Resource = &ClickPipeReversePrivateEndpointResource{}
-var _ resource.ResourceWithImportState = &ClickPipeReversePrivateEndpointResource{}
+var (
+	_ resource.Resource                = &ClickPipeReversePrivateEndpointResource{}
+	_ resource.ResourceWithConfigure   = &ClickPipeReversePrivateEndpointResource{}
+	_ resource.ResourceWithImportState = &ClickPipeReversePrivateEndpointResource{}
+)
 
 const clickPipeReversePrivateEndpointResourceDescription = `
 This experimental resource allows you to create and manage ClickPipes reverse private endpoints for a secure data source connections in ClickHouse Cloud.
