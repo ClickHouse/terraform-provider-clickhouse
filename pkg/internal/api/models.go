@@ -65,6 +65,7 @@ type Service struct {
 	BackupConfiguration             *BackupConfiguration          `json:"backupConfiguration,omitempty"`
 	ReleaseChannel                  string                        `json:"releaseChannel,omitempty"`
 	QueryAPIEndpoints               *ServiceQueryEndpoint         `json:"-"`
+	HasTransparentDataEncryption    bool                          `json:"hasTransparentDataEncryption,omitempty"`
 }
 
 type ServiceUpdate struct {
