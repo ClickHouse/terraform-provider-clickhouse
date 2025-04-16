@@ -656,13 +656,6 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				}
 			}
 		}
-
-		if !plan.HasTransparentDataEncryption.IsNull() && !plan.HasTransparentDataEncryption.IsUnknown() {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"has_transparent_data_encryption cannot be changed",
-			)
-		}
 	}
 
 	if !plan.MinTotalMemoryGb.IsNull() && !plan.MinReplicaMemoryGb.IsUnknown() {
