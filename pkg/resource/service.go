@@ -407,14 +407,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
-			"has_transparent_data_encryption": schema.BoolAttribute{
-				Description: "Indicates if the service has transparent data encryption enabled.",
-				Optional: true,
-				Computed: true,
-				Validators: []validator.Bool{
-					boolvalidator.All(),
-				},
-			},
 		},
 		MarkdownDescription: serviceResourceDescription,
 		Version:             1,

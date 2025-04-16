@@ -211,7 +211,6 @@ type ServiceResourceModel struct {
 	HasTransparentDataEncryption    types.Bool   `tfsdk:"has_transparent_data_encryption"`
 	QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
-	HasTransparentDataEncryption		types.Bool   `tfsdk:"has_transparent_data_encryption"`
 }
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
