@@ -240,8 +240,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.HasTransparentDataEncryption.Equal(b.HasTransparentDataEncryption) ||
 		!m.IpAccessList.Equal(b.IpAccessList) ||
 		!m.QueryAPIEndpoints.Equal(b.QueryAPIEndpoints) ||
-		!m.BackupConfiguration.Equal(b.BackupConfiguration) ||
-		!m.HasTransparentDataEncryption.Equal(b.HasTransparentDataEncryption) {
+		!m.BackupConfiguration.Equal(b.BackupConfiguration) {
 		return false
 	}
 
