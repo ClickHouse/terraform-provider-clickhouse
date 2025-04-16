@@ -338,6 +338,15 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Custom role identifier ARN.",
 				Optional:    true,
 			},
+			"has_transparent_data_encryption": schema.BoolAttribute{
+				Description: "If true, the Transparent Data Encryption (TDE) feature is enabled in the service. Only supported in AWS and GCP. Requires an organization with the Enterprise plan.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+					boolplanmodifier.RequiresReplace(),
+				},
+			},
 			"query_api_endpoints": schema.SingleNestedAttribute{
 				Description: "Configuration of the query API endpoints feature.",
 				Optional:    true,
@@ -765,6 +774,12 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 		if !plan.EncryptionAssumedRoleIdentifier.IsNull() {
 			service.EncryptionAssumedRoleIdentifier = plan.EncryptionAssumedRoleIdentifier.ValueString()
+		}
+	}
+
+	if service.Tier == api.TierPPv2 {
+		if !plan.HasTransparentDataEncryption.IsUnknown() && !plan.HasTransparentDataEncryption.IsNull() {
+			service.HasTransparentDataEncryption = plan.HasTransparentDataEncryption.ValueBoolPointer()
 		}
 	}
 
@@ -1792,6 +1807,12 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringValue(service.EncryptionAssumedRoleIdentifier)
 	} else {
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
+	}
+
+	if service.HasTransparentDataEncryption != nil {
+		state.HasTransparentDataEncryption = types.BoolValue(*service.HasTransparentDataEncryption)
+	} else {
+		state.HasTransparentDataEncryption = types.BoolNull()
 	}
 
 	if service.QueryAPIEndpoints != nil {

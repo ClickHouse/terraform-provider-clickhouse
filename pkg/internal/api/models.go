@@ -62,10 +62,10 @@ type Service struct {
 	PrivateEndpointIds              []string                      `json:"privateEndpointIds,omitempty"`
 	EncryptionKey                   string                        `json:"encryptionKey,omitempty"`
 	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
+	HasTransparentDataEncryption    *bool                         `json:"hasTransparentDataEncryption,omitempty"`
 	BackupConfiguration             *BackupConfiguration          `json:"backupConfiguration,omitempty"`
 	ReleaseChannel                  string                        `json:"releaseChannel,omitempty"`
 	QueryAPIEndpoints               *ServiceQueryEndpoint         `json:"-"`
-	HasTransparentDataEncryption    bool                          `json:"hasTransparentDataEncryption,omitempty"`
 }
 
 type ServiceUpdate struct {
