@@ -560,6 +560,7 @@ func getInitialState() models.ServiceResourceModel {
 		EncryptionKey:                   types.StringNull(),
 		EncryptionAssumedRoleIdentifier: types.StringNull(),
 		BackupConfiguration:             backupConfiguration,
+		HasTransparentDataEncryption:    types.BoolValue(false),
 	}
 
 	return state
@@ -567,6 +568,7 @@ func getInitialState() models.ServiceResourceModel {
 
 func getBaseResponse(id string) api.Service {
 	trueVal := true
+	falseVal := false
 	return api.Service{
 		Id:        id,
 		IsPrimary: &trueVal,
@@ -590,6 +592,7 @@ func getBaseResponse(id string) api.Service {
 		},
 		// EncryptionKey:                   "",
 		// EncryptionAssumedRoleIdentifier: "",
+		HasTransparentDataEncryption: &falseVal,
 		BackupConfiguration: &api.BackupConfiguration{
 			BackupPeriodInHours:          nil,
 			BackupRetentionPeriodInHours: nil,

@@ -59,6 +59,7 @@ resource "clickhouse_service" "service" {
 - `encryption_assumed_role_identifier` (String) Custom role identifier ARN.
 - `encryption_key` (String) Custom encryption key ARN.
 - `endpoints` (Attributes) Allow to enable and configure additional endpoints (read protocols) to expose on the ClickHouse service. (see [below for nested schema](#nestedatt--endpoints))
+- `has_transparent_data_encryption` (Boolean) If true, the Transparent Data Encryption (TDE) feature is enabled in the service. Only supported in AWS and GCP. Requires an organization with the Enterprise plan.
 - `idle_scaling` (Boolean) When set to true the service is allowed to scale down to zero when idle.
 - `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.
 - `max_replica_memory_gb` (Number) Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
