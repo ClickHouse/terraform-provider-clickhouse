@@ -398,6 +398,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
+			"has_transparent_data_encryption": schema.BoolAttribute{
+				Description: "Indicates if the service has transparent data encryption enabled.",
+				Optional: true,
+				Computed: true,
+				Validators: []validator.Bool{
+					boolvalidator.All(),
+				},
+			},
 		},
 		MarkdownDescription: serviceResourceDescription,
 		Version:             1,
@@ -646,6 +654,13 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 					}
 				}
 			}
+		}
+
+		if !plan.HasTransparentDataEncryption.IsNull() && !plan.HasTransparentDataEncryption.IsUnknown() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"has_transparent_data_encryption cannot be changed",
+			)
 		}
 	}
 
@@ -1514,6 +1529,10 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 								Optional: true,
 							},
 						},
+					},
+					"has_tranparent_data_encryption": schema.BoolAttribute{
+						Computed: true,
+						Optional: true,
 					},
 				},
 			},

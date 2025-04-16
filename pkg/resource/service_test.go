@@ -560,6 +560,7 @@ func getInitialState() models.ServiceResourceModel {
 		EncryptionKey:                   types.StringNull(),
 		EncryptionAssumedRoleIdentifier: types.StringNull(),
 		BackupConfiguration:             backupConfiguration,
+		HasTransparentDataEncryption:    types.BoolValue(false),
 	}
 
 	return state

@@ -210,6 +210,7 @@ type ServiceResourceModel struct {
 	EncryptionAssumedRoleIdentifier types.String `tfsdk:"encryption_assumed_role_identifier"`
 	QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
+	HasTransparentDataEncryption		types.Bool   `tfsdk:"has_transparent_data_encryption"`
 }
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
@@ -238,7 +239,8 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.EncryptionAssumedRoleIdentifier.Equal(b.EncryptionAssumedRoleIdentifier) ||
 		!m.IpAccessList.Equal(b.IpAccessList) ||
 		!m.QueryAPIEndpoints.Equal(b.QueryAPIEndpoints) ||
-		!m.BackupConfiguration.Equal(b.BackupConfiguration) {
+		!m.BackupConfiguration.Equal(b.BackupConfiguration) ||
+		!m.HasTransparentDataEncryption.Equal(b.HasTransparentDataEncryption) {
 		return false
 	}
 
