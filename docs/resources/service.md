@@ -104,21 +104,14 @@ Optional:
 <a id="nestedatt--endpoints"></a>
 ### Nested Schema for `endpoints`
 
-Required:
-
-- `mysql` (Attributes) (see [below for nested schema](#nestedatt--endpoints--mysql))
-
 Optional:
 
 - `https` (Attributes) (see [below for nested schema](#nestedatt--endpoints--https))
+- `mysql` (Attributes) (see [below for nested schema](#nestedatt--endpoints--mysql))
 - `nativesecure` (Attributes) (see [below for nested schema](#nestedatt--endpoints--nativesecure))
 
-<a id="nestedatt--endpoints--mysql"></a>
-### Nested Schema for `endpoints.mysql`
-
-Required:
-
-- `enabled` (Boolean) Wether to enable the mysql endpoint or not. The value of this flag can only be true. If you want to disable the MySQL endpoint, please avoid specifying the `endpoints_configuration` attribute.
+<a id="nestedatt--endpoints--https"></a>
+### Nested Schema for `endpoints.https`
 
 Read-Only:
 
@@ -126,8 +119,12 @@ Read-Only:
 - `port` (Number) Endpoint port.
 
 
-<a id="nestedatt--endpoints--https"></a>
-### Nested Schema for `endpoints.https`
+<a id="nestedatt--endpoints--mysql"></a>
+### Nested Schema for `endpoints.mysql`
+
+Required:
+
+- `enabled` (Boolean) Wether to enable the mysql endpoint or not.
 
 Read-Only:
 
