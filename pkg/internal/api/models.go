@@ -76,6 +76,10 @@ type ServiceUpdate struct {
 	Endpoints          []Endpoint                `json:"endpoints,omitempty"`
 }
 
+type ServiceKeyRotation struct {
+	TransparentDataEncryptionKeyId string `json:"transparentDataEncryptionKeyId"`
+}
+
 // FixMemoryBounds ensures the MinTotalMemoryGb and MaxTotalMemoryGb fields are set before doing an API call to create the service
 // This is needed because there is a different interface between the /replicaScaling and the service creation API calls.
 func (s *Service) FixMemoryBounds() {

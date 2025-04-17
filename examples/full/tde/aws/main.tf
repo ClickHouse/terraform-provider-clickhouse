@@ -74,6 +74,7 @@ resource "clickhouse_service" "service" {
   }
 
   has_transparent_data_encryption = true
+  transparent_data_encryption_key_id = "arn:aws:kms:us-east-2:662591887723:key/a4e565f6-be36-4397-8d09-83f919f1e67f"
 }
 
 output "service_endpoints" {
