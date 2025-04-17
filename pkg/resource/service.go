@@ -251,10 +251,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						Attributes: map[string]schema.Attribute{
 							"enabled": schema.BoolAttribute{
 								Required:    true,
-								Description: "Wether to enable the mysql endpoint or not. The value of this flag can only be true. If you want to disable the MySQL endpoint, please avoid specifying the `endpoints_configuration` attribute.",
-								Validators: []validator.Bool{
-									boolvalidator.Equals(true),
-								},
+								Description: "Wether to enable the mysql endpoint or not.",
 							},
 							"host": schema.StringAttribute{
 								Description: "Endpoint host.",
@@ -265,7 +262,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 								Computed:    true,
 							},
 						},
-						Required: true,
+						Optional: true,
 					},
 				},
 				PlanModifiers: []planmodifier.Object{
@@ -692,6 +689,47 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			"idle_timeout_minutes must be null if idle_scaling is disabled",
 		)
 	}
+
+	if config.Endpoints.IsNull() || config.Endpoints.IsUnknown() {
+		// User did not set the endpoints attribute
+		if state.Endpoints.IsNull() || state.Endpoints.IsUnknown() {
+			// State is not set, we leave the plan as-is as value is currently unknown.
+		} else {
+			// State is set and user didn't set (or removed) attribute from the service.
+			endpoints := models.Endpoints{}
+			diag := state.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			mysql := models.OptionalEndpoint{}
+			diag = endpoints.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			if mysql.Enabled.ValueBool() {
+				// Mysql protocol was enabled outside terraform.
+				// The default is false, so in the plan we show the need to disable it.
+				mysql.Enabled = types.BoolValue(false)
+				mysql.Host = types.StringNull()
+				mysql.Port = types.Int32Null()
+				endpoints.MySQL = mysql.ObjectValue()
+				plan.Endpoints = endpoints.ObjectValue()
+
+			} else {
+				// All good, no change so we copy Endpoints from the state to the Plan to show no changes.
+				plan.Endpoints = state.Endpoints
+			}
+
+			resp.Plan.Set(ctx, plan)
+		}
+
+	} else {
+		// User set a value to the mysql endpoint
+		// Nothing to do here as terraform manages this case correctly.
+	}
+
 }
 
 // Create a new resource
@@ -1529,10 +1567,6 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 								Optional: true,
 							},
 						},
-					},
-					"has_tranparent_data_encryption": schema.BoolAttribute{
-						Computed: true,
-						Optional: true,
 					},
 				},
 			},
