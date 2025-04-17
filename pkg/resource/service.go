@@ -724,12 +724,10 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 			resp.Plan.Set(ctx, plan)
 		}
-
 	} else {
 		// User set a value to the mysql endpoint
 		// Nothing to do here as terraform manages this case correctly.
 	}
-
 }
 
 // Create a new resource
