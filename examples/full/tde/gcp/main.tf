@@ -71,7 +71,9 @@ resource "clickhouse_service" "service" {
     backup_retention_period_in_hours = 48
   }
 
-  has_transparent_data_encryption = true
+  transparent_data_encryption = {
+    enabled = true
+  }
 }
 
 output "service_endpoints" {

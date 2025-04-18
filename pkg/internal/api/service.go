@@ -225,3 +225,28 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 
 	return &serviceResponse.Result.Service, nil
 }
+
+func (c *ClientImpl) RotateTDEKey(ctx context.Context, serviceId string, keyId string) error {
+	rb, err := json.Marshal(ServiceKeyRotation{TransparentDataEncryptionKeyId: keyId})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.getServicePath(serviceId, ""), strings.NewReader(string(rb)))
+	if err != nil {
+		return err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	serviceResponse := ResponseWithResult[Service]{}
+	err = json.Unmarshal(body, &serviceResponse)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

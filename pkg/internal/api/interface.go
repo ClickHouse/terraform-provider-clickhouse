@@ -19,6 +19,7 @@ type Client interface {
 	UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
 	GetBackupConfiguration(ctx context.Context, serviceId string) (*BackupConfiguration, error)
 	UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (*BackupConfiguration, error)
+	RotateTDEKey(ctx context.Context, serviceId string, keyId string) error
 
 	GetQueryEndpoint(ctx context.Context, serviceID string) (*ServiceQueryEndpoint, error)
 	CreateQueryEndpoint(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint) (*ServiceQueryEndpoint, error)

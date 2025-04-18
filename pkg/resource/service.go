@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -335,13 +336,24 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Custom role identifier ARN.",
 				Optional:    true,
 			},
-			"has_transparent_data_encryption": schema.BoolAttribute{
-				Description: "If true, the Transparent Data Encryption (TDE) feature is enabled in the service. Only supported in AWS and GCP. Requires an organization with the Enterprise plan.",
+			"transparent_data_encryption": schema.SingleNestedAttribute{
+				Description: "Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan.",
 				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.UseStateForUnknown(),
-					boolplanmodifier.RequiresReplace(),
+				Attributes: map[string]schema.Attribute{
+					"role_id": schema.StringAttribute{
+						Computed:    true,
+						Description: "ID of Role to be used for granting access to the Encryption Key. This is an ARN for AWS services and a Service Account Identifier for GCP.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"enabled": schema.BoolAttribute{
+						Required:    true,
+						Description: "If true, TDE is enabled for the service.",
+					},
+				},
+				Validators: []validator.Object{
+					objectvalidator.ConflictsWith(path.Expressions{path.MatchRoot("warehouse_id")}...),
 				},
 			},
 			"query_api_endpoints": schema.SingleNestedAttribute{
@@ -517,6 +529,43 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 					"Switching from 'fast' to 'default' release channel is not supported",
 				)
 			}
+		}
+
+		var isEnabled, wantEnabled bool
+		{
+			if !state.TransparentEncryptionData.IsNull() {
+				stateTDE := models.TransparentEncryptionData{}
+				state.TransparentEncryptionData.As(ctx, &stateTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+				isEnabled = stateTDE.Enabled.ValueBool()
+			} else {
+				isEnabled = false
+			}
+
+			if !plan.TransparentEncryptionData.IsNull() && !plan.TransparentEncryptionData.IsUnknown() {
+				planTDE := models.TransparentEncryptionData{}
+				plan.TransparentEncryptionData.As(ctx, &planTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+				wantEnabled = planTDE.Enabled.ValueBool()
+			} else {
+				wantEnabled = false
+			}
+		}
+
+		// Attempt to disable TDE.
+		if isEnabled && !wantEnabled {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("transparent_data_encryption.enabled"),
+				"Invalid Update",
+				"It is not possible to disable TDE (Transparend data encryption) on an existing service.",
+			)
+		}
+
+		// Attempt to enable TDE.
+		if !isEnabled && wantEnabled {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("transparent_data_encryption.enabled"),
+				"Invalid Update",
+				"It is not possible to enable TDE (Transparend data encryption) on an existing service.",
+			)
 		}
 	}
 
@@ -795,10 +844,13 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	if service.Tier == api.TierPPv2 {
-		if !plan.HasTransparentDataEncryption.IsUnknown() && !plan.HasTransparentDataEncryption.IsNull() {
-			service.HasTransparentDataEncryption = plan.HasTransparentDataEncryption.ValueBoolPointer()
+	if !plan.TransparentEncryptionData.IsNull() {
+		tde := &models.TransparentEncryptionData{}
+		diag := plan.TransparentEncryptionData.As(ctx, tde, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+		if diag.HasError() {
+			return
 		}
+		service.HasTransparentDataEncryption = tde.Enabled.ValueBool()
 	}
 
 	service.IdleScaling = plan.IdleScaling.ValueBool()
@@ -1823,10 +1875,13 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
 	}
 
-	if service.HasTransparentDataEncryption != nil {
-		state.HasTransparentDataEncryption = types.BoolValue(*service.HasTransparentDataEncryption)
+	if service.HasTransparentDataEncryption {
+		state.TransparentEncryptionData = models.TransparentEncryptionData{
+			RoleID:  types.StringValue(service.EncryptionRoleID),
+			Enabled: types.BoolValue(service.HasTransparentDataEncryption),
+		}.ObjectValue()
 	} else {
-		state.HasTransparentDataEncryption = types.BoolNull()
+		state.TransparentEncryptionData = types.ObjectNull(models.TransparentEncryptionData{}.ObjectType().AttrTypes)
 	}
 
 	if service.QueryAPIEndpoints != nil {

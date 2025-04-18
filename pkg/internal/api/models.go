@@ -62,7 +62,9 @@ type Service struct {
 	PrivateEndpointIds              []string                      `json:"privateEndpointIds,omitempty"`
 	EncryptionKey                   string                        `json:"encryptionKey,omitempty"`
 	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
-	HasTransparentDataEncryption    *bool                         `json:"hasTransparentDataEncryption,omitempty"`
+	HasTransparentDataEncryption    bool                          `json:"hasTransparentDataEncryption,omitempty"`
+	TransparentEncryptionDataKeyID  string                        `json:"transparentDataEncryptionKeyId,omitempty"`
+	EncryptionRoleID                string                        `json:"encryptionRoleId,omitempty"`
 	BackupConfiguration             *BackupConfiguration          `json:"backupConfiguration,omitempty"`
 	ReleaseChannel                  string                        `json:"releaseChannel,omitempty"`
 	QueryAPIEndpoints               *ServiceQueryEndpoint         `json:"-"`
@@ -74,6 +76,10 @@ type ServiceUpdate struct {
 	PrivateEndpointIds *PrivateEndpointIdsUpdate `json:"privateEndpointIds,omitempty"`
 	ReleaseChannel     string                    `json:"releaseChannel,omitempty"`
 	Endpoints          []Endpoint                `json:"endpoints,omitempty"`
+}
+
+type ServiceKeyRotation struct {
+	TransparentDataEncryptionKeyId string `json:"transparentDataEncryptionKeyId"`
 }
 
 // FixMemoryBounds ensures the MinTotalMemoryGb and MaxTotalMemoryGb fields are set before doing an API call to create the service

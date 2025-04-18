@@ -48,22 +48,6 @@ resource "clickhouse_service" "service" {
     }
   ]
 
-  endpoints = {
-    mysql = {
-      enabled = true
-    }
-  }
-
-  query_api_endpoints = {
-    api_key_ids = [
-      data.clickhouse_api_key_id.self.id,
-    ]
-    roles = [
-      "sql_console_admin"
-    ]
-    allowed_origins = null
-  }
-
   min_replica_memory_gb = 8
   max_replica_memory_gb = 120
 
@@ -73,7 +57,14 @@ resource "clickhouse_service" "service" {
     backup_start_time                = null
   }
 
-  has_transparent_data_encryption = true
+  transparent_data_encryption = {
+    enabled = true
+  }
+}
+
+resource "clickhouse_service_transparent_data_encryption_key_association" "service_key_association" {
+  service_id = clickhouse_service.service.id
+  key_id = aws_kms_key.enc.arn
 }
 
 output "service_endpoints" {
