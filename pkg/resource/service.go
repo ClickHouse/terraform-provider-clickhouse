@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -335,13 +336,21 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Custom role identifier ARN.",
 				Optional:    true,
 			},
-			"has_transparent_data_encryption": schema.BoolAttribute{
-				Description: "If true, the Transparent Data Encryption (TDE) feature is enabled in the service. Only supported in AWS and GCP. Requires an organization with the Enterprise plan.",
+			"transparent_data_encryption": schema.SingleNestedAttribute{
+				Description: "Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan.",
 				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.UseStateForUnknown(),
-					boolplanmodifier.RequiresReplace(),
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Required:    true,
+						Description: "If true, TDE is enabled for the service.",
+					},
+					"key_id": schema.StringAttribute{
+						Optional:    true,
+						Description: "ID of the Encryption key to use for data encryption. Must be an ARN for AWS services or a Key Resource Path for GCP services.",
+					},
+				},
+				Validators: []validator.Object{
+					objectvalidator.ConflictsWith(path.Expressions{path.MatchRoot("warehouse_id")}...),
 				},
 			},
 			"query_api_endpoints": schema.SingleNestedAttribute{
@@ -517,6 +526,49 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 					"Switching from 'fast' to 'default' release channel is not supported",
 				)
 			}
+		}
+
+		var isEnabled, wantEnabled bool
+		var isKey, wantKey string
+		if !state.TransparentEncryptionData.IsNull() {
+			stateTDE := models.TransparentEncryptionData{}
+			state.TransparentEncryptionData.As(ctx, &stateTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			isEnabled = stateTDE.Enabled.ValueBool()
+			isKey = stateTDE.KeyID.ValueString()
+		}
+
+		if !plan.TransparentEncryptionData.IsNull() && !plan.TransparentEncryptionData.IsUnknown() {
+			planTDE := models.TransparentEncryptionData{}
+			plan.TransparentEncryptionData.As(ctx, &planTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			wantEnabled = planTDE.Enabled.ValueBool()
+			wantKey = planTDE.KeyID.ValueString()
+		} else {
+			wantEnabled = false
+			wantKey = ""
+		}
+
+		if isEnabled && !wantEnabled {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("transparent_data_encryption.enabled"),
+				"Invalid Update",
+				"It is not possible to disable TDE (Transparend data encryption) on an existing service.",
+			)
+		}
+
+		if !isEnabled && wantEnabled {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("transparent_data_encryption.enabled"),
+				"Invalid Update",
+				"It is not possible to enable TDE (Transparend data encryption) on an existing service.",
+			)
+		}
+
+		if isKey != "" && wantKey == "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("transparent_data_encryption.key_id"),
+				"Invalid Update",
+				"It is not possible to remove the key_id for TDE (Transparend data encryption) on a service. If the KeyID was updated outside terraform, please set the same value in the transparent_data_encryption.key_id field.",
+			)
 		}
 	}
 
@@ -795,10 +847,14 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	if service.Tier == api.TierPPv2 {
-		if !plan.HasTransparentDataEncryption.IsUnknown() && !plan.HasTransparentDataEncryption.IsNull() {
-			service.HasTransparentDataEncryption = plan.HasTransparentDataEncryption.ValueBoolPointer()
+	var tde *models.TransparentEncryptionData
+	if !plan.TransparentEncryptionData.IsNull() {
+		tde = &models.TransparentEncryptionData{}
+		diag := plan.TransparentEncryptionData.As(ctx, tde, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+		if diag.HasError() {
+			return
 		}
+		service.HasTransparentDataEncryption = tde.Enabled.ValueBool()
 	}
 
 	service.IdleScaling = plan.IdleScaling.ValueBool()
@@ -969,6 +1025,18 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				resp.Diagnostics.AddError(
 					"Error setting service backup configuration",
 					"Could not set service backup settings after creation, unexpected error: "+err.Error(),
+				)
+				return
+			}
+		}
+
+		// Set TDE key
+		if tde != nil && tde.Enabled.ValueBool() && tde.KeyID.ValueString() != "" {
+			err = r.client.RotateTDEKey(ctx, s.Id, tde.KeyID.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error setting TDE encryption key id",
+					"Could not set TDE encryption key id, unexpected error: "+err.Error(),
 				)
 				return
 			}
@@ -1344,6 +1412,26 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 				resp.Diagnostics.AddError(
 					"Error setting service backup configuration",
 					"Could not update service backup settings, unexpected error: "+err.Error(),
+				)
+				return
+			}
+		}
+	}
+
+	// TDE Key rotation
+	{
+		if !plan.TransparentEncryptionData.Equal(state.TransparentEncryptionData) {
+			tde := &models.TransparentEncryptionData{}
+			diag := plan.TransparentEncryptionData.As(ctx, tde, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			err := r.client.RotateTDEKey(ctx, serviceId, tde.KeyID.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error rotating TDE encryption key",
+					"Could not rotate TDE encryption, unexpected error: "+err.Error(),
 				)
 				return
 			}
@@ -1823,10 +1911,18 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
 	}
 
-	if service.HasTransparentDataEncryption != nil {
-		state.HasTransparentDataEncryption = types.BoolValue(*service.HasTransparentDataEncryption)
+	if service.HasTransparentDataEncryption {
+		tde := models.TransparentEncryptionData{
+			Enabled: types.BoolValue(service.HasTransparentDataEncryption),
+		}
+		if service.TransparentEncryptionDataKeyID != "" {
+			tde.KeyID = types.StringValue(service.TransparentEncryptionDataKeyID)
+		} else {
+			tde.KeyID = types.StringNull()
+		}
+		state.TransparentEncryptionData = tde.ObjectValue()
 	} else {
-		state.HasTransparentDataEncryption = types.BoolNull()
+		state.TransparentEncryptionData = types.ObjectNull(models.TransparentEncryptionData{}.ObjectType().AttrTypes)
 	}
 
 	if service.QueryAPIEndpoints != nil {

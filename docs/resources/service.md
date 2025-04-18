@@ -59,7 +59,6 @@ resource "clickhouse_service" "service" {
 - `encryption_assumed_role_identifier` (String) Custom role identifier ARN.
 - `encryption_key` (String) Custom encryption key ARN.
 - `endpoints` (Attributes) Allow to enable and configure additional endpoints (read protocols) to expose on the ClickHouse service. (see [below for nested schema](#nestedatt--endpoints))
-- `has_transparent_data_encryption` (Boolean) If true, the Transparent Data Encryption (TDE) feature is enabled in the service. Only supported in AWS and GCP. Requires an organization with the Enterprise plan.
 - `idle_scaling` (Boolean) When set to true the service is allowed to scale down to zero when idle.
 - `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.
 - `max_replica_memory_gb` (Number) Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
@@ -73,6 +72,7 @@ resource "clickhouse_service" "service" {
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
 - `release_channel` (String) Release channel to use for this service. Either 'default' or 'fast'. Switching from 'fast' to 'default' release channel is not supported.
 - `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
+- `transparent_data_encryption` (Attributes) Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan. (see [below for nested schema](#nestedatt--transparent_data_encryption))
 - `warehouse_id` (String) ID of the warehouse to share the data with. Must be in the same cloud and region.
 
 ### Read-Only
@@ -153,6 +153,18 @@ Required:
 Optional:
 
 - `allowed_origins` (String) Comma separated list of domain names to be allowed cross-origin resource sharing (CORS) access to the query API. Leave this field empty to restrict access to backend servers only
+
+
+<a id="nestedatt--transparent_data_encryption"></a>
+### Nested Schema for `transparent_data_encryption`
+
+Required:
+
+- `enabled` (Boolean) If true, TDE is enabled for the service.
+
+Optional:
+
+- `key_id` (String) ID of the Encryption key to use for data encryption. Must be an ARN for AWS services or a Key Resource Path for GCP services.
 
 
 <a id="nestedatt--private_endpoint_config"></a>

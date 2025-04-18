@@ -133,6 +133,27 @@ func (e OptionalEndpoint) ObjectValue() basetypes.ObjectValue {
 	})
 }
 
+type TransparentEncryptionData struct {
+	Enabled types.Bool   `tfsdk:"enabled"`
+	KeyID   types.String `tfsdk:"key_id"`
+}
+
+func (t TransparentEncryptionData) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"enabled": types.BoolType,
+			"key_id":  types.StringType,
+		},
+	}
+}
+
+func (t TransparentEncryptionData) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(t.ObjectType().AttrTypes, map[string]attr.Value{
+		"enabled": t.Enabled,
+		"key_id":  t.KeyID,
+	})
+}
+
 type QueryAPIEndpoints struct {
 	APIKeyIDs      types.List   `tfsdk:"api_key_ids"`
 	Roles          types.List   `tfsdk:"roles"`
@@ -208,7 +229,7 @@ type ServiceResourceModel struct {
 	PrivateEndpointConfig           types.Object `tfsdk:"private_endpoint_config"`
 	EncryptionKey                   types.String `tfsdk:"encryption_key"`
 	EncryptionAssumedRoleIdentifier types.String `tfsdk:"encryption_assumed_role_identifier"`
-	HasTransparentDataEncryption    types.Bool   `tfsdk:"has_transparent_data_encryption"`
+	TransparentEncryptionData       types.Object `tfsdk:"transparent_data_encryption"`
 	QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
 }
@@ -237,7 +258,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.PrivateEndpointConfig.Equal(b.PrivateEndpointConfig) ||
 		!m.EncryptionKey.Equal(b.EncryptionKey) ||
 		!m.EncryptionAssumedRoleIdentifier.Equal(b.EncryptionAssumedRoleIdentifier) ||
-		!m.HasTransparentDataEncryption.Equal(b.HasTransparentDataEncryption) ||
+		!m.TransparentEncryptionData.Equal(b.TransparentEncryptionData) ||
 		!m.IpAccessList.Equal(b.IpAccessList) ||
 		!m.QueryAPIEndpoints.Equal(b.QueryAPIEndpoints) ||
 		!m.BackupConfiguration.Equal(b.BackupConfiguration) {

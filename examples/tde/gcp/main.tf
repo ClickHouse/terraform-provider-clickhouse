@@ -71,7 +71,10 @@ resource "clickhouse_service" "service" {
     backup_retention_period_in_hours = 48
   }
 
-  has_transparent_data_encryption = true
+  transparent_data_encryption = {
+    enabled = true
+    key_id = "arn:aws:kms:us-east-2:XXXXXXXX:key/12345-6789-abcd-ef01-23456789abcde"
+  }
 }
 
 output "service_endpoints" {
