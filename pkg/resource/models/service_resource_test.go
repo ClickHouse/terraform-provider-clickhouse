@@ -245,14 +245,6 @@ func TestServiceResource_Equals(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "TransparentEncryptionDataKeyID changed",
-			a:    base,
-			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
-				src.TransparentEncryptionDataKeyID = types.StringValue("changed")
-			}).Get(),
-			want: false,
-		},
-		{
 			name: "BackupConfiguration.BackupPeriodInHours changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
