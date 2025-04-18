@@ -530,23 +530,29 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 		var isEnabled, wantEnabled bool
 		var isKey, wantKey string
-		if !state.TransparentEncryptionData.IsNull() {
-			stateTDE := models.TransparentEncryptionData{}
-			state.TransparentEncryptionData.As(ctx, &stateTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
-			isEnabled = stateTDE.Enabled.ValueBool()
-			isKey = stateTDE.KeyID.ValueString()
+		{
+			if !state.TransparentEncryptionData.IsNull() {
+				stateTDE := models.TransparentEncryptionData{}
+				state.TransparentEncryptionData.As(ctx, &stateTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+				isEnabled = stateTDE.Enabled.ValueBool()
+				isKey = stateTDE.KeyID.ValueString()
+			} else {
+				wantEnabled = false
+				wantKey = ""
+			}
+
+			if !plan.TransparentEncryptionData.IsNull() && !plan.TransparentEncryptionData.IsUnknown() {
+				planTDE := models.TransparentEncryptionData{}
+				plan.TransparentEncryptionData.As(ctx, &planTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+				wantEnabled = planTDE.Enabled.ValueBool()
+				wantKey = planTDE.KeyID.ValueString()
+			} else {
+				wantEnabled = false
+				wantKey = ""
+			}
 		}
 
-		if !plan.TransparentEncryptionData.IsNull() && !plan.TransparentEncryptionData.IsUnknown() {
-			planTDE := models.TransparentEncryptionData{}
-			plan.TransparentEncryptionData.As(ctx, &planTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
-			wantEnabled = planTDE.Enabled.ValueBool()
-			wantKey = planTDE.KeyID.ValueString()
-		} else {
-			wantEnabled = false
-			wantKey = ""
-		}
-
+		// Attempt to disable TDE.
 		if isEnabled && !wantEnabled {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("transparent_data_encryption.enabled"),
@@ -555,6 +561,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
+		// Attempt to enable TDE.
 		if !isEnabled && wantEnabled {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("transparent_data_encryption.enabled"),
@@ -563,6 +570,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
+		// Attempt to blank out key ID.
 		if isKey != "" && wantKey == "" {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("transparent_data_encryption.key_id"),
