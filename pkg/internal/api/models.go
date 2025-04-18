@@ -64,6 +64,7 @@ type Service struct {
 	EncryptionAssumedRoleIdentifier string                        `json:"encryptionAssumedRoleIdentifier,omitempty"`
 	HasTransparentDataEncryption    bool                          `json:"hasTransparentDataEncryption,omitempty"`
 	TransparentEncryptionDataKeyID  string                        `json:"transparentDataEncryptionKeyId,omitempty"`
+	EncryptionRoleID                string                        `json:"encryptionRoleId,omitempty"`
 	BackupConfiguration             *BackupConfiguration          `json:"backupConfiguration,omitempty"`
 	ReleaseChannel                  string                        `json:"releaseChannel,omitempty"`
 	QueryAPIEndpoints               *ServiceQueryEndpoint         `json:"-"`

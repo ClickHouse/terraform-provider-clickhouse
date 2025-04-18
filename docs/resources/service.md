@@ -162,9 +162,9 @@ Required:
 
 - `enabled` (Boolean) If true, TDE is enabled for the service.
 
-Optional:
+Read-Only:
 
-- `key_id` (String) ID of the Encryption key to use for data encryption. Must be an ARN for AWS services or a Key Resource Path for GCP services.
+- `role_id` (String) ID of Role to be used for granting access to the Encryption Key. This is an ARN for AWS services and a Service Account Identifier for GCP.
 
 
 <a id="nestedatt--private_endpoint_config"></a>

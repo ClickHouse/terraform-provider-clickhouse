@@ -135,14 +135,14 @@ func (e OptionalEndpoint) ObjectValue() basetypes.ObjectValue {
 
 type TransparentEncryptionData struct {
 	Enabled types.Bool   `tfsdk:"enabled"`
-	KeyID   types.String `tfsdk:"key_id"`
+	RoleID  types.String `tfsdk:"role_id"`
 }
 
 func (t TransparentEncryptionData) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"enabled": types.BoolType,
-			"key_id":  types.StringType,
+			"role_id": types.StringType,
 		},
 	}
 }
@@ -150,7 +150,7 @@ func (t TransparentEncryptionData) ObjectType() types.ObjectType {
 func (t TransparentEncryptionData) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(t.ObjectType().AttrTypes, map[string]attr.Value{
 		"enabled": t.Enabled,
-		"key_id":  t.KeyID,
+		"role_id": t.RoleID,
 	})
 }
 

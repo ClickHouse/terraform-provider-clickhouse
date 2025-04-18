@@ -17,7 +17,7 @@ variable "service_name" {
 
 variable "region" {
   type = string
-  default = "us-east-2"
+  default = "europe-west4"
 }
 
 variable "release_channel" {
@@ -34,7 +34,7 @@ data "clickhouse_api_key_id" "self" {
 
 resource "clickhouse_service" "service" {
   name                      = var.service_name
-  cloud_provider            = "aws"
+  cloud_provider            = "gcp"
   region                    = var.region
   release_channel           = var.release_channel
   idle_scaling              = true
@@ -48,18 +48,31 @@ resource "clickhouse_service" "service" {
     }
   ]
 
+  endpoints = {
+    mysql = {
+      enabled = true
+    }
+  }
+
+  query_api_endpoints = {
+    api_key_ids = [
+      data.clickhouse_api_key_id.self.id,
+    ]
+    roles = [
+      "sql_console_admin"
+    ]
+    allowed_origins = null
+  }
+
   min_replica_memory_gb = 8
   max_replica_memory_gb = 120
 
   backup_configuration = {
-    backup_period_in_hours           = 24
-    backup_retention_period_in_hours = 24
-    backup_start_time                = null
+    backup_retention_period_in_hours = 48
   }
 
   transparent_data_encryption = {
     enabled = true
-    key_id = "arn:aws:kms:us-east-2:XXXXXXXX:key/12345-6789-abcd-ef01-23456789abcde"
   }
 }
 
