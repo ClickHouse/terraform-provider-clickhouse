@@ -52,7 +52,7 @@ func (r *ServiceTransparentDataEncryptionKeyAssociationResource) Schema(_ contex
 				Description: "ID of the Encryption key to use for data encryption. Must be an ARN for AWS services or a Key Resource Path for GCP services.",
 			},
 		},
-		MarkdownDescription: serviceResourceDescription,
+		MarkdownDescription: serviceTransparentDataEncryptionKeyAssociationResourceDescription,
 	}
 }
 
@@ -222,11 +222,10 @@ func (r *ServiceTransparentDataEncryptionKeyAssociationResource) Update(ctx cont
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *ServiceTransparentDataEncryptionKeyAssociationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	resp.Diagnostics.AddError(
-		"Deleting Transparent Data Encryption Key association is not supported",
-		"Deleting Transparent Data Encryption Key association is not supported. If you want, you can specify a new encryption key. If you need to turn off Transparent Data Encryption, you need to recreate the ClickHouse service.",
-	)
-	return
+	// Deleting a TDE key association is not possible, but if we return an error here it would be impossible to tear down a service with an existing TDE association.
+	// We decided to implement a no-op instead, just removing the resource from the state.
+	// This is far from optimal, but the only solution we have so far.
+	resp.State.RemoveResource(ctx)
 }
 
 func (r *ServiceTransparentDataEncryptionKeyAssociationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

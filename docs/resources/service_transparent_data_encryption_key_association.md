@@ -3,19 +3,14 @@
 page_title: "clickhouse_service_transparent_data_encryption_key_association Resource - clickhouse"
 subcategory: ""
 description: |-
-  You can use the clickhouse_service resource to deploy ClickHouse cloud instances on supported cloud providers.
-  Known limitations:
-  If you create a service with warehouse_id set and then remove warehouse_id attribute completely, the provider won't detect the change. If you want to make a secondary service become primary, remove the warehouse_id and taint it before applying.If you create a service with readonly flag set to true and then remove readonly flag completely, the provider won't detect the change. If you want to make a secondary service read write, explicitly set the readonly flag to false.
+  You can use the clickhouse_service_transparent_data_encryption_key_association resource to associate your own Encryption Key with a Clickhouse Service with the Transparent Data Encryption (TDE) feature enabled.
+  Please note that this feature requires an organization with the Enterprise plan.
 ---
 
 # clickhouse_service_transparent_data_encryption_key_association (Resource)
 
-You can use the *clickhouse_service* resource to deploy ClickHouse cloud instances on supported cloud providers.
-
-Known limitations:
-
-- If you create a service with `warehouse_id` set and then remove `warehouse_id` attribute completely, the provider won't detect the change. If you want to make a secondary service become primary, remove the `warehouse_id` and taint it before applying.
-- If you create a service with `readonly` flag set to true and then remove `readonly` flag completely, the provider won't detect the change. If you want to make a secondary service read write, explicitly set the `readonly` flag to false.
+You can use the *clickhouse_service_transparent_data_encryption_key_association* resource to associate your own Encryption Key with a Clickhouse Service with the Transparent Data Encryption (TDE) feature enabled.
+Please note that this feature requires an organization with the `Enterprise` plan.
 
 ## Example Usage
 
