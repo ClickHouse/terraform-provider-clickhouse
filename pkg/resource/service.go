@@ -790,7 +790,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 	}
 
-	var defaultTDE = false
+	defaultTDE := false
 	{
 		if config.TransparentEncryptionData.IsNull() || config.TransparentEncryptionData.IsUnknown() {
 			defaultTDE = true
