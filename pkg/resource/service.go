@@ -41,6 +41,7 @@ var (
 	_ resource.Resource                = &ServiceResource{}
 	_ resource.ResourceWithConfigure   = &ServiceResource{}
 	_ resource.ResourceWithImportState = &ServiceResource{}
+	_ resource.ResourceWithModifyPlan  = &ServiceResource{}
 )
 
 //go:embed descriptions/service.md
@@ -283,12 +284,12 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				DeprecationMessage: "Please use max_replica_memory_gb instead",
 			},
 			"min_replica_memory_gb": schema.Int64Attribute{
-				Description: "Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
-				Description: "Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
 			},
@@ -339,6 +340,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"transparent_data_encryption": schema.SingleNestedAttribute{
 				Description: "Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan.",
 				Optional:    true,
+				Computed:    true,
 				Attributes: map[string]schema.Attribute{
 					"role_id": schema.StringAttribute{
 						Computed:    true,
@@ -348,9 +350,13 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						},
 					},
 					"enabled": schema.BoolAttribute{
-						Required:    true,
+						Optional:    true,
+						Computed:    true, // To allow client side defaulting.
 						Description: "If true, TDE is enabled for the service.",
 					},
+				},
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.Object{
 					objectvalidator.ConflictsWith(path.Expressions{path.MatchRoot("warehouse_id")}...),
@@ -541,10 +547,10 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				isEnabled = false
 			}
 
-			if !plan.TransparentEncryptionData.IsNull() && !plan.TransparentEncryptionData.IsUnknown() {
-				planTDE := models.TransparentEncryptionData{}
-				plan.TransparentEncryptionData.As(ctx, &planTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
-				wantEnabled = planTDE.Enabled.ValueBool()
+			if !config.TransparentEncryptionData.IsNull() && !config.TransparentEncryptionData.IsUnknown() {
+				configTDE := models.TransparentEncryptionData{}
+				config.TransparentEncryptionData.As(ctx, &configTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+				wantEnabled = configTDE.Enabled.ValueBool()
 			} else {
 				wantEnabled = false
 			}
@@ -555,7 +561,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			resp.Diagnostics.AddAttributeError(
 				path.Root("transparent_data_encryption.enabled"),
 				"Invalid Update",
-				"It is not possible to disable TDE (Transparend data encryption) on an existing service.",
+				"It is not possible to disable TDE (Transparent data encryption) on an existing service.",
 			)
 		}
 
@@ -564,8 +570,17 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			resp.Diagnostics.AddAttributeError(
 				path.Root("transparent_data_encryption.enabled"),
 				"Invalid Update",
-				"It is not possible to enable TDE (Transparend data encryption) on an existing service.",
+				"It is not possible to enable TDE (Transparent data encryption) on an existing service.",
 			)
+		}
+
+		if !wantEnabled {
+			// Mark RoleID as known null.
+			planTDE := models.TransparentEncryptionData{}
+			plan.TransparentEncryptionData.As(ctx, &planTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			planTDE.RoleID = types.StringNull()
+			plan.TransparentEncryptionData = planTDE.ObjectValue()
+			resp.Plan.Set(ctx, plan)
 		}
 	}
 
@@ -771,6 +786,27 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				plan.Endpoints = state.Endpoints
 			}
 
+			resp.Plan.Set(ctx, plan)
+		}
+	}
+
+	var defaultTDE = false
+	{
+		if config.TransparentEncryptionData.IsNull() || config.TransparentEncryptionData.IsUnknown() {
+			defaultTDE = true
+		} else {
+			cfg := models.TransparentEncryptionData{}
+			diag := config.TransparentEncryptionData.As(ctx, &cfg, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+			defaultTDE = cfg.Enabled.IsUnknown() || cfg.Enabled.IsNull()
+		}
+		if defaultTDE {
+			plan.TransparentEncryptionData = models.TransparentEncryptionData{
+				Enabled: types.BoolValue(false),
+				RoleID:  types.StringNull(),
+			}.ObjectValue()
 			resp.Plan.Set(ctx, plan)
 		}
 	}
@@ -1875,14 +1911,17 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
 	}
 
-	if service.HasTransparentDataEncryption {
-		state.TransparentEncryptionData = models.TransparentEncryptionData{
-			RoleID:  types.StringValue(service.EncryptionRoleID),
-			Enabled: types.BoolValue(service.HasTransparentDataEncryption),
-		}.ObjectValue()
-	} else {
-		state.TransparentEncryptionData = types.ObjectNull(models.TransparentEncryptionData{}.ObjectType().AttrTypes)
+	tde := models.TransparentEncryptionData{
+		Enabled: types.BoolValue(service.HasTransparentDataEncryption),
 	}
+
+	if service.EncryptionRoleID != "" {
+		tde.RoleID = types.StringValue(service.EncryptionRoleID)
+	} else {
+		tde.RoleID = types.StringNull()
+	}
+
+	state.TransparentEncryptionData = tde.ObjectValue()
 
 	if service.QueryAPIEndpoints != nil {
 		queryApiEndpoint := models.QueryAPIEndpoints{}

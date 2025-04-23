@@ -147,7 +147,7 @@ jobs:
           region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: cleanup
-        if: ${{ always() && matrix.test.cloud == 'aws' && matrix.test.name == 'private_endpoint' }}
+        if: ${{ always() && matrix.test.cloud == 'aws' }}
         uses: ./.github/actions/cleanup-aws
         with:
           service_name: ${{steps.name.outputs.test_name}}
@@ -218,13 +218,15 @@ jobs:
           skip_build: "false"
           region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+
       - name: cleanup
-        if: ${{ always() && matrix.test.cloud == 'aws' && matrix.test.name == 'private_endpoint' }}
+        if: ${{ always() && matrix.test.cloud == 'aws' }}
         uses: ./.github/actions/cleanup-aws
         with:
           service_name: ${{steps.name.outputs.test_name}}
           aws_region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+
       - name: Mark error
         id: status
         if: failure()
