@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -40,6 +41,7 @@ var (
 	_ resource.Resource                = &ServiceResource{}
 	_ resource.ResourceWithConfigure   = &ServiceResource{}
 	_ resource.ResourceWithImportState = &ServiceResource{}
+	_ resource.ResourceWithModifyPlan  = &ServiceResource{}
 )
 
 //go:embed descriptions/service.md
@@ -282,12 +284,12 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				DeprecationMessage: "Please use max_replica_memory_gb instead",
 			},
 			"min_replica_memory_gb": schema.Int64Attribute{
-				Description: "Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
-				Description: "Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
 			},
@@ -335,13 +337,29 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Custom role identifier ARN.",
 				Optional:    true,
 			},
-			"has_transparent_data_encryption": schema.BoolAttribute{
-				Description: "If true, the Transparent Data Encryption (TDE) feature is enabled in the service. Only supported in AWS and GCP. Requires an organization with the Enterprise plan.",
+			"transparent_data_encryption": schema.SingleNestedAttribute{
+				Description: "Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan.",
 				Optional:    true,
 				Computed:    true,
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.UseStateForUnknown(),
-					boolplanmodifier.RequiresReplace(),
+				Attributes: map[string]schema.Attribute{
+					"role_id": schema.StringAttribute{
+						Computed:    true,
+						Description: "ID of Role to be used for granting access to the Encryption Key. This is an ARN for AWS services and a Service Account Identifier for GCP.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"enabled": schema.BoolAttribute{
+						Optional:    true,
+						Computed:    true, // To allow client side defaulting.
+						Description: "If true, TDE is enabled for the service.",
+					},
+				},
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Object{
+					objectvalidator.ConflictsWith(path.Expressions{path.MatchRoot("warehouse_id")}...),
 				},
 			},
 			"query_api_endpoints": schema.SingleNestedAttribute{
@@ -517,6 +535,52 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 					"Switching from 'fast' to 'default' release channel is not supported",
 				)
 			}
+		}
+
+		var isEnabled, wantEnabled bool
+		{
+			if !state.TransparentEncryptionData.IsNull() {
+				stateTDE := models.TransparentEncryptionData{}
+				state.TransparentEncryptionData.As(ctx, &stateTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+				isEnabled = stateTDE.Enabled.ValueBool()
+			} else {
+				isEnabled = false
+			}
+
+			if !config.TransparentEncryptionData.IsNull() && !config.TransparentEncryptionData.IsUnknown() {
+				configTDE := models.TransparentEncryptionData{}
+				config.TransparentEncryptionData.As(ctx, &configTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+				wantEnabled = configTDE.Enabled.ValueBool()
+			} else {
+				wantEnabled = false
+			}
+		}
+
+		// Attempt to disable TDE.
+		if isEnabled && !wantEnabled {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("transparent_data_encryption.enabled"),
+				"Invalid Update",
+				"It is not possible to disable TDE (Transparent data encryption) on an existing service.",
+			)
+		}
+
+		// Attempt to enable TDE.
+		if !isEnabled && wantEnabled {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("transparent_data_encryption.enabled"),
+				"Invalid Update",
+				"It is not possible to enable TDE (Transparent data encryption) on an existing service.",
+			)
+		}
+
+		if !wantEnabled {
+			// Mark RoleID as known null.
+			planTDE := models.TransparentEncryptionData{}
+			plan.TransparentEncryptionData.As(ctx, &planTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			planTDE.RoleID = types.StringNull()
+			plan.TransparentEncryptionData = planTDE.ObjectValue()
+			resp.Plan.Set(ctx, plan)
 		}
 	}
 
@@ -725,6 +789,27 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			resp.Plan.Set(ctx, plan)
 		}
 	}
+
+	defaultTDE := false
+	{
+		if config.TransparentEncryptionData.IsNull() || config.TransparentEncryptionData.IsUnknown() {
+			defaultTDE = true
+		} else {
+			cfg := models.TransparentEncryptionData{}
+			diag := config.TransparentEncryptionData.As(ctx, &cfg, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+			defaultTDE = cfg.Enabled.IsUnknown() || cfg.Enabled.IsNull()
+		}
+		if defaultTDE {
+			plan.TransparentEncryptionData = models.TransparentEncryptionData{
+				Enabled: types.BoolValue(false),
+				RoleID:  types.StringNull(),
+			}.ObjectValue()
+			resp.Plan.Set(ctx, plan)
+		}
+	}
 }
 
 // Create a new resource
@@ -795,10 +880,13 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
-	if service.Tier == api.TierPPv2 {
-		if !plan.HasTransparentDataEncryption.IsUnknown() && !plan.HasTransparentDataEncryption.IsNull() {
-			service.HasTransparentDataEncryption = plan.HasTransparentDataEncryption.ValueBoolPointer()
+	if !plan.TransparentEncryptionData.IsNull() {
+		tde := &models.TransparentEncryptionData{}
+		diag := plan.TransparentEncryptionData.As(ctx, tde, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+		if diag.HasError() {
+			return
 		}
+		service.HasTransparentDataEncryption = tde.Enabled.ValueBool()
 	}
 
 	service.IdleScaling = plan.IdleScaling.ValueBool()
@@ -1823,11 +1911,17 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EncryptionAssumedRoleIdentifier = types.StringNull()
 	}
 
-	if service.HasTransparentDataEncryption != nil {
-		state.HasTransparentDataEncryption = types.BoolValue(*service.HasTransparentDataEncryption)
-	} else {
-		state.HasTransparentDataEncryption = types.BoolNull()
+	tde := models.TransparentEncryptionData{
+		Enabled: types.BoolValue(service.HasTransparentDataEncryption),
 	}
+
+	if service.EncryptionRoleID != "" {
+		tde.RoleID = types.StringValue(service.EncryptionRoleID)
+	} else {
+		tde.RoleID = types.StringNull()
+	}
+
+	state.TransparentEncryptionData = tde.ObjectValue()
 
 	if service.QueryAPIEndpoints != nil {
 		queryApiEndpoint := models.QueryAPIEndpoints{}

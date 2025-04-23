@@ -136,6 +136,14 @@ jobs:
           region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
 
+      - name: cleanup
+        if: ${{ always() && matrix.test.cloud == 'aws' }}
+        uses: ./.github/actions/cleanup-aws
+        with:
+          service_name: "[e2e]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}"
+          aws_region: ${{ steps.credentials.outputs.region }}
+          aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+
       - name: Mark error
         id: status
         if: failure()
@@ -188,6 +196,14 @@ jobs:
           cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: "true"
           region: ${{ steps.credentials.outputs.region }}
+          aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+
+      - name: cleanup
+        if: ${{ always() && matrix.test.cloud == 'aws' }}
+        uses: ./.github/actions/cleanup-aws
+        with:
+          service_name: "[upg]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}"
+          aws_region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
 
       - name: Mark error
