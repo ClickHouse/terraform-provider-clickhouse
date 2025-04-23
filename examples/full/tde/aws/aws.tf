@@ -14,7 +14,7 @@ variable "aws_session_token" {
 locals {
   tags = {
     Role = "terraform-e2e-test"
-    ServiceName = replace(var.service_name, "[^a-zA-Z0-9_.:/=+@- ]", "_")
+    ServiceName = replace(var.service_name, "/[^-a-zA-Z0-9_.:/=+@ ]/", "_")
   }
 }
 
