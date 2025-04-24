@@ -1368,7 +1368,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// DEBUG: Write passwordWO to file for debugging purposes
 	func() {
 		debugFile := "/tmp/terradebug.txt"
-		f, err := os.OpenFile(debugFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		f, err := os.OpenFile(debugFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
 			// Silently fail, this is just for debugging
 			return
