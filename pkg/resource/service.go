@@ -992,46 +992,6 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			}
 		}
 
-		// Set query api endpoints
-		if !plan.QueryAPIEndpoints.IsNull() {
-			qae := models.QueryAPIEndpoints{}
-			diag := plan.QueryAPIEndpoints.As(ctx, &qae, basetypes.ObjectAsOptions{
-				UnhandledNullAsEmpty:    false,
-				UnhandledUnknownAsEmpty: false,
-			})
-			if diag.HasError() {
-				resp.Diagnostics.Append(diag.Errors()...)
-				return
-			}
-
-			roles := make([]string, 0)
-			diag = qae.Roles.ElementsAs(ctx, &roles, false)
-			if diag.HasError() {
-				resp.Diagnostics.Append(diag.Errors()...)
-				return
-			}
-
-			keys := make([]string, 0)
-			diag = qae.APIKeyIDs.ElementsAs(ctx, &keys, false)
-			if diag.HasError() {
-				resp.Diagnostics.Append(diag.Errors()...)
-				return
-			}
-
-			_, err := r.client.CreateQueryEndpoint(ctx, s.Id, api.ServiceQueryEndpoint{
-				Roles:          roles,
-				OpenApiKeys:    keys,
-				AllowedOrigins: qae.AllowedOrigins.ValueString(),
-			})
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Error setting service query API endpoints",
-					"Could not set service query API endpoints, unexpected error: "+err.Error(),
-				)
-				return
-			}
-		}
-
 		// Set backup settings.
 		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
 			bc := models.BackupConfiguration{}
@@ -1060,6 +1020,46 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				)
 				return
 			}
+		}
+	}
+
+	// Set query api endpoints
+	if !plan.QueryAPIEndpoints.IsNull() {
+		qae := models.QueryAPIEndpoints{}
+		diag := plan.QueryAPIEndpoints.As(ctx, &qae, basetypes.ObjectAsOptions{
+			UnhandledNullAsEmpty:    false,
+			UnhandledUnknownAsEmpty: false,
+		})
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag.Errors()...)
+			return
+		}
+
+		roles := make([]string, 0)
+		diag = qae.Roles.ElementsAs(ctx, &roles, false)
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag.Errors()...)
+			return
+		}
+
+		keys := make([]string, 0)
+		diag = qae.APIKeyIDs.ElementsAs(ctx, &keys, false)
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag.Errors()...)
+			return
+		}
+
+		_, err := r.client.CreateQueryEndpoint(ctx, s.Id, api.ServiceQueryEndpoint{
+			Roles:          roles,
+			OpenApiKeys:    keys,
+			AllowedOrigins: qae.AllowedOrigins.ValueString(),
+		})
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error setting service query API endpoints",
+				"Could not set service query API endpoints, unexpected error: "+err.Error(),
+			)
+			return
 		}
 	}
 
