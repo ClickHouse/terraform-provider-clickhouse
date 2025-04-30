@@ -2,7 +2,7 @@
 
 You can use the `clickhouse_grant_privilege` resource to grant privileges on databases and tables to either a `clickhouse_user` or a `clickhouse_role`.
 
-Please note that in order to assign privileges to all database and/or all tables, the `database` and/or `table` fields must be set to null, and not to "*".
+Please note that in order to grant privileges to all database and/or all tables, the `database` and/or `table` fields must be set to null, and not to "*".
 
 Attention: in order to use the `clickhouse_grant_privilege` resource you need to set the `query_api_endpoint` attribute in the `clickhouse_service`.
 Please check [full example](https://github.com/ClickHouse/terraform-provider-clickhouse/blob/main/examples/rbac/main.tf).
