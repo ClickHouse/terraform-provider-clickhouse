@@ -47,7 +47,7 @@ on:
       upgrade_from:
         type: string
         default: ""
-        description: "What version to test upgrade from. Including leading 'v'. Example 'v.2.3.0'. Defaults to latest stable release."
+        description: "What version to test upgrade from. Including leading 'v'. Example 'v2.3.0'. Defaults to latest stable release."
   schedule:
     - cron: "0 7 * * *"
 
