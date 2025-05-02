@@ -44,6 +44,10 @@ on:
         type: boolean
         default: false
         description: "If checked, additionally create service using latest stable version, then upgrade to the current version"
+      upgrade_from:
+        type: string
+        default: ""
+        description: "What version to test upgrade from. Including leading 'v'. Example 'v2.3.0'. Defaults to latest stable release."
   schedule:
     - cron: "0 7 * * *"
 
@@ -215,6 +219,7 @@ jobs:
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: "true"
+          upgrade_from: ${{ inputs.upgrade_from }}
           skip_build: "false"
           region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
