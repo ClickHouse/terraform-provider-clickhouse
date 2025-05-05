@@ -66,8 +66,10 @@ resource "clickhouse_service" "service" {
 - `min_replica_memory_gb` (Number) Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
 - `min_total_memory_gb` (Number, Deprecated) Minimum total memory of all workers during auto-scaling in Gb. Must be a multiple of 12 and greater than 24.
 - `num_replicas` (Number) Number of replicas for the service. Must be between 3 and 20. Contact support to enable this feature.
-- `password` (String, Sensitive) Password for the default user. One of either `password` or `password_hash` must be specified.
+- `password` (String, Sensitive) Password for the default user. One of either `password_wo`, `password` or `password_hash` must be specified.
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.
+- `password_wo` (String, Sensitive) Password write only for the default user. One of either `password_wo`, `password` or `password_hash` must be specified.
+- `password_wo_version` (Number) Password write only version for the default user. The version needs to be updated for  One of either `password` or `password_hash` must be specified.
 - `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
 - `release_channel` (String) Release channel to use for this service. Either 'default' or 'fast'. Switching from 'fast' to 'default' release channel is not supported.
