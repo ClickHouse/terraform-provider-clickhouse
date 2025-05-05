@@ -41,27 +41,12 @@ resource "clickhouse_service" "aws_red" {
   max_replica_memory_gb = 120
 }
 
-// add AWS PrivateLink from VPC foo to organization
-resource "clickhouse_private_endpoint_registration" "private_endpoint_aws_foo" {
-  cloud_provider      = "aws"
-  private_endpoint_id = aws_vpc_endpoint.pl_vpc_foo.id
-  region              = var.region
-  description         = "Private Link from VPC foo"
-}
-
 resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
-  private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.private_endpoint_id]
+  private_endpoint_ids = [aws_vpc_endpoint.pl_vpc_foo.id]
   service_id = clickhouse_service.aws_red.id
 }
 
-data "clickhouse_private_endpoint_config" "endpoint_config" {
-  cloud_provider = "aws"
-  region         = var.region
-
-  depends_on = [clickhouse_service.aws_red]
-}
-
-// hostname for connecting to instance via PrivateLink from VPC foo
+# hostname for connecting to instance via PrivateLink from VPC foo
 output "red_private_link_endpoint" {
   value = clickhouse_service.aws_red.private_endpoint_config.private_dns_hostname
 }

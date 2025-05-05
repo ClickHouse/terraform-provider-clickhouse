@@ -83,7 +83,7 @@ resource "aws_vpc_security_group_ingress_rule" "allow_clickhouse_https_protocol"
 // Private Link in VPC foo
 resource "aws_vpc_endpoint" "pl_vpc_foo" {
   vpc_id            = aws_vpc.vpc.id
-  service_name      = data.clickhouse_private_endpoint_config.endpoint_config.endpoint_service_id
+  service_name      = clickhouse_service.aws_red.private_endpoint_config.endpoint_service_id
   vpc_endpoint_type = "Interface"
   security_group_ids = [
     aws_security_group.allow_clickhouse_cloud_foo.id
