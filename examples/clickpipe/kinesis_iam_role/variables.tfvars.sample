@@ -1,0 +1,10 @@
+api_key_id     = "<YOUR_CLICKHOUSE_CLOUD_API_KEY_ID>"
+api_key_secret = "<YOUR_CLICKHOUSE_CLOUD_API_KEY_SECRET>"
+organization   = "<YOUR_CLICKHOUSE_CLOUD_ORGANIZATION_ID>"
+region         = "us-east-1"
+
+service_id = "<YOUR_CLICKHOUSE_CLOUD_SERVICE_ID>"
+
+kinesis_stream_name = "<YOUR_AWS_KINESIS_STREAM_NAME>"
+aws_region          = "<YOUR_AWS_REGION>"
+iam_role_arn      = "<IAM_ROLE_ARN>"
