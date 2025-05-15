@@ -118,6 +118,13 @@ runs:
         EOF
         fi
         
+        if [ "${{ inputs.cloud_provider }}" == "gcp" ]
+        then
+          cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
+        project_id = "${{ steps.gcp-auth.outputs.project_id }}"
+        EOF
+        fi
+        
         echo "::endgroup::"
 
     - shell: bash
