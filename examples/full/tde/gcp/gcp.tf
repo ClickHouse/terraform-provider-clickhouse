@@ -30,13 +30,16 @@ resource "google_kms_crypto_key" "key" {
   }
 }
 
-data "google_client_openid_userinfo" "current" {}
-
-resource "google_kms_crypto_key_iam_binding" "owners" {
-  role          = "roles/owner"
-  crypto_key_id = google_kms_crypto_key.key.id
-  members       = ["user:${data.google_client_openid_userinfo.current.email}"]
-}
+# data "google_client_openid_userinfo" "current" {}
+# data "google_client_config" "current" {}
+#
+# resource "google_kms_crypto_key_iam_binding" "owners" {
+#   role          = "roles/owner"
+#   crypto_key_id = google_kms_crypto_key.key.id
+#   members       = [
+#     data.google_client_openid_userinfo.current.email == null ? data.google_client_config.current.email : "user:${data.google_client_openid_userinfo.current.email}"
+#   ]
+# }
 
 resource "google_kms_crypto_key_iam_binding" "viewers" {
   role          = "roles/cloudkms.viewer"
