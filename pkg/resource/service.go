@@ -7,13 +7,9 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
@@ -132,7 +128,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			// WriteOnly indicates that Terraform will not store this attribute value in the plan or state artifacts.
 			// Acces to the value is only possible through config.
 			"password_wo": schema.StringAttribute{
-				Description: "Password write only for the default user. One of either `password_wo`, `password` or `password_hash` must be specified.",
+				Description: "Password write only (not stored in state) for the default user. One of either `password_wo`, `password` or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
 				WriteOnly:   true,
@@ -146,7 +142,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"password_wo_version": schema.Int32Attribute{
-				Description: "Password write only version for the default user. The version needs to be updated for  One of either `password` or `password_hash` must be specified.",
+				Description: "Password write only version for the default user. The version is stored in state so when it is updated password_wo gets updated too. Only `password_wo` must be specified.",
 				Optional:    true,
 				Sensitive:   false,
 				WriteOnly:   false,
@@ -1364,33 +1360,6 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Acces to the value is only possible through config.
 	var passwordWO types.String
 	req.Config.GetAttribute(ctx, path.Root("password_wo"), &passwordWO)
-
-	// DEBUG: Write passwordWO to file for debugging purposes
-	func() {
-		debugFile := "/tmp/terradebug.txt"
-		f, err := os.OpenFile(debugFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-		if err != nil {
-			// Silently fail, this is just for debugging
-			return
-		}
-		defer f.Close()
-
-		timestamp := time.Now().Format(time.RFC3339)
-		msg := fmt.Sprintf("[%s] PasswordWO: %s, PasswordWOVersion: %d\n", timestamp, passwordWO, plan.PasswordWOVersion.ValueInt32())
-
-		jsonData, jsonErr := json.MarshalIndent(passwordWO, "", "  ")
-		if jsonErr == nil {
-			if _, err := f.WriteString(fmt.Sprintf("[%s] Request info: %s\n", timestamp, jsonData)); err != nil {
-				// Silently fail, this is just for debugging
-				return
-			}
-		}
-
-		if _, err := f.WriteString(msg); err != nil {
-			// Silently fail, this is just for debugging
-			return
-		}
-	}()
 
 	if len(password) > 0 && plan.Password != state.Password {
 		password = plan.Password.ValueString()
