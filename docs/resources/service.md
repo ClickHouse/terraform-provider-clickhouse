@@ -54,6 +54,7 @@ resource "clickhouse_service" "service" {
 ### Optional
 
 - `backup_configuration` (Attributes) Configuration of service backup settings. (see [below for nested schema](#nestedatt--backup_configuration))
+- `backup_id` (String) ID of the backup to restore when creating new service. If specified, the service will be created as a restore operation
 - `byoc_id` (String) BYOC ID related to the cloud provider account you want to create this service into.
 - `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.
 - `encryption_assumed_role_identifier` (String) Custom role identifier ARN.

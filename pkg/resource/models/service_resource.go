@@ -232,11 +232,13 @@ type ServiceResourceModel struct {
 	TransparentEncryptionData       types.Object `tfsdk:"transparent_data_encryption"`
 	QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
+	BackupID                        types.String `tfsdk:"backup_id"`
 }
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 	if !m.ID.Equal(b.ID) ||
 		!m.BYOCID.Equal(b.BYOCID) ||
+		!m.BackupID.Equal(b.BackupID) ||
 		!m.DataWarehouseID.Equal(b.DataWarehouseID) ||
 		!m.ReadOnly.Equal(b.ReadOnly) ||
 		!m.IsPrimary.Equal(b.IsPrimary) ||
