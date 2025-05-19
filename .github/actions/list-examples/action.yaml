@@ -4,7 +4,7 @@ inputs:
   ignore:
     required: false
     description: "Regex to match against example names. Matched examples won't be returned. Empty regex does nothing."
-    default: "tde"
+    default: ""
 
 outputs:
   examples:
