@@ -479,7 +479,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
-		if !plan.BackupID.IsNull() && !plan.BackupID.IsUnknown() && plan.BackupID != state.BackupID {
+		if plan.BackupID != state.BackupID {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("backup_id"),
 				"Invalid Update",
@@ -974,8 +974,6 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		)
 		return
 	}
-	// Always rewrite the backup ID as we need to make Terraform state to work by API does not return it backup ID
-	s.BackupID = service.BackupID
 
 	err = r.client.WaitForServiceState(ctx, s.Id, func(state string) bool { return state != api.StateProvisioning }, 20*60)
 	if err != nil {
@@ -1713,7 +1711,6 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					EncryptionAssumedRoleIdentifier types.String `tfsdk:"encryption_assumed_role_identifier"`
 					QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 					BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
-					BackupID                        types.String `tfsdk:"backup_id"`
 				}
 
 				var priorStateData oldService
@@ -1778,7 +1775,7 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 				upgradedStateData := models.ServiceResourceModel{
 					ID:                              priorStateData.ID,
 					BYOCID:                          priorStateData.BYOCID,
-					BackupID:                        priorStateData.BackupID,
+					BackupID:                        types.StringNull(),
 					DataWarehouseID:                 priorStateData.DataWarehouseID,
 					IsPrimary:                       priorStateData.IsPrimary,
 					ReadOnly:                        priorStateData.ReadOnly,
