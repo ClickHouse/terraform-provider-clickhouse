@@ -73,6 +73,13 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"backup_id": schema.StringAttribute{
+				Description: "ID of the backup to restore when creating new service. If specified, the service will be created as a restore operation",
+				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
 			"byoc_id": schema.StringAttribute{
 				Description: "BYOC ID related to the cloud provider account you want to create this service into.",
 				Optional:    true,
@@ -472,6 +479,22 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
+		if plan.BackupID != state.BackupID {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("backup_id"),
+				"Invalid Update",
+				"ClickHouse does not support changing Backup ID for a service",
+			)
+		}
+
+		if !state.BackupID.IsNull() && plan.BackupID != state.BackupID {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("backup_id"),
+				"Invalid Update",
+				"ClickHouse does not support changing Backup ID for a service",
+			)
+		}
+
 		if !plan.CloudProvider.IsNull() && plan.CloudProvider != state.CloudProvider {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cloud_provider"),
@@ -832,6 +855,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	if !plan.BYOCID.IsUnknown() && !plan.BYOCID.IsNull() {
 		service.BYOCId = plan.BYOCID.ValueStringPointer()
+	}
+
+	if !plan.BackupID.IsUnknown() && !plan.BackupID.IsNull() {
+		service.BackupID = plan.BackupID.ValueStringPointer()
 	}
 
 	if !plan.ReleaseChannel.IsUnknown() && !plan.ReleaseChannel.IsNull() {
@@ -1748,6 +1775,7 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 				upgradedStateData := models.ServiceResourceModel{
 					ID:                              priorStateData.ID,
 					BYOCID:                          priorStateData.BYOCID,
+					BackupID:                        types.StringNull(),
 					DataWarehouseID:                 priorStateData.DataWarehouseID,
 					IsPrimary:                       priorStateData.IsPrimary,
 					ReadOnly:                        priorStateData.ReadOnly,

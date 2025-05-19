@@ -90,6 +90,8 @@ func (c *ClientImpl) CreateService(ctx context.Context, s Service) (*Service, st
 	if err != nil {
 		return nil, "", err
 	}
+	// Always rewrite the backup ID as we need to make Terraform state to work by API does not return it backup ID
+	serviceResponse.Result.Service.BackupID = s.BackupID
 
 	return &serviceResponse.Result.Service, serviceResponse.Result.Password, nil
 }
