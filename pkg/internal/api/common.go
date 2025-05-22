@@ -32,6 +32,14 @@ func (c *ClientImpl) getServicePath(serviceId string, path string) string {
 	return c.getOrgPath(fmt.Sprintf("/services/%s%s", serviceId, path))
 }
 
+func (c *ClientImpl) getKeysPath() string {
+	return c.getOrgPath("/keys")
+}
+
+func (c *ClientImpl) getKeyPath(keyId string) string {
+	return c.getOrgPath(fmt.Sprintf("/keys/%s", keyId))
+}
+
 func (c *ClientImpl) getPrivateEndpointConfigPath(cloudProvider string, region string) string {
 	return c.getOrgPath(fmt.Sprintf("/privateEndpointConfig?cloud_provider=%s&region_id=%s", cloudProvider, region))
 }

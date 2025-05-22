@@ -71,19 +71,21 @@ func (d *apiKeyIdDataSource) Read(ctx context.Context, req datasource.ReadReques
 	// Read Terraform configuration data into the model
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
-	var name *string
-	if !data.Name.IsNull() && !data.Name.IsUnknown() {
-		name = data.Name.ValueStringPointer()
-	}
+	var apiKey *api.ApiKey
+	var err error
 
 	// Make the API request to get the apiKeyID
-	apiKeyId, err := d.client.GetApiKeyID(ctx, name)
+	if !data.Name.IsNull() && !data.Name.IsUnknown() {
+		apiKey, err = d.client.GetApiKey(ctx, data.Name.ValueString())
+	} else {
+		apiKey, err = d.client.GetCurrentApiKey(ctx)
+	}
 	if err != nil {
 		resp.Diagnostics.AddError("failed get", fmt.Sprintf("error getting ID of the API key: %v", err))
 		return
 	}
-	data.Id = types.StringValue(apiKeyId.ID)
-	data.Name = types.StringValue(apiKeyId.Name)
+	data.Id = types.StringValue(apiKey.ID)
+	data.Name = types.StringValue(apiKey.Name)
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
