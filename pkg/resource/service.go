@@ -95,6 +95,12 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.Expressions{
+						path.MatchRoot("password"),
+						path.MatchRoot("password_hash"),
+					}...),
+				},
 			},
 			"readonly": schema.BoolAttribute{
 				Description: "Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).",
@@ -125,10 +131,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Sensitive:   true,
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
-					stringvalidator.AtLeastOneOf(path.Expressions{
-						path.MatchRoot("password_hash"),
-						path.MatchRoot("warehouse_id"),
-					}...),
 				},
 			},
 			"password_hash": schema.StringAttribute{
@@ -140,7 +142,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						regexp.MustCompile(`^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$`),
 						"must be a base64 encoded hash",
 					),
-					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password"), path.MatchRoot("warehouse_id")}...),
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password")}...),
 				},
 			},
 			"double_sha1_password_hash": schema.StringAttribute{
