@@ -50,12 +50,15 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 
 	service.PrivateEndpointConfig = endpointConfigResponse
 
-	backupConfiguration, err := c.GetBackupConfiguration(ctx, service.Id)
-	if err != nil {
-		return nil, err
-	}
+	// Only primary services have backup settings.
+	if service.IsPrimary != nil && *service.IsPrimary {
+		backupConfiguration, err := c.GetBackupConfiguration(ctx, service.Id)
+		if err != nil {
+			return nil, err
+		}
 
-	service.BackupConfiguration = backupConfiguration
+		service.BackupConfiguration = backupConfiguration
+	}
 
 	queryEndpoints, err := c.GetQueryEndpoint(ctx, service.Id)
 	if err != nil {

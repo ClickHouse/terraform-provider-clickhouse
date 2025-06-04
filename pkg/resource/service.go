@@ -99,6 +99,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringvalidator.ConflictsWith(path.Expressions{
 						path.MatchRoot("password"),
 						path.MatchRoot("password_hash"),
+						path.MatchRoot("backup_configuration"),
 					}...),
 				},
 			},
@@ -670,7 +671,8 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				"release_channel must be 'default' if the service tier is development",
 			)
 		}
-	} else if plan.Tier.ValueString() == api.TierProduction {
+	} else {
+		// Production and PPv2
 		if !plan.BYOCID.IsNull() {
 			if plan.MinReplicaMemoryGb.IsNull() || plan.MinReplicaMemoryGb.IsUnknown() {
 				resp.Diagnostics.AddError(
@@ -880,6 +882,11 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			}.ObjectValue()
 			resp.Plan.Set(ctx, plan)
 		}
+	}
+
+	if !config.DataWarehouseID.IsNull() {
+		plan.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+		resp.Plan.Set(ctx, plan)
 	}
 }
 
