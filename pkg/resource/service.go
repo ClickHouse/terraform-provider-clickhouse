@@ -817,6 +817,48 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 			resp.Plan.Set(ctx, plan)
 		}
+	} else {
+		// User has Endpoint config set
+
+		var wantEnabled bool
+		{
+			endpoints := models.Endpoints{}
+			diag := config.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			mysql := models.OptionalEndpoint{}
+			diag = endpoints.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			wantEnabled = mysql.Enabled.ValueBool()
+		}
+
+		var isEnabled bool
+		{
+			endpoints := models.Endpoints{}
+			diag := state.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			mysql := models.OptionalEndpoint{}
+			diag = endpoints.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			isEnabled = mysql.Enabled.ValueBool()
+		}
+
+		if wantEnabled && isEnabled {
+			// User did not change wantEnabled so there is no reason to change anything in the Endpoints field.
+			plan.Endpoints = state.Endpoints
+			resp.Plan.Set(ctx, plan)
+		}
 	}
 
 	defaultTDE := false
