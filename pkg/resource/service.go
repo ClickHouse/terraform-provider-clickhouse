@@ -733,12 +733,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 						UnhandledUnknownAsEmpty: false,
 					})
 					if !diag.HasError() {
-						if !cfgBackupConfig.BackupStartTime.IsNull() && !cfgBackupConfig.BackupStartTime.IsUnknown() && cfgBackupConfig.BackupPeriodInHours.IsNull() {
-							// Make BackupPeriodInHours null if user only set BackupStartTime.
-							bc.BackupPeriodInHours = types.Int32Null()
-							plan.BackupConfiguration = bc.ObjectValue()
-							resp.Plan.Set(ctx, plan)
-						} else if cfgBackupConfig.BackupStartTime.IsNull() || cfgBackupConfig.BackupStartTime.IsUnknown() {
+						if cfgBackupConfig.BackupStartTime.IsNull() || cfgBackupConfig.BackupStartTime.IsUnknown() {
 							// Make BackupStartTime null if user only set BackupPeriodInHours.
 							bc.BackupStartTime = types.StringNull()
 							plan.BackupConfiguration = bc.ObjectValue()
@@ -840,7 +835,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 
 		var isEnabled bool
-		{
+		if !req.State.Raw.IsNull() {
 			endpoints := models.Endpoints{}
 			diag := state.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
 			if diag.HasError() {
