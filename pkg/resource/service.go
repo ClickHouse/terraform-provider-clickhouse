@@ -131,6 +131,10 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Sensitive:   true,
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
+					stringvalidator.AtLeastOneOf(path.Expressions{
+						path.MatchRoot("password_hash"),
+						path.MatchRoot("warehouse_id"),
+					}...),
 				},
 			},
 			"password_hash": schema.StringAttribute{
