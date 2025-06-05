@@ -99,6 +99,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringvalidator.ConflictsWith(path.Expressions{
 						path.MatchRoot("password"),
 						path.MatchRoot("password_hash"),
+						path.MatchRoot("backup_configuration"),
 					}...),
 				},
 			},
@@ -670,7 +671,8 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				"release_channel must be 'default' if the service tier is development",
 			)
 		}
-	} else if plan.Tier.ValueString() == api.TierProduction {
+	} else {
+		// Production and PPv2
 		if !plan.BYOCID.IsNull() {
 			if plan.MinReplicaMemoryGb.IsNull() || plan.MinReplicaMemoryGb.IsUnknown() {
 				resp.Diagnostics.AddError(
@@ -731,12 +733,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 						UnhandledUnknownAsEmpty: false,
 					})
 					if !diag.HasError() {
-						if !cfgBackupConfig.BackupStartTime.IsNull() && !cfgBackupConfig.BackupStartTime.IsUnknown() && cfgBackupConfig.BackupPeriodInHours.IsNull() {
-							// Make BackupPeriodInHours null if user only set BackupStartTime.
-							bc.BackupPeriodInHours = types.Int32Null()
-							plan.BackupConfiguration = bc.ObjectValue()
-							resp.Plan.Set(ctx, plan)
-						} else if cfgBackupConfig.BackupStartTime.IsNull() || cfgBackupConfig.BackupStartTime.IsUnknown() {
+						if cfgBackupConfig.BackupStartTime.IsNull() || cfgBackupConfig.BackupStartTime.IsUnknown() {
 							// Make BackupStartTime null if user only set BackupPeriodInHours.
 							bc.BackupStartTime = types.StringNull()
 							plan.BackupConfiguration = bc.ObjectValue()
@@ -817,6 +814,48 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 			resp.Plan.Set(ctx, plan)
 		}
+	} else {
+		// User has Endpoint config set
+
+		var wantEnabled bool
+		{
+			endpoints := models.Endpoints{}
+			diag := config.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			mysql := models.OptionalEndpoint{}
+			diag = endpoints.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			wantEnabled = mysql.Enabled.ValueBool()
+		}
+
+		var isEnabled bool
+		if !req.State.Raw.IsNull() {
+			endpoints := models.Endpoints{}
+			diag := state.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			mysql := models.OptionalEndpoint{}
+			diag = endpoints.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			isEnabled = mysql.Enabled.ValueBool()
+		}
+
+		if wantEnabled && isEnabled {
+			// User did not change wantEnabled so there is no reason to change anything in the Endpoints field.
+			plan.Endpoints = state.Endpoints
+			resp.Plan.Set(ctx, plan)
+		}
 	}
 
 	defaultTDE := false
@@ -838,6 +877,11 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			}.ObjectValue()
 			resp.Plan.Set(ctx, plan)
 		}
+	}
+
+	if !config.DataWarehouseID.IsNull() {
+		plan.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+		resp.Plan.Set(ctx, plan)
 	}
 }
 
