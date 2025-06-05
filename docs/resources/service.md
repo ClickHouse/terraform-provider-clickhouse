@@ -74,7 +74,7 @@ resource "clickhouse_service" "service" {
 - `release_channel` (String) Release channel to use for this service. Either 'default' or 'fast'. Switching from 'fast' to 'default' release channel is not supported.
 - `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
 - `transparent_data_encryption` (Attributes) Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan. (see [below for nested schema](#nestedatt--transparent_data_encryption))
-- `warehouse_id` (String) ID of the warehouse to share the data with. Must be in the same cloud and region.
+- `warehouse_id` (String) UUID of the primary service to share the data with. Must be in the same cloud and region.
 
 ### Read-Only
 

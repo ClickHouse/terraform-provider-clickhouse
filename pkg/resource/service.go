@@ -88,7 +88,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"warehouse_id": schema.StringAttribute{
-				Description: "ID of the warehouse to share the data with. Must be in the same cloud and region.",
+				Description: "UUID of the primary service to share the data with. Must be in the same cloud and region.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
