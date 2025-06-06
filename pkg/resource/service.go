@@ -195,6 +195,9 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "When set to true the service is allowed to scale down to zero when idle.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"ip_access": schema.ListNestedAttribute{
 				Description: "List of IP addresses allowed to access the service.",
@@ -301,11 +304,17 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
 				Description: "Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"num_replicas": schema.Int64Attribute{
 				Optional:    true,
@@ -318,6 +327,10 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"idle_timeout_minutes": schema.Int64Attribute{
 				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.",
 				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"iam_role": schema.StringAttribute{
 				Description: "IAM role used for accessing objects in s3.",
@@ -434,6 +447,9 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 							stringvalidator.ConflictsWith(path.MatchRoot("backup_configuration").AtName("backup_period_in_hours")),
 						},
 					},
+				},
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
 		},
@@ -612,6 +628,11 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			plan.TransparentEncryptionData = planTDE.ObjectValue()
 			resp.Plan.Set(ctx, plan)
 		}
+
+		if config.IdleTimeoutMinutes.IsNull() && state.IdleTimeoutMinutes.IsNull() {
+			plan.IdleTimeoutMinutes = types.Int64Null()
+			resp.Plan.Set(ctx, plan)
+		}
 	}
 
 	if plan.Tier.ValueString() == api.TierDevelopment {
@@ -766,14 +787,14 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		)
 	}
 
-	if plan.IdleTimeoutMinutes.IsNull() && plan.IdleScaling.ValueBool() {
+	if config.IdleTimeoutMinutes.IsNull() && !config.IdleScaling.IsNull() && config.IdleScaling.ValueBool() {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"idle_timeout_minutes must be defined if idle_scaling is enabled",
 		)
 	}
 
-	if !plan.IdleTimeoutMinutes.IsNull() && !plan.IdleScaling.ValueBool() {
+	if !config.IdleTimeoutMinutes.IsNull() && !config.IdleScaling.IsNull() && !plan.IdleScaling.ValueBool() {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"idle_timeout_minutes must be null if idle_scaling is disabled",
@@ -967,7 +988,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	service.IdleScaling = plan.IdleScaling.ValueBool()
-	if !plan.IdleTimeoutMinutes.IsNull() {
+	if !plan.IdleTimeoutMinutes.IsNull() && !plan.IdleTimeoutMinutes.IsUnknown() {
 		idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
 		service.IdleTimeoutMinutes = &idleTimeoutMinutes
 	}
