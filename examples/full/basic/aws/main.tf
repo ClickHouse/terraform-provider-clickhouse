@@ -32,52 +32,60 @@ variable "release_channel" {
 data "clickhouse_api_key_id" "self" {
 }
 
-resource "clickhouse_service" "service" {
-  name                      = var.service_name
-  cloud_provider            = "aws"
-  region                    = var.region
-  release_channel           = var.release_channel
-  idle_scaling              = true
-  idle_timeout_minutes      = 5
-  password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
+# resource "clickhouse_service" "service" {
+#   name                      = var.service_name
+#   cloud_provider            = "aws"
+#   region                    = var.region
+#   release_channel           = var.release_channel
+#   idle_scaling              = true
+#   idle_timeout_minutes      = 5
+#   password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
+#
+#   ip_access = [
+#     {
+#       source      = "0.0.0.0"
+#       description = "Anywhere"
+#     }
+#   ]
+#
+#   endpoints = {
+#     mysql = {
+#       enabled = true
+#     }
+#   }
+#
+#   query_api_endpoints = {
+#     api_key_ids = [
+#       data.clickhouse_api_key_id.self.id,
+#     ]
+#     roles = [
+#       "sql_console_admin"
+#     ]
+#     allowed_origins = null
+#   }
+#
+#   min_replica_memory_gb = 8
+#   max_replica_memory_gb = 120
+#
+#   backup_configuration = {
+#     backup_period_in_hours           = 24
+#     backup_retention_period_in_hours = 24
+#     backup_start_time                = null
+#   }
+# }
+#
+# output "service_endpoints" {
+#   value = clickhouse_service.service.endpoints
+# }
+#
+# output "service_iam" {
+#   value = clickhouse_service.service.iam_role
+# }
 
-  ip_access = [
-    {
-      source      = "0.0.0.0"
-      description = "Anywhere"
-    }
-  ]
-
-  endpoints = {
-    mysql = {
-      enabled = true
-    }
-  }
-
-  query_api_endpoints = {
-    api_key_ids = [
-      data.clickhouse_api_key_id.self.id,
-    ]
-    roles = [
-      "sql_console_admin"
-    ]
-    allowed_origins = null
-  }
-
-  min_replica_memory_gb = 8
-  max_replica_memory_gb = 120
-
-  backup_configuration = {
-    backup_period_in_hours           = 24
-    backup_retention_period_in_hours = 24
-    backup_start_time                = null
-  }
-}
-
-output "service_endpoints" {
-  value = clickhouse_service.service.endpoints
-}
-
-output "service_iam" {
-  value = clickhouse_service.service.iam_role
+resource "clickhouse_service" "this" {
+  name           = "test"
+  cloud_provider = "aws"
+  region         = "us-east-1"
+  password_hash  = "a31f3c4077914c18a708da6f4c051db914e8b2d0cfce566957c94fcc8badb8ff"
+  ip_access      = [{ source = "0.0.0.0/0", description = "Anywhere" }]
 }
