@@ -70,9 +70,26 @@ type ClickPipeObjectStorageSource struct {
 	IAMRole        *string                   `json:"iamRole,omitempty"`
 }
 
+type ClickPipeKinesisSource struct {
+	Format string `json:"format"`
+
+	StreamName string `json:"streamName"`
+	Region     string `json:"region"`
+
+	IteratorType string  `json:"iteratorType"`
+	Timestamp    *string `json:"timestamp,omitempty"`
+
+	UseEnhancedFanOut bool `json:"useEnhancedFanOut,omitempty"`
+
+	Authentication string                    `json:"authentication"`
+	AccessKey      *ClickPipeSourceAccessKey `json:"accessKey,omitempty"`
+	IAMRole        *string                   `json:"iamRole,omitempty"`
+}
+
 type ClickPipeSource struct {
 	Kafka           *ClickPipeKafkaSource         `json:"kafka,omitempty"`
 	ObjectStorage   *ClickPipeObjectStorageSource `json:"objectStorage,omitempty"`
+	Kinesis         *ClickPipeKinesisSource       `json:"kinesis,omitempty"`
 	ValidateSamples bool                          `json:"validateSamples,omitempty"`
 }
 
