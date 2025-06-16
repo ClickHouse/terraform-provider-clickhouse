@@ -40,8 +40,10 @@ var ClickPipeStreamingFormats = []string{
 	ClickPipeAvroConfluentFormat,
 }
 
-var ClickPipeKafkaFormats = ClickPipeStreamingFormats
-var ClickPipeKinesisFormats = ClickPipeKafkaFormats
+var (
+	ClickPipeKafkaFormats   = ClickPipeStreamingFormats
+	ClickPipeKinesisFormats = ClickPipeKafkaFormats
+)
 
 const (
 	ClickPipeAuthenticationIAMRole = "IAM_ROLE"
