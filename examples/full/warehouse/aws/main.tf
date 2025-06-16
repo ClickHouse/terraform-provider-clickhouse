@@ -45,6 +45,9 @@ resource "clickhouse_service" "primary" {
   }
 }
 
+data "clickhouse_api_key_id" "self" {
+}
+
 resource "clickhouse_service" "secondary" {
   warehouse_id              = clickhouse_service.primary.warehouse_id
   readonly                  = true
@@ -60,6 +63,15 @@ resource "clickhouse_service" "secondary" {
       description = "Anywhere"
     }
   ]
+
+  query_api_endpoints = {
+    api_key_ids = [
+      data.clickhouse_api_key_id.self.id
+    ]
+    roles = [
+      "sql_console_admin"
+    ]
+  }
 
   min_replica_memory_gb = 8
   max_replica_memory_gb = 120
