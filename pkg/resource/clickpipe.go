@@ -116,6 +116,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					},
 				},
 				Optional: true,
+				Computed: true,
 			},
 			"state": schema.StringAttribute{
 				MarkdownDescription: "The desired state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`.",
@@ -736,12 +737,12 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		return
 	}
 
-	if !plan.Scaling.IsNull() {
+	if !plan.Scaling.IsUnknown() && !plan.Scaling.IsNull() {
 		replicasModel := models.ClickPipeScalingModel{}
 		response.Diagnostics.Append(plan.Scaling.As(ctx, &replicasModel, basetypes.ObjectAsOptions{})...)
 
 		var desiredReplicas *int64
-		if !replicasModel.Replicas.IsNull() && createdClickPipe.Scaling.Replicas != nil && *createdClickPipe.Scaling.Replicas != replicasModel.Replicas.ValueInt64() {
+		if !replicasModel.Replicas.IsUnknown() && !replicasModel.Replicas.IsNull() && createdClickPipe.Scaling.Replicas != nil && *createdClickPipe.Scaling.Replicas != replicasModel.Replicas.ValueInt64() {
 			desiredReplicas = replicasModel.Replicas.ValueInt64Pointer()
 		}
 
