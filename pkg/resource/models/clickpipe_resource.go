@@ -201,6 +201,48 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeKinesisSourceModel struct {
+	Format            types.String `tfsdk:"format"`
+	StreamName        types.String `tfsdk:"stream_name"`
+	Region            types.String `tfsdk:"region"`
+	IteratorType      types.String `tfsdk:"iterator_type"`
+	Timestamp         types.String `tfsdk:"timestamp"`
+	UseEnhancedFanOut types.Bool   `tfsdk:"use_enhanced_fan_out"`
+	Authentication    types.String `tfsdk:"authentication"`
+	AccessKey         types.Object `tfsdk:"access_key"`
+	IAMRole           types.String `tfsdk:"iam_role"`
+}
+
+func (m ClickPipeKinesisSourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"format":               types.StringType,
+			"stream_name":          types.StringType,
+			"region":               types.StringType,
+			"iterator_type":        types.StringType,
+			"timestamp":            types.StringType,
+			"use_enhanced_fan_out": types.BoolType,
+			"authentication":       types.StringType,
+			"access_key":           ClickPipeSourceAccessKeyModel{}.ObjectType(),
+			"iam_role":             types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeKinesisSourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"format":               m.Format,
+		"stream_name":          m.StreamName,
+		"region":               m.Region,
+		"iterator_type":        m.IteratorType,
+		"timestamp":            m.Timestamp,
+		"use_enhanced_fan_out": m.UseEnhancedFanOut,
+		"authentication":       m.Authentication,
+		"access_key":           m.AccessKey,
+		"iam_role":             m.IAMRole,
+	})
+}
+
 type ClickPipeObjectStorageSourceModel struct {
 	Type           types.String `tfsdk:"type"`
 	Format         types.String `tfsdk:"format"`
@@ -246,6 +288,7 @@ func (m ClickPipeObjectStorageSourceModel) ObjectValue() types.Object {
 type ClickPipeSourceModel struct {
 	Kafka         types.Object `tfsdk:"kafka"`
 	ObjectStorage types.Object `tfsdk:"object_storage"`
+	Kinesis       types.Object `tfsdk:"kinesis"`
 }
 
 func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
@@ -253,6 +296,7 @@ func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
 		AttrTypes: map[string]attr.Type{
 			"kafka":          ClickPipeKafkaSourceModel{}.ObjectType(),
 			"object_storage": ClickPipeObjectStorageSourceModel{}.ObjectType(),
+			"kinesis":        ClickPipeKinesisSourceModel{}.ObjectType(),
 		},
 	}
 }
@@ -261,6 +305,7 @@ func (m ClickPipeSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"kafka":          m.Kafka,
 		"object_storage": m.ObjectStorage,
+		"kinesis":        m.Kinesis,
 	})
 }
 
