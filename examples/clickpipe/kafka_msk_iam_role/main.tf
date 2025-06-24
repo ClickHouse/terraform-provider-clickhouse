@@ -61,6 +61,8 @@ resource "clickhouse_clickpipe" "kafka_msk" {
         type = "UInt64"
       }
     ]
+
+    roles = ["custom_role_1", "custom_role_2"]
   }
 
   field_mappings = [
