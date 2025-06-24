@@ -115,6 +115,7 @@ type ClickPipeDestination struct {
 	ManagedTable    bool                                 `json:"managedTable"`
 	TableDefinition *ClickPipeDestinationTableDefinition `json:"tableDefinition,omitempty"`
 	Columns         []ClickPipeDestinationColumn         `json:"columns"`
+	Roles           []string                             `json:"roles,omitempty"`
 }
 
 type ClickPipeDestinationUpdate struct {

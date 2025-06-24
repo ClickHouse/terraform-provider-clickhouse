@@ -675,11 +675,19 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	destinationColumnsModels := make([]models.ClickPipeDestinationColumnModel, len(destinationModel.Columns.Elements()))
 	response.Diagnostics.Append(destinationModel.Columns.ElementsAs(ctx, &destinationColumnsModels, false)...)
 
+	// Extract roles from the destination model
+	var rolesSlice []string
+	if !destinationModel.Roles.IsNull() && len(destinationModel.Roles.Elements()) > 0 {
+		rolesSlice = make([]string, len(destinationModel.Roles.Elements()))
+		response.Diagnostics.Append(destinationModel.Roles.ElementsAs(ctx, &rolesSlice, false)...)
+	}
+
 	clickPipe.Destination = api.ClickPipeDestination{
 		Database:     destinationModel.Database.ValueString(),
 		Table:        destinationModel.Table.ValueString(),
 		ManagedTable: destinationModel.ManagedTable.ValueBool(),
 		Columns:      make([]api.ClickPipeDestinationColumn, len(destinationColumnsModels)),
+		Roles:        rolesSlice,
 	}
 
 	if destinationModel.ManagedTable.ValueBool() {
