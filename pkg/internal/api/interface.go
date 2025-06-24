@@ -39,25 +39,4 @@ type Client interface {
 	CreateReversePrivateEndpoint(ctx context.Context, serviceId string, request CreateReversePrivateEndpoint) (*ReversePrivateEndpoint, error)
 	DeleteReversePrivateEndpoint(ctx context.Context, serviceId, reversePrivateEndpointId string) error
 	WaitForReversePrivateEndpointState(ctx context.Context, serviceId string, reversePrivateEndpointId string, stateChecker func(string) bool, maxWaitSeconds uint64) (*ReversePrivateEndpoint, error)
-
-	CreateUser(ctx context.Context, serviceId string, user User) (*User, error)
-	GetUser(ctx context.Context, serviceID string, name string) (*User, error)
-	DeleteUser(ctx context.Context, serviceID string, name string) error
-
-	CreateRole(ctx context.Context, serviceId string, role Role) (*Role, error)
-	GetRole(ctx context.Context, serviceID string, name string) (*Role, error)
-	DeleteRole(ctx context.Context, serviceID string, name string) error
-
-	GrantRole(ctx context.Context, serviceId string, grantRole GrantRole) (*GrantRole, error)
-	GetGrantRole(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) (*GrantRole, error)
-	RevokeGrantRole(ctx context.Context, serviceID string, grantedRoleName string, granteeUserName *string, granteeRoleName *string) error
-
-	GrantPrivilege(ctx context.Context, serviceId string, grantPrivilege GrantPrivilege) (*GrantPrivilege, error)
-	GetGrantPrivilege(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) (*GrantPrivilege, error)
-	RevokeGrantPrivilege(ctx context.Context, serviceID string, accessType string, database *string, table *string, column *string, granteeUserName *string, granteeRoleName *string) error
-
-	CreateDatabase(ctx context.Context, serviceID string, db Database) error
-	GetDatabase(ctx context.Context, serviceID string, name string) (*Database, error)
-	DeleteDatabase(ctx context.Context, serviceID string, name string) error
-	SyncDatabase(ctx context.Context, serviceID string, db Database) error
 }
