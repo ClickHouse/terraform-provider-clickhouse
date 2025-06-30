@@ -127,14 +127,42 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"password": schema.StringAttribute{
-				Description: "Password for the default user. One of either `password` or `password_hash` must be specified.",
+				Description: "Password for the default user. One of either `password_wo`, `password` or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
 				Validators: []validator.String{
-					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash"), path.MatchRoot("password_wo")}...),
 					stringvalidator.AtLeastOneOf(path.Expressions{
 						path.MatchRoot("password_hash"),
 						path.MatchRoot("warehouse_id"),
+						path.MatchRoot("password_wo"),
+					}...),
+				},
+			},
+			// WriteOnly indicates that Terraform will not store this attribute value in the plan or state artifacts.
+			// Acces to the value is only possible through config.
+			"password_wo": schema.StringAttribute{
+				Description: "Password write only (not stored in state) for the default user. One of either `password_wo`, `password` or `password_hash` must be specified.",
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash"), path.MatchRoot("password")}...),
+					stringvalidator.AtLeastOneOf(path.Expressions{
+						path.MatchRoot("password_hash"),
+						path.MatchRoot("password"),
+						path.MatchRoot("warehouse_id"),
+					}...),
+				},
+			},
+			"password_wo_version": schema.Int32Attribute{
+				Description: "Password write only version for the default user. The version is stored in state so when it is updated password_wo gets updated too. Only `password_wo` must be specified.",
+				Optional:    true,
+				Sensitive:   false,
+				WriteOnly:   false,
+				Validators: []validator.Int32{
+					int32validator.AtLeastOneOf(path.Expressions{
+						path.MatchRoot("password_wo"),
 					}...),
 				},
 			},
@@ -1059,8 +1087,23 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	if plan.DataWarehouseID.IsUnknown() || plan.DataWarehouseID.IsNull() {
 		// Update service password if provided explicitly
 		planPassword := plan.Password.ValueString()
+
+		// password_wo is writeOnly meaning that Terraform will not store this attribute value in the plan or state artifacts.
+		// Acces to the value is only possible through config.
+		var passwordWO types.String
+		req.Config.GetAttribute(ctx, path.Root("password_wo"), &passwordWO)
+
 		if len(planPassword) > 0 {
 			_, err := r.client.UpdateServicePassword(ctx, s.Id, servicePasswordUpdateFromPlainPassword(planPassword))
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error setting service password",
+					"Could not set service password after creation, unexpected error: "+err.Error(),
+				)
+				return
+			}
+		} else if len(passwordWO.ValueString()) > 0 {
+			_, err := r.client.UpdateServicePassword(ctx, s.Id, servicePasswordUpdateFromPlainPassword(passwordWO.ValueString()))
 			if err != nil {
 				resp.Diagnostics.AddError(
 					"Error setting service password",
@@ -1410,6 +1453,12 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	password := plan.Password.ValueString()
+
+	// password_wo is writeOnly meaning that Terraform will not store this attribute value in the plan or state artifacts.
+	// Acces to the value is only possible through config.
+	var passwordWO types.String
+	req.Config.GetAttribute(ctx, path.Root("password_wo"), &passwordWO)
+
 	if len(password) > 0 && plan.Password != state.Password {
 		password = plan.Password.ValueString()
 		_, err := r.client.UpdateServicePassword(ctx, serviceId, servicePasswordUpdateFromPlainPassword(password))
@@ -1434,6 +1483,15 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 
 		_, err := r.client.UpdateServicePassword(ctx, serviceId, passwordUpdate)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error Updating ClickHouse Service Password",
+				"Could not update service password, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	} else if len(passwordWO.ValueString()) > 0 && plan.PasswordWOVersion.ValueInt32() > state.PasswordWOVersion.ValueInt32() {
+		_, err := r.client.UpdateServicePassword(ctx, serviceId, servicePasswordUpdateFromPlainPassword(passwordWO.ValueString()))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service Password",
@@ -1608,6 +1666,9 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 						Optional:  true,
 						Sensitive: true,
 					},
+					"password_wo_version": schema.StringAttribute{
+						Optional: true,
+					},
 					"password_hash": schema.StringAttribute{
 						Optional:  true,
 						Sensitive: true,
@@ -1760,6 +1821,7 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					ReadOnly                        types.Bool   `tfsdk:"readonly"`
 					Name                            types.String `tfsdk:"name"`
 					Password                        types.String `tfsdk:"password"`
+					PasswordWOVersion               types.Int32  `tfsdk:"password_wo_version"`
 					PasswordHash                    types.String `tfsdk:"password_hash"`
 					DoubleSha1PasswordHash          types.String `tfsdk:"double_sha1_password_hash"`
 					EndpointsConfiguration          types.Object `tfsdk:"endpoints_configuration"`
@@ -1852,6 +1914,7 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					ReadOnly:                        priorStateData.ReadOnly,
 					Name:                            priorStateData.Name,
 					Password:                        priorStateData.Password,
+					PasswordWOVersion:               priorStateData.PasswordWOVersion,
 					PasswordHash:                    priorStateData.PasswordHash,
 					DoubleSha1PasswordHash:          priorStateData.DoubleSha1PasswordHash,
 					Endpoints:                       endpoints.ObjectValue(),
