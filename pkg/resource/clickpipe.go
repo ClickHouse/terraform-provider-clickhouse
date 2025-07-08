@@ -769,32 +769,32 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		var desiredMemoryGb *float64
 		needsScaling := false
 
-		if !scalingModel.Replicas.IsUnknown() && !scalingModel.Replicas.IsNull() && 
-		   (createdClickPipe.Scaling == nil || createdClickPipe.Scaling.Replicas == nil || 
-		    *createdClickPipe.Scaling.Replicas != scalingModel.Replicas.ValueInt64()) {
+		if !scalingModel.Replicas.IsUnknown() && !scalingModel.Replicas.IsNull() &&
+			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.Replicas == nil ||
+				*createdClickPipe.Scaling.Replicas != scalingModel.Replicas.ValueInt64()) {
 			desiredReplicas = scalingModel.Replicas.ValueInt64Pointer()
 			needsScaling = true
 		}
 
-		if !scalingModel.ReplicaCpuMillicores.IsUnknown() && !scalingModel.ReplicaCpuMillicores.IsNull() && 
-		   (createdClickPipe.Scaling == nil || createdClickPipe.Scaling.ReplicaCpuMillicores == nil || 
-		    *createdClickPipe.Scaling.ReplicaCpuMillicores != scalingModel.ReplicaCpuMillicores.ValueInt64()) {
+		if !scalingModel.ReplicaCpuMillicores.IsUnknown() && !scalingModel.ReplicaCpuMillicores.IsNull() &&
+			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.ReplicaCpuMillicores == nil ||
+				*createdClickPipe.Scaling.ReplicaCpuMillicores != scalingModel.ReplicaCpuMillicores.ValueInt64()) {
 			desiredCpuMillicores = scalingModel.ReplicaCpuMillicores.ValueInt64Pointer()
 			needsScaling = true
 		}
 
-		if !scalingModel.ReplicaMemoryGb.IsUnknown() && !scalingModel.ReplicaMemoryGb.IsNull() && 
-		   (createdClickPipe.Scaling == nil || createdClickPipe.Scaling.ReplicaMemoryGb == nil || 
-		    *createdClickPipe.Scaling.ReplicaMemoryGb != scalingModel.ReplicaMemoryGb.ValueFloat64()) {
+		if !scalingModel.ReplicaMemoryGb.IsUnknown() && !scalingModel.ReplicaMemoryGb.IsNull() &&
+			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.ReplicaMemoryGb == nil ||
+				*createdClickPipe.Scaling.ReplicaMemoryGb != scalingModel.ReplicaMemoryGb.ValueFloat64()) {
 			desiredMemoryGb = scalingModel.ReplicaMemoryGb.ValueFloat64Pointer()
 			needsScaling = true
 		}
 
 		if needsScaling {
 			scalingRequest := api.ClickPipeScaling{
-				Replicas:              desiredReplicas,
-				ReplicaCpuMillicores:  desiredCpuMillicores,
-				ReplicaMemoryGb:       desiredMemoryGb,
+				Replicas:             desiredReplicas,
+				ReplicaCpuMillicores: desiredCpuMillicores,
+				ReplicaMemoryGb:      desiredMemoryGb,
 			}
 
 			if createdClickPipe, err = c.client.ScalingClickPipe(ctx, serviceID, createdClickPipe.ID, scalingRequest); err != nil {
@@ -1066,9 +1066,9 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	if clickPipe.Scaling != nil {
 		scalingModel := models.ClickPipeScalingModel{
-			Replicas:              types.Int64PointerValue(clickPipe.Scaling.Replicas),
-			ReplicaCpuMillicores:  types.Int64PointerValue(clickPipe.Scaling.ReplicaCpuMillicores),
-			ReplicaMemoryGb:       types.Float64PointerValue(clickPipe.Scaling.ReplicaMemoryGb),
+			Replicas:             types.Int64PointerValue(clickPipe.Scaling.Replicas),
+			ReplicaCpuMillicores: types.Int64PointerValue(clickPipe.Scaling.ReplicaCpuMillicores),
+			ReplicaMemoryGb:      types.Float64PointerValue(clickPipe.Scaling.ReplicaMemoryGb),
 		}
 
 		state.Scaling = scalingModel.ObjectValue()
@@ -1455,9 +1455,9 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
 
 		scalingRequest := api.ClickPipeScaling{
-			Replicas:              scalingModel.Replicas.ValueInt64Pointer(),
-			ReplicaCpuMillicores:  scalingModel.ReplicaCpuMillicores.ValueInt64Pointer(),
-			ReplicaMemoryGb:       scalingModel.ReplicaMemoryGb.ValueFloat64Pointer(),
+			Replicas:             scalingModel.Replicas.ValueInt64Pointer(),
+			ReplicaCpuMillicores: scalingModel.ReplicaCpuMillicores.ValueInt64Pointer(),
+			ReplicaMemoryGb:      scalingModel.ReplicaMemoryGb.ValueFloat64Pointer(),
 		}
 
 		if _, err := c.client.ScalingClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), scalingRequest); err != nil {

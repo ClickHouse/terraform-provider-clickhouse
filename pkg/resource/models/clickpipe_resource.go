@@ -8,9 +8,9 @@ import (
 )
 
 type ClickPipeScalingModel struct {
-	Replicas              types.Int64   `tfsdk:"replicas"`
-	ReplicaCpuMillicores  types.Int64   `tfsdk:"replica_cpu_millicores"`
-	ReplicaMemoryGb       types.Float64 `tfsdk:"replica_memory_gb"`
+	Replicas             types.Int64   `tfsdk:"replicas"`
+	ReplicaCpuMillicores types.Int64   `tfsdk:"replica_cpu_millicores"`
+	ReplicaMemoryGb      types.Float64 `tfsdk:"replica_memory_gb"`
 }
 
 func (m ClickPipeScalingModel) ObjectType() types.ObjectType {
