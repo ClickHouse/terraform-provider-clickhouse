@@ -3,7 +3,9 @@ package api
 import "time"
 
 type ClickPipeScaling struct {
-	Replicas *int64 `json:"replicas,omitempty"`
+	Replicas             *int64   `json:"replicas,omitempty"`
+	ReplicaCpuMillicores *int64   `json:"replicaCpuMillicores,omitempty"`
+	ReplicaMemoryGb      *float64 `json:"replicaMemoryGb,omitempty"`
 }
 
 type ClickPipeSourceCredentials struct {

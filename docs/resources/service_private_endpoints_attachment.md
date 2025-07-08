@@ -51,6 +51,8 @@ resource "clickhouse_service_private_endpoints_attachment" "attachment" {
 
 Import is supported using the following syntax:
 
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
 ```shell
 # Endpoint Attachments can be imported by specifying the clickhouse service UUID
 terraform import clickhouse_service_private_endpoints_attachment.example xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
