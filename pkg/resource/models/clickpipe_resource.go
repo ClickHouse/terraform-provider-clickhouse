@@ -8,20 +8,26 @@ import (
 )
 
 type ClickPipeScalingModel struct {
-	Replicas types.Int64 `tfsdk:"replicas"`
+	Replicas              types.Int64   `tfsdk:"replicas"`
+	ReplicaCpuMillicores  types.Int64   `tfsdk:"replica_cpu_millicores"`
+	ReplicaMemoryGb       types.Float64 `tfsdk:"replica_memory_gb"`
 }
 
 func (m ClickPipeScalingModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"replicas": types.Int64Type,
+			"replicas":               types.Int64Type,
+			"replica_cpu_millicores": types.Int64Type,
+			"replica_memory_gb":      types.Float64Type,
 		},
 	}
 }
 
 func (m ClickPipeScalingModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"replicas": m.Replicas,
+		"replicas":               m.Replicas,
+		"replica_cpu_millicores": m.ReplicaCpuMillicores,
+		"replica_memory_gb":      m.ReplicaMemoryGb,
 	})
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
+	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -112,6 +113,20 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Default:     int64default.StaticInt64(1),
 						Validators: []validator.Int64{
 							int64validator.Between(1, 10),
+						},
+					},
+					"replica_cpu_millicores": schema.Int64Attribute{
+						Description: "The CPU allocation per replica in millicores. Must be between 125 and 2000.",
+						Optional:    true,
+						Validators: []validator.Int64{
+							int64validator.Between(125, 2000),
+						},
+					},
+					"replica_memory_gb": schema.Float64Attribute{
+						Description: "The memory allocation per replica in GB. Must be between 0.5 and 8.0.",
+						Optional:    true,
+						Validators: []validator.Float64{
+							float64validator.Between(0.5, 8.0),
 						},
 					},
 				},
@@ -746,17 +761,40 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	}
 
 	if !plan.Scaling.IsUnknown() && !plan.Scaling.IsNull() {
-		replicasModel := models.ClickPipeScalingModel{}
-		response.Diagnostics.Append(plan.Scaling.As(ctx, &replicasModel, basetypes.ObjectAsOptions{})...)
+		scalingModel := models.ClickPipeScalingModel{}
+		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
 
 		var desiredReplicas *int64
-		if !replicasModel.Replicas.IsUnknown() && !replicasModel.Replicas.IsNull() && createdClickPipe.Scaling.Replicas != nil && *createdClickPipe.Scaling.Replicas != replicasModel.Replicas.ValueInt64() {
-			desiredReplicas = replicasModel.Replicas.ValueInt64Pointer()
+		var desiredCpuMillicores *int64
+		var desiredMemoryGb *float64
+		needsScaling := false
+
+		if !scalingModel.Replicas.IsUnknown() && !scalingModel.Replicas.IsNull() && 
+		   (createdClickPipe.Scaling == nil || createdClickPipe.Scaling.Replicas == nil || 
+		    *createdClickPipe.Scaling.Replicas != scalingModel.Replicas.ValueInt64()) {
+			desiredReplicas = scalingModel.Replicas.ValueInt64Pointer()
+			needsScaling = true
 		}
 
-		if desiredReplicas != nil {
+		if !scalingModel.ReplicaCpuMillicores.IsUnknown() && !scalingModel.ReplicaCpuMillicores.IsNull() && 
+		   (createdClickPipe.Scaling == nil || createdClickPipe.Scaling.ReplicaCpuMillicores == nil || 
+		    *createdClickPipe.Scaling.ReplicaCpuMillicores != scalingModel.ReplicaCpuMillicores.ValueInt64()) {
+			desiredCpuMillicores = scalingModel.ReplicaCpuMillicores.ValueInt64Pointer()
+			needsScaling = true
+		}
+
+		if !scalingModel.ReplicaMemoryGb.IsUnknown() && !scalingModel.ReplicaMemoryGb.IsNull() && 
+		   (createdClickPipe.Scaling == nil || createdClickPipe.Scaling.ReplicaMemoryGb == nil || 
+		    *createdClickPipe.Scaling.ReplicaMemoryGb != scalingModel.ReplicaMemoryGb.ValueFloat64()) {
+			desiredMemoryGb = scalingModel.ReplicaMemoryGb.ValueFloat64Pointer()
+			needsScaling = true
+		}
+
+		if needsScaling {
 			scalingRequest := api.ClickPipeScaling{
-				Replicas: desiredReplicas,
+				Replicas:              desiredReplicas,
+				ReplicaCpuMillicores:  desiredCpuMillicores,
+				ReplicaMemoryGb:       desiredMemoryGb,
 			}
 
 			if createdClickPipe, err = c.client.ScalingClickPipe(ctx, serviceID, createdClickPipe.ID, scalingRequest); err != nil {
@@ -1026,9 +1064,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	state.State = types.StringValue(clickPipe.State)
 
-	if clickPipe.Scaling != nil && clickPipe.Scaling.Replicas != nil {
+	if clickPipe.Scaling != nil {
 		scalingModel := models.ClickPipeScalingModel{
-			Replicas: types.Int64PointerValue(clickPipe.Scaling.Replicas),
+			Replicas:              types.Int64PointerValue(clickPipe.Scaling.Replicas),
+			ReplicaCpuMillicores:  types.Int64PointerValue(clickPipe.Scaling.ReplicaCpuMillicores),
+			ReplicaMemoryGb:       types.Float64PointerValue(clickPipe.Scaling.ReplicaMemoryGb),
 		}
 
 		state.Scaling = scalingModel.ObjectValue()
@@ -1411,11 +1451,13 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	if !plan.Scaling.Equal(state.Scaling) {
-		replicasModel := models.ClickPipeScalingModel{}
-		response.Diagnostics.Append(plan.Scaling.As(ctx, &replicasModel, basetypes.ObjectAsOptions{})...)
+		scalingModel := models.ClickPipeScalingModel{}
+		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
 
 		scalingRequest := api.ClickPipeScaling{
-			Replicas: replicasModel.Replicas.ValueInt64Pointer(),
+			Replicas:              scalingModel.Replicas.ValueInt64Pointer(),
+			ReplicaCpuMillicores:  scalingModel.ReplicaCpuMillicores.ValueInt64Pointer(),
+			ReplicaMemoryGb:       scalingModel.ReplicaMemoryGb.ValueFloat64Pointer(),
 		}
 
 		if _, err := c.client.ScalingClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), scalingRequest); err != nil {
