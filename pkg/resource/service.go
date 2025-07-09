@@ -629,9 +629,13 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			resp.Plan.Set(ctx, plan)
 		}
 
-		if config.IdleTimeoutMinutes.IsNull() && state.IdleTimeoutMinutes.IsNull() {
+		if config.IdleTimeoutMinutes.IsNull() {
 			plan.IdleTimeoutMinutes = types.Int64Null()
 			resp.Plan.Set(ctx, plan)
+		}
+
+		if !state.IdleScaling.ValueBool() && plan.IdleScaling.ValueBool() {
+			plan.IdleTimeoutMinutes = config.IdleTimeoutMinutes
 		}
 	}
 
