@@ -54,6 +54,7 @@ resource "clickhouse_service" "service" {
 ### Optional
 
 - `backup_configuration` (Attributes) Configuration of service backup settings. (see [below for nested schema](#nestedatt--backup_configuration))
+- `backup_id` (String) ID of the backup to restore when creating new service. If specified, the service will be created as a restore operation
 - `byoc_id` (String) BYOC ID related to the cloud provider account you want to create this service into.
 - `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.
 - `encryption_assumed_role_identifier` (String) Custom role identifier ARN.
@@ -73,7 +74,7 @@ resource "clickhouse_service" "service" {
 - `release_channel` (String) Release channel to use for this service. Either 'default' or 'fast'. Switching from 'fast' to 'default' release channel is not supported.
 - `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
 - `transparent_data_encryption` (Attributes) Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan. (see [below for nested schema](#nestedatt--transparent_data_encryption))
-- `warehouse_id` (String) ID of the warehouse to share the data with. Must be in the same cloud and region.
+- `warehouse_id` (String) Set it to the 'warehouse_id' attribute of another service to share the data with it. The service must be in the same cloud and region.
 
 ### Read-Only
 
@@ -178,6 +179,8 @@ Read-Only:
 ## Import
 
 Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
 # Services can be imported by specifying the UUID.

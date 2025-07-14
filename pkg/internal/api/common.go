@@ -12,7 +12,6 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/huandu/go-sqlbuilder"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/project"
 )
@@ -174,35 +173,4 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 	body, err := backoff.RetryWithData[[]byte](makeRequest, backoffSettings)
 
 	return body, err
-}
-
-func (c *ClientImpl) runQuery(ctx context.Context, serviceID string, sql string, args ...interface{}) ([]byte, error) { //nolint
-	return c.runQueryWithFormat(ctx, serviceID, "JSONEachRow", sql, args...)
-}
-
-func (c *ClientImpl) runQueryWithFormat(ctx context.Context, serviceID string, format string, sql string, args ...interface{}) ([]byte, error) { //nolint
-	// TODO once openAPI will expose this information, make a call to get it dynamically.
-	queryAPIBaseUrl := "https://console-api.clickhouse.cloud"
-
-	qry, err := sqlbuilder.ClickHouse.Interpolate(sql, args)
-	if err != nil {
-		return nil, err
-	}
-
-	s := struct {
-		SQL string `json:"sql"`
-	}{
-		SQL: qry,
-	}
-
-	buffer := &bytes.Buffer{}
-	if err := json.NewEncoder(buffer).Encode(&s); err != nil {
-		return nil, fmt.Errorf("encoding query payload to JSON failed: %w", err)
-	}
-	req, err := http.NewRequest(http.MethodPost, c.getQueryAPIPath(queryAPIBaseUrl, serviceID, format), buffer)
-	if err != nil {
-		return nil, err
-	}
-
-	return c.doRequest(ctx, req)
 }

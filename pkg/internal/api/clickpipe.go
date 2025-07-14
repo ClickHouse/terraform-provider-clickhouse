@@ -34,11 +34,16 @@ const (
 	ClickPipeParquetFormat       = "Parquet"
 )
 
-var ClickPipeKafkaFormats = []string{
+var ClickPipeStreamingFormats = []string{
 	ClickPipeJSONEachRowFormat,
 	ClickPipeAvroFormat,
 	ClickPipeAvroConfluentFormat,
 }
+
+var (
+	ClickPipeKafkaFormats   = ClickPipeStreamingFormats
+	ClickPipeKinesisFormats = ClickPipeKafkaFormats
+)
 
 const (
 	ClickPipeAuthenticationIAMRole = "IAM_ROLE"
@@ -78,6 +83,23 @@ var ClickPipeKafkaSourceTypes = []string{
 var ClickPipeObjectStorageAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
+}
+
+var ClickPipeKinesisAuthenticationMethods = []string{
+	ClickPipeAuthenticationIAMRole,
+	ClickPipeAuthenticationIAMUser,
+}
+
+const (
+	ClickPipeKinesisTrimHorizonIteratorType = "TRIM_HORIZON"
+	ClickPipeKinesisLatestIteratorType      = "LATEST"
+	ClickPipeKinesisAtTimestampIteratorType = "AT_TIMESTAMP"
+)
+
+var ClickPipeKinesisIteratorTypes = []string{
+	ClickPipeKinesisTrimHorizonIteratorType,
+	ClickPipeKinesisLatestIteratorType,
+	ClickPipeKinesisAtTimestampIteratorType,
 }
 
 var ClickPipeObjectStorageFormats = []string{

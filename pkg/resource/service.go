@@ -73,6 +73,13 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"backup_id": schema.StringAttribute{
+				Description: "ID of the backup to restore when creating new service. If specified, the service will be created as a restore operation",
+				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
 			"byoc_id": schema.StringAttribute{
 				Description: "BYOC ID related to the cloud provider account you want to create this service into.",
 				Optional:    true,
@@ -81,12 +88,19 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"warehouse_id": schema.StringAttribute{
-				Description: "ID of the warehouse to share the data with. Must be in the same cloud and region.",
+				Description: "Set it to the 'warehouse_id' attribute of another service to share the data with it. The service must be in the same cloud and region.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.Expressions{
+						path.MatchRoot("password"),
+						path.MatchRoot("password_hash"),
+						path.MatchRoot("backup_configuration"),
+					}...),
 				},
 			},
 			"readonly": schema.BoolAttribute{
@@ -133,7 +147,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						regexp.MustCompile(`^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$`),
 						"must be a base64 encoded hash",
 					),
-					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password"), path.MatchRoot("warehouse_id")}...),
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password")}...),
 				},
 			},
 			"double_sha1_password_hash": schema.StringAttribute{
@@ -181,6 +195,9 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "When set to true the service is allowed to scale down to zero when idle.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"ip_access": schema.ListNestedAttribute{
 				Description: "List of IP addresses allowed to access the service.",
@@ -287,11 +304,17 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
 				Description: "Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"num_replicas": schema.Int64Attribute{
 				Optional:    true,
@@ -304,6 +327,10 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"idle_timeout_minutes": schema.Int64Attribute{
 				Description: "Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.",
 				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"iam_role": schema.StringAttribute{
 				Description: "IAM role used for accessing objects in s3.",
@@ -421,6 +448,9 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						},
 					},
 				},
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 		MarkdownDescription: serviceResourceDescription,
@@ -469,6 +499,22 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				path.Root("byocid"),
 				"Invalid Update",
 				"ClickHouse does not support changing BYOC ID for a service",
+			)
+		}
+
+		if plan.BackupID != state.BackupID {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("backup_id"),
+				"Invalid Update",
+				"ClickHouse does not support changing Backup ID for a service",
+			)
+		}
+
+		if !state.BackupID.IsNull() && plan.BackupID != state.BackupID {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("backup_id"),
+				"Invalid Update",
+				"ClickHouse does not support changing Backup ID for a service",
 			)
 		}
 
@@ -582,6 +628,15 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			plan.TransparentEncryptionData = planTDE.ObjectValue()
 			resp.Plan.Set(ctx, plan)
 		}
+
+		if config.IdleTimeoutMinutes.IsNull() {
+			plan.IdleTimeoutMinutes = types.Int64Null()
+			resp.Plan.Set(ctx, plan)
+		}
+
+		if !state.IdleScaling.ValueBool() && plan.IdleScaling.ValueBool() {
+			plan.IdleTimeoutMinutes = config.IdleTimeoutMinutes
+		}
 	}
 
 	if plan.Tier.ValueString() == api.TierDevelopment {
@@ -641,7 +696,8 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				"release_channel must be 'default' if the service tier is development",
 			)
 		}
-	} else if plan.Tier.ValueString() == api.TierProduction {
+	} else {
+		// Production and PPv2
 		if !plan.BYOCID.IsNull() {
 			if plan.MinReplicaMemoryGb.IsNull() || plan.MinReplicaMemoryGb.IsUnknown() {
 				resp.Diagnostics.AddError(
@@ -702,12 +758,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 						UnhandledUnknownAsEmpty: false,
 					})
 					if !diag.HasError() {
-						if !cfgBackupConfig.BackupStartTime.IsNull() && !cfgBackupConfig.BackupStartTime.IsUnknown() && cfgBackupConfig.BackupPeriodInHours.IsNull() {
-							// Make BackupPeriodInHours null if user only set BackupStartTime.
-							bc.BackupPeriodInHours = types.Int32Null()
-							plan.BackupConfiguration = bc.ObjectValue()
-							resp.Plan.Set(ctx, plan)
-						} else if cfgBackupConfig.BackupStartTime.IsNull() || cfgBackupConfig.BackupStartTime.IsUnknown() {
+						if cfgBackupConfig.BackupStartTime.IsNull() || cfgBackupConfig.BackupStartTime.IsUnknown() {
 							// Make BackupStartTime null if user only set BackupPeriodInHours.
 							bc.BackupStartTime = types.StringNull()
 							plan.BackupConfiguration = bc.ObjectValue()
@@ -740,14 +791,14 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		)
 	}
 
-	if plan.IdleTimeoutMinutes.IsNull() && plan.IdleScaling.ValueBool() {
+	if config.IdleTimeoutMinutes.IsNull() && !config.IdleScaling.IsNull() && config.IdleScaling.ValueBool() {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"idle_timeout_minutes must be defined if idle_scaling is enabled",
 		)
 	}
 
-	if !plan.IdleTimeoutMinutes.IsNull() && !plan.IdleScaling.ValueBool() {
+	if !config.IdleTimeoutMinutes.IsNull() && !config.IdleScaling.IsNull() && !plan.IdleScaling.ValueBool() {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"idle_timeout_minutes must be null if idle_scaling is disabled",
@@ -788,6 +839,48 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 			resp.Plan.Set(ctx, plan)
 		}
+	} else {
+		// User has Endpoint config set
+
+		var wantEnabled bool
+		{
+			endpoints := models.Endpoints{}
+			diag := config.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			mysql := models.OptionalEndpoint{}
+			diag = endpoints.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			wantEnabled = mysql.Enabled.ValueBool()
+		}
+
+		var isEnabled bool
+		if !req.State.Raw.IsNull() {
+			endpoints := models.Endpoints{}
+			diag := state.Endpoints.As(ctx, &endpoints, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			mysql := models.OptionalEndpoint{}
+			diag = endpoints.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+			if diag.HasError() {
+				return
+			}
+
+			isEnabled = mysql.Enabled.ValueBool()
+		}
+
+		if wantEnabled && isEnabled {
+			// User did not change wantEnabled so there is no reason to change anything in the Endpoints field.
+			plan.Endpoints = state.Endpoints
+			resp.Plan.Set(ctx, plan)
+		}
 	}
 
 	defaultTDE := false
@@ -809,6 +902,11 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			}.ObjectValue()
 			resp.Plan.Set(ctx, plan)
 		}
+	}
+
+	if !config.DataWarehouseID.IsNull() {
+		plan.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+		resp.Plan.Set(ctx, plan)
 	}
 }
 
@@ -832,6 +930,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	if !plan.BYOCID.IsUnknown() && !plan.BYOCID.IsNull() {
 		service.BYOCId = plan.BYOCID.ValueStringPointer()
+	}
+
+	if !plan.BackupID.IsUnknown() && !plan.BackupID.IsNull() {
+		service.BackupID = plan.BackupID.ValueStringPointer()
 	}
 
 	if !plan.ReleaseChannel.IsUnknown() && !plan.ReleaseChannel.IsNull() {
@@ -890,7 +992,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	service.IdleScaling = plan.IdleScaling.ValueBool()
-	if !plan.IdleTimeoutMinutes.IsNull() {
+	if !plan.IdleTimeoutMinutes.IsNull() && !plan.IdleTimeoutMinutes.IsUnknown() {
 		idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
 		service.IdleTimeoutMinutes = &idleTimeoutMinutes
 	}
@@ -1748,6 +1850,7 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 				upgradedStateData := models.ServiceResourceModel{
 					ID:                              priorStateData.ID,
 					BYOCID:                          priorStateData.BYOCID,
+					BackupID:                        types.StringNull(),
 					DataWarehouseID:                 priorStateData.DataWarehouseID,
 					IsPrimary:                       priorStateData.IsPrimary,
 					ReadOnly:                        priorStateData.ReadOnly,

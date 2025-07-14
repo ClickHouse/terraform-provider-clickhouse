@@ -1,8 +1,6 @@
-## Basic example to manage Role Based Access Control
+## ClickPipe Kinesis with IAM user authentication
 
-The Terraform code deploys following resources:
-- 1 ClickHouse service on AWS
-- 1 database on the ClickHouse service
+This example demonstrates how to deploy a Kinesis ClickPipe using IAM user credentials for authentication.
 
 ## How to run
 

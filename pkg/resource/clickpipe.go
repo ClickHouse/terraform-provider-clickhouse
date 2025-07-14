@@ -116,6 +116,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					},
 				},
 				Optional: true,
+				Computed: true,
 			},
 			"state": schema.StringAttribute{
 				MarkdownDescription: "The desired state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`.",
@@ -409,6 +410,113 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Optional:            true,
 							},
 						},
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.RequiresReplace(),
+						},
+					},
+					"kinesis": schema.SingleNestedAttribute{
+						MarkdownDescription: "The Kinesis source configuration for the ClickPipe.",
+						Optional:            true,
+						Attributes: map[string]schema.Attribute{
+							"format": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The format of the Kinesis source. (%s)",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKinesisFormats),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeKinesisFormats...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"stream_name": schema.StringAttribute{
+								Description: "The name of the Kinesis stream.",
+								Required:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"region": schema.StringAttribute{
+								Description: "The AWS region of the Kinesis stream.",
+								Required:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"iterator_type": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The iterator type for the Kinesis source. (%s)",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKinesisIteratorTypes),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeKinesisIteratorTypes...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"timestamp": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The timestamp for the Kinesis source. Use with `%s` iterator type. (format `2021-01-01T00:00`)",
+									api.ClickPipeKinesisAtTimestampIteratorType,
+								),
+								Optional: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"use_enhanced_fan_out": schema.BoolAttribute{
+								Description: "Whether to use enhanced fan-out consumer.",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.RequiresReplace(),
+								},
+							},
+							"authentication": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The authentication method for the Kinesis source. (%s).",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKinesisAuthenticationMethods),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeKinesisAuthenticationMethods...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"access_key": schema.SingleNestedAttribute{
+								MarkdownDescription: "The access key for the Kinesis source. Use with `IAM_USER` authentication.",
+								Optional:            true,
+								Attributes: map[string]schema.Attribute{
+									"access_key_id": schema.StringAttribute{
+										Description: "The access key ID for the Kinesis source.",
+										Required:    true,
+										Sensitive:   true,
+									},
+									"secret_key": schema.StringAttribute{
+										Description: "The secret key for the Kinesis source.",
+										Required:    true,
+										Sensitive:   true,
+									},
+								},
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.RequiresReplace(),
+								},
+							},
+							"iam_role": schema.StringAttribute{
+								MarkdownDescription: "The IAM role for the Kinesis source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/kinesis).",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+						},
 					},
 				},
 				Required: true,
@@ -567,11 +675,19 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	destinationColumnsModels := make([]models.ClickPipeDestinationColumnModel, len(destinationModel.Columns.Elements()))
 	response.Diagnostics.Append(destinationModel.Columns.ElementsAs(ctx, &destinationColumnsModels, false)...)
 
+	// Extract roles from the destination model
+	var rolesSlice []string
+	if !destinationModel.Roles.IsNull() && len(destinationModel.Roles.Elements()) > 0 {
+		rolesSlice = make([]string, len(destinationModel.Roles.Elements()))
+		response.Diagnostics.Append(destinationModel.Roles.ElementsAs(ctx, &rolesSlice, false)...)
+	}
+
 	clickPipe.Destination = api.ClickPipeDestination{
 		Database:     destinationModel.Database.ValueString(),
 		Table:        destinationModel.Table.ValueString(),
 		ManagedTable: destinationModel.ManagedTable.ValueBool(),
 		Columns:      make([]api.ClickPipeDestinationColumn, len(destinationColumnsModels)),
+		Roles:        rolesSlice,
 	}
 
 	if destinationModel.ManagedTable.ValueBool() {
@@ -629,12 +745,12 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		return
 	}
 
-	if !plan.Scaling.IsNull() {
+	if !plan.Scaling.IsUnknown() && !plan.Scaling.IsNull() {
 		replicasModel := models.ClickPipeScalingModel{}
 		response.Diagnostics.Append(plan.Scaling.As(ctx, &replicasModel, basetypes.ObjectAsOptions{})...)
 
 		var desiredReplicas *int64
-		if !replicasModel.Replicas.IsNull() && createdClickPipe.Scaling.Replicas != nil && *createdClickPipe.Scaling.Replicas != replicasModel.Replicas.ValueInt64() {
+		if !replicasModel.Replicas.IsUnknown() && !replicasModel.Replicas.IsNull() && createdClickPipe.Scaling.Replicas != nil && *createdClickPipe.Scaling.Replicas != replicasModel.Replicas.ValueInt64() {
 			desiredReplicas = replicasModel.Replicas.ValueInt64Pointer()
 		}
 
@@ -818,6 +934,41 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
 			AccessKey:      accessKey,
 			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
+		}
+	} else if !sourceModel.Kinesis.IsNull() {
+		kinesisModel := models.ClickPipeKinesisSourceModel{}
+		diagnostics.Append(sourceModel.Kinesis.As(ctx, &kinesisModel, basetypes.ObjectAsOptions{})...)
+
+		source.Kinesis = &api.ClickPipeKinesisSource{
+			Format:            kinesisModel.Format.ValueString(),
+			StreamName:        kinesisModel.StreamName.ValueString(),
+			Region:            kinesisModel.Region.ValueString(),
+			IteratorType:      kinesisModel.IteratorType.ValueString(),
+			UseEnhancedFanOut: kinesisModel.UseEnhancedFanOut.ValueBool(),
+			Authentication:    kinesisModel.Authentication.ValueString(),
+			IAMRole:           kinesisModel.IAMRole.ValueStringPointer(),
+		}
+
+		if !kinesisModel.Timestamp.IsNull() {
+			source.Kinesis.Timestamp = kinesisModel.Timestamp.ValueStringPointer()
+		}
+
+		if kinesisModel.Authentication.ValueString() == api.ClickPipeAuthenticationIAMUser {
+			if !kinesisModel.AccessKey.IsNull() {
+				accessKeyModel := models.ClickPipeSourceAccessKeyModel{}
+				diagnostics.Append(kinesisModel.AccessKey.As(ctx, &accessKeyModel, basetypes.ObjectAsOptions{})...)
+
+				source.Kinesis.AccessKey = &api.ClickPipeSourceAccessKey{
+					AccessKeyID: accessKeyModel.AccessKeyID.ValueString(),
+					SecretKey:   accessKeyModel.SecretKey.ValueString(),
+				}
+			} else {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"Kinesis source with IAM_USER authentication requires access_key",
+				)
+				return nil
+			}
 		}
 	} else {
 		diagnostics.AddError(
@@ -1006,6 +1157,41 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		sourceModel.ObjectStorage = objectStorageModel.ObjectValue()
 	} else {
 		sourceModel.ObjectStorage = types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes)
+	}
+
+	if clickPipe.Source.Kinesis != nil {
+		stateKinesisModel := models.ClickPipeKinesisSourceModel{}
+		if !stateSourceModel.Kinesis.IsNull() {
+			if diags := stateSourceModel.Kinesis.As(ctx, &stateKinesisModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Kinesis source: %v", diags)
+			}
+		}
+
+		kinesisModel := models.ClickPipeKinesisSourceModel{
+			Format:            types.StringValue(clickPipe.Source.Kinesis.Format),
+			StreamName:        types.StringValue(clickPipe.Source.Kinesis.StreamName),
+			Region:            types.StringValue(clickPipe.Source.Kinesis.Region),
+			IteratorType:      types.StringValue(clickPipe.Source.Kinesis.IteratorType),
+			UseEnhancedFanOut: types.BoolValue(clickPipe.Source.Kinesis.UseEnhancedFanOut),
+			Authentication:    types.StringValue(clickPipe.Source.Kinesis.Authentication),
+			IAMRole:           types.StringPointerValue(clickPipe.Source.Kinesis.IAMRole),
+			Timestamp:         types.StringPointerValue(clickPipe.Source.Kinesis.Timestamp),
+		}
+
+		if !stateKinesisModel.AccessKey.IsNull() {
+			stateAccessKeyModel := models.ClickPipeSourceAccessKeyModel{}
+			if diags := stateKinesisModel.AccessKey.As(ctx, &stateAccessKeyModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Kinesis source access key: %v", diags)
+			}
+
+			kinesisModel.AccessKey = stateAccessKeyModel.ObjectValue()
+		} else {
+			kinesisModel.AccessKey = types.ObjectNull(models.ClickPipeSourceAccessKeyModel{}.ObjectType().AttrTypes)
+		}
+
+		sourceModel.Kinesis = kinesisModel.ObjectValue()
+	} else {
+		sourceModel.Kinesis = types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes)
 	}
 
 	state.Source = sourceModel.ObjectValue()
