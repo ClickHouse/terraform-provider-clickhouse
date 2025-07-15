@@ -123,6 +123,8 @@ runs:
         retry_on_exit_code: 2
         shell: bash
         command: |
+          set -o pipefail
+          
           if [ "${{ inputs.upgrade_from }}" == "" ]
           then
             # Get latest stable release
