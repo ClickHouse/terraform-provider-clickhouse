@@ -112,8 +112,7 @@ runs:
         
         echo "::endgroup::"
 
-    - shell: bash
-      id: get_latest_stable_release
+    - id: get_latest_stable_release
       if: ${{ inputs.upgrade_test == 'true' && steps.defined.outputs.defined == 'true' }}
       name: Upgrade test - Retrieve latest stable version
       uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
