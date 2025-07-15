@@ -120,7 +120,6 @@ runs:
         timeout_minutes: 2
         max_attempts: 3
         retry_wait_seconds: 0
-        retry_on_exit_code: 2
         shell: bash
         command: |
           set -eo pipefail
