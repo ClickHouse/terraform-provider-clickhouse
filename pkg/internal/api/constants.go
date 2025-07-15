@@ -7,6 +7,7 @@ const (
 
 	ReleaseChannelDefault = "default"
 	ReleaseChannelFast    = "fast"
+	ReleaseChannelSlow    = "slow"
 
 	StateProvisioning = "provisioning"
 	StateStopped      = "stopped"

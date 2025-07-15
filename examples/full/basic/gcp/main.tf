@@ -24,8 +24,8 @@ variable "release_channel" {
   type = string
   default = "default"
   validation {
-    condition     = var.release_channel == "default" || var.release_channel == "fast"
-    error_message = "Release channel can be either 'default' or 'fast'."
+    condition     = contains(["default", "fast", "slow"], var.release_channel)
+    error_message = "Release channel can be 'default', 'fast' or 'slow'."
   }
 }
 
