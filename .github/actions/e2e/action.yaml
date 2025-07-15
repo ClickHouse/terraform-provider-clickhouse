@@ -118,8 +118,8 @@ runs:
       uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
       with:
         timeout_minutes: 2
-        max_attempts: 3
-        retry_wait_seconds: 0
+        max_attempts: 10
+        retry_wait_seconds: 10
         shell: bash
         command: |
           set -eo pipefail
