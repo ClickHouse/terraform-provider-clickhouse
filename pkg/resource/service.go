@@ -181,11 +181,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"release_channel": schema.StringAttribute{
-				Description: "Release channel to use for this service. Either 'default' or 'fast'. Switching from 'fast' to 'default' release channel is not supported.",
+				Description: "Release channel to use for this service. Can be 'default', 'fast' or 'slow'.",
 				Optional:    true,
 				Computed:    true,
 				Validators: []validator.String{
-					stringvalidator.OneOf(api.ReleaseChannelDefault, api.ReleaseChannelFast),
+					stringvalidator.OneOf(api.ReleaseChannelSlow, api.ReleaseChannelDefault, api.ReleaseChannelFast),
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -571,16 +571,6 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				"Invalid Update",
 				"ClickHouse does not support changing encryption_assumed_role_identifier",
 			)
-		}
-
-		if !plan.ReleaseChannel.IsUnknown() && !plan.ReleaseChannel.IsNull() {
-			if plan.ReleaseChannel.ValueString() == api.ReleaseChannelDefault && state.ReleaseChannel.ValueString() == api.ReleaseChannelFast {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("release_channel"),
-					"Invalid Update",
-					"Switching from 'fast' to 'default' release channel is not supported",
-				)
-			}
 		}
 
 		var isEnabled, wantEnabled bool
