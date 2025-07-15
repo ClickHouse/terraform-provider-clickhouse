@@ -1,21 +1,23 @@
 resource "clickhouse_clickpipe" "kafka_clickpipe" {
-  name           = "My Kafka ClickPipe"
-  description    = "Data pipeline from Kafka to ClickHouse"
+  name        = "My Kafka ClickPipe"
+  description = "Data pipeline from Kafka to ClickHouse"
 
-  service_id     = "e9465b4b-f7e5-4937-8e21-8d508b02843d"
+  service_id = "e9465b4b-f7e5-4937-8e21-8d508b02843d"
 
   scaling {
-    replicas = 1
+    replicas               = 2
+    replica_cpu_millicores = 250
+    replica_memory_gb      = 1.0
   }
 
   state = "Running"
 
   source {
     kafka {
-      type = "confluent"
-      format = "JSONEachRow"
+      type    = "confluent"
+      format  = "JSONEachRow"
       brokers = "my-kafka-broker:9092"
-      topics = "my_topic"
+      topics  = "my_topic"
 
       consumer_group = "clickpipe-test"
 
@@ -27,9 +29,9 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
   }
 
   destination {
-    table    = "my_table"
+    table         = "my_table"
     managed_table = true
-    
+
     tableDefinition {
       engine {
         type = "MergeTree"
@@ -49,7 +51,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 
   field_mappings = [
     {
-      source_field = "my_field"
+      source_field      = "my_field"
       destination_field = "my_field1"
     }
   ]
