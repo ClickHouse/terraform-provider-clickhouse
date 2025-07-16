@@ -242,10 +242,10 @@ jobs:
   report:
     runs-on: ubuntu-latest
     needs: [ "e2e", "upgrade" ]
-    if: ${{ needs.e2e.outputs.status == 'failure' }}
+    if: ${{ needs.e2e.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure' }}
     steps:
       - name: Report Failure on slack
-        if: ${{ github.ref_name == 'main' && needs.e2e.outputs.status == 'failure' }}
+        if: ${{ github.ref_name == 'main' && (needs.e2e.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure') }}
         uses: ravsamhq/notify-slack-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
