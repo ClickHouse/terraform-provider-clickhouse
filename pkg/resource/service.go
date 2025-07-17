@@ -2009,7 +2009,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		Enabled: types.BoolValue(service.HasTransparentDataEncryption),
 	}
 
-	if service.EncryptionRoleID != "" {
+	if service.HasTransparentDataEncryption && service.EncryptionRoleID != "" {
 		tde.RoleID = types.StringValue(service.EncryptionRoleID)
 	} else {
 		tde.RoleID = types.StringNull()
