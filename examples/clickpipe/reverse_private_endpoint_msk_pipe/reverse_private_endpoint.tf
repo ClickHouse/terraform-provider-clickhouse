@@ -12,7 +12,6 @@ locals {
 
 resource "clickhouse_clickpipes_reverse_private_endpoint" "endpoint" {
   service_id                = var.service_id
-  description               = "Reverse private endpoint for my ClickPipe"
   type                      = "MSK_MULTI_VPC"
   msk_cluster_arn = var.msk_cluster_arn
   msk_authentication = local.rpe_msk_authentication

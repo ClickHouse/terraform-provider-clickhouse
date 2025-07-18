@@ -99,10 +99,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Description: "The name of the ClickPipe.",
 				Required:    true,
 			},
-			"description": schema.StringAttribute{
-				Description: "The description of the ClickPipe.",
-				Optional:    true,
-			},
 			"scaling": schema.SingleNestedAttribute{
 				Attributes: map[string]schema.Attribute{
 					"replicas": schema.Int64Attribute{
@@ -660,8 +656,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	serviceID := plan.ServiceID.ValueString()
 
 	clickPipe := api.ClickPipe{
-		Name:        plan.Name.ValueString(),
-		Description: plan.Description.ValueStringPointer(),
+		Name: plan.Name.ValueString(),
 	}
 
 	if source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, false); source != nil {
@@ -998,13 +993,6 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	state.ID = types.StringValue(clickPipe.ID)
 	state.Name = types.StringValue(clickPipe.Name)
 
-	// ideally, we shouldn't receive an empty description from the API, but we should handle it just in case
-	if clickPipe.Description != nil && *clickPipe.Description != "" {
-		state.Description = types.StringPointerValue(clickPipe.Description)
-	} else {
-		state.Description = types.StringNull()
-	}
-
 	// In case ClickPipe status is not as expected,
 	// we should return an error that clearly states the issue so the user can take action.
 	if clickPipe.State != state.State.ValueString() {
@@ -1327,11 +1315,6 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	if !plan.Name.Equal(state.Name) {
 		pipeChanged = true
 		clickPipeUpdate.Name = plan.Name.ValueStringPointer()
-	}
-
-	if !plan.Description.Equal(state.Description) {
-		pipeChanged = true
-		clickPipeUpdate.Description = plan.Description.ValueStringPointer()
 	}
 
 	if !plan.Source.Equal(state.Source) {

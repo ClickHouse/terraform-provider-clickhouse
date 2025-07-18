@@ -433,7 +433,6 @@ type ClickPipeResourceModel struct {
 	ID            types.String `tfsdk:"id"`
 	ServiceID     types.String `tfsdk:"service_id"`
 	Name          types.String `tfsdk:"name"`
-	Description   types.String `tfsdk:"description"`
 	Scaling       types.Object `tfsdk:"scaling"`
 	State         types.String `tfsdk:"state"`
 	Source        types.Object `tfsdk:"source"`

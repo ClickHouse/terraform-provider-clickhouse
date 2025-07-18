@@ -3,30 +3,24 @@ variable "token_key" {}
 variable "token_secret" {}
 
 variable "service_id" {
-  description = "ClickHouse service ID"
 }
 
 variable "kafka_brokers" {
-  description = "Kafka brokers"
 }
 
 variable "kafka_topics" {
-  description = "Kafka topics"
 }
 
 variable "iam_access_key_id" {
-  description = "IAM access key ID"
   sensitive   = true
 }
 
 variable "iam_secret_key" {
-  description = "IAM secret key"
   sensitive   = true
 }
 
 resource "clickhouse_clickpipe" "kafka_msk" {
   name        = "MSK 🚀 ClickPipe"
-  description = "Data pipeline from MSK to ClickHouse"
 
   service_id = var.service_id
 
