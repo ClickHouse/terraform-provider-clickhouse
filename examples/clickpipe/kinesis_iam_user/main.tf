@@ -1,7 +1,6 @@
 resource "clickhouse_clickpipe" "kinesis_iam_user" {
   service_id  = var.service_id
   name        = var.pipe_name
-  description = var.pipe_description
 
   source = {
     kinesis = {
