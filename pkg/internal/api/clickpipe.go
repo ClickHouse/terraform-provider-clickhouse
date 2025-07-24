@@ -46,8 +46,8 @@ var (
 )
 
 const (
-	ClickPipeAuthenticationIAMRole = "IAM_ROLE"
-	ClickPipeAuthenticationIAMUser = "IAM_USER"
+	ClickPipeAuthenticationIAMRole          = "IAM_ROLE"
+	ClickPipeAuthenticationIAMUser          = "IAM_USER"
 	ClickPipeAuthenticationConnectionString = "CONNECTION_STRING"
 
 	ClickPipeKafkaAuthenticationPlain       = "PLAIN"
@@ -112,8 +112,8 @@ var ClickPipeObjectStorageFormats = []string{
 }
 
 const (
-	ClickPipeObjectStorageS3Type    = "s3"
-	ClickPipeObjectStorageGCSType   = "gcs"
+	ClickPipeObjectStorageS3Type        = "s3"
+	ClickPipeObjectStorageGCSType       = "gcs"
 	ClickPipeObjectStorageAzureBlobType = "azureblobstorage"
 )
 
