@@ -420,6 +420,19 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "The IAM role for the S3 source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#authentication)",
 								Optional:            true,
 							},
+							"connection_string": schema.StringAttribute{
+								MarkdownDescription: "Connection string for Azure Blob Storage authentication. Required when authentication is CONNECTION_STRING. Example: `DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=mykey;EndpointSuffix=core.windows.net`",
+								Optional:            true,
+								Sensitive:           true,
+							},
+							"path": schema.StringAttribute{
+								MarkdownDescription: "Path to the file(s) within the Azure container. Used for Azure Blob Storage sources. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations. Example: `data/logs/*.json`",
+								Optional:            true,
+							},
+							"azure_container_name": schema.StringAttribute{
+								MarkdownDescription: "Container name for Azure Blob Storage. Required when type is azureblobstorage. Example: `mycontainer`",
+								Optional:            true,
+							},
 						},
 						PlanModifiers: []planmodifier.Object{
 							objectplanmodifier.RequiresReplace(),
@@ -967,6 +980,11 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
 			AccessKey:      accessKey,
 			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
+
+			// Azure Blob Storage specific fields
+			ConnectionString:   objectStorageModel.ConnectionString.ValueStringPointer(),
+			Path:               objectStorageModel.Path.ValueStringPointer(),
+			AzureContainerName: objectStorageModel.AzureContainerName.ValueStringPointer(),
 		}
 	} else if !sourceModel.Kinesis.IsNull() {
 		kinesisModel := models.ClickPipeKinesisSourceModel{}
@@ -1169,6 +1187,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			IsContinuous:   types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
 			Authentication: types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication),
 			IAMRole:        types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
+
+			// Azure Blob Storage specific fields - preserve sensitive values from state
+			ConnectionString:   stateObjectStorageModel.ConnectionString,
+			Path:               types.StringPointerValue(clickPipe.Source.ObjectStorage.Path),
+			AzureContainerName: types.StringPointerValue(clickPipe.Source.ObjectStorage.AzureContainerName),
 		}
 
 		if !stateObjectStorageModel.AccessKey.IsNull() {

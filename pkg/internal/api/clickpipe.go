@@ -48,6 +48,7 @@ var (
 const (
 	ClickPipeAuthenticationIAMRole = "IAM_ROLE"
 	ClickPipeAuthenticationIAMUser = "IAM_USER"
+	ClickPipeAuthenticationConnectionString = "CONNECTION_STRING"
 
 	ClickPipeKafkaAuthenticationPlain       = "PLAIN"
 	ClickPipeKafkaAuthenticationScramSha256 = "SCRAM-SHA-256"
@@ -83,6 +84,7 @@ var ClickPipeKafkaSourceTypes = []string{
 var ClickPipeObjectStorageAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
+	ClickPipeAuthenticationConnectionString,
 }
 
 var ClickPipeKinesisAuthenticationMethods = []string{
@@ -110,13 +112,15 @@ var ClickPipeObjectStorageFormats = []string{
 }
 
 const (
-	ClickPipeObjectStorageS3Type  = "s3"
-	ClickPipeObjectStorageGCSType = "gcs"
+	ClickPipeObjectStorageS3Type    = "s3"
+	ClickPipeObjectStorageGCSType   = "gcs"
+	ClickPipeObjectStorageAzureBlobType = "azureblobstorage"
 )
 
 var ClickPipeObjectStorageTypes = []string{
 	ClickPipeObjectStorageS3Type,
 	ClickPipeObjectStorageGCSType,
+	ClickPipeObjectStorageAzureBlobType,
 }
 
 const (
