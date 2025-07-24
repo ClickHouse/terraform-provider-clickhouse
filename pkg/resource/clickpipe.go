@@ -322,7 +322,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						},
 					},
 					"object_storage": schema.SingleNestedAttribute{
-						MarkdownDescription: "The Kafka source configuration for the ClickPipe.",
+						MarkdownDescription: "The compatible object storage source configuration for the ClickPipe.",
 						Optional:            true,
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
@@ -356,7 +356,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							},
 							"url": schema.StringAttribute{
 								MarkdownDescription: "The URL of the S3 bucket. Provide a path to the file(s) you want to ingest. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations",
-								Required:            true,
+								Optional:            true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
 								},
@@ -391,11 +391,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"authentication": schema.StringAttribute{
-								MarkdownDescription: fmt.Sprintf(
-									"Authentication method. If not provided, no authentication is used. It can be used to access public buckets.. (%s).",
-									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeObjectStorageAuthenticationMethods),
-								),
-								Optional: true,
+								MarkdownDescription: "CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3/GCS/DigitalOcean. If not provided, no authentication is used",
+								Optional:            true,
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeObjectStorageAuthenticationMethods...),
 								},
