@@ -269,36 +269,36 @@ type ClickPipeObjectStorageSourceModel struct {
 func (m ClickPipeObjectStorageSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"type":                  types.StringType,
-			"format":                types.StringType,
-			"url":                   types.StringType,
-			"delimiter":             types.StringType,
-			"compression":           types.StringType,
-			"is_continuous":         types.BoolType,
-			"authentication":        types.StringType,
-			"access_key":            ClickPipeSourceAccessKeyModel{}.ObjectType(),
-			"iam_role":              types.StringType,
-			"connection_string":     types.StringType,
-			"path":                  types.StringType,
-			"azure_container_name":  types.StringType,
+			"type":                 types.StringType,
+			"format":               types.StringType,
+			"url":                  types.StringType,
+			"delimiter":            types.StringType,
+			"compression":          types.StringType,
+			"is_continuous":        types.BoolType,
+			"authentication":       types.StringType,
+			"access_key":           ClickPipeSourceAccessKeyModel{}.ObjectType(),
+			"iam_role":             types.StringType,
+			"connection_string":    types.StringType,
+			"path":                 types.StringType,
+			"azure_container_name": types.StringType,
 		},
 	}
 }
 
 func (m ClickPipeObjectStorageSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"type":                  m.Type,
-		"format":                m.Format,
-		"url":                   m.URL,
-		"delimiter":             m.Delimiter,
-		"compression":           m.Compression,
-		"is_continuous":         m.IsContinuous,
-		"authentication":        m.Authentication,
-		"access_key":            m.AccessKey,
-		"iam_role":              m.IAMRole,
-		"connection_string":     m.ConnectionString,
-		"path":                  m.Path,
-		"azure_container_name":  m.AzureContainerName,
+		"type":                 m.Type,
+		"format":               m.Format,
+		"url":                  m.URL,
+		"delimiter":            m.Delimiter,
+		"compression":          m.Compression,
+		"is_continuous":        m.IsContinuous,
+		"authentication":       m.Authentication,
+		"access_key":           m.AccessKey,
+		"iam_role":             m.IAMRole,
+		"connection_string":    m.ConnectionString,
+		"path":                 m.Path,
+		"azure_container_name": m.AzureContainerName,
 	})
 }
 
