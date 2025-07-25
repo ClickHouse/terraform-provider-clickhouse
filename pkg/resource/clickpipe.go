@@ -985,6 +985,22 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 				)
 				return nil
 			}
+
+			if objectStorageModel.AzureContainerName.IsNull() || objectStorageModel.AzureContainerName.IsUnknown() || objectStorageModel.AzureContainerName.ValueString() == "" {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"azure_container_name is required when using Azure Blob Storage",
+				)
+				return nil
+			}
+
+			if objectStorageModel.ConnectionString.IsNull() || objectStorageModel.ConnectionString.IsUnknown() || objectStorageModel.ConnectionString.ValueString() == "" {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"connection_string is required when using Azure Blob Storage",
+				)
+				return nil
+			}
 		} else {
 			if objectStorageModel.URL.IsNull() || objectStorageModel.URL.IsUnknown() || objectStorageModel.URL.ValueString() == "" {
 				diagnostics.AddError(
@@ -995,7 +1011,6 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			}
 		}
 
-		// Build the object storage source
 		objectStorage := &api.ClickPipeObjectStorageSource{
 			Type:           objectStorageModel.Type.ValueString(),
 			Format:         objectStorageModel.Format.ValueString(),
@@ -1007,7 +1022,6 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
 		}
 
-		// Set URL for S3/GCS, Azure fields for Azure
 		if storageType == api.ClickPipeObjectStorageAzureBlobType {
 			objectStorage.ConnectionString = objectStorageModel.ConnectionString.ValueStringPointer()
 			objectStorage.Path = objectStorageModel.Path.ValueStringPointer()
@@ -1212,17 +1226,20 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		objectStorageModel := models.ClickPipeObjectStorageSourceModel{
 			Type:           types.StringValue(clickPipe.Source.ObjectStorage.Type),
 			Format:         types.StringValue(clickPipe.Source.ObjectStorage.Format),
-			URL:            types.StringValue(clickPipe.Source.ObjectStorage.URL),
 			Delimiter:      types.StringPointerValue(clickPipe.Source.ObjectStorage.Delimiter),
 			Compression:    types.StringPointerValue(clickPipe.Source.ObjectStorage.Compression),
 			IsContinuous:   types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
 			Authentication: types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication),
 			IAMRole:        types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
+		}
 
-			// Azure Blob Storage specific fields - preserve sensitive values from state
-			ConnectionString:   stateObjectStorageModel.ConnectionString,
-			Path:               types.StringPointerValue(clickPipe.Source.ObjectStorage.Path),
-			AzureContainerName: types.StringPointerValue(clickPipe.Source.ObjectStorage.AzureContainerName),
+		// Set storage-type-specific fields
+		if clickPipe.Source.ObjectStorage.Type == api.ClickPipeObjectStorageAzureBlobType {
+			objectStorageModel.ConnectionString = stateObjectStorageModel.ConnectionString // Preserve sensitive value from state
+			objectStorageModel.Path = types.StringPointerValue(clickPipe.Source.ObjectStorage.Path)
+			objectStorageModel.AzureContainerName = types.StringPointerValue(clickPipe.Source.ObjectStorage.AzureContainerName)
+		} else {
+			objectStorageModel.URL = types.StringValue(clickPipe.Source.ObjectStorage.URL)
 		}
 
 		if !stateObjectStorageModel.AccessKey.IsNull() {
