@@ -355,7 +355,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"url": schema.StringAttribute{
-								MarkdownDescription: "The URL of the S3 bucket. Provide a path to the file(s) you want to ingest. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations",
+								MarkdownDescription: "The URL of the S3/GCS bucket. Required for S3 and GCS types. Not used for Azure Blob Storage (use path and azure_container_name instead). You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations",
 								Optional:            true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
@@ -421,14 +421,23 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "Connection string for Azure Blob Storage authentication. Required when authentication is CONNECTION_STRING. Example: `DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=mykey;EndpointSuffix=core.windows.net`",
 								Optional:            true,
 								Sensitive:           true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"path": schema.StringAttribute{
 								MarkdownDescription: "Path to the file(s) within the Azure container. Used for Azure Blob Storage sources. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations. Example: `data/logs/*.json`",
 								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"azure_container_name": schema.StringAttribute{
 								MarkdownDescription: "Container name for Azure Blob Storage. Required when type is azureblobstorage. Example: `mycontainer`",
 								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 						},
 						PlanModifiers: []planmodifier.Object{
@@ -967,22 +976,47 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			}
 		}
 
-		source.ObjectStorage = &api.ClickPipeObjectStorageSource{
+		storageType := objectStorageModel.Type.ValueString()
+		if storageType == api.ClickPipeObjectStorageAzureBlobType {
+			if !objectStorageModel.URL.IsNull() && !objectStorageModel.URL.IsUnknown() && objectStorageModel.URL.ValueString() != "" {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"URL field should not be used with Azure Blob Storage. Use 'path' and 'azure_container_name' fields instead",
+				)
+				return nil
+			}
+		} else {
+			if objectStorageModel.URL.IsNull() || objectStorageModel.URL.IsUnknown() || objectStorageModel.URL.ValueString() == "" {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					fmt.Sprintf("URL is required when using %s storage type", storageType),
+				)
+				return nil
+			}
+		}
+
+		// Build the object storage source
+		objectStorage := &api.ClickPipeObjectStorageSource{
 			Type:           objectStorageModel.Type.ValueString(),
 			Format:         objectStorageModel.Format.ValueString(),
-			URL:            objectStorageModel.URL.ValueString(),
 			Delimiter:      objectStorageModel.Delimiter.ValueStringPointer(),
 			Compression:    objectStorageModel.Compression.ValueStringPointer(),
 			IsContinuous:   objectStorageModel.IsContinuous.ValueBool(),
 			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
 			AccessKey:      accessKey,
 			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
-
-			// Azure Blob Storage specific fields
-			ConnectionString:   objectStorageModel.ConnectionString.ValueStringPointer(),
-			Path:               objectStorageModel.Path.ValueStringPointer(),
-			AzureContainerName: objectStorageModel.AzureContainerName.ValueStringPointer(),
 		}
+
+		// Set URL for S3/GCS, Azure fields for Azure
+		if storageType == api.ClickPipeObjectStorageAzureBlobType {
+			objectStorage.ConnectionString = objectStorageModel.ConnectionString.ValueStringPointer()
+			objectStorage.Path = objectStorageModel.Path.ValueStringPointer()
+			objectStorage.AzureContainerName = objectStorageModel.AzureContainerName.ValueStringPointer()
+		} else {
+			objectStorage.URL = objectStorageModel.URL.ValueString()
+		}
+
+		source.ObjectStorage = objectStorage
 	} else if !sourceModel.Kinesis.IsNull() {
 		kinesisModel := models.ClickPipeKinesisSourceModel{}
 		diagnostics.Append(sourceModel.Kinesis.As(ctx, &kinesisModel, basetypes.ObjectAsOptions{})...)
