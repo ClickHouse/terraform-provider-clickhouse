@@ -3,20 +3,16 @@ variable "token_key" {}
 variable "token_secret" {}
 
 variable "service_id" {
-  description = "ClickHouse service ID"
 }
 
 variable "vpc_resource_configuration_id" {
-  description = "VPC resource configuration id"
 }
 
 variable "vpc_resource_share_arn" {
-  description = "VPC resource share ARN"
 }
 
 resource "clickhouse_clickpipes_reverse_private_endpoint" "endpoint" {
   service_id                = var.service_id
-  description               = "Reverse private endpoint for ClickPipes"
   type                      = "VPC_RESOURCE"
   vpc_resource_configuration_id = var.vpc_resource_configuration_id
   vpc_resource_share_arn    = var.vpc_resource_share_arn

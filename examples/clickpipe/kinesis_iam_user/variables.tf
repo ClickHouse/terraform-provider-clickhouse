@@ -25,11 +25,6 @@ variable "pipe_name" {
   default     = "kinesis-iam-user-example"
 }
 
-variable "pipe_description" {
-  description = "The description of the ClickPipe"
-  type        = string
-  default     = "Example of a Kinesis ClickPipe using IAM User authentication"
-}
 
 variable "database" {
   description = "The database to store the data"
