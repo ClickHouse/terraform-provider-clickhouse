@@ -872,12 +872,12 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	{
-		// Default value if there is no TDE attribute in the state.
+		// Default value if there is no TDE attribute in the state nor in the config.
 		tde := models.TransparentEncryptionData{
 			Enabled: types.BoolValue(false),
 		}
 
-		// Read the config
+		// Read the TDE config if present to check if TDE is enabled or not.
 		if !config.TransparentEncryptionData.IsNull() {
 			configTDE := models.TransparentEncryptionData{}
 			config.TransparentEncryptionData.As(ctx, &configTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
