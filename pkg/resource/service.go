@@ -652,7 +652,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
-		if !plan.EncryptionKey.IsNull() || !plan.EncryptionAssumedRoleIdentifier.IsNull() {
+		if (!plan.EncryptionKey.IsNull() && !plan.EncryptionKey.IsUnknown()) || !plan.EncryptionAssumedRoleIdentifier.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"encryption_key and encryption_assumed_role_identifier cannot be defined if the service tier is development",
@@ -704,17 +704,17 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
-		if !plan.EncryptionAssumedRoleIdentifier.IsNull() && plan.EncryptionKey.IsNull() {
+		if !plan.EncryptionAssumedRoleIdentifier.IsNull() && (plan.EncryptionKey.IsNull() || plan.EncryptionKey.IsUnknown()) {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"encryption_assumed_role_identifier cannot be defined without encryption_key as well",
 			)
 		}
 
-		if !plan.EncryptionKey.IsNull() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 {
+		if !plan.EncryptionKey.IsNull() && !plan.EncryptionKey.IsUnknown() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"encryption_key and the encryption_assumed_role_identifier is only available for aws services",
+				"encryption_key and the encryption_assumed_role_identifier is only available for AWS services",
 			)
 		}
 
@@ -968,7 +968,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.MinReplicaMemoryGb = &minReplicaMemoryGb
 		service.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 
-		if !plan.EncryptionKey.IsNull() {
+		if !plan.EncryptionKey.IsNull() && !plan.EncryptionKey.IsUnknown() {
 			service.EncryptionKey = plan.EncryptionKey.ValueString()
 		}
 		if !plan.EncryptionAssumedRoleIdentifier.IsNull() {
