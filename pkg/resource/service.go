@@ -748,9 +748,13 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		// CMEK->TDE migration.
 		// if config.encryption_key is null, we need to wipe it out from the state even if the API returns it.
 		// This happens when a service is migrated from CMEK to TDE.
-		if config.EncryptionKey.IsNull() && !state.EncryptionKey.IsNull() {
-			plan.EncryptionKey = state.EncryptionKey
-			resp.Plan.Set(ctx, plan)
+		if config.EncryptionKey.IsNull() {
+			if !state.EncryptionKey.IsNull() {
+				plan.EncryptionKey = state.EncryptionKey
+				resp.Plan.Set(ctx, plan)
+			} else {
+				plan.EncryptionKey = types.StringNull()
+			}
 		}
 	}
 
@@ -873,12 +877,20 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			Enabled: types.BoolValue(false),
 			RoleID:  types.StringNull(),
 		}
-		// Read the state if set
+
+		// Read the config
+		if !config.TransparentEncryptionData.IsNull() {
+			configTDE := models.TransparentEncryptionData{}
+			config.TransparentEncryptionData.As(ctx, &configTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+
+			tde.Enabled = configTDE.Enabled
+		}
+
+		// Read the Role ID from the state if set
 		if !req.State.Raw.IsNull() && !state.TransparentEncryptionData.IsNull() {
 			stateTDE := models.TransparentEncryptionData{}
 			state.TransparentEncryptionData.As(ctx, &stateTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
 
-			tde.Enabled = stateTDE.Enabled
 			tde.RoleID = stateTDE.RoleID
 		}
 
