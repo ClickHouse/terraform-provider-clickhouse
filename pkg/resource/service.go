@@ -875,7 +875,6 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		// Default value if there is no TDE attribute in the state.
 		tde := models.TransparentEncryptionData{
 			Enabled: types.BoolValue(false),
-			RoleID:  types.StringNull(),
 		}
 
 		// Read the config
@@ -884,6 +883,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			config.TransparentEncryptionData.As(ctx, &configTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
 
 			tde.Enabled = configTDE.Enabled
+			tde.RoleID = types.StringUnknown()
 		}
 
 		// Read the Role ID from the state if set
