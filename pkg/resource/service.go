@@ -359,6 +359,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"encryption_key": schema.StringAttribute{
 				Description: "Custom encryption key ARN.",
 				Optional:    true,
+				Computed:    true,
 			},
 			"encryption_assumed_role_identifier": schema.StringAttribute{
 				Description: "Custom role identifier ARN.",
@@ -372,18 +373,12 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					"role_id": schema.StringAttribute{
 						Computed:    true,
 						Description: "ID of Role to be used for granting access to the Encryption Key. This is an ARN for AWS services and a Service Account Identifier for GCP.",
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
 					},
 					"enabled": schema.BoolAttribute{
 						Optional:    true,
 						Computed:    true, // To allow client side defaulting.
 						Description: "If true, TDE is enabled for the service.",
 					},
-				},
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.Object{
 					objectvalidator.ConflictsWith(path.Expressions{path.MatchRoot("warehouse_id")}...),
@@ -557,7 +552,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			}
 		}
 
-		if !plan.EncryptionKey.IsNull() && plan.EncryptionKey != state.EncryptionKey {
+		if !config.EncryptionKey.IsNull() && plan.EncryptionKey != state.EncryptionKey {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("encryption_key"),
 				"Invalid Update",
@@ -597,7 +592,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			resp.Diagnostics.AddAttributeError(
 				path.Root("transparent_data_encryption.enabled"),
 				"Invalid Update",
-				"It is not possible to disable TDE (Transparent data encryption) on an existing service.",
+				"This service has TDE enabled, but your clickhouse_service resource is not setting it as enabled. Please ensure you have set the transparent_data_encryption.enabled attribute to true",
 			)
 		}
 
@@ -608,15 +603,6 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				"Invalid Update",
 				"It is not possible to enable TDE (Transparent data encryption) on an existing service.",
 			)
-		}
-
-		if !wantEnabled {
-			// Mark RoleID as known null.
-			planTDE := models.TransparentEncryptionData{}
-			plan.TransparentEncryptionData.As(ctx, &planTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
-			planTDE.RoleID = types.StringNull()
-			plan.TransparentEncryptionData = planTDE.ObjectValue()
-			resp.Plan.Set(ctx, plan)
 		}
 
 		if config.IdleTimeoutMinutes.IsNull() {
@@ -758,6 +744,14 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				}
 			}
 		}
+
+		// CMEK->TDE migration.
+		// if config.encryption_key is null, we need to wipe it out from the state even if the API returns it.
+		// This happens when a service is migrated from CMEK to TDE.
+		if config.EncryptionKey.IsNull() && !state.EncryptionKey.IsNull() {
+			plan.EncryptionKey = state.EncryptionKey
+			resp.Plan.Set(ctx, plan)
+		}
 	}
 
 	if !plan.MinTotalMemoryGb.IsNull() && !plan.MinReplicaMemoryGb.IsUnknown() {
@@ -873,25 +867,23 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 	}
 
-	defaultTDE := false
 	{
-		if config.TransparentEncryptionData.IsNull() || config.TransparentEncryptionData.IsUnknown() {
-			defaultTDE = true
-		} else {
-			cfg := models.TransparentEncryptionData{}
-			diag := config.TransparentEncryptionData.As(ctx, &cfg, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
-			if diag.HasError() {
-				return
-			}
-			defaultTDE = cfg.Enabled.IsUnknown() || cfg.Enabled.IsNull()
+		// Default value if there is no TDE attribute in the state.
+		tde := models.TransparentEncryptionData{
+			Enabled: types.BoolValue(false),
+			RoleID:  types.StringNull(),
 		}
-		if defaultTDE {
-			plan.TransparentEncryptionData = models.TransparentEncryptionData{
-				Enabled: types.BoolValue(false),
-				RoleID:  types.StringNull(),
-			}.ObjectValue()
-			resp.Plan.Set(ctx, plan)
+		// Read the state if set
+		if !req.State.Raw.IsNull() && !state.TransparentEncryptionData.IsNull() {
+			stateTDE := models.TransparentEncryptionData{}
+			state.TransparentEncryptionData.As(ctx, &stateTDE, basetypes.ObjectAsOptions{UnhandledNullAsEmpty: false, UnhandledUnknownAsEmpty: false})
+
+			tde.Enabled = stateTDE.Enabled
+			tde.RoleID = stateTDE.RoleID
 		}
+
+		plan.TransparentEncryptionData = tde.ObjectValue()
+		resp.Plan.Set(ctx, plan)
 	}
 
 	if !config.DataWarehouseID.IsNull() {
@@ -1205,10 +1197,12 @@ func (r *ServiceResource) Read(ctx context.Context, req resource.ReadRequest, re
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Retrieve values from plan
-	var plan, state models.ServiceResourceModel
+	var plan, state, config models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
@@ -1537,6 +1531,13 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			"Could not sync service state, unexpected error: "+err.Error(),
 		)
 		return
+	}
+
+	// CMEK->TDE migration.
+	// if config.encryption_key is null, we need to wipe it out from the state even if the API returns it.
+	// This happens when a service is migrated from CMEK to TDE.
+	if config.EncryptionKey.IsNull() {
+		plan.EncryptionKey = types.StringNull()
 	}
 
 	diags = resp.State.Set(ctx, plan)
@@ -2009,7 +2010,7 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		Enabled: types.BoolValue(service.HasTransparentDataEncryption),
 	}
 
-	if service.HasTransparentDataEncryption && service.EncryptionRoleID != "" {
+	if service.EncryptionRoleID != "" {
 		tde.RoleID = types.StringValue(service.EncryptionRoleID)
 	} else {
 		tde.RoleID = types.StringNull()
