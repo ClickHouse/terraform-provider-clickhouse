@@ -132,7 +132,6 @@ type ClickPipeFieldMapping struct {
 type ClickPipe struct {
 	ID            string                  `json:"id,omitempty"`
 	Name          string                  `json:"name"`
-	Description   *string                 `json:"description,omitempty"`
 	Scaling       *ClickPipeScaling       `json:"scaling,omitempty"`
 	State         string                  `json:"state,omitempty"`
 	Source        ClickPipeSource         `json:"source"`
@@ -144,7 +143,6 @@ type ClickPipe struct {
 
 type ClickPipeUpdate struct {
 	Name          *string                     `json:"name,omitempty"`
-	Description   *string                     `json:"description,omitempty"`
 	Source        *ClickPipeSource            `json:"source,omitempty"`
 	Destination   *ClickPipeDestinationUpdate `json:"destination,omitempty"`
 	FieldMappings []ClickPipeFieldMapping     `json:"fieldMappings,omitempty"`

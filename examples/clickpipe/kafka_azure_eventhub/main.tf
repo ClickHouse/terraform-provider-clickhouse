@@ -3,25 +3,20 @@ variable "token_key" {}
 variable "token_secret" {}
 
 variable "service_id" {
-  description = "ClickHouse service ID"
 }
 
 variable "kafka_brokers" {
-  description = "Kafka brokers"
 }
 
 variable "kafka_topics" {
-  description = "Kafka topics"
 }
 
 variable "azure_eventhub_connection_string" {
-  description = "Connection string for Azure EventHub"
   sensitive   = true
 }
 
 resource "clickhouse_clickpipe" "kafka_azure_eventhub" {
   name        = "Azure EventHub 🚀 ClickPipe"
-  description = "Data pipeline from Azure EventHub to ClickHouse"
 
   service_id = var.service_id
 

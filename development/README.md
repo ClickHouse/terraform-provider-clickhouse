@@ -80,6 +80,16 @@ make enable_git_hooks
 
 Code will be formatted and docs generated before each commit.
 
+## Debugging
+
+To run the provider with debug logging enabled:
+
+```bash
+go run -tags alpha main.go --debug
+```
+
+For more information on debugging Terraform providers, see the [official debugging guide](https://developer.hashicorp.com/terraform/plugin/framework/debugging).
+
 ## Docs
 
 If you made any changes to the provider's interface, please run `make docs` to update documentation as well.

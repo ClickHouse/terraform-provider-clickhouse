@@ -3,21 +3,17 @@ variable "token_key" {}
 variable "token_secret" {}
 
 variable "service_id" {
-  description = "ClickHouse service ID"
 }
 
 variable "bucket_url" {
-  description = "S3-compatible bucket URL"
 }
 
 variable "iam_role" {
-  description = "IAM role"
   sensitive   = true
 }
 
 resource "clickhouse_clickpipe" "kafka_s3" {
   name        = "S3 🚀 ClickPipe with IAM role"
-  description = "Data pipeline from S3 to ClickHouse"
 
   service_id = var.service_id
   
