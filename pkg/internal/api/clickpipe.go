@@ -152,8 +152,10 @@ var ClickPipeKafkaOffsetStrategies = []string{
 }
 
 type ClickPipeScalingRequest struct {
-	Replicas    *int64 `json:"replicas,omitempty"`
-	Concurrency *int64 `json:"concurrency,omitempty"`
+	Replicas             *int64   `json:"replicas,omitempty"`
+	ReplicaCpuMillicores *int64   `json:"replicaCpuMillicores,omitempty"`
+	ReplicaMemoryGb      *float64 `json:"replicaMemoryGb,omitempty"`
+	Concurrency          *int64   `json:"concurrency,omitempty"`
 }
 
 type ClickPipeStateRequest struct {
