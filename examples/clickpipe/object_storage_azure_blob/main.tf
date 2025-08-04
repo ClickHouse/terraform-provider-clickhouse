@@ -68,6 +68,9 @@ resource "clickhouse_clickpipe" "azure_blob" {
     }, {
       source_field      = "user_name"
       destination_field = "name"
+    }, {
+      source_field      = "created_at"
+      destination_field = "timestamp"
     }
   ]
 }

@@ -61,7 +61,7 @@ type ClickPipeObjectStorageSource struct {
 	Type   string `json:"type"`
 	Format string `json:"format"`
 
-	URL         string  `json:"url"`
+	URL         string  `json:"url,omitempty"`
 	Delimiter   *string `json:"delimiter,omitempty"`
 	Compression *string `json:"compression,omitempty"`
 
