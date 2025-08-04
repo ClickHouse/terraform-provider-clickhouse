@@ -1221,21 +1221,24 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		}
 
 		objectStorageModel := models.ClickPipeObjectStorageSourceModel{
-			Type:           types.StringValue(clickPipe.Source.ObjectStorage.Type),
-			Format:         types.StringValue(clickPipe.Source.ObjectStorage.Format),
-			Delimiter:      types.StringPointerValue(clickPipe.Source.ObjectStorage.Delimiter),
-			Compression:    types.StringPointerValue(clickPipe.Source.ObjectStorage.Compression),
-			IsContinuous:   types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
-			Authentication: types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication),
-			IAMRole:        types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
+			Type:         types.StringValue(clickPipe.Source.ObjectStorage.Type),
+			Format:       types.StringValue(clickPipe.Source.ObjectStorage.Format),
+			Delimiter:    types.StringPointerValue(clickPipe.Source.ObjectStorage.Delimiter),
+			Compression:  types.StringPointerValue(clickPipe.Source.ObjectStorage.Compression),
+			IsContinuous: types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
+			IAMRole:      types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
 		}
 
 		// Set storage-type-specific fields
 		if clickPipe.Source.ObjectStorage.Type == api.ClickPipeObjectStorageAzureBlobType {
-			objectStorageModel.ConnectionString = stateObjectStorageModel.ConnectionString // Preserve sensitive value from state
-			objectStorageModel.Path = types.StringPointerValue(clickPipe.Source.ObjectStorage.Path)
-			objectStorageModel.AzureContainerName = types.StringPointerValue(clickPipe.Source.ObjectStorage.AzureContainerName)
+			// For Azure Blob Storage, preserve all fields from state as API doesn't return them
+			objectStorageModel.Authentication = stateObjectStorageModel.Authentication
+			objectStorageModel.ConnectionString = stateObjectStorageModel.ConnectionString
+			objectStorageModel.Path = stateObjectStorageModel.Path
+			objectStorageModel.AzureContainerName = stateObjectStorageModel.AzureContainerName
 		} else {
+			// For S3-compatible storage, use API response values
+			objectStorageModel.Authentication = types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication)
 			objectStorageModel.URL = types.StringValue(clickPipe.Source.ObjectStorage.URL)
 		}
 
