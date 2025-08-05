@@ -148,7 +148,7 @@ jobs:
           cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: "false"
           skip_build: "false"
-          region: ${{ steps.credentials.outputs.region }}
+          region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
       - name: cleanup
         if: ${{ always() && matrix.test.cloud == 'aws' }}

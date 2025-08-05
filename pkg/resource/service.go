@@ -451,6 +451,17 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"compliance_type": schema.StringAttribute{
+				Description: "Compliance type of the service. Can be 'hipaa', 'pci'. Required for organizations that wish to deploy their services in the hipaa/pci compliant environment. NOTE: hipaa/pci compliance should be enabled for your ClickHouse organization before using this field.",
+				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf(api.ComplianceTypeHIPAA, api.ComplianceTypePCI),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
 		},
 		MarkdownDescription: serviceResourceDescription,
 		Version:             1,
@@ -1036,6 +1047,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				})
 			}
 		}
+	}
+
+	if !plan.ComplianceType.IsUnknown() && !plan.ComplianceType.IsNull() {
+		service.ComplianceType = plan.ComplianceType.ValueStringPointer()
 	}
 
 	// Create new service
@@ -2082,6 +2097,12 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		}
 	} else {
 		state.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+	}
+
+	if service.ComplianceType != nil {
+		state.ComplianceType = types.StringValue(*service.ComplianceType)
+	} else {
+		state.ComplianceType = types.StringNull()
 	}
 
 	return nil

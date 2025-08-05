@@ -14,4 +14,7 @@ const (
 	StateStopping     = "stopping"
 
 	ResponseHeaderRateLimitReset = "X-RateLimit-Reset"
+
+	ComplianceTypeHIPAA = "hipaa"
+	ComplianceTypePCI   = "pci"
 )
