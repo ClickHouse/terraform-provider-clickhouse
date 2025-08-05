@@ -61,7 +61,7 @@ type ClickPipeObjectStorageSource struct {
 	Type   string `json:"type"`
 	Format string `json:"format"`
 
-	URL         string  `json:"url"`
+	URL         string  `json:"url,omitempty"`
 	Delimiter   *string `json:"delimiter,omitempty"`
 	Compression *string `json:"compression,omitempty"`
 
@@ -70,6 +70,11 @@ type ClickPipeObjectStorageSource struct {
 	Authentication *string                   `json:"authentication,omitempty"`
 	AccessKey      *ClickPipeSourceAccessKey `json:"accessKey,omitempty"`
 	IAMRole        *string                   `json:"iamRole,omitempty"`
+
+	// Azure Blob Storage specific fields
+	ConnectionString   *string `json:"connectionString,omitempty"`
+	Path               *string `json:"path,omitempty"`
+	AzureContainerName *string `json:"azureContainerName,omitempty"`
 }
 
 type ClickPipeKinesisSource struct {
