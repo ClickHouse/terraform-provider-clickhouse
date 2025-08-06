@@ -451,7 +451,7 @@ jobs:
       - name: Commit
         run: |
           git add docs/resources/
-          git diff --quiet --exit-code && (echo "No changes detected" && exit 0)
+          git diff --cached --quiet --exit-code && (echo "No changes detected" && exit 0)
           git config --global user.name "Release Github Action"
           git config --global user.email "bot@users.noreply.github.com"
           git commit -a -m "Remove alpha docs from main branch"
