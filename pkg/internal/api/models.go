@@ -69,6 +69,7 @@ type Service struct {
 	ReleaseChannel                  string                        `json:"releaseChannel,omitempty"`
 	QueryAPIEndpoints               *ServiceQueryEndpoint         `json:"-"`
 	BackupID                        *string                       `json:"backupId,omitempty"`
+	ComplianceType                  *string                       `json:"complianceType,omitempty"`
 }
 
 type ServiceUpdate struct {
