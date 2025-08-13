@@ -33,7 +33,6 @@ func (s *ClickPipeScaling) GetCpuMillicores() *int64 {
 
 // This accounts for both the string from kubernetes and the float input
 func (s *ClickPipeScaling) GetMemoryGb() *float64 {
-
 	if s.ReplicaMemoryGb == nil {
 		return nil
 	}
