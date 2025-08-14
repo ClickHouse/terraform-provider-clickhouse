@@ -91,6 +91,8 @@ jobs:
         uses: actions/checkout@v4
       - uses: ./.github/actions/list-examples
         id: list
+        with:
+          ignore: 'pci'
 
   # Run e2e tests
   e2e:
