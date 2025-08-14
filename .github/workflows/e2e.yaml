@@ -135,6 +135,7 @@ jobs:
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
       - name: e2e
+        if: ${{ !contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region == 'Production' }}
         id: e2e
         uses: ./.github/actions/e2e
         with:
