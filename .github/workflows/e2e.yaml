@@ -91,6 +91,8 @@ jobs:
         uses: actions/checkout@v4
       - uses: ./.github/actions/list-examples
         id: list
+        with:
+          ignore: 'pci'
 
   # Run e2e tests
   e2e:
@@ -135,7 +137,6 @@ jobs:
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
       - name: e2e
-        if:  ${{ !contains(fromJSON('["pci"]'), matrix.test.name) || steps.credentials.outputs.api_env != 'Production' || matrix.test.cloud != 'gcp' }}
         id: e2e
         uses: ./.github/actions/e2e
         with:
