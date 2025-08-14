@@ -135,7 +135,7 @@ jobs:
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
       - name: e2e
-        if: ${{ !contains(fromJSON('["pci"]'), matrix.test.name) && steps.credentials.outputs.api_env == 'Production' && matrix.test.cloud == 'gcp' }}
+        if: ${{ !(contains(fromJSON('["pci"]'), matrix.test.name) && steps.credentials.outputs.api_env == 'Production' && matrix.test.cloud == 'gcp') }}
         id: e2e
         uses: ./.github/actions/e2e
         with:
