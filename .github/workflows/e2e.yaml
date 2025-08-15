@@ -223,7 +223,7 @@ jobs:
           upgrade_test: "true"
           upgrade_from: ${{ inputs.upgrade_from }}
           skip_build: "false"
-          region: ${{ steps.credentials.outputs.region }}
+          region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
 
       - name: cleanup
@@ -244,7 +244,7 @@ jobs:
   report:
     runs-on: ubuntu-latest
     needs: [ "e2e", "upgrade" ]
-    if: ${{ needs.e2e.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure' }}
+    if: ${{ github.ref_name == 'main' && (needs.e2e.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure') }}
     steps:
       - name: Report Failure on slack
         if: ${{ github.ref_name == 'main' && (needs.e2e.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure') }}
@@ -260,7 +260,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       - name: Report error on github UI
         run: |
-          if [ "${{ needs.e2e.outputs.status }}" == 'failure' ]
+          if [ "${{ needs.e2e.outputs.status }}" == 'failure' || needs.upgrade.outputs.status == 'failure' ]
           then
             exit 1
           fi
