@@ -89,6 +89,8 @@ jobs:
         uses: actions/checkout@v4
       - uses: ./.github/actions/list-examples
         id: list
+        with:
+          ignore: 'pci'
 
   # Run e2e tests
   e2e:
@@ -133,7 +135,7 @@ jobs:
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: "false"
-          region: ${{ steps.credentials.outputs.region }}
+          region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
 
       - name: cleanup
@@ -195,7 +197,7 @@ jobs:
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: "true"
-          region: ${{ steps.credentials.outputs.region }}
+          region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
 
       - name: cleanup

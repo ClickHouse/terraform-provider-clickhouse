@@ -1,8 +1,7 @@
-# This file is generated automatically please do not edit
 terraform {
   required_providers {
     clickhouse = {
-      version = "3.5.2"
+      version = "${CLICKHOUSE_TERRAFORM_PROVIDER_VERSION}"
       source  = "ClickHouse/clickhouse"
     }
   }

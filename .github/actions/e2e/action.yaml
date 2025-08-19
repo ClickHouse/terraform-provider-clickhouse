@@ -57,6 +57,7 @@ runs:
         else
           echo "Test ${{ inputs.test_name }} is not available for ${{ inputs.cloud_provider }}"
         fi
+        echo "SKIP_E2E_TEST=false" >> "$GITHUB_ENV"
 
     - name: Setup go
       uses: actions/setup-go@v5
@@ -145,7 +146,14 @@ runs:
       name: Upgrade test - Run terraform using latest stable version
       run: |
         git checkout tags/${{ steps.get_latest_stable_release.outputs.tag }}
-        echo "::group::Run terraform using latest stable version"
+        if [ $(find examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }} -name "*.tf" -type f 2>/dev/null | wc -l) -gt 0 ]
+        then
+          echo "::group::Run terraform using latest stable version"
+        else
+          echo "::group::Skipping upgrade E2E test as it does not exist for cloud provider ${{ inputs.cloud_provider }} and version ${{ steps.get_latest_stable_release.outputs.tag }}"
+          echo "SKIP_E2E_TEST=true" >> "$GITHUB_ENV"
+          exit 0
+        fi
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
         
         if [ "${{inputs.api_url}}" != "" ]
@@ -162,7 +170,7 @@ runs:
         echo "::endgroup::"
 
     - shell: bash
-      if: ${{ inputs.skip_build == 'false' && steps.defined.outputs.defined == 'true' }}
+      if: ${{ inputs.skip_build == 'false' && steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
       name: Build provider from branch and create terraformrc to use it
       run: |
         git checkout ${{ github.ref }}        
@@ -181,7 +189,7 @@ runs:
         echo "::endgroup::"
 
     - shell: bash
-      if: ${{steps.defined.outputs.defined == 'true' }}
+      if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
       name: Run terraform
       run: |
         echo "::group::Run terraform"
@@ -203,7 +211,7 @@ runs:
 
     - shell: bash
       name: Terraform destroy
-      if: ${{steps.defined.outputs.defined == 'true' }}
+      if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
       run: |
         echo "::group::Run terraform destroy"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"

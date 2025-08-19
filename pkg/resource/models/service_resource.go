@@ -233,6 +233,7 @@ type ServiceResourceModel struct {
 	QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
 	BackupID                        types.String `tfsdk:"backup_id"`
+	ComplianceType                  types.String `tfsdk:"compliance_type"`
 }
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {

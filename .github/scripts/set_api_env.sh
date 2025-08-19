@@ -24,6 +24,7 @@ api_key_id="$(echo "${api_env_production}" | jq -r .api_key_id)"
 api_key_secret="$(echo "${api_env_production}" | jq -r .api_key_secret)"
 if [ "$cloud" != "" ]; then
   region="$(echo "${api_env_production}" | jq -rc --arg cloud $cloud '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
+  compliance_region="$(echo "${api_env_production}" | jq -rc --arg cloud $cloud '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
 fi
 ;;
 
@@ -34,6 +35,7 @@ api_key_id="$(echo "${api_env_staging}" | jq -r .api_key_id)"
 api_key_secret="$(echo "${api_env_staging}" | jq -r .api_key_secret)"
 if [ "$cloud" != "" ]; then
   region="$(echo "${api_env_staging}" | jq -rc --arg cloud $cloud '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
+  compliance_region="$(echo "${api_env_staging}" | jq -rc --arg cloud $cloud '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
 fi
 ;;
 
@@ -44,6 +46,7 @@ api_key_id="$(echo "${api_env_development}" | jq -r .api_key_id)"
 api_key_secret="$(echo "${api_env_development}" | jq -r .api_key_secret)"
 if [ "$cloud" != "" ]; then
   region="$(echo "${api_env_development}" | jq -rc --arg cloud $cloud '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
+  compliance_region="$(echo "${api_env_development}" | jq -rc --arg cloud $cloud '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 |jq -r .)"
 fi
 ;;
 
@@ -85,7 +88,10 @@ if [ "${region}" == "" ]; then
   if [ "${region}" == "" ]; then
       echo "${cloud}_region input must be set when api_env is set to 'Custom'"
       exit 1
-    fi
+  fi
+
+  compliance_region="${region}"
+
 fi
 ;;
 esac
@@ -95,6 +101,8 @@ echo "organization_id=${organization_id}" >> $GITHUB_OUTPUT
 echo "api_key_id=${api_key_id}" >> $GITHUB_OUTPUT
 echo "api_key_secret=${api_key_secret}" >> $GITHUB_OUTPUT
 echo "region='${region}'"
+echo "compliance_region='${compliance_region}'"
 if [ "$region" != "" ]; then
   echo "region=${region}" >> $GITHUB_OUTPUT
+  echo "compliance_region=${compliance_region}" >> $GITHUB_OUTPUT
 fi

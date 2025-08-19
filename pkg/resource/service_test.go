@@ -564,6 +564,7 @@ func getInitialState() models.ServiceResourceModel {
 			Enabled: types.BoolValue(false),
 			RoleID:  types.StringNull(),
 		}.ObjectValue(),
+		ComplianceType: types.StringNull(),
 	}
 
 	return state
