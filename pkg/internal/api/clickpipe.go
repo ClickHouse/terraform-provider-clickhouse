@@ -265,7 +265,7 @@ func (c *ClientImpl) WaitForClickPipeState(ctx context.Context, serviceId string
 	}, maxWaitSeconds)
 }
 
-func (c *ClientImpl) ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling) (*ClickPipe, error) {
+func (c *ClientImpl) ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScalingRequest) (*ClickPipe, error) {
 	var payload bytes.Buffer
 	if err := json.NewEncoder(&payload).Encode(request); err != nil {
 		return nil, fmt.Errorf("failed to encode ClickPipe: %w", err)

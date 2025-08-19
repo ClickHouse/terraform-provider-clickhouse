@@ -1,11 +1,60 @@
 package api
 
-import "time"
+import (
+	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
+)
 
 type ClickPipeScaling struct {
-	Replicas             *int64   `json:"replicas,omitempty"`
-	ReplicaCpuMillicores *int64   `json:"replicaCpuMillicores,omitempty"`
-	ReplicaMemoryGb      *float64 `json:"replicaMemoryGb,omitempty"`
+	Replicas             *int64      `json:"replicas,omitempty"`
+	ReplicaCpuMillicores interface{} `json:"replicaCpuMillicores,omitempty"`
+	ReplicaMemoryGb      interface{} `json:"replicaMemoryGb,omitempty"`
+}
+
+// This accounts for both the string from kubernetes and the int input
+func (s *ClickPipeScaling) GetCpuMillicores() *int64 {
+	if s.ReplicaCpuMillicores == nil {
+		return nil
+	}
+	switch v := s.ReplicaCpuMillicores.(type) {
+	case string:
+		// Parse using Kubernetes resource.Quantity
+		quantity, err := resource.ParseQuantity(v)
+		if err != nil {
+			return nil
+		}
+		val := quantity.MilliValue()
+		return &val
+	case float64:
+		val := int64(v)
+		return &val
+	default:
+	}
+	return nil
+}
+
+// This accounts for both the string from kubernetes and the float input
+func (s *ClickPipeScaling) GetMemoryGb() *float64 {
+	if s.ReplicaMemoryGb == nil {
+		return nil
+	}
+	switch v := s.ReplicaMemoryGb.(type) {
+	case string:
+		// Parse using Kubernetes resource.Quantity
+		quantity, err := resource.ParseQuantity(v)
+		if err != nil {
+			return nil
+		}
+		// Convert to bytes, then to GB (1 GiB = 1073741824 bytes)
+		bytes := quantity.Value()
+		gb := float64(bytes) / 1073741824.0 // Convert bytes to GiB
+		return &gb
+	case float64:
+		return &v
+	default:
+	}
+	return nil
 }
 
 type ClickPipeSourceCredentials struct {

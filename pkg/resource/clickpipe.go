@@ -114,6 +114,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"replica_cpu_millicores": schema.Int64Attribute{
 						Description: "The CPU allocation per replica in millicores. Must be between 125 and 2000.",
 						Optional:    true,
+						Computed:    true,
 						Validators: []validator.Int64{
 							int64validator.Between(125, 2000),
 						},
@@ -121,6 +122,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"replica_memory_gb": schema.Float64Attribute{
 						Description: "The memory allocation per replica in GB. Must be between 0.5 and 8.0.",
 						Optional:    true,
+						Computed:    true,
 						Validators: []validator.Float64{
 							float64validator.Between(0.5, 8.0),
 						},
@@ -788,21 +790,21 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 
 		if !scalingModel.ReplicaCpuMillicores.IsUnknown() && !scalingModel.ReplicaCpuMillicores.IsNull() &&
-			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.ReplicaCpuMillicores == nil ||
-				*createdClickPipe.Scaling.ReplicaCpuMillicores != scalingModel.ReplicaCpuMillicores.ValueInt64()) {
+			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.GetCpuMillicores() == nil ||
+				*createdClickPipe.Scaling.GetCpuMillicores() != scalingModel.ReplicaCpuMillicores.ValueInt64()) {
 			desiredCpuMillicores = scalingModel.ReplicaCpuMillicores.ValueInt64Pointer()
 			needsScaling = true
 		}
 
 		if !scalingModel.ReplicaMemoryGb.IsUnknown() && !scalingModel.ReplicaMemoryGb.IsNull() &&
-			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.ReplicaMemoryGb == nil ||
-				*createdClickPipe.Scaling.ReplicaMemoryGb != scalingModel.ReplicaMemoryGb.ValueFloat64()) {
+			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.GetMemoryGb() == nil ||
+				*createdClickPipe.Scaling.GetMemoryGb() != scalingModel.ReplicaMemoryGb.ValueFloat64()) {
 			desiredMemoryGb = scalingModel.ReplicaMemoryGb.ValueFloat64Pointer()
 			needsScaling = true
 		}
 
 		if needsScaling {
-			scalingRequest := api.ClickPipeScaling{
+			scalingRequest := api.ClickPipeScalingRequest{
 				Replicas:             desiredReplicas,
 				ReplicaCpuMillicores: desiredCpuMillicores,
 				ReplicaMemoryGb:      desiredMemoryGb,
@@ -1115,8 +1117,8 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	if clickPipe.Scaling != nil {
 		scalingModel := models.ClickPipeScalingModel{
 			Replicas:             types.Int64PointerValue(clickPipe.Scaling.Replicas),
-			ReplicaCpuMillicores: types.Int64PointerValue(clickPipe.Scaling.ReplicaCpuMillicores),
-			ReplicaMemoryGb:      types.Float64PointerValue(clickPipe.Scaling.ReplicaMemoryGb),
+			ReplicaCpuMillicores: types.Int64PointerValue(clickPipe.Scaling.GetCpuMillicores()),
+			ReplicaMemoryGb:      types.Float64PointerValue(clickPipe.Scaling.GetMemoryGb()),
 		}
 
 		state.Scaling = scalingModel.ObjectValue()
@@ -1508,7 +1510,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		scalingModel := models.ClickPipeScalingModel{}
 		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
 
-		scalingRequest := api.ClickPipeScaling{
+		scalingRequest := api.ClickPipeScalingRequest{
 			Replicas:             scalingModel.Replicas.ValueInt64Pointer(),
 			ReplicaCpuMillicores: scalingModel.ReplicaCpuMillicores.ValueInt64Pointer(),
 			ReplicaMemoryGb:      scalingModel.ReplicaMemoryGb.ValueFloat64Pointer(),
