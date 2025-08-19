@@ -1510,10 +1510,17 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		scalingModel := models.ClickPipeScalingModel{}
 		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
 
-		scalingRequest := api.ClickPipeScalingRequest{
-			Replicas:             scalingModel.Replicas.ValueInt64Pointer(),
-			ReplicaCpuMillicores: scalingModel.ReplicaCpuMillicores.ValueInt64Pointer(),
-			ReplicaMemoryGb:      scalingModel.ReplicaMemoryGb.ValueFloat64Pointer(),
+		scalingRequest := api.ClickPipeScalingRequest{}
+
+		// Only include fields that are explicitly set (not null/unknown)
+		if !scalingModel.Replicas.IsNull() && !scalingModel.Replicas.IsUnknown() {
+			scalingRequest.Replicas = scalingModel.Replicas.ValueInt64Pointer()
+		}
+		if !scalingModel.ReplicaCpuMillicores.IsNull() && !scalingModel.ReplicaCpuMillicores.IsUnknown() {
+			scalingRequest.ReplicaCpuMillicores = scalingModel.ReplicaCpuMillicores.ValueInt64Pointer()
+		}
+		if !scalingModel.ReplicaMemoryGb.IsNull() && !scalingModel.ReplicaMemoryGb.IsUnknown() {
+			scalingRequest.ReplicaMemoryGb = scalingModel.ReplicaMemoryGb.ValueFloat64Pointer()
 		}
 
 		if _, err := c.client.ScalingClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), scalingRequest); err != nil {
