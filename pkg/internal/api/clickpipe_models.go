@@ -1,9 +1,9 @@
 package api
 
 import (
-	"strconv"
-	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 type ClickPipeScaling struct {
@@ -12,16 +12,19 @@ type ClickPipeScaling struct {
 	ReplicaMemoryGb      interface{} `json:"replicaMemoryGb,omitempty"`
 }
 
-// This accounts for both the string from from kubernetes and the int input
+// This accounts for both the string from kubernetes and the int input
 func (s *ClickPipeScaling) GetCpuMillicores() *int64 {
 	if s.ReplicaCpuMillicores == nil {
 		return nil
 	}
 	switch v := s.ReplicaCpuMillicores.(type) {
 	case string:
-		// Handle string with 'm' suffix (e.g., "125m")
-		str := strings.TrimSuffix(v, "m")
-		val, _ := strconv.ParseInt(str, 10, 64)
+		// Parse using Kubernetes resource.Quantity
+		quantity, err := resource.ParseQuantity(v)
+		if err != nil {
+			return nil
+		}
+		val := quantity.MilliValue()
 		return &val
 	case float64:
 		val := int64(v)
@@ -38,37 +41,15 @@ func (s *ClickPipeScaling) GetMemoryGb() *float64 {
 	}
 	switch v := s.ReplicaMemoryGb.(type) {
 	case string:
-		// Handle string with Kubernetes memory units
-		var val float64
-
-		if strings.HasSuffix(v, "Gi") {
-			// Gibibytes - already in GB
-			str := strings.TrimSuffix(v, "Gi")
-			val, _ = strconv.ParseFloat(str, 64)
-		} else if strings.HasSuffix(v, "Mi") {
-			// Mebibytes - convert to GB (1024 Mi = 1 Gi)
-			str := strings.TrimSuffix(v, "Mi")
-			mebibytes, parseErr := strconv.ParseFloat(str, 64)
-			if parseErr != nil {
-				_ = parseErr
-			} else {
-				val = mebibytes / 1024.0 // Convert MiB to GiB
-			}
-		} else if strings.HasSuffix(v, "M") {
-			// Megabytes - convert to GB (1000 M = 1 G)
-			str := strings.TrimSuffix(v, "M")
-			megabytes, parseErr := strconv.ParseFloat(str, 64)
-			if parseErr != nil {
-				_ = parseErr
-			} else {
-				val = megabytes / 1000.0 // Convert MB to GB
-			}
-		} else {
-			// Plain number - assume GB
-			val, _ = strconv.ParseFloat(v, 64)
+		// Parse using Kubernetes resource.Quantity
+		quantity, err := resource.ParseQuantity(v)
+		if err != nil {
+			return nil
 		}
-
-		return &val
+		// Convert to bytes, then to GB (1 GiB = 1073741824 bytes)
+		bytes := quantity.Value()
+		gb := float64(bytes) / 1073741824.0 // Convert bytes to GiB
+		return &gb
 	case float64:
 		return &v
 	default:
