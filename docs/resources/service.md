@@ -63,11 +63,11 @@ resource "clickhouse_service" "service" {
 - `endpoints` (Attributes) Allow to enable and configure additional endpoints (read protocols) to expose on the ClickHouse service. (see [below for nested schema](#nestedatt--endpoints))
 - `idle_scaling` (Boolean) When set to true the service is allowed to scale down to zero when idle.
 - `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.
-- `max_replica_memory_gb` (Number) Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
-- `max_total_memory_gb` (Number, Deprecated) Maximum total memory of all workers during auto-scaling in Gb. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.
-- `min_replica_memory_gb` (Number) Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
-- `min_total_memory_gb` (Number, Deprecated) Minimum total memory of all workers during auto-scaling in Gb. Must be a multiple of 12 and greater than 24.
-- `num_replicas` (Number) Number of replicas for the service. Must be between 3 and 20. Contact support to enable this feature.
+- `max_replica_memory_gb` (Number) Maximum memory of a single replica during auto-scaling in GiB.
+- `max_total_memory_gb` (Number, Deprecated) Maximum total memory of all workers during auto-scaling in GiB.
+- `min_replica_memory_gb` (Number) Minimum memory of a single replica during auto-scaling in GiB.
+- `min_total_memory_gb` (Number, Deprecated) Minimum total memory of all workers during auto-scaling in GiB.
+- `num_replicas` (Number) Number of replicas for the service.
 - `password` (String, Sensitive) Password for the default user. One of either `password` or `password_hash` must be specified.
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.
 - `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
