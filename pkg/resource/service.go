@@ -292,17 +292,17 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"min_total_memory_gb": schema.Int64Attribute{
-				Description:        "Minimum total memory of all workers during auto-scaling in Gb.",
+				Description:        "Minimum total memory of all workers during auto-scaling in GiB.",
 				Optional:           true,
 				DeprecationMessage: "Please use min_replica_memory_gb instead",
 			},
 			"max_total_memory_gb": schema.Int64Attribute{
-				Description:        "Maximum total memory of all workers during auto-scaling in Gb.",
+				Description:        "Maximum total memory of all workers during auto-scaling in GiB.",
 				Optional:           true,
 				DeprecationMessage: "Please use max_replica_memory_gb instead",
 			},
 			"min_replica_memory_gb": schema.Int64Attribute{
-				Description: "Minimum memory of a single replica during auto-scaling in Gb.",
+				Description: "Minimum memory of a single replica during auto-scaling in GiB.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
@@ -310,7 +310,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
-				Description: "Maximum memory of a single replica during auto-scaling in Gb.",
+				Description: "Maximum memory of a single replica during auto-scaling in GiB.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
