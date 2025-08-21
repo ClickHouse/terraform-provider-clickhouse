@@ -292,17 +292,17 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"min_total_memory_gb": schema.Int64Attribute{
-				Description:        "Minimum total memory of all workers during auto-scaling in Gb. Must be a multiple of 12 and greater than 24.",
+				Description:        "Minimum total memory of all workers during auto-scaling in Gb.",
 				Optional:           true,
 				DeprecationMessage: "Please use min_replica_memory_gb instead",
 			},
 			"max_total_memory_gb": schema.Int64Attribute{
-				Description:        "Maximum total memory of all workers during auto-scaling in Gb. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.",
+				Description:        "Maximum total memory of all workers during auto-scaling in Gb.",
 				Optional:           true,
 				DeprecationMessage: "Please use max_replica_memory_gb instead",
 			},
 			"min_replica_memory_gb": schema.Int64Attribute{
-				Description: "Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Minimum memory of a single replica during auto-scaling in Gb.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
@@ -310,7 +310,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
-				Description: "Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.",
+				Description: "Maximum memory of a single replica during auto-scaling in Gb.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
@@ -320,7 +320,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"num_replicas": schema.Int64Attribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Number of replicas for the service. Must be between 3 and 20. Contact support to enable this feature.",
+				Description: "Number of replicas for the service.",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
