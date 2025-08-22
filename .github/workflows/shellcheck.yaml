@@ -26,5 +26,5 @@ jobs:
 
       - name: Run
         run: |
-          .github/workflows/scripts/shellcheck.sh \
+          .github/scripts/shellcheck.sh \
             "${{ steps.changed-files.outputs.all_changed_files }}"
