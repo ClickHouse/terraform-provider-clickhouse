@@ -33,18 +33,18 @@ runs:
           then
             break
           fi
-        
+
           echo "Deleting endpoints $endpointids"
           for endpointid in $endpointids
           do
             echo "Deleting vpc endpoint $endpointid"
             aws ec2 --region "${{ inputs.aws_region }}" delete-vpc-endpoints --vpc-endpoint-ids "$endpointid"
           done
-        
+
           sleep 60
         done
         echo "::endgroup::"
-        
+
         echo "::group::Deleting Security Groups"
         sgids="$(aws ec2 --region "${{ inputs.aws_region }}" describe-security-groups|jq --arg name "${{ inputs.service_name }}" -r '.SecurityGroups[] | select(.Tags[0].Value == $name) | .GroupId')"
         for sgid in $sgids
@@ -53,7 +53,7 @@ runs:
           aws ec2 --region "${{ inputs.aws_region }}" delete-security-group --group-id "$sgid"
         done
         echo "::endgroup::"
-        
+
         echo "::group::Deleting Subnets"
         subnetids="$(aws ec2 --region "${{ inputs.aws_region }}" describe-subnets|jq --arg name "${{ inputs.service_name }}" -r '.Subnets[] | select(.Tags[0].Value == $name) | .SubnetId')"
         for subnetid in $subnetids
@@ -62,7 +62,7 @@ runs:
           aws ec2 --region "${{ inputs.aws_region }}" delete-subnet --subnet-id "$subnetid"
         done
         echo "::endgroup::"
-        
+
         echo "::group::Deleting VPCs"
         vpcids="$(aws ec2 --region "${{ inputs.aws_region }}" describe-vpcs|jq --arg name "${{ inputs.service_name }}" -r '.Vpcs[] | select(.Tags[0].Value == $name) | .VpcId')"
         for vpcid in $vpcids
