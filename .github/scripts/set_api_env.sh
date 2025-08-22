@@ -27,8 +27,8 @@ Production)
   api_key_id="$(echo "${api_env_production}" | jq -r .api_key_id)"
   api_key_secret="$(echo "${api_env_production}" | jq -r .api_key_secret)"
   if [[ -n "${cloud}" ]]; then
-    region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.regions[${cloud}]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-    compliance_region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[${cloud}]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    compliance_region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
   fi
   ;;
 
@@ -38,8 +38,8 @@ Staging)
   api_key_id="$(echo "${api_env_staging}" | jq -r .api_key_id)"
   api_key_secret="$(echo "${api_env_staging}" | jq -r .api_key_secret)"
   if [[ -n "${cloud}" ]]; then
-    region="$(echo "${api_env_staging}" | jq -rc --arg cloud "${cloud}" '.regions[${cloud}]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-    compliance_region="$(echo "${api_env_staging}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[${cloud}]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    region="$(echo "${api_env_staging}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    compliance_region="$(echo "${api_env_staging}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
   fi
   ;;
 
@@ -49,8 +49,8 @@ Development)
   api_key_id="$(echo "${api_env_development}" | jq -r .api_key_id)"
   api_key_secret="$(echo "${api_env_development}" | jq -r .api_key_secret)"
   if [[ -n "${cloud}" ]]; then
-    region="$(echo "${api_env_development}" | jq -rc --arg cloud "${cloud}" '.regions[${cloud}]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-    compliance_region="$(echo "${api_env_development}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[${cloud}]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    region="$(echo "${api_env_development}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    compliance_region="$(echo "${api_env_development}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
   fi
   ;;
 
