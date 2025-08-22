@@ -22,6 +22,12 @@ jobs:
             **/*.sh
 
       - name: Run
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
-          .github/scripts/shellcheck.sh \
-            "${{ steps.changed-files.outputs.all_changed_files }}"
+          set -e
+          for FILE in ${ALL_CHANGED_FILES}; do
+            echo "==> Running shellcheck for ${FILE}"
+            shellcheck "${FILE}"
+            echo -e "Exit code: $?\n"
+          done
