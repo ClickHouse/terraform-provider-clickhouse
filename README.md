@@ -157,7 +157,7 @@ In version 1.1.0 we deprecated the `min_total_memory_gb` and `max_total_memory_g
 
 The intended replacement for those fields are:
 
-- `min_replica_memory_gb`: Minimum memory used by *each replica* during auto-scaling 
+- `min_replica_memory_gb`: Minimum memory used by *each replica* during auto-scaling
 - `max_replica_memory_gb`: Maximum memory used by *each replica* during auto-scaling
 
 The key difference between the old and new fields is that the old ones indicated a *total amount of memory* for the whole service (the sum of all replicas) while the new ones act on a *single replica*.

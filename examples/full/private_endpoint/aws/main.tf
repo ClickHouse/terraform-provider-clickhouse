@@ -3,20 +3,22 @@ variable "organization_id" {
 }
 
 variable "token_key" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "token_secret" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "service_name" {
-  type = string
+  type    = string
   default = "red"
 }
 
 variable "region" {
-  type = string
+  type    = string
   default = "us-east-2"
 }
 
@@ -43,7 +45,7 @@ resource "clickhouse_service" "aws_red" {
 
 resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
   private_endpoint_ids = [aws_vpc_endpoint.pl_vpc_foo.id]
-  service_id = clickhouse_service.aws_red.id
+  service_id           = clickhouse_service.aws_red.id
 }
 
 # hostname for connecting to instance via PrivateLink from VPC foo
