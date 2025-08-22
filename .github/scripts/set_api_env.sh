@@ -14,7 +14,7 @@ aws_region=${aws_region:-""}
 azure_region=${azure_region:-""}
 gcp_region=${gcp_region:-""}
 
-cloud="${1}"
+cloud="${1:=""}"
 region=""
 
 # When this script is called by the cron schedule inputs are empty so we default to Production.
@@ -26,7 +26,7 @@ Production)
   organization_id="$(echo "${api_env_production}" | jq -r .organization_id)"
   api_key_id="$(echo "${api_env_production}" | jq -r .api_key_id)"
   api_key_secret="$(echo "${api_env_production}" | jq -r .api_key_secret)"
-  if [[ -n "${cloud}" ]]; then
+  if [[ -n "${cloud:-}" ]]; then
     region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
     compliance_region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
   fi
@@ -37,7 +37,7 @@ Staging)
   organization_id="$(echo "${api_env_staging}" | jq -r .organization_id)"
   api_key_id="$(echo "${api_env_staging}" | jq -r .api_key_id)"
   api_key_secret="$(echo "${api_env_staging}" | jq -r .api_key_secret)"
-  if [[ -n "${cloud}" ]]; then
+  if [[ -n "${cloud:-}" ]]; then
     region="$(echo "${api_env_staging}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
     compliance_region="$(echo "${api_env_staging}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
   fi
@@ -48,34 +48,34 @@ Development)
   organization_id="$(echo "${api_env_development}" | jq -r .organization_id)"
   api_key_id="$(echo "${api_env_development}" | jq -r .api_key_id)"
   api_key_secret="$(echo "${api_env_development}" | jq -r .api_key_secret)"
-  if [[ -n "${cloud}" ]]; then
+  if [[ -n "${cloud:-}" ]]; then
     region="$(echo "${api_env_development}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
     compliance_region="$(echo "${api_env_development}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
   fi
   ;;
 
 Custom)
-  if [[ -z "${api_url}" ]]; then
+  if [[ -z "${api_url:-}" ]]; then
     echo "api_url input must be set when api_env is set to 'Custom'"
     exit 1
   fi
 
-  if [[ -z "${organization_id}" ]]; then
+  if [[ -z "${organization_id:-}" ]]; then
     echo "organization_id input must be set when api_env is set to 'Custom'"
     exit 1
   fi
 
-  if [[ -z "${api_key_id}" ]]; then
+  if [[ -z "${api_key_id:-}" ]]; then
     echo "api_key_id input must be set when api_env is set to 'Custom'"
     exit 1
   fi
 
-  if [[ -z "${api_key_secret}" ]]; then
+  if [[ -z "${api_key_secret:-}" ]]; then
     echo "api_key_secret input must be set when api_env is set to 'Custom'"
     exit 1
   fi
 
-  if [[ -z "${region}" ]]; then
+  if [[ -z "${region:-}" ]]; then
     echo "Setting default region for ${cloud}"
     case "${cloud}" in
     aws)
@@ -89,7 +89,7 @@ Custom)
       ;;
     esac
 
-    if [[ -z "${region}" ]]; then
+    if [[ -z "${region:-}" ]]; then
       echo "${cloud}_region input must be set when api_env is set to 'Custom'"
       exit 1
     fi
@@ -114,7 +114,7 @@ echo "::add-mask::${api_key_secret}"
 
 echo "region='${region}'"
 echo "compliance_region='${compliance_region}'"
-if [[ -n "${region}" ]]; then
+if [[ -n "${region:-}" ]]; then
   echo "region=${region}" >>"${GITHUB_OUTPUT}"
   echo "compliance_region=${compliance_region}" >>"${GITHUB_OUTPUT}"
 fi
