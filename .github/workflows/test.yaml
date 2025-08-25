@@ -9,7 +9,7 @@ defaults:
 
 jobs:
   test:
-    runs-on: k8s-small
+    runs-on: k8s-medium
     steps:
       - name: Checkout
         uses: actions/checkout@v4
