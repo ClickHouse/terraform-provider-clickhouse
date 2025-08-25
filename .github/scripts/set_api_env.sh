@@ -16,6 +16,7 @@ gcp_region=${gcp_region:-""}
 
 cloud="${1:-""}"
 region=""
+compliance_region=""
 
 # When this script is called by the cron schedule inputs are empty so we default to Production.
 ENV=${api_env:-"Production"}
