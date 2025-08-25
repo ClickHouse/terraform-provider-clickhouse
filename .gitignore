@@ -10,3 +10,5 @@ dev/
 *.backup
 
 **/variables.tfvars
+
+/tmp

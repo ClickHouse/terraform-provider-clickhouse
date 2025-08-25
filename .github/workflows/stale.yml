@@ -11,7 +11,7 @@ on:
 
 jobs:
   stale:
-    runs-on: ubuntu-latest
+    runs-on: k8s-nano
     permissions:
       issues: write
       pull-requests: write

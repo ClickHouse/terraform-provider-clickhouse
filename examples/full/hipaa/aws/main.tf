@@ -3,25 +3,27 @@ variable "organization_id" {
 }
 
 variable "token_key" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "token_secret" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "service_name" {
-  type = string
+  type    = string
   default = "My Terraform Service"
 }
 
 variable "region" {
-  type = string
+  type    = string
   default = "us-east-2"
 }
 
 variable "release_channel" {
-  type = string
+  type    = string
   default = "default"
   validation {
     condition     = contains(["default", "fast", "slow"], var.release_channel)
@@ -33,13 +35,13 @@ data "clickhouse_api_key_id" "self" {
 }
 
 resource "clickhouse_service" "service" {
-  name                      = var.service_name
-  cloud_provider            = "aws"
-  region                    = var.region
-  release_channel           = var.release_channel
-  idle_scaling              = true
-  idle_timeout_minutes      = 5
-  password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
+  name                 = var.service_name
+  cloud_provider       = "aws"
+  region               = var.region
+  release_channel      = var.release_channel
+  idle_scaling         = true
+  idle_timeout_minutes = 5
+  password_hash        = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
 
   ip_access = [
     {

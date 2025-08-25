@@ -1,14 +1,17 @@
 variable "aws_key" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "aws_secret" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "aws_session_token" {
-  type = string
-  default = ""
+  type      = string
+  default   = ""
+  sensitive = true
 }
 
 locals {
@@ -38,16 +41,16 @@ data "aws_availability_zones" "available" {
 }
 
 resource "aws_subnet" "subnet1" {
-  vpc_id     = aws_vpc.vpc.id
-  cidr_block = "192.168.0.0/24"
+  vpc_id            = aws_vpc.vpc.id
+  cidr_block        = "192.168.0.0/24"
   availability_zone = data.aws_availability_zones.available.names[0]
 
   tags = local.tags
 }
 
 resource "aws_subnet" "subnet2" {
-  vpc_id     = aws_vpc.vpc.id
-  cidr_block = "192.168.1.0/24"
+  vpc_id            = aws_vpc.vpc.id
+  cidr_block        = "192.168.1.0/24"
   availability_zone = data.aws_availability_zones.available.names[1]
 
   tags = local.tags
@@ -57,7 +60,7 @@ resource "aws_subnet" "subnet2" {
 resource "aws_security_group" "allow_clickhouse_cloud_foo" {
   name        = "allow_clickhouse_cloud_foo"
   description = "Allow Connections to clickhouse cloud"
-  vpc_id = aws_vpc.vpc.id
+  vpc_id      = aws_vpc.vpc.id
 
   tags = local.tags
 }
@@ -88,7 +91,7 @@ resource "aws_vpc_endpoint" "pl_vpc_foo" {
   security_group_ids = [
     aws_security_group.allow_clickhouse_cloud_foo.id
   ]
-  subnet_ids          = [
+  subnet_ids = [
     aws_subnet.subnet1.id,
     aws_subnet.subnet2.id
   ]
