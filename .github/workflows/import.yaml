@@ -38,7 +38,7 @@ jobs:
   token:
     outputs:
       token: ${{ steps.generate.outputs.token }}
-    runs-on: ubuntu-latest
+    runs-on: k8s-nano
     steps:
       - name: Generate
         id: generate
@@ -50,7 +50,7 @@ jobs:
   find-tf-releases:
     outputs:
       releases: ${{ steps.find.outputs.releases }}
-    runs-on: ubuntu-latest
+    runs-on: k8s-nano
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
     outputs:
       status: ${{ steps.status.outputs.status }}
     needs: [ "token", "find-tf-releases" ]
-    runs-on: ubuntu-latest
+    runs-on: k8s-medium
     continue-on-error: true
     permissions:
       id-token: write
@@ -115,7 +115,7 @@ jobs:
           exit 1
 
   report:
-    runs-on: ubuntu-latest
+    runs-on: k8s-nano
     needs: [ "import" ]
     if: ${{ needs.import.outputs.status == 'failure' }}
     steps:
@@ -128,7 +128,7 @@ jobs:
 
   # Delete any leftover service that might have failed deleting
   cleanup:
-    runs-on: ubuntu-latest
+    runs-on: k8s-small
     needs: [ "import", "token" ]
     if: always()
     continue-on-error: true

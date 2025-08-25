@@ -9,7 +9,7 @@ defaults:
 
 jobs:
   test:
-    runs-on: [dataplane, self-hosted, linux, x64, small]
+    runs-on: k8s-small
     steps:
       - name: Checkout
         uses: actions/checkout@v4

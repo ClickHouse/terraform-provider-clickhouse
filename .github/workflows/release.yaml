@@ -19,7 +19,7 @@ defaults:
 jobs:
   # Validate the input
   validate:
-    runs-on: ubuntu-latest
+    runs-on: k8s-nano
     outputs:
       enable_alpha: ${{ steps.check.outputs.enable_alpha }}
       goreleaser_config: ${{ steps.check.outputs.goreleaser_config }}
@@ -34,7 +34,7 @@ jobs:
           # validate semver.
           if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
             echo "Valid release version: $version"
-          
+
             if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
               # Release is something like x.y.z
               enable_alpha="false"
@@ -48,7 +48,7 @@ jobs:
             echo "Invalid semver: \"$version\". Must be something like 1.2.3 without leading \"v\""
             exit 1
           fi
-          
+
           echo "enable_alpha=${enable_alpha}" >> $GITHUB_OUTPUT
           echo "goreleaser_config=${goreleaser_config}" >> $GITHUB_OUTPUT
 
@@ -57,7 +57,7 @@ jobs:
     needs: ["validate"]
     outputs:
       token: ${{ steps.generate.outputs.token }}
-    runs-on: ubuntu-latest
+    runs-on: k8s-nano
     steps:
       - name: Generate
         id: generate
@@ -71,7 +71,7 @@ jobs:
     needs: ["validate"]
     outputs:
       releases: ${{ steps.find.outputs.releases }}
-    runs-on: ubuntu-latest
+    runs-on: k8s-nano
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -83,7 +83,7 @@ jobs:
     needs: ["validate"]
     outputs:
       examples: ${{ steps.list.outputs.examples }}
-    runs-on: ubuntu-latest
+    runs-on: k8s-nano
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
     outputs:
       status: ${{ steps.status.outputs.status }}
     needs: [ "validate", "token", "find-tf-releases", "list-examples" ]
-    runs-on: ubuntu-latest
+    runs-on: k8s-large
     continue-on-error: true
     permissions:
       id-token: write
@@ -158,7 +158,7 @@ jobs:
     outputs:
       status: ${{ steps.status.outputs.status }}
     needs: [ "validate", "token", "find-tf-releases", "list-examples" ]
-    runs-on: ubuntu-latest
+    runs-on: k8s-large
     continue-on-error: true
     permissions:
       id-token: write
@@ -220,7 +220,7 @@ jobs:
     outputs:
       status: ${{ steps.status.outputs.status }}
     needs: [ "token", "find-tf-releases" ]
-    runs-on: ubuntu-latest
+    runs-on: k8s-large
     continue-on-error: true
     permissions:
       id-token: write
@@ -267,7 +267,7 @@ jobs:
           exit 1
 
   report:
-    runs-on: ubuntu-latest
+    runs-on: k8s-nano
     needs: [ "e2e", "import", "upgrade" ]
     if: ${{ needs.e2e.outputs.status == 'failure' || needs.import.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure' }}
     steps:
@@ -288,7 +288,7 @@ jobs:
 
   # Delete any leftover service that might have failed deleting
   cleanup:
-    runs-on: ubuntu-latest
+    runs-on: k8s-small
     needs: [ "e2e", "import", "upgrade", "token" ]
     continue-on-error: true
     steps:
@@ -316,7 +316,7 @@ jobs:
   bump-examples:
     needs: [ "validate", "e2e", "import", "upgrade" ]
     if: ${{ needs.e2e.outputs.status != 'failure' && needs.import.outputs.status != 'failure' && needs.upgrade.outputs.status != 'failure' }}
-    runs-on: ubuntu-latest
+    runs-on: k8s-small
     permissions:
       contents: write
       pull-requests: write
@@ -377,7 +377,7 @@ jobs:
 
   # Create tag for the release
   tag:
-    runs-on: ubuntu-latest
+    runs-on: k8s-small
     permissions:
       contents: write
       pull-requests: write
@@ -393,12 +393,12 @@ jobs:
         tag="v${{ inputs.version }}"
         git tag $tag
         git push origin $tag
-        
+
   # Make a new release out of the tag
   goreleaser:
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+    runs-on: k8s-medium
     needs: [ "validate", "tag", "e2e", "import", "upgrade" ]
     if: ${{ needs.e2e.outputs.status != 'failure' && needs.import.outputs.status != 'failure' && needs.upgrade.outputs.status != 'failure' }}
     steps:
@@ -435,7 +435,7 @@ jobs:
   cleanup-alpha-examples:
     needs: [ "validate", "goreleaser" ]
     if: ${{ github.ref_name == 'main' && needs.validate.outputs.enable_alpha == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: k8s-small
     permissions:
       contents: write
       pull-requests: write
