@@ -14,7 +14,7 @@ aws_region=${aws_region:-""}
 azure_region=${azure_region:-""}
 gcp_region=${gcp_region:-""}
 
-cloud="${1:=""}"
+cloud="${1:-""}"
 region=""
 
 # When this script is called by the cron schedule inputs are empty so we default to Production.
@@ -76,8 +76,8 @@ Custom)
   fi
 
   if [[ -z "${region:-}" ]]; then
-    echo "Setting default region for ${cloud}"
-    case "${cloud}" in
+    echo "Setting default region for ${cloud:-}"
+    case "${cloud:-}" in
     aws)
       region="${aws_region}"
       ;;
@@ -86,6 +86,10 @@ Custom)
       ;;
     gcp)
       region="${gcp_region}"
+      ;;
+    *)
+      echo "Got unknown cloud: '${cloud:-}'"
+      exit 1
       ;;
     esac
 
