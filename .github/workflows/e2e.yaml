@@ -152,7 +152,7 @@ jobs:
           skip_build: "false"
           region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
-      - name: cleanup
+      - name: Cleanup
         if: ${{ always() && matrix.test.cloud == 'aws' }}
         uses: ./.github/actions/cleanup-aws
         with:
@@ -207,7 +207,7 @@ jobs:
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
-      - name: upgrade
+      - name: Upgrade
         if: ${{ inputs.run_upgrade_test }}
         id: upgrade
         uses: ./.github/actions/e2e
@@ -226,7 +226,7 @@ jobs:
           region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
 
-      - name: cleanup
+      - name: Cleanup
         if: ${{ always() && matrix.test.cloud == 'aws' }}
         uses: ./.github/actions/cleanup-aws
         with:
@@ -290,7 +290,7 @@ jobs:
           gcp_region: "${{ inputs.gcp_region }}"
         run: |
           bash ./.github/scripts/set_api_env.sh
-      - name: cleanup
+      - name: Cleanup
         uses: ./.github/actions/cleanup-clickhouse
         with:
           api_url: ${{ steps.credentials.outputs.api_url }}
