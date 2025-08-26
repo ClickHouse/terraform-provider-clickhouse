@@ -16,7 +16,7 @@ permissions:
 jobs:
   check-comment:
     name: Parse action from comment
-    if: github.event.issue.pull_request
+    if: github.event.issue.pull_request && github.actor != 'dependabot[bot]'
     runs-on: k8s-nano
     steps:
       - name: Check comment
