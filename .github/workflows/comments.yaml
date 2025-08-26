@@ -70,6 +70,7 @@ jobs:
           fi
 
       - name: React to comment
+        if: ${{ steps.action.outputs.action != '' }}
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
