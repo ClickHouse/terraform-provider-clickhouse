@@ -52,6 +52,8 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
       engine = {
         type = "MergeTree"
       }
+
+      sorting_key = ["my_field1", "my_field2"]
     }
 
     columns = [
@@ -67,8 +69,12 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
 
   field_mappings = [
     {
-      source_field      = "my_field"
+      source_field      = "my_field1"
       destination_field = "my_field1"
+    },
+    {
+      source_field      = "my_field2"
+      destination_field = "my_field2"
     }
   ]
 }

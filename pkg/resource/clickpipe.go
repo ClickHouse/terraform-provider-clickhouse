@@ -733,7 +733,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		sortingKey := make([]string, len(tableDefinitionModel.SortingKey.Elements()))
 
 		for i, sortingKeyModel := range tableDefinitionModel.SortingKey.Elements() {
-			sortingKey[i] = sortingKeyModel.String()
+			sortingKey[i] = sortingKeyModel.(types.String).ValueString()
 		}
 
 		tableEngineModel := models.ClickPipeDestinationTableEngineModel{}
