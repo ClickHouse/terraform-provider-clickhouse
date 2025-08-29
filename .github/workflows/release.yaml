@@ -324,6 +324,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: "main"
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
 
       - name: Setup go
