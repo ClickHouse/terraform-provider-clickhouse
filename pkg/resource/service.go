@@ -1515,7 +1515,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	// Set backup settings.
 	{
-		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() {
+		if !plan.BackupConfiguration.IsNull() && !plan.BackupConfiguration.IsUnknown() && !plan.BackupConfiguration.Equal(state.BackupConfiguration) {
 			bc := models.BackupConfiguration{}
 			diag := plan.BackupConfiguration.As(ctx, &bc, basetypes.ObjectAsOptions{
 				UnhandledNullAsEmpty:    false,
