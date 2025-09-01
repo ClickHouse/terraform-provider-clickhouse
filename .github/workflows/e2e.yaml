@@ -78,6 +78,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - uses: ./.github/actions/find-tf-releases
         id: find
         with:
@@ -90,6 +91,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - uses: ./.github/actions/list-examples
         id: list
         with:
@@ -115,6 +117,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Generate test name
         id: name
         run: |
@@ -153,6 +156,7 @@ jobs:
           skip_build: "false"
           region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+
       - name: Cleanup
         if: ${{ always() && matrix.test.cloud == 'aws' }}
         uses: ./.github/actions/cleanup-aws
@@ -160,6 +164,7 @@ jobs:
           service_name: ${{steps.name.outputs.test_name}}
           aws_region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+
       - name: Mark error
         id: status
         if: failure()
