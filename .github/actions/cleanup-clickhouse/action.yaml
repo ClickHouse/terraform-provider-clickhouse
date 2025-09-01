@@ -1,74 +1,41 @@
-name: "Cleanup leftovers"
-description: "Cleanup any leftovers of e2e test"
+name: Cleanup leftovers
+description: Cleanup any leftovers of e2e test
 inputs:
   api_url:
     required: false
-    description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
+    description: Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1
     default: ""
   organization_id:
     required: true
-    description: "The clickhouse organization ID"
+    description: The clickhouse organization ID
   token_key:
     required: true
-    description: "The clickhouse token key"
+    description: The clickhouse token key
+    type: secret
   token_secret:
     required: true
-    description: "The clickhouse token secret"
+    description: The clickhouse token secret
+    type: secret
   token:
     required: true
-    description: "The unique token assigned to this e2e run"
+    description: The unique token assigned to this e2e run
 
 runs:
-  using: "composite"
+  using: composite
   steps:
-    - name: cleanup clickhouse
+    - name: Checkout
+      uses: actions/checkout@v4
+      ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
+      sparse-checkout: |
+        .github/actions/cleanup-clickhouse/cleanup.sh
+
+    - name: Cleanup ClickHouse Instances
       shell: bash
+      env:
+        API_URL: ${{ inputs.api_url }}
+        ORGANIZATION_ID: ${{ inputs.organization_id }}
+        TOKEN_KEY: ${{ inputs.token_key }}
+        TOKEN_SECRET: ${{ inputs.token_secret }}
+        SUFFIX: ${{ inputs.token }}
       run: |
-        api_url="${{ inputs.api_url }}"
-        if [ "$api_url" == "" ]
-        then
-          api_url="https://api.clickhouse.cloud/v1"
-        fi
-        organization_id="${{ inputs.organization_id }}"
-        token_key="${{ inputs.token_key }}"
-        token_secret="${{ inputs.token_secret }}"
-        suffix="${{ inputs.token }}"
-
-        echo "Deleting any service with suffix ${suffix}"
-
-        while :; do
-          output="$(curl -su ${token_key}:${token_secret} ${api_url}/organizations/${organization_id}/services)"
-          ids=$(echo "$output"|jq --arg suffix "${suffix}" -r '.result[]| select(.name | endswith($suffix)) |(.id + "," + .state)')
-
-          if [ "$ids" == "" ]
-          then
-            break
-          fi
-
-          count="$(echo "$ids"|wc -l)"
-          echo "There are ${count} services to be cleaned up"
-
-          for idandstatus in $ids
-          do
-            id="$(echo "${idandstatus}" | cut -d"," -f1)"
-            status="$(echo "${idandstatus}" | cut -d"," -f2)"
-
-            case "$status" in
-            stopped)
-              echo "Deleting service ${id}"
-              curl -su ${token_key}:${token_secret} -XDELETE "${api_url}/organizations/${organization_id}/services/${id}" -o /dev/null
-              ;;
-            stopping)
-              echo "Service ${id} is stopping, waiting"
-              ;;
-            *)
-              echo "Stopping service ${id}"
-              curl -su ${token_key}:${token_secret} -XPATCH "${api_url}/organizations/${organization_id}/services/${id}/state" --data '{"command": "stop"}' -H 'Content-Type: application/json' -o /dev/null
-              ;;
-            esac
-          done
-
-          sleep 5
-        done
-
-        echo "Cleanup complete"
+        ./.github/actions/cleanup-clickhouse/cleanup.sh

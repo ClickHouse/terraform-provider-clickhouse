@@ -1,19 +1,25 @@
-name: "Cleanup AWS leftovers"
-description: "Cleanup any AWS leftovers of e2e test"
+name: Cleanup AWS leftovers
+description: Cleanup any AWS leftovers of e2e test
 inputs:
   service_name:
     required: true
-    description: "The full name of the service for filtering purposes"
+    description: The full name of the service for filtering purposes
   aws_role_arn:
     required: true
-    description: "The ARN of the AWS role to assume for AWS tests"
+    description: The ARN of the AWS role to assume for AWS tests
   aws_region:
     required: true
-    description: "The AWS region to use for AWS tests"
+    description: The AWS region to use for AWS tests
 
 runs:
-  using: "composite"
+  using: composite
   steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
+      sparse-checkout: |
+        .github/actions/cleanup-aws/cleanup.sh
+
     - name: Configure AWS credentials
       id: aws-auth
       uses: aws-actions/configure-aws-credentials@v4
@@ -21,53 +27,10 @@ runs:
         role-to-assume: ${{ inputs.aws_role_arn }}
         aws-region: ${{ inputs.aws_region }}
 
-    - name: Cleanup AWS
+    - name: Cleanup ClickHouse Instances
       shell: bash
+      env:
+        AWS_REGION: ${{ inputs.aws_region }}
+        SERVICE_NAME: ${{ inputs.service_name }}
       run: |
-        echo "::group::Deleting VPC Endpoints"
-        attempts=10
-        while [ $attempts -gt 0 ]; do
-          attempts=$((attempts - 1))
-          endpointids="$(aws ec2 --region ${{ inputs.aws_region }} describe-vpc-endpoints|jq --arg name "${{ inputs.service_name }}" -r '.VpcEndpoints[] | select(.Tags[0].Value == $name) | .VpcEndpointId')"
-          if [ "$endpointids" == "" ]
-          then
-            break
-          fi
-
-          echo "Deleting endpoints $endpointids"
-          for endpointid in $endpointids
-          do
-            echo "Deleting vpc endpoint $endpointid"
-            aws ec2 --region "${{ inputs.aws_region }}" delete-vpc-endpoints --vpc-endpoint-ids "$endpointid"
-          done
-
-          sleep 60
-        done
-        echo "::endgroup::"
-
-        echo "::group::Deleting Security Groups"
-        sgids="$(aws ec2 --region "${{ inputs.aws_region }}" describe-security-groups|jq --arg name "${{ inputs.service_name }}" -r '.SecurityGroups[] | select(.Tags[0].Value == $name) | .GroupId')"
-        for sgid in $sgids
-        do
-          echo "Deleting SG $sgid"
-          aws ec2 --region "${{ inputs.aws_region }}" delete-security-group --group-id "$sgid"
-        done
-        echo "::endgroup::"
-
-        echo "::group::Deleting Subnets"
-        subnetids="$(aws ec2 --region "${{ inputs.aws_region }}" describe-subnets|jq --arg name "${{ inputs.service_name }}" -r '.Subnets[] | select(.Tags[0].Value == $name) | .SubnetId')"
-        for subnetid in $subnetids
-        do
-          echo "Deleting subnet $subnetid"
-          aws ec2 --region "${{ inputs.aws_region }}" delete-subnet --subnet-id "$subnetid"
-        done
-        echo "::endgroup::"
-
-        echo "::group::Deleting VPCs"
-        vpcids="$(aws ec2 --region "${{ inputs.aws_region }}" describe-vpcs|jq --arg name "${{ inputs.service_name }}" -r '.Vpcs[] | select(.Tags[0].Value == $name) | .VpcId')"
-        for vpcid in $vpcids
-        do
-          echo "Deleting vpc $vpcid"
-          aws ec2 --region "${{ inputs.aws_region }}" delete-vpc --vpc-id "$vpcid"
-        done
-        echo "::endgroup::"
+        ./.github/actions/cleanup-aws/cleanup.sh
