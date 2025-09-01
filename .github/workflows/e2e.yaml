@@ -67,6 +67,7 @@ jobs:
         run: |
           # Number of seconds since January first 2025.
           token=$(( $(date +%s) - $(date -d "Jan 1, 2025 00:00:00" +%s) ))
+          echo "token=${token}"
           echo "token=${token}" >> $GITHUB_OUTPUT
 
   # Find the most recent release of terraform CLI
