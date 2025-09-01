@@ -324,7 +324,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: "main"
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
+
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
 
       - name: Bump provider version in examples for stable version
         if: ${{ needs.validate.outputs.enable_alpha == 'false' }}
@@ -445,6 +452,12 @@ jobs:
         with:
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
           ref: "main"
+
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
 
       - name: Build docs for stable release
         run: |
