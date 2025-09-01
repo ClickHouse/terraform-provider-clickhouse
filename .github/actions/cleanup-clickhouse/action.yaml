@@ -25,9 +25,10 @@ runs:
   steps:
     - name: Checkout
       uses: actions/checkout@v4
-      ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
-      sparse-checkout: |
-        .github/actions/cleanup-clickhouse/cleanup.sh
+      with:
+        ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
+        sparse-checkout: |
+          .github/actions/cleanup-clickhouse/cleanup.sh
 
     - name: Cleanup ClickHouse Instances
       shell: bash
