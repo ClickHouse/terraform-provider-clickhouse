@@ -157,7 +157,7 @@ jobs:
   upgrade:
     outputs:
       status: ${{ steps.status.outputs.status }}
-    needs: [ "validate", "token", "find-tf-releases", "list-examples" ]
+    needs: [ "validate", "token", "find-tf-releases", "list-examples", "e2e", "import" ]
     runs-on: k8s-large
     continue-on-error: true
     permissions:
@@ -219,7 +219,7 @@ jobs:
   import:
     outputs:
       status: ${{ steps.status.outputs.status }}
-    needs: [ "token", "find-tf-releases" ]
+    needs: [ "token", "find-tf-releases" , "e2e"]
     runs-on: k8s-large
     continue-on-error: true
     permissions:
