@@ -12,6 +12,7 @@ jobs:
     permissions:
       id-token: write
     runs-on: k8s-small
+    environment: default
     steps:
     - name: Azure CLI Login
       uses: azure/login@v2
