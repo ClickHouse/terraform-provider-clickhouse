@@ -8,7 +8,7 @@ provider "azurerm" {
 }
 
 locals {
-  service_name_parsed = replace(replace(local.service_name_parsed, "[", "("), "]", ")")
+  service_name_parsed = replace(replace(var.service_name, "[", "("), "]", ")")
 
   tags = {
     Name = local.service_name_parsed
