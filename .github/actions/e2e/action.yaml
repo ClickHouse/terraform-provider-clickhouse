@@ -128,6 +128,15 @@ runs:
         EOF
         fi
 
+        if [ "${{ inputs.cloud_provider }}" == "azure" ]
+        then
+          az account show
+
+          cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
+        subscription_id = "${{ inputs.azure_subscription_id }}"
+        EOF
+        fi
+
         echo "::endgroup::"
 
     - id: get_latest_stable_release
@@ -184,6 +193,7 @@ runs:
         terraform init -input=false
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
+
         echo "::endgroup::"
 
     - shell: bash
@@ -203,6 +213,7 @@ runs:
           direct {}
         }
         EOF
+
         echo "::endgroup::"
 
     - shell: bash
@@ -224,6 +235,7 @@ runs:
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
         terraform refresh -no-color -var-file=variables.tfvars
+
         echo "::endgroup::"
 
     - shell: bash
@@ -242,4 +254,5 @@ runs:
         export TF_LOG=debug
 
         terraform destroy -no-color -auto-approve -var-file=variables.tfvars
+
         echo "::endgroup::"

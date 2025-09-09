@@ -1,4 +1,10 @@
+variable "subscription_id" {
+  type      = string
+  sensitive = true
+}
+
 provider "azurerm" {
+  subscription_id = var.subscription_id
   features {
     resource_group {
       # Dangerous!! Remove this to prevent force delete a resource group
