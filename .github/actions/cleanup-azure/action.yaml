@@ -1,0 +1,33 @@
+name: Cleanup Azure leftovers
+description: Cleanup any Azure leftovers of e2e test
+inputs:
+  service_name:
+    required: true
+    description: The full name of the service for filtering purposes
+  azure_client_id:
+    required: true
+    description: The Azure client or application id to use for cleanup
+  azure_tenant_id:
+    required: true
+    description: The Azure tenant id to use for cleanup
+  azure_subscription_id:
+    required: true
+    description: The Azure subscription id to use for cleanup
+
+runs:
+  using: composite
+  steps:
+    - name: Azure CLI Login
+      uses: azure/login@v2
+      if: ${{ inputs.cloud_provider == 'azure' }}
+      with:
+        client-id: ${{ inputs.azure_client_id }}
+        tenant-id: ${{ inputs.azure_tenant_id }}
+        subscription-id: ${{ inputs.azure_subscription_id }}
+
+    - name: Cleanup
+      shell: bash
+      env:
+        SERVICE_NAME: ${{ inputs.service_name }}
+      run: |
+        ./.github/actions/cleanup-azure/cleanup.sh

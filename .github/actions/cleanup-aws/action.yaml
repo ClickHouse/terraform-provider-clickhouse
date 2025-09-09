@@ -6,10 +6,10 @@ inputs:
     description: The full name of the service for filtering purposes
   aws_role_arn:
     required: true
-    description: The ARN of the AWS role to assume for AWS tests
+    description: The ARN of the AWS role to assume for cleanup
   aws_region:
     required: true
-    description: The AWS region to use for AWS tests
+    description: The AWS region to use for cleanup
 
 runs:
   using: composite
@@ -21,7 +21,7 @@ runs:
         role-to-assume: ${{ inputs.aws_role_arn }}
         aws-region: ${{ inputs.aws_region }}
 
-    - name: Cleanup ClickHouse Instances
+    - name: Cleanup
       shell: bash
       env:
         AWS_REGION: ${{ inputs.aws_region }}
