@@ -12,5 +12,4 @@ provider "clickhouse" {
   organization_id = var.organization_id
   token_key       = var.token_key
   token_secret    = var.token_secret
-  api_url         = "https://api.control-plane.clickhouse-dev.com/v1"
 }
