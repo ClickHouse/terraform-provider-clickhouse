@@ -192,6 +192,7 @@ jobs:
       status: ${{ steps.status.outputs.status }}
     needs: [ "token", "find-tf-releases", "list-examples" ]
     runs-on: k8s-large
+    environment: default
     continue-on-error: true
     permissions:
       id-token: write
@@ -252,6 +253,9 @@ jobs:
           skip_build: "false"
           region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Cleanup Cloud
         if: always()
@@ -305,6 +309,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Get API details for env
         id: credentials
         env:
@@ -321,6 +326,7 @@ jobs:
           gcp_region: "${{ inputs.gcp_region }}"
         run: |
           bash ./.github/scripts/set_api_env.sh
+
       - name: Cleanup ClickHouse
         uses: ./.github/actions/cleanup-clickhouse
         with:
