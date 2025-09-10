@@ -1,5 +1,5 @@
-name: Cleanup AWS leftovers
-description: Cleanup any AWS leftovers of e2e test
+name: Cleanup CSP leftovers
+description: Cleanup any CSP leftovers of e2e test
 inputs:
   cloud_provider:
     required: true
