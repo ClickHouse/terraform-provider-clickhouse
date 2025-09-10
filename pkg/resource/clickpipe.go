@@ -130,7 +130,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					},
 				},
 				Optional: true,
-				Computed: true,
 			},
 			"state": schema.StringAttribute{
 				MarkdownDescription: "The desired state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`.",
@@ -771,48 +770,34 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	// Handle settings
 	if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
-		settingsMap := make(map[string]interface{})
+		settingsMap := make(map[string]any)
 		underlyingValue := plan.Settings.UnderlyingValue()
 
 		// Settings should be an object/map at the top level
 		if objValue, ok := underlyingValue.(types.Object); ok {
 			for key, value := range objValue.Attributes() {
+				var actualValue attr.Value
 				if dynamicValue, ok := value.(types.Dynamic); ok {
-					innerValue := dynamicValue.UnderlyingValue()
-					switch v := innerValue.(type) {
-					case types.String:
-						settingsMap[key] = v.ValueString()
-					case types.Bool:
-						settingsMap[key] = v.ValueBool()
-					case types.Number:
-						if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
-							settingsMap[key] = intVal
-						} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
-							settingsMap[key] = floatVal
-						} else {
-							settingsMap[key] = v.ValueBigFloat().String()
-						}
-					default:
-						settingsMap[key] = fmt.Sprintf("%v", v)
-					}
+					actualValue = dynamicValue.UnderlyingValue()
 				} else {
-					// Handle direct values
-					switch v := value.(type) {
-					case types.String:
-						settingsMap[key] = v.ValueString()
-					case types.Bool:
-						settingsMap[key] = v.ValueBool()
-					case types.Number:
-						if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
-							settingsMap[key] = intVal
-						} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
-							settingsMap[key] = floatVal
-						} else {
-							settingsMap[key] = v.ValueBigFloat().String()
-						}
-					default:
-						settingsMap[key] = fmt.Sprintf("%v", v)
+					actualValue = value
+				}
+
+				switch v := actualValue.(type) {
+				case types.String:
+					settingsMap[key] = v.ValueString()
+				case types.Bool:
+					settingsMap[key] = v.ValueBool()
+				case types.Number:
+					if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
+						settingsMap[key] = intVal
+					} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
+						settingsMap[key] = floatVal
+					} else {
+						settingsMap[key] = v.ValueBigFloat().String()
 					}
+				default:
+					settingsMap[key] = fmt.Sprintf("%v", v)
 				}
 			}
 		}
@@ -1172,7 +1157,8 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	state.State = types.StringValue(clickPipe.State)
 
-	if clickPipe.Scaling != nil {
+	// Only sync scaling if it was configured (not null)
+	if !state.Scaling.IsNull() && clickPipe.Scaling != nil {
 		cpuMillicores := clickPipe.Scaling.GetCpuMillicores()
 		memoryGb := clickPipe.Scaling.GetMemoryGb()
 
@@ -1206,8 +1192,6 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		}
 
 		state.Scaling = scalingModel.ObjectValue()
-	} else {
-		state.Scaling = types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes)
 	}
 
 	stateSourceModel := models.ClickPipeSourceModel{}
@@ -1602,53 +1586,39 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 	// Handle settings separately using dedicated endpoint
 	var settingsChanged bool
-	var newSettingsMap map[string]interface{}
+	var newSettingsMap map[string]any
 
 	if !plan.Settings.Equal(state.Settings) {
 		settingsChanged = true
-		newSettingsMap = make(map[string]interface{})
+		newSettingsMap = make(map[string]any)
 		if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
 			underlyingValue := plan.Settings.UnderlyingValue()
 
 			// Settings should be an object/map at the top level
 			if objValue, ok := underlyingValue.(types.Object); ok {
 				for key, value := range objValue.Attributes() {
+					var actualValue attr.Value
 					if dynamicValue, ok := value.(types.Dynamic); ok {
-						innerValue := dynamicValue.UnderlyingValue()
-						switch v := innerValue.(type) {
-						case types.String:
-							newSettingsMap[key] = v.ValueString()
-						case types.Bool:
-							newSettingsMap[key] = v.ValueBool()
-						case types.Number:
-							if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
-								newSettingsMap[key] = intVal
-							} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
-								newSettingsMap[key] = floatVal
-							} else {
-								newSettingsMap[key] = v.ValueBigFloat().String()
-							}
-						default:
-							newSettingsMap[key] = fmt.Sprintf("%v", v)
-						}
+						actualValue = dynamicValue.UnderlyingValue()
 					} else {
-						// Handle direct values
-						switch v := value.(type) {
-						case types.String:
-							newSettingsMap[key] = v.ValueString()
-						case types.Bool:
-							newSettingsMap[key] = v.ValueBool()
-						case types.Number:
-							if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
-								newSettingsMap[key] = intVal
-							} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
-								newSettingsMap[key] = floatVal
-							} else {
-								newSettingsMap[key] = v.ValueBigFloat().String()
-							}
-						default:
-							newSettingsMap[key] = fmt.Sprintf("%v", v)
+						actualValue = value
+					}
+
+					switch v := actualValue.(type) {
+					case types.String:
+						newSettingsMap[key] = v.ValueString()
+					case types.Bool:
+						newSettingsMap[key] = v.ValueBool()
+					case types.Number:
+						if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
+							newSettingsMap[key] = intVal
+						} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
+							newSettingsMap[key] = floatVal
+						} else {
+							newSettingsMap[key] = v.ValueBigFloat().String()
 						}
+					default:
+						newSettingsMap[key] = fmt.Sprintf("%v", v)
 					}
 				}
 			}
