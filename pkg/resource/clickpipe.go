@@ -5,6 +5,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
@@ -656,6 +657,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					},
 				},
 			},
+			"settings": schema.DynamicAttribute{
+				Description: "Advanced settings for the ClickPipe. These settings are pipe-specific configurations.",
+				Optional:    true,
+			},
 		},
 	}
 }
@@ -761,6 +766,59 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		clickPipe.FieldMappings[i] = api.ClickPipeFieldMapping{
 			SourceField:      fieldMappingModel.SourceField.ValueString(),
 			DestinationField: fieldMappingModel.DestinationField.ValueString(),
+		}
+	}
+
+	// Handle settings
+	if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
+		settingsMap := make(map[string]interface{})
+		underlyingValue := plan.Settings.UnderlyingValue()
+
+		// Settings should be an object/map at the top level
+		if objValue, ok := underlyingValue.(types.Object); ok {
+			for key, value := range objValue.Attributes() {
+				if dynamicValue, ok := value.(types.Dynamic); ok {
+					innerValue := dynamicValue.UnderlyingValue()
+					switch v := innerValue.(type) {
+					case types.String:
+						settingsMap[key] = v.ValueString()
+					case types.Bool:
+						settingsMap[key] = v.ValueBool()
+					case types.Number:
+						if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
+							settingsMap[key] = intVal
+						} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
+							settingsMap[key] = floatVal
+						} else {
+							settingsMap[key] = v.ValueBigFloat().String()
+						}
+					default:
+						settingsMap[key] = fmt.Sprintf("%v", v)
+					}
+				} else {
+					// Handle direct values
+					switch v := value.(type) {
+					case types.String:
+						settingsMap[key] = v.ValueString()
+					case types.Bool:
+						settingsMap[key] = v.ValueBool()
+					case types.Number:
+						if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
+							settingsMap[key] = intVal
+						} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
+							settingsMap[key] = floatVal
+						} else {
+							settingsMap[key] = v.ValueBigFloat().String()
+						}
+					default:
+						settingsMap[key] = fmt.Sprintf("%v", v)
+					}
+				}
+			}
+		}
+
+		if len(settingsMap) > 0 {
+			clickPipe.Settings = settingsMap
 		}
 	}
 
@@ -1115,10 +1173,36 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	state.State = types.StringValue(clickPipe.State)
 
 	if clickPipe.Scaling != nil {
+		cpuMillicores := clickPipe.Scaling.GetCpuMillicores()
+		memoryGb := clickPipe.Scaling.GetMemoryGb()
+
+		// Create scaling model with proper null handling
+		var replicasValue types.Int64
+		var cpuValue types.Int64
+		var memoryValue types.Float64
+
+		if clickPipe.Scaling.Replicas != nil {
+			replicasValue = types.Int64Value(*clickPipe.Scaling.Replicas)
+		} else {
+			replicasValue = types.Int64Null()
+		}
+
+		if cpuMillicores != nil {
+			cpuValue = types.Int64Value(*cpuMillicores)
+		} else {
+			cpuValue = types.Int64Null()
+		}
+
+		if memoryGb != nil {
+			memoryValue = types.Float64Value(*memoryGb)
+		} else {
+			memoryValue = types.Float64Null()
+		}
+
 		scalingModel := models.ClickPipeScalingModel{
-			Replicas:             types.Int64PointerValue(clickPipe.Scaling.Replicas),
-			ReplicaCpuMillicores: types.Int64PointerValue(clickPipe.Scaling.GetCpuMillicores()),
-			ReplicaMemoryGb:      types.Float64PointerValue(clickPipe.Scaling.GetMemoryGb()),
+			Replicas:             replicasValue,
+			ReplicaCpuMillicores: cpuValue,
+			ReplicaMemoryGb:      memoryValue,
 		}
 
 		state.Scaling = scalingModel.ObjectValue()
@@ -1373,6 +1457,45 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		state.FieldMappings, _ = types.ListValue(models.ClickPipeFieldMappingModel{}.ObjectType(), fieldMappingList)
 	}
 
+	// Handle settings
+	if clickPipe.Settings != nil && len(clickPipe.Settings) > 0 {
+		settingsElements := make(map[string]attr.Value)
+		for key, value := range clickPipe.Settings {
+			switch v := value.(type) {
+			case string:
+				settingsElements[key] = types.StringValue(v)
+			case bool:
+				settingsElements[key] = types.BoolValue(v)
+			case int64:
+				settingsElements[key] = types.NumberValue(big.NewFloat(float64(v)))
+			case float64:
+				settingsElements[key] = types.NumberValue(big.NewFloat(v))
+			case int:
+				settingsElements[key] = types.NumberValue(big.NewFloat(float64(v)))
+			case float32:
+				settingsElements[key] = types.NumberValue(big.NewFloat(float64(v)))
+			default:
+				// Fallback to string representation
+				settingsElements[key] = types.StringValue(fmt.Sprintf("%v", v))
+			}
+		}
+		settingsObj, _ := types.ObjectValue(
+			map[string]attr.Type{},
+			make(map[string]attr.Value),
+		)
+
+		// Create object type dynamically based on actual values
+		attrTypes := make(map[string]attr.Type)
+		for key := range settingsElements {
+			attrTypes[key] = settingsElements[key].Type(ctx)
+		}
+
+		settingsObj, _ = types.ObjectValue(attrTypes, settingsElements)
+		state.Settings = types.DynamicValue(settingsObj)
+	} else {
+		state.Settings = types.DynamicNull()
+	}
+
 	return nil
 }
 
@@ -1477,11 +1600,78 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
+	// Handle settings separately using dedicated endpoint
+	var settingsChanged bool
+	var newSettingsMap map[string]interface{}
+
+	if !plan.Settings.Equal(state.Settings) {
+		settingsChanged = true
+		newSettingsMap = make(map[string]interface{})
+		if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
+			underlyingValue := plan.Settings.UnderlyingValue()
+
+			// Settings should be an object/map at the top level
+			if objValue, ok := underlyingValue.(types.Object); ok {
+				for key, value := range objValue.Attributes() {
+					if dynamicValue, ok := value.(types.Dynamic); ok {
+						innerValue := dynamicValue.UnderlyingValue()
+						switch v := innerValue.(type) {
+						case types.String:
+							newSettingsMap[key] = v.ValueString()
+						case types.Bool:
+							newSettingsMap[key] = v.ValueBool()
+						case types.Number:
+							if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
+								newSettingsMap[key] = intVal
+							} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
+								newSettingsMap[key] = floatVal
+							} else {
+								newSettingsMap[key] = v.ValueBigFloat().String()
+							}
+						default:
+							newSettingsMap[key] = fmt.Sprintf("%v", v)
+						}
+					} else {
+						// Handle direct values
+						switch v := value.(type) {
+						case types.String:
+							newSettingsMap[key] = v.ValueString()
+						case types.Bool:
+							newSettingsMap[key] = v.ValueBool()
+						case types.Number:
+							if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
+								newSettingsMap[key] = intVal
+							} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
+								newSettingsMap[key] = floatVal
+							} else {
+								newSettingsMap[key] = v.ValueBigFloat().String()
+							}
+						default:
+							newSettingsMap[key] = fmt.Sprintf("%v", v)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Update the main ClickPipe if non-settings fields changed
 	if pipeChanged {
 		if _, err := c.client.UpdateClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), clickPipeUpdate); err != nil {
 			response.Diagnostics.AddError(
 				"Error Updating ClickPipe",
 				"Could not update ClickPipe, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
+	// Update settings separately if they changed
+	if settingsChanged {
+		if _, err := c.client.UpdateClickPipeSettings(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), newSettingsMap); err != nil {
+			response.Diagnostics.AddError(
+				"Error Updating ClickPipe Settings",
+				"Could not update ClickPipe settings, unexpected error: "+err.Error(),
 			)
 			return
 		}

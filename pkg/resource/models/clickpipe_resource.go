@@ -455,4 +455,5 @@ type ClickPipeResourceModel struct {
 	Source        types.Object `tfsdk:"source"`
 	Destination   types.Object `tfsdk:"destination"`
 	FieldMappings types.List   `tfsdk:"field_mappings"`
+	Settings      types.Dynamic `tfsdk:"settings"`
 }

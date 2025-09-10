@@ -191,6 +191,7 @@ type ClickPipe struct {
 	Source        ClickPipeSource         `json:"source"`
 	Destination   ClickPipeDestination    `json:"destination"`
 	FieldMappings []ClickPipeFieldMapping `json:"fieldMappings"`
+	Settings      map[string]interface{}  `json:"settings,omitempty"`
 	CreatedAt     *time.Time              `json:"createdAt,omitempty"`
 	UpdatedAt     *time.Time              `json:"updatedAt,omitempty"`
 }
@@ -200,4 +201,5 @@ type ClickPipeUpdate struct {
 	Source        *ClickPipeSource            `json:"source,omitempty"`
 	Destination   *ClickPipeDestinationUpdate `json:"destination,omitempty"`
 	FieldMappings []ClickPipeFieldMapping     `json:"fieldMappings,omitempty"`
+	Settings      map[string]interface{}      `json:"settings,omitempty"`
 }
