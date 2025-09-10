@@ -139,19 +139,8 @@ runs:
 
     - shell: bash
       name: Terraform destroy
+      env:
+        resource_type: ${{ inputs.resource_type }}
+        api_url: ${{inputs.api_url}}
       run: |
-        echo "::group::Run terraform destroy"
-        cd "tests/import/${{ inputs.resource_type }}"
-
-        if [ "${{inputs.api_url}}" != "" ]
-        then
-          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
-          echo "Using '$CLICKHOUSE_API_URL' as API URL"
-        fi
-
-        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true"]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
-          export TF_LOG=debug
-        fi
-
-        terraform destroy -no-color -auto-approve -var-file=variables.tfvars
-        echo "::endgroup::"
+        ./.github/actions/import/import.sh
