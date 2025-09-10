@@ -188,7 +188,9 @@ runs:
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
 
-        export TF_LOG=debug
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true "]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true "]]; then
+          export TF_LOG=debug
+        fi
 
         terraform init -input=false
         terraform plan -no-color -var-file=variables.tfvars
@@ -229,7 +231,9 @@ runs:
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
 
-        export TF_LOG=debug
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true "]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true "]]; then
+          export TF_LOG=debug
+        fi
 
         terraform init -input=false -upgrade
         terraform plan -no-color -var-file=variables.tfvars
@@ -251,7 +255,9 @@ runs:
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
 
-        export TF_LOG=debug
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true "]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true "]]; then
+          export TF_LOG=debug
+        fi
 
         terraform destroy -no-color -auto-approve -var-file=variables.tfvars
 
