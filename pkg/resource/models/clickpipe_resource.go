@@ -447,13 +447,13 @@ func (m ClickPipeFieldMappingModel) ObjectValue() types.Object {
 }
 
 type ClickPipeResourceModel struct {
-	ID            types.String `tfsdk:"id"`
-	ServiceID     types.String `tfsdk:"service_id"`
-	Name          types.String `tfsdk:"name"`
-	Scaling       types.Object `tfsdk:"scaling"`
-	State         types.String `tfsdk:"state"`
-	Source        types.Object `tfsdk:"source"`
-	Destination   types.Object `tfsdk:"destination"`
-	FieldMappings types.List   `tfsdk:"field_mappings"`
+	ID            types.String  `tfsdk:"id"`
+	ServiceID     types.String  `tfsdk:"service_id"`
+	Name          types.String  `tfsdk:"name"`
+	Scaling       types.Object  `tfsdk:"scaling"`
+	State         types.String  `tfsdk:"state"`
+	Source        types.Object  `tfsdk:"source"`
+	Destination   types.Object  `tfsdk:"destination"`
+	FieldMappings types.List    `tfsdk:"field_mappings"`
 	Settings      types.Dynamic `tfsdk:"settings"`
 }
