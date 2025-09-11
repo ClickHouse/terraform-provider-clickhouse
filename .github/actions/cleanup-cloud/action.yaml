@@ -1,0 +1,60 @@
+name: Cleanup CSP leftovers
+description: Cleanup any CSP leftovers of e2e test
+inputs:
+  cloud_provider:
+    required: true
+    description: The cloud provider name
+  service_name:
+    required: true
+    description: The full name of the service for filtering purposes
+  aws_role_arn:
+    required: true
+    description: The ARN of the AWS role to assume for cleanup
+  aws_region:
+    required: true
+    description: The AWS region to use for cleanup
+  azure_client_id:
+    required: true
+    description: The Azure client or application id to use for cleanup
+  azure_tenant_id:
+    required: true
+    description: The Azure tenant id to use for cleanup
+  azure_subscription_id:
+    required: true
+    description: The Azure subscription id to use for cleanup
+
+runs:
+  using: composite
+  steps:
+    - name: Configure AWS credentials
+      if: inputs.cloud_provider == 'aws'
+      id: aws-auth
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws_role_arn }}
+        aws-region: ${{ inputs.aws_region }}
+
+    - name: Cleanup AWS
+      if: inputs.cloud_provider == 'aws'
+      shell: bash
+      env:
+        AWS_REGION: ${{ inputs.aws_region }}
+        SERVICE_NAME: ${{ inputs.service_name }}
+      run: |
+        ./.github/actions/cleanup-cloud/cleanup-aws.sh
+
+    - name: Azure CLI Login
+      if: inputs.cloud_provider == 'azure'
+      uses: azure/login@v2
+      with:
+        client-id: ${{ inputs.azure_client_id }}
+        tenant-id: ${{ inputs.azure_tenant_id }}
+        subscription-id: ${{ inputs.azure_subscription_id }}
+
+    - name: Cleanup Azure
+      if: inputs.cloud_provider == 'azure'
+      shell: bash
+      env:
+        SERVICE_NAME: ${{ inputs.service_name }}
+      run: |
+        ./.github/actions/cleanup-cloud/cleanup-azure.sh
