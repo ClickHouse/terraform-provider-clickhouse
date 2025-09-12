@@ -5,10 +5,10 @@ package resource
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -50,52 +50,6 @@ Known limitations:
 const (
 	clickPipeStateChangeMaxWaitSeconds = 60 * 2
 )
-
-// convertTerraformValueToJSON converts a Terraform attr.Value to its corresponding Go value
-func convertTerraformValueToJSON(value attr.Value) any {
-	// Handle dynamic values by extracting the underlying value
-	if dynamicValue, ok := value.(types.Dynamic); ok {
-		value = dynamicValue.UnderlyingValue()
-	}
-
-	switch v := value.(type) {
-	case types.String:
-		return v.ValueString()
-	case types.Bool:
-		return v.ValueBool()
-	case types.Number:
-		if intVal, accuracy := v.ValueBigFloat().Int64(); accuracy == big.Exact {
-			return intVal
-		} else if floatVal, accuracy := v.ValueBigFloat().Float64(); accuracy == big.Exact {
-			return floatVal
-		} else {
-			return v.ValueBigFloat().String()
-		}
-	default:
-		return fmt.Sprintf("%v", v)
-	}
-}
-
-// convertJSONValueToTerraform converts a Go interface{} value to its corresponding Terraform attr.Value
-func convertJSONValueToTerraform(value any) attr.Value {
-	switch v := value.(type) {
-	case string:
-		return types.StringValue(v)
-	case bool:
-		return types.BoolValue(v)
-	case int64:
-		return types.NumberValue(big.NewFloat(float64(v)))
-	case float64:
-		return types.NumberValue(big.NewFloat(v))
-	case int:
-		return types.NumberValue(big.NewFloat(float64(v)))
-	case float32:
-		return types.NumberValue(big.NewFloat(float64(v)))
-	default:
-		// Fallback to string representation
-		return types.StringValue(fmt.Sprintf("%v", v))
-	}
-}
 
 type ClickPipeResource struct {
 	client api.Client
@@ -822,7 +776,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		// Settings should be an object/map at the top level
 		if objValue, ok := underlyingValue.(types.Object); ok {
 			for key, value := range objValue.Attributes() {
-				settingsMap[key] = convertTerraformValueToJSON(value)
+				settingsMap[key] = utils.ConvertTerraformValueToJSON(value)
 			}
 		}
 
@@ -1469,7 +1423,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	if clickPipe.Settings != nil && len(clickPipe.Settings) > 0 {
 		settingsElements := make(map[string]attr.Value)
 		for key, value := range clickPipe.Settings {
-			settingsElements[key] = convertJSONValueToTerraform(value)
+			settingsElements[key] = utils.ConvertJSONValueToTerraform(value)
 		}
 		settingsObj, _ := types.ObjectValue(
 			map[string]attr.Type{},
@@ -1605,7 +1559,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			// Settings should be an object/map at the top level
 			if objValue, ok := underlyingValue.(types.Object); ok {
 				for key, value := range objValue.Attributes() {
-					newSettingsMap[key] = convertTerraformValueToJSON(value)
+					newSettingsMap[key] = utils.ConvertTerraformValueToJSON(value)
 				}
 			}
 		}
