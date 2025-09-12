@@ -1,6 +1,6 @@
-# AWS Private Link example
+# Azure Private Link example
 
-Tested with HashiCorp/AWS v5.63.0 Terraform provider.
+Tested with HashiCorp/terraform-provider-azurerm v4.42.0 Terraform provider.
 
 The ClickHouse service is available from the subnet, access from the internet is blocked.
 
