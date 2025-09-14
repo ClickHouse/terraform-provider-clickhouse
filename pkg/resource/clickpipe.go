@@ -587,11 +587,20 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Required:            true,
 								Attributes: map[string]schema.Attribute{
 									"type": schema.StringAttribute{
-										MarkdownDescription: "The type of the engine. Only `MergeTree` is supported.",
+										MarkdownDescription: "The type of the engine. Supported engines: `MergeTree`, `ReplacingMergeTree`, `SummingMergeTree`, `Null`.",
 										Required:            true,
 										Validators: []validator.String{
-											stringvalidator.OneOf("MergeTree"),
+											stringvalidator.OneOf("MergeTree", "ReplacingMergeTree", "SummingMergeTree", "Null"),
 										},
+									},
+									"version_column_id": schema.StringAttribute{
+										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.",
+										Optional:            true,
+									},
+									"column_ids": schema.ListAttribute{
+										MarkdownDescription: "Column IDs to sum for SummingMergeTree engine. Required when engine type is `SummingMergeTree`.",
+										Optional:            true,
+										ElementType:         types.StringType,
 									},
 								},
 							},
@@ -739,8 +748,19 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		tableEngineModel := models.ClickPipeDestinationTableEngineModel{}
 		response.Diagnostics.Append(tableDefinitionModel.Engine.As(ctx, &tableEngineModel, basetypes.ObjectAsOptions{})...)
 
+		engine := api.ClickPipeDestinationTableEngine{
+			Type:            tableEngineModel.Type.ValueString(),
+			VersionColumnID: tableEngineModel.VersionColumnID.ValueStringPointer(),
+		}
+
+		if !tableEngineModel.ColumnIDs.IsNull() {
+			columnIDs := make([]string, len(tableEngineModel.ColumnIDs.Elements()))
+			response.Diagnostics.Append(tableEngineModel.ColumnIDs.ElementsAs(ctx, &columnIDs, false)...)
+			engine.ColumnIDs = columnIDs
+		}
+
 		clickPipe.Destination.TableDefinition = &api.ClickPipeDestinationTableDefinition{
-			Engine:      api.ClickPipeDestinationTableEngine{Type: tableEngineModel.Type.ValueString()},
+			Engine:      engine,
 			PartitionBy: tableDefinitionModel.PartitionBy.ValueStringPointer(),
 			PrimaryKey:  tableDefinitionModel.PrimaryKey.ValueStringPointer(),
 			SortingKey:  sortingKey,
@@ -1333,7 +1353,29 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	if clickPipe.Destination.TableDefinition != nil {
 		engineModel := models.ClickPipeDestinationTableEngineModel{
-			Type: types.StringValue(clickPipe.Destination.TableDefinition.Engine.Type),
+			Type:            types.StringValue(clickPipe.Destination.TableDefinition.Engine.Type),
+			VersionColumnID: types.StringNull(),
+			ColumnIDs:       types.ListNull(types.StringType),
+		}
+
+		// Engine-specific fields are not persisted on ClickPipes side. Used only during pipe creation.
+		// We need to preserve these from the existing state.
+		if !stateDestinationModel.TableDefinition.IsNull() {
+			stateTableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{}
+			if diags := stateDestinationModel.TableDefinition.As(ctx, &stateTableDefinitionModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe destination table definition: %v", diags)
+			}
+
+			if !stateTableDefinitionModel.Engine.IsNull() {
+				stateEngineModel := models.ClickPipeDestinationTableEngineModel{}
+				if diags := stateTableDefinitionModel.Engine.As(ctx, &stateEngineModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+					return fmt.Errorf("error reading ClickPipe destination engine: %v", diags)
+				}
+
+				// Preserve version_column_id and column_ids from state
+				engineModel.VersionColumnID = stateEngineModel.VersionColumnID
+				engineModel.ColumnIDs = stateEngineModel.ColumnIDs
+			}
 		}
 
 		tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{

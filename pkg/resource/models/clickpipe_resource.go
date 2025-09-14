@@ -348,20 +348,26 @@ func (m ClickPipeDestinationColumnModel) ObjectValue() types.Object {
 }
 
 type ClickPipeDestinationTableEngineModel struct {
-	Type types.String `tfsdk:"type"`
+	Type             types.String `tfsdk:"type"`
+	VersionColumnID  types.String `tfsdk:"version_column_id"`
+	ColumnIDs        types.List   `tfsdk:"column_ids"`
 }
 
 func (m ClickPipeDestinationTableEngineModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"type": types.StringType,
+			"type":               types.StringType,
+			"version_column_id":  types.StringType,
+			"column_ids":         types.ListType{ElemType: types.StringType},
 		},
 	}
 }
 
 func (m ClickPipeDestinationTableEngineModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"type": m.Type,
+		"type":               m.Type,
+		"version_column_id":  m.VersionColumnID,
+		"column_ids":         m.ColumnIDs,
 	})
 }
 
