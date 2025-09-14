@@ -155,9 +155,9 @@ type ClickPipeDestinationColumn struct {
 }
 
 type ClickPipeDestinationTableEngine struct {
-	Type             string   `json:"type"`
-	VersionColumnID  *string  `json:"versionColumnId,omitempty"`
-	ColumnIDs        []string `json:"columnIds,omitempty"`
+	Type            string   `json:"type"`
+	VersionColumnID *string  `json:"versionColumnId,omitempty"`
+	ColumnIDs       []string `json:"columnIds,omitempty"`
 }
 
 type ClickPipeDestinationTableDefinition struct {
