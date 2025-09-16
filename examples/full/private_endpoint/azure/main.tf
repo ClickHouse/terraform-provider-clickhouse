@@ -16,7 +16,7 @@ variable "service_name" {
   type = string
 }
 
-variable "location" {
+variable "region" {
   type    = string
   default = "westus3"
 }
@@ -24,7 +24,7 @@ variable "location" {
 resource "clickhouse_service" "this" {
   name                 = var.service_name
   cloud_provider       = "azure"
-  region               = var.location
+  region               = var.region
   idle_scaling         = true
   idle_timeout_minutes = 5
   password_hash        = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
