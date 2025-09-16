@@ -49,8 +49,8 @@ jobs:
             exit 1
           fi
 
-          echo "enable_alpha=${enable_alpha}" >> $GITHUB_OUTPUT
-          echo "goreleaser_config=${goreleaser_config}" >> $GITHUB_OUTPUT
+          echo "enable_alpha=${enable_alpha}" >> "${GITHUB_OUTPUT}"
+          echo "goreleaser_config=${goreleaser_config}" >> "${GITHUB_OUTPUT}"
 
   # Generate a random token to tag the tests with
   token:
@@ -64,7 +64,7 @@ jobs:
         run: |
           # Number of seconds since January first 2025.
           token=$(( $(date +%s) - $(date -d "Jan 1, 2025 00:00:00" +%s) ))
-          echo "token=${token}" >> $GITHUB_OUTPUT
+          echo "token=${token}" >> "${GITHUB_OUTPUT}"
 
   # Find the 3 most recent releases of terraform CLI (one for each minor)
   find-tf-releases:
@@ -75,7 +75,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - uses: ./.github/actions/find-tf-releases
+
+      - name: Find TF releases
+        uses: ./.github/actions/find-tf-releases
         id: find
 
   # List examples split by cloud provider as a JSON
@@ -87,10 +89,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - uses: ./.github/actions/list-examples
         id: list
         with:
-          ignore: 'pci'
+          ignore: pci
 
   # Run e2e tests
   e2e:
@@ -98,6 +101,7 @@ jobs:
       status: ${{ steps.status.outputs.status }}
     needs: [ "validate", "token", "find-tf-releases", "list-examples" ]
     runs-on: k8s-large
+    environment: default
     continue-on-error: true
     permissions:
       id-token: write
@@ -113,6 +117,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Generate service name
+        uses: ./.github/actions/generate-service-name
+        id: service_name
+        with:
+          test_type: e2e
+          test_name: ${{ matrix.test.name }}
+          tf_release: ${{ matrix.tf_release }}
+          cloud_provider: ${{ matrix.test.cloud }}
+          token: ${{ needs.token.outputs.token }}
+
       - name: Get API details for env
         id: credentials
         env:
@@ -123,7 +137,7 @@ jobs:
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
-      - name: e2e
+      - name: E2E
         uses: ./.github/actions/e2e
         with:
           api_url: ${{ steps.credentials.outputs.api_url }}
@@ -137,20 +151,27 @@ jobs:
           upgrade_test: "false"
           region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: cleanup
-        if: ${{ always() && matrix.test.cloud == 'aws' }}
-        uses: ./.github/actions/cleanup-aws
+      - name: Cleanup Cloud
+        if: always()
+        uses: ./.github/actions/cleanup-cloud
         with:
-          service_name: "[e2e]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}"
+          cloud_provider: ${{ matrix.test.cloud }}
+          service_name: ${{steps.service_name.outputs.service_name}}
           aws_region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Mark error
         id: status
         if: failure()
         run: |
-          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "status=failure" >> "${GITHUB_OUTPUT}"
           exit 1
 
   # Run e2e tests
@@ -159,6 +180,7 @@ jobs:
       status: ${{ steps.status.outputs.status }}
     needs: [ "validate", "token", "find-tf-releases", "list-examples", "e2e", "import" ]
     runs-on: k8s-large
+    environment: default
     continue-on-error: true
     permissions:
       id-token: write
@@ -174,6 +196,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Generate service name
+        uses: ./.github/actions/generate-service-name
+        id: service_name
+        with:
+          test_type: upg
+          test_name: ${{ matrix.test.name }}
+          tf_release: ${{ matrix.tf_release }}
+          cloud_provider: ${{ matrix.test.cloud }}
+          token: ${{ needs.token.outputs.token }}
+
       - name: Get API details for env
         id: credentials
         env:
@@ -184,7 +216,7 @@ jobs:
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
-      - name: upgrade
+      - name: Upgrade
         if: ${{inputs.test_upgrade }}
         uses: ./.github/actions/e2e
         with:
@@ -199,20 +231,27 @@ jobs:
           upgrade_test: "true"
           region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: cleanup
-        if: ${{ always() && matrix.test.cloud == 'aws' }}
-        uses: ./.github/actions/cleanup-aws
+      - name: Cleanup Cloud
+        if: always()
+        uses: ./.github/actions/cleanup-cloud
         with:
-          service_name: "[upg]-${{ matrix.test.name }}-${{ matrix.tf_release }}-${{ matrix.test.cloud }}-${{ needs.token.outputs.token }}"
+          cloud_provider: ${{ matrix.test.cloud }}
+          service_name: ${{steps.service_name.outputs.service_name}}
           aws_region: ${{ steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Mark error
         id: status
         if: failure()
         run: |
-          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "status=failure" >> "${GITHUB_OUTPUT}"
           exit 1
 
   # Run import tests
@@ -246,7 +285,7 @@ jobs:
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.cloud_provider }}
 
-      - name: import
+      - name: Import
         id: import
         uses: ./.github/actions/import
         with:
@@ -263,7 +302,7 @@ jobs:
         id: status
         if: failure()
         run: |
-          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "status=failure" >> "${GITHUB_OUTPUT}"
           exit 1
 
   report:
@@ -294,6 +333,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Get API details for env
         id: credentials
         env:
@@ -302,8 +342,9 @@ jobs:
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"
           api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
         run: |
-          bash ./.github/scripts/set_api_env.sh ${{ matrix.cloud_provider }}
-      - name: cleanup
+          bash ./.github/scripts/set_api_env.sh
+
+      - name: Cleanup ClickHouse
         uses: ./.github/actions/cleanup-clickhouse
         with:
           api_url: ${{ steps.credentials.outputs.api_url }}

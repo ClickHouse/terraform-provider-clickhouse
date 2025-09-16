@@ -5,29 +5,29 @@ on:
     inputs:
       api_env:
         type: choice
-        default: "Production"
+        default: Production
         options:
           - Production
           - Staging
           - Development
           - Custom
-        description: "What API ENV to use as backend."
+        description: What API ENV to use as backend.
       api_url:
         type: string
         default: ""
-        description: "(Optional) Full URL of the API service to use when API Env is 'Custom'"
+        description: (Optional) Full URL of the API service to use when API Env is 'Custom'
       organization_id:
         type: string
         default: ""
-        description: "(Optional) Organization ID to use when API Env is 'Custom'"
+        description: (Optional) Organization ID to use when API Env is 'Custom'
       api_key_id:
         type: string
         default: ""
-        description: "(Optional) API Key ID to use when API Env is 'Custom'"
+        description: (Optional) API Key ID to use when API Env is 'Custom'
       api_key_secret:
         type: string
         default: ""
-        description: "(Optional) API Key secret to use when API Env is 'Custom'"
+        description: (Optional) API Key secret to use when API Env is 'Custom'
 
 defaults:
   run:
@@ -54,7 +54,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - uses: ./.github/actions/find-tf-releases
+
+      - name: Find TF releases
+        uses: ./.github/actions/find-tf-releases
         id: find
         with:
           count: '1'
@@ -94,7 +96,7 @@ jobs:
         run: |
           bash ./.github/scripts/set_api_env.sh ${{ matrix.cloud_provider }}
 
-      - name: import
+      - name: Import
         id: import
         uses: ./.github/actions/import
         with:
@@ -148,7 +150,7 @@ jobs:
           api_key_secret: "${{ inputs.api_key_secret }}"
         run: |
           bash ./.github/scripts/set_api_env.sh
-      - name: cleanup
+      - name: Cleanup ClickHouse
         uses: ./.github/actions/cleanup-clickhouse
         with:
           api_url: ${{ steps.credentials.outputs.api_url }}

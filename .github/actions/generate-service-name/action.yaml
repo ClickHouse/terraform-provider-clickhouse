@@ -1,0 +1,46 @@
+name: Generate service name
+description: Returns the service name to use for tests
+inputs:
+  test_type:
+    required: true
+    description: The test name. e.g. e2e, upd
+  test_name:
+    required: true
+    description: The test name e.g. the name of the folder inside the examples dir
+  tf_release:
+    required: true
+    description: The terraform cli version
+  cloud_provider:
+    required: true
+    description: The cloud provider name
+  token:
+    required: true
+    description: Random token to append to service name
+
+outputs:
+  service_name:
+    description: The generated service name
+    value: ${{steps.generate.outputs.service_name}}
+
+runs:
+  using: composite
+  steps:
+    - name: Generate
+      shell: bash
+      id: generate
+      env:
+        cloud_provider: ${{ inputs.cloud_provider }}
+        test_type: ${{ inputs.test_type }}
+        test_name: ${{ inputs.test_name }}
+        tf_release: ${{ inputs.tf_release }}
+        token: ${{ inputs.token }}
+      run: |
+        prefix="[${test_type}]"
+
+        if [[ "${cloud_provider}" == "azure" ]]; then
+          prefix="${test_type}"
+        fi
+
+        service_name="${prefix}-${test_name}-${{ inputs.tf_release }}-${cloud_provider}-${token}"
+        echo "service_name=${service_name}"
+        echo "service_name=${service_name}" >> "${GITHUB_OUTPUT}"
