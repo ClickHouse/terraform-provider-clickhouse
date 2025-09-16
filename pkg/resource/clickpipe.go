@@ -685,6 +685,103 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 	if !request.Config.Raw.IsNull() {
 		response.Diagnostics.Append(request.Config.Get(ctx, &config)...)
 	}
+
+	// Validate table engine configuration
+	if !plan.Destination.IsNull() {
+		destinationModel := models.ClickPipeDestinationModel{}
+		response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
+
+		if !destinationModel.TableDefinition.IsNull() {
+			tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{}
+			response.Diagnostics.Append(destinationModel.TableDefinition.As(ctx, &tableDefinitionModel, basetypes.ObjectAsOptions{})...)
+
+			if !tableDefinitionModel.Engine.IsNull() {
+				engineModel := models.ClickPipeDestinationTableEngineModel{}
+				response.Diagnostics.Append(tableDefinitionModel.Engine.As(ctx, &engineModel, basetypes.ObjectAsOptions{})...)
+
+				engineType := engineModel.Type.ValueString()
+
+				// Validate versionColumnId
+				if engineType == "ReplacingMergeTree" {
+					if engineModel.VersionColumnID.IsNull() {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"version_column_id is required for ReplacingMergeTree engine",
+						)
+					}
+				} else {
+					if !engineModel.VersionColumnID.IsNull() {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"version_column_id can only be used with ReplacingMergeTree engine",
+						)
+					}
+				}
+
+				// Validate columnIds
+				if engineType != "SummingMergeTree" {
+					if !engineModel.ColumnIDs.IsNull() && len(engineModel.ColumnIDs.Elements()) > 0 {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"column_ids can only be used with SummingMergeTree engine",
+						)
+					}
+				}
+
+				// Validate sortingKey for ReplacingMergeTree
+				if engineType == "ReplacingMergeTree" {
+					if tableDefinitionModel.SortingKey.IsNull() || len(tableDefinitionModel.SortingKey.Elements()) == 0 {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"sorting_key is required for ReplacingMergeTree engine",
+						)
+					}
+				}
+
+				// Validate column references exist in destination columns
+				if !destinationModel.Columns.IsNull() && len(destinationModel.Columns.Elements()) > 0 {
+					destinationColumnsModels := make([]models.ClickPipeDestinationColumnModel, len(destinationModel.Columns.Elements()))
+					response.Diagnostics.Append(destinationModel.Columns.ElementsAs(ctx, &destinationColumnsModels, false)...)
+
+					// Build set of column names
+					columnNames := make(map[string]bool)
+					for _, columnModel := range destinationColumnsModels {
+						columnNames[columnModel.Name.ValueString()] = true
+					}
+
+					// Validate versionColumnId exists in columns
+					if !engineModel.VersionColumnID.IsNull() {
+						versionColumnID := engineModel.VersionColumnID.ValueString()
+						if !columnNames[versionColumnID] {
+							response.Diagnostics.AddError(
+								"Invalid Configuration",
+								fmt.Sprintf("version_column_id '%s' must exist in destination columns", versionColumnID),
+							)
+						}
+					}
+
+					// Validate columnIds exist in columns
+					if !engineModel.ColumnIDs.IsNull() && len(engineModel.ColumnIDs.Elements()) > 0 {
+						columnIDs := make([]string, len(engineModel.ColumnIDs.Elements()))
+						response.Diagnostics.Append(engineModel.ColumnIDs.ElementsAs(ctx, &columnIDs, false)...)
+
+						var missingColumns []string
+						for _, columnID := range columnIDs {
+							if !columnNames[columnID] {
+								missingColumns = append(missingColumns, columnID)
+							}
+						}
+						if len(missingColumns) > 0 {
+							response.Diagnostics.AddError(
+								"Invalid Configuration",
+								fmt.Sprintf("column_ids must exist in destination columns. Missing: %s", strings.Join(missingColumns, ", ")),
+							)
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
