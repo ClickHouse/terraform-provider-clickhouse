@@ -17,17 +17,17 @@ locals {
   tags = {
     Name = var.service_name
   }
-  resource_group_name = replace(var.service_name, "/\\[|\\]/", "")
+  service_name_normalized = replace(var.service_name, "/\\[|\\]/", "")
 }
 
 resource "azurerm_resource_group" "this" {
-  name     = local.resource_group_name
+  name     = local.service_name_normalized
   location = var.region
   tags     = local.tags
 }
 
 resource "azurerm_virtual_network" "this" {
-  name                = var.service_name
+  name                = local.service_name_normalized
   address_space       = ["10.0.0.0/16"]
   location            = var.region
   resource_group_name = azurerm_resource_group.this.name
@@ -35,30 +35,30 @@ resource "azurerm_virtual_network" "this" {
 }
 
 resource "azurerm_subnet" "this" {
-  name                 = var.service_name
+  name                 = local.service_name_normalized
   resource_group_name  = azurerm_resource_group.this.name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = ["10.0.1.0/24"]
 }
 
 resource "azurerm_private_endpoint" "this" {
-  name                = var.service_name
+  name                = local.service_name_normalized
   location            = var.region
   resource_group_name = azurerm_resource_group.this.name
   subnet_id           = azurerm_subnet.this.id
 
   private_service_connection {
-    name                              = var.service_name
+    name                              = local.service_name_normalized
     private_connection_resource_alias = clickhouse_service.this.private_endpoint_config.endpoint_service_id
     is_manual_connection              = true
-    request_message                   = "clickhouse-${var.service_name}"
+    request_message                   = "clickhouse-${local.service_name_normalized}"
   }
 
   tags = local.tags
 }
 
 resource "azurerm_network_security_group" "this" {
-  name                = var.service_name
+  name                = local.service_name_normalized
   location            = var.region
   resource_group_name = azurerm_resource_group.this.name
   tags                = local.tags
@@ -70,8 +70,8 @@ resource "azurerm_subnet_network_security_group_association" "this" {
 }
 
 resource "azurerm_network_security_rule" "this" {
-  name              = var.service_name
-  description       = "Allow subnet to ${var.service_name}"
+  name              = local.service_name_normalized
+  description       = "Allow subnet to ${local.service_name_normalized}"
   priority          = 100
   direction         = "Inbound"
   access            = "Allow"
