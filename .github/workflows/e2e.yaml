@@ -101,6 +101,8 @@ jobs:
 
   # Run e2e tests
   e2e:
+    outputs:
+      status: ${{ steps.status.outputs.status }}
     needs: [ "token", "find-tf-releases", "list-examples" ]
     runs-on: k8s-large
     environment: default
@@ -178,23 +180,16 @@ jobs:
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Save status
-        if: always()
+      - name: Mark error
+        id: status
+        if: failure()
         run: |
-          JOB_ID="${{ matrix.test.name }}"
-          STATUS=$([[ "${{ job.status }}" == "success" ]] && echo "pass" || echo "fail")
-          mkdir -p status
-          echo "$JOB_ID:$STATUS" > status/$JOB_ID.txt
-          echo "Saved: $JOB_ID = $STATUS"
-
-      - name: Upload status
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: status-${{ matrix.test.name }}
-          path: status/
+          echo "status=failure" >> "${GITHUB_OUTPUT}"
+          exit 1
 
   upgrade:
+    outputs:
+      status: ${{ steps.status.outputs.status }}
     needs: [ "token", "find-tf-releases", "list-examples" ]
     runs-on: k8s-large
     environment: default
@@ -274,56 +269,20 @@ jobs:
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Save status
-        if: always()
-        run: |
-          JOB_ID="${{ matrix.test.name }}"
-          STATUS=$([[ "${{ job.status }}" == "success" ]] && echo "pass" || echo "fail")
-          mkdir -p status
-          echo "$JOB_ID:$STATUS" > status/$JOB_ID.txt
-          echo "Saved: $JOB_ID = $STATUS"
-
-      - name: Upload status
+      - name: Mark error
         id: status
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: status-${{ matrix.test.name }}
-          path: status/
+        if: failure()
+        run: |
+          echo "status=failure" >> "${GITHUB_OUTPUT}"
+          exit 1
 
   report:
     runs-on: k8s-nano
     needs: [ "e2e", "upgrade" ]
-    #if: ${{ github.ref_name == 'main' }}
+    if: ${{ github.ref_name == 'main' && (needs.e2e.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure') }}
     steps:
-      - name: Download all statuses
-        uses: actions/download-artifact@v4
-        with:
-          pattern: status-*
-          path: all-status/
-          merge-multiple: true
-
-      - name: Check results
-        run: |
-          echo "=== Tests Results ==="
-          FAILED_COUNT=0
-          for file in all-status/*.txt; do
-            if [ -f "$file" ]; then
-              RESULT=$(cat "$file")
-              echo "  $RESULT"
-              [[ "$RESULT" == *":fail" ]] && ((FAILED_COUNT++))
-            fi
-          done
-          echo ""
-          if [ $FAILED_COUNT -eq 0 ]; then
-            echo "🟢 OK"
-            echo "status=SUCCESS" >> $GITHUB_OUTPUT
-          else
-            echo "🔴 FAILED"
-            echo "status=FAILED" >> $GITHUB_OUTPUT
-          fi
       - name: Report Failure on slack
-        if: ${{ github.ref_name == 'main' && steps.report.outputs.status == 'FAILED' }}
+        if: ${{ github.ref_name == 'main' && (needs.e2e.outputs.status == 'failure' || needs.upgrade.outputs.status == 'failure') }}
         uses: ravsamhq/notify-slack-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -336,7 +295,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       - name: Report error on github UI
         run: |
-          if [ "${{ steps.report.outputs.status }}" == 'FAILED' ]
+          if [ "${{ needs.e2e.outputs.status }}" == 'failure' || needs.upgrade.outputs.status == 'failure' ]
           then
             exit 1
           fi

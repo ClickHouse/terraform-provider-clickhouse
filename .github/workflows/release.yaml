@@ -107,7 +107,7 @@ jobs:
       id-token: write
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 10
       matrix:
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
@@ -178,7 +178,7 @@ jobs:
   upgrade:
     outputs:
       status: ${{ steps.status.outputs.status }}
-    needs: [ "validate", "token", "find-tf-releases", "list-examples"]
+    needs: [ "validate", "token", "find-tf-releases", "list-examples", "e2e", "import" ]
     runs-on: k8s-large
     environment: default
     continue-on-error: true
@@ -186,7 +186,7 @@ jobs:
       id-token: write
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 10
       matrix:
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
@@ -258,14 +258,14 @@ jobs:
   import:
     outputs:
       status: ${{ steps.status.outputs.status }}
-    needs: [ "token", "find-tf-releases"]
+    needs: [ "token", "find-tf-releases" , "e2e"]
     runs-on: k8s-large
     continue-on-error: true
     permissions:
       id-token: write
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 10
       matrix:
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "azure", "gcp" ]
