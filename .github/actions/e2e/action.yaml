@@ -172,6 +172,7 @@ runs:
       name: Upgrade test - Run terraform using latest stable version
       run: |
         git checkout tags/${{ steps.get_latest_stable_release.outputs.tag }}
+        git checkout main -- .github/
         if [ $(find examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }} -name "*.tf" -type f 2>/dev/null | wc -l) -gt 0 ]
         then
           echo "::group::Run terraform using latest stable version"

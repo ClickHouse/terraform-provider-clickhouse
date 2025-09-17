@@ -364,10 +364,16 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Custom encryption key ARN.",
 				Optional:    true,
 				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.AlsoRequires(path.Expressions{path.MatchRoot("encryption_assumed_role_identifier")}...),
+				},
 			},
 			"encryption_assumed_role_identifier": schema.StringAttribute{
 				Description: "Custom role identifier ARN.",
 				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.AlsoRequires(path.Expressions{path.MatchRoot("encryption_key")}...),
+				},
 			},
 			"transparent_data_encryption": schema.SingleNestedAttribute{
 				Description: "Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan.",
@@ -719,13 +725,6 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
-		if !plan.EncryptionAssumedRoleIdentifier.IsNull() && (plan.EncryptionKey.IsNull() || plan.EncryptionKey.IsUnknown()) {
-			resp.Diagnostics.AddError(
-				"Invalid Configuration",
-				"encryption_assumed_role_identifier cannot be defined without encryption_key as well",
-			)
-		}
-
 		if !plan.EncryptionKey.IsNull() && !plan.EncryptionKey.IsUnknown() && strings.Compare(plan.CloudProvider.ValueString(), "aws") != 0 {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
@@ -911,6 +910,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 		plan.TransparentEncryptionData = tde.ObjectValue()
 		resp.Plan.Set(ctx, plan)
+
 	}
 
 	if !config.DataWarehouseID.IsNull() {
