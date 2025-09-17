@@ -43,7 +43,7 @@ resource "clickhouse_private_endpoint_registration" "private_endpoint_aws_foo" {
   description         = "Private Link from VPC foo"
 }
 
-resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
+resource "clickhouse_service_private_endpoints_attachment" "svc1_attachment" {
   private_endpoint_ids = [clickhouse_private_endpoint_registration.private_endpoint_aws_foo.private_endpoint_id]
   service_id = clickhouse_service.svc1.id
 }
@@ -62,9 +62,9 @@ resource "aws_vpc_endpoint" "pl_vpc_foo" {
   ...
 }
 
-resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
+resource "clickhouse_service_private_endpoints_attachment" "svc1_attachment" {
   private_endpoint_ids = [aws_vpc_endpoint.pl_vpc_foo.id]
-  service_id = clickhouse_service.aws_red.id
+  service_id = clickhouse_service.svc1.id
 }
 ```
 
@@ -216,7 +216,7 @@ For each service with `private_endpoint_ids` attribute set:
 ```
 resource "clickhouse_service_private_endpoints_attachment" "example" {
   # The ID of the service with the `private_endpoint_ids` set
-  service_id = clickhouse_service.aws_red.id
+  service_id = clickhouse_service.example.id
 
   # the same attribute you previously defined in the `clickhouse_service` resource goes here now
   # Remember to change `id` with `private_endpoint_id` in the `clickhouse_private_endpoint_registration` reference.
@@ -244,7 +244,7 @@ resource "clickhouse_service" "example" {
   ...
 }
 
-resource "clickhouse_service_private_endpoints_attachment" "red_attachment" {
+resource "clickhouse_service_private_endpoints_attachment" "example_attachment" {
   private_endpoint_ids = [clickhouse_private_endpoint_registration.example.private_endpoint_id]
   service_id = clickhouse_service.example.id
 }
