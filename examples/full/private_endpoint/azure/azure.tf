@@ -17,11 +17,10 @@ locals {
   tags = {
     Name = var.service_name
   }
-  resource_group_name = replace(var.service_name, "/\\[|\\]/", "")
 }
 
 resource "azurerm_resource_group" "this" {
-  name     = local.resource_group_name
+  name     = var.service_name
   location = var.region
   tags     = local.tags
 }
