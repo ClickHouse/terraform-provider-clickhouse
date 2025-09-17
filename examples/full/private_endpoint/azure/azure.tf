@@ -17,18 +17,19 @@ locals {
   tags = {
     Name = var.service_name
   }
+  resource_group_name = replace(var.service_name, "/\\[|\\]/", "")
 }
 
 resource "azurerm_resource_group" "this" {
-  name     = var.service_name
-  location = var.location
+  name     = local.resource_group_name
+  location = var.region
   tags     = local.tags
 }
 
 resource "azurerm_virtual_network" "this" {
   name                = var.service_name
   address_space       = ["10.0.0.0/16"]
-  location            = var.location
+  location            = var.region
   resource_group_name = azurerm_resource_group.this.name
   tags                = local.tags
 }
@@ -42,7 +43,7 @@ resource "azurerm_subnet" "this" {
 
 resource "azurerm_private_endpoint" "this" {
   name                = var.service_name
-  location            = var.location
+  location            = var.region
   resource_group_name = azurerm_resource_group.this.name
   subnet_id           = azurerm_subnet.this.id
 
@@ -58,7 +59,7 @@ resource "azurerm_private_endpoint" "this" {
 
 resource "azurerm_network_security_group" "this" {
   name                = var.service_name
-  location            = var.location
+  location            = var.region
   resource_group_name = azurerm_resource_group.this.name
   tags                = local.tags
 }
