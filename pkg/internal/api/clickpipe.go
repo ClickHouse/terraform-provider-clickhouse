@@ -322,3 +322,45 @@ func (c *ClientImpl) DeleteClickPipe(ctx context.Context, serviceId string, clic
 	_, err = c.doRequest(ctx, req)
 	return err
 }
+
+func (c *ClientImpl) GetClickPipeSettings(ctx context.Context, serviceId string, clickPipeId string) (map[string]any, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getClickPipePath(serviceId, clickPipeId, "/settings"), nil)
+	if err != nil {
+		return nil, err
+	}
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	settingsResponse := ResponseWithResult[map[string]any]{}
+	if err := json.Unmarshal(body, &settingsResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ClickPipe settings: %w", err)
+	}
+
+	return settingsResponse.Result, nil
+}
+
+func (c *ClientImpl) UpdateClickPipeSettings(ctx context.Context, serviceId string, clickPipeId string, settings map[string]any) (map[string]any, error) {
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(settings); err != nil {
+		return nil, fmt.Errorf("failed to encode ClickPipe settings: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, c.getClickPipePath(serviceId, clickPipeId, "/settings"), &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	settingsResponse := ResponseWithResult[map[string]any]{}
+	if err := json.Unmarshal(body, &settingsResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ClickPipe settings: %w", err)
+	}
+
+	return settingsResponse.Result, nil
+}
