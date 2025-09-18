@@ -63,11 +63,8 @@ jobs:
 
   # Run import tests
   import:
-    outputs:
-      status: ${{ steps.status.outputs.status }}
     needs: [ "token", "find-tf-releases" ]
     runs-on: k8s-medium
-    continue-on-error: true
     permissions:
       id-token: write
     strategy:
@@ -76,11 +73,22 @@ jobs:
       matrix:
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "azure", "gcp" ]
+        test_name : ["generic"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Generate service name
+        uses: ./.github/actions/generate-service-name
+        id: service_name
+        with:
+          test_type: import
+          test_name: ${{ matrix.test_name }}
+          tf_release: ${{ matrix.tf_release }}
+          cloud_provider: ${{ matrix.cloud_provider }}
+          token: ${{ needs.token.outputs.token }}
 
       - name: Get API details for env
         id: credentials
@@ -104,29 +112,11 @@ jobs:
           organization_id: ${{ steps.credentials.outputs.organization_id }}
           token_key: ${{ steps.credentials.outputs.api_key_id }}
           token_secret: ${{ steps.credentials.outputs.api_key_secret }}
-          resource_name: "[import]-${{ matrix.tf_release }}-${{ matrix.cloud_provider }}-${{ needs.token.outputs.token }}"
+          service_name: ${{steps.service_name.outputs.service_name}}
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
           region: ${{ steps.credentials.outputs.region }}
 
-      - name: Mark error
-        id: status
-        if: failure()
-        run: |
-          echo "status=failure" >> $GITHUB_OUTPUT
-          exit 1
-
-  report:
-    runs-on: k8s-nano
-    needs: [ "import" ]
-    if: ${{ needs.import.outputs.status == 'failure' }}
-    steps:
-      - name: Report error on github UI
-        run: |
-          if [ "${{ needs.import.outputs.status }}" == 'failure' ]
-          then
-            exit 1
-          fi
 
   # Delete any leftover service that might have failed deleting
   cleanup:
