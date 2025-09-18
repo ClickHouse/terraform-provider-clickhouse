@@ -48,6 +48,12 @@ Known limitations:
 
 const (
 	clickPipeStateChangeMaxWaitSeconds = 60 * 2
+
+	// ClickPipe destination table engine types
+	ClickPipeEngineMergeTree          = "MergeTree"
+	ClickPipeEngineReplacingMergeTree = "ReplacingMergeTree"
+	ClickPipeEngineSummingMergeTree   = "SummingMergeTree"
+	ClickPipeEngineNull               = "Null"
 )
 
 type ClickPipeResource struct {
@@ -590,7 +596,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										MarkdownDescription: "The type of the engine. Supported engines: `MergeTree`, `ReplacingMergeTree`, `SummingMergeTree`, `Null`.",
 										Required:            true,
 										Validators: []validator.String{
-											stringvalidator.OneOf("MergeTree", "ReplacingMergeTree", "SummingMergeTree", "Null"),
+											stringvalidator.OneOf(ClickPipeEngineMergeTree, ClickPipeEngineReplacingMergeTree, ClickPipeEngineSummingMergeTree, ClickPipeEngineNull),
 										},
 									},
 									"version_column_id": schema.StringAttribute{
@@ -702,7 +708,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				engineType := engineModel.Type.ValueString()
 
 				// Validate versionColumnId
-				if engineType == "ReplacingMergeTree" {
+				if engineType == ClickPipeEngineReplacingMergeTree {
 					if engineModel.VersionColumnID.IsNull() {
 						response.Diagnostics.AddError(
 							"Invalid Configuration",
@@ -719,7 +725,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				}
 
 				// Validate columnIds
-				if engineType != "SummingMergeTree" {
+				if engineType != ClickPipeEngineSummingMergeTree {
 					if !engineModel.ColumnIDs.IsNull() && len(engineModel.ColumnIDs.Elements()) > 0 {
 						response.Diagnostics.AddError(
 							"Invalid Configuration",
@@ -729,7 +735,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				}
 
 				// Validate sortingKey for ReplacingMergeTree
-				if engineType == "ReplacingMergeTree" {
+				if engineType == ClickPipeEngineReplacingMergeTree {
 					if tableDefinitionModel.SortingKey.IsNull() || len(tableDefinitionModel.SortingKey.Elements()) == 0 {
 						response.Diagnostics.AddError(
 							"Invalid Configuration",
