@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -671,6 +672,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					},
 				},
 			},
+			"settings": schema.DynamicAttribute{
+				Description: "Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the [OpenAPI documentation](https://clickhouse.com/docs/cloud/manage/api/swagger#tag/ClickPipes/paths/~1v1~1organizations~1%7BorganizationId%7D~1services~1%7BserviceId%7D~1clickpipes~1%7BclickPipeId%7D~1settings/put)",
+				Optional:    true,
+			},
 		},
 	}
 }
@@ -884,6 +889,23 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		clickPipe.FieldMappings[i] = api.ClickPipeFieldMapping{
 			SourceField:      fieldMappingModel.SourceField.ValueString(),
 			DestinationField: fieldMappingModel.DestinationField.ValueString(),
+		}
+	}
+
+	// Handle settings
+	if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
+		settingsMap := make(map[string]any)
+		underlyingValue := plan.Settings.UnderlyingValue()
+
+		// Settings should be an object/map at the top level
+		if objValue, ok := underlyingValue.(types.Object); ok {
+			for key, value := range objValue.Attributes() {
+				settingsMap[key] = utils.ConvertTerraformValueToJSON(value)
+			}
+		}
+
+		if len(settingsMap) > 0 {
+			clickPipe.Settings = settingsMap
 		}
 	}
 
@@ -1237,16 +1259,41 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	state.State = types.StringValue(clickPipe.State)
 
-	if clickPipe.Scaling != nil {
+	// Only sync scaling if it was configured (not null)
+	if !state.Scaling.IsNull() && clickPipe.Scaling != nil {
+		cpuMillicores := clickPipe.Scaling.GetCpuMillicores()
+		memoryGb := clickPipe.Scaling.GetMemoryGb()
+
+		// Create scaling model with proper null handling
+		var replicasValue types.Int64
+		var cpuValue types.Int64
+		var memoryValue types.Float64
+
+		if clickPipe.Scaling.Replicas != nil {
+			replicasValue = types.Int64Value(*clickPipe.Scaling.Replicas)
+		} else {
+			replicasValue = types.Int64Null()
+		}
+
+		if cpuMillicores != nil {
+			cpuValue = types.Int64Value(*cpuMillicores)
+		} else {
+			cpuValue = types.Int64Null()
+		}
+
+		if memoryGb != nil {
+			memoryValue = types.Float64Value(*memoryGb)
+		} else {
+			memoryValue = types.Float64Null()
+		}
+
 		scalingModel := models.ClickPipeScalingModel{
-			Replicas:             types.Int64PointerValue(clickPipe.Scaling.Replicas),
-			ReplicaCpuMillicores: types.Int64PointerValue(clickPipe.Scaling.GetCpuMillicores()),
-			ReplicaMemoryGb:      types.Float64PointerValue(clickPipe.Scaling.GetMemoryGb()),
+			Replicas:             replicasValue,
+			ReplicaCpuMillicores: cpuValue,
+			ReplicaMemoryGb:      memoryValue,
 		}
 
 		state.Scaling = scalingModel.ObjectValue()
-	} else {
-		state.Scaling = types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes)
 	}
 
 	stateSourceModel := models.ClickPipeSourceModel{}
@@ -1518,6 +1565,29 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		state.FieldMappings, _ = types.ListValue(models.ClickPipeFieldMappingModel{}.ObjectType(), fieldMappingList)
 	}
 
+	// Handle settings
+	if clickPipe.Settings != nil && len(clickPipe.Settings) > 0 {
+		settingsElements := make(map[string]attr.Value)
+		for key, value := range clickPipe.Settings {
+			settingsElements[key] = utils.ConvertJSONValueToTerraform(value)
+		}
+		settingsObj, _ := types.ObjectValue(
+			map[string]attr.Type{},
+			make(map[string]attr.Value),
+		)
+
+		// Create object type dynamically based on actual values
+		attrTypes := make(map[string]attr.Type)
+		for key := range settingsElements {
+			attrTypes[key] = settingsElements[key].Type(ctx)
+		}
+
+		settingsObj, _ = types.ObjectValue(attrTypes, settingsElements)
+		state.Settings = types.DynamicValue(settingsObj)
+	} else {
+		state.Settings = types.DynamicNull()
+	}
+
 	return nil
 }
 
@@ -1622,11 +1692,42 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
+	// Handle settings separately using dedicated endpoint
+	var settingsChanged bool
+	var newSettingsMap map[string]any
+
+	if !plan.Settings.Equal(state.Settings) {
+		settingsChanged = true
+		newSettingsMap = make(map[string]any)
+		if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
+			underlyingValue := plan.Settings.UnderlyingValue()
+
+			// Settings should be an object/map at the top level
+			if objValue, ok := underlyingValue.(types.Object); ok {
+				for key, value := range objValue.Attributes() {
+					newSettingsMap[key] = utils.ConvertTerraformValueToJSON(value)
+				}
+			}
+		}
+	}
+
+	// Update the main ClickPipe if non-settings fields changed
 	if pipeChanged {
 		if _, err := c.client.UpdateClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), clickPipeUpdate); err != nil {
 			response.Diagnostics.AddError(
 				"Error Updating ClickPipe",
 				"Could not update ClickPipe, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
+	// Update settings separately if they changed
+	if settingsChanged {
+		if _, err := c.client.UpdateClickPipeSettings(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), newSettingsMap); err != nil {
+			response.Diagnostics.AddError(
+				"Error Updating ClickPipe Settings",
+				"Could not update ClickPipe settings, unexpected error: "+err.Error(),
 			)
 			return
 		}
@@ -1651,7 +1752,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	if !plan.Scaling.Equal(state.Scaling) {
+	if !plan.Scaling.Equal(state.Scaling) && !plan.Scaling.IsUnknown() {
 		scalingModel := models.ClickPipeScalingModel{}
 		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
 

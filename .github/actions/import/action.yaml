@@ -140,7 +140,7 @@ runs:
     - shell: bash
       name: Terraform destroy
       env:
-        resource_type: ${{ inputs.resource_type }}
-        api_url: ${{inputs.api_url}}
+        RESOURCE_TYPE: ${{ inputs.resource_type }}
+        API_URL: ${{inputs.api_url}}
       run: |
         ./.github/actions/import/import.sh

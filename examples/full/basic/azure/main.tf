@@ -17,7 +17,7 @@ variable "service_name" {
   default = "My Terraform Service"
 }
 
-variable "location" {
+variable "region" {
   type    = string
   default = "westus3"
 }
@@ -37,7 +37,7 @@ data "clickhouse_api_key_id" "self" {
 resource "clickhouse_service" "service" {
   name                 = var.service_name
   cloud_provider       = "azure"
-  region               = var.location
+  region               = var.region
   release_channel      = var.release_channel
   idle_scaling         = true
   idle_timeout_minutes = 5

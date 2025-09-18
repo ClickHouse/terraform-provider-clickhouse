@@ -178,6 +178,7 @@ runs:
         else
           echo "::group::Skipping upgrade E2E test as it does not exist for cloud provider ${{ inputs.cloud_provider }} and version ${{ steps.get_latest_stable_release.outputs.tag }}"
           echo "SKIP_E2E_TEST=true" >> "$GITHUB_ENV"
+          git checkout ${{ github.ref }}
           exit 0
         fi
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
@@ -195,6 +196,8 @@ runs:
         terraform init -input=false
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
+
+        git checkout ${{ github.ref }}
 
         echo "::endgroup::"
 
