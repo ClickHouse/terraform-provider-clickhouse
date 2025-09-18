@@ -24,11 +24,12 @@ func (m ClickPipeScalingModel) ObjectType() types.ObjectType {
 }
 
 func (m ClickPipeScalingModel) ObjectValue() types.Object {
-	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+	objValue, _ := types.ObjectValue(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"replicas":               m.Replicas,
 		"replica_cpu_millicores": m.ReplicaCpuMillicores,
 		"replica_memory_gb":      m.ReplicaMemoryGb,
 	})
+	return objValue
 }
 
 type ClickPipeKafkaOffsetModel struct {

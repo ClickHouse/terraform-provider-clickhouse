@@ -1607,7 +1607,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	if !plan.Scaling.Equal(state.Scaling) {
+	if !plan.Scaling.Equal(state.Scaling) && !plan.Scaling.IsUnknown() {
 		scalingModel := models.ClickPipeScalingModel{}
 		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
 
