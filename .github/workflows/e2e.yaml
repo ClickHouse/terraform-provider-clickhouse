@@ -185,7 +185,7 @@ jobs:
       id-token: write
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 5
       matrix:
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
