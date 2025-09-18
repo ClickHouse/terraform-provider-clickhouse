@@ -18,9 +18,9 @@ inputs:
     required: true
     default: "service"
     description: "The type of resource to import. Only supported resource is 'service'"
-  resource_name:
+  service_name:
     required: true
-    description: "The name of the existing resource to import"
+    description: "The name of the existing service to import"
   tf_release:
     required: true
     description: "The terraform cli version"
@@ -65,7 +65,7 @@ runs:
         if [ "${{ inputs.resource_type }}" == "service" ]
         then
           cat <<EOF >>tests/import/${{ inputs.resource_type }}/variables.tfvars
-        service_name    = "${{ inputs.resource_name }}"
+        service_name    = "${{ inputs.service_name }}"
         EOF
         fi
 
