@@ -658,7 +658,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				},
 			},
 			"settings": schema.DynamicAttribute{
-				Description: "Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the [OpenAPI documentation](https://clickhouse.com/docs/cloud/manage/api/swagger)",
+				Description: "Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the [OpenAPI documentation](https://clickhouse.com/docs/cloud/manage/api/swagger#tag/ClickPipes/paths/~1v1~1organizations~1%7BorganizationId%7D~1services~1%7BserviceId%7D~1clickpipes~1%7BclickPipeId%7D~1settings/put)",
 				Optional:    true,
 			},
 		},
