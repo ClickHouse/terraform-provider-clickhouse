@@ -24,11 +24,12 @@ func (m ClickPipeScalingModel) ObjectType() types.ObjectType {
 }
 
 func (m ClickPipeScalingModel) ObjectValue() types.Object {
-	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+	objValue, _ := types.ObjectValue(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"replicas":               m.Replicas,
 		"replica_cpu_millicores": m.ReplicaCpuMillicores,
 		"replica_memory_gb":      m.ReplicaMemoryGb,
 	})
+	return objValue
 }
 
 type ClickPipeKafkaOffsetModel struct {
@@ -447,12 +448,13 @@ func (m ClickPipeFieldMappingModel) ObjectValue() types.Object {
 }
 
 type ClickPipeResourceModel struct {
-	ID            types.String `tfsdk:"id"`
-	ServiceID     types.String `tfsdk:"service_id"`
-	Name          types.String `tfsdk:"name"`
-	Scaling       types.Object `tfsdk:"scaling"`
-	State         types.String `tfsdk:"state"`
-	Source        types.Object `tfsdk:"source"`
-	Destination   types.Object `tfsdk:"destination"`
-	FieldMappings types.List   `tfsdk:"field_mappings"`
+	ID            types.String  `tfsdk:"id"`
+	ServiceID     types.String  `tfsdk:"service_id"`
+	Name          types.String  `tfsdk:"name"`
+	Scaling       types.Object  `tfsdk:"scaling"`
+	State         types.String  `tfsdk:"state"`
+	Source        types.Object  `tfsdk:"source"`
+	Destination   types.Object  `tfsdk:"destination"`
+	FieldMappings types.List    `tfsdk:"field_mappings"`
+	Settings      types.Dynamic `tfsdk:"settings"`
 }
