@@ -23,7 +23,7 @@ variable "azure_path" {
 resource "clickhouse_clickpipe" "azure_blob" {
   name        = "Azure Blob Storage 🚀 ClickPipe"
   service_id = var.service_id
-  state = "Running"
+
   source = {
     object_storage = {
       type    = "azureblobstorage"

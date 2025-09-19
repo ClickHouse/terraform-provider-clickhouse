@@ -12,7 +12,7 @@ resource "clickhouse_clickpipe" "msk" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {

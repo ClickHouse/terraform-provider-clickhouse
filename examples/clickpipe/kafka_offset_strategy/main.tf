@@ -28,7 +28,7 @@ resource "clickhouse_clickpipe" "kafka_offset_strategy" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {
