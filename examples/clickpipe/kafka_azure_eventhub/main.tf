@@ -24,7 +24,7 @@ resource "clickhouse_clickpipe" "kafka_azure_eventhub" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {

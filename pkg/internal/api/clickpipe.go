@@ -13,7 +13,9 @@ import (
 
 const (
 	ClickPipeProvisioningState  = "Provisioning"
+	ClickPipeDegradedState      = "Degraded"
 	ClickPipeRunningState       = "Running"
+	ClickPipeStoppingState      = "Stopping"
 	ClickPipeStoppedState       = "Stopped"
 	ClickPipeFailedState        = "Failed"
 	ClickPipeCompletedState     = "Completed"
@@ -237,7 +239,7 @@ func (c *ClientImpl) UpdateClickPipe(ctx context.Context, serviceId string, clic
 	return &clickPipeResponse.Result, nil
 }
 
-func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(*ClickPipe) bool, maxWaitSeconds uint64) (clickPipe *ClickPipe, err error) {
+func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(*ClickPipe) bool, maxElapsedTime time.Duration) (clickPipe *ClickPipe, err error) {
 	checkState := func() error {
 		clickPipe, err = c.GetClickPipe(ctx, serviceId, clickPipeId)
 		if err != nil {
@@ -251,18 +253,18 @@ func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, cli
 		return fmt.Errorf("ClickPipe %s is in state %s", clickPipeId, clickPipe.State)
 	}
 
-	if maxWaitSeconds < 5 {
-		maxWaitSeconds = 5
+	if maxElapsedTime < 5*time.Second {
+		maxElapsedTime = 5
 	}
 
-	err = backoff.Retry(checkState, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), maxWaitSeconds/5))
+	err = backoff.Retry(checkState, backoff.NewExponentialBackOff(backoff.WithMaxElapsedTime(maxElapsedTime), backoff.WithMaxInterval(maxElapsedTime/5)))
 	return
 }
 
-func (c *ClientImpl) WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, checker func(string) bool, maxWaitSeconds uint64) (clickPipe *ClickPipe, err error) {
+func (c *ClientImpl) WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, checker func(string) bool, maxWait time.Duration) (clickPipe *ClickPipe, err error) {
 	return c.waitForClickPipe(ctx, serviceId, clickPipeId, func(cp *ClickPipe) bool {
 		return checker(cp.State)
-	}, maxWaitSeconds)
+	}, maxWait)
 }
 
 func (c *ClientImpl) ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScalingRequest) (*ClickPipe, error) {
