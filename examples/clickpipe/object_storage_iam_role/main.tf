@@ -17,7 +17,7 @@ resource "clickhouse_clickpipe" "kafka_s3" {
 
   service_id = var.service_id
   
-  state = "Running"
+
 
   source = {
     object_storage = {

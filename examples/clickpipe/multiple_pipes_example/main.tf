@@ -32,7 +32,7 @@ resource "clickhouse_clickpipe" "multiple" {
     replica_memory_gb      = 1.0
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {

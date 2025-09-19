@@ -39,7 +39,7 @@ resource "clickhouse_clickpipe" "kafka_schema_registry" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {

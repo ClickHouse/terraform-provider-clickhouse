@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"time"
 )
 
 type Client interface {
@@ -28,7 +29,7 @@ type Client interface {
 	GetClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
 	CreateClickPipe(ctx context.Context, serviceId string, clickPipe ClickPipe) (*ClickPipe, error)
 	UpdateClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeUpdate) (*ClickPipe, error)
-	WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWaitSeconds uint64) (*ClickPipe, error)
+	WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWait time.Duration) (*ClickPipe, error)
 	ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScalingRequest) (*ClickPipe, error)
 	ChangeClickPipeState(ctx context.Context, serviceId string, clickPipeId string, command string) (*ClickPipe, error)
 	DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error

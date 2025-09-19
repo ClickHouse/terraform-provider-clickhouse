@@ -46,7 +46,7 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {
