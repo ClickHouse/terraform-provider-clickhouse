@@ -28,7 +28,7 @@ resource "clickhouse_clickpipe" "kafka_redpanda" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {

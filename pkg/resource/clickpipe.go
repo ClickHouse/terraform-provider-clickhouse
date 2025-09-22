@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
@@ -48,7 +49,7 @@ Known limitations:
 `
 
 const (
-	clickPipeStateChangeMaxWaitSeconds = 60 * 2
+	clickPipeStateChangeMaxWaitSeconds = time.Second * 60 * 2
 
 	// ClickPipe destination table engine types
 	ClickPipeEngineMergeTree          = "MergeTree"
@@ -138,14 +139,15 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional: true,
 				Computed: true,
 			},
-			"state": schema.StringAttribute{
-				MarkdownDescription: "The desired state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`.",
-				Optional:            true,
-				Default:             stringdefault.StaticString(api.ClickPipeRunningState),
+			"stopped": schema.BoolAttribute{
+				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running).",
 				Computed:            true,
-				Validators: []validator.String{
-					stringvalidator.OneOf(api.ClickPipeRunningState, api.ClickPipeStoppedState),
-				},
+				Optional:            true,
+				Default:             booldefault.StaticBool(false),
+			},
+			"state": schema.StringAttribute{
+				MarkdownDescription: "The current state of the ClickPipe. This is a read-only field that reports the actual state from ClickHouse Cloud. Possible values include `Running`, `Stopped`, `Provisioning`, `Failed`, `InternalError`, etc.",
+				Computed:            true,
 			},
 			"source": schema.SingleNestedAttribute{
 				Description: "The data source for the ClickPipe. At least one source configuration must be provided.",
@@ -793,6 +795,23 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 			}
 		}
 	}
+
+	if !request.State.Raw.IsNull() && !state.State.IsNull() {
+		currentState := state.State.ValueString()
+
+		switch currentState {
+		case api.ClickPipeFailedState:
+			response.Diagnostics.AddWarning(
+				"ClickPipe in Failed state",
+				"Current ClickPipe is in failed state. Check ClickHouse Cloud ClickPipes logs for failure reason. You can modify the configuration to attempt recovery.",
+			)
+		case api.ClickPipeInternalErrorState:
+			response.Diagnostics.AddWarning(
+				"ClickPipe in Internal Error state",
+				"ClickPipe is in an internal error state. Contact ClickHouse Cloud support for assistance. Your changes will be applied.",
+			)
+		}
+	}
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
@@ -965,7 +984,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 	}
 
-	if plan.State.ValueString() == api.ClickPipeStoppedState {
+	if plan.Stopped.ValueBool() {
 		if _, err := c.client.ChangeClickPipeState(ctx, serviceID, createdClickPipe.ID, api.ClickPipeStateStop); err != nil {
 			response.Diagnostics.AddError(
 				"Error Stopping ClickPipe",
@@ -975,8 +994,12 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 	}
 
+	expectedState := api.ClickPipeRunningState
+	if plan.Stopped.ValueBool() {
+		expectedState = api.ClickPipeStoppedState
+	}
 	if _, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, func(state string) bool {
-		return state == plan.State.ValueString() // we expect the state to be the same as planned: "Running" or "Stopped"
+		return state == expectedState
 	}, clickPipeStateChangeMaxWaitSeconds); err != nil {
 		response.Diagnostics.AddWarning(
 			"ClickPipe didn't reach the desired state",
@@ -1237,25 +1260,6 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	state.ID = types.StringValue(clickPipe.ID)
 	state.Name = types.StringValue(clickPipe.Name)
-
-	// In case ClickPipe status is not as expected,
-	// we should return an error that clearly states the issue so the user can take action.
-	if clickPipe.State != state.State.ValueString() {
-		if clickPipe.State == api.ClickPipeFailedState {
-			return fmt.Errorf("ClickPipe is in a failed state: %s. Review the ClickPipe logs in the ClickHouse Cloud Console", clickPipe.State)
-		}
-
-		if clickPipe.State == api.ClickPipeInternalErrorState {
-			return fmt.Errorf("ClickPipe is in an internal error state. Contact ClickHouse Cloud support for assistance")
-		}
-
-		if clickPipe.State == api.ClickPipeProvisioningState {
-			// In usual scenarios, ClickPipe is in Provisioning after update/create operations.
-			// After it should transit to a Running state.
-			// We would like to avoid any plan errors when the ClickPipe is in Provisioning state.
-			clickPipe.State = api.ClickPipeRunningState
-		}
-	}
 
 	state.State = types.StringValue(clickPipe.State)
 
@@ -1733,16 +1737,20 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	if !plan.State.Equal(state.State) {
-		var command string
+	desiredStopped := plan.Stopped.ValueBool()
+	currentState := state.State.ValueString()
 
-		switch plan.State.ValueString() {
-		case api.ClickPipeRunningState:
-			command = api.ClickPipeStateStart
-		case api.ClickPipeStoppedState:
-			command = api.ClickPipeStateStop
-		}
+	isStopped := currentState == api.ClickPipeStoppedState || currentState == api.ClickPipeStoppingState
+	isFailed := currentState == api.ClickPipeFailedState
 
+	var command string
+	if !desiredStopped && (isStopped || isFailed) {
+		command = api.ClickPipeStateStart
+	} else if desiredStopped && !isStopped {
+		command = api.ClickPipeStateStop
+	}
+
+	if command != "" {
 		if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), command); err != nil {
 			response.Diagnostics.AddError(
 				"Error Changing ClickPipe State",
@@ -1778,8 +1786,12 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
+	expectedState := api.ClickPipeRunningState
+	if plan.Stopped.ValueBool() {
+		expectedState = api.ClickPipeStoppedState
+	}
 	if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), func(state string) bool {
-		return state == plan.State.ValueString()
+		return state == expectedState
 	}, clickPipeStateChangeMaxWaitSeconds); err != nil {
 		response.Diagnostics.AddWarning(
 			"ClickPipe didn't reach the desired state",
