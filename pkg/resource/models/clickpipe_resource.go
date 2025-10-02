@@ -257,6 +257,7 @@ type ClickPipeObjectStorageSourceModel struct {
 	Delimiter      types.String `tfsdk:"delimiter"`
 	Compression    types.String `tfsdk:"compression"`
 	IsContinuous   types.Bool   `tfsdk:"is_continuous"`
+	QueueURL       types.String `tfsdk:"queue_url"`
 	Authentication types.String `tfsdk:"authentication"`
 	AccessKey      types.Object `tfsdk:"access_key"`
 	IAMRole        types.String `tfsdk:"iam_role"`
@@ -276,6 +277,7 @@ func (m ClickPipeObjectStorageSourceModel) ObjectType() types.ObjectType {
 			"delimiter":            types.StringType,
 			"compression":          types.StringType,
 			"is_continuous":        types.BoolType,
+			"queue_url":            types.StringType,
 			"authentication":       types.StringType,
 			"access_key":           ClickPipeSourceAccessKeyModel{}.ObjectType(),
 			"iam_role":             types.StringType,
@@ -294,6 +296,7 @@ func (m ClickPipeObjectStorageSourceModel) ObjectValue() types.Object {
 		"delimiter":            m.Delimiter,
 		"compression":          m.Compression,
 		"is_continuous":        m.IsContinuous,
+		"queue_url":            m.QueueURL,
 		"authentication":       m.Authentication,
 		"access_key":           m.AccessKey,
 		"iam_role":             m.IAMRole,
