@@ -807,6 +807,43 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
+	// Validate queue_url configuration for object storage
+	if !plan.Source.IsNull() {
+		sourceModel := models.ClickPipeSourceModel{}
+		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+		if !sourceModel.ObjectStorage.IsNull() {
+			objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
+			response.Diagnostics.Append(sourceModel.ObjectStorage.As(ctx, &objectStorageModel, basetypes.ObjectAsOptions{})...)
+
+			// Validate queue_url is only provided when is_continuous is true
+			if !objectStorageModel.QueueURL.IsNull() && !objectStorageModel.QueueURL.IsUnknown() && objectStorageModel.QueueURL.ValueString() != "" {
+				if !objectStorageModel.IsContinuous.ValueBool() {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url can only be provided when is_continuous is true",
+					)
+				}
+
+				// Validate queue_url is only used with S3 storage type
+				if objectStorageModel.Type.ValueString() != api.ClickPipeObjectStorageS3Type {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url is only supported for S3 object storage",
+					)
+				}
+
+				// Validate queue_url requires authentication
+				if objectStorageModel.Authentication.IsNull() || objectStorageModel.Authentication.ValueString() == "" {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url requires authentication (IAM_USER or IAM_ROLE)",
+					)
+				}
+			}
+		}
+	}
+
 	if !request.State.Raw.IsNull() && !state.State.IsNull() {
 		currentState := state.State.ValueString()
 
@@ -1195,6 +1232,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Delimiter:      objectStorageModel.Delimiter.ValueStringPointer(),
 			Compression:    objectStorageModel.Compression.ValueStringPointer(),
 			IsContinuous:   objectStorageModel.IsContinuous.ValueBool(),
+			QueueURL:       objectStorageModel.QueueURL.ValueStringPointer(),
 			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
 			AccessKey:      accessKey,
 			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
@@ -1413,6 +1451,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Delimiter:    types.StringPointerValue(clickPipe.Source.ObjectStorage.Delimiter),
 			Compression:  types.StringPointerValue(clickPipe.Source.ObjectStorage.Compression),
 			IsContinuous: types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
+			QueueURL:     types.StringPointerValue(clickPipe.Source.ObjectStorage.QueueURL),
 			IAMRole:      types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
 		}
 
