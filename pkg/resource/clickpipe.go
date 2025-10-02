@@ -5,6 +5,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -396,6 +397,19 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Default:             booldefault.StaticBool(false),
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.RequiresReplace(),
+								},
+							},
+							"queue_url": schema.StringAttribute{
+								MarkdownDescription: "SQS queue URL for event-based continuous ingestion. When provided, files are ingested based on S3 event notifications rather than lexicographical order. Only applicable when `is_continuous` is `true`, storage type is `s3`, and authentication is provided. Format: `https://sqs.{region}.amazonaws.com/{account-id}/{queue-name}`",
+								Optional:            true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^https://sqs\.[a-z0-9-]+\.amazonaws\.com/\d{12}/[a-zA-Z0-9_-]+$`),
+										"must be a valid SQS URL in the format https://sqs.{region}.amazonaws.com/{12-digit-account-id}/{queue-name}",
+									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"authentication": schema.StringAttribute{
