@@ -404,7 +404,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Optional:            true,
 								Validators: []validator.String{
 									stringvalidator.RegexMatches(
-										regexp.MustCompile(`^https://sqs\.[a-z0-9-]+\.amazonaws\.com/\d{12}/[a-zA-Z0-9_-]+$`),
+										regexp.MustCompile(`^https://sqs\.[a-z0-9.-]+\.amazonaws\.com/\d{12}/[a-zA-Z0-9._-]+$`),
 										"must be a valid SQS URL in the format https://sqs.{region}.amazonaws.com/{12-digit-account-id}/{queue-name}",
 									),
 								},
