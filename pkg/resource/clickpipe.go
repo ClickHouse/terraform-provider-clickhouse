@@ -838,7 +838,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationIAMRole {
 					response.Diagnostics.AddError(
 						"Invalid Configuration",
-						"queue_url requires IAM authentication (IAM_USER or IAM_ROLE)",
+						"queue_url requires authentication type to be either IAM_USER or IAM_ROLE",
 					)
 				}
 			}
