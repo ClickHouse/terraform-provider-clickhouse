@@ -1,8 +1,6 @@
-## ClickPipe Object Storage with S3/SQS/IAM role example
+## ClickPipe Object Storage: Unordered Mode with IAM role example
 
-This example demonstrates how to deploy a ClickPipe with an S3 bucket as the input source with continuous ingestion using SQS event notifications, authenticated with an IAM role.
-
-This setup enables event-based ingestion where new files are detected via S3 event notifications sent to an SQS queue, rather than polling S3 for new files. IAM role authentication is only available for AWS ClickHouse Cloud services and is the recommended authentication method.
+This example demonstrates how to deploy a ClickPipe with S3 continuous ingestion using unordered mode (event-based via SQS) with IAM role authentication.
 
 ## How to run
 
