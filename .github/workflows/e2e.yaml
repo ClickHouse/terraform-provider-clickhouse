@@ -268,8 +268,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: "failure"
           notification_title: "E2E tests failed for {branch}"
-          mention_groups: "S099W77RQ7J" # @on-call-terraform-provider
-          mention_groups_when: "failure"
           footer: "{run_url}"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
