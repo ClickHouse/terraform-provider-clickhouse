@@ -122,7 +122,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"replica_cpu_millicores": schema.Int64Attribute{
 						Description: "The CPU allocation per replica in millicores. Must be between 125 and 2000.",
 						Optional:    true,
-						Computed:    true,
 						Validators: []validator.Int64{
 							int64validator.Between(125, 2000),
 						},
@@ -130,14 +129,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"replica_memory_gb": schema.Float64Attribute{
 						Description: "The memory allocation per replica in GB. Must be between 0.5 and 8.0.",
 						Optional:    true,
-						Computed:    true,
 						Validators: []validator.Float64{
 							float64validator.Between(0.5, 8.0),
 						},
 					},
 				},
 				Optional: true,
-				Computed: true,
 			},
 			"stopped": schema.BoolAttribute{
 				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running).",
