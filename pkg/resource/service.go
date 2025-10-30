@@ -1336,28 +1336,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			}
 		}
 
-		add := make([]api.Tag, 0, len(desiredTagsMap))
-		remove := make([]api.Tag, 0, len(currentTagsMap))
-
-		for key, currentValue := range currentTagsMap {
-			desiredValue, exists := desiredTagsMap[key]
-			if !exists || desiredValue != currentValue {
-				remove = append(remove, api.Tag{
-					Key:   key,
-					Value: currentValue,
-				})
-			}
-		}
-
-		for key, desiredValue := range desiredTagsMap {
-			currentValue, exists := currentTagsMap[key]
-			if !exists || currentValue != desiredValue {
-				add = append(add, api.Tag{
-					Key:   key,
-					Value: desiredValue,
-				})
-			}
-		}
+		add, remove := computeTagChanges(currentTagsMap, desiredTagsMap)
 
 		if len(add) > 0 || len(remove) > 0 {
 			serviceChange = true
@@ -2208,4 +2187,31 @@ func servicePasswordUpdateFromPlainPassword(password string) api.ServicePassword
 		NewPasswordHash:   base64.StdEncoding.EncodeToString(hash[:]),
 		NewDoubleSha1Hash: hex.EncodeToString(doubleSha1Hash[:]),
 	}
+}
+
+func computeTagChanges(currentTags, desiredTags map[string]string) (add []api.Tag, remove []api.Tag) {
+	add = make([]api.Tag, 0, len(desiredTags))
+	remove = make([]api.Tag, 0, len(currentTags))
+
+	for key, currentValue := range currentTags {
+		desiredValue, exists := desiredTags[key]
+		if !exists || desiredValue != currentValue {
+			remove = append(remove, api.Tag{
+				Key:   key,
+				Value: currentValue,
+			})
+		}
+	}
+
+	for key, desiredValue := range desiredTags {
+		currentValue, exists := currentTags[key]
+		if !exists || currentValue != desiredValue {
+			add = append(add, api.Tag{
+				Key:   key,
+				Value: desiredValue,
+			})
+		}
+	}
+
+	return add, remove
 }

@@ -640,3 +640,107 @@ func getBaseResponse(id string) api.Service {
 		ReleaseChannel:                 "default",
 	}
 }
+
+func TestComputeTagChanges(t *testing.T) {
+	tests := []struct {
+		name        string
+		currentTags map[string]string
+		desiredTags map[string]string
+		wantAdd     []api.Tag
+		wantRemove  []api.Tag
+	}{
+		{
+			name:        "Returns empty slices when both maps are empty",
+			currentTags: map[string]string{},
+			desiredTags: map[string]string{},
+			wantAdd:     []api.Tag{},
+			wantRemove:  []api.Tag{},
+		},
+		{
+			name:        "Returns empty slices when tags are identical",
+			currentTags: map[string]string{"env": "prod", "team": "backend"},
+			desiredTags: map[string]string{"team": "backend", "env": "prod"},
+			wantAdd:     []api.Tag{},
+			wantRemove:  []api.Tag{},
+		},
+		{
+			name:        "Adds new tags when current is empty",
+			currentTags: map[string]string{},
+			desiredTags: map[string]string{"env": "prod", "team": "backend"},
+			wantAdd: []api.Tag{
+				{Key: "env", Value: "prod"},
+				{Key: "team", Value: "backend"},
+			},
+			wantRemove: []api.Tag{},
+		},
+		{
+			name:        "Removes all tags when desired is empty",
+			currentTags: map[string]string{"env": "prod", "team": "backend"},
+			desiredTags: map[string]string{},
+			wantAdd:     []api.Tag{},
+			wantRemove: []api.Tag{
+				{Key: "env", Value: "prod"},
+				{Key: "team", Value: "backend"},
+			},
+		},
+		{
+			name:        "Updates tag value by removing old and adding new",
+			currentTags: map[string]string{"env": "staging"},
+			desiredTags: map[string]string{"env": "production"},
+			wantAdd: []api.Tag{
+				{Key: "env", Value: "production"},
+			},
+			wantRemove: []api.Tag{
+				{Key: "env", Value: "staging"},
+			},
+		},
+		{
+			name:        "Handles mixed operations with add, remove, update and keep",
+			currentTags: map[string]string{"env": "staging", "team": "backend", "region": "us-west"},
+			desiredTags: map[string]string{"env": "production", "region": "us-west", "owner": "alice"},
+			wantAdd: []api.Tag{
+				{Key: "env", Value: "production"},
+				{Key: "owner", Value: "alice"},
+			},
+			wantRemove: []api.Tag{
+				{Key: "env", Value: "staging"},
+				{Key: "team", Value: "backend"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			add, remove := computeTagChanges(tt.currentTags, tt.desiredTags)
+
+			if !tagsEqual(add, tt.wantAdd) {
+				t.Errorf("'%s' add tags do not match:\ngot  = %v\nwant = %v", tt.name, add, tt.wantAdd)
+			}
+
+			if !tagsEqual(remove, tt.wantRemove) {
+				t.Errorf("'%s' remove tags do not match:\ngot  = %v\nwant = %v", tt.name, remove, tt.wantRemove)
+			}
+		})
+	}
+}
+
+// tagsEqual compares two slices of tags as sets (order-independent)
+func tagsEqual(a, b []api.Tag) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	aMap := make(map[string]string, len(a))
+	for _, tag := range a {
+		aMap[tag.Key] = tag.Value
+	}
+
+	for _, tag := range b {
+		value, exists := aMap[tag.Key]
+		if !exists || value != tag.Value {
+			return false
+		}
+	}
+
+	return true
+}

@@ -11,6 +11,10 @@ resource "clickhouse_service" "service" {
     }
   ]
 
+  tags = {
+    Environment = "Staging",
+  }
+
   min_total_memory_gb  = 24
   max_total_memory_gb  = 360
   idle_timeout_minutes = 5
