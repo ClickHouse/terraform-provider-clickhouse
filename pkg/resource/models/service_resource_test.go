@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
@@ -274,6 +275,20 @@ func TestServiceResource_Equals(t *testing.T) {
 			}).Get(),
 			want: false,
 		},
+		{
+			name: "Tags changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				tags, diag := types.MapValue(types.StringType, map[string]attr.Value{
+					"changed": types.StringValue("value"),
+				})
+				if diag.HasError() {
+					t.Fatal(diag.Errors())
+				}
+				src.Tags = tags
+			}).Get(),
+			want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -329,6 +344,7 @@ func getBaseModel() ServiceResourceModel {
 		EncryptionKey:                   types.String{},
 		EncryptionAssumedRoleIdentifier: types.String{},
 		BackupConfiguration:             BackupConfiguration{}.ObjectValue(),
+		Tags:                            types.MapNull(types.StringType),
 	}
 
 	return state
