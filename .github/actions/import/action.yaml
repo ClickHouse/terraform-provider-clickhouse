@@ -139,6 +139,7 @@ runs:
 
     - shell: bash
       name: Terraform destroy
+      if: always()
       env:
         RESOURCE_TYPE: ${{ inputs.resource_type }}
         API_URL: ${{inputs.api_url}}
