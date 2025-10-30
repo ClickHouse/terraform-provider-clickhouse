@@ -73,6 +73,7 @@ resource "clickhouse_service" "service" {
 - `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
 - `release_channel` (String) Release channel to use for this service. Can be 'default', 'fast' or 'slow'.
+- `tags` (Map of String) Tags associated with the service as key-value pairs.
 - `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
 - `transparent_data_encryption` (Attributes) Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan. (see [below for nested schema](#nestedatt--transparent_data_encryption))
 - `warehouse_id` (String) Set it to the 'warehouse_id' attribute of another service to share the data with it. The service must be in the same cloud and region.

@@ -477,6 +477,39 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			updateTimestamp: false,
 			wantErr:         false,
 		},
+		{
+			name:  "Update Tags field",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.Tags = []api.Tag{
+					{
+						Key:   "cost-center",
+						Value: "business-a",
+					},
+				}
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				tagsMap := make(map[string]attr.Value)
+				tagsMap["cost-center"] = types.StringValue("business-a")
+				src.Tags, _ = types.MapValue(types.StringType, tagsMap)
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			name:  "Tags field empty array returns null map",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.Tags = []api.Tag{}
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.Tags = types.MapNull(types.StringType)
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -533,6 +566,7 @@ func getInitialState() models.ServiceResourceModel {
 		BackupRetentionPeriodInHours: types.Int32{},
 		BackupStartTime:              types.String{},
 	}.ObjectValue()
+	tags := types.MapNull(types.StringType)
 
 	state := models.ServiceResourceModel{
 		ID:                              types.StringValue(uuid),
@@ -565,6 +599,7 @@ func getInitialState() models.ServiceResourceModel {
 			RoleID:  types.StringNull(),
 		}.ObjectValue(),
 		ComplianceType: types.StringNull(),
+		Tags:           tags,
 	}
 
 	return state

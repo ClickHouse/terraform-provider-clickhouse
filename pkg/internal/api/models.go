@@ -32,9 +32,20 @@ type ServicePrivateEndpointConfig struct {
 	EndpointServiceId  string `json:"endpointServiceId,omitempty"`
 	PrivateDnsHostname string `json:"privateDnsHostname,omitempty"`
 }
+
 type ServiceManagedEncryption struct {
 	KeyArn        string `json:"keyArn,omitempty"`
 	AssumeRoleArn string `json:"assumeRoleArn,omitempty"`
+}
+
+type Tag struct {
+	Key   string `json:"key,omitempty"`
+	Value string `json:"value,omitempty"`
+}
+
+type TagUpdate struct {
+	Add    []Tag `json:"add,omitempty"`
+	Remove []Tag `json:"remove,omitempty"`
 }
 
 type Service struct {
@@ -70,6 +81,7 @@ type Service struct {
 	QueryAPIEndpoints               *ServiceQueryEndpoint         `json:"-"`
 	BackupID                        *string                       `json:"backupId,omitempty"`
 	ComplianceType                  *string                       `json:"complianceType,omitempty"`
+	Tags                            []Tag                         `json:"tags,omitempty"`
 }
 
 type ServiceUpdate struct {
@@ -78,6 +90,7 @@ type ServiceUpdate struct {
 	PrivateEndpointIds *PrivateEndpointIdsUpdate `json:"privateEndpointIds,omitempty"`
 	ReleaseChannel     string                    `json:"releaseChannel,omitempty"`
 	Endpoints          []Endpoint                `json:"endpoints,omitempty"`
+	Tags               *TagUpdate                `json:"tags,omitempty"`
 }
 
 type ServiceKeyRotation struct {

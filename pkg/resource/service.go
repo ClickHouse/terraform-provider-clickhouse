@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -466,6 +467,20 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"tags": schema.MapAttribute{
+				Description: "Tags associated with the service as key-value pairs.",
+				Optional:    true,
+				ElementType: types.StringType,
+				Validators: []validator.Map{
+					mapvalidator.SizeAtMost(50),
+					mapvalidator.KeysAre(
+						stringvalidator.LengthBetween(1, 128),
+					),
+					mapvalidator.ValueStringsAre(
+						stringvalidator.LengthAtMost(256),
+					),
 				},
 			},
 		},
@@ -1017,6 +1032,23 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 	service.IpAccessList = ipAccessLists
 
+	if !plan.Tags.IsUnknown() && !plan.Tags.IsNull() {
+		tagsMap := make(map[string]string)
+		if diag := plan.Tags.ElementsAs(ctx, &tagsMap, false); diag.HasError() {
+			resp.Diagnostics.Append(diag...)
+			return
+		}
+
+		tags := make([]api.Tag, 0, len(tagsMap))
+		for key, value := range tagsMap {
+			tags = append(tags, api.Tag{
+				Key:   key,
+				Value: value,
+			})
+		}
+		service.Tags = tags
+	}
+
 	// Endpoints
 	if !plan.Endpoints.IsNull() && !plan.Endpoints.IsUnknown() {
 		endpointsConfig := models.Endpoints{}
@@ -1283,6 +1315,56 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		service.IpAccessList = &api.IpAccessUpdate{
 			Add:    add,
 			Remove: remove,
+		}
+	}
+
+	if !plan.Tags.Equal(state.Tags) {
+		currentTagsMap := make(map[string]string)
+		desiredTagsMap := make(map[string]string)
+
+		if !state.Tags.IsNull() {
+			if diags := state.Tags.ElementsAs(ctx, &currentTagsMap, false); diags.HasError() {
+				resp.Diagnostics.Append(diags...)
+				return
+			}
+		}
+
+		if !plan.Tags.IsNull() {
+			if diags := plan.Tags.ElementsAs(ctx, &desiredTagsMap, false); diags.HasError() {
+				resp.Diagnostics.Append(diags...)
+				return
+			}
+		}
+
+		add := make([]api.Tag, 0, len(desiredTagsMap))
+		remove := make([]api.Tag, 0, len(currentTagsMap))
+
+		for key, currentValue := range currentTagsMap {
+			desiredValue, exists := desiredTagsMap[key]
+			if !exists || desiredValue != currentValue {
+				remove = append(remove, api.Tag{
+					Key:   key,
+					Value: currentValue,
+				})
+			}
+		}
+
+		for key, desiredValue := range desiredTagsMap {
+			currentValue, exists := currentTagsMap[key]
+			if !exists || currentValue != desiredValue {
+				add = append(add, api.Tag{
+					Key:   key,
+					Value: desiredValue,
+				})
+			}
+		}
+
+		if len(add) > 0 || len(remove) > 0 {
+			serviceChange = true
+			service.Tags = &api.TagUpdate{
+				Add:    add,
+				Remove: remove,
+			}
 		}
 	}
 
@@ -2103,6 +2185,14 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.ComplianceType = types.StringValue(*service.ComplianceType)
 	} else {
 		state.ComplianceType = types.StringNull()
+	}
+
+	if !state.Tags.IsNull() || len(service.Tags) > 0 {
+		tagsMap := make(map[string]attr.Value, len(service.Tags))
+		for _, tag := range service.Tags {
+			tagsMap[tag.Key] = types.StringValue(tag.Value)
+		}
+		state.Tags, _ = types.MapValue(types.StringType, tagsMap)
 	}
 
 	return nil
