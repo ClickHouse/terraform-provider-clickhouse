@@ -5,6 +5,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -122,7 +123,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"replica_cpu_millicores": schema.Int64Attribute{
 						Description: "The CPU allocation per replica in millicores. Must be between 125 and 2000.",
 						Optional:    true,
-						Computed:    true,
 						Validators: []validator.Int64{
 							int64validator.Between(125, 2000),
 						},
@@ -130,14 +130,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"replica_memory_gb": schema.Float64Attribute{
 						Description: "The memory allocation per replica in GB. Must be between 0.5 and 8.0.",
 						Optional:    true,
-						Computed:    true,
 						Validators: []validator.Float64{
 							float64validator.Between(0.5, 8.0),
 						},
 					},
 				},
 				Optional: true,
-				Computed: true,
 			},
 			"stopped": schema.BoolAttribute{
 				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running).",
@@ -399,6 +397,19 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Default:             booldefault.StaticBool(false),
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.RequiresReplace(),
+								},
+							},
+							"queue_url": schema.StringAttribute{
+								MarkdownDescription: "SQS queue URL for event-based continuous ingestion. When provided, files are ingested based on S3 event notifications rather than lexicographical order. Only applicable when `is_continuous` is `true`, storage type is `s3`, and authentication is provided. Format: `https://sqs.{region}.amazonaws.com/{account-id}/{queue-name}`",
+								Optional:            true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^https://sqs\.[a-z0-9.-]+\.amazonaws\.com/\d{12}/[a-zA-Z0-9._-]+$`),
+										"must be a valid SQS URL in the format https://sqs.{region}.amazonaws.com/{12-digit-account-id}/{queue-name}",
+									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"authentication": schema.StringAttribute{
@@ -796,6 +807,44 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
+	// Validate queue_url configuration for object storage
+	if !plan.Source.IsNull() {
+		sourceModel := models.ClickPipeSourceModel{}
+		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+		if !sourceModel.ObjectStorage.IsNull() {
+			objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
+			response.Diagnostics.Append(sourceModel.ObjectStorage.As(ctx, &objectStorageModel, basetypes.ObjectAsOptions{})...)
+
+			// Validate queue_url is only provided when is_continuous is true
+			if !objectStorageModel.QueueURL.IsNull() && !objectStorageModel.QueueURL.IsUnknown() && objectStorageModel.QueueURL.ValueString() != "" {
+				if !objectStorageModel.IsContinuous.ValueBool() {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url can only be provided when is_continuous is true",
+					)
+				}
+
+				// Validate queue_url is only used with S3 storage type
+				if objectStorageModel.Type.ValueString() != api.ClickPipeObjectStorageS3Type {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url is only supported for S3 object storage",
+					)
+				}
+
+				// Validate queue_url requires IAM authentication
+				authType := objectStorageModel.Authentication.ValueString()
+				if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationIAMRole {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url requires authentication type to be either IAM_USER or IAM_ROLE",
+					)
+				}
+			}
+		}
+	}
+
 	if !request.State.Raw.IsNull() && !state.State.IsNull() {
 		currentState := state.State.ValueString()
 
@@ -1184,6 +1233,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Delimiter:      objectStorageModel.Delimiter.ValueStringPointer(),
 			Compression:    objectStorageModel.Compression.ValueStringPointer(),
 			IsContinuous:   objectStorageModel.IsContinuous.ValueBool(),
+			QueueURL:       objectStorageModel.QueueURL.ValueStringPointer(),
 			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
 			AccessKey:      accessKey,
 			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
@@ -1402,6 +1452,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Delimiter:    types.StringPointerValue(clickPipe.Source.ObjectStorage.Delimiter),
 			Compression:  types.StringPointerValue(clickPipe.Source.ObjectStorage.Compression),
 			IsContinuous: types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
+			QueueURL:     types.StringPointerValue(clickPipe.Source.ObjectStorage.QueueURL),
 			IAMRole:      types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
 		}
 

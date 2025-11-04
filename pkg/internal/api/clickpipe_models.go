@@ -114,7 +114,8 @@ type ClickPipeObjectStorageSource struct {
 	Delimiter   *string `json:"delimiter,omitempty"`
 	Compression *string `json:"compression,omitempty"`
 
-	IsContinuous bool `json:"isContinuous"`
+	IsContinuous bool    `json:"isContinuous"`
+	QueueURL     *string `json:"queueUrl,omitempty"`
 
 	Authentication *string                   `json:"authentication,omitempty"`
 	AccessKey      *ClickPipeSourceAccessKey `json:"accessKey,omitempty"`

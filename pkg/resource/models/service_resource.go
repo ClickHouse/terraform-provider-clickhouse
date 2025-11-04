@@ -234,6 +234,7 @@ type ServiceResourceModel struct {
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
 	BackupID                        types.String `tfsdk:"backup_id"`
 	ComplianceType                  types.String `tfsdk:"compliance_type"`
+	Tags                            types.Map    `tfsdk:"tags"`
 }
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
@@ -264,7 +265,8 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.TransparentEncryptionData.Equal(b.TransparentEncryptionData) ||
 		!m.IpAccessList.Equal(b.IpAccessList) ||
 		!m.QueryAPIEndpoints.Equal(b.QueryAPIEndpoints) ||
-		!m.BackupConfiguration.Equal(b.BackupConfiguration) {
+		!m.BackupConfiguration.Equal(b.BackupConfiguration) ||
+		!m.Tags.Equal(b.Tags) {
 		return false
 	}
 
