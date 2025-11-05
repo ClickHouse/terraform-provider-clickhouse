@@ -147,6 +147,8 @@ jobs:
 
       - name: E2E
         id: e2e
+        # Skip the Development environment, since it doesn't have HIPAA or PCI cells
+        if: ${{ !(inputs.api_env == 'Development' && contains(fromJSON('["hipaa", "pci"]'), matrix.test.name)) }}
         uses: ./.github/actions/e2e
         with:
           api_url: ${{ steps.credentials.outputs.api_url }}
