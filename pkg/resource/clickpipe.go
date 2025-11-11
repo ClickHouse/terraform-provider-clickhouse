@@ -735,15 +735,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				engineModel := models.ClickPipeDestinationTableEngineModel{}
 				response.Diagnostics.Append(tableDefinitionModel.Engine.As(ctx, &engineModel, basetypes.ObjectAsOptions{})...)
 
-				engineType := normalizeEngineType(engineModel.Type.ValueString())
-
-				// Update plan with normalized engine type if it was changed
-				if engineType != engineModel.Type.ValueString() {
-					engineModel.Type = types.StringValue(engineType)
-					tableDefinitionModel.Engine = engineModel.ObjectValue()
-					destinationModel.TableDefinition = tableDefinitionModel.ObjectValue()
-					plan.Destination = destinationModel.ObjectValue()
-				}
+				engineType := engineModel.Type.ValueString()
 
 				// Validate versionColumnId
 				if engineType == ClickPipeEngineReplacingMergeTree {
@@ -945,7 +937,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		response.Diagnostics.Append(tableDefinitionModel.Engine.As(ctx, &tableEngineModel, basetypes.ObjectAsOptions{})...)
 
 		engine := api.ClickPipeDestinationTableEngine{
-			Type:            normalizeEngineType(tableEngineModel.Type.ValueString()),
+			Type:            tableEngineModel.Type.ValueString(),
 			VersionColumnID: tableEngineModel.VersionColumnID.ValueStringPointer(),
 		}
 
