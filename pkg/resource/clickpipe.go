@@ -59,6 +59,15 @@ const (
 	ClickPipeEngineNull               = "Null"
 )
 
+// normalizeEngineType removes parentheses from engine type strings
+// e.g., "MergeTree()" -> "MergeTree", "ReplacingMergeTree() " -> "ReplacingMergeTree"
+func normalizeEngineType(engineType string) string {
+	engineType = strings.TrimSpace(engineType)
+	// Remove parentheses and any content within them
+	engineType = regexp.MustCompile(`\([^)]*\)`).ReplaceAllString(engineType, "")
+	return strings.TrimSpace(engineType)
+}
+
 type ClickPipeResource struct {
 	client api.Client
 }
@@ -609,9 +618,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"type": schema.StringAttribute{
 										MarkdownDescription: "The type of the engine. Supported engines: `MergeTree`, `ReplacingMergeTree`, `SummingMergeTree`, `Null`.",
 										Required:            true,
-										Validators: []validator.String{
-											stringvalidator.OneOf(ClickPipeEngineMergeTree, ClickPipeEngineReplacingMergeTree, ClickPipeEngineSummingMergeTree, ClickPipeEngineNull),
-										},
 									},
 									"version_column_id": schema.StringAttribute{
 										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.",
@@ -723,7 +729,29 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				engineModel := models.ClickPipeDestinationTableEngineModel{}
 				response.Diagnostics.Append(tableDefinitionModel.Engine.As(ctx, &engineModel, basetypes.ObjectAsOptions{})...)
 
-				engineType := engineModel.Type.ValueString()
+				engineType := normalizeEngineType(engineModel.Type.ValueString())
+
+				// Validate engine type is one of the supported types
+				validEngineTypes := []string{ClickPipeEngineMergeTree, ClickPipeEngineReplacingMergeTree, ClickPipeEngineSummingMergeTree, ClickPipeEngineNull}
+				isValidEngine := false
+				for _, validType := range validEngineTypes {
+					if engineType == validType {
+						isValidEngine = true
+						break
+					}
+				}
+				if !isValidEngine {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						fmt.Sprintf("Invalid engine type '%s'. Supported engines: MergeTree, ReplacingMergeTree, SummingMergeTree, Null", engineType),
+					)
+				} else if engineType != engineModel.Type.ValueString() {
+					// Update plan with normalized engine type if it was changed (only if validation passed)
+					engineModel.Type = types.StringValue(engineType)
+					tableDefinitionModel.Engine = engineModel.ObjectValue()
+					destinationModel.TableDefinition = tableDefinitionModel.ObjectValue()
+					plan.Destination = destinationModel.ObjectValue()
+				}
 
 				// Validate versionColumnId
 				if engineType == ClickPipeEngineReplacingMergeTree {
@@ -925,7 +953,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		response.Diagnostics.Append(tableDefinitionModel.Engine.As(ctx, &tableEngineModel, basetypes.ObjectAsOptions{})...)
 
 		engine := api.ClickPipeDestinationTableEngine{
-			Type:            tableEngineModel.Type.ValueString(),
+			Type:            normalizeEngineType(tableEngineModel.Type.ValueString()),
 			VersionColumnID: tableEngineModel.VersionColumnID.ValueStringPointer(),
 		}
 
@@ -1558,7 +1586,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	if clickPipe.Destination.TableDefinition != nil {
 		engineModel := models.ClickPipeDestinationTableEngineModel{
-			Type:            types.StringValue(clickPipe.Destination.TableDefinition.Engine.Type),
+			Type:            types.StringValue(normalizeEngineType(clickPipe.Destination.TableDefinition.Engine.Type)),
 			VersionColumnID: types.StringNull(),
 			ColumnIDs:       types.ListNull(types.StringType),
 		}
