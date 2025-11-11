@@ -618,6 +618,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"type": schema.StringAttribute{
 										MarkdownDescription: "The type of the engine. Supported engines: `MergeTree`, `ReplacingMergeTree`, `SummingMergeTree`, `Null`.",
 										Required:            true,
+										Validators: []validator.String{
+											stringvalidator.RegexMatches(
+												regexp.MustCompile(`^(MergeTree|ReplacingMergeTree|SummingMergeTree|Null)(\(\))?$`),
+												"must be one of: MergeTree, ReplacingMergeTree, SummingMergeTree, Null (with optional parentheses)",
+											),
+										},
 									},
 									"version_column_id": schema.StringAttribute{
 										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.",
@@ -731,22 +737,8 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 
 				engineType := normalizeEngineType(engineModel.Type.ValueString())
 
-				// Validate engine type is one of the supported types
-				validEngineTypes := []string{ClickPipeEngineMergeTree, ClickPipeEngineReplacingMergeTree, ClickPipeEngineSummingMergeTree, ClickPipeEngineNull}
-				isValidEngine := false
-				for _, validType := range validEngineTypes {
-					if engineType == validType {
-						isValidEngine = true
-						break
-					}
-				}
-				if !isValidEngine {
-					response.Diagnostics.AddError(
-						"Invalid Configuration",
-						fmt.Sprintf("Invalid engine type '%s'. Supported engines: MergeTree, ReplacingMergeTree, SummingMergeTree, Null", engineType),
-					)
-				} else if engineType != engineModel.Type.ValueString() {
-					// Update plan with normalized engine type if it was changed (only if validation passed)
+				// Update plan with normalized engine type if it was changed
+				if engineType != engineModel.Type.ValueString() {
 					engineModel.Type = types.StringValue(engineType)
 					tableDefinitionModel.Engine = engineModel.ObjectValue()
 					destinationModel.TableDefinition = tableDefinitionModel.ObjectValue()
