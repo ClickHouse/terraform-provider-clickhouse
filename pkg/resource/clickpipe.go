@@ -1070,10 +1070,11 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	destinationModel := models.ClickPipeDestinationModel{}
 	response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
 
-	// Check if source is Postgres CDC
+	// Check source type
 	sourceModel := models.ClickPipeSourceModel{}
 	response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
-	isPostgresSource := !sourceModel.Postgres.IsNull()
+	sourceType := getSourceType(sourceModel)
+	isPostgresSource := sourceType == "postgres"
 
 	// Extract roles from the destination model
 	var rolesSlice []string
@@ -1093,7 +1094,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		if destinationModel.Table.IsNull() || destinationModel.Table.ValueString() == "" {
 			response.Diagnostics.AddError(
 				"Error Creating ClickPipe",
-				"destination.table is required for non-Postgres CDC sources.",
+				fmt.Sprintf("destination.table is required for '%s' source.", sourceType),
 			)
 			return
 		}
@@ -1101,7 +1102,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		if destinationModel.Columns.IsNull() || len(destinationModel.Columns.Elements()) == 0 {
 			response.Diagnostics.AddError(
 				"Error Creating ClickPipe",
-				"destination.columns is required for non-Postgres CDC sources.",
+				fmt.Sprintf("destination.columns is required for '%s' source.", sourceType),
 			)
 			return
 		}
@@ -1285,6 +1286,19 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	diags = response.State.Set(ctx, plan)
 	response.Diagnostics.Append(diags...)
+}
+
+func getSourceType(sourceModel models.ClickPipeSourceModel) string {
+	if !sourceModel.Kafka.IsNull() {
+		return "kafka"
+	} else if !sourceModel.ObjectStorage.IsNull() {
+		return "object_storage"
+	} else if !sourceModel.Kinesis.IsNull() {
+		return "kinesis"
+	} else if !sourceModel.Postgres.IsNull() {
+		return "postgres"
+	}
+	return "unknown"
 }
 
 func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics diag.Diagnostics, plan models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
