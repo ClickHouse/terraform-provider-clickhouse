@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -390,9 +389,6 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						Computed:    true, // To allow client side defaulting.
 						Description: "If true, TDE is enabled for the service.",
 					},
-				},
-				Validators: []validator.Object{
-					objectvalidator.ConflictsWith(path.Expressions{path.MatchRoot("warehouse_id")}...),
 				},
 			},
 			"query_api_endpoints": schema.SingleNestedAttribute{
