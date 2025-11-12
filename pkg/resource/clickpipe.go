@@ -59,12 +59,17 @@ const (
 	ClickPipeEngineNull               = "Null"
 )
 
+var (
+	// engineParenthesesRegex matches parentheses and any content within them
+	engineParenthesesRegex = regexp.MustCompile(`\([^)]*\)`)
+)
+
 // normalizeEngineType removes parentheses from engine type strings
 // e.g., "MergeTree()" -> "MergeTree", "ReplacingMergeTree() " -> "ReplacingMergeTree"
 func normalizeEngineType(engineType string) string {
 	engineType = strings.TrimSpace(engineType)
 	// Remove parentheses and any content within them
-	engineType = regexp.MustCompile(`\([^)]*\)`).ReplaceAllString(engineType, "")
+	engineType = engineParenthesesRegex.ReplaceAllString(engineType, "")
 	return strings.TrimSpace(engineType)
 }
 
