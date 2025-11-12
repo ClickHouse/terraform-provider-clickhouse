@@ -619,10 +619,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										MarkdownDescription: "The type of the engine. Supported engines: `MergeTree`, `ReplacingMergeTree`, `SummingMergeTree`, `Null`.",
 										Required:            true,
 										Validators: []validator.String{
-											stringvalidator.RegexMatches(
-												regexp.MustCompile(`^(MergeTree|ReplacingMergeTree|SummingMergeTree|Null)(\(\))?$`),
-												"must be one of: MergeTree, ReplacingMergeTree, SummingMergeTree, Null (with optional parentheses)",
-											),
+											stringvalidator.OneOf(ClickPipeEngineMergeTree, ClickPipeEngineReplacingMergeTree, ClickPipeEngineSummingMergeTree, ClickPipeEngineNull),
 										},
 									},
 									"version_column_id": schema.StringAttribute{
