@@ -146,6 +146,32 @@ var ClickPipeObjectStorageCompressions = []string{
 }
 
 const (
+	// Postgres replication modes
+	ClickPipePostgresReplicationModeCDC      = "cdc"
+	ClickPipePostgresReplicationModeSnapshot = "snapshot"
+	ClickPipePostgresReplicationModeCDCOnly  = "cdc_only"
+)
+
+var ClickPipePostgresReplicationModes = []string{
+	ClickPipePostgresReplicationModeCDC,
+	ClickPipePostgresReplicationModeSnapshot,
+	ClickPipePostgresReplicationModeCDCOnly,
+}
+
+const (
+	// Postgres table engines
+	ClickPipePostgresTableEngineMergeTree          = "MergeTree"
+	ClickPipePostgresTableEngineReplacingMergeTree = "ReplacingMergeTree"
+	ClickPipePostgresTableEngineNull               = "Null"
+)
+
+var ClickPipePostgresTableEngines = []string{
+	ClickPipePostgresTableEngineMergeTree,
+	ClickPipePostgresTableEngineReplacingMergeTree,
+	ClickPipePostgresTableEngineNull,
+}
+
+const (
 	ClickPipeKafkaOffsetFromBeginningStrategy = "from_beginning"
 	ClickPipeKafkaOffsetFromLatestStrategy    = "from_latest"
 	ClickPipeKafkaOffsetFromTimestampStrategy = "from_timestamp"
