@@ -12,6 +12,7 @@ require (
 	github.com/hashicorp/terraform-plugin-framework v1.15.1
 	github.com/hashicorp/terraform-plugin-framework-validators v0.18.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
+	github.com/stretchr/testify v1.10.0
 	k8s.io/apimachinery v0.34.0
 )
 
