@@ -1,10 +1,6 @@
 resource "clickhouse_clickpipe" "postgres_cdc_clickpipe" {
-  name        = "My Postgres CDC ClickPipe"
-  description = "Change Data Capture pipeline from PostgreSQL to ClickHouse"
-
+  name       = "My Postgres CDC ClickPipe"
   service_id = "e9465b4b-f7e5-4937-8e21-8d508b02843d"
-
-  state = "Running"
 
   source {
     postgres {
@@ -24,24 +20,24 @@ resource "clickhouse_clickpipe" "postgres_cdc_clickpipe" {
         sync_interval_seconds = 60
 
         # Optional: Number of rows to pull per batch
-        pull_batch_size = 1000
+        pull_batch_size = 100000
 
         # Optional: Allow nullable columns in destination tables
         allow_nullable_columns = true
 
         # Optional: Number of parallel workers for initial snapshot load
-        initial_load_parallelism = 2
+        initial_load_parallelism = 4
 
         # Optional: Number of rows per partition during snapshot
-        snapshot_num_rows_per_partition = 50000
+        snapshot_num_rows_per_partition = 100000
 
         # Optional: Number of tables to snapshot in parallel
-        snapshot_number_of_parallel_tables = 2
+        snapshot_number_of_parallel_tables = 1
 
-        # Optional: Publication name (auto-generated if not specified)
+        # Optional: Publication name (system-managed if not specified)
         # publication_name = "my_publication"
 
-        # Optional: Replication slot name (auto-generated if not specified)
+        # Optional: Replication slot name (system-managed if not specified)
         # replication_slot_name = "my_replication_slot"
 
         # Optional: Enable failover slots for high availability
@@ -51,7 +47,7 @@ resource "clickhouse_clickpipe" "postgres_cdc_clickpipe" {
       table_mappings {
         source_schema_name = "public"
         source_table       = "users"
-        target_table       = "users"
+        target_table       = "public_users"
 
         # Optional: Columns to exclude from replication
         # excluded_columns = ["password_hash", "internal_notes"]
@@ -60,14 +56,14 @@ resource "clickhouse_clickpipe" "postgres_cdc_clickpipe" {
         # use_custom_sorting_key = true
         # sorting_keys = ["id", "created_at"]
 
-        # Optional: Specify table engine (default: ReplacingMergeTree for CDC)
+        # Optional: Specify table engine (default: ReplacingMergeTree)
         # table_engine = "ReplacingMergeTree"
       }
 
       table_mappings {
         source_schema_name = "public"
         source_table       = "orders"
-        target_table       = "orders"
+        target_table       = "public_orders"
       }
     }
   }

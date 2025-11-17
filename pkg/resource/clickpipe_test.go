@@ -24,7 +24,7 @@ func TestGetSourceType(t *testing.T) {
 	tests := []struct {
 		name         string
 		sourceModel  models.ClickPipeSourceModel
-		expectedType string
+		expectedType SourceType
 	}{
 		{
 			name: "Kafka source",
@@ -34,7 +34,7 @@ func TestGetSourceType(t *testing.T) {
 				Kinesis:       types.ObjectNull(kinesisTypes),
 				Postgres:      types.ObjectNull(postgresTypes),
 			},
-			expectedType: "kafka",
+			expectedType: SourceTypeKafka,
 		},
 		{
 			name: "ObjectStorage source",
@@ -44,7 +44,7 @@ func TestGetSourceType(t *testing.T) {
 				Kinesis:       types.ObjectNull(kinesisTypes),
 				Postgres:      types.ObjectNull(postgresTypes),
 			},
-			expectedType: "object_storage",
+			expectedType: SourceTypeObjectStorage,
 		},
 		{
 			name: "Kinesis source",
@@ -54,7 +54,7 @@ func TestGetSourceType(t *testing.T) {
 				Kinesis:       types.ObjectUnknown(kinesisTypes),
 				Postgres:      types.ObjectNull(postgresTypes),
 			},
-			expectedType: "kinesis",
+			expectedType: SourceTypeKinesis,
 		},
 		{
 			name: "Postgres source",
@@ -64,7 +64,7 @@ func TestGetSourceType(t *testing.T) {
 				Kinesis:       types.ObjectNull(kinesisTypes),
 				Postgres:      types.ObjectUnknown(postgresTypes),
 			},
-			expectedType: "postgres",
+			expectedType: SourceTypePostgres,
 		},
 		{
 			name: "Unknown source (all null)",
@@ -74,7 +74,7 @@ func TestGetSourceType(t *testing.T) {
 				Kinesis:       types.ObjectNull(kinesisTypes),
 				Postgres:      types.ObjectNull(postgresTypes),
 			},
-			expectedType: "unknown",
+			expectedType: SourceTypeUnknown,
 		},
 	}
 

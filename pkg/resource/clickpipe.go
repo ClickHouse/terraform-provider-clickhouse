@@ -41,6 +41,17 @@ var (
 	_ resource.ResourceWithImportState = &ClickPipeResource{}
 )
 
+// SourceType represents the type of source for a ClickPipe
+type SourceType string
+
+const (
+	SourceTypeKafka         SourceType = "kafka"
+	SourceTypeObjectStorage SourceType = "object_storage"
+	SourceTypeKinesis       SourceType = "kinesis"
+	SourceTypePostgres      SourceType = "postgres"
+	SourceTypeUnknown       SourceType = "unknown"
+)
+
 const clickPipeResourceDescription = `
 This experimental resource allows you to create and manage ClickPipes data ingestion in ClickHouse Cloud.
 
@@ -589,25 +600,19 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"host": schema.StringAttribute{
 								Description: "The hostname of the Postgres instance.",
 								Required:    true,
-								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.RequiresReplace(),
-								},
 							},
 							"port": schema.Int64Attribute{
 								Description: "The port of the Postgres instance. Default is 5432.",
 								Optional:    true,
 								Computed:    true,
 								Default:     int64default.StaticInt64(5432),
-								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.RequiresReplace(),
+								Validators: []validator.Int64{
+									int64validator.Between(1, 65535),
 								},
 							},
 							"database": schema.StringAttribute{
 								Description: "The database name of the Postgres instance.",
 								Required:    true,
-								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.RequiresReplace(),
-								},
 							},
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the Postgres instance.",
@@ -760,9 +765,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									},
 								},
 							},
-						},
-						PlanModifiers: []planmodifier.Object{
-							objectplanmodifier.RequiresReplace(),
 						},
 					},
 				},
@@ -1088,7 +1090,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	sourceModel := models.ClickPipeSourceModel{}
 	response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
 	sourceType := getSourceType(sourceModel)
-	isPostgresSource := sourceType == "postgres"
+	isPostgresSource := sourceType == SourceTypePostgres
 
 	// Extract roles from the destination model
 	var rolesSlice []string
@@ -1302,17 +1304,17 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	response.Diagnostics.Append(diags...)
 }
 
-func getSourceType(sourceModel models.ClickPipeSourceModel) string {
+func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 	if !sourceModel.Kafka.IsNull() {
-		return "kafka"
+		return SourceTypeKafka
 	} else if !sourceModel.ObjectStorage.IsNull() {
-		return "object_storage"
+		return SourceTypeObjectStorage
 	} else if !sourceModel.Kinesis.IsNull() {
-		return "kinesis"
+		return SourceTypeKinesis
 	} else if !sourceModel.Postgres.IsNull() {
-		return "postgres"
+		return SourceTypePostgres
 	}
-	return "unknown"
+	return SourceTypeUnknown
 }
 
 func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics diag.Diagnostics, plan models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
@@ -1896,21 +1898,16 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.PullBatchSize = types.Int64Null()
 		}
 
-		// For optional string fields, if state was null, keep it null (API may return empty string)
-		if stateSettingsModel.PublicationName.IsNull() {
-			settingsModel.PublicationName = types.StringNull()
-		} else if clickPipe.Source.Postgres.Settings.PublicationName != nil && *clickPipe.Source.Postgres.Settings.PublicationName != "" {
+		if clickPipe.Source.Postgres.Settings.PublicationName != nil && *clickPipe.Source.Postgres.Settings.PublicationName != "" {
 			settingsModel.PublicationName = types.StringValue(*clickPipe.Source.Postgres.Settings.PublicationName)
 		} else {
-			settingsModel.PublicationName = stateSettingsModel.PublicationName
+			settingsModel.PublicationName = types.StringNull()
 		}
 
-		if stateSettingsModel.ReplicationSlotName.IsNull() {
-			settingsModel.ReplicationSlotName = types.StringNull()
-		} else if clickPipe.Source.Postgres.Settings.ReplicationSlotName != nil && *clickPipe.Source.Postgres.Settings.ReplicationSlotName != "" {
+		if clickPipe.Source.Postgres.Settings.ReplicationSlotName != nil && *clickPipe.Source.Postgres.Settings.ReplicationSlotName != "" {
 			settingsModel.ReplicationSlotName = types.StringValue(*clickPipe.Source.Postgres.Settings.ReplicationSlotName)
 		} else {
-			settingsModel.ReplicationSlotName = stateSettingsModel.ReplicationSlotName
+			settingsModel.ReplicationSlotName = types.StringNull()
 		}
 
 		if clickPipe.Source.Postgres.Settings.AllowNullableColumns != nil {
@@ -1937,13 +1934,10 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.SnapshotNumberOfParallelTables = types.Int64Null()
 		}
 
-		// For optional bool fields, if state was null, keep it null
-		if stateSettingsModel.EnableFailoverSlots.IsNull() {
-			settingsModel.EnableFailoverSlots = types.BoolNull()
-		} else if clickPipe.Source.Postgres.Settings.EnableFailoverSlots != nil {
+		if clickPipe.Source.Postgres.Settings.EnableFailoverSlots != nil {
 			settingsModel.EnableFailoverSlots = types.BoolValue(*clickPipe.Source.Postgres.Settings.EnableFailoverSlots)
 		} else {
-			settingsModel.EnableFailoverSlots = stateSettingsModel.EnableFailoverSlots
+			settingsModel.EnableFailoverSlots = types.BoolNull()
 		}
 
 		// Table mappings - preserve null values from state
@@ -2047,12 +2041,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		Database: types.StringValue(clickPipe.Destination.Database),
 	}
 
-	// For Postgres CDC, the API doesn't return table/managedTable/columns, so preserve state values
+	// For Postgres CDC, table/managedTable/columns/tableDefinition are not applicable (managed via table_mappings)
 	if isPostgresPipe {
-		destinationModel.Table = stateDestinationModel.Table
-		destinationModel.ManagedTable = stateDestinationModel.ManagedTable
-		destinationModel.Columns = stateDestinationModel.Columns
-		destinationModel.TableDefinition = stateDestinationModel.TableDefinition
+		destinationModel.Table = types.StringNull()
+		destinationModel.ManagedTable = types.BoolNull()
+		destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
+		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
 	} else {
 		// For non-Postgres sources, use API response
 		if clickPipe.Destination.Table != nil {
@@ -2244,10 +2238,13 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		} else if source.ObjectStorage != nil {
 			pipeChanged = true
 			clickPipeUpdate.Source = source
+		} else if source.Postgres != nil {
+			pipeChanged = true
+			clickPipeUpdate.Source = source
 		} else {
 			response.Diagnostics.AddError(
-				"ClickPipe only supports Kafka source updates",
-				"Only Kafka source updates are supported",
+				"ClickPipe source update not supported",
+				"Source type not supported for updates",
 			)
 		}
 	}
