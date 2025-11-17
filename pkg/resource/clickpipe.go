@@ -60,6 +60,20 @@ const (
 	ClickPipeEngineNull               = "Null"
 )
 
+var (
+	// engineParenthesesRegex matches parentheses and any content within them
+	engineParenthesesRegex = regexp.MustCompile(`\([^)]*\)`)
+)
+
+// normalizeEngineType removes parentheses from engine type strings
+// e.g., "MergeTree()" -> "MergeTree", "ReplacingMergeTree() " -> "ReplacingMergeTree"
+func normalizeEngineType(engineType string) string {
+	engineType = strings.TrimSpace(engineType)
+	// Remove parentheses and any content within them
+	engineType = engineParenthesesRegex.ReplaceAllString(engineType, "")
+	return strings.TrimSpace(engineType)
+}
+
 type ClickPipeResource struct {
 	client api.Client
 }
@@ -2079,7 +2093,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	if !isPostgresPipe && clickPipe.Destination.TableDefinition != nil {
 		engineModel := models.ClickPipeDestinationTableEngineModel{
-			Type:            types.StringValue(clickPipe.Destination.TableDefinition.Engine.Type),
+			Type:            types.StringValue(normalizeEngineType(clickPipe.Destination.TableDefinition.Engine.Type)),
 			VersionColumnID: types.StringNull(),
 			ColumnIDs:       types.ListNull(types.StringType),
 		}
