@@ -584,4 +584,5 @@ type ClickPipeResourceModel struct {
 	Destination   types.Object  `tfsdk:"destination"`
 	FieldMappings types.List    `tfsdk:"field_mappings"`
 	Settings      types.Dynamic `tfsdk:"settings"`
+	ForceResync   types.Bool    `tfsdk:"force_resync"`
 }

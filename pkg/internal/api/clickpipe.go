@@ -23,8 +23,9 @@ const (
 )
 
 const (
-	ClickPipeStateStart = "start"
-	ClickPipeStateStop  = "stop"
+	ClickPipeStateStart  = "start"
+	ClickPipeStateStop   = "stop"
+	ClickPipeStateResync = "resync"
 )
 
 const (

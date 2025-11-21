@@ -889,6 +889,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Description: "Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the [OpenAPI documentation](https://clickhouse.com/docs/cloud/manage/api/swagger#tag/ClickPipes/paths/~1v1~1organizations~1%7BorganizationId%7D~1services~1%7BserviceId%7D~1clickpipes~1%7BclickPipeId%7D~1settings/put)",
 				Optional:    true,
 			},
+			"force_resync": schema.BoolAttribute{
+				MarkdownDescription: "Set to `true` to trigger a resync operation. Only applicable for Postgres pipes. Automatically resets to `false` after the resync is triggered. **Note:** This will always show a diff in `terraform plan` after setting to `true` since it resets to `false` in state.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
 		},
 	}
 }
@@ -1060,6 +1066,14 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				"ClickPipe is in an internal error state. Contact ClickHouse Cloud support for assistance. Your changes will be applied.",
 			)
 		}
+	}
+
+	// Handle force_resync auto-reset behavior
+	// If config has force_resync = true, set the plan to false to match the final state
+	// This prevents Terraform from showing an inconsistent result error
+	if !config.ForceResync.IsNull() && config.ForceResync.ValueBool() {
+		plan.ForceResync = types.BoolValue(false)
+		response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
 	}
 }
 
@@ -1277,13 +1291,43 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 	}
 
-	expectedState := api.ClickPipeRunningState
+	// Determine expected state(s) based on configuration
+	var stateCheckFunc func(string) bool
 	if plan.Stopped.ValueBool() {
-		expectedState = api.ClickPipeStoppedState
+		stateCheckFunc = func(state string) bool {
+			return state == api.ClickPipeStoppedState
+		}
+	} else {
+		// Check if this is a snapshot-only Postgres pipe
+		isSnapshotOnly := false
+		var sourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
+			if !sourceModel.Postgres.IsNull() {
+				var postgresSource models.ClickPipePostgresSourceModel
+				if diags := sourceModel.Postgres.As(ctx, &postgresSource, basetypes.ObjectAsOptions{}); diags == nil {
+					if !postgresSource.Settings.IsNull() {
+						var settings models.ClickPipePostgresSettingsModel
+						if diags := postgresSource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); diags == nil {
+							isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipePostgresReplicationModeSnapshot
+						}
+					}
+				}
+			}
+		}
+
+		// For snapshot-only pipes, accept both Running and Completed states
+		if isSnapshotOnly {
+			stateCheckFunc = func(state string) bool {
+				return state == api.ClickPipeRunningState || state == api.ClickPipeCompletedState
+			}
+		} else {
+			stateCheckFunc = func(state string) bool {
+				return state == api.ClickPipeRunningState
+			}
+		}
 	}
-	if _, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, func(state string) bool {
-		return state == expectedState
-	}, clickPipeStateChangeMaxWaitSeconds); err != nil {
+
+	if _, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, stateCheckFunc, clickPipeStateChangeMaxWaitSeconds); err != nil {
 		response.Diagnostics.AddWarning(
 			"ClickPipe didn't reach the desired state",
 			err.Error(),
@@ -1934,8 +1978,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.SnapshotNumberOfParallelTables = types.Int64Null()
 		}
 
+		// Preserve null from state if it was null and API returns a default
 		if clickPipe.Source.Postgres.Settings.EnableFailoverSlots != nil {
-			settingsModel.EnableFailoverSlots = types.BoolValue(*clickPipe.Source.Postgres.Settings.EnableFailoverSlots)
+			// If state had null, preserve it
+			if !stateSettingsModel.EnableFailoverSlots.IsNull() {
+				settingsModel.EnableFailoverSlots = types.BoolValue(*clickPipe.Source.Postgres.Settings.EnableFailoverSlots)
+			} else {
+				settingsModel.EnableFailoverSlots = types.BoolNull()
+			}
 		} else {
 			settingsModel.EnableFailoverSlots = types.BoolNull()
 		}
@@ -2041,12 +2091,30 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		Database: types.StringValue(clickPipe.Destination.Database),
 	}
 
-	// For Postgres CDC, table/managedTable/columns/tableDefinition are not applicable (managed via table_mappings)
+	// For Postgres CDC, table/managedTable/columns/tableDefinition are not returned by API (managed via table_mappings)
+	// Preserve these values from state since they were in the plan but API doesn't return them
 	if isPostgresPipe {
-		destinationModel.Table = types.StringNull()
-		destinationModel.ManagedTable = types.BoolNull()
-		destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
-		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
+		// Preserve destination fields from state for Postgres pipes
+		if !stateDestinationModel.Table.IsNull() {
+			destinationModel.Table = stateDestinationModel.Table
+		} else {
+			destinationModel.Table = types.StringNull()
+		}
+		if !stateDestinationModel.ManagedTable.IsNull() {
+			destinationModel.ManagedTable = stateDestinationModel.ManagedTable
+		} else {
+			destinationModel.ManagedTable = types.BoolNull()
+		}
+		if !stateDestinationModel.Columns.IsNull() {
+			destinationModel.Columns = stateDestinationModel.Columns
+		} else {
+			destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
+		}
+		if !stateDestinationModel.TableDefinition.IsNull() {
+			destinationModel.TableDefinition = stateDestinationModel.TableDefinition
+		} else {
+			destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
+		}
 	} else {
 		// For non-Postgres sources, use API response
 		if clickPipe.Destination.Table != nil {
@@ -2172,6 +2240,10 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		state.Settings = types.DynamicNull()
 	}
 
+	// force_resync is a trigger attribute that auto-resets to false
+	// It's not persisted by the API, so always set it to false in state
+	state.ForceResync = types.BoolValue(false)
+
 	return nil
 }
 
@@ -2202,23 +2274,38 @@ func (c *ClickPipeResource) Read(ctx context.Context, request resource.ReadReque
 }
 
 func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateRequest, response *resource.UpdateResponse) {
-	var plan, state models.ClickPipeResourceModel
+	var plan, state, config models.ClickPipeResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
+	response.Diagnostics.Append(diags...)
+	diags = req.Config.Get(ctx, &config)
 	response.Diagnostics.Append(diags...)
 
 	if response.Diagnostics.HasError() {
 		return
 	}
 
+	// Check if pipe is in Completed state - only allow resync operations
 	if state.State.ValueString() == api.ClickPipeCompletedState {
-		response.Diagnostics.AddError(
-			"Error Modifying ClickPipe",
-			fmt.Sprintf("ClickPipe is in the %s state and cannot be modified", api.ClickPipeCompletedState),
-		)
+		// Allow force_resync operation on Completed pipes (e.g., snapshot-only Postgres pipes)
+		// Check config (not plan) because ModifyPlan already set plan.ForceResync to false
+		isOnlyResync := !config.ForceResync.IsNull() && config.ForceResync.ValueBool() &&
+			plan.Name.Equal(state.Name) &&
+			plan.Source.Equal(state.Source) &&
+			plan.Destination.Equal(state.Destination) &&
+			plan.FieldMappings.Equal(state.FieldMappings) &&
+			plan.Settings.Equal(state.Settings) &&
+			plan.Stopped.Equal(state.Stopped) &&
+			plan.Scaling.Equal(state.Scaling)
 
-		return
+		if !isOnlyResync {
+			response.Diagnostics.AddError(
+				"Error Modifying ClickPipe",
+				fmt.Sprintf("ClickPipe is in the %s state and cannot be modified. Only resync operations are allowed via force_resync attribute.", api.ClickPipeCompletedState),
+			)
+			return
+		}
 	}
 
 	var pipeChanged bool
@@ -2343,6 +2430,33 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
+	// Handle force_resync for Postgres pipes
+	// Check config (not plan) because ModifyPlan already set plan to false
+	if !config.ForceResync.IsNull() && config.ForceResync.ValueBool() && !state.ForceResync.ValueBool() {
+		// Check if this is a Postgres pipe
+		var sourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+			response.Diagnostics.Append(diags...)
+			return
+		}
+
+		if !sourceModel.Postgres.IsNull() {
+			// Trigger resync
+			if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), api.ClickPipeStateResync); err != nil {
+				response.Diagnostics.AddError(
+					"Error Resyncing ClickPipe",
+					"Could not trigger resync for ClickPipe, unexpected error: "+err.Error(),
+				)
+				return
+			}
+		} else {
+			response.Diagnostics.AddWarning(
+				"Force Resync Not Applicable",
+				"force_resync is only applicable for Postgres pipes and will be ignored for other source types.",
+			)
+		}
+	}
+
 	if !plan.Scaling.Equal(state.Scaling) && !plan.Scaling.IsUnknown() {
 		scalingModel := models.ClickPipeScalingModel{}
 		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
@@ -2369,13 +2483,43 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	expectedState := api.ClickPipeRunningState
+	// Determine expected state(s) based on configuration
+	var stateCheckFunc func(string) bool
 	if plan.Stopped.ValueBool() {
-		expectedState = api.ClickPipeStoppedState
+		stateCheckFunc = func(state string) bool {
+			return state == api.ClickPipeStoppedState
+		}
+	} else {
+		// Check if this is a snapshot-only Postgres pipe
+		isSnapshotOnly := false
+		var sourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
+			if !sourceModel.Postgres.IsNull() {
+				var postgresSource models.ClickPipePostgresSourceModel
+				if diags := sourceModel.Postgres.As(ctx, &postgresSource, basetypes.ObjectAsOptions{}); diags == nil {
+					if !postgresSource.Settings.IsNull() {
+						var settings models.ClickPipePostgresSettingsModel
+						if diags := postgresSource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); diags == nil {
+							isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipePostgresReplicationModeSnapshot
+						}
+					}
+				}
+			}
+		}
+
+		// For snapshot-only pipes, accept both Running and Completed states
+		if isSnapshotOnly {
+			stateCheckFunc = func(state string) bool {
+				return state == api.ClickPipeRunningState || state == api.ClickPipeCompletedState
+			}
+		} else {
+			stateCheckFunc = func(state string) bool {
+				return state == api.ClickPipeRunningState
+			}
+		}
 	}
-	if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), func(state string) bool {
-		return state == expectedState
-	}, clickPipeStateChangeMaxWaitSeconds); err != nil {
+
+	if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), stateCheckFunc, clickPipeStateChangeMaxWaitSeconds); err != nil {
 		response.Diagnostics.AddWarning(
 			"ClickPipe didn't reach the desired state",
 			err.Error(),
