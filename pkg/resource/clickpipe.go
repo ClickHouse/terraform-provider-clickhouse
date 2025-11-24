@@ -1717,6 +1717,7 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 		return func(state string) bool {
 			return state == api.ClickPipeRunningState ||
 				state == api.ClickPipeCompletedState ||
+				state == api.ClickPipeSnapShotState ||
 				state == api.ClickPipeFailedState ||
 				state == api.ClickPipeInternalErrorState
 		}

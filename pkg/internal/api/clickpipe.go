@@ -19,6 +19,7 @@ const (
 	ClickPipeStoppedState       = "Stopped"
 	ClickPipeFailedState        = "Failed"
 	ClickPipeCompletedState     = "Completed"
+	ClickPipeSnapShotState      = "Snapshot"
 	ClickPipeInternalErrorState = "InternalError"
 )
 
