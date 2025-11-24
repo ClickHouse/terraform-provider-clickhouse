@@ -715,6 +715,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"enable_failover_slots": schema.BoolAttribute{
 										Description: "Enable failover for created replication slot. Requires a replication slot to NOT be set.",
 										Optional:    true,
+										Computed:    true,
+										Default:     booldefault.StaticBool(false),
 										PlanModifiers: []planmodifier.Bool{
 											boolplanmodifier.RequiresReplace(),
 										},
@@ -889,7 +891,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Description: "Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the [OpenAPI documentation](https://clickhouse.com/docs/cloud/manage/api/swagger#tag/ClickPipes/paths/~1v1~1organizations~1%7BorganizationId%7D~1services~1%7BserviceId%7D~1clickpipes~1%7BclickPipeId%7D~1settings/put)",
 				Optional:    true,
 			},
-			"force_resync": schema.BoolAttribute{
+			"trigger_resync": schema.BoolAttribute{
 				MarkdownDescription: "Set to `true` to trigger a resync operation. Only applicable for Postgres pipes. Automatically resets to `false` after the resync is triggered. **Note:** This will always show a diff in `terraform plan` after setting to `true` since it resets to `false` in state.",
 				Optional:            true,
 				Computed:            true,
@@ -1068,11 +1070,11 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Handle force_resync auto-reset behavior
-	// If config has force_resync = true, set the plan to false to match the final state
+	// Handle trigger_resync auto-reset behavior
+	// If config has trigger_resync = true, set the plan to false to match the final state
 	// This prevents Terraform from showing an inconsistent result error
-	if !config.ForceResync.IsNull() && config.ForceResync.ValueBool() {
-		plan.ForceResync = types.BoolValue(false)
+	if !config.TriggerResync.IsNull() && config.TriggerResync.ValueBool() {
+		plan.TriggerResync = types.BoolValue(false)
 		response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
 	}
 }
@@ -1292,40 +1294,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	}
 
 	// Determine expected state(s) based on configuration
-	var stateCheckFunc func(string) bool
-	if plan.Stopped.ValueBool() {
-		stateCheckFunc = func(state string) bool {
-			return state == api.ClickPipeStoppedState
-		}
-	} else {
-		// Check if this is a snapshot-only Postgres pipe
-		isSnapshotOnly := false
-		var sourceModel models.ClickPipeSourceModel
-		if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
-			if !sourceModel.Postgres.IsNull() {
-				var postgresSource models.ClickPipePostgresSourceModel
-				if diags := sourceModel.Postgres.As(ctx, &postgresSource, basetypes.ObjectAsOptions{}); diags == nil {
-					if !postgresSource.Settings.IsNull() {
-						var settings models.ClickPipePostgresSettingsModel
-						if diags := postgresSource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); diags == nil {
-							isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipePostgresReplicationModeSnapshot
-						}
-					}
-				}
-			}
-		}
-
-		// For snapshot-only pipes, accept both Running and Completed states
-		if isSnapshotOnly {
-			stateCheckFunc = func(state string) bool {
-				return state == api.ClickPipeRunningState || state == api.ClickPipeCompletedState
-			}
-		} else {
-			stateCheckFunc = func(state string) bool {
-				return state == api.ClickPipeRunningState
-			}
-		}
-	}
+	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
 
 	if _, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, stateCheckFunc, clickPipeStateChangeMaxWaitSeconds); err != nil {
 		response.Diagnostics.AddWarning(
@@ -1625,40 +1594,43 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			settings.EnableFailoverSlots = &val
 		}
 
-		// Extract table mappings
-		tableMappingModels := make([]models.ClickPipePostgresTableMappingModel, len(postgresModel.TableMappings.Elements()))
-		diagnostics.Append(postgresModel.TableMappings.ElementsAs(ctx, &tableMappingModels, false)...)
+		// Extract table mappings (skip for updates as they're handled separately via TableMappingsToAdd/Remove)
+		var tableMappings []api.ClickPipePostgresTableMapping
+		if !isUpdate {
+			tableMappingModels := make([]models.ClickPipePostgresTableMappingModel, len(postgresModel.TableMappings.Elements()))
+			diagnostics.Append(postgresModel.TableMappings.ElementsAs(ctx, &tableMappingModels, false)...)
 
-		tableMappings := make([]api.ClickPipePostgresTableMapping, len(tableMappingModels))
-		for i, mappingModel := range tableMappingModels {
-			mapping := api.ClickPipePostgresTableMapping{
-				SourceSchemaName: mappingModel.SourceSchemaName.ValueString(),
-				SourceTable:      mappingModel.SourceTable.ValueString(),
-				TargetTable:      mappingModel.TargetTable.ValueString(),
+			tableMappings = make([]api.ClickPipePostgresTableMapping, len(tableMappingModels))
+			for i, mappingModel := range tableMappingModels {
+				mapping := api.ClickPipePostgresTableMapping{
+					SourceSchemaName: mappingModel.SourceSchemaName.ValueString(),
+					SourceTable:      mappingModel.SourceTable.ValueString(),
+					TargetTable:      mappingModel.TargetTable.ValueString(),
+				}
+
+				if !mappingModel.ExcludedColumns.IsNull() && len(mappingModel.ExcludedColumns.Elements()) > 0 {
+					excludedCols := make([]string, len(mappingModel.ExcludedColumns.Elements()))
+					diagnostics.Append(mappingModel.ExcludedColumns.ElementsAs(ctx, &excludedCols, false)...)
+					mapping.ExcludedColumns = excludedCols
+				}
+
+				if !mappingModel.UseCustomSortingKey.IsNull() {
+					val := mappingModel.UseCustomSortingKey.ValueBool()
+					mapping.UseCustomSortingKey = &val
+				}
+
+				if !mappingModel.SortingKeys.IsNull() && len(mappingModel.SortingKeys.Elements()) > 0 {
+					sortingKeys := make([]string, len(mappingModel.SortingKeys.Elements()))
+					diagnostics.Append(mappingModel.SortingKeys.ElementsAs(ctx, &sortingKeys, false)...)
+					mapping.SortingKeys = sortingKeys
+				}
+
+				if !mappingModel.TableEngine.IsNull() {
+					mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
+				}
+
+				tableMappings[i] = mapping
 			}
-
-			if !mappingModel.ExcludedColumns.IsNull() && len(mappingModel.ExcludedColumns.Elements()) > 0 {
-				excludedCols := make([]string, len(mappingModel.ExcludedColumns.Elements()))
-				diagnostics.Append(mappingModel.ExcludedColumns.ElementsAs(ctx, &excludedCols, false)...)
-				mapping.ExcludedColumns = excludedCols
-			}
-
-			if !mappingModel.UseCustomSortingKey.IsNull() {
-				val := mappingModel.UseCustomSortingKey.ValueBool()
-				mapping.UseCustomSortingKey = &val
-			}
-
-			if !mappingModel.SortingKeys.IsNull() && len(mappingModel.SortingKeys.Elements()) > 0 {
-				sortingKeys := make([]string, len(mappingModel.SortingKeys.Elements()))
-				diagnostics.Append(mappingModel.SortingKeys.ElementsAs(ctx, &sortingKeys, false)...)
-				mapping.SortingKeys = sortingKeys
-			}
-
-			if !mappingModel.TableEngine.IsNull() {
-				mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
-			}
-
-			tableMappings[i] = mapping
 		}
 
 		source.Postgres = &api.ClickPipePostgresSource{
@@ -1681,6 +1653,81 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 	}
 
 	return source
+}
+
+func (c *ClickPipeResource) convertTableMappingModelToAPI(ctx context.Context, diagnostics diag.Diagnostics, mappingModel models.ClickPipePostgresTableMappingModel) api.ClickPipePostgresTableMapping {
+	mapping := api.ClickPipePostgresTableMapping{
+		SourceSchemaName: mappingModel.SourceSchemaName.ValueString(),
+		SourceTable:      mappingModel.SourceTable.ValueString(),
+		TargetTable:      mappingModel.TargetTable.ValueString(),
+	}
+
+	if !mappingModel.ExcludedColumns.IsNull() && len(mappingModel.ExcludedColumns.Elements()) > 0 {
+		excludedCols := make([]string, len(mappingModel.ExcludedColumns.Elements()))
+		diagnostics.Append(mappingModel.ExcludedColumns.ElementsAs(ctx, &excludedCols, false)...)
+		mapping.ExcludedColumns = excludedCols
+	}
+
+	if !mappingModel.UseCustomSortingKey.IsNull() {
+		val := mappingModel.UseCustomSortingKey.ValueBool()
+		mapping.UseCustomSortingKey = &val
+	}
+
+	if !mappingModel.SortingKeys.IsNull() && len(mappingModel.SortingKeys.Elements()) > 0 {
+		sortingKeys := make([]string, len(mappingModel.SortingKeys.Elements()))
+		diagnostics.Append(mappingModel.SortingKeys.ElementsAs(ctx, &sortingKeys, false)...)
+		mapping.SortingKeys = sortingKeys
+	}
+
+	if !mappingModel.TableEngine.IsNull() {
+		mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
+	}
+
+	return mapping
+}
+
+func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.ClickPipeResourceModel) func(string) bool {
+	// If stopped, wait for Stopped state
+	if plan.Stopped.ValueBool() {
+		return func(state string) bool {
+			return state == api.ClickPipeStoppedState
+		}
+	}
+
+	// Check if this is a snapshot-only Postgres pipe
+	isSnapshotOnly := false
+	var sourceModel models.ClickPipeSourceModel
+	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
+		if !sourceModel.Postgres.IsNull() {
+			var postgresSource models.ClickPipePostgresSourceModel
+			if diags := sourceModel.Postgres.As(ctx, &postgresSource, basetypes.ObjectAsOptions{}); diags == nil {
+				if !postgresSource.Settings.IsNull() {
+					var settings models.ClickPipePostgresSettingsModel
+					if diags := postgresSource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); diags == nil {
+						isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipePostgresReplicationModeSnapshot
+					}
+				}
+			}
+		}
+	}
+
+	// For snapshot-only pipes, accept both Running and Completed states
+	// Also treat terminal error states (Failed, InternalError) as complete to stop waiting
+	if isSnapshotOnly {
+		return func(state string) bool {
+			return state == api.ClickPipeRunningState ||
+				state == api.ClickPipeCompletedState ||
+				state == api.ClickPipeFailedState ||
+				state == api.ClickPipeInternalErrorState
+		}
+	}
+
+	// For other pipes, wait for Running state or terminal error states
+	return func(state string) bool {
+		return state == api.ClickPipeRunningState ||
+			state == api.ClickPipeFailedState ||
+			state == api.ClickPipeInternalErrorState
+	}
 }
 
 func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *models.ClickPipeResourceModel) error {
@@ -1978,14 +2025,9 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.SnapshotNumberOfParallelTables = types.Int64Null()
 		}
 
-		// Preserve null from state if it was null and API returns a default
+		// EnableFailoverSlots is Optional+Computed with default=false, so always use API value
 		if clickPipe.Source.Postgres.Settings.EnableFailoverSlots != nil {
-			// If state had null, preserve it
-			if !stateSettingsModel.EnableFailoverSlots.IsNull() {
-				settingsModel.EnableFailoverSlots = types.BoolValue(*clickPipe.Source.Postgres.Settings.EnableFailoverSlots)
-			} else {
-				settingsModel.EnableFailoverSlots = types.BoolNull()
-			}
+			settingsModel.EnableFailoverSlots = types.BoolValue(*clickPipe.Source.Postgres.Settings.EnableFailoverSlots)
 		} else {
 			settingsModel.EnableFailoverSlots = types.BoolNull()
 		}
@@ -2094,27 +2136,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	// For Postgres CDC, table/managedTable/columns/tableDefinition are not returned by API (managed via table_mappings)
 	// Preserve these values from state since they were in the plan but API doesn't return them
 	if isPostgresPipe {
-		// Preserve destination fields from state for Postgres pipes
-		if !stateDestinationModel.Table.IsNull() {
-			destinationModel.Table = stateDestinationModel.Table
-		} else {
-			destinationModel.Table = types.StringNull()
-		}
-		if !stateDestinationModel.ManagedTable.IsNull() {
-			destinationModel.ManagedTable = stateDestinationModel.ManagedTable
-		} else {
-			destinationModel.ManagedTable = types.BoolNull()
-		}
-		if !stateDestinationModel.Columns.IsNull() {
-			destinationModel.Columns = stateDestinationModel.Columns
-		} else {
-			destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
-		}
-		if !stateDestinationModel.TableDefinition.IsNull() {
-			destinationModel.TableDefinition = stateDestinationModel.TableDefinition
-		} else {
-			destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
-		}
+		// Preserve destination fields from state for Postgres pipes (API doesn't return these)
+		destinationModel.Table = stateDestinationModel.Table
+		destinationModel.ManagedTable = stateDestinationModel.ManagedTable
+		destinationModel.Columns = stateDestinationModel.Columns
+		destinationModel.TableDefinition = stateDestinationModel.TableDefinition
 	} else {
 		// For non-Postgres sources, use API response
 		if clickPipe.Destination.Table != nil {
@@ -2240,9 +2266,9 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		state.Settings = types.DynamicNull()
 	}
 
-	// force_resync is a trigger attribute that auto-resets to false
+	// trigger_resync is a trigger attribute that auto-resets to false
 	// It's not persisted by the API, so always set it to false in state
-	state.ForceResync = types.BoolValue(false)
+	state.TriggerResync = types.BoolValue(false)
 
 	return nil
 }
@@ -2288,9 +2314,9 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 	// Check if pipe is in Completed state - only allow resync operations
 	if state.State.ValueString() == api.ClickPipeCompletedState {
-		// Allow force_resync operation on Completed pipes (e.g., snapshot-only Postgres pipes)
-		// Check config (not plan) because ModifyPlan already set plan.ForceResync to false
-		isOnlyResync := !config.ForceResync.IsNull() && config.ForceResync.ValueBool() &&
+		// Allow trigger_resync operation on Completed pipes (e.g., snapshot-only Postgres pipes)
+		// Check config (not plan) because ModifyPlan already set plan.TriggerResync to false
+		isOnlyResync := !config.TriggerResync.IsNull() && config.TriggerResync.ValueBool() &&
 			plan.Name.Equal(state.Name) &&
 			plan.Source.Equal(state.Source) &&
 			plan.Destination.Equal(state.Destination) &&
@@ -2302,7 +2328,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		if !isOnlyResync {
 			response.Diagnostics.AddError(
 				"Error Modifying ClickPipe",
-				fmt.Sprintf("ClickPipe is in the %s state and cannot be modified. Only resync operations are allowed via force_resync attribute.", api.ClickPipeCompletedState),
+				fmt.Sprintf("ClickPipe is in the %s state and cannot be modified. Only resync operations are allowed via trigger_resync attribute.", api.ClickPipeCompletedState),
 			)
 			return
 		}
@@ -2317,22 +2343,106 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	if !plan.Source.Equal(state.Source) {
-		source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+		// Extract source models to check type
+		planSourceModel := models.ClickPipeSourceModel{}
+		response.Diagnostics.Append(plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{})...)
 
-		if source.Kafka != nil {
-			pipeChanged = true
-			clickPipeUpdate.Source = source
-		} else if source.ObjectStorage != nil {
-			pipeChanged = true
-			clickPipeUpdate.Source = source
-		} else if source.Postgres != nil {
-			pipeChanged = true
-			clickPipeUpdate.Source = source
+		stateSourceModel := models.ClickPipeSourceModel{}
+		response.Diagnostics.Append(state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{})...)
+
+		// Special handling for Postgres sources with table_mapping changes
+		if !planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull() {
+			planPostgresModel := models.ClickPipePostgresSourceModel{}
+			response.Diagnostics.Append(planSourceModel.Postgres.As(ctx, &planPostgresModel, basetypes.ObjectAsOptions{})...)
+
+			statePostgresModel := models.ClickPipePostgresSourceModel{}
+			response.Diagnostics.Append(stateSourceModel.Postgres.As(ctx, &statePostgresModel, basetypes.ObjectAsOptions{})...)
+
+			// Check if table_mappings or other Postgres fields changed
+			tableMappingsChanged := !planPostgresModel.TableMappings.Equal(statePostgresModel.TableMappings)
+			otherFieldsChanged := !planPostgresModel.Host.Equal(statePostgresModel.Host) ||
+				!planPostgresModel.Port.Equal(statePostgresModel.Port) ||
+				!planPostgresModel.Database.Equal(statePostgresModel.Database) ||
+				!planPostgresModel.Credentials.Equal(statePostgresModel.Credentials) ||
+				!planPostgresModel.Settings.Equal(statePostgresModel.Settings)
+
+			if tableMappingsChanged || otherFieldsChanged {
+				pipeChanged = true
+				source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+
+				// If table_mappings changed, set TableMappingsToAdd/Remove on Postgres source
+				if tableMappingsChanged && source.Postgres != nil {
+					// Extract plan table mappings
+					planTableMappingModels := make([]models.ClickPipePostgresTableMappingModel, len(planPostgresModel.TableMappings.Elements()))
+					response.Diagnostics.Append(planPostgresModel.TableMappings.ElementsAs(ctx, &planTableMappingModels, false)...)
+
+					// Extract state table mappings
+					stateTableMappingModels := make([]models.ClickPipePostgresTableMappingModel, len(statePostgresModel.TableMappings.Elements()))
+					response.Diagnostics.Append(statePostgresModel.TableMappings.ElementsAs(ctx, &stateTableMappingModels, false)...)
+
+					// Build maps for comparison using a composite key
+					planMappingsMap := make(map[string]api.ClickPipePostgresTableMapping)
+					stateMappingsMap := make(map[string]api.ClickPipePostgresTableMapping)
+
+					// Convert plan mappings to API format and store in map
+					for _, mappingModel := range planTableMappingModels {
+						mapping := c.convertTableMappingModelToAPI(ctx, response.Diagnostics, mappingModel)
+						key := fmt.Sprintf("%s.%s->%s", mapping.SourceSchemaName, mapping.SourceTable, mapping.TargetTable)
+						planMappingsMap[key] = mapping
+					}
+
+					// Convert state mappings to API format and store in map
+					for _, mappingModel := range stateTableMappingModels {
+						mapping := c.convertTableMappingModelToAPI(ctx, response.Diagnostics, mappingModel)
+						key := fmt.Sprintf("%s.%s->%s", mapping.SourceSchemaName, mapping.SourceTable, mapping.TargetTable)
+						stateMappingsMap[key] = mapping
+					}
+
+					// Find mappings to add (in plan but not in state)
+					var tableMappingsToAdd []api.ClickPipePostgresTableMapping
+					for key, mapping := range planMappingsMap {
+						if _, exists := stateMappingsMap[key]; !exists {
+							tableMappingsToAdd = append(tableMappingsToAdd, mapping)
+						}
+					}
+
+					// Find mappings to remove (in state but not in plan)
+					var tableMappingsToRemove []api.ClickPipePostgresTableMapping
+					for key, mapping := range stateMappingsMap {
+						if _, exists := planMappingsMap[key]; !exists {
+							tableMappingsToRemove = append(tableMappingsToRemove, mapping)
+						}
+					}
+
+					if len(tableMappingsToAdd) > 0 {
+						source.Postgres.TableMappingsToAdd = tableMappingsToAdd
+					}
+					if len(tableMappingsToRemove) > 0 {
+						source.Postgres.TableMappingsToRemove = tableMappingsToRemove
+					}
+				}
+
+				clickPipeUpdate.Source = source
+			}
 		} else {
-			response.Diagnostics.AddError(
-				"ClickPipe source update not supported",
-				"Source type not supported for updates",
-			)
+			// Non-Postgres source or type change
+			source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+
+			if source.Kafka != nil {
+				pipeChanged = true
+				clickPipeUpdate.Source = source
+			} else if source.ObjectStorage != nil {
+				pipeChanged = true
+				clickPipeUpdate.Source = source
+			} else if source.Postgres != nil {
+				pipeChanged = true
+				clickPipeUpdate.Source = source
+			} else {
+				response.Diagnostics.AddError(
+					"ClickPipe source update not supported",
+					"Source type not supported for updates",
+				)
+			}
 		}
 	}
 
@@ -2430,9 +2540,9 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	// Handle force_resync for Postgres pipes
+	// Handle trigger_resync for Postgres pipes
 	// Check config (not plan) because ModifyPlan already set plan to false
-	if !config.ForceResync.IsNull() && config.ForceResync.ValueBool() && !state.ForceResync.ValueBool() {
+	if !config.TriggerResync.IsNull() && config.TriggerResync.ValueBool() && !state.TriggerResync.ValueBool() {
 		// Check if this is a Postgres pipe
 		var sourceModel models.ClickPipeSourceModel
 		if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
@@ -2451,8 +2561,8 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			}
 		} else {
 			response.Diagnostics.AddWarning(
-				"Force Resync Not Applicable",
-				"force_resync is only applicable for Postgres pipes and will be ignored for other source types.",
+				"Trigger Resync Not Applicable",
+				"trigger_resync is only applicable for Postgres pipes and will be ignored for other source types.",
 			)
 		}
 	}
@@ -2484,40 +2594,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	// Determine expected state(s) based on configuration
-	var stateCheckFunc func(string) bool
-	if plan.Stopped.ValueBool() {
-		stateCheckFunc = func(state string) bool {
-			return state == api.ClickPipeStoppedState
-		}
-	} else {
-		// Check if this is a snapshot-only Postgres pipe
-		isSnapshotOnly := false
-		var sourceModel models.ClickPipeSourceModel
-		if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
-			if !sourceModel.Postgres.IsNull() {
-				var postgresSource models.ClickPipePostgresSourceModel
-				if diags := sourceModel.Postgres.As(ctx, &postgresSource, basetypes.ObjectAsOptions{}); diags == nil {
-					if !postgresSource.Settings.IsNull() {
-						var settings models.ClickPipePostgresSettingsModel
-						if diags := postgresSource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); diags == nil {
-							isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipePostgresReplicationModeSnapshot
-						}
-					}
-				}
-			}
-		}
-
-		// For snapshot-only pipes, accept both Running and Completed states
-		if isSnapshotOnly {
-			stateCheckFunc = func(state string) bool {
-				return state == api.ClickPipeRunningState || state == api.ClickPipeCompletedState
-			}
-		} else {
-			stateCheckFunc = func(state string) bool {
-				return state == api.ClickPipeRunningState
-			}
-		}
-	}
+	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
 
 	if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), stateCheckFunc, clickPipeStateChangeMaxWaitSeconds); err != nil {
 		response.Diagnostics.AddWarning(

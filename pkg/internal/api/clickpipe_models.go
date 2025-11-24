@@ -144,12 +144,14 @@ type ClickPipeKinesisSource struct {
 }
 
 type ClickPipePostgresSource struct {
-	Host        string                          `json:"host"`
-	Port        int                             `json:"port"`
-	Database    string                          `json:"database"`
-	Credentials *ClickPipeSourceCredentials     `json:"credentials,omitempty"`
-	Settings    ClickPipePostgresSettings       `json:"settings"`
-	Mappings    []ClickPipePostgresTableMapping `json:"tableMappings"`
+	Host                  string                          `json:"host"`
+	Port                  int                             `json:"port"`
+	Database              string                          `json:"database"`
+	Credentials           *ClickPipeSourceCredentials     `json:"credentials,omitempty"`
+	Settings              ClickPipePostgresSettings       `json:"settings"`
+	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings"`
+	TableMappingsToRemove []ClickPipePostgresTableMapping `json:"tableMappingsToRemove,omitempty"`
+	TableMappingsToAdd    []ClickPipePostgresTableMapping `json:"tableMappingsToAdd,omitempty"`
 }
 
 type ClickPipePostgresSettings struct {
