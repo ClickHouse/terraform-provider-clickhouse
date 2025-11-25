@@ -726,6 +726,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"table_mappings": schema.ListNestedAttribute{
 								Description: "Table mappings from Postgres source to ClickHouse destination.",
 								Required:    true,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.RequiresReplace(),
+								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
 										"source_schema_name": schema.StringAttribute{
@@ -771,6 +774,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					},
 				},
 				Required: true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.RequiresReplace(),
+				},
 			},
 			"destination": schema.SingleNestedAttribute{
 				Description: "The destination for the ClickPipe.",
@@ -1715,11 +1721,9 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 	// Also treat terminal error states (Failed, InternalError) as complete to stop waiting
 	if isSnapshotOnly {
 		return func(state string) bool {
-			return state == api.ClickPipeRunningState ||
-				state == api.ClickPipeCompletedState ||
+			return state == api.ClickPipeCompletedState ||
 				state == api.ClickPipeSnapShotState ||
-				state == api.ClickPipeFailedState ||
-				state == api.ClickPipeInternalErrorState
+				state == api.ClickPipeFailedState
 		}
 	}
 
@@ -2134,14 +2138,13 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		Database: types.StringValue(clickPipe.Destination.Database),
 	}
 
-	// For Postgres CDC, table/managedTable/columns/tableDefinition are not returned by API (managed via table_mappings)
-	// Preserve these values from state since they were in the plan but API doesn't return them
+	// For Postgres CDC, table/columns/tableDefinition are always null (managed via table_mappings)
+	// But managed_table should be preserved from state since user can configure it
 	if isPostgresPipe {
-		// Preserve destination fields from state for Postgres pipes (API doesn't return these)
-		destinationModel.Table = stateDestinationModel.Table
-		destinationModel.ManagedTable = stateDestinationModel.ManagedTable
-		destinationModel.Columns = stateDestinationModel.Columns
-		destinationModel.TableDefinition = stateDestinationModel.TableDefinition
+		destinationModel.Table = types.StringNull()
+		destinationModel.ManagedTable = stateDestinationModel.ManagedTable  // Preserve from state
+		destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
+		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
 	} else {
 		// For non-Postgres sources, use API response
 		if clickPipe.Destination.Table != nil {
