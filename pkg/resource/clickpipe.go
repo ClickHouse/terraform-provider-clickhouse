@@ -2142,7 +2142,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	// But managed_table should be preserved from state since user can configure it
 	if isPostgresPipe {
 		destinationModel.Table = types.StringNull()
-		destinationModel.ManagedTable = stateDestinationModel.ManagedTable  // Preserve from state
+		destinationModel.ManagedTable = stateDestinationModel.ManagedTable // Preserve from state
 		destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
 		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
 	} else {
