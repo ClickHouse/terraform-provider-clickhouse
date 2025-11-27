@@ -143,10 +143,45 @@ type ClickPipeKinesisSource struct {
 	IAMRole        *string                   `json:"iamRole,omitempty"`
 }
 
+type ClickPipePostgresSource struct {
+	Host                  string                          `json:"host"`
+	Port                  int                             `json:"port"`
+	Database              string                          `json:"database"`
+	Credentials           *ClickPipeSourceCredentials     `json:"credentials,omitempty"`
+	Settings              ClickPipePostgresSettings       `json:"settings"`
+	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings"`
+	TableMappingsToRemove []ClickPipePostgresTableMapping `json:"tableMappingsToRemove,omitempty"`
+	TableMappingsToAdd    []ClickPipePostgresTableMapping `json:"tableMappingsToAdd,omitempty"`
+}
+
+type ClickPipePostgresSettings struct {
+	SyncIntervalSeconds            *int    `json:"syncIntervalSeconds,omitempty"`
+	PullBatchSize                  *int    `json:"pullBatchSize,omitempty"`
+	PublicationName                *string `json:"publicationName,omitempty"`
+	ReplicationMode                string  `json:"replicationMode"`
+	ReplicationSlotName            *string `json:"replicationSlotName,omitempty"`
+	AllowNullableColumns           *bool   `json:"allowNullableColumns,omitempty"`
+	InitialLoadParallelism         *int    `json:"initialLoadParallelism,omitempty"`
+	SnapshotNumRowsPerPartition    *int    `json:"snapshotNumRowsPerPartition,omitempty"`
+	SnapshotNumberOfParallelTables *int    `json:"snapshotNumberOfParallelTables,omitempty"`
+	EnableFailoverSlots            *bool   `json:"enableFailoverSlots,omitempty"`
+}
+
+type ClickPipePostgresTableMapping struct {
+	SourceSchemaName    string   `json:"sourceSchemaName"`
+	SourceTable         string   `json:"sourceTable"`
+	TargetTable         string   `json:"targetTable"`
+	ExcludedColumns     []string `json:"excludedColumns,omitempty"`
+	UseCustomSortingKey *bool    `json:"useCustomSortingKey,omitempty"`
+	SortingKeys         []string `json:"sortingKeys,omitempty"`
+	TableEngine         *string  `json:"tableEngine,omitempty"`
+}
+
 type ClickPipeSource struct {
 	Kafka           *ClickPipeKafkaSource         `json:"kafka,omitempty"`
 	ObjectStorage   *ClickPipeObjectStorageSource `json:"objectStorage,omitempty"`
 	Kinesis         *ClickPipeKinesisSource       `json:"kinesis,omitempty"`
+	Postgres        *ClickPipePostgresSource      `json:"postgres,omitempty"`
 	ValidateSamples bool                          `json:"validateSamples,omitempty"`
 }
 
@@ -170,10 +205,10 @@ type ClickPipeDestinationTableDefinition struct {
 
 type ClickPipeDestination struct {
 	Database        string                               `json:"database"`
-	Table           string                               `json:"table"`
-	ManagedTable    bool                                 `json:"managedTable"`
+	Table           *string                              `json:"table,omitempty"`
+	ManagedTable    *bool                                `json:"managedTable,omitempty"`
 	TableDefinition *ClickPipeDestinationTableDefinition `json:"tableDefinition,omitempty"`
-	Columns         []ClickPipeDestinationColumn         `json:"columns"`
+	Columns         []ClickPipeDestinationColumn         `json:"columns,omitempty"`
 	Roles           []string                             `json:"roles,omitempty"`
 }
 
@@ -193,7 +228,7 @@ type ClickPipe struct {
 	State         string                  `json:"state,omitempty"`
 	Source        ClickPipeSource         `json:"source"`
 	Destination   ClickPipeDestination    `json:"destination"`
-	FieldMappings []ClickPipeFieldMapping `json:"fieldMappings"`
+	FieldMappings []ClickPipeFieldMapping `json:"fieldMappings,omitempty"`
 	Settings      map[string]any          `json:"settings,omitempty"`
 	CreatedAt     *time.Time              `json:"createdAt,omitempty"`
 	UpdatedAt     *time.Time              `json:"updatedAt,omitempty"`

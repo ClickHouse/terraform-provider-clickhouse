@@ -19,12 +19,14 @@ const (
 	ClickPipeStoppedState       = "Stopped"
 	ClickPipeFailedState        = "Failed"
 	ClickPipeCompletedState     = "Completed"
+	ClickPipeSnapShotState      = "Snapshot"
 	ClickPipeInternalErrorState = "InternalError"
 )
 
 const (
-	ClickPipeStateStart = "start"
-	ClickPipeStateStop  = "stop"
+	ClickPipeStateStart  = "start"
+	ClickPipeStateStop   = "stop"
+	ClickPipeStateResync = "resync"
 )
 
 const (
@@ -143,6 +145,32 @@ var ClickPipeObjectStorageCompressions = []string{
 	ClickPipeObjectStorageCompressionXZ,
 	ClickPipeObjectStorageCompressionLZMA,
 	ClickPipeObjectStorageCompressionZstd,
+}
+
+const (
+	// Postgres replication modes
+	ClickPipePostgresReplicationModeCDC      = "cdc"
+	ClickPipePostgresReplicationModeSnapshot = "snapshot"
+	ClickPipePostgresReplicationModeCDCOnly  = "cdc_only"
+)
+
+var ClickPipePostgresReplicationModes = []string{
+	ClickPipePostgresReplicationModeCDC,
+	ClickPipePostgresReplicationModeSnapshot,
+	ClickPipePostgresReplicationModeCDCOnly,
+}
+
+const (
+	// Postgres table engines
+	ClickPipePostgresTableEngineMergeTree          = "MergeTree"
+	ClickPipePostgresTableEngineReplacingMergeTree = "ReplacingMergeTree"
+	ClickPipePostgresTableEngineNull               = "Null"
+)
+
+var ClickPipePostgresTableEngines = []string{
+	ClickPipePostgresTableEngineMergeTree,
+	ClickPipePostgresTableEngineReplacingMergeTree,
+	ClickPipePostgresTableEngineNull,
 }
 
 const (
