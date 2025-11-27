@@ -774,9 +774,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					},
 				},
 				Required: true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.RequiresReplace(),
-				},
 			},
 			"destination": schema.SingleNestedAttribute{
 				Description: "The destination for the ClickPipe.",
@@ -1073,6 +1070,20 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				"ClickPipe in Internal Error state",
 				"ClickPipe is in an internal error state. Contact ClickHouse Cloud support for assistance. Your changes will be applied.",
 			)
+		}
+	}
+
+	// For Postgres sources, managed_table should always be false (tables managed via table_mappings)
+	// Override the default value to prevent inconsistency errors
+	var sourceModel models.ClickPipeSourceModel
+	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+		if !sourceModel.Postgres.IsNull() {
+			var destinationModel models.ClickPipeDestinationModel
+			if diags := plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				destinationModel.ManagedTable = types.BoolValue(false)
+				plan.Destination = destinationModel.ObjectValue()
+				response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
+			}
 		}
 	}
 
@@ -1730,8 +1741,7 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 	// For other pipes, wait for Running state or terminal error states
 	return func(state string) bool {
 		return state == api.ClickPipeRunningState ||
-			state == api.ClickPipeFailedState ||
-			state == api.ClickPipeInternalErrorState
+			state == api.ClickPipeFailedState
 	}
 }
 
@@ -2142,7 +2152,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	// But managed_table should be preserved from state since user can configure it
 	if isPostgresPipe {
 		destinationModel.Table = types.StringNull()
-		destinationModel.ManagedTable = stateDestinationModel.ManagedTable // Preserve from state
+		destinationModel.ManagedTable = types.BoolValue(false) // Always false for Postgres pipes
 		destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
 		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
 	} else {
