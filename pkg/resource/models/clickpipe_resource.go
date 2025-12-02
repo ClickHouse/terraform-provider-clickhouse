@@ -420,11 +420,123 @@ func (m ClickPipeObjectStorageSourceModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeServiceAccountModel struct {
+	ServiceAccountFile types.String `tfsdk:"service_account_file"`
+}
+
+func (m ClickPipeServiceAccountModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"service_account_file": types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeServiceAccountModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"service_account_file": m.ServiceAccountFile,
+	})
+}
+
+type ClickPipeBigQuerySettingsModel struct {
+	ReplicationMode                types.String `tfsdk:"replication_mode"`
+	AllowNullableColumns           types.Bool   `tfsdk:"allow_nullable_columns"`
+	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
+	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
+	SnapshotNumberOfParallelTables types.Int64  `tfsdk:"snapshot_number_of_parallel_tables"`
+}
+
+func (m ClickPipeBigQuerySettingsModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"replication_mode":                   types.StringType,
+			"allow_nullable_columns":             types.BoolType,
+			"initial_load_parallelism":           types.Int64Type,
+			"snapshot_num_rows_per_partition":    types.Int64Type,
+			"snapshot_number_of_parallel_tables": types.Int64Type,
+		},
+	}
+}
+
+func (m ClickPipeBigQuerySettingsModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"replication_mode":                   m.ReplicationMode,
+		"allow_nullable_columns":             m.AllowNullableColumns,
+		"initial_load_parallelism":           m.InitialLoadParallelism,
+		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
+		"snapshot_number_of_parallel_tables": m.SnapshotNumberOfParallelTables,
+	})
+}
+
+type ClickPipeBigQueryTableMappingModel struct {
+	SourceDatasetName   types.String `tfsdk:"source_dataset_name"`
+	SourceTable         types.String `tfsdk:"source_table"`
+	TargetTable         types.String `tfsdk:"target_table"`
+	ExcludedColumns     types.List   `tfsdk:"excluded_columns"`
+	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
+	SortingKeys         types.List   `tfsdk:"sorting_keys"`
+	TableEngine         types.String `tfsdk:"table_engine"`
+}
+
+func (m ClickPipeBigQueryTableMappingModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"source_dataset_name":    types.StringType,
+			"source_table":           types.StringType,
+			"target_table":           types.StringType,
+			"excluded_columns":       types.ListType{ElemType: types.StringType},
+			"use_custom_sorting_key": types.BoolType,
+			"sorting_keys":           types.ListType{ElemType: types.StringType},
+			"table_engine":           types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeBigQueryTableMappingModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"source_dataset_name":    m.SourceDatasetName,
+		"source_table":           m.SourceTable,
+		"target_table":           m.TargetTable,
+		"excluded_columns":       m.ExcludedColumns,
+		"use_custom_sorting_key": m.UseCustomSortingKey,
+		"sorting_keys":           m.SortingKeys,
+		"table_engine":           m.TableEngine,
+	})
+}
+
+type ClickPipeBigQuerySourceModel struct {
+	SnapshotStagingPath types.String `tfsdk:"snapshot_staging_path"`
+	Settings            types.Object `tfsdk:"settings"`
+	TableMappings       types.List   `tfsdk:"table_mappings"`
+	Credentials         types.Object `tfsdk:"credentials"`
+}
+
+func (m ClickPipeBigQuerySourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"snapshot_staging_path": types.StringType,
+			"settings":              ClickPipeBigQuerySettingsModel{}.ObjectType(),
+			"table_mappings":        types.ListType{ElemType: ClickPipeBigQueryTableMappingModel{}.ObjectType()},
+			"credentials":           ClickPipeServiceAccountModel{}.ObjectType(),
+		},
+	}
+}
+
+func (m ClickPipeBigQuerySourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"snapshot_staging_path": m.SnapshotStagingPath,
+		"settings":              m.Settings,
+		"table_mappings":        m.TableMappings,
+		"credentials":           m.Credentials,
+	})
+}
+
 type ClickPipeSourceModel struct {
 	Kafka         types.Object `tfsdk:"kafka"`
 	ObjectStorage types.Object `tfsdk:"object_storage"`
 	Kinesis       types.Object `tfsdk:"kinesis"`
 	Postgres      types.Object `tfsdk:"postgres"`
+	BigQuery      types.Object `tfsdk:"bigquery"`
 }
 
 func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
@@ -434,6 +546,7 @@ func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
 			"object_storage": ClickPipeObjectStorageSourceModel{}.ObjectType(),
 			"kinesis":        ClickPipeKinesisSourceModel{}.ObjectType(),
 			"postgres":       ClickPipePostgresSourceModel{}.ObjectType(),
+			"bigquery":       ClickPipeBigQuerySourceModel{}.ObjectType(),
 		},
 	}
 }
@@ -444,6 +557,7 @@ func (m ClickPipeSourceModel) ObjectValue() types.Object {
 		"object_storage": m.ObjectStorage,
 		"kinesis":        m.Kinesis,
 		"postgres":       m.Postgres,
+		"bigquery":       m.BigQuery,
 	})
 }
 
