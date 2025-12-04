@@ -337,7 +337,7 @@ type ClickPipePostgresSourceModel struct {
 	Database      types.String `tfsdk:"database"`
 	Credentials   types.Object `tfsdk:"credentials"`
 	Settings      types.Object `tfsdk:"settings"`
-	TableMappings types.List   `tfsdk:"table_mappings"`
+	TableMappings types.Set    `tfsdk:"table_mappings"`
 }
 
 func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
@@ -348,7 +348,7 @@ func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
 			"database":       types.StringType,
 			"credentials":    ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":       ClickPipePostgresSettingsModel{}.ObjectType(),
-			"table_mappings": types.ListType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
+			"table_mappings": types.SetType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
 		},
 	}
 }
