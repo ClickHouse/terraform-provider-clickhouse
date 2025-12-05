@@ -144,12 +144,12 @@ type ClickPipeKinesisSource struct {
 }
 
 type ClickPipePostgresSource struct {
-	Host                  string                          `json:"host"`
-	Port                  int                             `json:"port"`
-	Database              string                          `json:"database"`
+	Host                  string                          `json:"host,omitempty"`
+	Port                  int                             `json:"port,omitempty"`
+	Database              string                          `json:"database,omitempty"`
 	Credentials           *ClickPipeSourceCredentials     `json:"credentials,omitempty"`
-	Settings              ClickPipePostgresSettings       `json:"settings"`
-	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings"`
+	Settings              *ClickPipePostgresSettings      `json:"settings,omitempty"`
+	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipePostgresTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipePostgresTableMapping `json:"tableMappingsToAdd,omitempty"`
 }
@@ -158,7 +158,7 @@ type ClickPipePostgresSettings struct {
 	SyncIntervalSeconds            *int    `json:"syncIntervalSeconds,omitempty"`
 	PullBatchSize                  *int    `json:"pullBatchSize,omitempty"`
 	PublicationName                *string `json:"publicationName,omitempty"`
-	ReplicationMode                string  `json:"replicationMode"`
+	ReplicationMode                string  `json:"replicationMode,omitempty"`
 	ReplicationSlotName            *string `json:"replicationSlotName,omitempty"`
 	AllowNullableColumns           *bool   `json:"allowNullableColumns,omitempty"`
 	InitialLoadParallelism         *int    `json:"initialLoadParallelism,omitempty"`

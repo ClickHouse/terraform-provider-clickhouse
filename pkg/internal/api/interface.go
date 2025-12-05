@@ -35,6 +35,8 @@ type Client interface {
 	DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error
 	GetClickPipeSettings(ctx context.Context, serviceId string, clickPipeId string) (map[string]any, error)
 	UpdateClickPipeSettings(ctx context.Context, serviceId string, clickPipeId string, settings map[string]any) (map[string]any, error)
+	GetClickPipeCdcScaling(ctx context.Context, serviceId string) (*ClickPipeCdcScaling, error)
+	UpdateClickPipeCdcScaling(ctx context.Context, serviceId string, request ClickPipeCdcScalingRequest) (*ClickPipeCdcScaling, error)
 
 	GetReversePrivateEndpointPath(serviceId, reversePrivateEndpointId string) string
 	ListReversePrivateEndpoints(ctx context.Context, serviceId string) ([]*ReversePrivateEndpoint, error)

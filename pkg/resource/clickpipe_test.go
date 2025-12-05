@@ -109,7 +109,7 @@ func TestClickPipeResource_syncClickPipeState_Postgres(t *testing.T) {
 						Host:     "postgres.example.com",
 						Port:     5432,
 						Database: "mydb",
-						Settings: api.ClickPipePostgresSettings{
+						Settings: &api.ClickPipePostgresSettings{
 							ReplicationMode:      "cdc",
 							SyncIntervalSeconds:  intPtr(60),
 							PullBatchSize:        intPtr(1000),
@@ -145,7 +145,7 @@ func TestClickPipeResource_syncClickPipeState_Postgres(t *testing.T) {
 						Host:     "postgres.example.com",
 						Port:     5432,
 						Database: "mydb",
-						Settings: api.ClickPipePostgresSettings{
+						Settings: &api.ClickPipePostgresSettings{
 							ReplicationMode: "cdc",
 							// Optional fields not set - API may return empty/defaults
 							PublicationName:     nil,
@@ -181,7 +181,7 @@ func TestClickPipeResource_syncClickPipeState_Postgres(t *testing.T) {
 						Host:     "postgres.example.com",
 						Port:     5432,
 						Database: "mydb",
-						Settings: api.ClickPipePostgresSettings{
+						Settings: &api.ClickPipePostgresSettings{
 							ReplicationMode: "cdc",
 						},
 						Mappings: []api.ClickPipePostgresTableMapping{
@@ -216,7 +216,7 @@ func TestClickPipeResource_syncClickPipeState_Postgres(t *testing.T) {
 						Host:     "postgres.example.com",
 						Port:     5432,
 						Database: "mydb",
-						Settings: api.ClickPipePostgresSettings{
+						Settings: &api.ClickPipePostgresSettings{
 							ReplicationMode:     "cdc",
 							SyncIntervalSeconds: intPtr(120), // Changed from null to 120
 						},
@@ -322,7 +322,7 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 							"enable_failover_slots":              types.BoolNull(),
 						},
 					),
-					"table_mappings": types.ListValueMust(
+					"table_mappings": types.SetValueMust(
 						models.ClickPipePostgresTableMappingModel{}.ObjectType(),
 						[]attr.Value{
 							types.ObjectValueMust(
