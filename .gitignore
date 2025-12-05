@@ -9,6 +9,6 @@ dev/
 .idea/
 *.backup
 
-**/variables.tfvars
+**/variables*.tfvars
 
 /tmp

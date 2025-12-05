@@ -177,11 +177,43 @@ type ClickPipePostgresTableMapping struct {
 	TableEngine         *string  `json:"tableEngine,omitempty"`
 }
 
+type ClickPipeServiceAccount struct {
+	ServiceAccountFile string `json:"serviceAccountFile,omitempty"`
+}
+
+type ClickPipeBigQuerySettings struct {
+	ReplicationMode                string `json:"replicationMode,omitempty"`
+	AllowNullableColumns           *bool  `json:"allowNullableColumns,omitempty"`
+	InitialLoadParallelism         *int   `json:"initialLoadParallelism,omitempty"`
+	SnapshotNumRowsPerPartition    *int   `json:"snapshotNumRowsPerPartition,omitempty"`
+	SnapshotNumberOfParallelTables *int   `json:"snapshotNumberOfParallelTables,omitempty"`
+}
+
+type ClickPipeBigQueryTableMapping struct {
+	SourceDatasetName   string   `json:"sourceDatasetName"`
+	SourceTable         string   `json:"sourceTable"`
+	TargetTable         string   `json:"targetTable"`
+	ExcludedColumns     []string `json:"excludedColumns,omitempty"`
+	UseCustomSortingKey *bool    `json:"useCustomSortingKey,omitempty"`
+	SortingKeys         []string `json:"sortingKeys,omitempty"`
+	TableEngine         *string  `json:"tableEngine,omitempty"`
+}
+
+type ClickPipeBigQuerySource struct {
+	SnapshotStagingPath   string                          `json:"snapshotStagingPath,omitempty"`
+	Settings              ClickPipeBigQuerySettings       `json:"settings"`
+	Mappings              []ClickPipeBigQueryTableMapping `json:"tableMappings"`
+	TableMappingsToRemove []ClickPipeBigQueryTableMapping `json:"tableMappingsToRemove,omitempty"`
+	TableMappingsToAdd    []ClickPipeBigQueryTableMapping `json:"tableMappingsToAdd,omitempty"`
+	Credentials           *ClickPipeServiceAccount        `json:"credentials,omitempty"`
+}
+
 type ClickPipeSource struct {
 	Kafka           *ClickPipeKafkaSource         `json:"kafka,omitempty"`
 	ObjectStorage   *ClickPipeObjectStorageSource `json:"objectStorage,omitempty"`
 	Kinesis         *ClickPipeKinesisSource       `json:"kinesis,omitempty"`
 	Postgres        *ClickPipePostgresSource      `json:"postgres,omitempty"`
+	BigQuery        *ClickPipeBigQuerySource      `json:"bigquery,omitempty"`
 	ValidateSamples bool                          `json:"validateSamples,omitempty"`
 }
 
