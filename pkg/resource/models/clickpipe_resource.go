@@ -586,3 +586,9 @@ type ClickPipeResourceModel struct {
 	Settings      types.Dynamic `tfsdk:"settings"`
 	TriggerResync types.Bool    `tfsdk:"trigger_resync"`
 }
+
+type ClickPipeCdcInfrastructureModel struct {
+	ServiceID            types.String  `tfsdk:"service_id"`
+	ReplicaCpuMillicores types.Int64   `tfsdk:"replica_cpu_millicores"`
+	ReplicaMemoryGb      types.Float64 `tfsdk:"replica_memory_gb"`
+}
