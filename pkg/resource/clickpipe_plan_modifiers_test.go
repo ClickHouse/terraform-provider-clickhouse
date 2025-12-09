@@ -17,10 +17,10 @@ func TestRequiresReplaceIfSourceTypeChanges(t *testing.T) {
 	t.Parallel()
 
 	testCases := map[string]struct {
-		stateRaw          tftypes.Value
-		planRaw           tftypes.Value
-		stateValue        types.Object
-		planValue         types.Object
+		stateRaw                tftypes.Value
+		planRaw                 tftypes.Value
+		stateValue              types.Object
+		planValue               types.Object
 		expectedRequiresReplace bool
 	}{
 		"null-to-null": {

@@ -3202,4 +3202,3 @@ func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.Import
 			"Important: your configuration (in *.tf files) has to provide valid credentials.",
 	)
 }
-
