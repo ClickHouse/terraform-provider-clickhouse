@@ -92,38 +92,6 @@ func (r *ClickPipeCdcInfrastructureResource) Create(ctx context.Context, req res
 
 	serviceID := plan.ServiceID.ValueString()
 
-	// Validate CPU is a multiple of 1000
-	cpuMillicores := plan.ReplicaCpuMillicores.ValueInt64()
-	if cpuMillicores%1000 != 0 {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			fmt.Sprintf("replica_cpu_millicores must be a multiple of 1000, got %d", cpuMillicores),
-		)
-		return
-	}
-
-	// Validate memory is a multiple of 4
-	memoryGb := plan.ReplicaMemoryGb.ValueFloat64()
-	if int(memoryGb)%4 != 0 {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			fmt.Sprintf("replica_memory_gb must be a multiple of 4, got %.1f", memoryGb),
-		)
-		return
-	}
-
-	// Validate memory is 4x CPU cores
-	cpuCores := float64(cpuMillicores) / 1000.0
-	expectedMemory := cpuCores * 4
-	if memoryGb != expectedMemory {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			fmt.Sprintf("replica_memory_gb must be 4× the CPU core count. With %d millicores (%.1f cores), memory must be %.1f GB, but got %.1f GB",
-				cpuMillicores, cpuCores, expectedMemory, memoryGb),
-		)
-		return
-	}
-
 	// Poll for CDC scaling endpoint to become available (up to 10 minutes)
 	maxWait := 10 * time.Minute
 	checkAvailable := func() error {
@@ -217,38 +185,6 @@ func (r *ClickPipeCdcInfrastructureResource) Update(ctx context.Context, req res
 
 	serviceID := plan.ServiceID.ValueString()
 
-	// Validate CPU is a multiple of 1000
-	cpuMillicores := plan.ReplicaCpuMillicores.ValueInt64()
-	if cpuMillicores%1000 != 0 {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			fmt.Sprintf("replica_cpu_millicores must be a multiple of 1000, got %d", cpuMillicores),
-		)
-		return
-	}
-
-	// Validate memory is a multiple of 4
-	memoryGb := plan.ReplicaMemoryGb.ValueFloat64()
-	if int(memoryGb)%4 != 0 {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			fmt.Sprintf("replica_memory_gb must be a multiple of 4, got %.1f", memoryGb),
-		)
-		return
-	}
-
-	// Validate memory is 4x CPU cores
-	cpuCores := float64(cpuMillicores) / 1000.0
-	expectedMemory := cpuCores * 4
-	if memoryGb != expectedMemory {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			fmt.Sprintf("replica_memory_gb must be 4× the CPU core count. With %d millicores (%.1f cores), memory must be %.1f GB, but got %.1f GB",
-				cpuMillicores, cpuCores, expectedMemory, memoryGb),
-		)
-		return
-	}
-
 	// Update the scaling settings
 	scalingReq := api.ClickPipeCdcScalingRequest{
 		ReplicaCpuMillicores: plan.ReplicaCpuMillicores.ValueInt64(),
@@ -300,4 +236,49 @@ func (r *ClickPipeCdcInfrastructureResource) Delete(ctx context.Context, req res
 			"The infrastructure will automatically be removed when all DB ClickPipes are deleted. "+
 			"This resource has been removed from Terraform state only.",
 	)
+}
+
+func (r *ClickPipeCdcInfrastructureResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// If we're destroying, no validation needed
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan models.ClickPipeCdcInfrastructureModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Validate CPU is a multiple of 1000
+	cpuMillicores := plan.ReplicaCpuMillicores.ValueInt64()
+	if cpuMillicores%1000 != 0 {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			fmt.Sprintf("replica_cpu_millicores must be a multiple of 1000, got %d", cpuMillicores),
+		)
+		return
+	}
+
+	// Validate memory is a multiple of 4
+	memoryGb := plan.ReplicaMemoryGb.ValueFloat64()
+	if int(memoryGb)%4 != 0 {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			fmt.Sprintf("replica_memory_gb must be a multiple of 4, got %.1f", memoryGb),
+		)
+		return
+	}
+
+	// Validate memory is 4x CPU cores
+	cpuCores := float64(cpuMillicores) / 1000.0
+	expectedMemory := cpuCores * 4
+	if memoryGb != expectedMemory {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			fmt.Sprintf("replica_memory_gb must be 4× the CPU core count. With %d millicores (%.1f cores), memory must be %.1f GB, but got %.1f GB",
+				cpuMillicores, cpuCores, expectedMemory, memoryGb),
+		)
+		return
+	}
 }
