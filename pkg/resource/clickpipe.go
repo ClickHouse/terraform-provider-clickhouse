@@ -814,6 +814,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Description: "Allow nullable columns in the destination table.",
 										Optional:    true,
 										Computed:    true,
+										Default:     booldefault.StaticBool(false),
 										PlanModifiers: []planmodifier.Bool{
 											boolplanmodifier.RequiresReplace(),
 										},
@@ -822,6 +823,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Description: "Number of parallel workers during initial load.",
 										Optional:    true,
 										Computed:    true,
+										Default:     int64default.StaticInt64(4),
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -831,8 +833,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									},
 									"snapshot_num_rows_per_partition": schema.Int64Attribute{
 										Description: "Number of rows to snapshot per partition.",
-										Optional:    true,
 										Computed:    true,
+										Optional:    true,
+										Default:     int64default.StaticInt64(100_000),
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -842,8 +845,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									},
 									"snapshot_number_of_parallel_tables": schema.Int64Attribute{
 										Description: "Number of parallel tables to snapshot.",
-										Optional:    true,
 										Computed:    true,
+										Optional:    true,
+										Default:     int64default.StaticInt64(1),
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -1215,7 +1219,10 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 	// Override the default value to prevent inconsistency errors
 	var sourceModel models.ClickPipeSourceModel
 	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-		if !sourceModel.Postgres.IsNull() {
+		sourceType := getSourceType(sourceModel)
+		isDBPipe := sourceType == SourceTypePostgres || sourceType == SourceTypeBigQuery
+
+		if isDBPipe {
 			var destinationModel models.ClickPipeDestinationModel
 			if diags := plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
 				destinationModel.ManagedTable = types.BoolValue(false)
@@ -2511,7 +2518,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	// But managed_table should be preserved from state since user can configure it
 	if isDBPipe {
 		destinationModel.Table = types.StringNull()
-		destinationModel.ManagedTable = types.BoolValue(true) // Always true for DB pipes - matches default behavior
+		destinationModel.ManagedTable = types.BoolValue(false) // Always false for DB pipes
 		destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
 		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
 	} else {
