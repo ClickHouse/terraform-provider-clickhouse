@@ -236,6 +236,13 @@ type ClientMock struct {
 	beforeUpdateServicePasswordCounter uint64
 	UpdateServicePasswordMock          mClientMockUpdateServicePassword
 
+	funcWaitForClickPipeCdcScaling          func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (cp1 *ClickPipeCdcScaling, err error)
+	funcWaitForClickPipeCdcScalingOrigin    string
+	inspectFuncWaitForClickPipeCdcScaling   func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration)
+	afterWaitForClickPipeCdcScalingCounter  uint64
+	beforeWaitForClickPipeCdcScalingCounter uint64
+	WaitForClickPipeCdcScalingMock          mClientMockWaitForClickPipeCdcScaling
+
 	funcWaitForClickPipeState          func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWait time.Duration) (cp1 *ClickPipe, err error)
 	funcWaitForClickPipeStateOrigin    string
 	inspectFuncWaitForClickPipeState   func(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWait time.Duration)
@@ -358,6 +365,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateServicePasswordMock = mClientMockUpdateServicePassword{mock: m}
 	m.UpdateServicePasswordMock.callArgs = []*ClientMockUpdateServicePasswordParams{}
+
+	m.WaitForClickPipeCdcScalingMock = mClientMockWaitForClickPipeCdcScaling{mock: m}
+	m.WaitForClickPipeCdcScalingMock.callArgs = []*ClientMockWaitForClickPipeCdcScalingParams{}
 
 	m.WaitForClickPipeStateMock = mClientMockWaitForClickPipeState{mock: m}
 	m.WaitForClickPipeStateMock.callArgs = []*ClientMockWaitForClickPipeStateParams{}
@@ -11684,6 +11694,442 @@ func (m *ClientMock) MinimockUpdateServicePasswordInspect() {
 	}
 }
 
+type mClientMockWaitForClickPipeCdcScaling struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForClickPipeCdcScalingExpectation
+	expectations       []*ClientMockWaitForClickPipeCdcScalingExpectation
+
+	callArgs []*ClientMockWaitForClickPipeCdcScalingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWaitForClickPipeCdcScalingExpectation specifies expectation struct of the Client.WaitForClickPipeCdcScaling
+type ClientMockWaitForClickPipeCdcScalingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWaitForClickPipeCdcScalingParams
+	paramPtrs          *ClientMockWaitForClickPipeCdcScalingParamPtrs
+	expectationOrigins ClientMockWaitForClickPipeCdcScalingExpectationOrigins
+	results            *ClientMockWaitForClickPipeCdcScalingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWaitForClickPipeCdcScalingParams contains parameters of the Client.WaitForClickPipeCdcScaling
+type ClientMockWaitForClickPipeCdcScalingParams struct {
+	ctx                   context.Context
+	serviceId             string
+	expectedCpuMillicores int64
+	expectedMemoryGb      float64
+	maxElapsedTime        time.Duration
+}
+
+// ClientMockWaitForClickPipeCdcScalingParamPtrs contains pointers to parameters of the Client.WaitForClickPipeCdcScaling
+type ClientMockWaitForClickPipeCdcScalingParamPtrs struct {
+	ctx                   *context.Context
+	serviceId             *string
+	expectedCpuMillicores *int64
+	expectedMemoryGb      *float64
+	maxElapsedTime        *time.Duration
+}
+
+// ClientMockWaitForClickPipeCdcScalingResults contains results of the Client.WaitForClickPipeCdcScaling
+type ClientMockWaitForClickPipeCdcScalingResults struct {
+	cp1 *ClickPipeCdcScaling
+	err error
+}
+
+// ClientMockWaitForClickPipeCdcScalingOrigins contains origins of expectations of the Client.WaitForClickPipeCdcScaling
+type ClientMockWaitForClickPipeCdcScalingExpectationOrigins struct {
+	origin                      string
+	originCtx                   string
+	originServiceId             string
+	originExpectedCpuMillicores string
+	originExpectedMemoryGb      string
+	originMaxElapsedTime        string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) Optional() *mClientMockWaitForClickPipeCdcScaling {
+	mmWaitForClickPipeCdcScaling.optional = true
+	return mmWaitForClickPipeCdcScaling
+}
+
+// Expect sets up expected params for Client.WaitForClickPipeCdcScaling
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) Expect(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) *mClientMockWaitForClickPipeCdcScaling {
+	if mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Set")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation = &ClientMockWaitForClickPipeCdcScalingExpectation{}
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForClickPipeCdcScaling.defaultExpectation.params = &ClientMockWaitForClickPipeCdcScalingParams{ctx, serviceId, expectedCpuMillicores, expectedMemoryGb, maxElapsedTime}
+	mmWaitForClickPipeCdcScaling.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWaitForClickPipeCdcScaling.expectations {
+		if minimock.Equal(e.params, mmWaitForClickPipeCdcScaling.defaultExpectation.params) {
+			mmWaitForClickPipeCdcScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForClickPipeCdcScaling.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForClickPipeCdcScaling
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForClickPipeCdcScaling
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForClickPipeCdcScaling {
+	if mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Set")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation = &ClientMockWaitForClickPipeCdcScalingExpectation{}
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.params != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipeCdcScalingParamPtrs{}
+	}
+	mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWaitForClickPipeCdcScaling.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipeCdcScaling
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.WaitForClickPipeCdcScaling
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) ExpectServiceIdParam2(serviceId string) *mClientMockWaitForClickPipeCdcScaling {
+	if mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Set")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation = &ClientMockWaitForClickPipeCdcScalingExpectation{}
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.params != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipeCdcScalingParamPtrs{}
+	}
+	mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmWaitForClickPipeCdcScaling.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipeCdcScaling
+}
+
+// ExpectExpectedCpuMillicoresParam3 sets up expected param expectedCpuMillicores for Client.WaitForClickPipeCdcScaling
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) ExpectExpectedCpuMillicoresParam3(expectedCpuMillicores int64) *mClientMockWaitForClickPipeCdcScaling {
+	if mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Set")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation = &ClientMockWaitForClickPipeCdcScalingExpectation{}
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.params != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipeCdcScalingParamPtrs{}
+	}
+	mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs.expectedCpuMillicores = &expectedCpuMillicores
+	mmWaitForClickPipeCdcScaling.defaultExpectation.expectationOrigins.originExpectedCpuMillicores = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipeCdcScaling
+}
+
+// ExpectExpectedMemoryGbParam4 sets up expected param expectedMemoryGb for Client.WaitForClickPipeCdcScaling
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) ExpectExpectedMemoryGbParam4(expectedMemoryGb float64) *mClientMockWaitForClickPipeCdcScaling {
+	if mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Set")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation = &ClientMockWaitForClickPipeCdcScalingExpectation{}
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.params != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipeCdcScalingParamPtrs{}
+	}
+	mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs.expectedMemoryGb = &expectedMemoryGb
+	mmWaitForClickPipeCdcScaling.defaultExpectation.expectationOrigins.originExpectedMemoryGb = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipeCdcScaling
+}
+
+// ExpectMaxElapsedTimeParam5 sets up expected param maxElapsedTime for Client.WaitForClickPipeCdcScaling
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) ExpectMaxElapsedTimeParam5(maxElapsedTime time.Duration) *mClientMockWaitForClickPipeCdcScaling {
+	if mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Set")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation = &ClientMockWaitForClickPipeCdcScalingExpectation{}
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.params != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipeCdcScalingParamPtrs{}
+	}
+	mmWaitForClickPipeCdcScaling.defaultExpectation.paramPtrs.maxElapsedTime = &maxElapsedTime
+	mmWaitForClickPipeCdcScaling.defaultExpectation.expectationOrigins.originMaxElapsedTime = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipeCdcScaling
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForClickPipeCdcScaling
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) Inspect(f func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration)) *mClientMockWaitForClickPipeCdcScaling {
+	if mmWaitForClickPipeCdcScaling.mock.inspectFuncWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForClickPipeCdcScaling")
+	}
+
+	mmWaitForClickPipeCdcScaling.mock.inspectFuncWaitForClickPipeCdcScaling = f
+
+	return mmWaitForClickPipeCdcScaling
+}
+
+// Return sets up results that will be returned by Client.WaitForClickPipeCdcScaling
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) Return(cp1 *ClickPipeCdcScaling, err error) *ClientMock {
+	if mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Set")
+	}
+
+	if mmWaitForClickPipeCdcScaling.defaultExpectation == nil {
+		mmWaitForClickPipeCdcScaling.defaultExpectation = &ClientMockWaitForClickPipeCdcScalingExpectation{mock: mmWaitForClickPipeCdcScaling.mock}
+	}
+	mmWaitForClickPipeCdcScaling.defaultExpectation.results = &ClientMockWaitForClickPipeCdcScalingResults{cp1, err}
+	mmWaitForClickPipeCdcScaling.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWaitForClickPipeCdcScaling.mock
+}
+
+// Set uses given function f to mock the Client.WaitForClickPipeCdcScaling method
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) Set(f func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (cp1 *ClickPipeCdcScaling, err error)) *ClientMock {
+	if mmWaitForClickPipeCdcScaling.defaultExpectation != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("Default expectation is already set for the Client.WaitForClickPipeCdcScaling method")
+	}
+
+	if len(mmWaitForClickPipeCdcScaling.expectations) > 0 {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("Some expectations are already set for the Client.WaitForClickPipeCdcScaling method")
+	}
+
+	mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling = f
+	mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScalingOrigin = minimock.CallerInfo(1)
+	return mmWaitForClickPipeCdcScaling.mock
+}
+
+// When sets expectation for the Client.WaitForClickPipeCdcScaling which will trigger the result defined by the following
+// Then helper
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) When(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) *ClientMockWaitForClickPipeCdcScalingExpectation {
+	if mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("ClientMock.WaitForClickPipeCdcScaling mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForClickPipeCdcScalingExpectation{
+		mock:               mmWaitForClickPipeCdcScaling.mock,
+		params:             &ClientMockWaitForClickPipeCdcScalingParams{ctx, serviceId, expectedCpuMillicores, expectedMemoryGb, maxElapsedTime},
+		expectationOrigins: ClientMockWaitForClickPipeCdcScalingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWaitForClickPipeCdcScaling.expectations = append(mmWaitForClickPipeCdcScaling.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForClickPipeCdcScaling return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForClickPipeCdcScalingExpectation) Then(cp1 *ClickPipeCdcScaling, err error) *ClientMock {
+	e.results = &ClientMockWaitForClickPipeCdcScalingResults{cp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForClickPipeCdcScaling should be invoked
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) Times(n uint64) *mClientMockWaitForClickPipeCdcScaling {
+	if n == 0 {
+		mmWaitForClickPipeCdcScaling.mock.t.Fatalf("Times of ClientMock.WaitForClickPipeCdcScaling mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForClickPipeCdcScaling.expectedInvocations, n)
+	mmWaitForClickPipeCdcScaling.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWaitForClickPipeCdcScaling
+}
+
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) invocationsDone() bool {
+	if len(mmWaitForClickPipeCdcScaling.expectations) == 0 && mmWaitForClickPipeCdcScaling.defaultExpectation == nil && mmWaitForClickPipeCdcScaling.mock.funcWaitForClickPipeCdcScaling == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForClickPipeCdcScaling.mock.afterWaitForClickPipeCdcScalingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForClickPipeCdcScaling.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForClickPipeCdcScaling implements Client
+func (mmWaitForClickPipeCdcScaling *ClientMock) WaitForClickPipeCdcScaling(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (cp1 *ClickPipeCdcScaling, err error) {
+	mm_atomic.AddUint64(&mmWaitForClickPipeCdcScaling.beforeWaitForClickPipeCdcScalingCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForClickPipeCdcScaling.afterWaitForClickPipeCdcScalingCounter, 1)
+
+	mmWaitForClickPipeCdcScaling.t.Helper()
+
+	if mmWaitForClickPipeCdcScaling.inspectFuncWaitForClickPipeCdcScaling != nil {
+		mmWaitForClickPipeCdcScaling.inspectFuncWaitForClickPipeCdcScaling(ctx, serviceId, expectedCpuMillicores, expectedMemoryGb, maxElapsedTime)
+	}
+
+	mm_params := ClientMockWaitForClickPipeCdcScalingParams{ctx, serviceId, expectedCpuMillicores, expectedMemoryGb, maxElapsedTime}
+
+	// Record call args
+	mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.mutex.Lock()
+	mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.callArgs = append(mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.callArgs, &mm_params)
+	mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.mutex.Unlock()
+
+	for _, e := range mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.cp1, e.results.err
+		}
+	}
+
+	if mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForClickPipeCdcScalingParams{ctx, serviceId, expectedCpuMillicores, expectedMemoryGb, maxElapsedTime}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForClickPipeCdcScaling.t.Errorf("ClientMock.WaitForClickPipeCdcScaling got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmWaitForClickPipeCdcScaling.t.Errorf("ClientMock.WaitForClickPipeCdcScaling got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.expectedCpuMillicores != nil && !minimock.Equal(*mm_want_ptrs.expectedCpuMillicores, mm_got.expectedCpuMillicores) {
+				mmWaitForClickPipeCdcScaling.t.Errorf("ClientMock.WaitForClickPipeCdcScaling got unexpected parameter expectedCpuMillicores, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.expectationOrigins.originExpectedCpuMillicores, *mm_want_ptrs.expectedCpuMillicores, mm_got.expectedCpuMillicores, minimock.Diff(*mm_want_ptrs.expectedCpuMillicores, mm_got.expectedCpuMillicores))
+			}
+
+			if mm_want_ptrs.expectedMemoryGb != nil && !minimock.Equal(*mm_want_ptrs.expectedMemoryGb, mm_got.expectedMemoryGb) {
+				mmWaitForClickPipeCdcScaling.t.Errorf("ClientMock.WaitForClickPipeCdcScaling got unexpected parameter expectedMemoryGb, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.expectationOrigins.originExpectedMemoryGb, *mm_want_ptrs.expectedMemoryGb, mm_got.expectedMemoryGb, minimock.Diff(*mm_want_ptrs.expectedMemoryGb, mm_got.expectedMemoryGb))
+			}
+
+			if mm_want_ptrs.maxElapsedTime != nil && !minimock.Equal(*mm_want_ptrs.maxElapsedTime, mm_got.maxElapsedTime) {
+				mmWaitForClickPipeCdcScaling.t.Errorf("ClientMock.WaitForClickPipeCdcScaling got unexpected parameter maxElapsedTime, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.expectationOrigins.originMaxElapsedTime, *mm_want_ptrs.maxElapsedTime, mm_got.maxElapsedTime, minimock.Diff(*mm_want_ptrs.maxElapsedTime, mm_got.maxElapsedTime))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForClickPipeCdcScaling.t.Errorf("ClientMock.WaitForClickPipeCdcScaling got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForClickPipeCdcScaling.WaitForClickPipeCdcScalingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForClickPipeCdcScaling.t.Fatal("No results are set for the ClientMock.WaitForClickPipeCdcScaling")
+		}
+		return (*mm_results).cp1, (*mm_results).err
+	}
+	if mmWaitForClickPipeCdcScaling.funcWaitForClickPipeCdcScaling != nil {
+		return mmWaitForClickPipeCdcScaling.funcWaitForClickPipeCdcScaling(ctx, serviceId, expectedCpuMillicores, expectedMemoryGb, maxElapsedTime)
+	}
+	mmWaitForClickPipeCdcScaling.t.Fatalf("Unexpected call to ClientMock.WaitForClickPipeCdcScaling. %v %v %v %v %v", ctx, serviceId, expectedCpuMillicores, expectedMemoryGb, maxElapsedTime)
+	return
+}
+
+// WaitForClickPipeCdcScalingAfterCounter returns a count of finished ClientMock.WaitForClickPipeCdcScaling invocations
+func (mmWaitForClickPipeCdcScaling *ClientMock) WaitForClickPipeCdcScalingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForClickPipeCdcScaling.afterWaitForClickPipeCdcScalingCounter)
+}
+
+// WaitForClickPipeCdcScalingBeforeCounter returns a count of ClientMock.WaitForClickPipeCdcScaling invocations
+func (mmWaitForClickPipeCdcScaling *ClientMock) WaitForClickPipeCdcScalingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForClickPipeCdcScaling.beforeWaitForClickPipeCdcScalingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForClickPipeCdcScaling.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForClickPipeCdcScaling *mClientMockWaitForClickPipeCdcScaling) Calls() []*ClientMockWaitForClickPipeCdcScalingParams {
+	mmWaitForClickPipeCdcScaling.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForClickPipeCdcScalingParams, len(mmWaitForClickPipeCdcScaling.callArgs))
+	copy(argCopy, mmWaitForClickPipeCdcScaling.callArgs)
+
+	mmWaitForClickPipeCdcScaling.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForClickPipeCdcScalingDone returns true if the count of the WaitForClickPipeCdcScaling invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForClickPipeCdcScalingDone() bool {
+	if m.WaitForClickPipeCdcScalingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForClickPipeCdcScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForClickPipeCdcScalingMock.invocationsDone()
+}
+
+// MinimockWaitForClickPipeCdcScalingInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForClickPipeCdcScalingInspect() {
+	for _, e := range m.WaitForClickPipeCdcScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForClickPipeCdcScaling at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWaitForClickPipeCdcScalingCounter := mm_atomic.LoadUint64(&m.afterWaitForClickPipeCdcScalingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForClickPipeCdcScalingMock.defaultExpectation != nil && afterWaitForClickPipeCdcScalingCounter < 1 {
+		if m.WaitForClickPipeCdcScalingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WaitForClickPipeCdcScaling at\n%s", m.WaitForClickPipeCdcScalingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForClickPipeCdcScaling at\n%s with params: %#v", m.WaitForClickPipeCdcScalingMock.defaultExpectation.expectationOrigins.origin, *m.WaitForClickPipeCdcScalingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForClickPipeCdcScaling != nil && afterWaitForClickPipeCdcScalingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WaitForClickPipeCdcScaling at\n%s", m.funcWaitForClickPipeCdcScalingOrigin)
+	}
+
+	if !m.WaitForClickPipeCdcScalingMock.invocationsDone() && afterWaitForClickPipeCdcScalingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForClickPipeCdcScaling at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForClickPipeCdcScalingMock.expectedInvocations), m.WaitForClickPipeCdcScalingMock.expectedInvocationsOrigin, afterWaitForClickPipeCdcScalingCounter)
+	}
+}
+
 type mClientMockWaitForClickPipeState struct {
 	optional           bool
 	mock               *ClientMock
@@ -13026,6 +13472,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockUpdateServicePasswordInspect()
 
+			m.MinimockWaitForClickPipeCdcScalingInspect()
+
 			m.MinimockWaitForClickPipeStateInspect()
 
 			m.MinimockWaitForReversePrivateEndpointStateInspect()
@@ -13085,6 +13533,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateReplicaScalingDone() &&
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
+		m.MinimockWaitForClickPipeCdcScalingDone() &&
 		m.MinimockWaitForClickPipeStateDone() &&
 		m.MinimockWaitForReversePrivateEndpointStateDone() &&
 		m.MinimockWaitForServiceStateDone()

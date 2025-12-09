@@ -1123,56 +1123,90 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 								planPostgres.TableMappings.ElementsAs(ctx, &planMappings, false)
 							}
 
-							// Validation 1: Cannot delete the last table mapping
-							if len(stateMappings) == 1 && len(planMappings) == 0 {
+							// Validation 1: Postgres CDC pipes must have at least one table mapping
+							if len(planMappings) == 0 {
 								response.Diagnostics.AddError(
 									"Invalid table_mappings configuration",
-									"Cannot delete the last table mapping. Postgres CDC pipes require at least one table mapping.",
+									"Postgres CDC pipes require at least one table mapping.",
 								)
 							}
 
-							// Validation 2: Cannot delete and add a mapping for the same source table
+							// Validation 2: Table mappings cannot be modified - only added or removed
+							// Terraform Sets handle modifications as remove+add, so any source table that appears
+							// in both state and plan must have identical configuration
 							if len(stateMappings) > 0 && len(planMappings) > 0 {
-								// Build sets of source tables (schema.table as key)
-								stateTableKeys := make(map[string]bool)
-								planTableKeys := make(map[string]bool)
+								type sourceTableKey struct {
+									sourceSchemaName string
+									sourceTable      string
+								}
+
+								// Build maps from source key to full mapping
+								stateMap := make(map[sourceTableKey]models.ClickPipePostgresTableMappingModel)
+								planMap := make(map[sourceTableKey]models.ClickPipePostgresTableMappingModel)
 
 								for _, mapping := range stateMappings {
-									key := fmt.Sprintf("%s.%s", mapping.SourceSchemaName.ValueString(), mapping.SourceTable.ValueString())
-									stateTableKeys[key] = true
+									key := sourceTableKey{
+										sourceSchemaName: mapping.SourceSchemaName.ValueString(),
+										sourceTable:      mapping.SourceTable.ValueString(),
+									}
+									stateMap[key] = mapping
 								}
 								for _, mapping := range planMappings {
-									key := fmt.Sprintf("%s.%s", mapping.SourceSchemaName.ValueString(), mapping.SourceTable.ValueString())
-									planTableKeys[key] = true
-								}
-
-								// Find source tables being removed and added
-								removedTables := make(map[string]bool)
-								addedTables := make(map[string]bool)
-
-								for key := range stateTableKeys {
-									if !planTableKeys[key] {
-										removedTables[key] = true
+									key := sourceTableKey{
+										sourceSchemaName: mapping.SourceSchemaName.ValueString(),
+										sourceTable:      mapping.SourceTable.ValueString(),
 									}
-								}
-								for key := range planTableKeys {
-									if !stateTableKeys[key] {
-										addedTables[key] = true
-									}
+									planMap[key] = mapping
 								}
 
-								// Check for intersection: if same source table is both removed and added, deny
-								for removed := range removedTables {
-									if addedTables[removed] {
-										response.Diagnostics.AddError(
-											"Invalid table_mappings configuration",
-											fmt.Sprintf("Cannot delete and add a table mapping for the same source table '%s'. To modify a table mapping, update it in place rather than deleting and recreating it.", removed),
-										)
+								// For each source table in state, check if it's in plan
+								for key, stateMapping := range stateMap {
+									if planMapping, exists := planMap[key]; exists {
+										// Source table exists in both - check if anything changed
+										changed := false
+										changeDetail := ""
+
+										if stateMapping.TargetTable.ValueString() != planMapping.TargetTable.ValueString() {
+											changed = true
+											changeDetail = "target_table"
+										} else if !stateMapping.ExcludedColumns.Equal(planMapping.ExcludedColumns) {
+											changed = true
+											changeDetail = "excluded_columns"
+										} else if !stateMapping.SortingKeys.Equal(planMapping.SortingKeys) {
+											changed = true
+											changeDetail = "sorting_keys"
+										} else if !stateMapping.UseCustomSortingKey.Equal(planMapping.UseCustomSortingKey) {
+											changed = true
+											changeDetail = "use_custom_sorting_key"
+										}
+
+										if changed {
+											response.Diagnostics.AddError(
+												"Invalid table_mappings configuration",
+												fmt.Sprintf("Cannot modify %s for existing table mapping '%s.%s'. Table mappings cannot be updated - you must remove the old mapping and add a new one.", changeDetail, key.sourceSchemaName, key.sourceTable),
+											)
+										}
 									}
 								}
 							}
 						}
 					}
+				}
+			}
+		}
+	}
+
+	// Warn about manual table cleanup for Postgres CDC pipes
+	// Show this for any modification to make users aware, with message clarifying it's for recreations
+	if !request.State.Raw.IsNull() && !request.Plan.Raw.IsNull() {
+		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				if !planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull() {
+					response.Diagnostics.AddWarning(
+						"Note about CDC table cleanup",
+						"If this change requires replacement (check for '# forces replacement' in the plan), destination tables are not automatically deleted. You may need to manually delete previous destination tables before recreating the pipe.",
+					)
 				}
 			}
 		}
@@ -2148,14 +2182,21 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		// Table mappings - convert API response to Set (order doesn't matter)
 		// Get state mappings for preserving null values on optional fields
-		var stateTableMappingsMap map[string]models.ClickPipePostgresTableMappingModel
+		type tableMappingKey struct {
+			sourceSchemaName string
+			sourceTable      string
+		}
+		var stateTableMappingsMap map[tableMappingKey]models.ClickPipePostgresTableMappingModel
 		if !statePostgresModel.TableMappings.IsNull() && len(statePostgresModel.TableMappings.Elements()) > 0 {
 			stateTableMappings := make([]models.ClickPipePostgresTableMappingModel, len(statePostgresModel.TableMappings.Elements()))
 			statePostgresModel.TableMappings.ElementsAs(ctx, &stateTableMappings, false)
 
-			stateTableMappingsMap = make(map[string]models.ClickPipePostgresTableMappingModel)
+			stateTableMappingsMap = make(map[tableMappingKey]models.ClickPipePostgresTableMappingModel)
 			for _, stateMapping := range stateTableMappings {
-				key := fmt.Sprintf("%s.%s->%s", stateMapping.SourceSchemaName.ValueString(), stateMapping.SourceTable.ValueString(), stateMapping.TargetTable.ValueString())
+				key := tableMappingKey{
+					sourceSchemaName: stateMapping.SourceSchemaName.ValueString(),
+					sourceTable:      stateMapping.SourceTable.ValueString(),
+				}
 				stateTableMappingsMap[key] = stateMapping
 			}
 		}
@@ -2163,7 +2204,10 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		// Convert all API mappings to Set elements (order doesn't matter for Sets)
 		tableMappingList := make([]attr.Value, 0, len(clickPipe.Source.Postgres.Mappings))
 		for _, mapping := range clickPipe.Source.Postgres.Mappings {
-			key := fmt.Sprintf("%s.%s->%s", mapping.SourceSchemaName, mapping.SourceTable, mapping.TargetTable)
+			key := tableMappingKey{
+				sourceSchemaName: mapping.SourceSchemaName,
+				sourceTable:      mapping.SourceTable,
+			}
 			stateMapping, hasStateMapping := stateTableMappingsMap[key]
 
 			tableMappingModel := models.ClickPipePostgresTableMappingModel{
@@ -2745,7 +2789,7 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 		return
 	}
 
-	// Check if this is a Postgres pipe - warn about manual table cleanup
+	// Check if this is a Postgres CDC pipe - warn about manual table cleanup
 	var sourceModel models.ClickPipeSourceModel
 	if diags := state.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
 		if !sourceModel.Postgres.IsNull() {

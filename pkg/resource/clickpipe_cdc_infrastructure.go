@@ -153,7 +153,7 @@ func (r *ClickPipeCdcInfrastructureResource) Create(ctx context.Context, req res
 		ReplicaMemoryGb:      plan.ReplicaMemoryGb.ValueFloat64(),
 	}
 
-	scaling, err := r.client.UpdateClickPipeCdcScaling(ctx, serviceID, scalingReq)
+	_, err := r.client.UpdateClickPipeCdcScaling(ctx, serviceID, scalingReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Creating CDC Infrastructure",
@@ -162,9 +162,23 @@ func (r *ClickPipeCdcInfrastructureResource) Create(ctx context.Context, req res
 		return
 	}
 
-	// Update plan with response values
-	plan.ReplicaCpuMillicores = types.Int64Value(scaling.ReplicaCpuMillicores)
-	plan.ReplicaMemoryGb = types.Float64Value(scaling.ReplicaMemoryGb)
+	// Wait for the scaling to be applied (typically takes 2-5 minutes)
+	const maxWaitTime = 10 * time.Minute
+	scaling, err := r.client.WaitForClickPipeCdcScaling(ctx, serviceID, plan.ReplicaCpuMillicores.ValueInt64(), plan.ReplicaMemoryGb.ValueFloat64(), maxWaitTime)
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"CDC scaling change accepted but not yet applied",
+			fmt.Sprintf("CDC scaling change was accepted by the API but hasn't been fully applied after %v. "+
+				"The infrastructure will eventually reach the desired state. Error: %s", maxWaitTime, err),
+		)
+		// Still set the state to the desired values since API accepted them
+		plan.ReplicaCpuMillicores = types.Int64Value(plan.ReplicaCpuMillicores.ValueInt64())
+		plan.ReplicaMemoryGb = types.Float64Value(plan.ReplicaMemoryGb.ValueFloat64())
+	} else {
+		// Update plan with actual applied values from API
+		plan.ReplicaCpuMillicores = types.Int64Value(scaling.ReplicaCpuMillicores)
+		plan.ReplicaMemoryGb = types.Float64Value(scaling.ReplicaMemoryGb)
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
@@ -241,7 +255,7 @@ func (r *ClickPipeCdcInfrastructureResource) Update(ctx context.Context, req res
 		ReplicaMemoryGb:      plan.ReplicaMemoryGb.ValueFloat64(),
 	}
 
-	scaling, err := r.client.UpdateClickPipeCdcScaling(ctx, serviceID, scalingReq)
+	_, err := r.client.UpdateClickPipeCdcScaling(ctx, serviceID, scalingReq)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Updating CDC Infrastructure",
@@ -250,9 +264,23 @@ func (r *ClickPipeCdcInfrastructureResource) Update(ctx context.Context, req res
 		return
 	}
 
-	// Update plan with response values
-	plan.ReplicaCpuMillicores = types.Int64Value(scaling.ReplicaCpuMillicores)
-	plan.ReplicaMemoryGb = types.Float64Value(scaling.ReplicaMemoryGb)
+	// Wait for the scaling to be applied (typically takes 2-5 minutes)
+	const maxWaitTime = 10 * time.Minute
+	scaling, err := r.client.WaitForClickPipeCdcScaling(ctx, serviceID, plan.ReplicaCpuMillicores.ValueInt64(), plan.ReplicaMemoryGb.ValueFloat64(), maxWaitTime)
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"CDC scaling change accepted but not yet applied",
+			fmt.Sprintf("CDC scaling change was accepted by the API but hasn't been fully applied after %v. "+
+				"The infrastructure will eventually reach the desired state. Error: %s", maxWaitTime, err),
+		)
+		// Still set the state to the desired values since API accepted them
+		plan.ReplicaCpuMillicores = types.Int64Value(plan.ReplicaCpuMillicores.ValueInt64())
+		plan.ReplicaMemoryGb = types.Float64Value(plan.ReplicaMemoryGb.ValueFloat64())
+	} else {
+		// Update plan with actual applied values from API
+		plan.ReplicaCpuMillicores = types.Int64Value(scaling.ReplicaCpuMillicores)
+		plan.ReplicaMemoryGb = types.Float64Value(scaling.ReplicaMemoryGb)
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }

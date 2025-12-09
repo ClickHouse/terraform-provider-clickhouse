@@ -445,3 +445,27 @@ func (c *ClientImpl) UpdateClickPipeCdcScaling(ctx context.Context, serviceId st
 
 	return &scalingResponse.Result, nil
 }
+
+func (c *ClientImpl) WaitForClickPipeCdcScaling(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (scaling *ClickPipeCdcScaling, err error) {
+	checkScaling := func() error {
+		scaling, err = c.GetClickPipeCdcScaling(ctx, serviceId)
+		if err != nil {
+			return err
+		}
+
+		// Check if the scaling values match the expected values
+		if scaling.ReplicaCpuMillicores == expectedCpuMillicores && scaling.ReplicaMemoryGb == expectedMemoryGb {
+			return nil
+		}
+
+		return fmt.Errorf("CDC scaling not yet applied: current cpu=%d (expected %d), memory=%.1f (expected %.1f)",
+			scaling.ReplicaCpuMillicores, expectedCpuMillicores, scaling.ReplicaMemoryGb, expectedMemoryGb)
+	}
+
+	if maxElapsedTime < 5*time.Second {
+		maxElapsedTime = 5 * time.Second
+	}
+
+	err = backoff.Retry(checkScaling, backoff.NewExponentialBackOff(backoff.WithMaxElapsedTime(maxElapsedTime), backoff.WithMaxInterval(maxElapsedTime/5)))
+	return
+}
