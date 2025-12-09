@@ -149,28 +149,37 @@ var ClickPipeObjectStorageCompressions = []string{
 
 const (
 	// Postgres replication modes
-	ClickPipePostgresReplicationModeCDC      = "cdc"
-	ClickPipePostgresReplicationModeSnapshot = "snapshot"
-	ClickPipePostgresReplicationModeCDCOnly  = "cdc_only"
+	ClickPipeReplicationModeCDC      = "cdc"
+	ClickPipeReplicationModeSnapshot = "snapshot"
+	ClickPipeReplicationModeCDCOnly  = "cdc_only"
+)
+
+const (
+	ClickPipeTableEngineMergeTree          = "MergeTree"
+	ClickPipeTableEngineReplacingMergeTree = "ReplacingMergeTree"
+	ClickPipeTableEngineNull               = "Null"
 )
 
 var ClickPipePostgresReplicationModes = []string{
-	ClickPipePostgresReplicationModeCDC,
-	ClickPipePostgresReplicationModeSnapshot,
-	ClickPipePostgresReplicationModeCDCOnly,
+	ClickPipeReplicationModeCDC,
+	ClickPipeReplicationModeSnapshot,
+	ClickPipeReplicationModeCDCOnly,
 }
 
-const (
-	// Postgres table engines
-	ClickPipePostgresTableEngineMergeTree          = "MergeTree"
-	ClickPipePostgresTableEngineReplacingMergeTree = "ReplacingMergeTree"
-	ClickPipePostgresTableEngineNull               = "Null"
-)
+var ClickPipeBigQueryReplicationModes = []string{
+	ClickPipeReplicationModeSnapshot,
+}
 
 var ClickPipePostgresTableEngines = []string{
-	ClickPipePostgresTableEngineMergeTree,
-	ClickPipePostgresTableEngineReplacingMergeTree,
-	ClickPipePostgresTableEngineNull,
+	ClickPipeTableEngineMergeTree,
+	ClickPipeTableEngineReplacingMergeTree,
+	ClickPipeTableEngineNull,
+}
+
+var ClickPipeBigQueryTableEngines = []string{
+	ClickPipeTableEngineMergeTree,
+	ClickPipeTableEngineReplacingMergeTree,
+	ClickPipeTableEngineNull,
 }
 
 const (
