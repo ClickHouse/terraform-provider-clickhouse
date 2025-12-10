@@ -181,6 +181,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"kafka": schema.SingleNestedAttribute{
 						MarkdownDescription: "The Kafka source configuration for the ClickPipe.",
 						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -361,6 +364,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"object_storage": schema.SingleNestedAttribute{
 						MarkdownDescription: "The compatible object storage source configuration for the ClickPipe.",
 						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -487,13 +493,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 						},
-						PlanModifiers: []planmodifier.Object{
-							objectplanmodifier.RequiresReplace(),
-						},
 					},
 					"kinesis": schema.SingleNestedAttribute{
 						MarkdownDescription: "The Kinesis source configuration for the ClickPipe.",
 						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
 						Attributes: map[string]schema.Attribute{
 							"format": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -598,6 +604,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"postgres": schema.SingleNestedAttribute{
 						MarkdownDescription: "The Postgres CDC source configuration for the ClickPipe.",
 						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
 						Attributes: map[string]schema.Attribute{
 							"host": schema.StringAttribute{
 								Description: "The hostname of the Postgres instance.",
@@ -725,12 +734,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									},
 								},
 							},
-							"table_mappings": schema.ListNestedAttribute{
+							"table_mappings": schema.SetNestedAttribute{
 								Description: "Table mappings from Postgres source to ClickHouse destination.",
 								Required:    true,
-								PlanModifiers: []planmodifier.List{
-									listplanmodifier.RequiresReplace(),
-								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
 										"source_schema_name": schema.StringAttribute{
@@ -1239,6 +1245,117 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		plan.TriggerResync = types.BoolValue(false)
 		response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
 	}
+
+	// Validate Postgres table mappings changes
+	if !request.State.Raw.IsNull() {
+		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				// Only validate if this is a Postgres source
+				if !planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull() {
+					var planPostgres, statePostgres models.ClickPipePostgresSourceModel
+					if diags := planSourceModel.Postgres.As(ctx, &planPostgres, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						if diags := stateSourceModel.Postgres.As(ctx, &statePostgres, basetypes.ObjectAsOptions{}); !diags.HasError() {
+
+							// Get state and plan table mappings
+							var stateMappings, planMappings []models.ClickPipePostgresTableMappingModel
+							if !statePostgres.TableMappings.IsNull() {
+								stateMappings = make([]models.ClickPipePostgresTableMappingModel, len(statePostgres.TableMappings.Elements()))
+								statePostgres.TableMappings.ElementsAs(ctx, &stateMappings, false)
+							}
+							if !planPostgres.TableMappings.IsNull() {
+								planMappings = make([]models.ClickPipePostgresTableMappingModel, len(planPostgres.TableMappings.Elements()))
+								planPostgres.TableMappings.ElementsAs(ctx, &planMappings, false)
+							}
+
+							// Validation 1: Postgres CDC pipes must have at least one table mapping
+							if len(planMappings) == 0 {
+								response.Diagnostics.AddError(
+									"Invalid table_mappings configuration",
+									"Postgres CDC pipes require at least one table mapping.",
+								)
+							}
+
+							// Validation 2: Table mappings cannot be modified - only added or removed
+							// Terraform Sets handle modifications as remove+add, so any source table that appears
+							// in both state and plan must have identical configuration
+							if len(stateMappings) > 0 && len(planMappings) > 0 {
+								type sourceTableKey struct {
+									sourceSchemaName string
+									sourceTable      string
+								}
+
+								// Build maps from source key to full mapping
+								stateMap := make(map[sourceTableKey]models.ClickPipePostgresTableMappingModel)
+								planMap := make(map[sourceTableKey]models.ClickPipePostgresTableMappingModel)
+
+								for _, mapping := range stateMappings {
+									key := sourceTableKey{
+										sourceSchemaName: mapping.SourceSchemaName.ValueString(),
+										sourceTable:      mapping.SourceTable.ValueString(),
+									}
+									stateMap[key] = mapping
+								}
+								for _, mapping := range planMappings {
+									key := sourceTableKey{
+										sourceSchemaName: mapping.SourceSchemaName.ValueString(),
+										sourceTable:      mapping.SourceTable.ValueString(),
+									}
+									planMap[key] = mapping
+								}
+
+								// For each source table in state, check if it's in plan
+								for key, stateMapping := range stateMap {
+									if planMapping, exists := planMap[key]; exists {
+										// Source table exists in both - check if anything changed
+										changed := false
+										changeDetail := ""
+
+										if stateMapping.TargetTable.ValueString() != planMapping.TargetTable.ValueString() {
+											changed = true
+											changeDetail = "target_table"
+										} else if !stateMapping.ExcludedColumns.Equal(planMapping.ExcludedColumns) {
+											changed = true
+											changeDetail = "excluded_columns"
+										} else if !stateMapping.SortingKeys.Equal(planMapping.SortingKeys) {
+											changed = true
+											changeDetail = "sorting_keys"
+										} else if !stateMapping.UseCustomSortingKey.Equal(planMapping.UseCustomSortingKey) {
+											changed = true
+											changeDetail = "use_custom_sorting_key"
+										}
+
+										if changed {
+											response.Diagnostics.AddError(
+												"Invalid table_mappings configuration",
+												fmt.Sprintf("Cannot modify %s for existing table mapping '%s.%s'. Table mappings cannot be updated - you must remove the old mapping and add a new one.", changeDetail, key.sourceSchemaName, key.sourceTable),
+											)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Warn about manual table cleanup for Postgres CDC pipes
+	// Show this for any modification to make users aware, with message clarifying it's for recreations
+	if !request.State.Raw.IsNull() && !request.Plan.Raw.IsNull() {
+		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				if !planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull() {
+					response.Diagnostics.AddWarning(
+						"Note about CDC table cleanup",
+						"If this change requires replacement (check for '# forces replacement' in the plan), destination tables are not automatically deleted. You may need to manually delete previous destination tables before recreating the pipe.",
+					)
+				}
+			}
+		}
+	}
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
@@ -1459,11 +1576,15 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	// Determine expected state(s) based on configuration
 	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
 
-	if _, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, stateCheckFunc, clickPipeStateChangeMaxWaitSeconds); err != nil {
-		response.Diagnostics.AddWarning(
-			"ClickPipe didn't reach the desired state",
-			err.Error(),
-		)
+	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, stateCheckFunc, clickPipeStateChangeMaxWaitSeconds)
+	if err != nil {
+		// Only warn if the final state is not acceptable
+		if finalClickPipe == nil || !stateCheckFunc(finalClickPipe.State) {
+			response.Diagnostics.AddWarning(
+				"ClickPipe didn't reach the desired state",
+				err.Error(),
+			)
+		}
 	}
 
 	plan.ID = types.StringValue(createdClickPipe.ID)
@@ -1806,7 +1927,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		settingsModel := models.ClickPipePostgresSettingsModel{}
 		diagnostics.Append(postgresModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
 
-		settings := api.ClickPipePostgresSettings{
+		settings := &api.ClickPipePostgresSettings{
 			ReplicationMode: settingsModel.ReplicationMode.ValueString(),
 		}
 
@@ -1946,6 +2067,7 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 	}
 
 	// Check if this is a snapshot-only DB pipe (Postgres snapshot mode or BigQuery)
+	isPostgresPipe := false
 	isSnapshotOnly := false
 	var sourceModel models.ClickPipeSourceModel
 	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
@@ -1953,8 +2075,9 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 		if !sourceModel.BigQuery.IsNull() {
 			isSnapshotOnly = true
 		} else if !sourceModel.Postgres.IsNull() {
+			isPostgresPipe = true
 			var postgresSource models.ClickPipePostgresSourceModel
-			if diags := sourceModel.Postgres.As(ctx, &postgresSource, basetypes.ObjectAsOptions{}); diags == nil {
+			if diags := sourceModel.Postgres.As(ctx, &postgresSource, basetypes.ObjectAsOptions{}); !diags.HasError() {
 				if !postgresSource.Settings.IsNull() {
 					var settings models.ClickPipePostgresSettingsModel
 					if diags := postgresSource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); diags == nil {
@@ -1965,8 +2088,8 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 		}
 	}
 
-	// For snapshot-only pipes, accept both Running and Completed states
-	// Also treat terminal error states (Failed, InternalError) as complete to stop waiting
+	// For snapshot-only Postgres pipes, accept Completed, Snapshot, or Failed states
+	// Failed is included to stop waiting early (warning will be shown but apply continues)
 	if isSnapshotOnly {
 		return func(state string) bool {
 			return state == api.ClickPipeCompletedState ||
@@ -1975,7 +2098,17 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 		}
 	}
 
-	// For other pipes, wait for Running state or terminal error states
+	// For Postgres CDC pipes, accept Running, Snapshot (initial snapshot phase), or Failed states
+	// Snapshot state is normal during the initial snapshot before CDC starts
+	if isPostgresPipe {
+		return func(state string) bool {
+			return state == api.ClickPipeRunningState ||
+				state == api.ClickPipeSnapShotState ||
+				state == api.ClickPipeFailedState
+		}
+	}
+
+	// For other pipes (Kafka, S3, etc.), wait for Running or Failed state
 	return func(state string) bool {
 		return state == api.ClickPipeRunningState ||
 			state == api.ClickPipeFailedState
@@ -2284,25 +2417,40 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.EnableFailoverSlots = types.BoolNull()
 		}
 
-		// Table mappings - preserve null values from state
-		var stateTableMappings []models.ClickPipePostgresTableMappingModel
+		// Table mappings - convert API response to Set (order doesn't matter)
+		// Get state mappings for preserving null values on optional fields
+		type tableMappingKey struct {
+			sourceSchemaName string
+			sourceTable      string
+		}
+		var stateTableMappingsMap map[tableMappingKey]models.ClickPipePostgresTableMappingModel
 		if !statePostgresModel.TableMappings.IsNull() && len(statePostgresModel.TableMappings.Elements()) > 0 {
-			stateTableMappings = make([]models.ClickPipePostgresTableMappingModel, len(statePostgresModel.TableMappings.Elements()))
+			stateTableMappings := make([]models.ClickPipePostgresTableMappingModel, len(statePostgresModel.TableMappings.Elements()))
 			statePostgresModel.TableMappings.ElementsAs(ctx, &stateTableMappings, false)
+
+			stateTableMappingsMap = make(map[tableMappingKey]models.ClickPipePostgresTableMappingModel)
+			for _, stateMapping := range stateTableMappings {
+				key := tableMappingKey{
+					sourceSchemaName: stateMapping.SourceSchemaName.ValueString(),
+					sourceTable:      stateMapping.SourceTable.ValueString(),
+				}
+				stateTableMappingsMap[key] = stateMapping
+			}
 		}
 
-		tableMappingList := make([]attr.Value, len(clickPipe.Source.Postgres.Mappings))
-		for i, mapping := range clickPipe.Source.Postgres.Mappings {
+		// Convert all API mappings to Set elements (order doesn't matter for Sets)
+		tableMappingList := make([]attr.Value, 0, len(clickPipe.Source.Postgres.Mappings))
+		for _, mapping := range clickPipe.Source.Postgres.Mappings {
+			key := tableMappingKey{
+				sourceSchemaName: mapping.SourceSchemaName,
+				sourceTable:      mapping.SourceTable,
+			}
+			stateMapping, hasStateMapping := stateTableMappingsMap[key]
+
 			tableMappingModel := models.ClickPipePostgresTableMappingModel{
 				SourceSchemaName: types.StringValue(mapping.SourceSchemaName),
 				SourceTable:      types.StringValue(mapping.SourceTable),
 				TargetTable:      types.StringValue(mapping.TargetTable),
-			}
-
-			// Get corresponding state mapping if it exists
-			var stateMapping *models.ClickPipePostgresTableMappingModel
-			if i < len(stateTableMappings) {
-				stateMapping = &stateTableMappings[i]
 			}
 
 			if len(mapping.ExcludedColumns) > 0 {
@@ -2332,17 +2480,17 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			}
 
 			// For table_engine, preserve null from state if it was null (API may return default)
-			if stateMapping != nil && stateMapping.TableEngine.IsNull() {
+			if hasStateMapping && stateMapping.TableEngine.IsNull() {
 				tableMappingModel.TableEngine = types.StringNull()
 			} else if mapping.TableEngine != nil && *mapping.TableEngine != "" {
 				tableMappingModel.TableEngine = types.StringValue(*mapping.TableEngine)
-			} else if stateMapping != nil {
+			} else if hasStateMapping {
 				tableMappingModel.TableEngine = stateMapping.TableEngine
 			} else {
 				tableMappingModel.TableEngine = types.StringNull()
 			}
 
-			tableMappingList[i] = tableMappingModel.ObjectValue()
+			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
 		}
 
 		postgresModel := models.ClickPipePostgresSourceModel{
@@ -2350,11 +2498,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Port:          types.Int64Value(int64(clickPipe.Source.Postgres.Port)),
 			Database:      types.StringValue(clickPipe.Source.Postgres.Database),
 			Settings:      settingsModel.ObjectValue(),
-			TableMappings: types.ListNull(models.ClickPipePostgresTableMappingModel{}.ObjectType()),
+			TableMappings: types.SetNull(models.ClickPipePostgresTableMappingModel{}.ObjectType()),
 		}
 
 		if len(tableMappingList) > 0 {
-			postgresModel.TableMappings, _ = types.ListValue(models.ClickPipePostgresTableMappingModel{}.ObjectType(), tableMappingList)
+			postgresModel.TableMappings, _ = types.SetValue(models.ClickPipePostgresTableMappingModel{}.ObjectType(), tableMappingList)
 		}
 
 		// Preserve credentials from state as API doesn't return them
@@ -2976,11 +3124,15 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	// Determine expected state(s) based on configuration
 	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
 
-	if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), stateCheckFunc, clickPipeStateChangeMaxWaitSeconds); err != nil {
-		response.Diagnostics.AddWarning(
-			"ClickPipe didn't reach the desired state",
-			err.Error(),
-		)
+	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), stateCheckFunc, clickPipeStateChangeMaxWaitSeconds)
+	if err != nil {
+		// Only warn if the final state is not acceptable
+		if finalClickPipe == nil || !stateCheckFunc(finalClickPipe.State) {
+			response.Diagnostics.AddWarning(
+				"ClickPipe didn't reach the desired state",
+				err.Error(),
+			)
+		}
 	}
 
 	if err := c.syncClickPipeState(ctx, &plan); err != nil {
@@ -3001,6 +3153,17 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
 		return
+	}
+
+	// Check if this is a Postgres CDC pipe - warn about manual table cleanup
+	var sourceModel models.ClickPipeSourceModel
+	if diags := state.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+		if !sourceModel.Postgres.IsNull() {
+			response.Diagnostics.AddWarning(
+				"Manual table cleanup required",
+				"Previous destination tables need to be deleted manually before a recreation of the CDC pipe can occur.",
+			)
+		}
 	}
 
 	if err := c.client.DeleteClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString()); err != nil {

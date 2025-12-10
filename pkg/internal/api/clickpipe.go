@@ -402,3 +402,79 @@ func (c *ClientImpl) UpdateClickPipeSettings(ctx context.Context, serviceId stri
 
 	return settingsResponse.Result, nil
 }
+
+type ClickPipeCdcScaling struct {
+	ReplicaCpuMillicores int64   `json:"replicaCpuMillicores"`
+	ReplicaMemoryGb      float64 `json:"replicaMemoryGb"`
+}
+
+type ClickPipeCdcScalingRequest struct {
+	ReplicaCpuMillicores int64   `json:"replicaCpuMillicores"`
+	ReplicaMemoryGb      float64 `json:"replicaMemoryGb"`
+}
+
+func (c *ClientImpl) GetClickPipeCdcScaling(ctx context.Context, serviceId string) (*ClickPipeCdcScaling, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, "/clickpipesCdcScaling"), nil)
+	if err != nil {
+		return nil, err
+	}
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	scalingResponse := ResponseWithResult[ClickPipeCdcScaling]{}
+	if err := json.Unmarshal(body, &scalingResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal CDC scaling: %w", err)
+	}
+
+	return &scalingResponse.Result, nil
+}
+
+func (c *ClientImpl) UpdateClickPipeCdcScaling(ctx context.Context, serviceId string, request ClickPipeCdcScalingRequest) (*ClickPipeCdcScaling, error) {
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(request); err != nil {
+		return nil, fmt.Errorf("failed to encode CDC scaling: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.getServicePath(serviceId, "/clickpipesCdcScaling"), &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	scalingResponse := ResponseWithResult[ClickPipeCdcScaling]{}
+	if err := json.Unmarshal(body, &scalingResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal CDC scaling: %w", err)
+	}
+
+	return &scalingResponse.Result, nil
+}
+
+func (c *ClientImpl) WaitForClickPipeCdcScaling(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (scaling *ClickPipeCdcScaling, err error) {
+	checkScaling := func() error {
+		scaling, err = c.GetClickPipeCdcScaling(ctx, serviceId)
+		if err != nil {
+			return err
+		}
+
+		// Check if the scaling values match the expected values
+		if scaling.ReplicaCpuMillicores == expectedCpuMillicores && scaling.ReplicaMemoryGb == expectedMemoryGb {
+			return nil
+		}
+
+		return fmt.Errorf("CDC scaling not yet applied: current cpu=%d (expected %d), memory=%.1f (expected %.1f)",
+			scaling.ReplicaCpuMillicores, expectedCpuMillicores, scaling.ReplicaMemoryGb, expectedMemoryGb)
+	}
+
+	if maxElapsedTime < 5*time.Second {
+		maxElapsedTime = 5 * time.Second
+	}
+
+	err = backoff.Retry(checkScaling, backoff.NewExponentialBackOff(backoff.WithMaxElapsedTime(maxElapsedTime), backoff.WithMaxInterval(maxElapsedTime/5)))
+	return
+}

@@ -337,7 +337,7 @@ type ClickPipePostgresSourceModel struct {
 	Database      types.String `tfsdk:"database"`
 	Credentials   types.Object `tfsdk:"credentials"`
 	Settings      types.Object `tfsdk:"settings"`
-	TableMappings types.List   `tfsdk:"table_mappings"`
+	TableMappings types.Set    `tfsdk:"table_mappings"`
 }
 
 func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
@@ -348,7 +348,7 @@ func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
 			"database":       types.StringType,
 			"credentials":    ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":       ClickPipePostgresSettingsModel{}.ObjectType(),
-			"table_mappings": types.ListType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
+			"table_mappings": types.SetType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
 		},
 	}
 }
@@ -699,4 +699,10 @@ type ClickPipeResourceModel struct {
 	FieldMappings types.List    `tfsdk:"field_mappings"`
 	Settings      types.Dynamic `tfsdk:"settings"`
 	TriggerResync types.Bool    `tfsdk:"trigger_resync"`
+}
+
+type ClickPipeCdcInfrastructureModel struct {
+	ServiceID            types.String  `tfsdk:"service_id"`
+	ReplicaCpuMillicores types.Int64   `tfsdk:"replica_cpu_millicores"`
+	ReplicaMemoryGb      types.Float64 `tfsdk:"replica_memory_gb"`
 }
