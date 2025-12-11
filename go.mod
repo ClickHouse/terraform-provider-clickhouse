@@ -12,7 +12,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.29.0
 	github.com/hashicorp/terraform-plugin-log v0.10.0
 	github.com/stretchr/testify v1.10.0
-	k8s.io/apimachinery v0.34.1
+	k8s.io/apimachinery v0.34.3
 )
 
 require (
