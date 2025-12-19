@@ -24,6 +24,11 @@ jobs:
       enable_alpha: ${{ steps.check.outputs.enable_alpha }}
       goreleaser_config: ${{ steps.check.outputs.goreleaser_config }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Check input
         id: check
         run: |
@@ -31,22 +36,16 @@ jobs:
           enable_alpha=""
           goreleaser_config=""
 
-          # validate semver.
-          if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
-            echo "Valid release version: $version"
+          bash ./.github/scripts/validate_version.sh "$version"
 
-            if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-              # Release is something like x.y.z
-              enable_alpha="false"
-              goreleaser_config=".goreleaser-stable.yml"
-            else
-              # Release is something like x.y.z-something
-              enable_alpha="true"
-              goreleaser_config=".goreleaser-alpha.yml"
-            fi
+          if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            # Release is something like x.y.z
+            enable_alpha="false"
+            goreleaser_config=".goreleaser-stable.yml"
           else
-            echo "Invalid semver: \"$version\". Must be something like 1.2.3 without leading \"v\""
-            exit 1
+            # Release is something like x.y.z-something
+            enable_alpha="true"
+            goreleaser_config=".goreleaser-alpha.yml"
           fi
 
           echo "enable_alpha=${enable_alpha}" >> "${GITHUB_OUTPUT}"
