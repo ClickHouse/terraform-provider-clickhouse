@@ -95,6 +95,8 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 
 		res, err := c.HttpClient.Do(req)
 		if err != nil {
+			// debug
+			tflog.Warn(ctx, fmt.Sprintf("API request failed: %s", err.Error()))
 			debugctx = tflog.SetField(debugctx, "error", err.Error())
 			tflog.Debug(debugctx, "API request failed")
 			return nil, err
@@ -103,6 +105,8 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
+			// debug
+			tflog.Warn(ctx, fmt.Sprintf("Read error: %s", err.Error()))
 			return nil, err
 		}
 
@@ -126,6 +130,8 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		tflog.Debug(debugctx, "API request")
 
 		if res.StatusCode != http.StatusOK {
+			// debug
+			tflog.Warn(ctx, fmt.Sprintf("HTTP status code %d", res.StatusCode))
 			var resetSeconds float64
 			if res.StatusCode == http.StatusTooManyRequests { // 429
 				// Try to read rate limiting headers from the response.

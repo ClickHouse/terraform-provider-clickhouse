@@ -193,6 +193,8 @@ runs:
           export TF_LOG=debug
         fi
 
+        export TF_LOG=WARN
+
         terraform init -input=false
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
@@ -237,6 +239,8 @@ runs:
         if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
           export TF_LOG=debug
         fi
+
+        export TF_LOG=WARN
 
         terraform init -input=false -upgrade
         terraform plan -no-color -var-file=variables.tfvars
