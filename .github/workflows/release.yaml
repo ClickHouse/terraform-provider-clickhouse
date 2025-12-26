@@ -1,5 +1,8 @@
 name: Release
 
+concurrency:
+  group: ${{ github.workflow }}
+
 on:
   workflow_dispatch:
     inputs:
