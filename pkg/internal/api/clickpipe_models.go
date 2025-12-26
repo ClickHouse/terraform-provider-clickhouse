@@ -147,6 +147,10 @@ type ClickPipePostgresSource struct {
 	Host                  string                          `json:"host,omitempty"`
 	Port                  int                             `json:"port,omitempty"`
 	Database              string                          `json:"database,omitempty"`
+	Authentication        *string                         `json:"authentication,omitempty"`
+	IAMRole               *string                         `json:"iamRole,omitempty"`
+	TLSHost               *string                         `json:"tlsHost,omitempty"`
+	CACertificate         *string                         `json:"caCertificate,omitempty"`
 	Credentials           *ClickPipeSourceCredentials     `json:"credentials,omitempty"`
 	Settings              *ClickPipePostgresSettings      `json:"settings,omitempty"`
 	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings,omitempty"`
@@ -175,6 +179,7 @@ type ClickPipePostgresTableMapping struct {
 	UseCustomSortingKey *bool    `json:"useCustomSortingKey,omitempty"`
 	SortingKeys         []string `json:"sortingKeys,omitempty"`
 	TableEngine         *string  `json:"tableEngine,omitempty"`
+	PartitionKey        *string  `json:"partitionKey,omitempty"`
 }
 
 type ClickPipeServiceAccount struct {
