@@ -1,5 +1,8 @@
 name: E2E tests
 
+concurrency:
+  group: ${{ github.workflow }}
+
 on:
   workflow_dispatch:
     inputs:
