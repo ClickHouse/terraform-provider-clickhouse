@@ -265,7 +265,7 @@ jobs:
     steps:
       - name: Report Failure on slack
         if: ${{ github.ref_name == 'main' && (needs.e2e.result == 'failure' || needs.upgrade.result == 'failure') }}
-        uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2.5.0
+        uses: ravsamhq/notify-slack-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: "failure"
