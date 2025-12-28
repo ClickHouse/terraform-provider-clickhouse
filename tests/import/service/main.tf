@@ -3,11 +3,13 @@ variable "organization_id" {
 }
 
 variable "token_key" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "token_secret" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "service_name" {
@@ -23,22 +25,22 @@ variable "region" {
 }
 
 variable "release_channel" {
-  type = string
+  type    = string
   default = "default"
   validation {
-    condition     = var.release_channel == "default" || var.release_channel == "fast"
-    error_message = "Release channel can be either 'default' or 'fast'."
+    condition     = contains(["default", "fast", "slow"], var.release_channel)
+    error_message = "Release channel can be 'default', 'fast' or 'slow'."
   }
 }
 
 resource "clickhouse_service" "import" {
-  name                      = var.service_name
-  cloud_provider            = var.cloud_provider
-  region                    = var.region
-  release_channel           = var.release_channel
-  idle_scaling              = true
-  idle_timeout_minutes      = 15
-  password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
+  name                 = var.service_name
+  cloud_provider       = var.cloud_provider
+  region               = var.region
+  release_channel      = var.release_channel
+  idle_scaling         = true
+  idle_timeout_minutes = 15
+  password_hash        = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
 
   ip_access = [
     {

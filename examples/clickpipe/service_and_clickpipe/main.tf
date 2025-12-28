@@ -13,20 +13,16 @@ variable "region" {
 }
 
 variable "kafka_brokers" {
-  description = "Kafka brokers"
 }
 
 variable "kafka_topics" {
-  description = "Kafka topics"
 }
 
 variable "kafka_username" {
-  description = "Username"
   sensitive   = true
 }
 
 variable "kafka_password" {
-  description = "Password"
   sensitive   = true
 }
 
@@ -42,14 +38,12 @@ resource "clickhouse_service" "service" {
   ip_access = [
     {
       source      = "0.0.0.0"
-      description = "Anywhere"
     }
   ]
 }
 
 resource "clickhouse_clickpipe" "kafka_confluent" {
   name        = "🚀 ClickPipe created with Terraform"
-  description = "Data pipeline from Confluent to ClickHouse"
 
   service_id = clickhouse_service.service.id
 
@@ -57,7 +51,7 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {

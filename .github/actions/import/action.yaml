@@ -18,9 +18,9 @@ inputs:
     required: true
     default: "service"
     description: "The type of resource to import. Only supported resource is 'service'"
-  resource_name:
+  service_name:
     required: true
-    description: "The name of the existing resource to import"
+    description: "The name of the existing service to import"
   tf_release:
     required: true
     description: "The terraform cli version"
@@ -36,7 +36,7 @@ runs:
     - name: Setup go
       uses: actions/setup-go@v5
       with:
-        go-version-file: 'go.mod'
+        go-version-file: "go.mod"
         cache: true
 
     - name: Install terraform
@@ -53,7 +53,7 @@ runs:
       name: Set env variables
       run: |
         echo "::group::Setting env variables"
-        
+
         cat <<EOF >tests/import/${{ inputs.resource_type }}/variables.tfvars
         organization_id = "${{ inputs.organization_id }}"
         token_key       = "${{ inputs.token_key }}"
@@ -61,20 +61,20 @@ runs:
         cloud_provider  = "${{ inputs.cloud_provider }}"
         region          = "${{ inputs.region }}"
         EOF
-        
+
         if [ "${{ inputs.resource_type }}" == "service" ]
         then
           cat <<EOF >>tests/import/${{ inputs.resource_type }}/variables.tfvars
-        service_name    = "${{ inputs.resource_name }}"
+        service_name    = "${{ inputs.service_name }}"
         EOF
         fi
-                
+
         echo "::endgroup::"
 
     - shell: bash
       name: Build provider from branch and create terraformrc to use it
       run: |
-        git checkout ${{ github.ref }}        
+        git checkout ${{ github.ref }}
         echo "::group::Build provider from branch and create terraformrc to use it"
         go get
         go build -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
@@ -95,24 +95,26 @@ runs:
       run: |
         echo "::group::Create the resource"
         cd "tests/import/${{ inputs.resource_type }}"
-        
+
         if [ "${{inputs.api_url}}" != "" ]
         then
           export CLICKHOUSE_API_URL="${{inputs.api_url}}"
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
-        
-        export TF_LOG=debug
-        
+
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+          export TF_LOG=debug
+        fi
+
         terraform init -input=false -upgrade
         terraform apply -no-color -var-file=variables.tfvars -auto-approve
-        
+
         id="$(cat terraform.tfstate | jq '.resources[0].instances[0].attributes.id')"
         echo "id=${id}" >> "$GITHUB_OUTPUT"
-                
+
         # Ensure there is no state file
         rm terraform.tfstate
-        
+
         echo "::endgroup::"
 
     - shell: bash
@@ -127,25 +129,18 @@ runs:
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
 
-        export TF_LOG=debug
-        
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+          export TF_LOG=debug
+        fi
+
         terraform init -input=false -upgrade
         terraform import -no-color -var-file=variables.tfvars clickhouse_${{ inputs.resource_type }}.import ${{ steps.apply.outputs.id }}
         echo "::endgroup::"
 
     - shell: bash
       name: Terraform destroy
+      env:
+        RESOURCE_TYPE: ${{ inputs.resource_type }}
+        API_URL: ${{inputs.api_url}}
       run: |
-        echo "::group::Run terraform destroy"
-        cd "tests/import/${{ inputs.resource_type }}"
-        
-        if [ "${{inputs.api_url}}" != "" ]
-        then
-          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
-          echo "Using '$CLICKHOUSE_API_URL' as API URL"
-        fi
-        
-        export TF_LOG=debug
-        
-        terraform destroy -no-color -auto-approve -var-file=variables.tfvars
-        echo "::endgroup::"
+        ./.github/actions/import/import.sh

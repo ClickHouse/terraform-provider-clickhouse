@@ -8,21 +8,28 @@ import (
 )
 
 type ClickPipeScalingModel struct {
-	Replicas types.Int64 `tfsdk:"replicas"`
+	Replicas             types.Int64   `tfsdk:"replicas"`
+	ReplicaCpuMillicores types.Int64   `tfsdk:"replica_cpu_millicores"`
+	ReplicaMemoryGb      types.Float64 `tfsdk:"replica_memory_gb"`
 }
 
 func (m ClickPipeScalingModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"replicas": types.Int64Type,
+			"replicas":               types.Int64Type,
+			"replica_cpu_millicores": types.Int64Type,
+			"replica_memory_gb":      types.Float64Type,
 		},
 	}
 }
 
 func (m ClickPipeScalingModel) ObjectValue() types.Object {
-	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"replicas": m.Replicas,
+	objValue, _ := types.ObjectValue(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"replicas":               m.Replicas,
+		"replica_cpu_millicores": m.ReplicaCpuMillicores,
+		"replica_memory_gb":      m.ReplicaMemoryGb,
 	})
+	return objValue
 }
 
 type ClickPipeKafkaOffsetModel struct {
@@ -201,6 +208,162 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeKinesisSourceModel struct {
+	Format            types.String `tfsdk:"format"`
+	StreamName        types.String `tfsdk:"stream_name"`
+	Region            types.String `tfsdk:"region"`
+	IteratorType      types.String `tfsdk:"iterator_type"`
+	Timestamp         types.String `tfsdk:"timestamp"`
+	UseEnhancedFanOut types.Bool   `tfsdk:"use_enhanced_fan_out"`
+	Authentication    types.String `tfsdk:"authentication"`
+	AccessKey         types.Object `tfsdk:"access_key"`
+	IAMRole           types.String `tfsdk:"iam_role"`
+}
+
+func (m ClickPipeKinesisSourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"format":               types.StringType,
+			"stream_name":          types.StringType,
+			"region":               types.StringType,
+			"iterator_type":        types.StringType,
+			"timestamp":            types.StringType,
+			"use_enhanced_fan_out": types.BoolType,
+			"authentication":       types.StringType,
+			"access_key":           ClickPipeSourceAccessKeyModel{}.ObjectType(),
+			"iam_role":             types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeKinesisSourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"format":               m.Format,
+		"stream_name":          m.StreamName,
+		"region":               m.Region,
+		"iterator_type":        m.IteratorType,
+		"timestamp":            m.Timestamp,
+		"use_enhanced_fan_out": m.UseEnhancedFanOut,
+		"authentication":       m.Authentication,
+		"access_key":           m.AccessKey,
+		"iam_role":             m.IAMRole,
+	})
+}
+
+type ClickPipePostgresSettingsModel struct {
+	SyncIntervalSeconds            types.Int64  `tfsdk:"sync_interval_seconds"`
+	PullBatchSize                  types.Int64  `tfsdk:"pull_batch_size"`
+	PublicationName                types.String `tfsdk:"publication_name"`
+	ReplicationMode                types.String `tfsdk:"replication_mode"`
+	ReplicationSlotName            types.String `tfsdk:"replication_slot_name"`
+	AllowNullableColumns           types.Bool   `tfsdk:"allow_nullable_columns"`
+	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
+	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
+	SnapshotNumberOfParallelTables types.Int64  `tfsdk:"snapshot_number_of_parallel_tables"`
+	EnableFailoverSlots            types.Bool   `tfsdk:"enable_failover_slots"`
+}
+
+func (m ClickPipePostgresSettingsModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"sync_interval_seconds":              types.Int64Type,
+			"pull_batch_size":                    types.Int64Type,
+			"publication_name":                   types.StringType,
+			"replication_mode":                   types.StringType,
+			"replication_slot_name":              types.StringType,
+			"allow_nullable_columns":             types.BoolType,
+			"initial_load_parallelism":           types.Int64Type,
+			"snapshot_num_rows_per_partition":    types.Int64Type,
+			"snapshot_number_of_parallel_tables": types.Int64Type,
+			"enable_failover_slots":              types.BoolType,
+		},
+	}
+}
+
+func (m ClickPipePostgresSettingsModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"sync_interval_seconds":              m.SyncIntervalSeconds,
+		"pull_batch_size":                    m.PullBatchSize,
+		"publication_name":                   m.PublicationName,
+		"replication_mode":                   m.ReplicationMode,
+		"replication_slot_name":              m.ReplicationSlotName,
+		"allow_nullable_columns":             m.AllowNullableColumns,
+		"initial_load_parallelism":           m.InitialLoadParallelism,
+		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
+		"snapshot_number_of_parallel_tables": m.SnapshotNumberOfParallelTables,
+		"enable_failover_slots":              m.EnableFailoverSlots,
+	})
+}
+
+type ClickPipePostgresTableMappingModel struct {
+	SourceSchemaName    types.String `tfsdk:"source_schema_name"`
+	SourceTable         types.String `tfsdk:"source_table"`
+	TargetTable         types.String `tfsdk:"target_table"`
+	ExcludedColumns     types.List   `tfsdk:"excluded_columns"`
+	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
+	SortingKeys         types.List   `tfsdk:"sorting_keys"`
+	TableEngine         types.String `tfsdk:"table_engine"`
+}
+
+func (m ClickPipePostgresTableMappingModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"source_schema_name":     types.StringType,
+			"source_table":           types.StringType,
+			"target_table":           types.StringType,
+			"excluded_columns":       types.ListType{ElemType: types.StringType},
+			"use_custom_sorting_key": types.BoolType,
+			"sorting_keys":           types.ListType{ElemType: types.StringType},
+			"table_engine":           types.StringType,
+		},
+	}
+}
+
+func (m ClickPipePostgresTableMappingModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"source_schema_name":     m.SourceSchemaName,
+		"source_table":           m.SourceTable,
+		"target_table":           m.TargetTable,
+		"excluded_columns":       m.ExcludedColumns,
+		"use_custom_sorting_key": m.UseCustomSortingKey,
+		"sorting_keys":           m.SortingKeys,
+		"table_engine":           m.TableEngine,
+	})
+}
+
+type ClickPipePostgresSourceModel struct {
+	Host          types.String `tfsdk:"host"`
+	Port          types.Int64  `tfsdk:"port"`
+	Database      types.String `tfsdk:"database"`
+	Credentials   types.Object `tfsdk:"credentials"`
+	Settings      types.Object `tfsdk:"settings"`
+	TableMappings types.Set    `tfsdk:"table_mappings"`
+}
+
+func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"host":           types.StringType,
+			"port":           types.Int64Type,
+			"database":       types.StringType,
+			"credentials":    ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"settings":       ClickPipePostgresSettingsModel{}.ObjectType(),
+			"table_mappings": types.SetType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
+		},
+	}
+}
+
+func (m ClickPipePostgresSourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"host":           m.Host,
+		"port":           m.Port,
+		"database":       m.Database,
+		"credentials":    m.Credentials,
+		"settings":       m.Settings,
+		"table_mappings": m.TableMappings,
+	})
+}
+
 type ClickPipeObjectStorageSourceModel struct {
 	Type           types.String `tfsdk:"type"`
 	Format         types.String `tfsdk:"format"`
@@ -208,44 +371,172 @@ type ClickPipeObjectStorageSourceModel struct {
 	Delimiter      types.String `tfsdk:"delimiter"`
 	Compression    types.String `tfsdk:"compression"`
 	IsContinuous   types.Bool   `tfsdk:"is_continuous"`
+	QueueURL       types.String `tfsdk:"queue_url"`
 	Authentication types.String `tfsdk:"authentication"`
 	AccessKey      types.Object `tfsdk:"access_key"`
 	IAMRole        types.String `tfsdk:"iam_role"`
+
+	// Azure Blob Storage specific fields
+	ConnectionString   types.String `tfsdk:"connection_string"`
+	Path               types.String `tfsdk:"path"`
+	AzureContainerName types.String `tfsdk:"azure_container_name"`
 }
 
 func (m ClickPipeObjectStorageSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"type":           types.StringType,
-			"format":         types.StringType,
-			"url":            types.StringType,
-			"delimiter":      types.StringType,
-			"compression":    types.StringType,
-			"is_continuous":  types.BoolType,
-			"authentication": types.StringType,
-			"access_key":     ClickPipeSourceAccessKeyModel{}.ObjectType(),
-			"iam_role":       types.StringType,
+			"type":                 types.StringType,
+			"format":               types.StringType,
+			"url":                  types.StringType,
+			"delimiter":            types.StringType,
+			"compression":          types.StringType,
+			"is_continuous":        types.BoolType,
+			"queue_url":            types.StringType,
+			"authentication":       types.StringType,
+			"access_key":           ClickPipeSourceAccessKeyModel{}.ObjectType(),
+			"iam_role":             types.StringType,
+			"connection_string":    types.StringType,
+			"path":                 types.StringType,
+			"azure_container_name": types.StringType,
 		},
 	}
 }
 
 func (m ClickPipeObjectStorageSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"type":           m.Type,
-		"format":         m.Format,
-		"url":            m.URL,
-		"delimiter":      m.Delimiter,
-		"compression":    m.Compression,
-		"is_continuous":  m.IsContinuous,
-		"authentication": m.Authentication,
-		"access_key":     m.AccessKey,
-		"iam_role":       m.IAMRole,
+		"type":                 m.Type,
+		"format":               m.Format,
+		"url":                  m.URL,
+		"delimiter":            m.Delimiter,
+		"compression":          m.Compression,
+		"is_continuous":        m.IsContinuous,
+		"queue_url":            m.QueueURL,
+		"authentication":       m.Authentication,
+		"access_key":           m.AccessKey,
+		"iam_role":             m.IAMRole,
+		"connection_string":    m.ConnectionString,
+		"path":                 m.Path,
+		"azure_container_name": m.AzureContainerName,
+	})
+}
+
+type ClickPipeServiceAccountModel struct {
+	ServiceAccountFile types.String `tfsdk:"service_account_file"`
+}
+
+func (m ClickPipeServiceAccountModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"service_account_file": types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeServiceAccountModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"service_account_file": m.ServiceAccountFile,
+	})
+}
+
+type ClickPipeBigQuerySettingsModel struct {
+	ReplicationMode                types.String `tfsdk:"replication_mode"`
+	AllowNullableColumns           types.Bool   `tfsdk:"allow_nullable_columns"`
+	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
+	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
+	SnapshotNumberOfParallelTables types.Int64  `tfsdk:"snapshot_number_of_parallel_tables"`
+}
+
+func (m ClickPipeBigQuerySettingsModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"replication_mode":                   types.StringType,
+			"allow_nullable_columns":             types.BoolType,
+			"initial_load_parallelism":           types.Int64Type,
+			"snapshot_num_rows_per_partition":    types.Int64Type,
+			"snapshot_number_of_parallel_tables": types.Int64Type,
+		},
+	}
+}
+
+func (m ClickPipeBigQuerySettingsModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"replication_mode":                   m.ReplicationMode,
+		"allow_nullable_columns":             m.AllowNullableColumns,
+		"initial_load_parallelism":           m.InitialLoadParallelism,
+		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
+		"snapshot_number_of_parallel_tables": m.SnapshotNumberOfParallelTables,
+	})
+}
+
+type ClickPipeBigQueryTableMappingModel struct {
+	SourceDatasetName   types.String `tfsdk:"source_dataset_name"`
+	SourceTable         types.String `tfsdk:"source_table"`
+	TargetTable         types.String `tfsdk:"target_table"`
+	ExcludedColumns     types.List   `tfsdk:"excluded_columns"`
+	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
+	SortingKeys         types.List   `tfsdk:"sorting_keys"`
+	TableEngine         types.String `tfsdk:"table_engine"`
+}
+
+func (m ClickPipeBigQueryTableMappingModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"source_dataset_name":    types.StringType,
+			"source_table":           types.StringType,
+			"target_table":           types.StringType,
+			"excluded_columns":       types.ListType{ElemType: types.StringType},
+			"use_custom_sorting_key": types.BoolType,
+			"sorting_keys":           types.ListType{ElemType: types.StringType},
+			"table_engine":           types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeBigQueryTableMappingModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"source_dataset_name":    m.SourceDatasetName,
+		"source_table":           m.SourceTable,
+		"target_table":           m.TargetTable,
+		"excluded_columns":       m.ExcludedColumns,
+		"use_custom_sorting_key": m.UseCustomSortingKey,
+		"sorting_keys":           m.SortingKeys,
+		"table_engine":           m.TableEngine,
+	})
+}
+
+type ClickPipeBigQuerySourceModel struct {
+	SnapshotStagingPath types.String `tfsdk:"snapshot_staging_path"`
+	Settings            types.Object `tfsdk:"settings"`
+	TableMappings       types.List   `tfsdk:"table_mappings"`
+	Credentials         types.Object `tfsdk:"credentials"`
+}
+
+func (m ClickPipeBigQuerySourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"snapshot_staging_path": types.StringType,
+			"settings":              ClickPipeBigQuerySettingsModel{}.ObjectType(),
+			"table_mappings":        types.ListType{ElemType: ClickPipeBigQueryTableMappingModel{}.ObjectType()},
+			"credentials":           ClickPipeServiceAccountModel{}.ObjectType(),
+		},
+	}
+}
+
+func (m ClickPipeBigQuerySourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"snapshot_staging_path": m.SnapshotStagingPath,
+		"settings":              m.Settings,
+		"table_mappings":        m.TableMappings,
+		"credentials":           m.Credentials,
 	})
 }
 
 type ClickPipeSourceModel struct {
 	Kafka         types.Object `tfsdk:"kafka"`
 	ObjectStorage types.Object `tfsdk:"object_storage"`
+	Kinesis       types.Object `tfsdk:"kinesis"`
+	Postgres      types.Object `tfsdk:"postgres"`
+	BigQuery      types.Object `tfsdk:"bigquery"`
 }
 
 func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
@@ -253,6 +544,9 @@ func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
 		AttrTypes: map[string]attr.Type{
 			"kafka":          ClickPipeKafkaSourceModel{}.ObjectType(),
 			"object_storage": ClickPipeObjectStorageSourceModel{}.ObjectType(),
+			"kinesis":        ClickPipeKinesisSourceModel{}.ObjectType(),
+			"postgres":       ClickPipePostgresSourceModel{}.ObjectType(),
+			"bigquery":       ClickPipeBigQuerySourceModel{}.ObjectType(),
 		},
 	}
 }
@@ -261,6 +555,9 @@ func (m ClickPipeSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"kafka":          m.Kafka,
 		"object_storage": m.ObjectStorage,
+		"kinesis":        m.Kinesis,
+		"postgres":       m.Postgres,
+		"bigquery":       m.BigQuery,
 	})
 }
 
@@ -286,20 +583,26 @@ func (m ClickPipeDestinationColumnModel) ObjectValue() types.Object {
 }
 
 type ClickPipeDestinationTableEngineModel struct {
-	Type types.String `tfsdk:"type"`
+	Type            types.String `tfsdk:"type"`
+	VersionColumnID types.String `tfsdk:"version_column_id"`
+	ColumnIDs       types.List   `tfsdk:"column_ids"`
 }
 
 func (m ClickPipeDestinationTableEngineModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"type": types.StringType,
+			"type":              types.StringType,
+			"version_column_id": types.StringType,
+			"column_ids":        types.ListType{ElemType: types.StringType},
 		},
 	}
 }
 
 func (m ClickPipeDestinationTableEngineModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"type": m.Type,
+		"type":              m.Type,
+		"version_column_id": m.VersionColumnID,
+		"column_ids":        m.ColumnIDs,
 	})
 }
 
@@ -385,13 +688,21 @@ func (m ClickPipeFieldMappingModel) ObjectValue() types.Object {
 }
 
 type ClickPipeResourceModel struct {
-	ID            types.String `tfsdk:"id"`
-	ServiceID     types.String `tfsdk:"service_id"`
-	Name          types.String `tfsdk:"name"`
-	Description   types.String `tfsdk:"description"`
-	Scaling       types.Object `tfsdk:"scaling"`
-	State         types.String `tfsdk:"state"`
-	Source        types.Object `tfsdk:"source"`
-	Destination   types.Object `tfsdk:"destination"`
-	FieldMappings types.List   `tfsdk:"field_mappings"`
+	ID            types.String  `tfsdk:"id"`
+	ServiceID     types.String  `tfsdk:"service_id"`
+	Name          types.String  `tfsdk:"name"`
+	Scaling       types.Object  `tfsdk:"scaling"`
+	State         types.String  `tfsdk:"state"`
+	Stopped       types.Bool    `tfsdk:"stopped"`
+	Source        types.Object  `tfsdk:"source"`
+	Destination   types.Object  `tfsdk:"destination"`
+	FieldMappings types.List    `tfsdk:"field_mappings"`
+	Settings      types.Dynamic `tfsdk:"settings"`
+	TriggerResync types.Bool    `tfsdk:"trigger_resync"`
+}
+
+type ClickPipeCdcInfrastructureModel struct {
+	ServiceID            types.String  `tfsdk:"service_id"`
+	ReplicaCpuMillicores types.Int64   `tfsdk:"replica_cpu_millicores"`
+	ReplicaMemoryGb      types.Float64 `tfsdk:"replica_memory_gb"`
 }

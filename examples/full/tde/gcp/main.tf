@@ -3,29 +3,31 @@ variable "organization_id" {
 }
 
 variable "token_key" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "token_secret" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "service_name" {
-  type = string
+  type    = string
   default = "My Terraform Service"
 }
 
 variable "region" {
-  type = string
+  type    = string
   default = "europe-west4"
 }
 
 variable "release_channel" {
-  type = string
+  type    = string
   default = "default"
   validation {
-    condition     = var.release_channel == "default" || var.release_channel == "fast"
-    error_message = "Release channel can be either 'default' or 'fast'."
+    condition     = contains(["default", "fast", "slow"], var.release_channel)
+    error_message = "Release channel can be 'default', 'fast' or 'slow'."
   }
 }
 
@@ -33,13 +35,13 @@ data "clickhouse_api_key_id" "self" {
 }
 
 resource "clickhouse_service" "service" {
-  name                      = var.service_name
-  cloud_provider            = "gcp"
-  region                    = var.region
-  release_channel           = var.release_channel
-  idle_scaling              = true
-  idle_timeout_minutes      = 5
-  password_hash             = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
+  name                 = var.service_name
+  cloud_provider       = "gcp"
+  region               = var.region
+  release_channel      = var.release_channel
+  idle_scaling         = true
+  idle_timeout_minutes = 5
+  password_hash        = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
 
   ip_access = [
     {

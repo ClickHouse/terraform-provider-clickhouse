@@ -51,6 +51,7 @@ type privateEndpointConfigDataSourceModel struct {
 
 func (d *privateEndpointConfigDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		DeprecationMessage: "This resource is deprecated since version 3.2.0. Please refer to [the docs](https://github.com/ClickHouse/terraform-provider-clickhouse?tab=readme-ov-file#breaking-changes-and-deprecations) for migration steps.",
 		Attributes: map[string]schema.Attribute{
 			"cloud_provider": schema.StringAttribute{
 				Description: "The cloud provider for the private endpoint. Valid values are 'aws', 'gcp', or 'azure'.",

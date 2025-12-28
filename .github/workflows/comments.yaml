@@ -1,0 +1,108 @@
+name: PR Comment Listener
+
+on:
+  issue_comment:
+    types: [created]
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  actions: write
+  id-token: write
+  pull-requests: read
+
+jobs:
+  check-comment:
+    name: Parse action from comment
+    if: github.event.issue.pull_request && github.actor != 'dependabot[bot]'
+    runs-on: k8s-nano
+    steps:
+      - name: Check comment
+        id: action
+        env:
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          case "${BODY,,}" in
+          "/test development")
+            echo "action=test" >> "$GITHUB_OUTPUT"
+            echo "env=Development" >> "$GITHUB_OUTPUT"
+          ;;
+          "/test staging")
+            echo "action=test" >> "$GITHUB_OUTPUT"
+            echo "env=Staging" >> "$GITHUB_OUTPUT"
+          ;;
+          "/test production")
+            echo "action=test" >> "$GITHUB_OUTPUT"
+            echo "env=Production" >> "$GITHUB_OUTPUT"
+          ;;
+          *)
+            echo "Nothing to do."
+          ;;
+          esac
+
+      - name: Generate Token
+        if: ${{ steps.action.outputs.action != '' }}
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.WORKFLOW_AUTH_PUBLIC_APP_ID }}
+          private-key: ${{ secrets.WORKFLOW_AUTH_PUBLIC_PRIVATE_KEY }}
+
+      - name: Check Organization Membership
+        if: ${{ steps.action.outputs.action != '' }}
+        id: check-membership
+        run: |
+          ORG_NAME="${{ github.repository_owner }}"
+          USERNAME="${{ github.event.comment.user.login }}"
+          MEMBERSHIP_URL="https://api.github.com/orgs/$ORG_NAME/members/$USERNAME"
+
+          STATUS=$(curl -w '%{response_code}' -o /dev/null -L -s -H "Authorization: Bearer ${{ steps.generate-token.outputs.token }}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" $MEMBERSHIP_URL)
+
+          if [ "$STATUS" == "204" ]
+          then
+            echo "User ${{ github.event.comment.user.login }} is a member of $ORG_NAME"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "User ${{ github.event.comment.user.login }} is not a member of $ORG_NAME, skipping (status = $STATUS)"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: React to comment
+        if: ${{ steps.action.outputs.action != '' }}
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          content=""
+          if [ "${{ steps.check-membership.outputs.ok }}" == "true" ]
+          then
+            content="+1"
+          else
+            content="-1"
+          fi
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions \
+            -f "content=$content"
+
+      - name: Get PR Info
+        if: ${{ steps.check-membership.outputs.ok == 'true' && steps.action.outputs.action != '' }}
+        id: pr_info
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          set -o pipefail
+
+          base_ref_name="$(gh pr view ${{ github.event.issue.number }} -R ${{ github.repository }} --json 'headRefName' | jq -r .headRefName)"
+
+          echo "base_ref_name=$base_ref_name" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger e2e tests
+        if: ${{ steps.check-membership.outputs.ok == 'true' && steps.action.outputs.action == 'test' }}
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: gh workflow run e2e.yaml --ref "${{ steps.pr_info.outputs.base_ref_name }}" -R ${{ github.repository }} -f api_env=${{ steps.action.outputs.env}}

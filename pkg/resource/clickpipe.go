@@ -5,10 +5,14 @@ package resource
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
+	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -19,6 +23,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -36,6 +42,18 @@ var (
 	_ resource.ResourceWithImportState = &ClickPipeResource{}
 )
 
+// SourceType represents the type of source for a ClickPipe
+type SourceType string
+
+const (
+	SourceTypeKafka         SourceType = "kafka"
+	SourceTypeObjectStorage SourceType = "object_storage"
+	SourceTypeKinesis       SourceType = "kinesis"
+	SourceTypePostgres      SourceType = "postgres"
+	SourceTypeBigQuery      SourceType = "bigquery"
+	SourceTypeUnknown       SourceType = "unknown"
+)
+
 const clickPipeResourceDescription = `
 This experimental resource allows you to create and manage ClickPipes data ingestion in ClickHouse Cloud.
 
@@ -46,8 +64,28 @@ Known limitations:
 `
 
 const (
-	clickPipeStateChangeMaxWaitSeconds = 60 * 2
+	clickPipeStateChangeMaxWaitSeconds = time.Second * 60 * 2
+
+	// ClickPipe destination table engine types
+	ClickPipeEngineMergeTree          = "MergeTree"
+	ClickPipeEngineReplacingMergeTree = "ReplacingMergeTree"
+	ClickPipeEngineSummingMergeTree   = "SummingMergeTree"
+	ClickPipeEngineNull               = "Null"
 )
+
+var (
+	// engineParenthesesRegex matches parentheses and any content within them
+	engineParenthesesRegex = regexp.MustCompile(`\([^)]*\)`)
+)
+
+// normalizeEngineType removes parentheses from engine type strings
+// e.g., "MergeTree()" -> "MergeTree", "ReplacingMergeTree() " -> "ReplacingMergeTree"
+func normalizeEngineType(engineType string) string {
+	engineType = strings.TrimSpace(engineType)
+	// Remove parentheses and any content within them
+	engineType = engineParenthesesRegex.ReplaceAllString(engineType, "")
+	return strings.TrimSpace(engineType)
+}
 
 type ClickPipeResource struct {
 	client api.Client
@@ -99,10 +137,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Description: "The name of the ClickPipe.",
 				Required:    true,
 			},
-			"description": schema.StringAttribute{
-				Description: "The description of the ClickPipe.",
-				Optional:    true,
-			},
 			"scaling": schema.SingleNestedAttribute{
 				Attributes: map[string]schema.Attribute{
 					"replicas": schema.Int64Attribute{
@@ -114,17 +148,32 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							int64validator.Between(1, 10),
 						},
 					},
+					"replica_cpu_millicores": schema.Int64Attribute{
+						Description: "The CPU allocation per replica in millicores. Must be between 125 and 2000.",
+						Optional:    true,
+						Validators: []validator.Int64{
+							int64validator.Between(125, 2000),
+						},
+					},
+					"replica_memory_gb": schema.Float64Attribute{
+						Description: "The memory allocation per replica in GB. Must be between 0.5 and 8.0.",
+						Optional:    true,
+						Validators: []validator.Float64{
+							float64validator.Between(0.5, 8.0),
+						},
+					},
 				},
 				Optional: true,
 			},
-			"state": schema.StringAttribute{
-				MarkdownDescription: "The desired state of the ClickPipe. (`Running`, `Stopped`). Default is `Running`.",
-				Optional:            true,
-				Default:             stringdefault.StaticString(api.ClickPipeRunningState),
+			"stopped": schema.BoolAttribute{
+				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running).",
 				Computed:            true,
-				Validators: []validator.String{
-					stringvalidator.OneOf(api.ClickPipeRunningState, api.ClickPipeStoppedState),
-				},
+				Optional:            true,
+				Default:             booldefault.StaticBool(false),
+			},
+			"state": schema.StringAttribute{
+				MarkdownDescription: "The current state of the ClickPipe. This is a read-only field that reports the actual state from ClickHouse Cloud. Possible values include `Running`, `Stopped`, `Provisioning`, `Failed`, `InternalError`, etc.",
+				Computed:            true,
 			},
 			"source": schema.SingleNestedAttribute{
 				Description: "The data source for the ClickPipe. At least one source configuration must be provided.",
@@ -132,6 +181,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"kafka": schema.SingleNestedAttribute{
 						MarkdownDescription: "The Kafka source configuration for the ClickPipe.",
 						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -310,8 +362,11 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						},
 					},
 					"object_storage": schema.SingleNestedAttribute{
-						MarkdownDescription: "The Kafka source configuration for the ClickPipe.",
+						MarkdownDescription: "The compatible object storage source configuration for the ClickPipe.",
 						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -343,8 +398,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"url": schema.StringAttribute{
-								MarkdownDescription: "The URL of the S3 bucket. Provide a path to the file(s) you want to ingest. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations",
-								Required:            true,
+								MarkdownDescription: "The URL of the S3/GCS bucket. Required for S3 and GCS types. Not used for Azure Blob Storage (use path and azure_container_name instead). You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations",
+								Optional:            true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
 								},
@@ -378,12 +433,22 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									boolplanmodifier.RequiresReplace(),
 								},
 							},
+							"queue_url": schema.StringAttribute{
+								MarkdownDescription: "SQS queue URL for event-based continuous ingestion. When provided, files are ingested based on S3 event notifications rather than lexicographical order. Only applicable when `is_continuous` is `true`, storage type is `s3`, and authentication is provided. Format: `https://sqs.{region}.amazonaws.com/{account-id}/{queue-name}`",
+								Optional:            true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^https://sqs\.[a-z0-9.-]+\.amazonaws\.com/\d{12}/[a-zA-Z0-9._-]+$`),
+										"must be a valid SQS URL in the format https://sqs.{region}.amazonaws.com/{12-digit-account-id}/{queue-name}",
+									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"authentication": schema.StringAttribute{
-								MarkdownDescription: fmt.Sprintf(
-									"Authentication method. If not provided, no authentication is used. It can be used to access public buckets.. (%s).",
-									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeObjectStorageAuthenticationMethods),
-								),
-								Optional: true,
+								MarkdownDescription: "CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3/GCS/DigitalOcean. If not provided, no authentication is used",
+								Optional:            true,
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeObjectStorageAuthenticationMethods...),
 								},
@@ -408,6 +473,451 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "The IAM role for the S3 source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#authentication)",
 								Optional:            true,
 							},
+							"connection_string": schema.StringAttribute{
+								MarkdownDescription: "Connection string for Azure Blob Storage authentication. Required when authentication is CONNECTION_STRING. Example: `DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=mykey;EndpointSuffix=core.windows.net`",
+								Optional:            true,
+								Sensitive:           true,
+							},
+							"path": schema.StringAttribute{
+								MarkdownDescription: "Path to the file(s) within the Azure container. Used for Azure Blob Storage sources. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations. Example: `data/logs/*.json`",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"azure_container_name": schema.StringAttribute{
+								MarkdownDescription: "Container name for Azure Blob Storage. Required when type is azureblobstorage. Example: `mycontainer`",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+						},
+					},
+					"kinesis": schema.SingleNestedAttribute{
+						MarkdownDescription: "The Kinesis source configuration for the ClickPipe.",
+						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
+						Attributes: map[string]schema.Attribute{
+							"format": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The format of the Kinesis source. (%s)",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKinesisFormats),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeKinesisFormats...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"stream_name": schema.StringAttribute{
+								Description: "The name of the Kinesis stream.",
+								Required:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"region": schema.StringAttribute{
+								Description: "The AWS region of the Kinesis stream.",
+								Required:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"iterator_type": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The iterator type for the Kinesis source. (%s)",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKinesisIteratorTypes),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeKinesisIteratorTypes...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"timestamp": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The timestamp for the Kinesis source. Use with `%s` iterator type. (format `2021-01-01T00:00`)",
+									api.ClickPipeKinesisAtTimestampIteratorType,
+								),
+								Optional: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"use_enhanced_fan_out": schema.BoolAttribute{
+								Description: "Whether to use enhanced fan-out consumer.",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.RequiresReplace(),
+								},
+							},
+							"authentication": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The authentication method for the Kinesis source. (%s).",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKinesisAuthenticationMethods),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeKinesisAuthenticationMethods...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"access_key": schema.SingleNestedAttribute{
+								MarkdownDescription: "The access key for the Kinesis source. Use with `IAM_USER` authentication.",
+								Optional:            true,
+								Attributes: map[string]schema.Attribute{
+									"access_key_id": schema.StringAttribute{
+										Description: "The access key ID for the Kinesis source.",
+										Required:    true,
+										Sensitive:   true,
+									},
+									"secret_key": schema.StringAttribute{
+										Description: "The secret key for the Kinesis source.",
+										Required:    true,
+										Sensitive:   true,
+									},
+								},
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.RequiresReplace(),
+								},
+							},
+							"iam_role": schema.StringAttribute{
+								MarkdownDescription: "The IAM role for the Kinesis source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/kinesis).",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+						},
+					},
+					"postgres": schema.SingleNestedAttribute{
+						MarkdownDescription: "The Postgres CDC source configuration for the ClickPipe.",
+						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
+						Attributes: map[string]schema.Attribute{
+							"host": schema.StringAttribute{
+								Description: "The hostname of the Postgres instance.",
+								Required:    true,
+							},
+							"port": schema.Int64Attribute{
+								Description: "The port of the Postgres instance. Default is 5432.",
+								Optional:    true,
+								Computed:    true,
+								Default:     int64default.StaticInt64(5432),
+								Validators: []validator.Int64{
+									int64validator.Between(1, 65535),
+								},
+							},
+							"database": schema.StringAttribute{
+								Description: "The database name of the Postgres instance.",
+								Required:    true,
+							},
+							"credentials": schema.SingleNestedAttribute{
+								MarkdownDescription: "The credentials for the Postgres instance.",
+								Required:            true,
+								Attributes: map[string]schema.Attribute{
+									"username": schema.StringAttribute{
+										Description: "The username for the Postgres instance.",
+										Required:    true,
+										Sensitive:   true,
+									},
+									"password": schema.StringAttribute{
+										Description: "The password for the Postgres instance.",
+										Required:    true,
+										Sensitive:   true,
+									},
+								},
+							},
+							"settings": schema.SingleNestedAttribute{
+								MarkdownDescription: "Settings for the Postgres CDC pipe.",
+								Required:            true,
+								Attributes: map[string]schema.Attribute{
+									"replication_mode": schema.StringAttribute{
+										MarkdownDescription: fmt.Sprintf(
+											"Replication mode for the Postgres pipe. (%s)",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipePostgresReplicationModes),
+										),
+										Required: true,
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipePostgresReplicationModes...),
+										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
+									},
+									"sync_interval_seconds": schema.Int64Attribute{
+										Description: "Interval in seconds to sync data from Postgres.",
+										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+									},
+									"pull_batch_size": schema.Int64Attribute{
+										Description: "Number of rows to pull in each batch.",
+										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+									},
+									"publication_name": schema.StringAttribute{
+										Description: "Publication name to use for replication. If not provided, ClickPipes will create one.",
+										Optional:    true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
+									},
+									"replication_slot_name": schema.StringAttribute{
+										MarkdownDescription: "Replication slot name to use for replication. Only applicable when replication_mode is `cdc_only`.",
+										Optional:            true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
+									},
+									"allow_nullable_columns": schema.BoolAttribute{
+										Description: "Allow nullable columns in the destination table.",
+										Optional:    true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.RequiresReplace(),
+										},
+									},
+									"initial_load_parallelism": schema.Int64Attribute{
+										Description: "Number of parallel connections to use during initial load.",
+										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+										},
+									},
+									"snapshot_num_rows_per_partition": schema.Int64Attribute{
+										Description: "Number of rows to snapshot per partition.",
+										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+										},
+									},
+									"snapshot_number_of_parallel_tables": schema.Int64Attribute{
+										Description: "Number of parallel tables to snapshot.",
+										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+										},
+									},
+									"enable_failover_slots": schema.BoolAttribute{
+										Description: "Enable failover for created replication slot. Requires a replication slot to NOT be set.",
+										Optional:    true,
+										Computed:    true,
+										Default:     booldefault.StaticBool(false),
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.RequiresReplace(),
+										},
+									},
+								},
+							},
+							"table_mappings": schema.SetNestedAttribute{
+								Description: "Table mappings from Postgres source to ClickHouse destination.",
+								Required:    true,
+								NestedObject: schema.NestedAttributeObject{
+									Attributes: map[string]schema.Attribute{
+										"source_schema_name": schema.StringAttribute{
+											Description: "Source schema name in Postgres.",
+											Required:    true,
+										},
+										"source_table": schema.StringAttribute{
+											Description: "Source table name in Postgres.",
+											Required:    true,
+										},
+										"target_table": schema.StringAttribute{
+											Description: "Target table name in ClickHouse.",
+											Required:    true,
+										},
+										"excluded_columns": schema.ListAttribute{
+											Description: "Columns to exclude from replication.",
+											Optional:    true,
+											ElementType: types.StringType,
+										},
+										"use_custom_sorting_key": schema.BoolAttribute{
+											Description: "Whether to use a custom sorting key for the target table.",
+											Optional:    true,
+										},
+										"sorting_keys": schema.ListAttribute{
+											Description: "Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.",
+											Optional:    true,
+											ElementType: types.StringType,
+										},
+										"table_engine": schema.StringAttribute{
+											MarkdownDescription: fmt.Sprintf(
+												"Table engine to use for the target table. (%s)",
+												wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipePostgresTableEngines),
+											),
+											Optional: true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(api.ClickPipePostgresTableEngines...),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					"bigquery": schema.SingleNestedAttribute{
+						MarkdownDescription: "The BigQuery source configuration for the ClickPipe.",
+						Optional:            true,
+						Attributes: map[string]schema.Attribute{
+							"snapshot_staging_path": schema.StringAttribute{
+								Description: "GCS bucket path for staging snapshot data (e.g., gs://my-bucket/staging/). Data will be automatically cleaned up after initial load.",
+								Required:    true,
+							},
+							"credentials": schema.SingleNestedAttribute{
+								MarkdownDescription: "The credentials for BigQuery access.",
+								Required:            true,
+								Attributes: map[string]schema.Attribute{
+									"service_account_file": schema.StringAttribute{
+										Description: "Google Cloud service account JSON key file content, base64 encoded.",
+										Required:    true,
+										Sensitive:   true,
+									},
+								},
+							},
+							"settings": schema.SingleNestedAttribute{
+								MarkdownDescription: "Settings for the BigQuery pipe.",
+								Required:            true,
+								Attributes: map[string]schema.Attribute{
+									"replication_mode": schema.StringAttribute{
+										Required: true,
+										MarkdownDescription: fmt.Sprintf(
+											"Replication mode for the BigQuery pipe. (%s)",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryReplicationModes),
+										),
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipeBigQueryReplicationModes...),
+										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
+									},
+									"allow_nullable_columns": schema.BoolAttribute{
+										Description: "Allow nullable columns in the destination table.",
+										Optional:    true,
+										Computed:    true,
+										Default:     booldefault.StaticBool(false),
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.RequiresReplace(),
+										},
+									},
+									"initial_load_parallelism": schema.Int64Attribute{
+										Description: "Number of parallel workers during initial load.",
+										Optional:    true,
+										Computed:    true,
+										Default:     int64default.StaticInt64(4),
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+										},
+									},
+									"snapshot_num_rows_per_partition": schema.Int64Attribute{
+										Description: "Number of rows to snapshot per partition.",
+										Computed:    true,
+										Optional:    true,
+										Default:     int64default.StaticInt64(100_000),
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+										},
+									},
+									"snapshot_number_of_parallel_tables": schema.Int64Attribute{
+										Description: "Number of parallel tables to snapshot.",
+										Computed:    true,
+										Optional:    true,
+										Default:     int64default.StaticInt64(1),
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+										},
+									},
+								},
+							},
+							"table_mappings": schema.ListNestedAttribute{
+								Description: "Table mappings from BigQuery source to ClickHouse destination.",
+								Required:    true,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.RequiresReplace(),
+								},
+								NestedObject: schema.NestedAttributeObject{
+									Attributes: map[string]schema.Attribute{
+										"source_dataset_name": schema.StringAttribute{
+											Description: "Source BigQuery dataset name.",
+											Required:    true,
+										},
+										"source_table": schema.StringAttribute{
+											Description: "Source table name in BigQuery.",
+											Required:    true,
+										},
+										"target_table": schema.StringAttribute{
+											Description: "Target table name in ClickHouse.",
+											Required:    true,
+										},
+										"excluded_columns": schema.ListAttribute{
+											Description: "Columns to exclude from replication.",
+											Optional:    true,
+											Computed:    true,
+											Default:     listdefault.StaticValue(types.ListNull(types.StringType)),
+											ElementType: types.StringType,
+										},
+										"use_custom_sorting_key": schema.BoolAttribute{
+											Description: "Whether to use a custom sorting key for the target table.",
+											Default:     booldefault.StaticBool(false),
+											Computed:    true,
+											Optional:    true,
+										},
+										"sorting_keys": schema.ListAttribute{
+											Description: "Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.",
+											ElementType: types.StringType,
+											Default:     listdefault.StaticValue(types.ListNull(types.StringType)),
+											Computed:    true,
+											Optional:    true,
+										},
+										"table_engine": schema.StringAttribute{
+											MarkdownDescription: fmt.Sprintf(
+												"Table engine to use for the target table. (%s)",
+												wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryTableEngines),
+											),
+											Default:  stringdefault.StaticString(api.ClickPipeTableEngineReplacingMergeTree),
+											Optional: true,
+											Computed: true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(api.ClickPipeBigQueryTableEngines...),
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -426,8 +936,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						},
 					},
 					"table": schema.StringAttribute{
-						Description: "The name of the ClickHouse table.",
-						Required:    true,
+						MarkdownDescription: "The name of the ClickHouse table. Required for all sources except Postgres CDC (where tables are created from table_mappings).",
+						Optional:            true,
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.RequiresReplace(),
 						},
@@ -450,11 +960,20 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Required:            true,
 								Attributes: map[string]schema.Attribute{
 									"type": schema.StringAttribute{
-										MarkdownDescription: "The type of the engine. Only `MergeTree` is supported.",
+										MarkdownDescription: "The type of the engine. Supported engines: `MergeTree`, `ReplacingMergeTree`, `SummingMergeTree`, `Null`.",
 										Required:            true,
 										Validators: []validator.String{
-											stringvalidator.OneOf("MergeTree"),
+											stringvalidator.OneOf(ClickPipeEngineMergeTree, ClickPipeEngineReplacingMergeTree, ClickPipeEngineSummingMergeTree, ClickPipeEngineNull),
 										},
+									},
+									"version_column_id": schema.StringAttribute{
+										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.",
+										Optional:            true,
+									},
+									"column_ids": schema.ListAttribute{
+										MarkdownDescription: "Column IDs to sum for SummingMergeTree engine. Required when engine type is `SummingMergeTree`.",
+										Optional:            true,
+										ElementType:         types.StringType,
 									},
 								},
 							},
@@ -477,7 +996,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						},
 					},
 					"columns": schema.ListNestedAttribute{
-						Description: "The list of columns for the ClickHouse table.",
+						MarkdownDescription: "The list of columns for the ClickHouse table. Required for all sources except Postgres CDC (where columns are determined from source tables).",
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
 								"name": schema.StringAttribute{
@@ -490,7 +1009,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 						},
-						Required: true,
+						Optional: true,
 					},
 					"roles": schema.ListAttribute{
 						MarkdownDescription: "ClickPipe will create a ClickHouse user with these roles. Add your custom roles here if required.",
@@ -519,6 +1038,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					},
 				},
 			},
+			"settings": schema.DynamicAttribute{
+				Description: "Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the [OpenAPI documentation](https://clickhouse.com/docs/cloud/manage/api/swagger#tag/ClickPipes/paths/~1v1~1organizations~1%7BorganizationId%7D~1services~1%7BserviceId%7D~1clickpipes~1%7BclickPipeId%7D~1settings/put)",
+				Optional:    true,
+			},
+			"trigger_resync": schema.BoolAttribute{
+				MarkdownDescription: "Set to `true` to trigger a resync operation. Only applicable for Postgres pipes. Automatically resets to `false` after the resync is triggered. **Note:** This will always show a diff in `terraform plan` after setting to `true` since it resets to `false` in state.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
 		},
 	}
 }
@@ -539,6 +1068,294 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 	if !request.Config.Raw.IsNull() {
 		response.Diagnostics.Append(request.Config.Get(ctx, &config)...)
 	}
+
+	// Validate table engine configuration
+	if !plan.Destination.IsNull() {
+		destinationModel := models.ClickPipeDestinationModel{}
+		response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
+
+		if !destinationModel.TableDefinition.IsNull() {
+			tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{}
+			response.Diagnostics.Append(destinationModel.TableDefinition.As(ctx, &tableDefinitionModel, basetypes.ObjectAsOptions{})...)
+
+			if !tableDefinitionModel.Engine.IsNull() {
+				engineModel := models.ClickPipeDestinationTableEngineModel{}
+				response.Diagnostics.Append(tableDefinitionModel.Engine.As(ctx, &engineModel, basetypes.ObjectAsOptions{})...)
+
+				engineType := engineModel.Type.ValueString()
+
+				// Validate versionColumnId
+				if engineType == ClickPipeEngineReplacingMergeTree {
+					if engineModel.VersionColumnID.IsNull() {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"version_column_id is required for ReplacingMergeTree engine",
+						)
+					}
+				} else {
+					if !engineModel.VersionColumnID.IsNull() {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"version_column_id can only be used with ReplacingMergeTree engine",
+						)
+					}
+				}
+
+				// Validate columnIds
+				if engineType != ClickPipeEngineSummingMergeTree {
+					if !engineModel.ColumnIDs.IsNull() && len(engineModel.ColumnIDs.Elements()) > 0 {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"column_ids can only be used with SummingMergeTree engine",
+						)
+					}
+				}
+
+				// Validate sortingKey for ReplacingMergeTree
+				if engineType == ClickPipeEngineReplacingMergeTree {
+					if tableDefinitionModel.SortingKey.IsNull() || len(tableDefinitionModel.SortingKey.Elements()) == 0 {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"sorting_key is required for ReplacingMergeTree engine",
+						)
+					}
+				}
+
+				// Validate column references exist in destination columns
+				if !destinationModel.Columns.IsNull() && len(destinationModel.Columns.Elements()) > 0 {
+					destinationColumnsModels := make([]models.ClickPipeDestinationColumnModel, len(destinationModel.Columns.Elements()))
+					response.Diagnostics.Append(destinationModel.Columns.ElementsAs(ctx, &destinationColumnsModels, false)...)
+
+					// Build set of column names
+					columnNames := make(map[string]bool)
+					for _, columnModel := range destinationColumnsModels {
+						columnNames[columnModel.Name.ValueString()] = true
+					}
+
+					// Validate versionColumnId exists in columns
+					if !engineModel.VersionColumnID.IsNull() {
+						versionColumnID := engineModel.VersionColumnID.ValueString()
+						if !columnNames[versionColumnID] {
+							response.Diagnostics.AddError(
+								"Invalid Configuration",
+								fmt.Sprintf("version_column_id '%s' must exist in destination columns", versionColumnID),
+							)
+						}
+					}
+
+					// Validate columnIds exist in columns
+					if !engineModel.ColumnIDs.IsNull() && len(engineModel.ColumnIDs.Elements()) > 0 {
+						columnIDs := make([]string, len(engineModel.ColumnIDs.Elements()))
+						response.Diagnostics.Append(engineModel.ColumnIDs.ElementsAs(ctx, &columnIDs, false)...)
+
+						var missingColumns []string
+						for _, columnID := range columnIDs {
+							if !columnNames[columnID] {
+								missingColumns = append(missingColumns, columnID)
+							}
+						}
+						if len(missingColumns) > 0 {
+							response.Diagnostics.AddError(
+								"Invalid Configuration",
+								fmt.Sprintf("column_ids must exist in destination columns. Missing: %s", strings.Join(missingColumns, ", ")),
+							)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Validate queue_url configuration for object storage
+	if !plan.Source.IsNull() {
+		sourceModel := models.ClickPipeSourceModel{}
+		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+		if !sourceModel.ObjectStorage.IsNull() {
+			objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
+			response.Diagnostics.Append(sourceModel.ObjectStorage.As(ctx, &objectStorageModel, basetypes.ObjectAsOptions{})...)
+
+			// Validate queue_url is only provided when is_continuous is true
+			if !objectStorageModel.QueueURL.IsNull() && !objectStorageModel.QueueURL.IsUnknown() && objectStorageModel.QueueURL.ValueString() != "" {
+				if !objectStorageModel.IsContinuous.ValueBool() {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url can only be provided when is_continuous is true",
+					)
+				}
+
+				// Validate queue_url is only used with S3 storage type
+				if objectStorageModel.Type.ValueString() != api.ClickPipeObjectStorageS3Type {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url is only supported for S3 object storage",
+					)
+				}
+
+				// Validate queue_url requires IAM authentication
+				authType := objectStorageModel.Authentication.ValueString()
+				if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationIAMRole {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url requires authentication type to be either IAM_USER or IAM_ROLE",
+					)
+				}
+			}
+		}
+	}
+
+	if !request.State.Raw.IsNull() && !state.State.IsNull() {
+		currentState := state.State.ValueString()
+
+		switch currentState {
+		case api.ClickPipeFailedState:
+			response.Diagnostics.AddWarning(
+				"ClickPipe in Failed state",
+				"Current ClickPipe is in failed state. Check ClickHouse Cloud ClickPipes logs for failure reason. You can modify the configuration to attempt recovery.",
+			)
+		case api.ClickPipeInternalErrorState:
+			response.Diagnostics.AddWarning(
+				"ClickPipe in Internal Error state",
+				"ClickPipe is in an internal error state. Contact ClickHouse Cloud support for assistance. Your changes will be applied.",
+			)
+		}
+	}
+
+	// For Postgres sources, managed_table should always be false (tables managed via table_mappings)
+	// Override the default value to prevent inconsistency errors
+	var sourceModel models.ClickPipeSourceModel
+	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+		sourceType := getSourceType(sourceModel)
+		isDBPipe := sourceType == SourceTypePostgres || sourceType == SourceTypeBigQuery
+
+		if isDBPipe {
+			var destinationModel models.ClickPipeDestinationModel
+			if diags := plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				destinationModel.ManagedTable = types.BoolValue(false)
+				plan.Destination = destinationModel.ObjectValue()
+				response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
+			}
+		}
+	}
+
+	// Handle trigger_resync auto-reset behavior
+	// If config has trigger_resync = true, set the plan to false to match the final state
+	// This prevents Terraform from showing an inconsistent result error
+	if !config.TriggerResync.IsNull() && config.TriggerResync.ValueBool() {
+		plan.TriggerResync = types.BoolValue(false)
+		response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
+	}
+
+	// Validate Postgres table mappings changes
+	if !request.State.Raw.IsNull() {
+		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				// Only validate if this is a Postgres source
+				if !planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull() {
+					var planPostgres, statePostgres models.ClickPipePostgresSourceModel
+					if diags := planSourceModel.Postgres.As(ctx, &planPostgres, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						if diags := stateSourceModel.Postgres.As(ctx, &statePostgres, basetypes.ObjectAsOptions{}); !diags.HasError() {
+
+							// Get state and plan table mappings
+							var stateMappings, planMappings []models.ClickPipePostgresTableMappingModel
+							if !statePostgres.TableMappings.IsNull() {
+								stateMappings = make([]models.ClickPipePostgresTableMappingModel, len(statePostgres.TableMappings.Elements()))
+								statePostgres.TableMappings.ElementsAs(ctx, &stateMappings, false)
+							}
+							if !planPostgres.TableMappings.IsNull() {
+								planMappings = make([]models.ClickPipePostgresTableMappingModel, len(planPostgres.TableMappings.Elements()))
+								planPostgres.TableMappings.ElementsAs(ctx, &planMappings, false)
+							}
+
+							// Validation 1: Postgres CDC pipes must have at least one table mapping
+							if len(planMappings) == 0 {
+								response.Diagnostics.AddError(
+									"Invalid table_mappings configuration",
+									"Postgres CDC pipes require at least one table mapping.",
+								)
+							}
+
+							// Validation 2: Table mappings cannot be modified - only added or removed
+							// Terraform Sets handle modifications as remove+add, so any source table that appears
+							// in both state and plan must have identical configuration
+							if len(stateMappings) > 0 && len(planMappings) > 0 {
+								type sourceTableKey struct {
+									sourceSchemaName string
+									sourceTable      string
+								}
+
+								// Build maps from source key to full mapping
+								stateMap := make(map[sourceTableKey]models.ClickPipePostgresTableMappingModel)
+								planMap := make(map[sourceTableKey]models.ClickPipePostgresTableMappingModel)
+
+								for _, mapping := range stateMappings {
+									key := sourceTableKey{
+										sourceSchemaName: mapping.SourceSchemaName.ValueString(),
+										sourceTable:      mapping.SourceTable.ValueString(),
+									}
+									stateMap[key] = mapping
+								}
+								for _, mapping := range planMappings {
+									key := sourceTableKey{
+										sourceSchemaName: mapping.SourceSchemaName.ValueString(),
+										sourceTable:      mapping.SourceTable.ValueString(),
+									}
+									planMap[key] = mapping
+								}
+
+								// For each source table in state, check if it's in plan
+								for key, stateMapping := range stateMap {
+									if planMapping, exists := planMap[key]; exists {
+										// Source table exists in both - check if anything changed
+										changed := false
+										changeDetail := ""
+
+										if stateMapping.TargetTable.ValueString() != planMapping.TargetTable.ValueString() {
+											changed = true
+											changeDetail = "target_table"
+										} else if !stateMapping.ExcludedColumns.Equal(planMapping.ExcludedColumns) {
+											changed = true
+											changeDetail = "excluded_columns"
+										} else if !stateMapping.SortingKeys.Equal(planMapping.SortingKeys) {
+											changed = true
+											changeDetail = "sorting_keys"
+										} else if !stateMapping.UseCustomSortingKey.Equal(planMapping.UseCustomSortingKey) {
+											changed = true
+											changeDetail = "use_custom_sorting_key"
+										}
+
+										if changed {
+											response.Diagnostics.AddError(
+												"Invalid table_mappings configuration",
+												fmt.Sprintf("Cannot modify %s for existing table mapping '%s.%s'. Table mappings cannot be updated - you must remove the old mapping and add a new one.", changeDetail, key.sourceSchemaName, key.sourceTable),
+											)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Warn about manual table cleanup for Postgres CDC pipes
+	// Show this for any modification to make users aware, with message clarifying it's for recreations
+	if !request.State.Raw.IsNull() && !request.Plan.Raw.IsNull() {
+		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				if !planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull() {
+					response.Diagnostics.AddWarning(
+						"Note about CDC table cleanup",
+						"If this change requires replacement (check for '# forces replacement' in the plan), destination tables are not automatically deleted. You may need to manually delete previous destination tables before recreating the pipe.",
+					)
+				}
+			}
+		}
+	}
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
@@ -552,8 +1369,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	serviceID := plan.ServiceID.ValueString()
 
 	clickPipe := api.ClickPipe{
-		Name:        plan.Name.ValueString(),
-		Description: plan.Description.ValueStringPointer(),
+		Name: plan.Name.ValueString(),
 	}
 
 	if source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, false); source != nil {
@@ -564,59 +1380,130 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	destinationModel := models.ClickPipeDestinationModel{}
 	response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
-	destinationColumnsModels := make([]models.ClickPipeDestinationColumnModel, len(destinationModel.Columns.Elements()))
-	response.Diagnostics.Append(destinationModel.Columns.ElementsAs(ctx, &destinationColumnsModels, false)...)
 
-	clickPipe.Destination = api.ClickPipeDestination{
-		Database:     destinationModel.Database.ValueString(),
-		Table:        destinationModel.Table.ValueString(),
-		ManagedTable: destinationModel.ManagedTable.ValueBool(),
-		Columns:      make([]api.ClickPipeDestinationColumn, len(destinationColumnsModels)),
+	// Check source type
+	sourceModel := models.ClickPipeSourceModel{}
+	response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	sourceType := getSourceType(sourceModel)
+	isPostgresSource := sourceType == SourceTypePostgres
+	isBigQuerySource := sourceType == SourceTypeBigQuery
+	isDBPipe := isPostgresSource || isBigQuerySource
+
+	// Extract roles from the destination model
+	var rolesSlice []string
+	if !destinationModel.Roles.IsNull() && len(destinationModel.Roles.Elements()) > 0 {
+		rolesSlice = make([]string, len(destinationModel.Roles.Elements()))
+		response.Diagnostics.Append(destinationModel.Roles.ElementsAs(ctx, &rolesSlice, false)...)
 	}
 
-	if destinationModel.ManagedTable.ValueBool() {
-		if destinationModel.TableDefinition.IsNull() {
+	clickPipe.Destination = api.ClickPipeDestination{
+		Database: destinationModel.Database.ValueString(),
+		Roles:    rolesSlice,
+	}
+
+	if !isDBPipe {
+		// Validate that required fields are provided
+		if destinationModel.Table.IsNull() || destinationModel.Table.ValueString() == "" {
 			response.Diagnostics.AddError(
 				"Error Creating ClickPipe",
-				"Managed table requires table definition",
+				fmt.Sprintf("destination.table is required for '%s' source.", sourceType),
 			)
 			return
 		}
 
-		tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{}
-		response.Diagnostics.Append(destinationModel.TableDefinition.As(ctx, &tableDefinitionModel, basetypes.ObjectAsOptions{})...)
-
-		sortingKey := make([]string, len(tableDefinitionModel.SortingKey.Elements()))
-
-		for i, sortingKeyModel := range tableDefinitionModel.SortingKey.Elements() {
-			sortingKey[i] = sortingKeyModel.String()
+		if destinationModel.Columns.IsNull() || len(destinationModel.Columns.Elements()) == 0 {
+			response.Diagnostics.AddError(
+				"Error Creating ClickPipe",
+				fmt.Sprintf("destination.columns is required for '%s' source.", sourceType),
+			)
+			return
 		}
 
-		tableEngineModel := models.ClickPipeDestinationTableEngineModel{}
-		response.Diagnostics.Append(tableDefinitionModel.Engine.As(ctx, &tableEngineModel, basetypes.ObjectAsOptions{})...)
+		destinationColumnsModels := make([]models.ClickPipeDestinationColumnModel, len(destinationModel.Columns.Elements()))
+		response.Diagnostics.Append(destinationModel.Columns.ElementsAs(ctx, &destinationColumnsModels, false)...)
 
-		clickPipe.Destination.TableDefinition = &api.ClickPipeDestinationTableDefinition{
-			Engine:      api.ClickPipeDestinationTableEngine{Type: tableEngineModel.Type.ValueString()},
-			PartitionBy: tableDefinitionModel.PartitionBy.ValueStringPointer(),
-			PrimaryKey:  tableDefinitionModel.PrimaryKey.ValueStringPointer(),
-			SortingKey:  sortingKey,
+		table := destinationModel.Table.ValueString()
+		clickPipe.Destination.Table = &table
+		managedTable := destinationModel.ManagedTable.ValueBool()
+		clickPipe.Destination.ManagedTable = &managedTable
+		clickPipe.Destination.Columns = make([]api.ClickPipeDestinationColumn, len(destinationColumnsModels))
+
+		if destinationModel.ManagedTable.ValueBool() {
+			if destinationModel.TableDefinition.IsNull() {
+				response.Diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"Managed table requires table definition",
+				)
+				return
+			}
+
+			tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{}
+			response.Diagnostics.Append(destinationModel.TableDefinition.As(ctx, &tableDefinitionModel, basetypes.ObjectAsOptions{})...)
+
+			sortingKey := make([]string, len(tableDefinitionModel.SortingKey.Elements()))
+
+			for i, sortingKeyModel := range tableDefinitionModel.SortingKey.Elements() {
+				sortingKey[i] = sortingKeyModel.(types.String).ValueString()
+			}
+
+			tableEngineModel := models.ClickPipeDestinationTableEngineModel{}
+			response.Diagnostics.Append(tableDefinitionModel.Engine.As(ctx, &tableEngineModel, basetypes.ObjectAsOptions{})...)
+
+			engine := api.ClickPipeDestinationTableEngine{
+				Type:            tableEngineModel.Type.ValueString(),
+				VersionColumnID: tableEngineModel.VersionColumnID.ValueStringPointer(),
+			}
+
+			if !tableEngineModel.ColumnIDs.IsNull() {
+				columnIDs := make([]string, len(tableEngineModel.ColumnIDs.Elements()))
+				response.Diagnostics.Append(tableEngineModel.ColumnIDs.ElementsAs(ctx, &columnIDs, false)...)
+				engine.ColumnIDs = columnIDs
+			}
+
+			clickPipe.Destination.TableDefinition = &api.ClickPipeDestinationTableDefinition{
+				Engine:      engine,
+				PartitionBy: tableDefinitionModel.PartitionBy.ValueStringPointer(),
+				PrimaryKey:  tableDefinitionModel.PrimaryKey.ValueStringPointer(),
+				SortingKey:  sortingKey,
+			}
+		}
+
+		for i, columnModel := range destinationColumnsModels {
+			clickPipe.Destination.Columns[i] = api.ClickPipeDestinationColumn{
+				Name: columnModel.Name.ValueString(),
+				Type: columnModel.Type.ValueString(),
+			}
 		}
 	}
 
-	for i, columnModel := range destinationColumnsModels {
-		clickPipe.Destination.Columns[i] = api.ClickPipeDestinationColumn{
-			Name: columnModel.Name.ValueString(),
-			Type: columnModel.Type.ValueString(),
+	// Field mappings are only for non-DB sources
+	if !isDBPipe {
+		fieldMappingsModels := make([]models.ClickPipeFieldMappingModel, len(plan.FieldMappings.Elements()))
+		response.Diagnostics.Append(plan.FieldMappings.ElementsAs(ctx, &fieldMappingsModels, false)...)
+		clickPipe.FieldMappings = make([]api.ClickPipeFieldMapping, len(fieldMappingsModels))
+		for i, fieldMappingModel := range fieldMappingsModels {
+			clickPipe.FieldMappings[i] = api.ClickPipeFieldMapping{
+				SourceField:      fieldMappingModel.SourceField.ValueString(),
+				DestinationField: fieldMappingModel.DestinationField.ValueString(),
+			}
 		}
 	}
+	// For DB pipes, leave field_mappings as nil (will be omitted from JSON)
 
-	fieldMappingsModels := make([]models.ClickPipeFieldMappingModel, len(plan.FieldMappings.Elements()))
-	response.Diagnostics.Append(plan.FieldMappings.ElementsAs(ctx, &fieldMappingsModels, false)...)
-	clickPipe.FieldMappings = make([]api.ClickPipeFieldMapping, len(fieldMappingsModels))
-	for i, fieldMappingModel := range fieldMappingsModels {
-		clickPipe.FieldMappings[i] = api.ClickPipeFieldMapping{
-			SourceField:      fieldMappingModel.SourceField.ValueString(),
-			DestinationField: fieldMappingModel.DestinationField.ValueString(),
+	// Handle settings
+	if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
+		settingsMap := make(map[string]any)
+		underlyingValue := plan.Settings.UnderlyingValue()
+
+		// Settings should be an object/map at the top level
+		if objValue, ok := underlyingValue.(types.Object); ok {
+			for key, value := range objValue.Attributes() {
+				settingsMap[key] = utils.ConvertTerraformValueToJSON(value)
+			}
+		}
+
+		if len(settingsMap) > 0 {
+			clickPipe.Settings = settingsMap
 		}
 	}
 
@@ -629,18 +1516,41 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		return
 	}
 
-	if !plan.Scaling.IsNull() {
-		replicasModel := models.ClickPipeScalingModel{}
-		response.Diagnostics.Append(plan.Scaling.As(ctx, &replicasModel, basetypes.ObjectAsOptions{})...)
+	if !plan.Scaling.IsUnknown() && !plan.Scaling.IsNull() {
+		scalingModel := models.ClickPipeScalingModel{}
+		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
 
 		var desiredReplicas *int64
-		if !replicasModel.Replicas.IsNull() && createdClickPipe.Scaling.Replicas != nil && *createdClickPipe.Scaling.Replicas != replicasModel.Replicas.ValueInt64() {
-			desiredReplicas = replicasModel.Replicas.ValueInt64Pointer()
+		var desiredCpuMillicores *int64
+		var desiredMemoryGb *float64
+		needsScaling := false
+
+		if !scalingModel.Replicas.IsUnknown() && !scalingModel.Replicas.IsNull() &&
+			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.Replicas == nil ||
+				*createdClickPipe.Scaling.Replicas != scalingModel.Replicas.ValueInt64()) {
+			desiredReplicas = scalingModel.Replicas.ValueInt64Pointer()
+			needsScaling = true
 		}
 
-		if desiredReplicas != nil {
-			scalingRequest := api.ClickPipeScaling{
-				Replicas: desiredReplicas,
+		if !scalingModel.ReplicaCpuMillicores.IsUnknown() && !scalingModel.ReplicaCpuMillicores.IsNull() &&
+			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.GetCpuMillicores() == nil ||
+				*createdClickPipe.Scaling.GetCpuMillicores() != scalingModel.ReplicaCpuMillicores.ValueInt64()) {
+			desiredCpuMillicores = scalingModel.ReplicaCpuMillicores.ValueInt64Pointer()
+			needsScaling = true
+		}
+
+		if !scalingModel.ReplicaMemoryGb.IsUnknown() && !scalingModel.ReplicaMemoryGb.IsNull() &&
+			(createdClickPipe.Scaling == nil || createdClickPipe.Scaling.GetMemoryGb() == nil ||
+				*createdClickPipe.Scaling.GetMemoryGb() != scalingModel.ReplicaMemoryGb.ValueFloat64()) {
+			desiredMemoryGb = scalingModel.ReplicaMemoryGb.ValueFloat64Pointer()
+			needsScaling = true
+		}
+
+		if needsScaling {
+			scalingRequest := api.ClickPipeScalingRequest{
+				Replicas:             desiredReplicas,
+				ReplicaCpuMillicores: desiredCpuMillicores,
+				ReplicaMemoryGb:      desiredMemoryGb,
 			}
 
 			if createdClickPipe, err = c.client.ScalingClickPipe(ctx, serviceID, createdClickPipe.ID, scalingRequest); err != nil {
@@ -653,7 +1563,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 	}
 
-	if plan.State.ValueString() == api.ClickPipeStoppedState {
+	if plan.Stopped.ValueBool() {
 		if _, err := c.client.ChangeClickPipeState(ctx, serviceID, createdClickPipe.ID, api.ClickPipeStateStop); err != nil {
 			response.Diagnostics.AddError(
 				"Error Stopping ClickPipe",
@@ -663,13 +1573,18 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 	}
 
-	if _, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, func(state string) bool {
-		return state == plan.State.ValueString() // we expect the state to be the same as planned: "Running" or "Stopped"
-	}, clickPipeStateChangeMaxWaitSeconds); err != nil {
-		response.Diagnostics.AddWarning(
-			"ClickPipe didn't reach the desired state",
-			err.Error(),
-		)
+	// Determine expected state(s) based on configuration
+	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
+
+	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, stateCheckFunc, clickPipeStateChangeMaxWaitSeconds)
+	if err != nil {
+		// Only warn if the final state is not acceptable
+		if finalClickPipe == nil || !stateCheckFunc(finalClickPipe.State) {
+			response.Diagnostics.AddWarning(
+				"ClickPipe didn't reach the desired state",
+				err.Error(),
+			)
+		}
 	}
 
 	plan.ID = types.StringValue(createdClickPipe.ID)
@@ -684,6 +1599,21 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	diags = response.State.Set(ctx, plan)
 	response.Diagnostics.Append(diags...)
+}
+
+func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
+	if !sourceModel.Kafka.IsNull() {
+		return SourceTypeKafka
+	} else if !sourceModel.ObjectStorage.IsNull() {
+		return SourceTypeObjectStorage
+	} else if !sourceModel.Kinesis.IsNull() {
+		return SourceTypeKinesis
+	} else if !sourceModel.Postgres.IsNull() {
+		return SourceTypePostgres
+	} else if !sourceModel.BigQuery.IsNull() {
+		return SourceTypeBigQuery
+	}
+	return SourceTypeUnknown
 }
 
 func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics diag.Diagnostics, plan models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
@@ -808,16 +1738,283 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			}
 		}
 
-		source.ObjectStorage = &api.ClickPipeObjectStorageSource{
+		storageType := objectStorageModel.Type.ValueString()
+		if storageType == api.ClickPipeObjectStorageAzureBlobType {
+			if !objectStorageModel.URL.IsNull() && !objectStorageModel.URL.IsUnknown() && objectStorageModel.URL.ValueString() != "" {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"URL field should not be used with Azure Blob Storage. Use 'path' and 'azure_container_name' fields instead",
+				)
+				return nil
+			}
+
+			if objectStorageModel.AzureContainerName.IsNull() || objectStorageModel.AzureContainerName.IsUnknown() || objectStorageModel.AzureContainerName.ValueString() == "" {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"azure_container_name is required when using Azure Blob Storage",
+				)
+				return nil
+			}
+
+			if objectStorageModel.ConnectionString.IsNull() || objectStorageModel.ConnectionString.IsUnknown() || objectStorageModel.ConnectionString.ValueString() == "" {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"connection_string is required when using Azure Blob Storage",
+				)
+				return nil
+			}
+		} else {
+			if objectStorageModel.URL.IsNull() || objectStorageModel.URL.IsUnknown() || objectStorageModel.URL.ValueString() == "" {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					fmt.Sprintf("URL is required when using %s storage type", storageType),
+				)
+				return nil
+			}
+		}
+
+		objectStorage := &api.ClickPipeObjectStorageSource{
 			Type:           objectStorageModel.Type.ValueString(),
 			Format:         objectStorageModel.Format.ValueString(),
-			URL:            objectStorageModel.URL.ValueString(),
 			Delimiter:      objectStorageModel.Delimiter.ValueStringPointer(),
 			Compression:    objectStorageModel.Compression.ValueStringPointer(),
 			IsContinuous:   objectStorageModel.IsContinuous.ValueBool(),
+			QueueURL:       objectStorageModel.QueueURL.ValueStringPointer(),
 			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
 			AccessKey:      accessKey,
 			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
+		}
+
+		if storageType == api.ClickPipeObjectStorageAzureBlobType {
+			objectStorage.ConnectionString = objectStorageModel.ConnectionString.ValueStringPointer()
+			objectStorage.Path = objectStorageModel.Path.ValueStringPointer()
+			objectStorage.AzureContainerName = objectStorageModel.AzureContainerName.ValueStringPointer()
+		} else {
+			objectStorage.URL = objectStorageModel.URL.ValueString()
+		}
+
+		source.ObjectStorage = objectStorage
+	} else if !sourceModel.Kinesis.IsNull() {
+		kinesisModel := models.ClickPipeKinesisSourceModel{}
+		diagnostics.Append(sourceModel.Kinesis.As(ctx, &kinesisModel, basetypes.ObjectAsOptions{})...)
+
+		source.Kinesis = &api.ClickPipeKinesisSource{
+			Format:            kinesisModel.Format.ValueString(),
+			StreamName:        kinesisModel.StreamName.ValueString(),
+			Region:            kinesisModel.Region.ValueString(),
+			IteratorType:      kinesisModel.IteratorType.ValueString(),
+			UseEnhancedFanOut: kinesisModel.UseEnhancedFanOut.ValueBool(),
+			Authentication:    kinesisModel.Authentication.ValueString(),
+			IAMRole:           kinesisModel.IAMRole.ValueStringPointer(),
+		}
+
+		if !kinesisModel.Timestamp.IsNull() {
+			source.Kinesis.Timestamp = kinesisModel.Timestamp.ValueStringPointer()
+		}
+
+		if kinesisModel.Authentication.ValueString() == api.ClickPipeAuthenticationIAMUser {
+			if !kinesisModel.AccessKey.IsNull() {
+				accessKeyModel := models.ClickPipeSourceAccessKeyModel{}
+				diagnostics.Append(kinesisModel.AccessKey.As(ctx, &accessKeyModel, basetypes.ObjectAsOptions{})...)
+
+				source.Kinesis.AccessKey = &api.ClickPipeSourceAccessKey{
+					AccessKeyID: accessKeyModel.AccessKeyID.ValueString(),
+					SecretKey:   accessKeyModel.SecretKey.ValueString(),
+				}
+			} else {
+				diagnostics.AddError(
+					"Error Creating ClickPipe",
+					"Kinesis source with IAM_USER authentication requires access_key",
+				)
+				return nil
+			}
+		}
+	} else if !sourceModel.BigQuery.IsNull() {
+		// BigQuery does not support updates
+		if isUpdate {
+			diagnostics.AddError(
+				"Error Updating ClickPipe",
+				"BigQuery ClickPipe sources cannot be updated. Please recreate the resource to change configuration.",
+			)
+			return nil
+		}
+
+		bigQueryModel := models.ClickPipeBigQuerySourceModel{}
+		diagnostics.Append(sourceModel.BigQuery.As(ctx, &bigQueryModel, basetypes.ObjectAsOptions{})...)
+
+		// Extract credentials
+		credentialsModel := models.ClickPipeServiceAccountModel{}
+		diagnostics.Append(bigQueryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+
+		// Extract settings
+		settingsModel := models.ClickPipeBigQuerySettingsModel{}
+		diagnostics.Append(bigQueryModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
+
+		settings := api.ClickPipeBigQuerySettings{
+			ReplicationMode: settingsModel.ReplicationMode.ValueString(),
+		}
+
+		if !settingsModel.AllowNullableColumns.IsNull() {
+			val := settingsModel.AllowNullableColumns.ValueBool()
+			settings.AllowNullableColumns = &val
+		}
+		if !settingsModel.InitialLoadParallelism.IsNull() {
+			val := int(settingsModel.InitialLoadParallelism.ValueInt64())
+			settings.InitialLoadParallelism = &val
+		}
+		if !settingsModel.SnapshotNumRowsPerPartition.IsNull() {
+			val := int(settingsModel.SnapshotNumRowsPerPartition.ValueInt64())
+			settings.SnapshotNumRowsPerPartition = &val
+		}
+		if !settingsModel.SnapshotNumberOfParallelTables.IsNull() {
+			val := int(settingsModel.SnapshotNumberOfParallelTables.ValueInt64())
+			settings.SnapshotNumberOfParallelTables = &val
+		}
+
+		// Extract table mappings
+		tableMappingModels := make([]models.ClickPipeBigQueryTableMappingModel, len(bigQueryModel.TableMappings.Elements()))
+		diagnostics.Append(bigQueryModel.TableMappings.ElementsAs(ctx, &tableMappingModels, false)...)
+
+		tableMappings := make([]api.ClickPipeBigQueryTableMapping, len(tableMappingModels))
+		for i, mappingModel := range tableMappingModels {
+			mapping := api.ClickPipeBigQueryTableMapping{
+				SourceDatasetName: mappingModel.SourceDatasetName.ValueString(),
+				SourceTable:       mappingModel.SourceTable.ValueString(),
+				TargetTable:       mappingModel.TargetTable.ValueString(),
+			}
+
+			if !mappingModel.ExcludedColumns.IsNull() && len(mappingModel.ExcludedColumns.Elements()) > 0 {
+				excludedCols := make([]string, len(mappingModel.ExcludedColumns.Elements()))
+				diagnostics.Append(mappingModel.ExcludedColumns.ElementsAs(ctx, &excludedCols, false)...)
+				mapping.ExcludedColumns = excludedCols
+			}
+
+			if !mappingModel.UseCustomSortingKey.IsNull() {
+				val := mappingModel.UseCustomSortingKey.ValueBool()
+				mapping.UseCustomSortingKey = &val
+			}
+
+			if !mappingModel.SortingKeys.IsNull() && len(mappingModel.SortingKeys.Elements()) > 0 {
+				sortingKeys := make([]string, len(mappingModel.SortingKeys.Elements()))
+				diagnostics.Append(mappingModel.SortingKeys.ElementsAs(ctx, &sortingKeys, false)...)
+				mapping.SortingKeys = sortingKeys
+			}
+
+			if !mappingModel.TableEngine.IsNull() {
+				mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
+			}
+
+			tableMappings[i] = mapping
+		}
+
+		source.BigQuery = &api.ClickPipeBigQuerySource{
+			SnapshotStagingPath: bigQueryModel.SnapshotStagingPath.ValueString(),
+			Settings:            settings,
+			Mappings:            tableMappings,
+			Credentials: &api.ClickPipeServiceAccount{
+				ServiceAccountFile: credentialsModel.ServiceAccountFile.ValueString(),
+			},
+		}
+	} else if !sourceModel.Postgres.IsNull() {
+		postgresModel := models.ClickPipePostgresSourceModel{}
+		diagnostics.Append(sourceModel.Postgres.As(ctx, &postgresModel, basetypes.ObjectAsOptions{})...)
+
+		// Extract credentials
+		credentialsModel := models.ClickPipeSourceCredentialsModel{}
+		diagnostics.Append(postgresModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+
+		// Extract settings
+		settingsModel := models.ClickPipePostgresSettingsModel{}
+		diagnostics.Append(postgresModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
+
+		settings := &api.ClickPipePostgresSettings{
+			ReplicationMode: settingsModel.ReplicationMode.ValueString(),
+		}
+
+		if !settingsModel.SyncIntervalSeconds.IsNull() {
+			val := int(settingsModel.SyncIntervalSeconds.ValueInt64())
+			settings.SyncIntervalSeconds = &val
+		}
+		if !settingsModel.PullBatchSize.IsNull() {
+			val := int(settingsModel.PullBatchSize.ValueInt64())
+			settings.PullBatchSize = &val
+		}
+		if !settingsModel.PublicationName.IsNull() {
+			settings.PublicationName = settingsModel.PublicationName.ValueStringPointer()
+		}
+		if !settingsModel.ReplicationSlotName.IsNull() {
+			settings.ReplicationSlotName = settingsModel.ReplicationSlotName.ValueStringPointer()
+		}
+		if !settingsModel.AllowNullableColumns.IsNull() {
+			val := settingsModel.AllowNullableColumns.ValueBool()
+			settings.AllowNullableColumns = &val
+		}
+		if !settingsModel.InitialLoadParallelism.IsNull() {
+			val := int(settingsModel.InitialLoadParallelism.ValueInt64())
+			settings.InitialLoadParallelism = &val
+		}
+		if !settingsModel.SnapshotNumRowsPerPartition.IsNull() {
+			val := int(settingsModel.SnapshotNumRowsPerPartition.ValueInt64())
+			settings.SnapshotNumRowsPerPartition = &val
+		}
+		if !settingsModel.SnapshotNumberOfParallelTables.IsNull() {
+			val := int(settingsModel.SnapshotNumberOfParallelTables.ValueInt64())
+			settings.SnapshotNumberOfParallelTables = &val
+		}
+		if !settingsModel.EnableFailoverSlots.IsNull() {
+			val := settingsModel.EnableFailoverSlots.ValueBool()
+			settings.EnableFailoverSlots = &val
+		}
+
+		// Extract table mappings (skip for updates as they're handled separately via TableMappingsToAdd/Remove)
+		var tableMappings []api.ClickPipePostgresTableMapping
+		if !isUpdate {
+			tableMappingModels := make([]models.ClickPipePostgresTableMappingModel, len(postgresModel.TableMappings.Elements()))
+			diagnostics.Append(postgresModel.TableMappings.ElementsAs(ctx, &tableMappingModels, false)...)
+
+			tableMappings = make([]api.ClickPipePostgresTableMapping, len(tableMappingModels))
+			for i, mappingModel := range tableMappingModels {
+				mapping := api.ClickPipePostgresTableMapping{
+					SourceSchemaName: mappingModel.SourceSchemaName.ValueString(),
+					SourceTable:      mappingModel.SourceTable.ValueString(),
+					TargetTable:      mappingModel.TargetTable.ValueString(),
+				}
+
+				if !mappingModel.ExcludedColumns.IsNull() && len(mappingModel.ExcludedColumns.Elements()) > 0 {
+					excludedCols := make([]string, len(mappingModel.ExcludedColumns.Elements()))
+					diagnostics.Append(mappingModel.ExcludedColumns.ElementsAs(ctx, &excludedCols, false)...)
+					mapping.ExcludedColumns = excludedCols
+				}
+
+				if !mappingModel.UseCustomSortingKey.IsNull() {
+					val := mappingModel.UseCustomSortingKey.ValueBool()
+					mapping.UseCustomSortingKey = &val
+				}
+
+				if !mappingModel.SortingKeys.IsNull() && len(mappingModel.SortingKeys.Elements()) > 0 {
+					sortingKeys := make([]string, len(mappingModel.SortingKeys.Elements()))
+					diagnostics.Append(mappingModel.SortingKeys.ElementsAs(ctx, &sortingKeys, false)...)
+					mapping.SortingKeys = sortingKeys
+				}
+
+				if !mappingModel.TableEngine.IsNull() {
+					mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
+				}
+
+				tableMappings[i] = mapping
+			}
+		}
+
+		source.Postgres = &api.ClickPipePostgresSource{
+			Host:     postgresModel.Host.ValueString(),
+			Port:     int(postgresModel.Port.ValueInt64()),
+			Database: postgresModel.Database.ValueString(),
+			Credentials: &api.ClickPipeSourceCredentials{
+				Username: credentialsModel.Username.ValueString(),
+				Password: credentialsModel.Password.ValueString(),
+			},
+			Settings: settings,
+			Mappings: tableMappings,
 		}
 	} else {
 		diagnostics.AddError(
@@ -828,6 +2025,94 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 	}
 
 	return source
+}
+
+func (c *ClickPipeResource) convertTableMappingModelToAPI(ctx context.Context, diagnostics diag.Diagnostics, mappingModel models.ClickPipePostgresTableMappingModel) api.ClickPipePostgresTableMapping {
+	mapping := api.ClickPipePostgresTableMapping{
+		SourceSchemaName: mappingModel.SourceSchemaName.ValueString(),
+		SourceTable:      mappingModel.SourceTable.ValueString(),
+		TargetTable:      mappingModel.TargetTable.ValueString(),
+	}
+
+	if !mappingModel.ExcludedColumns.IsNull() && len(mappingModel.ExcludedColumns.Elements()) > 0 {
+		excludedCols := make([]string, len(mappingModel.ExcludedColumns.Elements()))
+		diagnostics.Append(mappingModel.ExcludedColumns.ElementsAs(ctx, &excludedCols, false)...)
+		mapping.ExcludedColumns = excludedCols
+	}
+
+	if !mappingModel.UseCustomSortingKey.IsNull() {
+		val := mappingModel.UseCustomSortingKey.ValueBool()
+		mapping.UseCustomSortingKey = &val
+	}
+
+	if !mappingModel.SortingKeys.IsNull() && len(mappingModel.SortingKeys.Elements()) > 0 {
+		sortingKeys := make([]string, len(mappingModel.SortingKeys.Elements()))
+		diagnostics.Append(mappingModel.SortingKeys.ElementsAs(ctx, &sortingKeys, false)...)
+		mapping.SortingKeys = sortingKeys
+	}
+
+	if !mappingModel.TableEngine.IsNull() {
+		mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
+	}
+
+	return mapping
+}
+
+func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.ClickPipeResourceModel) func(string) bool {
+	// If stopped, wait for Stopped state
+	if plan.Stopped.ValueBool() {
+		return func(state string) bool {
+			return state == api.ClickPipeStoppedState
+		}
+	}
+
+	// Check if this is a snapshot-only DB pipe (Postgres snapshot mode or BigQuery)
+	isPostgresPipe := false
+	isSnapshotOnly := false
+	var sourceModel models.ClickPipeSourceModel
+	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
+		// BigQuery is always snapshot-only
+		if !sourceModel.BigQuery.IsNull() {
+			isSnapshotOnly = true
+		} else if !sourceModel.Postgres.IsNull() {
+			isPostgresPipe = true
+			var postgresSource models.ClickPipePostgresSourceModel
+			if diags := sourceModel.Postgres.As(ctx, &postgresSource, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				if !postgresSource.Settings.IsNull() {
+					var settings models.ClickPipePostgresSettingsModel
+					if diags := postgresSource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); diags == nil {
+						isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipeReplicationModeSnapshot
+					}
+				}
+			}
+		}
+	}
+
+	// For snapshot-only Postgres pipes, accept Completed, Snapshot, or Failed states
+	// Failed is included to stop waiting early (warning will be shown but apply continues)
+	if isSnapshotOnly {
+		return func(state string) bool {
+			return state == api.ClickPipeCompletedState ||
+				state == api.ClickPipeSnapShotState ||
+				state == api.ClickPipeFailedState
+		}
+	}
+
+	// For Postgres CDC pipes, accept Running, Snapshot (initial snapshot phase), or Failed states
+	// Snapshot state is normal during the initial snapshot before CDC starts
+	if isPostgresPipe {
+		return func(state string) bool {
+			return state == api.ClickPipeRunningState ||
+				state == api.ClickPipeSnapShotState ||
+				state == api.ClickPipeFailedState
+		}
+	}
+
+	// For other pipes (Kafka, S3, etc.), wait for Running or Failed state
+	return func(state string) bool {
+		return state == api.ClickPipeRunningState ||
+			state == api.ClickPipeFailedState
+	}
 }
 
 func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *models.ClickPipeResourceModel) error {
@@ -847,42 +2132,43 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	state.ID = types.StringValue(clickPipe.ID)
 	state.Name = types.StringValue(clickPipe.Name)
 
-	// ideally, we shouldn't receive an empty description from the API, but we should handle it just in case
-	if clickPipe.Description != nil && *clickPipe.Description != "" {
-		state.Description = types.StringPointerValue(clickPipe.Description)
-	} else {
-		state.Description = types.StringNull()
-	}
-
-	// In case ClickPipe status is not as expected,
-	// we should return an error that clearly states the issue so the user can take action.
-	if clickPipe.State != state.State.ValueString() {
-		if clickPipe.State == api.ClickPipeFailedState {
-			return fmt.Errorf("ClickPipe is in a failed state: %s. Review the ClickPipe logs in the ClickHouse Cloud Console", clickPipe.State)
-		}
-
-		if clickPipe.State == api.ClickPipeInternalErrorState {
-			return fmt.Errorf("ClickPipe is in an internal error state. Contact ClickHouse Cloud support for assistance")
-		}
-
-		if clickPipe.State == api.ClickPipeProvisioningState {
-			// In usual scenarios, ClickPipe is in Provisioning after update/create operations.
-			// After it should transit to a Running state.
-			// We would like to avoid any plan errors when the ClickPipe is in Provisioning state.
-			clickPipe.State = api.ClickPipeRunningState
-		}
-	}
-
 	state.State = types.StringValue(clickPipe.State)
 
-	if clickPipe.Scaling != nil && clickPipe.Scaling.Replicas != nil {
+	// Only sync scaling if it was configured (not null)
+	if !state.Scaling.IsNull() && clickPipe.Scaling != nil {
+		cpuMillicores := clickPipe.Scaling.GetCpuMillicores()
+		memoryGb := clickPipe.Scaling.GetMemoryGb()
+
+		// Create scaling model with proper null handling
+		var replicasValue types.Int64
+		var cpuValue types.Int64
+		var memoryValue types.Float64
+
+		if clickPipe.Scaling.Replicas != nil {
+			replicasValue = types.Int64Value(*clickPipe.Scaling.Replicas)
+		} else {
+			replicasValue = types.Int64Null()
+		}
+
+		if cpuMillicores != nil {
+			cpuValue = types.Int64Value(*cpuMillicores)
+		} else {
+			cpuValue = types.Int64Null()
+		}
+
+		if memoryGb != nil {
+			memoryValue = types.Float64Value(*memoryGb)
+		} else {
+			memoryValue = types.Float64Null()
+		}
+
 		scalingModel := models.ClickPipeScalingModel{
-			Replicas: types.Int64PointerValue(clickPipe.Scaling.Replicas),
+			Replicas:             replicasValue,
+			ReplicaCpuMillicores: cpuValue,
+			ReplicaMemoryGb:      memoryValue,
 		}
 
 		state.Scaling = scalingModel.ObjectValue()
-	} else {
-		state.Scaling = types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes)
 	}
 
 	stateSourceModel := models.ClickPipeSourceModel{}
@@ -982,14 +2268,26 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		}
 
 		objectStorageModel := models.ClickPipeObjectStorageSourceModel{
-			Type:           types.StringValue(clickPipe.Source.ObjectStorage.Type),
-			Format:         types.StringValue(clickPipe.Source.ObjectStorage.Format),
-			URL:            types.StringValue(clickPipe.Source.ObjectStorage.URL),
-			Delimiter:      types.StringPointerValue(clickPipe.Source.ObjectStorage.Delimiter),
-			Compression:    types.StringPointerValue(clickPipe.Source.ObjectStorage.Compression),
-			IsContinuous:   types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
-			Authentication: types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication),
-			IAMRole:        types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
+			Type:         types.StringValue(clickPipe.Source.ObjectStorage.Type),
+			Format:       types.StringValue(clickPipe.Source.ObjectStorage.Format),
+			Delimiter:    types.StringPointerValue(clickPipe.Source.ObjectStorage.Delimiter),
+			Compression:  types.StringPointerValue(clickPipe.Source.ObjectStorage.Compression),
+			IsContinuous: types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
+			QueueURL:     types.StringPointerValue(clickPipe.Source.ObjectStorage.QueueURL),
+			IAMRole:      types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
+		}
+
+		// Set storage-type-specific fields
+		if clickPipe.Source.ObjectStorage.Type == api.ClickPipeObjectStorageAzureBlobType {
+			// For Azure Blob Storage, preserve all fields from state as API doesn't return them
+			objectStorageModel.Authentication = stateObjectStorageModel.Authentication
+			objectStorageModel.ConnectionString = stateObjectStorageModel.ConnectionString
+			objectStorageModel.Path = stateObjectStorageModel.Path
+			objectStorageModel.AzureContainerName = stateObjectStorageModel.AzureContainerName
+		} else {
+			// For S3-compatible storage, use API response values
+			objectStorageModel.Authentication = types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication)
+			objectStorageModel.URL = types.StringValue(clickPipe.Source.ObjectStorage.URL)
 		}
 
 		if !stateObjectStorageModel.AccessKey.IsNull() {
@@ -1008,23 +2306,385 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		sourceModel.ObjectStorage = types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes)
 	}
 
-	state.Source = sourceModel.ObjectValue()
+	if clickPipe.Source.Kinesis != nil {
+		stateKinesisModel := models.ClickPipeKinesisSourceModel{}
+		if !stateSourceModel.Kinesis.IsNull() {
+			if diags := stateSourceModel.Kinesis.As(ctx, &stateKinesisModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Kinesis source: %v", diags)
+			}
+		}
 
-	destinationModel := models.ClickPipeDestinationModel{
-		Database:        types.StringValue(clickPipe.Destination.Database),
-		Table:           types.StringValue(clickPipe.Destination.Table),
-		ManagedTable:    types.BoolValue(clickPipe.Destination.ManagedTable),
-		TableDefinition: types.Object{},
-		Columns:         types.List{},
-		Roles:           types.List{},
+		kinesisModel := models.ClickPipeKinesisSourceModel{
+			Format:            types.StringValue(clickPipe.Source.Kinesis.Format),
+			StreamName:        types.StringValue(clickPipe.Source.Kinesis.StreamName),
+			Region:            types.StringValue(clickPipe.Source.Kinesis.Region),
+			IteratorType:      types.StringValue(clickPipe.Source.Kinesis.IteratorType),
+			UseEnhancedFanOut: types.BoolValue(clickPipe.Source.Kinesis.UseEnhancedFanOut),
+			Authentication:    types.StringValue(clickPipe.Source.Kinesis.Authentication),
+			IAMRole:           types.StringPointerValue(clickPipe.Source.Kinesis.IAMRole),
+			Timestamp:         types.StringPointerValue(clickPipe.Source.Kinesis.Timestamp),
+		}
+
+		if !stateKinesisModel.AccessKey.IsNull() {
+			stateAccessKeyModel := models.ClickPipeSourceAccessKeyModel{}
+			if diags := stateKinesisModel.AccessKey.As(ctx, &stateAccessKeyModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Kinesis source access key: %v", diags)
+			}
+
+			kinesisModel.AccessKey = stateAccessKeyModel.ObjectValue()
+		} else {
+			kinesisModel.AccessKey = types.ObjectNull(models.ClickPipeSourceAccessKeyModel{}.ObjectType().AttrTypes)
+		}
+
+		sourceModel.Kinesis = kinesisModel.ObjectValue()
+	} else {
+		sourceModel.Kinesis = types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes)
 	}
 
-	stateDestinationModel := models.ClickPipeDestinationModel{}
+	if clickPipe.Source.Postgres != nil {
+		statePostgresModel := models.ClickPipePostgresSourceModel{}
+		var stateSettingsModel models.ClickPipePostgresSettingsModel
 
+		if !stateSourceModel.Postgres.IsNull() {
+			if diags := stateSourceModel.Postgres.As(ctx, &statePostgresModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Postgres source: %v", diags)
+			}
+			// Get the state settings model
+			if !statePostgresModel.Settings.IsNull() {
+				if diags := statePostgresModel.Settings.As(ctx, &stateSettingsModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+					return fmt.Errorf("error reading ClickPipe Postgres settings: %v", diags)
+				}
+			}
+		}
+
+		// Settings - preserve null values from state for optional fields
+		settingsModel := models.ClickPipePostgresSettingsModel{
+			ReplicationMode: types.StringValue(clickPipe.Source.Postgres.Settings.ReplicationMode),
+		}
+
+		if clickPipe.Source.Postgres.Settings.SyncIntervalSeconds != nil {
+			settingsModel.SyncIntervalSeconds = types.Int64Value(int64(*clickPipe.Source.Postgres.Settings.SyncIntervalSeconds))
+		} else {
+			settingsModel.SyncIntervalSeconds = types.Int64Null()
+		}
+
+		if clickPipe.Source.Postgres.Settings.PullBatchSize != nil {
+			settingsModel.PullBatchSize = types.Int64Value(int64(*clickPipe.Source.Postgres.Settings.PullBatchSize))
+		} else {
+			settingsModel.PullBatchSize = types.Int64Null()
+		}
+
+		if clickPipe.Source.Postgres.Settings.PublicationName != nil && *clickPipe.Source.Postgres.Settings.PublicationName != "" {
+			settingsModel.PublicationName = types.StringValue(*clickPipe.Source.Postgres.Settings.PublicationName)
+		} else {
+			settingsModel.PublicationName = types.StringNull()
+		}
+
+		if clickPipe.Source.Postgres.Settings.ReplicationSlotName != nil && *clickPipe.Source.Postgres.Settings.ReplicationSlotName != "" {
+			settingsModel.ReplicationSlotName = types.StringValue(*clickPipe.Source.Postgres.Settings.ReplicationSlotName)
+		} else {
+			settingsModel.ReplicationSlotName = types.StringNull()
+		}
+
+		if clickPipe.Source.Postgres.Settings.AllowNullableColumns != nil {
+			settingsModel.AllowNullableColumns = types.BoolValue(*clickPipe.Source.Postgres.Settings.AllowNullableColumns)
+		} else {
+			settingsModel.AllowNullableColumns = types.BoolNull()
+		}
+
+		if clickPipe.Source.Postgres.Settings.InitialLoadParallelism != nil {
+			settingsModel.InitialLoadParallelism = types.Int64Value(int64(*clickPipe.Source.Postgres.Settings.InitialLoadParallelism))
+		} else {
+			settingsModel.InitialLoadParallelism = types.Int64Null()
+		}
+
+		if clickPipe.Source.Postgres.Settings.SnapshotNumRowsPerPartition != nil {
+			settingsModel.SnapshotNumRowsPerPartition = types.Int64Value(int64(*clickPipe.Source.Postgres.Settings.SnapshotNumRowsPerPartition))
+		} else {
+			settingsModel.SnapshotNumRowsPerPartition = types.Int64Null()
+		}
+
+		if clickPipe.Source.Postgres.Settings.SnapshotNumberOfParallelTables != nil {
+			settingsModel.SnapshotNumberOfParallelTables = types.Int64Value(int64(*clickPipe.Source.Postgres.Settings.SnapshotNumberOfParallelTables))
+		} else {
+			settingsModel.SnapshotNumberOfParallelTables = types.Int64Null()
+		}
+
+		// EnableFailoverSlots is Optional+Computed with default=false, so always use API value
+		if clickPipe.Source.Postgres.Settings.EnableFailoverSlots != nil {
+			settingsModel.EnableFailoverSlots = types.BoolValue(*clickPipe.Source.Postgres.Settings.EnableFailoverSlots)
+		} else {
+			settingsModel.EnableFailoverSlots = types.BoolNull()
+		}
+
+		// Table mappings - convert API response to Set (order doesn't matter)
+		// Get state mappings for preserving null values on optional fields
+		type tableMappingKey struct {
+			sourceSchemaName string
+			sourceTable      string
+		}
+		var stateTableMappingsMap map[tableMappingKey]models.ClickPipePostgresTableMappingModel
+		if !statePostgresModel.TableMappings.IsNull() && len(statePostgresModel.TableMappings.Elements()) > 0 {
+			stateTableMappings := make([]models.ClickPipePostgresTableMappingModel, len(statePostgresModel.TableMappings.Elements()))
+			statePostgresModel.TableMappings.ElementsAs(ctx, &stateTableMappings, false)
+
+			stateTableMappingsMap = make(map[tableMappingKey]models.ClickPipePostgresTableMappingModel)
+			for _, stateMapping := range stateTableMappings {
+				key := tableMappingKey{
+					sourceSchemaName: stateMapping.SourceSchemaName.ValueString(),
+					sourceTable:      stateMapping.SourceTable.ValueString(),
+				}
+				stateTableMappingsMap[key] = stateMapping
+			}
+		}
+
+		// Convert all API mappings to Set elements (order doesn't matter for Sets)
+		tableMappingList := make([]attr.Value, 0, len(clickPipe.Source.Postgres.Mappings))
+		for _, mapping := range clickPipe.Source.Postgres.Mappings {
+			key := tableMappingKey{
+				sourceSchemaName: mapping.SourceSchemaName,
+				sourceTable:      mapping.SourceTable,
+			}
+			stateMapping, hasStateMapping := stateTableMappingsMap[key]
+
+			tableMappingModel := models.ClickPipePostgresTableMappingModel{
+				SourceSchemaName: types.StringValue(mapping.SourceSchemaName),
+				SourceTable:      types.StringValue(mapping.SourceTable),
+				TargetTable:      types.StringValue(mapping.TargetTable),
+			}
+
+			if len(mapping.ExcludedColumns) > 0 {
+				excludedColsList := make([]attr.Value, len(mapping.ExcludedColumns))
+				for j, col := range mapping.ExcludedColumns {
+					excludedColsList[j] = types.StringValue(col)
+				}
+				tableMappingModel.ExcludedColumns, _ = types.ListValue(types.StringType, excludedColsList)
+			} else {
+				tableMappingModel.ExcludedColumns = types.ListNull(types.StringType)
+			}
+
+			if mapping.UseCustomSortingKey != nil {
+				tableMappingModel.UseCustomSortingKey = types.BoolValue(*mapping.UseCustomSortingKey)
+			} else {
+				tableMappingModel.UseCustomSortingKey = types.BoolNull()
+			}
+
+			if len(mapping.SortingKeys) > 0 {
+				sortingKeysList := make([]attr.Value, len(mapping.SortingKeys))
+				for j, key := range mapping.SortingKeys {
+					sortingKeysList[j] = types.StringValue(key)
+				}
+				tableMappingModel.SortingKeys, _ = types.ListValue(types.StringType, sortingKeysList)
+			} else {
+				tableMappingModel.SortingKeys = types.ListNull(types.StringType)
+			}
+
+			// For table_engine, preserve null from state if it was null (API may return default)
+			if hasStateMapping && stateMapping.TableEngine.IsNull() {
+				tableMappingModel.TableEngine = types.StringNull()
+			} else if mapping.TableEngine != nil && *mapping.TableEngine != "" {
+				tableMappingModel.TableEngine = types.StringValue(*mapping.TableEngine)
+			} else if hasStateMapping {
+				tableMappingModel.TableEngine = stateMapping.TableEngine
+			} else {
+				tableMappingModel.TableEngine = types.StringNull()
+			}
+
+			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
+		}
+
+		postgresModel := models.ClickPipePostgresSourceModel{
+			Host:          types.StringValue(clickPipe.Source.Postgres.Host),
+			Port:          types.Int64Value(int64(clickPipe.Source.Postgres.Port)),
+			Database:      types.StringValue(clickPipe.Source.Postgres.Database),
+			Settings:      settingsModel.ObjectValue(),
+			TableMappings: types.SetNull(models.ClickPipePostgresTableMappingModel{}.ObjectType()),
+		}
+
+		if len(tableMappingList) > 0 {
+			postgresModel.TableMappings, _ = types.SetValue(models.ClickPipePostgresTableMappingModel{}.ObjectType(), tableMappingList)
+		}
+
+		// Preserve credentials from state as API doesn't return them
+		if !statePostgresModel.Credentials.IsNull() {
+			postgresModel.Credentials = statePostgresModel.Credentials
+		} else {
+			postgresModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		}
+
+		sourceModel.Postgres = postgresModel.ObjectValue()
+	} else {
+		sourceModel.Postgres = types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes)
+	}
+
+	if clickPipe.Source.BigQuery != nil {
+		stateBigQueryModel := models.ClickPipeBigQuerySourceModel{}
+		var stateSettingsModel models.ClickPipeBigQuerySettingsModel
+
+		if !stateSourceModel.BigQuery.IsNull() {
+			if diags := stateSourceModel.BigQuery.As(ctx, &stateBigQueryModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe BigQuery source: %v", diags)
+			}
+			// Get the state settings model
+			if !stateBigQueryModel.Settings.IsNull() {
+				if diags := stateBigQueryModel.Settings.As(ctx, &stateSettingsModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+					return fmt.Errorf("error reading ClickPipe BigQuery settings: %v", diags)
+				}
+			}
+		}
+
+		// Settings - preserve null values from state for optional fields
+		settingsModel := models.ClickPipeBigQuerySettingsModel{
+			ReplicationMode: types.StringValue(clickPipe.Source.BigQuery.Settings.ReplicationMode),
+		}
+
+		if clickPipe.Source.BigQuery.Settings.AllowNullableColumns != nil {
+			settingsModel.AllowNullableColumns = types.BoolValue(*clickPipe.Source.BigQuery.Settings.AllowNullableColumns)
+		} else {
+			settingsModel.AllowNullableColumns = types.BoolNull()
+		}
+
+		if clickPipe.Source.BigQuery.Settings.InitialLoadParallelism != nil {
+			settingsModel.InitialLoadParallelism = types.Int64Value(int64(*clickPipe.Source.BigQuery.Settings.InitialLoadParallelism))
+		} else {
+			settingsModel.InitialLoadParallelism = types.Int64Null()
+		}
+
+		if clickPipe.Source.BigQuery.Settings.SnapshotNumRowsPerPartition != nil {
+			settingsModel.SnapshotNumRowsPerPartition = types.Int64Value(int64(*clickPipe.Source.BigQuery.Settings.SnapshotNumRowsPerPartition))
+		} else {
+			settingsModel.SnapshotNumRowsPerPartition = types.Int64Null()
+		}
+
+		if clickPipe.Source.BigQuery.Settings.SnapshotNumberOfParallelTables != nil {
+			settingsModel.SnapshotNumberOfParallelTables = types.Int64Value(int64(*clickPipe.Source.BigQuery.Settings.SnapshotNumberOfParallelTables))
+		} else {
+			settingsModel.SnapshotNumberOfParallelTables = types.Int64Null()
+		}
+
+		// Table mappings - preserve null values from state
+		var stateTableMappings []models.ClickPipeBigQueryTableMappingModel
+		if !stateBigQueryModel.TableMappings.IsNull() && len(stateBigQueryModel.TableMappings.Elements()) > 0 {
+			stateTableMappings = make([]models.ClickPipeBigQueryTableMappingModel, len(stateBigQueryModel.TableMappings.Elements()))
+			stateBigQueryModel.TableMappings.ElementsAs(ctx, &stateTableMappings, false)
+		}
+
+		tableMappingList := make([]attr.Value, len(clickPipe.Source.BigQuery.Mappings))
+		for i, mapping := range clickPipe.Source.BigQuery.Mappings {
+			tableMappingModel := models.ClickPipeBigQueryTableMappingModel{
+				SourceDatasetName: types.StringValue(mapping.SourceDatasetName),
+				SourceTable:       types.StringValue(mapping.SourceTable),
+				TargetTable:       types.StringValue(mapping.TargetTable),
+			}
+
+			// Get corresponding state mapping if it exists
+			var stateMapping *models.ClickPipeBigQueryTableMappingModel
+			if i < len(stateTableMappings) {
+				stateMapping = &stateTableMappings[i]
+			}
+
+			if len(mapping.ExcludedColumns) > 0 {
+				excludedColsList := make([]attr.Value, len(mapping.ExcludedColumns))
+				for j, col := range mapping.ExcludedColumns {
+					excludedColsList[j] = types.StringValue(col)
+				}
+				tableMappingModel.ExcludedColumns, _ = types.ListValue(types.StringType, excludedColsList)
+			} else {
+				tableMappingModel.ExcludedColumns = types.ListNull(types.StringType)
+			}
+
+			if mapping.UseCustomSortingKey != nil {
+				tableMappingModel.UseCustomSortingKey = types.BoolValue(*mapping.UseCustomSortingKey)
+			} else {
+				tableMappingModel.UseCustomSortingKey = types.BoolNull()
+			}
+
+			if len(mapping.SortingKeys) > 0 {
+				sortingKeysList := make([]attr.Value, len(mapping.SortingKeys))
+				for j, key := range mapping.SortingKeys {
+					sortingKeysList[j] = types.StringValue(key)
+				}
+				tableMappingModel.SortingKeys, _ = types.ListValue(types.StringType, sortingKeysList)
+			} else {
+				tableMappingModel.SortingKeys = types.ListNull(types.StringType)
+			}
+
+			// For table_engine, preserve null from state if it was null (API may return default)
+			if stateMapping != nil && stateMapping.TableEngine.IsNull() {
+				tableMappingModel.TableEngine = types.StringNull()
+			} else if mapping.TableEngine != nil && *mapping.TableEngine != "" {
+				tableMappingModel.TableEngine = types.StringValue(*mapping.TableEngine)
+			} else if stateMapping != nil {
+				tableMappingModel.TableEngine = stateMapping.TableEngine
+			} else {
+				tableMappingModel.TableEngine = types.StringNull()
+			}
+
+			tableMappingList[i] = tableMappingModel.ObjectValue()
+		}
+
+		bigQueryModel := models.ClickPipeBigQuerySourceModel{
+			SnapshotStagingPath: types.StringValue(clickPipe.Source.BigQuery.SnapshotStagingPath),
+			Settings:            settingsModel.ObjectValue(),
+			TableMappings:       types.ListNull(models.ClickPipeBigQueryTableMappingModel{}.ObjectType()),
+		}
+
+		if len(tableMappingList) > 0 {
+			bigQueryModel.TableMappings, _ = types.ListValue(models.ClickPipeBigQueryTableMappingModel{}.ObjectType(), tableMappingList)
+		}
+
+		// Preserve credentials from state as API doesn't return them
+		if !stateBigQueryModel.Credentials.IsNull() {
+			bigQueryModel.Credentials = stateBigQueryModel.Credentials
+		} else {
+			bigQueryModel.Credentials = types.ObjectNull(models.ClickPipeServiceAccountModel{}.ObjectType().AttrTypes)
+		}
+
+		sourceModel.BigQuery = bigQueryModel.ObjectValue()
+	} else {
+		sourceModel.BigQuery = types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes)
+	}
+
+	state.Source = sourceModel.ObjectValue()
+
+	isPostgresPipe := clickPipe.Source.Postgres != nil
+	isBigQueryPipe := clickPipe.Source.BigQuery != nil
+	isDBPipe := isPostgresPipe || isBigQueryPipe
+
+	stateDestinationModel := models.ClickPipeDestinationModel{}
 	if !state.Destination.IsNull() {
 		if diags := state.Destination.As(ctx, &stateDestinationModel, basetypes.ObjectAsOptions{}); diags.HasError() {
 			return fmt.Errorf("error reading ClickPipe destination: %v", diags)
 		}
+	}
+
+	destinationModel := models.ClickPipeDestinationModel{
+		Database: types.StringValue(clickPipe.Destination.Database),
+	}
+
+	// For DB pipes, table/columns/tableDefinition are always null (managed via table_mappings)
+	// But managed_table should be preserved from state since user can configure it
+	if isDBPipe {
+		destinationModel.Table = types.StringNull()
+		destinationModel.ManagedTable = types.BoolValue(false) // Always false for DB pipes
+		destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
+		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
+	} else {
+		// For non-DB sources, use API response
+		if clickPipe.Destination.Table != nil {
+			destinationModel.Table = types.StringValue(*clickPipe.Destination.Table)
+		} else {
+			destinationModel.Table = types.StringNull()
+		}
+
+		if clickPipe.Destination.ManagedTable != nil {
+			destinationModel.ManagedTable = types.BoolValue(*clickPipe.Destination.ManagedTable)
+		} else {
+			destinationModel.ManagedTable = types.BoolNull()
+		}
+
+		destinationModel.TableDefinition = types.Object{}
+		destinationModel.Columns = types.List{}
 	}
 
 	// Destination roles are not persisted on ClickPipes side. Used only during pipe creation.
@@ -1034,19 +2694,44 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		destinationModel.Roles = types.ListNull(types.StringType)
 	}
 
-	columnList := make([]attr.Value, len(clickPipe.Destination.Columns))
-	for i, column := range clickPipe.Destination.Columns {
-		columnList[i] = models.ClickPipeDestinationColumnModel{
-			Name: types.StringValue(column.Name),
-			Type: types.StringValue(column.Type),
-		}.ObjectValue()
+	// Only process columns and table definition for non-DB sources
+	if !isDBPipe {
+		columnList := make([]attr.Value, len(clickPipe.Destination.Columns))
+		for i, column := range clickPipe.Destination.Columns {
+			columnList[i] = models.ClickPipeDestinationColumnModel{
+				Name: types.StringValue(column.Name),
+				Type: types.StringValue(column.Type),
+			}.ObjectValue()
+		}
+
+		destinationModel.Columns, _ = types.ListValue(models.ClickPipeDestinationColumnModel{}.ObjectType(), columnList)
 	}
 
-	destinationModel.Columns, _ = types.ListValue(models.ClickPipeDestinationColumnModel{}.ObjectType(), columnList)
-
-	if clickPipe.Destination.TableDefinition != nil {
+	if !isDBPipe && clickPipe.Destination.TableDefinition != nil {
 		engineModel := models.ClickPipeDestinationTableEngineModel{
-			Type: types.StringValue(clickPipe.Destination.TableDefinition.Engine.Type),
+			Type:            types.StringValue(normalizeEngineType(clickPipe.Destination.TableDefinition.Engine.Type)),
+			VersionColumnID: types.StringNull(),
+			ColumnIDs:       types.ListNull(types.StringType),
+		}
+
+		// Engine-specific fields are not persisted on ClickPipes side. Used only during pipe creation.
+		// We need to preserve these from the existing state.
+		if !stateDestinationModel.TableDefinition.IsNull() {
+			stateTableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{}
+			if diags := stateDestinationModel.TableDefinition.As(ctx, &stateTableDefinitionModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe destination table definition: %v", diags)
+			}
+
+			if !stateTableDefinitionModel.Engine.IsNull() {
+				stateEngineModel := models.ClickPipeDestinationTableEngineModel{}
+				if diags := stateTableDefinitionModel.Engine.As(ctx, &stateEngineModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+					return fmt.Errorf("error reading ClickPipe destination engine: %v", diags)
+				}
+
+				// Preserve version_column_id and column_ids from state
+				engineModel.VersionColumnID = stateEngineModel.VersionColumnID
+				engineModel.ColumnIDs = stateEngineModel.ColumnIDs
+			}
 		}
 
 		tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{
@@ -1086,6 +2771,33 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		state.FieldMappings, _ = types.ListValue(models.ClickPipeFieldMappingModel{}.ObjectType(), fieldMappingList)
 	}
 
+	// Handle settings
+	if clickPipe.Settings != nil && len(clickPipe.Settings) > 0 {
+		settingsElements := make(map[string]attr.Value)
+		for key, value := range clickPipe.Settings {
+			settingsElements[key] = utils.ConvertJSONValueToTerraform(value)
+		}
+		settingsObj, _ := types.ObjectValue(
+			map[string]attr.Type{},
+			make(map[string]attr.Value),
+		)
+
+		// Create object type dynamically based on actual values
+		attrTypes := make(map[string]attr.Type)
+		for key := range settingsElements {
+			attrTypes[key] = settingsElements[key].Type(ctx)
+		}
+
+		settingsObj, _ = types.ObjectValue(attrTypes, settingsElements)
+		state.Settings = types.DynamicValue(settingsObj)
+	} else {
+		state.Settings = types.DynamicNull()
+	}
+
+	// trigger_resync is a trigger attribute that auto-resets to false
+	// It's not persisted by the API, so always set it to false in state
+	state.TriggerResync = types.BoolValue(false)
+
 	return nil
 }
 
@@ -1116,23 +2828,38 @@ func (c *ClickPipeResource) Read(ctx context.Context, request resource.ReadReque
 }
 
 func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateRequest, response *resource.UpdateResponse) {
-	var plan, state models.ClickPipeResourceModel
+	var plan, state, config models.ClickPipeResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
+	response.Diagnostics.Append(diags...)
+	diags = req.Config.Get(ctx, &config)
 	response.Diagnostics.Append(diags...)
 
 	if response.Diagnostics.HasError() {
 		return
 	}
 
+	// Check if pipe is in Completed state - only allow resync operations
 	if state.State.ValueString() == api.ClickPipeCompletedState {
-		response.Diagnostics.AddError(
-			"Error Modifying ClickPipe",
-			fmt.Sprintf("ClickPipe is in the %s state and cannot be modified", api.ClickPipeCompletedState),
-		)
+		// Allow trigger_resync operation on Completed pipes (e.g., snapshot-only Postgres pipes)
+		// Check config (not plan) because ModifyPlan already set plan.TriggerResync to false
+		isOnlyResync := !config.TriggerResync.IsNull() && config.TriggerResync.ValueBool() &&
+			plan.Name.Equal(state.Name) &&
+			plan.Source.Equal(state.Source) &&
+			plan.Destination.Equal(state.Destination) &&
+			plan.FieldMappings.Equal(state.FieldMappings) &&
+			plan.Settings.Equal(state.Settings) &&
+			plan.Stopped.Equal(state.Stopped) &&
+			plan.Scaling.Equal(state.Scaling)
 
-		return
+		if !isOnlyResync {
+			response.Diagnostics.AddError(
+				"Error Modifying ClickPipe",
+				fmt.Sprintf("ClickPipe is in the %s state and cannot be modified. Only resync operations are allowed via trigger_resync attribute.", api.ClickPipeCompletedState),
+			)
+			return
+		}
 	}
 
 	var pipeChanged bool
@@ -1143,25 +2870,107 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		clickPipeUpdate.Name = plan.Name.ValueStringPointer()
 	}
 
-	if !plan.Description.Equal(state.Description) {
-		pipeChanged = true
-		clickPipeUpdate.Description = plan.Description.ValueStringPointer()
-	}
-
 	if !plan.Source.Equal(state.Source) {
-		source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+		// Extract source models to check type
+		planSourceModel := models.ClickPipeSourceModel{}
+		response.Diagnostics.Append(plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{})...)
 
-		if source.Kafka != nil {
-			pipeChanged = true
-			clickPipeUpdate.Source = source
-		} else if source.ObjectStorage != nil {
-			pipeChanged = true
-			clickPipeUpdate.Source = source
+		stateSourceModel := models.ClickPipeSourceModel{}
+		response.Diagnostics.Append(state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{})...)
+
+		// Special handling for Postgres sources with table_mapping changes
+		if !planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull() {
+			planPostgresModel := models.ClickPipePostgresSourceModel{}
+			response.Diagnostics.Append(planSourceModel.Postgres.As(ctx, &planPostgresModel, basetypes.ObjectAsOptions{})...)
+
+			statePostgresModel := models.ClickPipePostgresSourceModel{}
+			response.Diagnostics.Append(stateSourceModel.Postgres.As(ctx, &statePostgresModel, basetypes.ObjectAsOptions{})...)
+
+			// Check if table_mappings or other Postgres fields changed
+			tableMappingsChanged := !planPostgresModel.TableMappings.Equal(statePostgresModel.TableMappings)
+			otherFieldsChanged := !planPostgresModel.Host.Equal(statePostgresModel.Host) ||
+				!planPostgresModel.Port.Equal(statePostgresModel.Port) ||
+				!planPostgresModel.Database.Equal(statePostgresModel.Database) ||
+				!planPostgresModel.Credentials.Equal(statePostgresModel.Credentials) ||
+				!planPostgresModel.Settings.Equal(statePostgresModel.Settings)
+
+			if tableMappingsChanged || otherFieldsChanged {
+				pipeChanged = true
+				source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+
+				// If table_mappings changed, set TableMappingsToAdd/Remove on Postgres source
+				if tableMappingsChanged && source.Postgres != nil {
+					// Extract plan table mappings
+					planTableMappingModels := make([]models.ClickPipePostgresTableMappingModel, len(planPostgresModel.TableMappings.Elements()))
+					response.Diagnostics.Append(planPostgresModel.TableMappings.ElementsAs(ctx, &planTableMappingModels, false)...)
+
+					// Extract state table mappings
+					stateTableMappingModels := make([]models.ClickPipePostgresTableMappingModel, len(statePostgresModel.TableMappings.Elements()))
+					response.Diagnostics.Append(statePostgresModel.TableMappings.ElementsAs(ctx, &stateTableMappingModels, false)...)
+
+					// Build maps for comparison using a composite key
+					planMappingsMap := make(map[string]api.ClickPipePostgresTableMapping)
+					stateMappingsMap := make(map[string]api.ClickPipePostgresTableMapping)
+
+					// Convert plan mappings to API format and store in map
+					for _, mappingModel := range planTableMappingModels {
+						mapping := c.convertTableMappingModelToAPI(ctx, response.Diagnostics, mappingModel)
+						key := fmt.Sprintf("%s.%s->%s", mapping.SourceSchemaName, mapping.SourceTable, mapping.TargetTable)
+						planMappingsMap[key] = mapping
+					}
+
+					// Convert state mappings to API format and store in map
+					for _, mappingModel := range stateTableMappingModels {
+						mapping := c.convertTableMappingModelToAPI(ctx, response.Diagnostics, mappingModel)
+						key := fmt.Sprintf("%s.%s->%s", mapping.SourceSchemaName, mapping.SourceTable, mapping.TargetTable)
+						stateMappingsMap[key] = mapping
+					}
+
+					// Find mappings to add (in plan but not in state)
+					var tableMappingsToAdd []api.ClickPipePostgresTableMapping
+					for key, mapping := range planMappingsMap {
+						if _, exists := stateMappingsMap[key]; !exists {
+							tableMappingsToAdd = append(tableMappingsToAdd, mapping)
+						}
+					}
+
+					// Find mappings to remove (in state but not in plan)
+					var tableMappingsToRemove []api.ClickPipePostgresTableMapping
+					for key, mapping := range stateMappingsMap {
+						if _, exists := planMappingsMap[key]; !exists {
+							tableMappingsToRemove = append(tableMappingsToRemove, mapping)
+						}
+					}
+
+					if len(tableMappingsToAdd) > 0 {
+						source.Postgres.TableMappingsToAdd = tableMappingsToAdd
+					}
+					if len(tableMappingsToRemove) > 0 {
+						source.Postgres.TableMappingsToRemove = tableMappingsToRemove
+					}
+				}
+
+				clickPipeUpdate.Source = source
+			}
 		} else {
-			response.Diagnostics.AddError(
-				"ClickPipe only supports Kafka source updates",
-				"Only Kafka source updates are supported",
-			)
+			// Non-Postgres source or type change
+			source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+
+			if source.Kafka != nil {
+				pipeChanged = true
+				clickPipeUpdate.Source = source
+			} else if source.ObjectStorage != nil {
+				pipeChanged = true
+				clickPipeUpdate.Source = source
+			} else if source.Postgres != nil {
+				pipeChanged = true
+				clickPipeUpdate.Source = source
+			} else {
+				response.Diagnostics.AddError(
+					"ClickPipe source update not supported",
+					"Source type not supported for updates",
+				)
+			}
 		}
 	}
 
@@ -1195,6 +3004,26 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
+	// Handle settings separately using dedicated endpoint
+	var settingsChanged bool
+	var newSettingsMap map[string]any
+
+	if !plan.Settings.Equal(state.Settings) {
+		settingsChanged = true
+		newSettingsMap = make(map[string]any)
+		if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
+			underlyingValue := plan.Settings.UnderlyingValue()
+
+			// Settings should be an object/map at the top level
+			if objValue, ok := underlyingValue.(types.Object); ok {
+				for key, value := range objValue.Attributes() {
+					newSettingsMap[key] = utils.ConvertTerraformValueToJSON(value)
+				}
+			}
+		}
+	}
+
+	// Update the main ClickPipe if non-settings fields changed
 	if pipeChanged {
 		if _, err := c.client.UpdateClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), clickPipeUpdate); err != nil {
 			response.Diagnostics.AddError(
@@ -1205,16 +3034,31 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	if !plan.State.Equal(state.State) {
-		var command string
-
-		switch plan.State.ValueString() {
-		case api.ClickPipeRunningState:
-			command = api.ClickPipeStateStart
-		case api.ClickPipeStoppedState:
-			command = api.ClickPipeStateStop
+	// Update settings separately if they changed
+	if settingsChanged {
+		if _, err := c.client.UpdateClickPipeSettings(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), newSettingsMap); err != nil {
+			response.Diagnostics.AddError(
+				"Error Updating ClickPipe Settings",
+				"Could not update ClickPipe settings, unexpected error: "+err.Error(),
+			)
+			return
 		}
+	}
 
+	desiredStopped := plan.Stopped.ValueBool()
+	currentState := state.State.ValueString()
+
+	isStopped := currentState == api.ClickPipeStoppedState || currentState == api.ClickPipeStoppingState
+	isFailed := currentState == api.ClickPipeFailedState
+
+	var command string
+	if !desiredStopped && (isStopped || isFailed) {
+		command = api.ClickPipeStateStart
+	} else if desiredStopped && !isStopped {
+		command = api.ClickPipeStateStop
+	}
+
+	if command != "" {
 		if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), command); err != nil {
 			response.Diagnostics.AddError(
 				"Error Changing ClickPipe State",
@@ -1224,12 +3068,48 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	if !plan.Scaling.Equal(state.Scaling) {
-		replicasModel := models.ClickPipeScalingModel{}
-		response.Diagnostics.Append(plan.Scaling.As(ctx, &replicasModel, basetypes.ObjectAsOptions{})...)
+	// Handle trigger_resync for Postgres pipes
+	// Check config (not plan) because ModifyPlan already set plan to false
+	if !config.TriggerResync.IsNull() && config.TriggerResync.ValueBool() && !state.TriggerResync.ValueBool() {
+		// Check if this is a Postgres pipe
+		var sourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+			response.Diagnostics.Append(diags...)
+			return
+		}
 
-		scalingRequest := api.ClickPipeScaling{
-			Replicas: replicasModel.Replicas.ValueInt64Pointer(),
+		if !sourceModel.Postgres.IsNull() {
+			// Trigger resync
+			if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), api.ClickPipeStateResync); err != nil {
+				response.Diagnostics.AddError(
+					"Error Resyncing ClickPipe",
+					"Could not trigger resync for ClickPipe, unexpected error: "+err.Error(),
+				)
+				return
+			}
+		} else {
+			response.Diagnostics.AddWarning(
+				"Trigger Resync Not Applicable",
+				"trigger_resync is only applicable for Postgres pipes and will be ignored for other source types.",
+			)
+		}
+	}
+
+	if !plan.Scaling.Equal(state.Scaling) && !plan.Scaling.IsUnknown() {
+		scalingModel := models.ClickPipeScalingModel{}
+		response.Diagnostics.Append(plan.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})...)
+
+		scalingRequest := api.ClickPipeScalingRequest{}
+
+		// Only include fields that are explicitly set (not null/unknown)
+		if !scalingModel.Replicas.IsNull() && !scalingModel.Replicas.IsUnknown() {
+			scalingRequest.Replicas = scalingModel.Replicas.ValueInt64Pointer()
+		}
+		if !scalingModel.ReplicaCpuMillicores.IsNull() && !scalingModel.ReplicaCpuMillicores.IsUnknown() {
+			scalingRequest.ReplicaCpuMillicores = scalingModel.ReplicaCpuMillicores.ValueInt64Pointer()
+		}
+		if !scalingModel.ReplicaMemoryGb.IsNull() && !scalingModel.ReplicaMemoryGb.IsUnknown() {
+			scalingRequest.ReplicaMemoryGb = scalingModel.ReplicaMemoryGb.ValueFloat64Pointer()
 		}
 
 		if _, err := c.client.ScalingClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), scalingRequest); err != nil {
@@ -1241,13 +3121,18 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), func(state string) bool {
-		return state == plan.State.ValueString()
-	}, clickPipeStateChangeMaxWaitSeconds); err != nil {
-		response.Diagnostics.AddWarning(
-			"ClickPipe didn't reach the desired state",
-			err.Error(),
-		)
+	// Determine expected state(s) based on configuration
+	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
+
+	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), stateCheckFunc, clickPipeStateChangeMaxWaitSeconds)
+	if err != nil {
+		// Only warn if the final state is not acceptable
+		if finalClickPipe == nil || !stateCheckFunc(finalClickPipe.State) {
+			response.Diagnostics.AddWarning(
+				"ClickPipe didn't reach the desired state",
+				err.Error(),
+			)
+		}
 	}
 
 	if err := c.syncClickPipeState(ctx, &plan); err != nil {
@@ -1268,6 +3153,17 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
 		return
+	}
+
+	// Check if this is a Postgres CDC pipe - warn about manual table cleanup
+	var sourceModel models.ClickPipeSourceModel
+	if diags := state.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+		if !sourceModel.Postgres.IsNull() {
+			response.Diagnostics.AddWarning(
+				"Manual table cleanup required",
+				"Previous destination tables need to be deleted manually before a recreation of the CDC pipe can occur.",
+			)
+		}
 	}
 
 	if err := c.client.DeleteClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString()); err != nil {

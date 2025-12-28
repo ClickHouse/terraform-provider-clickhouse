@@ -1,47 +1,60 @@
-name: "Run e2e tests"
-description: "Run end to end tests for terraform provider"
+name: Run e2e tests
+description: Run end to end tests for terraform provider
 inputs:
   api_url:
     required: false
-    description: "Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1"
+    description: Full URL of the API service to use. Defaults to the production API endpoint https://api.clickhouse.cloud/v1
     default: ""
   organization_id:
     required: true
-    description: "The clickhouse organization ID"
+    description: The clickhouse organization ID
   token_key:
     required: true
-    description: "The clickhouse token key"
+    description: The clickhouse token key
   token_secret:
     required: true
-    description: "The clickhouse token secret"
+    description: The clickhouse token secret
   service_name:
     required: true
-    description: "The unique name assigned to this test"
+    description: The unique name assigned to this test
   test_name:
     required: true
-    description: "The test name i.e. the name of the folder inside the examples dir"
+    description: The test name i.e. the name of the folder inside the examples dir
   tf_release:
     required: true
-    description: "The terraform cli version"
+    description: The terraform cli version
   cloud_provider:
     required: true
-    description: "The cloud provider name"
+    description: The cloud provider name
   upgrade_test:
     required: false
     default: "false"
-    description: "If true it runs a provider upgrade test"
+    description: If true it runs a provider upgrade test
+  upgrade_from:
+    required: false
+    default: ""
+    description: What version of the terraform provider to try upgrading from. Defaults to latest release.
   skip_build:
     required: false
     default: "false"
-    description: "If true it runs tests out of last published terraform provider release"
+    description: If true it runs tests out of last published terraform provider release
   aws_role_arn:
     required: true
-    description: "The ARN of the AWS role to assume for AWS tests"
+    description: The ARN of the AWS role to assume for AWS tests
+  azure_client_id:
+    required: true
+    description: The Azure client or application id to use for Azure tests
+  azure_tenant_id:
+    required: true
+    description: The Azure tenant id to use for Azure tests
+  azure_subscription_id:
+    required: true
+    description: The Azure subscription id to use for Azure tests
   region:
     required: true
-    description: "The Cloud region to use for tests"
+    description: The Cloud region to use for tests
 runs:
-  using: "composite"
+  using: composite
   steps:
     - shell: bash
       id: defined
@@ -53,12 +66,13 @@ runs:
         else
           echo "Test ${{ inputs.test_name }} is not available for ${{ inputs.cloud_provider }}"
         fi
+        echo "SKIP_E2E_TEST=false" >> "$GITHUB_ENV"
 
     - name: Setup go
       uses: actions/setup-go@v5
       if: ${{steps.defined.outputs.defined == 'true' }}
       with:
-        go-version-file: 'go.mod'
+        go-version-file: "go.mod"
         cache: true
 
     - name: Install terraform
@@ -81,12 +95,20 @@ runs:
         aws-region: ${{ inputs.region }}
         output-credentials: true
 
+    - name: Azure CLI Login
+      uses: azure/login@v2
+      if: ${{ inputs.cloud_provider == 'azure' }}
+      with:
+        client-id: ${{ inputs.azure_client_id }}
+        tenant-id: ${{ inputs.azure_tenant_id }}
+        subscription-id: ${{ inputs.azure_subscription_id }}
+
     - shell: bash
       if: ${{steps.defined.outputs.defined == 'true' }}
       name: Set env variables
       run: |
         echo "::group::Setting env variables"
-        
+
         cat <<EOF >examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
         organization_id = "${{ inputs.organization_id }}"
         token_key       = "${{ inputs.token_key }}"
@@ -94,54 +116,96 @@ runs:
         service_name    = "${{ inputs.service_name }}"
         region          = "${{ inputs.region }}"
         EOF
-        
+
         if [ "${{ inputs.cloud_provider }}" == "aws" ]
         then
           aws sts get-caller-identity
-        
+
           cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
         aws_key           = "${{ steps.aws-auth.outputs.aws-access-key-id }}"
         aws_secret        = "${{ steps.aws-auth.outputs.aws-secret-access-key }}"
         aws_session_token = "${{ steps.aws-auth.outputs.aws-session-token }}"
         EOF
         fi
-        
+
+        if [ "${{ inputs.cloud_provider }}" == "azure" ]
+        then
+          az account show
+
+          cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
+        subscription_id = "${{ inputs.azure_subscription_id }}"
+        EOF
+        fi
+
         echo "::endgroup::"
 
-    - shell: bash
-      id: get_latest_stable_release
+    - id: get_latest_stable_release
       if: ${{ inputs.upgrade_test == 'true' && steps.defined.outputs.defined == 'true' }}
       name: Upgrade test - Retrieve latest stable version
-      run: |
-        LATEST="$(curl -s -L -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/ClickHouse/terraform-provider-clickhouse/releases/latest | jq -r '.name')"
-        echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
+      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+      with:
+        timeout_minutes: 2
+        max_attempts: 10
+        retry_wait_seconds: 10
+        shell: bash
+        command: |
+          set -eo pipefail
+
+          if [ "${{ inputs.upgrade_from }}" == "" ]
+          then
+            # Get latest stable release
+            LATEST="$(curl -s -L -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/ClickHouse/terraform-provider-clickhouse/releases/latest | jq -r '.name')"
+
+            if [ "$LATEST" == "null" ]
+            then
+              echo "Error getting latest release"
+              exit 1
+            fi
+
+            echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.upgrade_from }}" >> "$GITHUB_OUTPUT"
+          fi
 
     - shell: bash
       if: ${{ inputs.upgrade_test == 'true' && steps.defined.outputs.defined == 'true' }}
       name: Upgrade test - Run terraform using latest stable version
       run: |
         git checkout tags/${{ steps.get_latest_stable_release.outputs.tag }}
-        echo "::group::Run terraform using latest stable version"
+        if [ $(find examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }} -name "*.tf" -type f 2>/dev/null | wc -l) -gt 0 ]
+        then
+          echo "::group::Run terraform using latest stable version"
+        else
+          echo "::group::Skipping upgrade E2E test as it does not exist for cloud provider ${{ inputs.cloud_provider }} and version ${{ steps.get_latest_stable_release.outputs.tag }}"
+          echo "SKIP_E2E_TEST=true" >> "$GITHUB_ENV"
+          git checkout ${{ github.ref }}
+          exit 0
+        fi
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
-        
+
         if [ "${{inputs.api_url}}" != "" ]
         then
           export CLICKHOUSE_API_URL="${{inputs.api_url}}"
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
-                
-        export TF_LOG=debug
-                
+
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+          export TF_LOG=debug
+        fi
+
         terraform init -input=false
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
+
+        git checkout ${{ github.ref }}
+
         echo "::endgroup::"
 
     - shell: bash
-      if: ${{ inputs.skip_build == 'false' && steps.defined.outputs.defined == 'true' }}
+      if: ${{ inputs.skip_build == 'false' && steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
       name: Build provider from branch and create terraformrc to use it
       run: |
-        git checkout ${{ github.ref }}        
+        git checkout ${{ github.ref }}
         echo "::group::Build provider from branch and create terraformrc to use it"
         go get
         go build -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
@@ -154,43 +218,50 @@ runs:
           direct {}
         }
         EOF
+
         echo "::endgroup::"
 
     - shell: bash
-      if: ${{steps.defined.outputs.defined == 'true' }}
+      if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
       name: Run terraform
       run: |
         echo "::group::Run terraform"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
-                
+
         if [ "${{inputs.api_url}}" != "" ]
         then
           export CLICKHOUSE_API_URL="${{inputs.api_url}}"
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
-        
-        export TF_LOG=debug
-                        
+
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+          export TF_LOG=debug
+        fi
+
         terraform init -input=false -upgrade
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
         terraform refresh -no-color -var-file=variables.tfvars
+
         echo "::endgroup::"
 
     - shell: bash
       name: Terraform destroy
-      if: ${{steps.defined.outputs.defined == 'true' }}
+      if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
       run: |
         echo "::group::Run terraform destroy"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
-        
+
         if [ "${{inputs.api_url}}" != "" ]
         then
           export CLICKHOUSE_API_URL="${{inputs.api_url}}"
           echo "Using '$CLICKHOUSE_API_URL' as API URL"
         fi
-        
-        export TF_LOG=debug
-        
+
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+          export TF_LOG=debug
+        fi
+
         terraform destroy -no-color -auto-approve -var-file=variables.tfvars
+
         echo "::endgroup::"

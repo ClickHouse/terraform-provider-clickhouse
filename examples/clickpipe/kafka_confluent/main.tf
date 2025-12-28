@@ -3,38 +3,30 @@ variable "token_key" {}
 variable "token_secret" {}
 
 variable "service_id" {
-  description = "ClickHouse service ID"
 }
 
 variable "kafka_brokers" {
-  description = "Kafka brokers"
 }
 
 variable "kafka_topics" {
-  description = "Kafka topics"
 }
 
 variable "kafka_username" {
-  description = "Username"
   sensitive   = true
 }
 
 variable "kafka_password" {
-  description = "Password"
   sensitive   = true
 }
 
 resource "clickhouse_clickpipe" "kafka_confluent" {
   name        = "Confluent 🚀 ClickPipe"
-  description = "Data pipeline from Confluent to ClickHouse"
 
   service_id = var.service_id
 
   scaling = {
     replicas = 1
   }
-
-  state = "Running"
 
   source = {
     kafka = {
@@ -58,6 +50,8 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
       engine = {
         type = "MergeTree"
       }
+
+      sorting_key = ["my_field1", "my_field2"]
     }
 
     columns = [
@@ -73,8 +67,12 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
 
   field_mappings = [
     {
-      source_field      = "my_field"
+      source_field      = "my_field1"
       destination_field = "my_field1"
+    },
+    {
+      source_field      = "my_field2"
+      destination_field = "my_field2"
     }
   ]
 }

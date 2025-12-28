@@ -234,11 +234,15 @@ type ServiceResourceModel struct {
 	TransparentEncryptionData       types.Object `tfsdk:"transparent_data_encryption"`
 	QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
+	BackupID                        types.String `tfsdk:"backup_id"`
+	ComplianceType                  types.String `tfsdk:"compliance_type"`
+	Tags                            types.Map    `tfsdk:"tags"`
 }
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 	if !m.ID.Equal(b.ID) ||
 		!m.BYOCID.Equal(b.BYOCID) ||
+		!m.BackupID.Equal(b.BackupID) ||
 		!m.DataWarehouseID.Equal(b.DataWarehouseID) ||
 		!m.ReadOnly.Equal(b.ReadOnly) ||
 		!m.IsPrimary.Equal(b.IsPrimary) ||
@@ -265,7 +269,8 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.TransparentEncryptionData.Equal(b.TransparentEncryptionData) ||
 		!m.IpAccessList.Equal(b.IpAccessList) ||
 		!m.QueryAPIEndpoints.Equal(b.QueryAPIEndpoints) ||
-		!m.BackupConfiguration.Equal(b.BackupConfiguration) {
+		!m.BackupConfiguration.Equal(b.BackupConfiguration) ||
+		!m.Tags.Equal(b.Tags) {
 		return false
 	}
 

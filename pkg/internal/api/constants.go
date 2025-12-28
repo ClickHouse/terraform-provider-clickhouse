@@ -7,10 +7,14 @@ const (
 
 	ReleaseChannelDefault = "default"
 	ReleaseChannelFast    = "fast"
+	ReleaseChannelSlow    = "slow"
 
 	StateProvisioning = "provisioning"
 	StateStopped      = "stopped"
 	StateStopping     = "stopping"
 
 	ResponseHeaderRateLimitReset = "X-RateLimit-Reset"
+
+	ComplianceTypeHIPAA = "hipaa"
+	ComplianceTypePCI   = "pci"
 )

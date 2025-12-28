@@ -3,24 +3,19 @@ variable "token_key" {}
 variable "token_secret" {}
 
 variable "service_id" {
-  description = "ClickHouse service ID"
 }
 
 variable "kafka_brokers" {
-  description = "Kafka brokers"
 }
 
 variable "kafka_topics" {
-  description = "Kafka topics"
 }
 
 variable "iam_role" {
-  description = "IAM role ARN"
 }
 
 resource "clickhouse_clickpipe" "kafka_msk" {
   name        = "MSK 🚀 ClickPipe"
-  description = "Data pipeline from MSK to ClickHouse"
 
   service_id = var.service_id
 
@@ -28,7 +23,7 @@ resource "clickhouse_clickpipe" "kafka_msk" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {
@@ -61,6 +56,8 @@ resource "clickhouse_clickpipe" "kafka_msk" {
         type = "UInt64"
       }
     ]
+
+    roles = ["custom_role_1", "custom_role_2"]
   }
 
   field_mappings = [

@@ -5,7 +5,6 @@ locals {
 
 resource "clickhouse_clickpipe" "msk" {
   name        = "MSK pipe using Reverse Private Endpoint"
-  description = "This pipe is using a secure private endpoint to connect to MSK"
 
   service_id = var.service_id
 
@@ -13,7 +12,7 @@ resource "clickhouse_clickpipe" "msk" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {

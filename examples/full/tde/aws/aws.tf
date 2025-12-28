@@ -1,19 +1,22 @@
 variable "aws_key" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "aws_secret" {
-  type = string
+  type      = string
+  sensitive = true
 }
 
 variable "aws_session_token" {
-  type = string
-  default = ""
+  type      = string
+  default   = ""
+  sensitive = true
 }
 
 locals {
   tags = {
-    Role = "terraform-e2e-test"
+    Role        = "terraform-e2e-test"
     ServiceName = replace(var.service_name, "/[^-a-zA-Z0-9_.:/=+@ ]/", "_")
   }
 }

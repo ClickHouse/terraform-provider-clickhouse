@@ -13,16 +13,20 @@ import (
 
 const (
 	ClickPipeProvisioningState  = "Provisioning"
+	ClickPipeDegradedState      = "Degraded"
 	ClickPipeRunningState       = "Running"
+	ClickPipeStoppingState      = "Stopping"
 	ClickPipeStoppedState       = "Stopped"
 	ClickPipeFailedState        = "Failed"
 	ClickPipeCompletedState     = "Completed"
+	ClickPipeSnapShotState      = "Snapshot"
 	ClickPipeInternalErrorState = "InternalError"
 )
 
 const (
-	ClickPipeStateStart = "start"
-	ClickPipeStateStop  = "stop"
+	ClickPipeStateStart  = "start"
+	ClickPipeStateStop   = "stop"
+	ClickPipeStateResync = "resync"
 )
 
 const (
@@ -34,15 +38,21 @@ const (
 	ClickPipeParquetFormat       = "Parquet"
 )
 
-var ClickPipeKafkaFormats = []string{
+var ClickPipeStreamingFormats = []string{
 	ClickPipeJSONEachRowFormat,
 	ClickPipeAvroFormat,
 	ClickPipeAvroConfluentFormat,
 }
 
+var (
+	ClickPipeKafkaFormats   = ClickPipeStreamingFormats
+	ClickPipeKinesisFormats = ClickPipeKafkaFormats
+)
+
 const (
-	ClickPipeAuthenticationIAMRole = "IAM_ROLE"
-	ClickPipeAuthenticationIAMUser = "IAM_USER"
+	ClickPipeAuthenticationIAMRole          = "IAM_ROLE"
+	ClickPipeAuthenticationIAMUser          = "IAM_USER"
+	ClickPipeAuthenticationConnectionString = "CONNECTION_STRING"
 
 	ClickPipeKafkaAuthenticationPlain       = "PLAIN"
 	ClickPipeKafkaAuthenticationScramSha256 = "SCRAM-SHA-256"
@@ -78,6 +88,24 @@ var ClickPipeKafkaSourceTypes = []string{
 var ClickPipeObjectStorageAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
+	ClickPipeAuthenticationConnectionString,
+}
+
+var ClickPipeKinesisAuthenticationMethods = []string{
+	ClickPipeAuthenticationIAMRole,
+	ClickPipeAuthenticationIAMUser,
+}
+
+const (
+	ClickPipeKinesisTrimHorizonIteratorType = "TRIM_HORIZON"
+	ClickPipeKinesisLatestIteratorType      = "LATEST"
+	ClickPipeKinesisAtTimestampIteratorType = "AT_TIMESTAMP"
+)
+
+var ClickPipeKinesisIteratorTypes = []string{
+	ClickPipeKinesisTrimHorizonIteratorType,
+	ClickPipeKinesisLatestIteratorType,
+	ClickPipeKinesisAtTimestampIteratorType,
 }
 
 var ClickPipeObjectStorageFormats = []string{
@@ -88,13 +116,15 @@ var ClickPipeObjectStorageFormats = []string{
 }
 
 const (
-	ClickPipeObjectStorageS3Type  = "s3"
-	ClickPipeObjectStorageGCSType = "gcs"
+	ClickPipeObjectStorageS3Type        = "s3"
+	ClickPipeObjectStorageGCSType       = "gcs"
+	ClickPipeObjectStorageAzureBlobType = "azureblobstorage"
 )
 
 var ClickPipeObjectStorageTypes = []string{
 	ClickPipeObjectStorageS3Type,
 	ClickPipeObjectStorageGCSType,
+	ClickPipeObjectStorageAzureBlobType,
 }
 
 const (
@@ -118,6 +148,41 @@ var ClickPipeObjectStorageCompressions = []string{
 }
 
 const (
+	// Postgres replication modes
+	ClickPipeReplicationModeCDC      = "cdc"
+	ClickPipeReplicationModeSnapshot = "snapshot"
+	ClickPipeReplicationModeCDCOnly  = "cdc_only"
+)
+
+const (
+	ClickPipeTableEngineMergeTree          = "MergeTree"
+	ClickPipeTableEngineReplacingMergeTree = "ReplacingMergeTree"
+	ClickPipeTableEngineNull               = "Null"
+)
+
+var ClickPipePostgresReplicationModes = []string{
+	ClickPipeReplicationModeCDC,
+	ClickPipeReplicationModeSnapshot,
+	ClickPipeReplicationModeCDCOnly,
+}
+
+var ClickPipeBigQueryReplicationModes = []string{
+	ClickPipeReplicationModeSnapshot,
+}
+
+var ClickPipePostgresTableEngines = []string{
+	ClickPipeTableEngineMergeTree,
+	ClickPipeTableEngineReplacingMergeTree,
+	ClickPipeTableEngineNull,
+}
+
+var ClickPipeBigQueryTableEngines = []string{
+	ClickPipeTableEngineMergeTree,
+	ClickPipeTableEngineReplacingMergeTree,
+	ClickPipeTableEngineNull,
+}
+
+const (
 	ClickPipeKafkaOffsetFromBeginningStrategy = "from_beginning"
 	ClickPipeKafkaOffsetFromLatestStrategy    = "from_latest"
 	ClickPipeKafkaOffsetFromTimestampStrategy = "from_timestamp"
@@ -130,8 +195,9 @@ var ClickPipeKafkaOffsetStrategies = []string{
 }
 
 type ClickPipeScalingRequest struct {
-	Replicas    *int64 `json:"replicas,omitempty"`
-	Concurrency *int64 `json:"concurrency,omitempty"`
+	Replicas             *int64   `json:"replicas,omitempty"`
+	ReplicaCpuMillicores *int64   `json:"replicaCpuMillicores,omitempty"`
+	ReplicaMemoryGb      *float64 `json:"replicaMemoryGb,omitempty"`
 }
 
 type ClickPipeStateRequest struct {
@@ -209,7 +275,7 @@ func (c *ClientImpl) UpdateClickPipe(ctx context.Context, serviceId string, clic
 	return &clickPipeResponse.Result, nil
 }
 
-func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(*ClickPipe) bool, maxWaitSeconds uint64) (clickPipe *ClickPipe, err error) {
+func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(*ClickPipe) bool, maxElapsedTime time.Duration) (clickPipe *ClickPipe, err error) {
 	checkState := func() error {
 		clickPipe, err = c.GetClickPipe(ctx, serviceId, clickPipeId)
 		if err != nil {
@@ -223,21 +289,21 @@ func (c *ClientImpl) waitForClickPipe(ctx context.Context, serviceId string, cli
 		return fmt.Errorf("ClickPipe %s is in state %s", clickPipeId, clickPipe.State)
 	}
 
-	if maxWaitSeconds < 5 {
-		maxWaitSeconds = 5
+	if maxElapsedTime < 5*time.Second {
+		maxElapsedTime = 5
 	}
 
-	err = backoff.Retry(checkState, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), maxWaitSeconds/5))
+	err = backoff.Retry(checkState, backoff.NewExponentialBackOff(backoff.WithMaxElapsedTime(maxElapsedTime), backoff.WithMaxInterval(maxElapsedTime/5)))
 	return
 }
 
-func (c *ClientImpl) WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, checker func(string) bool, maxWaitSeconds uint64) (clickPipe *ClickPipe, err error) {
+func (c *ClientImpl) WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, checker func(string) bool, maxWait time.Duration) (clickPipe *ClickPipe, err error) {
 	return c.waitForClickPipe(ctx, serviceId, clickPipeId, func(cp *ClickPipe) bool {
 		return checker(cp.State)
-	}, maxWaitSeconds)
+	}, maxWait)
 }
 
-func (c *ClientImpl) ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScaling) (*ClickPipe, error) {
+func (c *ClientImpl) ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScalingRequest) (*ClickPipe, error) {
 	var payload bytes.Buffer
 	if err := json.NewEncoder(&payload).Encode(request); err != nil {
 		return nil, fmt.Errorf("failed to encode ClickPipe: %w", err)
@@ -293,4 +359,122 @@ func (c *ClientImpl) DeleteClickPipe(ctx context.Context, serviceId string, clic
 	}
 	_, err = c.doRequest(ctx, req)
 	return err
+}
+
+func (c *ClientImpl) GetClickPipeSettings(ctx context.Context, serviceId string, clickPipeId string) (map[string]any, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getClickPipePath(serviceId, clickPipeId, "/settings"), nil)
+	if err != nil {
+		return nil, err
+	}
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	settingsResponse := ResponseWithResult[map[string]any]{}
+	if err := json.Unmarshal(body, &settingsResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ClickPipe settings: %w", err)
+	}
+
+	return settingsResponse.Result, nil
+}
+
+func (c *ClientImpl) UpdateClickPipeSettings(ctx context.Context, serviceId string, clickPipeId string, settings map[string]any) (map[string]any, error) {
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(settings); err != nil {
+		return nil, fmt.Errorf("failed to encode ClickPipe settings: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, c.getClickPipePath(serviceId, clickPipeId, "/settings"), &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	settingsResponse := ResponseWithResult[map[string]any]{}
+	if err := json.Unmarshal(body, &settingsResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ClickPipe settings: %w", err)
+	}
+
+	return settingsResponse.Result, nil
+}
+
+type ClickPipeCdcScaling struct {
+	ReplicaCpuMillicores int64   `json:"replicaCpuMillicores"`
+	ReplicaMemoryGb      float64 `json:"replicaMemoryGb"`
+}
+
+type ClickPipeCdcScalingRequest struct {
+	ReplicaCpuMillicores int64   `json:"replicaCpuMillicores"`
+	ReplicaMemoryGb      float64 `json:"replicaMemoryGb"`
+}
+
+func (c *ClientImpl) GetClickPipeCdcScaling(ctx context.Context, serviceId string) (*ClickPipeCdcScaling, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, "/clickpipesCdcScaling"), nil)
+	if err != nil {
+		return nil, err
+	}
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	scalingResponse := ResponseWithResult[ClickPipeCdcScaling]{}
+	if err := json.Unmarshal(body, &scalingResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal CDC scaling: %w", err)
+	}
+
+	return &scalingResponse.Result, nil
+}
+
+func (c *ClientImpl) UpdateClickPipeCdcScaling(ctx context.Context, serviceId string, request ClickPipeCdcScalingRequest) (*ClickPipeCdcScaling, error) {
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(request); err != nil {
+		return nil, fmt.Errorf("failed to encode CDC scaling: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.getServicePath(serviceId, "/clickpipesCdcScaling"), &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	scalingResponse := ResponseWithResult[ClickPipeCdcScaling]{}
+	if err := json.Unmarshal(body, &scalingResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal CDC scaling: %w", err)
+	}
+
+	return &scalingResponse.Result, nil
+}
+
+func (c *ClientImpl) WaitForClickPipeCdcScaling(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (scaling *ClickPipeCdcScaling, err error) {
+	checkScaling := func() error {
+		scaling, err = c.GetClickPipeCdcScaling(ctx, serviceId)
+		if err != nil {
+			return err
+		}
+
+		// Check if the scaling values match the expected values
+		if scaling.ReplicaCpuMillicores == expectedCpuMillicores && scaling.ReplicaMemoryGb == expectedMemoryGb {
+			return nil
+		}
+
+		return fmt.Errorf("CDC scaling not yet applied: current cpu=%d (expected %d), memory=%.1f (expected %.1f)",
+			scaling.ReplicaCpuMillicores, expectedCpuMillicores, scaling.ReplicaMemoryGb, expectedMemoryGb)
+	}
+
+	if maxElapsedTime < 5*time.Second {
+		maxElapsedTime = 5 * time.Second
+	}
+
+	err = backoff.Retry(checkScaling, backoff.NewExponentialBackOff(backoff.WithMaxElapsedTime(maxElapsedTime), backoff.WithMaxInterval(maxElapsedTime/5)))
+	return
 }

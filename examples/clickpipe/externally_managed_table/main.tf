@@ -3,34 +3,27 @@ variable "token_key" {}
 variable "token_secret" {}
 
 variable "service_id" {
-  description = "ClickHouse service ID"
 }
 
 variable "kafka_brokers" {
-  description = "Kafka brokers"
 }
 
 variable "kafka_topics" {
-  description = "Kafka topics"
 }
 
 variable "kafka_username" {
-  description = "Username"
   sensitive   = true
 }
 
 variable "kafka_password" {
-  description = "Password"
   sensitive   = true
 }
 
 variable "table_name" {
-  description = "Table name"
   type        = string
 }
 
 variable "table_columns" {
-  description = "Table columns"
   type = list(object({
     name = string
     type = string
@@ -38,7 +31,6 @@ variable "table_columns" {
 }
 
 variable "field_mappings" {
-  description = "Field mappings"
   type = list(object({
     source_field      = string
     destination_field = string
@@ -47,7 +39,6 @@ variable "field_mappings" {
 
 resource "clickhouse_clickpipe" "kafka_confluent" {
   name        = "Confluent 🚀 ClickPipe"
-  description = "Data pipeline from Confluent to ClickHouse"
 
   service_id = var.service_id
 
@@ -55,7 +46,7 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {

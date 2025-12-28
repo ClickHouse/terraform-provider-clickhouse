@@ -1,6 +1,10 @@
 name: "List examples to be used by e2e tests"
 description: "Return JSON array with a list of examples defined"
-inputs: {}
+inputs:
+  ignore:
+    required: false
+    description: "Regex to match against example names. Matched examples won't be returned. Empty regex does nothing."
+    default: ""
 
 outputs:
   examples:
@@ -12,11 +16,17 @@ runs:
   steps:
     - shell: bash
       id: list
+      env:
+        ignoreRegex: "${{ inputs.ignore }}"
       run: |
         examples="$(echo '[]' | jq .)"
         pushd examples/full
         for candidate in $(ls -1 .)
         do
+          if [[ ! -z "$ignoreRegex" ]] && [[ "$candidate" =~ "$ignoreRegex" ]]; then
+            echo "skipping $candidate..."
+            continue
+          fi
           if [ -d $candidate ]
           then
             cloud_providers=()

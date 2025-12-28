@@ -3,44 +3,35 @@ variable "token_key" {}
 variable "token_secret" {}
 
 variable "service_id" {
-  description = "ClickHouse service ID"
 }
 
 variable "kafka_brokers" {
-  description = "Kafka brokers"
 }
 
 variable "kafka_topics" {
-  description = "Kafka topics"
 }
 
 variable "kafka_username" {
-  description = "Username"
   sensitive   = true
 }
 
 variable "kafka_password" {
-  description = "Password"
   sensitive   = true
 }
 
 variable "schema_registry_url" {
-  description = "Schema Registry URL"
 }
 
 variable "schema_registry_username" {
-  description = "Schema Registry Username"
   sensitive   = true
 }
 
 variable "schema_registry_password" {
-  description = "Schema Registry Password"
   sensitive   = true
 }
 
 resource "clickhouse_clickpipe" "kafka_schema_registry" {
   name        = "Schema Registry 🚀 ClickPipe"
-  description = "Data pipeline with use of Schema Registry"
 
   service_id = var.service_id
 
@@ -48,7 +39,7 @@ resource "clickhouse_clickpipe" "kafka_schema_registry" {
     replicas = 1
   }
 
-  state = "Running"
+
 
   source = {
     kafka = {

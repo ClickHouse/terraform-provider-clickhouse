@@ -33,6 +33,10 @@ resource "clickhouse_service" "service" {
     }
   ]
 
+  tags = {
+    Environment = "Staging",
+  }
+
   min_total_memory_gb  = 24
   max_total_memory_gb  = 360
   idle_timeout_minutes = 5
@@ -54,28 +58,31 @@ resource "clickhouse_service" "service" {
 ### Optional
 
 - `backup_configuration` (Attributes) Configuration of service backup settings. (see [below for nested schema](#nestedatt--backup_configuration))
+- `backup_id` (String) ID of the backup to restore when creating new service. If specified, the service will be created as a restore operation
 - `byoc_id` (String) BYOC ID related to the cloud provider account you want to create this service into.
+- `compliance_type` (String) Compliance type of the service. Can be 'hipaa', 'pci'. Required for organizations that wish to deploy their services in the hipaa/pci compliant environment. NOTE: hipaa/pci compliance should be enabled for your ClickHouse organization before using this field.
 - `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.
 - `encryption_assumed_role_identifier` (String) Custom role identifier ARN.
 - `encryption_key` (String) Custom encryption key ARN.
 - `endpoints` (Attributes) Allow to enable and configure additional endpoints (read protocols) to expose on the ClickHouse service. (see [below for nested schema](#nestedatt--endpoints))
 - `idle_scaling` (Boolean) When set to true the service is allowed to scale down to zero when idle.
 - `idle_timeout_minutes` (Number) Set minimum idling timeout (in minutes). Must be greater than or equal to 5 minutes. Must be set if idle_scaling is enabled.
-- `max_replica_memory_gb` (Number) Maximum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `max_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
-- `max_total_memory_gb` (Number, Deprecated) Maximum total memory of all workers during auto-scaling in Gb. Must be a multiple of 12 and lower than 360 for non paid services or 720 for paid services.
-- `min_replica_memory_gb` (Number) Minimum memory of a single replica during auto-scaling in Gb. Must be a multiple of 4 greater than or equal to 8. `min_replica_memory_gb` x `num_replicas` (default 3) must be lower than 360 for non paid services or 720 for paid services.
-- `min_total_memory_gb` (Number, Deprecated) Minimum total memory of all workers during auto-scaling in Gb. Must be a multiple of 12 and greater than 24.
-- `num_replicas` (Number) Number of replicas for the service. Must be between 3 and 20. Contact support to enable this feature.
+- `max_replica_memory_gb` (Number) Maximum memory of a single replica during auto-scaling in GiB.
+- `max_total_memory_gb` (Number, Deprecated) Maximum total memory of all workers during auto-scaling in GiB.
+- `min_replica_memory_gb` (Number) Minimum memory of a single replica during auto-scaling in GiB.
+- `min_total_memory_gb` (Number, Deprecated) Minimum total memory of all workers during auto-scaling in GiB.
+- `num_replicas` (Number) Number of replicas for the service.
 - `password` (String, Sensitive) Password for the default user. One of either `password_wo`, `password` or `password_hash` must be specified.
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.
 - `password_wo` (String, Sensitive) Password write only (not stored in state) for the default user. One of either `password_wo`, `password` or `password_hash` must be specified.
 - `password_wo_version` (Number) Password write only version for the default user. The version is stored in state so when it is updated password_wo gets updated too. Only `password_wo` must be specified.
 - `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
-- `release_channel` (String) Release channel to use for this service. Either 'default' or 'fast'. Switching from 'fast' to 'default' release channel is not supported.
+- `release_channel` (String) Release channel to use for this service. Can be 'default', 'fast' or 'slow'.
+- `tags` (Map of String) Tags associated with the service as key-value pairs.
 - `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
 - `transparent_data_encryption` (Attributes) Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan. (see [below for nested schema](#nestedatt--transparent_data_encryption))
-- `warehouse_id` (String) ID of the warehouse to share the data with. Must be in the same cloud and region.
+- `warehouse_id` (String) Set it to the 'warehouse_id' attribute of another service to share the data with it. The service must be in the same cloud and region.
 
 ### Read-Only
 
@@ -180,6 +187,8 @@ Read-Only:
 ## Import
 
 Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
 # Services can be imported by specifying the UUID.

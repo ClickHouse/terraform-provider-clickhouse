@@ -50,12 +50,15 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 
 	service.PrivateEndpointConfig = endpointConfigResponse
 
-	backupConfiguration, err := c.GetBackupConfiguration(ctx, service.Id)
-	if err != nil {
-		return nil, err
-	}
+	// Only primary services have backup settings.
+	if service.IsPrimary != nil && *service.IsPrimary {
+		backupConfiguration, err := c.GetBackupConfiguration(ctx, service.Id)
+		if err != nil {
+			return nil, err
+		}
 
-	service.BackupConfiguration = backupConfiguration
+		service.BackupConfiguration = backupConfiguration
+	}
 
 	queryEndpoints, err := c.GetQueryEndpoint(ctx, service.Id)
 	if err != nil {
@@ -90,6 +93,8 @@ func (c *ClientImpl) CreateService(ctx context.Context, s Service) (*Service, st
 	if err != nil {
 		return nil, "", err
 	}
+	// Always rewrite the backup ID as we need to make Terraform state to work by API does not return it backup ID
+	serviceResponse.Result.Service.BackupID = s.BackupID
 
 	return &serviceResponse.Result.Service, serviceResponse.Result.Password, nil
 }
