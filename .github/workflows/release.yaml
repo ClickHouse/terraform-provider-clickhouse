@@ -77,7 +77,7 @@ jobs:
     runs-on: k8s-nano
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Find TF releases
         uses: ./.github/actions/find-tf-releases
@@ -91,7 +91,7 @@ jobs:
     runs-on: k8s-nano
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - uses: ./.github/actions/list-examples
         id: list
@@ -113,7 +113,7 @@ jobs:
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
 
@@ -182,7 +182,7 @@ jobs:
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
 
@@ -255,7 +255,7 @@ jobs:
         test_name : ["generic"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
 
@@ -300,7 +300,7 @@ jobs:
     steps:
       - name: Report Failure on slack
         if: ${{ needs.e2e.result == 'failure' || needs.import.result == 'failure' || needs.upgrade.result == 'failure' }}
-        uses: ravsamhq/notify-slack-action@v2
+        uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: 'failure'
@@ -316,7 +316,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Get API details for env
         id: credentials
@@ -347,13 +347,13 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: "main"
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
 
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -417,7 +417,7 @@ jobs:
     if: ${{ needs.e2e.result != 'failure' && needs.import.result != 'failure' && needs.upgrade.result != 'failure' }}
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       with:
         ref: "main"
     - name: Create tag
@@ -435,27 +435,27 @@ jobs:
     if: ${{ needs.e2e.result != 'failure' && needs.import.result != 'failure' && needs.upgrade.result != 'failure' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: v${{inputs.version}}
           # Allow goreleaser to access older tag information.
           fetch-depth: 0
 
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: 'go.mod'
           cache: true
 
       - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v6
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6
         id: import_gpg
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
           args: release --clean --config ${{ needs.validate.outputs.goreleaser_config }}
         env:
@@ -473,13 +473,13 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
           ref: "main"
 
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: 'go.mod'
           cache: true
