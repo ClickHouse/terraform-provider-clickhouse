@@ -34,13 +34,13 @@ runs:
   using: "composite"
   steps:
     - name: Setup go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
       with:
         go-version-file: "go.mod"
         cache: true
 
     - name: Install terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
       with:
         terraform_version: ${{ inputs.tf_release }}
         terraform_wrapper: false
