@@ -303,6 +303,7 @@ type ClickPipePostgresTableMappingModel struct {
 	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
 	SortingKeys         types.List   `tfsdk:"sorting_keys"`
 	TableEngine         types.String `tfsdk:"table_engine"`
+	PartitionKey        types.String `tfsdk:"partition_key"`
 }
 
 func (m ClickPipePostgresTableMappingModel) ObjectType() types.ObjectType {
@@ -315,6 +316,7 @@ func (m ClickPipePostgresTableMappingModel) ObjectType() types.ObjectType {
 			"use_custom_sorting_key": types.BoolType,
 			"sorting_keys":           types.ListType{ElemType: types.StringType},
 			"table_engine":           types.StringType,
+			"partition_key":          types.StringType,
 		},
 	}
 }
@@ -328,16 +330,21 @@ func (m ClickPipePostgresTableMappingModel) ObjectValue() types.Object {
 		"use_custom_sorting_key": m.UseCustomSortingKey,
 		"sorting_keys":           m.SortingKeys,
 		"table_engine":           m.TableEngine,
+		"partition_key":          m.PartitionKey,
 	})
 }
 
 type ClickPipePostgresSourceModel struct {
-	Host          types.String `tfsdk:"host"`
-	Port          types.Int64  `tfsdk:"port"`
-	Database      types.String `tfsdk:"database"`
-	Credentials   types.Object `tfsdk:"credentials"`
-	Settings      types.Object `tfsdk:"settings"`
-	TableMappings types.Set    `tfsdk:"table_mappings"`
+	Host           types.String `tfsdk:"host"`
+	Port           types.Int64  `tfsdk:"port"`
+	Database       types.String `tfsdk:"database"`
+	Authentication types.String `tfsdk:"authentication"`
+	IAMRole        types.String `tfsdk:"iam_role"`
+	TLSHost        types.String `tfsdk:"tls_host"`
+	CACertificate  types.String `tfsdk:"ca_certificate"`
+	Credentials    types.Object `tfsdk:"credentials"`
+	Settings       types.Object `tfsdk:"settings"`
+	TableMappings  types.Set    `tfsdk:"table_mappings"`
 }
 
 func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
@@ -346,6 +353,10 @@ func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
 			"host":           types.StringType,
 			"port":           types.Int64Type,
 			"database":       types.StringType,
+			"authentication": types.StringType,
+			"iam_role":       types.StringType,
+			"tls_host":       types.StringType,
+			"ca_certificate": types.StringType,
 			"credentials":    ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":       ClickPipePostgresSettingsModel{}.ObjectType(),
 			"table_mappings": types.SetType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
@@ -358,6 +369,10 @@ func (m ClickPipePostgresSourceModel) ObjectValue() types.Object {
 		"host":           m.Host,
 		"port":           m.Port,
 		"database":       m.Database,
+		"authentication": m.Authentication,
+		"iam_role":       m.IAMRole,
+		"tls_host":       m.TLSHost,
+		"ca_certificate": m.CACertificate,
 		"credentials":    m.Credentials,
 		"settings":       m.Settings,
 		"table_mappings": m.TableMappings,
