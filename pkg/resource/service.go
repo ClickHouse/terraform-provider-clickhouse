@@ -99,6 +99,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.Expressions{
 						path.MatchRoot("password"),
+						path.MatchRoot("password_wo"),
 						path.MatchRoot("password_hash"),
 						path.MatchRoot("backup_configuration"),
 					}...),
@@ -128,13 +129,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"password": schema.StringAttribute{
-				Description: "Password for the default user. One of either `password` or `password_hash` must be specified.",
+				Description: "Password for the default user. One of either `password`, `password_wo`, or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
 					stringvalidator.AtLeastOneOf(path.Expressions{
 						path.MatchRoot("password_hash"),
+						path.MatchRoot("password_wo"),
 						path.MatchRoot("warehouse_id"),
 					}...),
 				},
@@ -148,11 +150,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						regexp.MustCompile(`^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$`),
 						"must be a base64 encoded hash",
 					),
-					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password")}...),
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("password"), path.MatchRoot("password_wo")}...),
 				},
 			},
 			"double_sha1_password_hash": schema.StringAttribute{
-				Description: "Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.",
+				Description: "Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` or `password_wo` is specified.",
 				Optional:    true,
 				Sensitive:   true,
 				Validators: []validator.String{
@@ -161,6 +163,27 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						"must be a double sha1 hash",
 					),
 					stringvalidator.AlsoRequires(path.Expressions{path.MatchRoot("password_hash")}...),
+				},
+			},
+			"password_wo": schema.StringAttribute{
+				Description: "Password for the default user (write-only, not persisted to state). Use this instead of `password` to avoid storing the password hash in Terraform state.",
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
+					stringvalidator.AtLeastOneOf(path.Expressions{
+						path.MatchRoot("password"),
+						path.MatchRoot("password_hash"),
+						path.MatchRoot("warehouse_id"),
+					}...),
+				},
+			},
+			"password_wo_version": schema.Int64Attribute{
+				Description: "Version number for password_wo. Increment this to trigger a password update when using password_wo.",
+				Optional:    true,
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.Expressions{path.MatchRoot("password_wo")}...),
 				},
 			},
 			"cloud_provider": schema.StringAttribute{
@@ -1102,10 +1125,12 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Password and backup settings are only set on parent instances for hydra services
 	if plan.DataWarehouseID.IsUnknown() || plan.DataWarehouseID.IsNull() {
-		// Update service password if provided explicitly
-		planPassword := plan.Password.ValueString()
-		if len(planPassword) > 0 {
-			_, err := r.client.UpdateServicePassword(ctx, s.Id, servicePasswordUpdateFromPlainPassword(planPassword))
+		// Update service password if provided explicitly (prefer password_wo over password)
+		if password, passwordWO := plan.Password.ValueString(), plan.PasswordWO.ValueString(); len(password) > 0 || len(passwordWO) > 0 {
+			if len(passwordWO) > 0 {
+				password = passwordWO
+			}
+			_, err := r.client.UpdateServicePassword(ctx, s.Id, servicePasswordUpdateFromPlainPassword(password))
 			if err != nil {
 				resp.Diagnostics.AddError(
 					"Error setting service password",
@@ -1485,9 +1510,19 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	password := plan.Password.ValueString()
-	if len(password) > 0 && plan.Password != state.Password {
-		password = plan.Password.ValueString()
+	// Handle write-only password attribute (preferred) - update when version changes
+	if !plan.PasswordWOVersion.IsNull() && plan.PasswordWOVersion != state.PasswordWOVersion {
+		if passwordWO := config.PasswordWO.ValueString(); len(passwordWO) > 0 {
+			_, err := r.client.UpdateServicePassword(ctx, serviceId, servicePasswordUpdateFromPlainPassword(passwordWO))
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error Updating ClickHouse Service Password",
+					"Could not update service password, unexpected error: "+err.Error(),
+				)
+				return
+			}
+		}
+	} else if password := plan.Password.ValueString(); len(password) > 0 && plan.Password != state.Password {
 		_, err := r.client.UpdateServicePassword(ctx, serviceId, servicePasswordUpdateFromPlainPassword(password))
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -1937,6 +1972,8 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					Password:                        priorStateData.Password,
 					PasswordHash:                    priorStateData.PasswordHash,
 					DoubleSha1PasswordHash:          priorStateData.DoubleSha1PasswordHash,
+					PasswordWO:                      types.StringNull(),
+					PasswordWOVersion:               types.Int64Null(),
 					Endpoints:                       endpoints.ObjectValue(),
 					CloudProvider:                   priorStateData.CloudProvider,
 					Region:                          priorStateData.Region,
