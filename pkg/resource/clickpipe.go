@@ -759,6 +759,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										"use_custom_sorting_key": schema.BoolAttribute{
 											Description: "Whether to use a custom sorting key for the target table.",
 											Optional:    true,
+											Computed:    true,
+											Default:     booldefault.StaticBool(false),
 										},
 										"sorting_keys": schema.ListAttribute{
 											Description: "Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.",
@@ -1989,6 +1991,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 				if !mappingModel.UseCustomSortingKey.IsNull() {
 					val := mappingModel.UseCustomSortingKey.ValueBool()
 					mapping.UseCustomSortingKey = &val
+				} else {
+					val := false
+					mapping.UseCustomSortingKey = &val
 				}
 
 				if !mappingModel.SortingKeys.IsNull() && len(mappingModel.SortingKeys.Elements()) > 0 {
@@ -2042,6 +2047,9 @@ func (c *ClickPipeResource) convertTableMappingModelToAPI(ctx context.Context, d
 
 	if !mappingModel.UseCustomSortingKey.IsNull() {
 		val := mappingModel.UseCustomSortingKey.ValueBool()
+		mapping.UseCustomSortingKey = &val
+	} else {
+		val := false
 		mapping.UseCustomSortingKey = &val
 	}
 
