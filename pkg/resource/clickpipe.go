@@ -629,16 +629,15 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the Postgres instance.",
 								Required:            true,
+								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"username": schema.StringAttribute{
 										Description: "The username for the Postgres instance.",
 										Required:    true,
-										Sensitive:   true,
 									},
 									"password": schema.StringAttribute{
 										Description: "The password for the Postgres instance.",
 										Required:    true,
-										Sensitive:   true,
 									},
 								},
 							},
@@ -2467,7 +2466,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			if mapping.UseCustomSortingKey != nil {
 				tableMappingModel.UseCustomSortingKey = types.BoolValue(*mapping.UseCustomSortingKey)
 			} else {
-				tableMappingModel.UseCustomSortingKey = types.BoolNull()
+				tableMappingModel.UseCustomSortingKey = types.BoolValue(false)
 			}
 
 			if len(mapping.SortingKeys) > 0 {
