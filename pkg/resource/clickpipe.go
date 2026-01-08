@@ -282,6 +282,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"credentials": schema.SingleNestedAttribute{
 										MarkdownDescription: "The credentials for the Schema Registry.",
 										Required:            true,
+										Senstive:            true,
 										Attributes: map[string]schema.Attribute{
 											"username": schema.StringAttribute{
 												Description: "The username for the Schema Registry.",
@@ -629,15 +630,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the Postgres instance.",
 								Required:            true,
-								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"username": schema.StringAttribute{
 										Description: "The username for the Postgres instance.",
 										Required:    true,
+										Sensitive:   true,
 									},
 									"password": schema.StringAttribute{
 										Description: "The password for the Postgres instance.",
 										Required:    true,
+										Sensitive:   true,
 									},
 								},
 							},
