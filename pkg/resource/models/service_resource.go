@@ -235,6 +235,7 @@ type ServiceResourceModel struct {
 	BackupID                        types.String `tfsdk:"backup_id"`
 	ComplianceType                  types.String `tfsdk:"compliance_type"`
 	Tags                            types.Map    `tfsdk:"tags"`
+	EnableCoreDumps                 types.Bool   `tfsdk:"enable_core_dumps"`
 }
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
@@ -266,7 +267,8 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.IpAccessList.Equal(b.IpAccessList) ||
 		!m.QueryAPIEndpoints.Equal(b.QueryAPIEndpoints) ||
 		!m.BackupConfiguration.Equal(b.BackupConfiguration) ||
-		!m.Tags.Equal(b.Tags) {
+		!m.Tags.Equal(b.Tags) ||
+		!m.EnableCoreDumps.Equal(b.EnableCoreDumps) {
 		return false
 	}
 
