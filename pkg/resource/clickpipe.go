@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -33,6 +30,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
 var (
@@ -1372,7 +1373,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		Name: plan.Name.ValueString(),
 	}
 
-	if source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, false); source != nil {
+	if source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, false); source != nil {
 		clickPipe.Source = *source
 	} else {
 		return
@@ -1616,7 +1617,7 @@ func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 	return SourceTypeUnknown
 }
 
-func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics diag.Diagnostics, plan models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
+func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics *diag.Diagnostics, plan models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
 	source := &api.ClickPipeSource{}
 
 	sourceModel := models.ClickPipeSourceModel{}
@@ -2896,7 +2897,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
-				source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
 
 				// If table_mappings changed, set TableMappingsToAdd/Remove on Postgres source
 				if tableMappingsChanged && source.Postgres != nil {
@@ -2954,7 +2955,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			}
 		} else {
 			// Non-Postgres source or type change
-			source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+			source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
 
 			if source.Kafka != nil {
 				pipeChanged = true
