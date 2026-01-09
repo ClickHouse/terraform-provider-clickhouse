@@ -578,6 +578,8 @@ func getInitialState() models.ServiceResourceModel {
 		Password:                        types.String{},
 		PasswordHash:                    types.String{},
 		DoubleSha1PasswordHash:          types.String{},
+		PasswordWO:                      types.StringNull(),
+		PasswordWOVersion:               types.Int64Null(),
 		Endpoints:                       endpoints,
 		CloudProvider:                   types.StringValue(""),
 		Region:                          types.StringValue(""),

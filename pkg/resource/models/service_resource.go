@@ -212,6 +212,8 @@ type ServiceResourceModel struct {
 	Password                        types.String `tfsdk:"password"`
 	PasswordHash                    types.String `tfsdk:"password_hash"`
 	DoubleSha1PasswordHash          types.String `tfsdk:"double_sha1_password_hash"`
+	PasswordWO                      types.String `tfsdk:"password_wo"`
+	PasswordWOVersion               types.Int64  `tfsdk:"password_wo_version"`
 	Endpoints                       types.Object `tfsdk:"endpoints"`
 	CloudProvider                   types.String `tfsdk:"cloud_provider"`
 	Region                          types.String `tfsdk:"region"`
@@ -248,6 +250,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.Password.Equal(b.Password) ||
 		!m.PasswordHash.Equal(b.PasswordHash) ||
 		!m.DoubleSha1PasswordHash.Equal(b.DoubleSha1PasswordHash) ||
+		!m.PasswordWOVersion.Equal(b.PasswordWOVersion) ||
 		!m.Endpoints.Equal(b.Endpoints) ||
 		!m.CloudProvider.Equal(b.CloudProvider) ||
 		!m.Region.Equal(b.Region) ||
