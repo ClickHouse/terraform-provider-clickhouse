@@ -142,7 +142,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"password_hash": schema.StringAttribute{
-				Description: "SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.",
+				Description: "SHA256 hash of password for the default user. One of either `password`, `password_wo`, or `password_hash` must be specified.",
 				Optional:    true,
 				Sensitive:   true,
 				Validators: []validator.String{
@@ -172,6 +172,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				WriteOnly:   true,
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.Expressions{path.MatchRoot("double_sha1_password_hash")}...),
+					stringvalidator.AlsoRequires(path.Expressions{path.MatchRoot("password_wo_version")}...),
 					stringvalidator.AtLeastOneOf(path.Expressions{
 						path.MatchRoot("password"),
 						path.MatchRoot("password_hash"),
@@ -955,9 +956,14 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 // Create a new resource
 func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	// Retrieve values from plan
-	var plan models.ServiceResourceModel
+	// Retrieve values from plan and config
+	var plan, config models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	diags = req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1126,7 +1132,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	// Password and backup settings are only set on parent instances for hydra services
 	if plan.DataWarehouseID.IsUnknown() || plan.DataWarehouseID.IsNull() {
 		// Update service password if provided explicitly (prefer password_wo over password)
-		if password, passwordWO := plan.Password.ValueString(), plan.PasswordWO.ValueString(); len(password) > 0 || len(passwordWO) > 0 {
+		if password, passwordWO := plan.Password.ValueString(), config.PasswordWO.ValueString(); len(password) > 0 || len(passwordWO) > 0 {
 			if len(passwordWO) > 0 {
 				password = passwordWO
 			}
