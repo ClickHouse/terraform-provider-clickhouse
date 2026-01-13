@@ -101,6 +101,14 @@ func TestServiceResource_Equals(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "PasswordWOVersion changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.PasswordWOVersion = types.Int64Value(1)
+			}).Get(),
+			want: false,
+		},
+		{
 			name: "Nativesecure host changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
@@ -328,6 +336,8 @@ func getBaseModel() ServiceResourceModel {
 		Password:                        types.String{},
 		PasswordHash:                    types.String{},
 		DoubleSha1PasswordHash:          types.String{},
+		PasswordWO:                      types.StringNull(),
+		PasswordWOVersion:               types.Int64Null(),
 		Endpoints:                       endpoints.ObjectValue(),
 		CloudProvider:                   types.StringValue(""),
 		Region:                          types.StringValue(""),
