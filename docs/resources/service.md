@@ -57,8 +57,6 @@ resource "clickhouse_service" "service" {
 
 ### Optional
 
-> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
-
 - `backup_configuration` (Attributes) Configuration of service backup settings. (see [below for nested schema](#nestedatt--backup_configuration))
 - `backup_id` (String) ID of the backup to restore when creating new service. If specified, the service will be created as a restore operation
 - `byoc_id` (String) BYOC ID related to the cloud provider account you want to create this service into.
@@ -76,7 +74,7 @@ resource "clickhouse_service" "service" {
 - `num_replicas` (Number) Number of replicas for the service.
 - `password` (String, Sensitive) Password for the default user. One of either `password`, `password_wo`, or `password_hash` must be specified.
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password`, `password_wo`, or `password_hash` must be specified.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Password for the default user (write-only, not persisted to state). Use this instead of `password` to avoid storing the password hash in Terraform state.
+- `password_wo` (String, Sensitive) Password for the default user (write-only, not persisted to state). Use this instead of `password` to avoid storing the password hash in Terraform state.
 - `password_wo_version` (Number) Version number for password_wo. Increment this to trigger a password update when using password_wo.
 - `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
