@@ -169,6 +169,7 @@ type ClickPipePostgresSettings struct {
 	SnapshotNumRowsPerPartition    *int    `json:"snapshotNumRowsPerPartition,omitempty"`
 	SnapshotNumberOfParallelTables *int    `json:"snapshotNumberOfParallelTables,omitempty"`
 	EnableFailoverSlots            *bool   `json:"enableFailoverSlots,omitempty"`
+	DeleteOnMerge                  *bool   `json:"deleteOnMerge,omitempty"`
 }
 
 type ClickPipePostgresTableMapping struct {

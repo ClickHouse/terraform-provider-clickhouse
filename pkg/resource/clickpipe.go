@@ -756,6 +756,15 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											boolplanmodifier.RequiresReplace(),
 										},
 									},
+									"delete_on_merge": schema.BoolAttribute{
+										Description: "Enable delete-on-merge behavior for replication.",
+										Optional:    true,
+										Computed:    true,
+										Default:     booldefault.StaticBool(false),
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.RequiresReplace(),
+										},
+									},
 								},
 							},
 							"table_mappings": schema.SetNestedAttribute{
@@ -1995,6 +2004,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			val := settingsModel.EnableFailoverSlots.ValueBool()
 			settings.EnableFailoverSlots = &val
 		}
+		if !settingsModel.DeleteOnMerge.IsNull() {
+			val := settingsModel.DeleteOnMerge.ValueBool()
+			settings.DeleteOnMerge = &val
+		}
 
 		// Extract table mappings (skip for updates as they're handled separately via TableMappingsToAdd/Remove)
 		var tableMappings []api.ClickPipePostgresTableMapping
@@ -2479,6 +2492,13 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.EnableFailoverSlots = types.BoolValue(*clickPipe.Source.Postgres.Settings.EnableFailoverSlots)
 		} else {
 			settingsModel.EnableFailoverSlots = types.BoolNull()
+		}
+
+		// DeleteOnMerge is Optional+Computed with default=false, so always use API value
+		if clickPipe.Source.Postgres.Settings.DeleteOnMerge != nil {
+			settingsModel.DeleteOnMerge = types.BoolValue(*clickPipe.Source.Postgres.Settings.DeleteOnMerge)
+		} else {
+			settingsModel.DeleteOnMerge = types.BoolNull()
 		}
 
 		// Table mappings - convert API response to Set (order doesn't matter)

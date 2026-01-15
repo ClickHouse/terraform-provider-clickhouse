@@ -261,6 +261,7 @@ type ClickPipePostgresSettingsModel struct {
 	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
 	SnapshotNumberOfParallelTables types.Int64  `tfsdk:"snapshot_number_of_parallel_tables"`
 	EnableFailoverSlots            types.Bool   `tfsdk:"enable_failover_slots"`
+	DeleteOnMerge                  types.Bool   `tfsdk:"delete_on_merge"`
 }
 
 func (m ClickPipePostgresSettingsModel) ObjectType() types.ObjectType {
@@ -276,6 +277,7 @@ func (m ClickPipePostgresSettingsModel) ObjectType() types.ObjectType {
 			"snapshot_num_rows_per_partition":    types.Int64Type,
 			"snapshot_number_of_parallel_tables": types.Int64Type,
 			"enable_failover_slots":              types.BoolType,
+			"delete_on_merge":                    types.BoolType,
 		},
 	}
 }
@@ -292,6 +294,7 @@ func (m ClickPipePostgresSettingsModel) ObjectValue() types.Object {
 		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
 		"snapshot_number_of_parallel_tables": m.SnapshotNumberOfParallelTables,
 		"enable_failover_slots":              m.EnableFailoverSlots,
+		"delete_on_merge":                    m.DeleteOnMerge,
 	})
 }
 
