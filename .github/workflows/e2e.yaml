@@ -1,5 +1,8 @@
 name: E2E tests
 
+concurrency:
+  group: ${{ github.workflow }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -77,7 +80,7 @@ jobs:
     runs-on: k8s-nano
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Find TF releases
         uses: ./.github/actions/find-tf-releases
@@ -91,7 +94,7 @@ jobs:
     runs-on: k8s-nano
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: List Examples
         uses: ./.github/actions/list-examples
@@ -114,7 +117,7 @@ jobs:
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
 
@@ -193,7 +196,7 @@ jobs:
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
 
@@ -265,7 +268,7 @@ jobs:
     steps:
       - name: Report Failure on slack
         if: ${{ github.ref_name == 'main' && (needs.e2e.result == 'failure' || needs.upgrade.result == 'failure') }}
-        uses: ravsamhq/notify-slack-action@v2
+        uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2.5.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: "failure"
@@ -283,7 +286,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Get API details for env
         id: credentials

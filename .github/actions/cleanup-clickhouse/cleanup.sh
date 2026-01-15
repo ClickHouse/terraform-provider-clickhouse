@@ -44,4 +44,41 @@ while :; do
   sleep 5
 done
 
+echo "Cleanup of private link endpoints under the terraform organization..."
+
+OUTPUT="$(curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" "${API_URL}/organizations/${ORGANIZATION_ID}")"
+mapfile -t IDS < <(jq -r '.result.privateEndpoints[] | (.id + "," + .cloudProvider + "," + .region)' <<<"${OUTPUT}")
+
+for DATA in "${IDS[@]}"; do
+  ID="$(echo "$DATA" | cut -d"," -f1)"
+  CLOUD_PROVIDER="$(echo "$DATA" | cut -d"," -f2)"
+  REGION="$(echo "$DATA" | cut -d"," -f3)"
+  if [[ -z "$ID" || -z "$CLOUD_PROVIDER" || -z "$REGION" ]]; then
+    echo "Error: Missing required field(s) in data: $DATA" >&2
+    echo "  ID: ${ID:-<empty>}" >&2
+    echo "  CLOUD_PROVIDER: ${CLOUD_PROVIDER:-<empty>}" >&2
+    echo "  REGION: ${REGION:-<empty>}" >&2
+    exit 1
+  fi
+  BODY=$(cat <<EOF
+{
+  "privateEndpoints": {
+    "remove": [
+      {
+        "id": "$ID",
+        "cloudProvider": "$CLOUD_PROVIDER",
+        "region": "$REGION"
+      }
+    ]
+  }
+}
+EOF
+)
+  echo "Deleting endpoint..."
+  echo "  ID: $ID"
+  echo "  CLOUD_PROVIDER: $CLOUD_PROVIDER"
+  echo "  REGION: $REGION"
+  curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" -XPATCH "${API_URL}/organizations/${ORGANIZATION_ID}" -H 'Content-Type: application/json' -d "$BODY" -o /dev/null
+done
+
 echo "Cleanup complete."

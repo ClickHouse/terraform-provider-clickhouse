@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -33,6 +30,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
 var (
@@ -281,6 +282,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"credentials": schema.SingleNestedAttribute{
 										MarkdownDescription: "The credentials for the Schema Registry.",
 										Required:            true,
+										Sensitive:           true,
 										Attributes: map[string]schema.Attribute{
 											"username": schema.StringAttribute{
 												Description: "The username for the Schema Registry.",
@@ -781,6 +783,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										"use_custom_sorting_key": schema.BoolAttribute{
 											Description: "Whether to use a custom sorting key for the target table.",
 											Optional:    true,
+											Computed:    true,
+											Default:     booldefault.StaticBool(false),
 										},
 										"sorting_keys": schema.ListAttribute{
 											Description: "Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.",
@@ -1398,7 +1402,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		Name: plan.Name.ValueString(),
 	}
 
-	if source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, false); source != nil {
+	if source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, false); source != nil {
 		clickPipe.Source = *source
 	} else {
 		return
@@ -1642,7 +1646,7 @@ func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 	return SourceTypeUnknown
 }
 
-func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics diag.Diagnostics, plan models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
+func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics *diag.Diagnostics, plan models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
 	source := &api.ClickPipeSource{}
 
 	sourceModel := models.ClickPipeSourceModel{}
@@ -2015,6 +2019,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 				if !mappingModel.UseCustomSortingKey.IsNull() {
 					val := mappingModel.UseCustomSortingKey.ValueBool()
 					mapping.UseCustomSortingKey = &val
+				} else {
+					val := false
+					mapping.UseCustomSortingKey = &val
 				}
 
 				if !mappingModel.SortingKeys.IsNull() && len(mappingModel.SortingKeys.Elements()) > 0 {
@@ -2092,6 +2099,9 @@ func (c *ClickPipeResource) convertTableMappingModelToAPI(ctx context.Context, d
 
 	if !mappingModel.UseCustomSortingKey.IsNull() {
 		val := mappingModel.UseCustomSortingKey.ValueBool()
+		mapping.UseCustomSortingKey = &val
+	} else {
+		val := false
 		mapping.UseCustomSortingKey = &val
 	}
 
@@ -2520,7 +2530,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			if mapping.UseCustomSortingKey != nil {
 				tableMappingModel.UseCustomSortingKey = types.BoolValue(*mapping.UseCustomSortingKey)
 			} else {
-				tableMappingModel.UseCustomSortingKey = types.BoolNull()
+				tableMappingModel.UseCustomSortingKey = types.BoolValue(false)
 			}
 
 			if len(mapping.SortingKeys) > 0 {
@@ -2999,7 +3009,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
-				source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
 
 				// If table_mappings changed, set TableMappingsToAdd/Remove on Postgres source
 				if tableMappingsChanged && source.Postgres != nil {
@@ -3057,7 +3067,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			}
 		} else {
 			// Non-Postgres source or type change
-			source := c.extractSourceFromPlan(ctx, response.Diagnostics, plan, true)
+			source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
 
 			if source.Kafka != nil {
 				pipeChanged = true
