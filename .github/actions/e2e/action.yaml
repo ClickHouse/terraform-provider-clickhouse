@@ -53,6 +53,22 @@ inputs:
   region:
     required: true
     description: The Cloud region to use for tests
+  kafka_brokers:
+    required: false
+    default: ""
+    description: JSON array of Kafka broker endpoints for ClickPipe tests
+  kafka_topics:
+    required: false
+    default: ""
+    description: JSON array of Kafka topics for ClickPipe tests
+  kafka_username:
+    required: false
+    default: ""
+    description: Kafka username for SASL authentication
+  kafka_password:
+    required: false
+    default: ""
+    description: Kafka password for SASL authentication
 runs:
   using: composite
   steps:
@@ -134,6 +150,17 @@ runs:
 
           cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
         subscription_id = "${{ inputs.azure_subscription_id }}"
+        EOF
+        fi
+
+        # Add ClickPipe-specific variables if provided
+        if [ -n "${{ inputs.kafka_brokers }}" ] && [ "${{ inputs.kafka_brokers }}" != "" ]
+        then
+          cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
+        kafka_brokers  = ${{ inputs.kafka_brokers }}
+        kafka_topics   = ${{ inputs.kafka_topics }}
+        kafka_username = "${{ inputs.kafka_username }}"
+        kafka_password = "${{ inputs.kafka_password }}"
         EOF
         fi
 

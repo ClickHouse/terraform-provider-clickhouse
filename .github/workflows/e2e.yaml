@@ -169,6 +169,10 @@ jobs:
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          kafka_brokers: ${{ matrix.test.name == 'clickpipe_kafka_confluent' && secrets.KAFKA_BROKERS || '' }}
+          kafka_topics: ${{ matrix.test.name == 'clickpipe_kafka_confluent' && secrets.KAFKA_TOPICS || '' }}
+          kafka_username: ${{ matrix.test.name == 'clickpipe_kafka_confluent' && secrets.KAFKA_USERNAME || '' }}
+          kafka_password: ${{ matrix.test.name == 'clickpipe_kafka_confluent' && secrets.KAFKA_PASSWORD || '' }}
 
       - name: Cleanup Cloud
         if: always()
@@ -248,6 +252,10 @@ jobs:
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          kafka_brokers: ${{ matrix.test.name == 'clickpipe_kafka_confluent' && secrets.KAFKA_BROKERS || '' }}
+          kafka_topics: ${{ matrix.test.name == 'clickpipe_kafka_confluent' && secrets.KAFKA_TOPICS || '' }}
+          kafka_username: ${{ matrix.test.name == 'clickpipe_kafka_confluent' && secrets.KAFKA_USERNAME || '' }}
+          kafka_password: ${{ matrix.test.name == 'clickpipe_kafka_confluent' && secrets.KAFKA_PASSWORD || '' }}
 
       - name: Cleanup Cloud
         if: always()
