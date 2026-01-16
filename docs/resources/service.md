@@ -61,7 +61,7 @@ resource "clickhouse_service" "service" {
 - `backup_id` (String) ID of the backup to restore when creating new service. If specified, the service will be created as a restore operation
 - `byoc_id` (String) BYOC ID related to the cloud provider account you want to create this service into.
 - `compliance_type` (String) Compliance type of the service. Can be 'hipaa', 'pci'. Required for organizations that wish to deploy their services in the hipaa/pci compliant environment. NOTE: hipaa/pci compliance should be enabled for your ClickHouse organization before using this field.
-- `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` is specified.
+- `double_sha1_password_hash` (String, Sensitive) Double SHA1 hash of password for connecting with the MySQL protocol. Cannot be specified if `password` or `password_wo` is specified.
 - `enable_core_dumps` (Boolean) Enable core dumps for the service.
 - `encryption_assumed_role_identifier` (String) Custom role identifier ARN.
 - `encryption_key` (String) Custom encryption key ARN.
@@ -73,8 +73,10 @@ resource "clickhouse_service" "service" {
 - `min_replica_memory_gb` (Number) Minimum memory of a single replica during auto-scaling in GiB.
 - `min_total_memory_gb` (Number, Deprecated) Minimum total memory of all workers during auto-scaling in GiB.
 - `num_replicas` (Number) Number of replicas for the service.
-- `password` (String, Sensitive) Password for the default user. One of either `password` or `password_hash` must be specified.
-- `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password` or `password_hash` must be specified.
+- `password` (String, Sensitive) Password for the default user. One of either `password`, `password_wo`, or `password_hash` must be specified.
+- `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password`, `password_wo`, or `password_hash` must be specified.
+- `password_wo` (String, Sensitive) Password for the default user (write-only, not persisted to state). Use this instead of `password` to avoid storing the password hash in Terraform state.
+- `password_wo_version` (Number) Version number for password_wo. Increment this to trigger a password update when using password_wo.
 - `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
 - `release_channel` (String) Release channel to use for this service. Can be 'default', 'fast' or 'slow'.
