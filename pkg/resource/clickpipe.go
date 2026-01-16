@@ -811,7 +811,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											},
 										},
 										"partition_key": schema.StringAttribute{
-											Description: "Partition key expression for the target table in ClickHouse.",
+											Description: "Custom partitioning column used for parallel snapshotting. Only beneficial for PostgreSQL 13 (no benefit for PG14+, which supports indexed ctid scans). Must be an indexed column of type: `smallint`, `integer`, `bigint`, `timestamp without time zone`, or `timestamp with time zone`. Unrelated to ClickHouse partitioning.",
 											Optional:    true,
 										},
 									},
