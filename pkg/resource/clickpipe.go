@@ -1967,18 +1967,34 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			authentication = postgresModel.Authentication.ValueString()
 		}
 
-		if authentication == "basic" && credentialsModel.Password.IsNull() {
-			diagnostics.AddError(
-				"Missing required attribute",
-				"Password is required when authentication is set to 'basic'.",
-			)
+		if authentication == "basic" {
+			if credentialsModel.Password.IsNull() {
+				diagnostics.AddError(
+					"Missing required attribute",
+					"Password is required when authentication is set to 'basic'.",
+				)
+			}
+			if !postgresModel.IAMRole.IsNull() {
+				diagnostics.AddError(
+					"Invalid attribute combination",
+					"IAM role should not be set when authentication is set to 'basic'.",
+				)
+			}
 		}
 
-		if authentication == "iam_role" && postgresModel.IAMRole.IsNull() {
-			diagnostics.AddError(
-				"Missing required attribute",
-				"IAM role is required when authentication is set to 'iam_role'.",
-			)
+		if authentication == "iam_role" {
+			if postgresModel.IAMRole.IsNull() {
+				diagnostics.AddError(
+					"Missing required attribute",
+					"IAM role is required when authentication is set to 'iam_role'.",
+				)
+			}
+			if !credentialsModel.Password.IsNull() {
+				diagnostics.AddError(
+					"Invalid attribute combination",
+					"Password should not be set when authentication is set to 'iam_role'.",
+				)
+			}
 		}
 
 		// Extract settings
@@ -2593,13 +2609,8 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				tableMappingModel.TableEngine = types.StringNull()
 			}
 
-			// For partition_key, preserve null from state if it was null
-			if hasStateMapping && stateMapping.PartitionKey.IsNull() {
-				tableMappingModel.PartitionKey = types.StringNull()
-			} else if mapping.PartitionKey != nil && *mapping.PartitionKey != "" {
+			if mapping.PartitionKey != nil && *mapping.PartitionKey != "" {
 				tableMappingModel.PartitionKey = types.StringValue(*mapping.PartitionKey)
-			} else if hasStateMapping {
-				tableMappingModel.PartitionKey = stateMapping.PartitionKey
 			} else {
 				tableMappingModel.PartitionKey = types.StringNull()
 			}
@@ -2615,40 +2626,27 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			TableMappings: types.SetNull(models.ClickPipePostgresTableMappingModel{}.ObjectType()),
 		}
 
-		// Set authentication fields from API response, preserving state values when API doesn't return them
+		// Set authentication fields from API response
 		if clickPipe.Source.Postgres.Authentication != nil && *clickPipe.Source.Postgres.Authentication != "" {
 			postgresModel.Authentication = types.StringValue(*clickPipe.Source.Postgres.Authentication)
-		} else if !statePostgresModel.Authentication.IsNull() {
-			// Preserve from state if API doesn't return it (backward compatibility)
-			postgresModel.Authentication = statePostgresModel.Authentication
 		} else {
-			// Default to "basic" for new resources or when not present in state
 			postgresModel.Authentication = types.StringValue("basic")
 		}
 
 		if clickPipe.Source.Postgres.IAMRole != nil && *clickPipe.Source.Postgres.IAMRole != "" {
 			postgresModel.IAMRole = types.StringValue(*clickPipe.Source.Postgres.IAMRole)
-		} else if !statePostgresModel.IAMRole.IsNull() {
-			// Preserve from state if API doesn't return it
-			postgresModel.IAMRole = statePostgresModel.IAMRole
 		} else {
 			postgresModel.IAMRole = types.StringNull()
 		}
 
 		if clickPipe.Source.Postgres.TLSHost != nil && *clickPipe.Source.Postgres.TLSHost != "" {
 			postgresModel.TLSHost = types.StringValue(*clickPipe.Source.Postgres.TLSHost)
-		} else if !statePostgresModel.TLSHost.IsNull() {
-			// Preserve from state if API doesn't return it
-			postgresModel.TLSHost = statePostgresModel.TLSHost
 		} else {
 			postgresModel.TLSHost = types.StringNull()
 		}
 
 		if clickPipe.Source.Postgres.CACertificate != nil && *clickPipe.Source.Postgres.CACertificate != "" {
 			postgresModel.CACertificate = types.StringValue(*clickPipe.Source.Postgres.CACertificate)
-		} else if !statePostgresModel.CACertificate.IsNull() {
-			// Preserve from state if API doesn't return it
-			postgresModel.CACertificate = statePostgresModel.CACertificate
 		} else {
 			postgresModel.CACertificate = types.StringNull()
 		}
