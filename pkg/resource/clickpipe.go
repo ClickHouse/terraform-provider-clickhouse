@@ -647,7 +647,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"ca_certificate": schema.StringAttribute{
 								Description: "PEM encoded CA certificate to validate the Postgres server certificate.",
 								Optional:    true,
-								Sensitive:   true,
 							},
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. Password is required for `basic` authentication, optional for `iam_role` authentication.",
@@ -757,7 +756,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 									},
 									"delete_on_merge": schema.BoolAttribute{
-										Description: "Enable delete-on-merge behavior for replication.",
+										Description: "Enable hard delete behavior in ReplacingMergeTree for PostgreSQL DELETE operations.",
 										Optional:    true,
 										Computed:    true,
 										Default:     booldefault.StaticBool(false),
@@ -1962,6 +1961,26 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		credentialsModel := models.ClickPipeSourceCredentialsModel{}
 		diagnostics.Append(postgresModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
 
+		// Validate authentication requirements
+		authentication := "basic" // default
+		if !postgresModel.Authentication.IsNull() {
+			authentication = postgresModel.Authentication.ValueString()
+		}
+
+		if authentication == "basic" && credentialsModel.Password.IsNull() {
+			diagnostics.AddError(
+				"Missing required attribute",
+				"Password is required when authentication is set to 'basic'.",
+			)
+		}
+
+		if authentication == "iam_role" && postgresModel.IAMRole.IsNull() {
+			diagnostics.AddError(
+				"Missing required attribute",
+				"IAM role is required when authentication is set to 'iam_role'.",
+			)
+		}
+
 		// Extract settings
 		settingsModel := models.ClickPipePostgresSettingsModel{}
 		diagnostics.Append(postgresModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
@@ -2625,11 +2644,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			postgresModel.TLSHost = types.StringNull()
 		}
 
-		// Preserve ca_certificate from state as API may not return it (sensitive field)
-		if !statePostgresModel.CACertificate.IsNull() {
-			postgresModel.CACertificate = statePostgresModel.CACertificate
-		} else if clickPipe.Source.Postgres.CACertificate != nil && *clickPipe.Source.Postgres.CACertificate != "" {
+		if clickPipe.Source.Postgres.CACertificate != nil && *clickPipe.Source.Postgres.CACertificate != "" {
 			postgresModel.CACertificate = types.StringValue(*clickPipe.Source.Postgres.CACertificate)
+		} else if !statePostgresModel.CACertificate.IsNull() {
+			// Preserve from state if API doesn't return it
+			postgresModel.CACertificate = statePostgresModel.CACertificate
 		} else {
 			postgresModel.CACertificate = types.StringNull()
 		}
