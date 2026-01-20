@@ -1208,6 +1208,39 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
+	// Validate Postgres table mappings have unique target tables
+	if !plan.Source.IsNull() {
+		sourceModel := models.ClickPipeSourceModel{}
+		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+		if !sourceModel.Postgres.IsNull() {
+			postgresModel := models.ClickPipePostgresSourceModel{}
+			response.Diagnostics.Append(sourceModel.Postgres.As(ctx, &postgresModel, basetypes.ObjectAsOptions{})...)
+
+			// Validate all target tables are unique
+			if !postgresModel.TableMappings.IsNull() && len(postgresModel.TableMappings.Elements()) > 0 {
+				tableMappings := make([]models.ClickPipePostgresTableMappingModel, len(postgresModel.TableMappings.Elements()))
+				postgresModel.TableMappings.ElementsAs(ctx, &tableMappings, false)
+
+				seenTargetTables := make(map[string]string) // target_table -> first source table
+				for _, mapping := range tableMappings {
+					targetTable := mapping.TargetTable.ValueString()
+					sourceKey := fmt.Sprintf("%s.%s", mapping.SourceSchemaName.ValueString(), mapping.SourceTable.ValueString())
+
+					if firstSource, exists := seenTargetTables[targetTable]; exists {
+						response.Diagnostics.AddError(
+							"Invalid table_mappings configuration",
+							fmt.Sprintf("Target table '%s' is used by multiple source tables: %s and %s. Each target_table must be unique.",
+								targetTable, firstSource, sourceKey),
+						)
+					} else {
+						seenTargetTables[targetTable] = sourceKey
+					}
+				}
+			}
+		}
+	}
+
 	if !request.State.Raw.IsNull() && !state.State.IsNull() {
 		currentState := state.State.ValueString()
 
