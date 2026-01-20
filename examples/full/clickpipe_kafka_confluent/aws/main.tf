@@ -102,7 +102,7 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
       format         = "JSONEachRow"
       brokers        = var.kafka_brokers
       topics         = var.kafka_topics
-      authentication = "SCRAM-SHA-512"
+      authentication = "PLAIN"
       credentials = {
         username = var.kafka_username
         password = var.kafka_password
@@ -122,24 +122,56 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
 
     columns = [
       {
-        name = "field1"
+        name = "radio"
         type = "String"
       },
       {
-        name = "field2"
-        type = "UInt64"
+        name = "mcc"
+        type = "String"
+      },
+      {
+        name = "cell"
+        type = "String"
+      },
+      {
+        name = "lat"
+        type = "String"
+      },
+      {
+        name = "lon"
+        type = "String"
+      },
+      {
+        name = "created"
+        type = "String"
       }
     ]
   }
 
   field_mappings = [
     {
-      source_field      = "field1"
-      destination_field = "field1"
+      source_field      = "radio"
+      destination_field = "radio"
     },
     {
-      source_field      = "field2"
-      destination_field = "field2"
+      source_field      = "mcc"
+      destination_field = "mcc"
+    },
+    {
+      source_field      = "cell"
+      destination_field = "cell"
+    },
+    {
+      source_field      = "lat"
+      destination_field = "lat"
+    },
+    {
+      source_field      = "lon"
+      destination_field = "lon"
+    },
+    {
+      source_field      = "created"
+      destination_field = "created"
     }
   ]
 }

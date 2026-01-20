@@ -1,12 +1,12 @@
 # ClickPipe Kafka Confluent E2E Test
 
-This example creates a ClickHouse service and a ClickPipe that ingests data from Confluent Kafka using SASL/SCRAM authentication.
+This example creates a ClickHouse service and a ClickPipe that ingests data from Confluent Kafka using SASL/PLAIN authentication.
 
 ## What Gets Created
 
 1. **ClickHouse Service**: A basic ClickHouse Cloud service in AWS
 2. **ClickPipe**: A Kafka ClickPipe that:
-   - Connects to an existing Confluent Kafka cluster using SASL/SCRAM authentication
+   - Connects to an existing Confluent Kafka cluster using SASL/PLAIN authentication
    - Consumes from specified Kafka topics
    - Ingests data into a managed ClickHouse table
 
@@ -15,13 +15,13 @@ This example creates a ClickHouse service and a ClickPipe that ingests data from
 ### Confluent Kafka Cluster Requirements
 
 You need an existing Confluent Kafka cluster with:
-- SASL/SCRAM authentication enabled
+- SASL/PLAIN authentication enabled
 - At least one topic with data (or empty topic for testing)
 - Network connectivity allowing ClickHouse Cloud to reach the brokers
 
 ### Authentication
 
-The ClickPipe uses SASL/SCRAM-SHA-512 authentication with API key and secret:
+The ClickPipe uses SASL/PLAIN authentication with API key and secret:
 - `kafka_username`: Your Confluent Kafka API key
 - `kafka_password`: Your Confluent Kafka API secret
 
@@ -54,15 +54,19 @@ You can create API keys in the Confluent Cloud console under your cluster settin
 
 ## Expected Data Format
 
-This example expects Kafka messages in JSON format with the following schema:
+This example expects Kafka messages in JSON format with the following schema (cell tower data):
 ```json
 {
-  "field1": "string value",
-  "field2": 12345
+  "radio": "CDMA",
+  "mcc": "250",
+  "cell": "25456",
+  "lat": "55.332283",
+  "lon": "85.899208",
+  "created": "2017-09-13 15:03:32"
 }
 ```
 
-The ClickPipe is configured with `format = "JSONEachRow"` which expects one JSON object per message.
+The ClickPipe is configured with `format = "JSONEachRow"` which expects one JSON object per message. Only the fields specified in the field mappings (radio, mcc, cell, lat, lon, created) will be ingested from the full cell tower data schema.
 
 ## Outputs
 
@@ -98,7 +102,7 @@ terraform destroy -var-file=variables.tfvars
 ### Connection errors
 - Verify broker endpoints are correct (use port 9092 for SASL)
 - Check network connectivity between ClickHouse Cloud and Confluent
-- Ensure SASL/SCRAM authentication is enabled on the cluster
+- Ensure SASL/PLAIN authentication is enabled on the cluster
 
 ### Data not ingesting
 - Verify topics exist and have data
