@@ -157,6 +157,7 @@ runs:
         if [ -n "${{ inputs.kafka_brokers }}" ] && [ "${{ inputs.kafka_brokers }}" != "" ]
         then
           cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
+
         kafka_brokers  = ${{ inputs.kafka_brokers }}
         kafka_topics   = ${{ inputs.kafka_topics }}
         kafka_username = "${{ inputs.kafka_username }}"

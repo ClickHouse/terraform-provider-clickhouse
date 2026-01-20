@@ -23,13 +23,9 @@ variable "region" {
 }
 
 variable "kafka_brokers" {
-  type        = list(string)
-  description = "List of Kafka broker endpoints"
 }
 
 variable "kafka_topics" {
-  type        = list(string)
-  description = "List of Kafka topics to consume from"
 }
 
 variable "kafka_username" {
