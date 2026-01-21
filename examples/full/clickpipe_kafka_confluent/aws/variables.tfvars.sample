@@ -6,8 +6,8 @@ region          = "us-east-1"
 
 # ClickPipe-specific variables
 # These should point to an existing Confluent Kafka cluster
-kafka_brokers = ["pkc-xxxxx.us-east-1.aws.confluent.cloud:9092"]
-kafka_topics  = ["test-topic"]
+kafka_brokers = "pkc-xxxxx.us-east-1.aws.confluent.cloud:9092"
+kafka_topics  = "cell_towers"
 
 # Confluent Kafka credentials for SASL/PLAIN authentication
 kafka_username = "your-kafka-api-key"

@@ -36,8 +36,8 @@ You can create API keys in the Confluent Cloud console under your cluster settin
 | `token_secret` | string | Yes | ClickHouse Cloud API secret |
 | `service_name` | string | No | Name for the ClickHouse service (default: "My ClickPipe Kafka Confluent Test") |
 | `region` | string | No | AWS region (default: "us-east-1") |
-| `kafka_brokers` | list(string) | Yes | List of Confluent Kafka broker endpoints (e.g., ["pkc-xxxxx.us-east-1.aws.confluent.cloud:9092"]) |
-| `kafka_topics` | list(string) | Yes | List of Kafka topics to consume from |
+| `kafka_brokers` | string | Yes | Confluent Kafka broker endpoint (e.g., "pkc-xxxxx.us-east-1.aws.confluent.cloud:9092") |
+| `kafka_topics` | string | Yes | Kafka topic to consume from (e.g., "cell_towers") |
 | `kafka_username` | string | Yes | Confluent Kafka API key |
 | `kafka_password` | string | Yes | Confluent Kafka API secret |
 

@@ -56,11 +56,11 @@ inputs:
   kafka_brokers:
     required: false
     default: ""
-    description: JSON array of Kafka broker endpoints for ClickPipe tests
+    description: Kafka broker endpoint for ClickPipe tests (e.g., "broker.confluent.cloud:9092")
   kafka_topics:
     required: false
     default: ""
-    description: JSON array of Kafka topics for ClickPipe tests
+    description: Kafka topic for ClickPipe tests (e.g., "cell_towers")
   kafka_username:
     required: false
     default: ""
@@ -158,8 +158,8 @@ runs:
         then
           cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
 
-        kafka_brokers  = ${{ inputs.kafka_brokers }}
-        kafka_topics   = ${{ inputs.kafka_topics }}
+        kafka_brokers  = "${{ inputs.kafka_brokers }}"
+        kafka_topics   = "${{ inputs.kafka_topics }}"
         kafka_username = "${{ inputs.kafka_username }}"
         kafka_password = "${{ inputs.kafka_password }}"
         EOF
