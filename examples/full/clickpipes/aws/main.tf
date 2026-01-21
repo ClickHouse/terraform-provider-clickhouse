@@ -91,6 +91,8 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
 
   scaling = {
     replicas = 1
+    replica_memory_gb = 0.5
+    replica_cpu_millicores = 125
   }
 
   source = {
