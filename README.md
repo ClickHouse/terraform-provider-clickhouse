@@ -58,7 +58,7 @@ resource "clickhouse_service" "svc1" {
 
 resource "aws_vpc_endpoint" "pl_vpc_foo" {
   vpc_id            = aws_vpc.vpc.id
-  service_name      = clickhouse_service.svc1.endpoint_config.endpoint_service_id
+  service_name      = clickhouse_service.svc1.private_endpoint_config.endpoint_service_id
   ...
 }
 
@@ -72,7 +72,7 @@ So after upgradring the terraform provider version from < 3.2.0 to >= 3.2.0, ple
 
 - Remove any stanzas of to the `clickhouse_private_endpoint_config` data source
 - Remove any stanzas of the `clickhouse_private_endpoint_registration` resource (delete operation is a no-op so you can safely apply)
-- Replace any reference to the `clickhouse_private_endpoint_config` data source with the `endpoint_config` attribute of the `clickhouse_service`
+- Replace any reference to the `clickhouse_private_endpoint_config` data source with the `private_endpoint_config` attribute of the `clickhouse_service`
 - Change the `private_endpoint_ids` value of `clickhouse_service_private_endpoints_attachment` stanza to use `private_endpoint_id` of the `aws_vpc_endpoint` resource
 
 ### Upgrading to version >= 3.0.0
