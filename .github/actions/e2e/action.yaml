@@ -69,6 +69,34 @@ inputs:
     required: false
     default: ""
     description: Kafka password for SASL authentication
+  kinesis_stream_name:
+    required: false
+    default: ""
+    description: Kinesis stream name for ClickPipe tests
+  kinesis_region:
+    required: false
+    default: ""
+    description: AWS region for Kinesis stream
+  kinesis_access_key_id:
+    required: false
+    default: ""
+    description: AWS access key ID for Kinesis
+  kinesis_secret_key:
+    required: false
+    default: ""
+    description: AWS secret key for Kinesis
+  s3_bucket_url:
+    required: false
+    default: ""
+    description: S3 bucket URL for object storage ClickPipe (e.g., "s3://bucket-name/path/*.json")
+  postgres_host:
+    required: false
+    default: ""
+    description: Postgres host for CDC ClickPipe
+  postgres_password:
+    required: false
+    default: ""
+    description: Postgres password for CDC ClickPipe
 runs:
   using: composite
   steps:
@@ -158,10 +186,17 @@ runs:
         then
           cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
 
-        kafka_brokers  = "${{ inputs.kafka_brokers }}"
-        kafka_topics   = "${{ inputs.kafka_topics }}"
-        kafka_username = "${{ inputs.kafka_username }}"
-        kafka_password = "${{ inputs.kafka_password }}"
+        kafka_brokers            = "${{ inputs.kafka_brokers }}"
+        kafka_topics             = "${{ inputs.kafka_topics }}"
+        kafka_username           = "${{ inputs.kafka_username }}"
+        kafka_password           = "${{ inputs.kafka_password }}"
+        kinesis_stream_name      = "${{ inputs.kinesis_stream_name }}"
+        kinesis_region           = "${{ inputs.kinesis_region }}"
+        kinesis_access_key_id    = "${{ inputs.kinesis_access_key_id }}"
+        kinesis_secret_key       = "${{ inputs.kinesis_secret_key }}"
+        s3_bucket_url            = "${{ inputs.s3_bucket_url }}"
+        postgres_host            = "${{ inputs.postgres_host }}"
+        postgres_password        = "${{ inputs.postgres_password }}"
         EOF
         fi
 

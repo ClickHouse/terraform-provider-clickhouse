@@ -173,6 +173,13 @@ jobs:
           kafka_topics: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_TOPICS || '' }}
           kafka_username: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_USERNAME || '' }}
           kafka_password: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_PASSWORD || '' }}
+          kinesis_stream_name: ${{ matrix.test.name == 'clickpipes' && secrets.KINESIS_STREAM_NAME || '' }}
+          kinesis_region: ${{ matrix.test.name == 'clickpipes' && secrets.KINESIS_REGION || '' }}
+          kinesis_access_key_id: ${{ matrix.test.name == 'clickpipes' && secrets.KINESIS_ACCESS_KEY_ID || '' }}
+          kinesis_secret_key: ${{ matrix.test.name == 'clickpipes' && secrets.KINESIS_SECRET_KEY || '' }}
+          s3_bucket_url: ${{ matrix.test.name == 'clickpipes' && secrets.S3_BUCKET_URL || '' }}
+          postgres_host: ${{ matrix.test.name == 'clickpipes' && secrets.POSTGRES_HOST || '' }}
+          postgres_password: ${{ matrix.test.name == 'clickpipes' && secrets.POSTGRES_PASSWORD || '' }}
 
       - name: Cleanup Cloud
         if: always()
@@ -256,6 +263,13 @@ jobs:
           kafka_topics: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_TOPICS || '' }}
           kafka_username: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_USERNAME || '' }}
           kafka_password: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_PASSWORD || '' }}
+          kinesis_stream_name: ${{ matrix.test.name == 'clickpipes' && secrets.KINESIS_STREAM_NAME || '' }}
+          kinesis_region: ${{ matrix.test.name == 'clickpipes' && secrets.KINESIS_REGION || '' }}
+          kinesis_access_key_id: ${{ matrix.test.name == 'clickpipes' && secrets.KINESIS_ACCESS_KEY_ID || '' }}
+          kinesis_secret_key: ${{ matrix.test.name == 'clickpipes' && secrets.KINESIS_SECRET_KEY || '' }}
+          s3_bucket_url: ${{ matrix.test.name == 'clickpipes' && secrets.S3_BUCKET_URL || '' }}
+          postgres_host: ${{ matrix.test.name == 'clickpipes' && secrets.POSTGRES_HOST || '' }}
+          postgres_password: ${{ matrix.test.name == 'clickpipes' && secrets.POSTGRES_PASSWORD || '' }}
 
       - name: Cleanup Cloud
         if: always()

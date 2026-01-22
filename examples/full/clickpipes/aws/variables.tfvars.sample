@@ -12,3 +12,16 @@ kafka_topics  = "cell_towers"
 # Confluent Kafka credentials for SASL/PLAIN authentication
 kafka_username = "your-kafka-api-key"
 kafka_password = "your-kafka-api-secret"
+
+# Kinesis variables
+kinesis_stream_name   = "your-kinesis-stream"
+kinesis_region        = "us-east-1"
+kinesis_access_key_id = "your-aws-access-key"
+kinesis_secret_key    = "your-aws-secret-key"
+
+# Object Storage (S3) variables
+s3_bucket_url = "s3://your-bucket-name/path/*.json"
+
+# Postgres CDC variables
+postgres_host     = "postgres.example.com"
+postgres_password = "your-postgres-password"
