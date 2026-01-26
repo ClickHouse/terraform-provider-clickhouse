@@ -20,7 +20,7 @@ In version 3.2.0 we introduced a change in the `Private Endpoints` feature that 
 
 Before 3.2.0, this was the way to connect a ClickHouse Cloud service running using Private Link to an external VPC:
 
-```
+```terraform
 resource "clickhouse_service" "svc1" {
   ...
 }
@@ -51,7 +51,7 @@ resource "clickhouse_service_private_endpoints_attachment" "svc1_attachment" {
 
 After 3.2.0 this became much simpler:
 
-```
+```terraform
 resource "clickhouse_service" "svc1" {
   ...
 }
@@ -85,7 +85,7 @@ This is a list of all the changes:
 
 - the `endpoints_configuration` attribute was removed. Please use the `endpoints` attribute in a similar fashion. For example if you had
 
-```
+```terraform
 resource "clickhouse_service" "service" {
   ...
   endpoints_configuration = {
@@ -99,7 +99,7 @@ resource "clickhouse_service" "service" {
 
 you need to replace it with
 
-```
+```terraform
 resource "clickhouse_service" "service" {
 ...
   endpoints = {
@@ -115,7 +115,7 @@ resource "clickhouse_service" "service" {
 
 Where before you had:
 
-```
+```terraform
 endpoints = [
   {
     protocol = "https"
@@ -133,7 +133,7 @@ endpoints = [
 
 Now you'll have:
 
-```
+```terraform
 endpoints = {
   "https": {
     "host": "ql5ek38hzz.us-east-2.aws.clickhouse.cloud",
@@ -191,7 +191,7 @@ then a manual process is required after the upgrade.
 
 Before:
 
-```
+```terraform
 resource "clickhouse_private_endpoint_registration" "example" {
   id = aws_vpc_endpoint.pl_vpc_foo.id
   ...
@@ -200,7 +200,7 @@ resource "clickhouse_private_endpoint_registration" "example" {
 
 After:
 
-```
+```terraform
 resource "clickhouse_private_endpoint_registration" "example" {
   private_endpoint_id = aws_vpc_endpoint.pl_vpc_foo.id
   ...
@@ -213,7 +213,7 @@ For each service with `private_endpoint_ids` attribute set:
 
 2a) Create a new `clickhouse_service_private_endpoints_attachment` resource  like this:
 
-```
+```terraform
 resource "clickhouse_service_private_endpoints_attachment" "example" {
   # The ID of the service with the `private_endpoint_ids` set
   service_id = clickhouse_service.example.id
@@ -230,7 +230,7 @@ Example:
 
 Before:
 
-```
+```terraform
 resource "clickhouse_service" "example" {
   ...
   private_endpoint_ids = [clickhouse_private_endpoint_registration.example.id]
@@ -239,7 +239,7 @@ resource "clickhouse_service" "example" {
 
 After:
 
-```
+```terraform
 resource "clickhouse_service" "example" {
   ...
 }
