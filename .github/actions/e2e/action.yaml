@@ -53,6 +53,50 @@ inputs:
   region:
     required: true
     description: The Cloud region to use for tests
+  kafka_brokers:
+    required: false
+    default: ""
+    description: Kafka broker endpoint for ClickPipe tests (e.g., "broker.confluent.cloud:9092")
+  kafka_topics:
+    required: false
+    default: ""
+    description: Kafka topic for ClickPipe tests (e.g., "cell_towers")
+  kafka_username:
+    required: false
+    default: ""
+    description: Kafka username for SASL authentication
+  kafka_password:
+    required: false
+    default: ""
+    description: Kafka password for SASL authentication
+  kinesis_stream_name:
+    required: false
+    default: ""
+    description: Kinesis stream name for ClickPipe tests
+  kinesis_region:
+    required: false
+    default: ""
+    description: AWS region for Kinesis stream
+  kinesis_access_key_id:
+    required: false
+    default: ""
+    description: AWS access key ID for Kinesis
+  kinesis_secret_key:
+    required: false
+    default: ""
+    description: AWS secret key for Kinesis
+  s3_bucket_url:
+    required: false
+    default: ""
+    description: S3 bucket URL for object storage ClickPipe (e.g., "s3://bucket-name/path/*.json")
+  postgres_host:
+    required: false
+    default: ""
+    description: Postgres host for CDC ClickPipe
+  postgres_password:
+    required: false
+    default: ""
+    description: Postgres password for CDC ClickPipe
 runs:
   using: composite
   steps:
@@ -137,6 +181,25 @@ runs:
         EOF
         fi
 
+        # Add ClickPipe-specific variables if provided
+        if [ -n "${{ inputs.kafka_brokers }}" ] && [ "${{ inputs.kafka_brokers }}" != "" ]
+        then
+          cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
+
+        kafka_brokers            = "${{ inputs.kafka_brokers }}"
+        kafka_topics             = "${{ inputs.kafka_topics }}"
+        kafka_username           = "${{ inputs.kafka_username }}"
+        kafka_password           = "${{ inputs.kafka_password }}"
+        kinesis_stream_name      = "${{ inputs.kinesis_stream_name }}"
+        kinesis_region           = "${{ inputs.kinesis_region }}"
+        kinesis_access_key_id    = "${{ inputs.kinesis_access_key_id }}"
+        kinesis_secret_key       = "${{ inputs.kinesis_secret_key }}"
+        s3_bucket_url            = "${{ inputs.s3_bucket_url }}"
+        postgres_host            = "${{ inputs.postgres_host }}"
+        postgres_password        = "${{ inputs.postgres_password }}"
+        EOF
+        fi
+
         echo "::endgroup::"
 
     - id: get_latest_stable_release
@@ -208,7 +271,7 @@ runs:
         git checkout ${{ github.ref }}
         echo "::group::Build provider from branch and create terraformrc to use it"
         go get
-        go build -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
+        go build -tags alpha -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
 
         cat <<EOF >$HOME/.terraformrc
         provider_installation {
