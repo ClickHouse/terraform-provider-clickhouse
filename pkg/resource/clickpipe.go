@@ -666,6 +666,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Description: "Interval in seconds to sync data from Postgres.",
 										Optional:    true,
 										Computed:    true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -674,6 +677,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Description: "Number of rows to pull in each batch.",
 										Optional:    true,
 										Computed:    true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -698,6 +704,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Computed:    true,
 										PlanModifiers: []planmodifier.Bool{
 											boolplanmodifier.RequiresReplace(),
+											boolplanmodifier.UseStateForUnknown(),
 										},
 									},
 									"initial_load_parallelism": schema.Int64Attribute{
@@ -709,6 +716,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.RequiresReplace(),
+											int64planmodifier.UseStateForUnknown(),
 										},
 									},
 									"snapshot_num_rows_per_partition": schema.Int64Attribute{
@@ -720,6 +728,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.RequiresReplace(),
+											int64planmodifier.UseStateForUnknown(),
 										},
 									},
 									"snapshot_number_of_parallel_tables": schema.Int64Attribute{
@@ -731,6 +740,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.RequiresReplace(),
+											int64planmodifier.UseStateForUnknown(),
 										},
 									},
 									"enable_failover_slots": schema.BoolAttribute{
