@@ -152,6 +152,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"replica_cpu_millicores": schema.Int64Attribute{
 						Description: "The CPU allocation per replica in millicores. Must be between 125 and 2000.",
 						Optional:    true,
+						Computed:    true,
 						Validators: []validator.Int64{
 							int64validator.Between(125, 2000),
 						},
@@ -159,6 +160,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"replica_memory_gb": schema.Float64Attribute{
 						Description: "The memory allocation per replica in GB. Must be between 0.5 and 8.0.",
 						Optional:    true,
+						Computed:    true,
 						Validators: []validator.Float64{
 							float64validator.Between(0.5, 8.0),
 						},
@@ -664,6 +666,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"sync_interval_seconds": schema.Int64Attribute{
 										Description: "Interval in seconds to sync data from Postgres.",
 										Optional:    true,
+										Computed:    true,
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -671,6 +674,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"pull_batch_size": schema.Int64Attribute{
 										Description: "Number of rows to pull in each batch.",
 										Optional:    true,
+										Computed:    true,
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -692,6 +696,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"allow_nullable_columns": schema.BoolAttribute{
 										Description: "Allow nullable columns in the destination table.",
 										Optional:    true,
+										Computed:    true,
 										PlanModifiers: []planmodifier.Bool{
 											boolplanmodifier.RequiresReplace(),
 										},
@@ -699,6 +704,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"initial_load_parallelism": schema.Int64Attribute{
 										Description: "Number of parallel connections to use during initial load.",
 										Optional:    true,
+										Computed:    true,
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -709,6 +715,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"snapshot_num_rows_per_partition": schema.Int64Attribute{
 										Description: "Number of rows to snapshot per partition.",
 										Optional:    true,
+										Computed:    true,
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -719,6 +726,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"snapshot_number_of_parallel_tables": schema.Int64Attribute{
 										Description: "Number of parallel tables to snapshot.",
 										Optional:    true,
+										Computed:    true,
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
 										},
@@ -1971,11 +1979,11 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			ReplicationMode: settingsModel.ReplicationMode.ValueString(),
 		}
 
-		if !settingsModel.SyncIntervalSeconds.IsNull() {
+		if !settingsModel.SyncIntervalSeconds.IsNull() && !settingsModel.SyncIntervalSeconds.IsUnknown() {
 			val := int(settingsModel.SyncIntervalSeconds.ValueInt64())
 			settings.SyncIntervalSeconds = &val
 		}
-		if !settingsModel.PullBatchSize.IsNull() {
+		if !settingsModel.PullBatchSize.IsNull() && !settingsModel.PullBatchSize.IsUnknown() {
 			val := int(settingsModel.PullBatchSize.ValueInt64())
 			settings.PullBatchSize = &val
 		}
@@ -1985,19 +1993,19 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !settingsModel.ReplicationSlotName.IsNull() {
 			settings.ReplicationSlotName = settingsModel.ReplicationSlotName.ValueStringPointer()
 		}
-		if !settingsModel.AllowNullableColumns.IsNull() {
+		if !settingsModel.AllowNullableColumns.IsNull() && !settingsModel.AllowNullableColumns.IsUnknown() {
 			val := settingsModel.AllowNullableColumns.ValueBool()
 			settings.AllowNullableColumns = &val
 		}
-		if !settingsModel.InitialLoadParallelism.IsNull() {
+		if !settingsModel.InitialLoadParallelism.IsNull() && !settingsModel.InitialLoadParallelism.IsUnknown() {
 			val := int(settingsModel.InitialLoadParallelism.ValueInt64())
 			settings.InitialLoadParallelism = &val
 		}
-		if !settingsModel.SnapshotNumRowsPerPartition.IsNull() {
+		if !settingsModel.SnapshotNumRowsPerPartition.IsNull() && !settingsModel.SnapshotNumRowsPerPartition.IsUnknown() {
 			val := int(settingsModel.SnapshotNumRowsPerPartition.ValueInt64())
 			settings.SnapshotNumRowsPerPartition = &val
 		}
-		if !settingsModel.SnapshotNumberOfParallelTables.IsNull() {
+		if !settingsModel.SnapshotNumberOfParallelTables.IsNull() && !settingsModel.SnapshotNumberOfParallelTables.IsUnknown() {
 			val := int(settingsModel.SnapshotNumberOfParallelTables.ValueInt64())
 			settings.SnapshotNumberOfParallelTables = &val
 		}

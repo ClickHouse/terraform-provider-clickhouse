@@ -1,0 +1,27 @@
+organization_id = "your-org-id"
+token_key       = "your-token-key"
+token_secret    = "your-token-secret"
+service_name    = "clickpipe-kafka-confluent-test"
+region          = "us-east-1"
+
+# ClickPipe-specific variables
+# These should point to an existing Confluent Kafka cluster
+kafka_brokers = "pkc-xxxxx.us-east-1.aws.confluent.cloud:9092"
+kafka_topics  = "cell_towers"
+
+# Confluent Kafka credentials for SASL/PLAIN authentication
+kafka_username = "your-kafka-api-key"
+kafka_password = "your-kafka-api-secret"
+
+# Kinesis variables
+kinesis_stream_name   = "your-kinesis-stream"
+kinesis_region        = "us-east-1"
+kinesis_access_key_id = "your-aws-access-key"
+kinesis_secret_key    = "your-aws-secret-key"
+
+# Object Storage (S3) variables
+s3_bucket_url = "s3://your-bucket-name/path/*.json"
+
+# Postgres CDC variables
+postgres_host     = "postgres.example.com"
+postgres_password = "your-postgres-password"
