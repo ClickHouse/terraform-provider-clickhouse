@@ -957,7 +957,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	if !config.DataWarehouseID.IsNull() {
-		if !config.BackupConfiguration.IsNull() && !config.BackupConfiguration.IsUnknown() {
+		if !config.BackupConfiguration.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid configuration",
 				"backup_configuration cannot be specified when warehouse_id is set",
