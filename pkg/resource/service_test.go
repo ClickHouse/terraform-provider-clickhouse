@@ -600,8 +600,9 @@ func getInitialState() models.ServiceResourceModel {
 			Enabled: types.BoolValue(false),
 			RoleID:  types.StringNull(),
 		}.ObjectValue(),
-		ComplianceType: types.StringNull(),
-		Tags:           tags,
+		ComplianceType:  types.StringNull(),
+		Tags:            tags,
+		EnableCoreDumps: types.BoolNull(),
 	}
 
 	return state
@@ -640,6 +641,7 @@ func getBaseResponse(id string) api.Service {
 		HasTransparentDataEncryption:   false,
 		TransparentEncryptionDataKeyID: "",
 		ReleaseChannel:                 "default",
+		EnableCoreDumps:                nil,
 	}
 }
 
