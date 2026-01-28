@@ -629,8 +629,29 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Description: "The database name of the Postgres instance.",
 								Required:    true,
 							},
+							"authentication": schema.StringAttribute{
+								MarkdownDescription: "Authentication method for Postgres connection. Supported values: `basic`, `iam_role`. Default is `basic`.",
+								Optional:            true,
+								Computed:            true,
+								Default:             stringdefault.StaticString("basic"),
+								Validators: []validator.String{
+									stringvalidator.OneOf("basic", "iam_role"),
+								},
+							},
+							"iam_role": schema.StringAttribute{
+								Description: "IAM role ARN for IAM authentication. Required when authentication is set to `iam_role`.",
+								Optional:    true,
+							},
+							"tls_host": schema.StringAttribute{
+								Description: "TLS/SSL host for secure connections. Used to verify the server certificate.",
+								Optional:    true,
+							},
+							"ca_certificate": schema.StringAttribute{
+								Description: "PEM encoded CA certificate to validate the Postgres server certificate.",
+								Optional:    true,
+							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for the Postgres instance.",
+								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. Password is required for `basic` authentication, optional for `iam_role` authentication.",
 								Required:            true,
 								Attributes: map[string]schema.Attribute{
 									"username": schema.StringAttribute{
@@ -639,8 +660,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Sensitive:   true,
 									},
 									"password": schema.StringAttribute{
-										Description: "The password for the Postgres instance.",
-										Required:    true,
+										Description: "The password for the Postgres instance. Required for `basic` authentication, optional for `iam_role` authentication.",
+										Optional:    true,
 										Sensitive:   true,
 									},
 								},
@@ -752,6 +773,15 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											boolplanmodifier.RequiresReplace(),
 										},
 									},
+									"delete_on_merge": schema.BoolAttribute{
+										Description: "Enable hard delete behavior in ReplacingMergeTree for PostgreSQL DELETE operations.",
+										Optional:    true,
+										Computed:    true,
+										Default:     booldefault.StaticBool(false),
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.RequiresReplace(),
+										},
+									},
 								},
 							},
 							"table_mappings": schema.SetNestedAttribute{
@@ -796,6 +826,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Validators: []validator.String{
 												stringvalidator.OneOf(api.ClickPipePostgresTableEngines...),
 											},
+										},
+										"partition_key": schema.StringAttribute{
+											Description: "Custom partitioning column used for parallel snapshotting. Only beneficial for PostgreSQL 13 (no benefit for PG14+, which supports indexed ctid scans). Must be an indexed column of type: `smallint`, `integer`, `bigint`, `timestamp without time zone`, or `timestamp with time zone`. Unrelated to ClickHouse partitioning.",
+											Optional:    true,
 										},
 									},
 								},
@@ -1978,6 +2012,42 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		credentialsModel := models.ClickPipeSourceCredentialsModel{}
 		diagnostics.Append(postgresModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
 
+		// Validate authentication requirements
+		authentication := "basic" // default
+		if !postgresModel.Authentication.IsNull() {
+			authentication = postgresModel.Authentication.ValueString()
+		}
+
+		if authentication == "basic" {
+			if credentialsModel.Password.IsNull() {
+				diagnostics.AddError(
+					"Missing required attribute",
+					"Password is required when authentication is set to 'basic'.",
+				)
+			}
+			if !postgresModel.IAMRole.IsNull() {
+				diagnostics.AddError(
+					"Invalid attribute combination",
+					"IAM role should not be set when authentication is set to 'basic'.",
+				)
+			}
+		}
+
+		if authentication == "iam_role" {
+			if postgresModel.IAMRole.IsNull() {
+				diagnostics.AddError(
+					"Missing required attribute",
+					"IAM role is required when authentication is set to 'iam_role'.",
+				)
+			}
+			if !credentialsModel.Password.IsNull() {
+				diagnostics.AddError(
+					"Invalid attribute combination",
+					"Password should not be set when authentication is set to 'iam_role'.",
+				)
+			}
+		}
+
 		// Extract settings
 		settingsModel := models.ClickPipePostgresSettingsModel{}
 		diagnostics.Append(postgresModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
@@ -2020,6 +2090,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			val := settingsModel.EnableFailoverSlots.ValueBool()
 			settings.EnableFailoverSlots = &val
 		}
+		if !settingsModel.DeleteOnMerge.IsNull() {
+			val := settingsModel.DeleteOnMerge.ValueBool()
+			settings.DeleteOnMerge = &val
+		}
 
 		// Extract table mappings (skip for updates as they're handled separately via TableMappingsToAdd/Remove)
 		var tableMappings []api.ClickPipePostgresTableMapping
@@ -2059,21 +2133,45 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 					mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
 				}
 
+				if !mappingModel.PartitionKey.IsNull() {
+					mapping.PartitionKey = mappingModel.PartitionKey.ValueStringPointer()
+				}
+
 				tableMappings[i] = mapping
 			}
 		}
 
-		source.Postgres = &api.ClickPipePostgresSource{
+		postgresSource := &api.ClickPipePostgresSource{
 			Host:     postgresModel.Host.ValueString(),
 			Port:     int(postgresModel.Port.ValueInt64()),
 			Database: postgresModel.Database.ValueString(),
 			Credentials: &api.ClickPipeSourceCredentials{
 				Username: credentialsModel.Username.ValueString(),
-				Password: credentialsModel.Password.ValueString(),
 			},
 			Settings: settings,
 			Mappings: tableMappings,
 		}
+
+		// Password is optional for IAM authentication
+		if !credentialsModel.Password.IsNull() {
+			postgresSource.Credentials.Password = credentialsModel.Password.ValueString()
+		}
+
+		// Add optional authentication fields
+		if !postgresModel.Authentication.IsNull() {
+			postgresSource.Authentication = postgresModel.Authentication.ValueStringPointer()
+		}
+		if !postgresModel.IAMRole.IsNull() {
+			postgresSource.IAMRole = postgresModel.IAMRole.ValueStringPointer()
+		}
+		if !postgresModel.TLSHost.IsNull() {
+			postgresSource.TLSHost = postgresModel.TLSHost.ValueStringPointer()
+		}
+		if !postgresModel.CACertificate.IsNull() {
+			postgresSource.CACertificate = postgresModel.CACertificate.ValueStringPointer()
+		}
+
+		source.Postgres = postgresSource
 	} else {
 		diagnostics.AddError(
 			"Error Creating ClickPipe",
@@ -2114,6 +2212,10 @@ func (c *ClickPipeResource) convertTableMappingModelToAPI(ctx context.Context, d
 
 	if !mappingModel.TableEngine.IsNull() {
 		mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
+	}
+
+	if !mappingModel.PartitionKey.IsNull() {
+		mapping.PartitionKey = mappingModel.PartitionKey.ValueStringPointer()
 	}
 
 	return mapping
@@ -2478,6 +2580,13 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.EnableFailoverSlots = types.BoolNull()
 		}
 
+		// DeleteOnMerge is Optional+Computed with default=false, so always use API value
+		if clickPipe.Source.Postgres.Settings.DeleteOnMerge != nil {
+			settingsModel.DeleteOnMerge = types.BoolValue(*clickPipe.Source.Postgres.Settings.DeleteOnMerge)
+		} else {
+			settingsModel.DeleteOnMerge = types.BoolNull()
+		}
+
 		// Table mappings - convert API response to Set (order doesn't matter)
 		// Get state mappings for preserving null values on optional fields
 		type tableMappingKey struct {
@@ -2551,6 +2660,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				tableMappingModel.TableEngine = types.StringNull()
 			}
 
+			if mapping.PartitionKey != nil && *mapping.PartitionKey != "" {
+				tableMappingModel.PartitionKey = types.StringValue(*mapping.PartitionKey)
+			} else {
+				tableMappingModel.PartitionKey = types.StringNull()
+			}
+
 			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
 		}
 
@@ -2560,6 +2675,31 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Database:      types.StringValue(clickPipe.Source.Postgres.Database),
 			Settings:      settingsModel.ObjectValue(),
 			TableMappings: types.SetNull(models.ClickPipePostgresTableMappingModel{}.ObjectType()),
+		}
+
+		// Set authentication fields from API response
+		if clickPipe.Source.Postgres.Authentication != nil && *clickPipe.Source.Postgres.Authentication != "" {
+			postgresModel.Authentication = types.StringValue(*clickPipe.Source.Postgres.Authentication)
+		} else {
+			postgresModel.Authentication = types.StringValue("basic")
+		}
+
+		if clickPipe.Source.Postgres.IAMRole != nil && *clickPipe.Source.Postgres.IAMRole != "" {
+			postgresModel.IAMRole = types.StringValue(*clickPipe.Source.Postgres.IAMRole)
+		} else {
+			postgresModel.IAMRole = types.StringNull()
+		}
+
+		if clickPipe.Source.Postgres.TLSHost != nil && *clickPipe.Source.Postgres.TLSHost != "" {
+			postgresModel.TLSHost = types.StringValue(*clickPipe.Source.Postgres.TLSHost)
+		} else {
+			postgresModel.TLSHost = types.StringNull()
+		}
+
+		if clickPipe.Source.Postgres.CACertificate != nil && *clickPipe.Source.Postgres.CACertificate != "" {
+			postgresModel.CACertificate = types.StringValue(*clickPipe.Source.Postgres.CACertificate)
+		} else {
+			postgresModel.CACertificate = types.StringNull()
 		}
 
 		if len(tableMappingList) > 0 {

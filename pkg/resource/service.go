@@ -949,6 +949,18 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	if !config.DataWarehouseID.IsNull() {
+		if !config.BackupConfiguration.IsNull() && !config.BackupConfiguration.IsUnknown() {
+			resp.Diagnostics.AddError(
+				"Invalid configuration",
+				"backup_configuration cannot be specified when warehouse_id is set",
+			)
+		}
+		if !state.BackupConfiguration.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid state for service",
+				"backup_configuration cannot co-exist in terraform state for a service with data_warehouse_id set",
+			)
+		}
 		plan.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
 		resp.Plan.Set(ctx, plan)
 	}
