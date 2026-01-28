@@ -1130,7 +1130,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.ComplianceType = plan.ComplianceType.ValueStringPointer()
 	}
 
-	if !plan.EnableCoreDumps.IsNull() && !plan.EnableCoreDumps.IsUnknown() {
+	if !plan.EnableCoreDumps.IsNull() {
 		service.EnableCoreDumps = plan.EnableCoreDumps.ValueBoolPointer()
 	}
 
