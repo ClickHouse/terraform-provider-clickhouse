@@ -1670,13 +1670,12 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	plan.ID = types.StringValue(createdClickPipe.ID)
 
-	// For Create, preserve the plan's source (including sensitive credentials) to avoid
-	// "inconsistent values for sensitive attribute" errors. Only update computed fields.
-	// The source from plan is already correct - we just need to set ID and state.
-	if finalClickPipe != nil {
-		plan.State = types.StringValue(finalClickPipe.State)
-	} else {
-		plan.State = types.StringValue(createdClickPipe.State)
+	if err := c.syncClickPipeState(ctx, &plan); err != nil {
+		response.Diagnostics.AddError(
+			"Error Reading ClickPipe",
+			"Could not read ClickPipe after creation: "+err.Error(),
+		)
+		return
 	}
 
 	diags = response.State.Set(ctx, plan)
