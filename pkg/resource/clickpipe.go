@@ -653,6 +653,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. Password is required for `basic` authentication, optional for `iam_role` authentication.",
 								Required:            true,
+								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"username": schema.StringAttribute{
 										Description: "The username for the Postgres instance.",
@@ -847,6 +848,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for BigQuery access.",
 								Required:            true,
+								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"service_account_file": schema.StringAttribute{
 										Description: "Google Cloud service account JSON key file content, base64 encoded.",
@@ -1680,8 +1682,8 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 
 	if err := c.syncClickPipeState(ctx, &plan); err != nil {
 		response.Diagnostics.AddError(
-			"Error reading ClickPipe",
-			"Could not read ClickPipe, unexpected error: "+err.Error(),
+			"Error Reading ClickPipe",
+			"Could not read ClickPipe after creation: "+err.Error(),
 		)
 		return
 	}
@@ -2629,6 +2631,9 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 					excludedColsList[j] = types.StringValue(col)
 				}
 				tableMappingModel.ExcludedColumns, _ = types.ListValue(types.StringType, excludedColsList)
+			} else if hasStateMapping && !stateMapping.ExcludedColumns.IsNull() {
+				// Preserve empty list from state (vs null) to avoid plan diff
+				tableMappingModel.ExcludedColumns, _ = types.ListValue(types.StringType, []attr.Value{})
 			} else {
 				tableMappingModel.ExcludedColumns = types.ListNull(types.StringType)
 			}
@@ -2645,6 +2650,9 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 					sortingKeysList[j] = types.StringValue(key)
 				}
 				tableMappingModel.SortingKeys, _ = types.ListValue(types.StringType, sortingKeysList)
+			} else if hasStateMapping && !stateMapping.SortingKeys.IsNull() {
+				// Preserve empty list from state (vs null) to avoid plan diff
+				tableMappingModel.SortingKeys, _ = types.ListValue(types.StringType, []attr.Value{})
 			} else {
 				tableMappingModel.SortingKeys = types.ListNull(types.StringType)
 			}
@@ -2708,7 +2716,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		// Preserve credentials from state as API doesn't return them
 		if !statePostgresModel.Credentials.IsNull() {
-			postgresModel.Credentials = statePostgresModel.Credentials
+			stateCredentialsModel := models.ClickPipeSourceCredentialsModel{}
+			if diags := statePostgresModel.Credentials.As(ctx, &stateCredentialsModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Postgres source credentials: %v", diags)
+			}
+			postgresModel.Credentials = stateCredentialsModel.ObjectValue()
 		} else {
 			postgresModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
 		}
@@ -2836,7 +2848,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		// Preserve credentials from state as API doesn't return them
 		if !stateBigQueryModel.Credentials.IsNull() {
-			bigQueryModel.Credentials = stateBigQueryModel.Credentials
+			stateCredentialsModel := models.ClickPipeServiceAccountModel{}
+			if diags := stateBigQueryModel.Credentials.As(ctx, &stateCredentialsModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe BigQuery source credentials: %v", diags)
+			}
+			bigQueryModel.Credentials = stateCredentialsModel.ObjectValue()
 		} else {
 			bigQueryModel.Credentials = types.ObjectNull(models.ClickPipeServiceAccountModel{}.ObjectType().AttrTypes)
 		}
