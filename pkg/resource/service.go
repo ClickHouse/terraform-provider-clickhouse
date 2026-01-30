@@ -503,6 +503,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					),
 				},
 			},
+			"enable_core_dumps": schema.BoolAttribute{
+				Description: "Enable core dumps for the service.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
 		},
 		MarkdownDescription: serviceResourceDescription,
 		Version:             1,
@@ -1122,6 +1130,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.ComplianceType = plan.ComplianceType.ValueStringPointer()
 	}
 
+	if !plan.EnableCoreDumps.IsNull() && !plan.EnableCoreDumps.IsUnknown() {
+		service.EnableCoreDumps = plan.EnableCoreDumps.ValueBoolPointer()
+	}
+
 	// Create new service
 	s, _, err := r.client.CreateService(ctx, service)
 	if err != nil {
@@ -1440,6 +1452,11 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 				Enabled:  false,
 			})
 		}
+	}
+
+	if plan.EnableCoreDumps != state.EnableCoreDumps {
+		serviceChange = true
+		service.EnableCoreDumps = plan.EnableCoreDumps.ValueBoolPointer()
 	}
 
 	// Update existing service
@@ -2223,6 +2240,12 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 			tagsMap[tag.Key] = types.StringValue(tag.Value)
 		}
 		state.Tags, _ = types.MapValue(types.StringType, tagsMap)
+	}
+
+	if service.EnableCoreDumps != nil {
+		state.EnableCoreDumps = types.BoolValue(*service.EnableCoreDumps)
+	} else {
+		state.EnableCoreDumps = types.BoolNull()
 	}
 
 	return nil
