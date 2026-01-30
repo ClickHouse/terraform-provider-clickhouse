@@ -82,6 +82,7 @@ type Service struct {
 	BackupID                        *string                       `json:"backupId,omitempty"`
 	ComplianceType                  *string                       `json:"complianceType,omitempty"`
 	Tags                            []Tag                         `json:"tags,omitempty"`
+	EnableCoreDumps                 *bool                         `json:"enableCoreDumps,omitempty"`
 }
 
 type ServiceUpdate struct {
@@ -91,6 +92,7 @@ type ServiceUpdate struct {
 	ReleaseChannel     string                    `json:"releaseChannel,omitempty"`
 	Endpoints          []Endpoint                `json:"endpoints,omitempty"`
 	Tags               *TagUpdate                `json:"tags,omitempty"`
+	EnableCoreDumps    *bool                     `json:"enableCoreDumps,omitempty"`
 }
 
 type ServiceKeyRotation struct {
