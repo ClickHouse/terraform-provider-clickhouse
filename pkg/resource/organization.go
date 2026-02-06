@@ -84,7 +84,6 @@ func (r *OrganizationResource) Configure(_ context.Context, req resource.Configu
 func (r *OrganizationResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// Only show warnings when creating or destroying
 	if req.State.Raw.IsNull() {
-		// Creating - state is null, plan is not
 		// Enforce singleton during plan phase to give early feedback
 		if clientImpl, ok := r.client.(*api.ClientImpl); ok {
 			if err := clientImpl.RegisterOrganizationResource(); err != nil {
@@ -101,7 +100,6 @@ func (r *OrganizationResource) ModifyPlan(ctx context.Context, req resource.Modi
 			"This resource manages settings for the organization configured in the provider. It does not create a new organization.",
 		)
 	} else if req.Plan.Raw.IsNull() {
-		// Destroying - plan is null, state is not
 		resp.Diagnostics.AddWarning(
 			"Organization Not Deleted",
 			"Removing this resource from your configuration only stops managing the organization's settings. The organization itself still exists with its current settings.",
