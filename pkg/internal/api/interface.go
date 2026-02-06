@@ -16,6 +16,8 @@ type Client interface {
 	UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (*Service, error)
 	UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error)
 	DeleteService(ctx context.Context, serviceId string) (*Service, error)
+	GetOrganization(ctx context.Context) (*OrgResult, error)
+	UpdateOrganization(ctx context.Context, orgUpdate OrganizationUpdate) (*OrgResult, error)
 	GetOrganizationPrivateEndpoints(ctx context.Context) (*[]PrivateEndpoint, error)
 	UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
 	GetBackupConfiguration(ctx context.Context, serviceId string) (*BackupConfiguration, error)

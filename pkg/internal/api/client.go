@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -12,6 +13,10 @@ type ClientImpl struct {
 	OrganizationId string
 	TokenKey       string
 	TokenSecret    string
+
+	// Track if organization resource has been registered
+	orgResourceMutex      sync.Mutex
+	orgResourceRegistered bool
 }
 
 type ClientConfig struct {
@@ -44,10 +49,25 @@ func NewClient(config ClientConfig) (*ClientImpl, error) {
 		HttpClient: &http.Client{
 			Timeout: config.Timeout,
 		},
-		OrganizationId: config.OrganizationID,
-		TokenKey:       config.TokenKey,
-		TokenSecret:    config.TokenSecret,
+		OrganizationId:        config.OrganizationID,
+		TokenKey:              config.TokenKey,
+		TokenSecret:           config.TokenSecret,
+		orgResourceRegistered: false,
 	}
 
 	return client, nil
+}
+
+// RegisterOrganizationResource attempts to register an organization resource.
+// Returns an error if one is already registered.
+func (c *ClientImpl) RegisterOrganizationResource() error {
+	c.orgResourceMutex.Lock()
+	defer c.orgResourceMutex.Unlock()
+
+	if c.orgResourceRegistered {
+		return fmt.Errorf("only one clickhouse_organization resource is allowed per provider configuration")
+	}
+
+	c.orgResourceRegistered = true
+	return nil
 }

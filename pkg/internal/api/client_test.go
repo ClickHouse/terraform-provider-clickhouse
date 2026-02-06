@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func TestNewClient(t *testing.T) {
@@ -28,7 +29,7 @@ func TestNewClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new client err: %v", err)
 	}
-	if diff := cmp.Diff(testClient, client); diff != "" {
+	if diff := cmp.Diff(testClient, client, cmpopts.IgnoreUnexported(ClientImpl{})); diff != "" {
 		t.Errorf("NewClient() mismatch (-want +got):\n%s", diff)
 	}
 	orgPath := "https://api.clickhouse.cloud/v1/organizations/10ead720-7ca1-48c9-aaf7-7230f42b56c0"

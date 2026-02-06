@@ -20,7 +20,8 @@ type OrgPrivateEndpointsUpdate struct {
 }
 
 type OrganizationUpdate struct {
-	PrivateEndpoints *OrgPrivateEndpointsUpdate `json:"privateEndpoints"`
+	PrivateEndpoints *OrgPrivateEndpointsUpdate `json:"privateEndpoints,omitempty"`
+	EnableCoreDumps  *bool                      `json:"enableCoreDumps,omitempty"`
 }
 
 type OrgResult struct {
@@ -28,6 +29,7 @@ type OrgResult struct {
 	ID               string            `json:"id,omitempty"`
 	Name             string            `json:"name,omitempty"`
 	PrivateEndpoints []PrivateEndpoint `json:"privateEndpoints,omitempty"`
+	EnableCoreDumps  *bool             `json:"enableCoreDumps,omitempty"`
 }
 
 type OrgPrivateEndpointConfig struct {
@@ -118,4 +120,49 @@ func (c *ClientImpl) UpdateOrganizationPrivateEndpoints(ctx context.Context, org
 	}
 
 	return &orgResponse.Result.PrivateEndpoints, nil
+}
+
+func (c *ClientImpl) GetOrganization(ctx context.Context) (*OrgResult, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getOrgPath(""), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	orgResponse := ResponseWithResult[OrgResult]{}
+	err = json.Unmarshal(body, &orgResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &orgResponse.Result, nil
+}
+
+func (c *ClientImpl) UpdateOrganization(ctx context.Context, orgUpdate OrganizationUpdate) (*OrgResult, error) {
+	rb, err := json.Marshal(orgUpdate)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.getOrgPath(""), strings.NewReader(string(rb)))
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	orgResponse := ResponseWithResult[OrgResult]{}
+	err = json.Unmarshal(body, &orgResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &orgResponse.Result, nil
 }
