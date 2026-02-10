@@ -86,7 +86,7 @@ func (r *OrganizationSettingsResource) ModifyPlan(ctx context.Context, req resou
 	if req.State.Raw.IsNull() {
 		// Enforce singleton during plan phase to give early feedback
 		if clientImpl, ok := r.client.(*api.ClientImpl); ok {
-			if err := clientImpl.RegisterOrganizationResource(); err != nil {
+			if err := clientImpl.RegisterOrganizationSettingsResource(); err != nil {
 				resp.Diagnostics.AddError(
 					"Multiple Organization Resources",
 					err.Error(),

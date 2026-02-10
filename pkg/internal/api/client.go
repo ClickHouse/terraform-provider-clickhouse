@@ -58,9 +58,9 @@ func NewClient(config ClientConfig) (*ClientImpl, error) {
 	return client, nil
 }
 
-// RegisterOrganizationResource attempts to register an organization resource.
+// RegisterOrganizationSettingsResource attempts to register an organization settings resource.
 // Returns an error if one is already registered.
-func (c *ClientImpl) RegisterOrganizationResource() error {
+func (c *ClientImpl) RegisterOrganizationSettingsResource() error {
 	c.orgResourceMutex.Lock()
 	defer c.orgResourceMutex.Unlock()
 
