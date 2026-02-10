@@ -12,6 +12,6 @@ variable "token_secret" {
   sensitive = true
 }
 
-resource "clickhouse_organization" "this" {
-  core_dumps_enabled = true 
+resource "clickhouse_organization_settings" "this" {
+  core_dumps_enabled = true
 }

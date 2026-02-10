@@ -8,7 +8,7 @@ import (
 )
 
 func TestOrganizationResource_Schema(t *testing.T) {
-	r := &OrganizationResource{}
+	r := &OrganizationSettingsResource{}
 	req := resource.SchemaRequest{}
 	resp := &resource.SchemaResponse{}
 

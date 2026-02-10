@@ -9,7 +9,7 @@ import (
 func GetResourceFactories() []func() upstreamresource.Resource {
 	return []func() upstreamresource.Resource{
 		NewServiceResource,
-		NewOrganizationResource,
+		NewOrganizationSettingsResource,
 		NewPrivateEndpointRegistrationResource,
 		NewServicePrivateEndpointsAttachmentResource,
 		NewServiceTransparentDataEncryptionKeyAssociationResource,

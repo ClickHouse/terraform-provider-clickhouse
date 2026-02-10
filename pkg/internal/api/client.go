@@ -65,7 +65,7 @@ func (c *ClientImpl) RegisterOrganizationResource() error {
 	defer c.orgResourceMutex.Unlock()
 
 	if c.orgResourceRegistered {
-		return fmt.Errorf("only one clickhouse_organization resource is allowed per provider configuration")
+		return fmt.Errorf("only one clickhouse_organization_settings resource is allowed per provider configuration")
 	}
 
 	c.orgResourceRegistered = true
