@@ -14,7 +14,7 @@ type ClientImpl struct {
 	TokenKey       string
 	TokenSecret    string
 
-	// Track if organization resource has been registered
+	// Track if organization settings resource has been registered
 	orgResourceMutex      sync.Mutex
 	orgResourceRegistered bool
 }
@@ -65,7 +65,7 @@ func (c *ClientImpl) RegisterOrganizationSettingsResource() error {
 	defer c.orgResourceMutex.Unlock()
 
 	if c.orgResourceRegistered {
-		return fmt.Errorf("only one clickhouse_organization_settings resource is allowed per provider configuration")
+		return fmt.Errorf("only one clickhouse_organization_settings resource is allowed per Terraform configuration. This resource is a singleton that manages organization-level settings. Remove duplicate resource declarations to proceed")
 	}
 
 	c.orgResourceRegistered = true
