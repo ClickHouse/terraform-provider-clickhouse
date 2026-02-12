@@ -80,7 +80,7 @@ func (r *OrganizationSettingsResource) Configure(_ context.Context, req resource
 	r.client = client
 }
 
-// ModifyPlan adds warnings during the plan phase.
+// ModifyPlan adds warnings during the plan phase and computes default values.
 func (r *OrganizationSettingsResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// Only show warnings when creating or destroying
 	if req.State.Raw.IsNull() {
@@ -92,6 +92,30 @@ func (r *OrganizationSettingsResource) ModifyPlan(ctx context.Context, req resou
 					err.Error(),
 				)
 				return
+			}
+		}
+
+		// Fetch current organization settings to show computed values in plan
+		var plan models.OrganizationSettingsResourceModel
+		diags := req.Plan.Get(ctx, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		// If core_dumps_enabled is not set, fetch current value from API
+		if plan.CoreDumpsEnabled.IsNull() || plan.CoreDumpsEnabled.IsUnknown() {
+			result, err := r.client.GetOrganization(ctx)
+			if err != nil {
+				resp.Diagnostics.AddWarning(
+					"Unable to fetch current organization settings",
+					"Could not retrieve current organization settings to show default values in plan: "+err.Error(),
+				)
+			} else if result.EnableCoreDumps != nil {
+				plan.CoreDumpsEnabled = types.BoolValue(*result.EnableCoreDumps)
+				// Update the plan with the fetched value
+				diags = resp.Plan.Set(ctx, plan)
+				resp.Diagnostics.Append(diags...)
 			}
 		}
 
