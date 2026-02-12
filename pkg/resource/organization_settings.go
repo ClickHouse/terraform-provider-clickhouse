@@ -88,7 +88,7 @@ func (r *OrganizationSettingsResource) ModifyPlan(ctx context.Context, req resou
 		if clientImpl, ok := r.client.(*api.ClientImpl); ok {
 			if err := clientImpl.RegisterOrganizationSettingsResource(); err != nil {
 				resp.Diagnostics.AddError(
-					"Multiple Organization Resources",
+					"Multiple Organization Settings Resources",
 					err.Error(),
 				)
 				return
@@ -101,7 +101,7 @@ func (r *OrganizationSettingsResource) ModifyPlan(ctx context.Context, req resou
 		)
 	} else if req.Plan.Raw.IsNull() {
 		resp.Diagnostics.AddWarning(
-			"Organization Not Deleted",
+			"Organization Settings Not Deleted",
 			"Removing this resource from your configuration only stops Terraform from managing the organization's settings. The organization itself is not deleted and will continue to exist with its current settings unchanged.",
 		)
 	}

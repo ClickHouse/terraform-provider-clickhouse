@@ -7,6 +7,19 @@ import (
 	"strings"
 )
 
+type OrganizationUpdate struct {
+	PrivateEndpoints *OrgPrivateEndpointsUpdate `json:"privateEndpoints,omitempty"`
+	EnableCoreDumps  *bool                      `json:"enableCoreDumps,omitempty"`
+}
+
+type OrgResult struct {
+	CreatedAt        string            `json:"createdAt,omitempty"`
+	ID               string            `json:"id,omitempty"`
+	Name             string            `json:"name,omitempty"`
+	PrivateEndpoints []PrivateEndpoint `json:"privateEndpoints,omitempty"`
+	EnableCoreDumps  *bool             `json:"enableCoreDumps,omitempty"`
+}
+
 // GetOrganization retrieves the current organization settings.
 func (c *ClientImpl) GetOrganization(ctx context.Context) (*OrgResult, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getOrgPath(""), nil)

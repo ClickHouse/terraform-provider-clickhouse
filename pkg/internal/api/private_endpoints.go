@@ -19,19 +19,6 @@ type OrgPrivateEndpointsUpdate struct {
 	Remove []PrivateEndpoint `json:"remove,omitempty"`
 }
 
-type OrganizationUpdate struct {
-	PrivateEndpoints *OrgPrivateEndpointsUpdate `json:"privateEndpoints,omitempty"`
-	EnableCoreDumps  *bool                      `json:"enableCoreDumps,omitempty"`
-}
-
-type OrgResult struct {
-	CreatedAt        string            `json:"createdAt,omitempty"`
-	ID               string            `json:"id,omitempty"`
-	Name             string            `json:"name,omitempty"`
-	PrivateEndpoints []PrivateEndpoint `json:"privateEndpoints,omitempty"`
-	EnableCoreDumps  *bool             `json:"enableCoreDumps,omitempty"`
-}
-
 type OrgPrivateEndpointConfig struct {
 	EndpointServiceId string `json:"endpointServiceId,omitempty"`
 }
