@@ -1,9 +1,11 @@
-## AWS Basic example
+## Organization Settings Example
 
-The Terraform code deploys following resources:
-- 1 ClickHouse service on AWS
+This example demonstrates how to manage organization-level settings in ClickHouse Cloud.
 
-The ClickHouse service is available from anywhere.
+### Resources Managed:
+- `clickhouse_organization_settings` - Configures organization-wide settings (e.g., core dumps)
+
+**Note:** This resource manages settings for your existing organization. It does not create or delete organizations.
 
 ## How to run
 
