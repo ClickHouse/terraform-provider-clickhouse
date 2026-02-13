@@ -2575,16 +2575,20 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.SnapshotNumberOfParallelTables = types.Int64Null()
 		}
 
-		// EnableFailoverSlots is Optional+Computed with default=false, so always use API value
+		// EnableFailoverSlots: preserve state/plan value when API doesn't return this field
 		if clickPipe.Source.Postgres.Settings.EnableFailoverSlots != nil {
 			settingsModel.EnableFailoverSlots = types.BoolValue(*clickPipe.Source.Postgres.Settings.EnableFailoverSlots)
+		} else if !stateSettingsModel.EnableFailoverSlots.IsNull() {
+			settingsModel.EnableFailoverSlots = stateSettingsModel.EnableFailoverSlots
 		} else {
 			settingsModel.EnableFailoverSlots = types.BoolNull()
 		}
 
-		// DeleteOnMerge is Optional+Computed with default=false, so always use API value
+		// DeleteOnMerge: preserve state/plan value when API doesn't return this field
 		if clickPipe.Source.Postgres.Settings.DeleteOnMerge != nil {
 			settingsModel.DeleteOnMerge = types.BoolValue(*clickPipe.Source.Postgres.Settings.DeleteOnMerge)
+		} else if !stateSettingsModel.DeleteOnMerge.IsNull() {
+			settingsModel.DeleteOnMerge = stateSettingsModel.DeleteOnMerge
 		} else {
 			settingsModel.DeleteOnMerge = types.BoolNull()
 		}
