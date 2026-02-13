@@ -270,7 +270,7 @@ func TestClickPipeResource_syncClickPipeState_Postgres(t *testing.T) {
 				var destModel models.ClickPipeDestinationModel
 				tt.state.Destination.As(ctx, &destModel, basetypes.ObjectAsOptions{})
 				assert.True(t, destModel.Table.IsNull(), "table should remain null for Postgres CDC")
-				assert.True(t, destModel.ManagedTable.IsNull(), "managed_table should remain null for Postgres CDC")
+				assert.Equal(t, types.BoolValue(false), destModel.ManagedTable, "managed_table should be false for Postgres CDC")
 
 				// Validate credentials are preserved from state (not returned by API)
 				var sourceModel models.ClickPipeSourceModel
@@ -294,12 +294,17 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
 			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
 			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
 			Postgres: types.ObjectValueMust(
 				models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes,
 				map[string]attr.Value{
-					"host":     types.StringValue("postgres.example.com"),
-					"port":     types.Int64Value(5432),
-					"database": types.StringValue("mydb"),
+					"host":           types.StringValue("postgres.example.com"),
+					"port":           types.Int64Value(5432),
+					"database":       types.StringValue("mydb"),
+					"authentication": types.StringNull(),
+					"iam_role":       types.StringNull(),
+					"tls_host":       types.StringNull(),
+					"ca_certificate": types.StringNull(),
 					"credentials": types.ObjectValueMust(
 						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
 						map[string]attr.Value{
@@ -320,6 +325,7 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 							"snapshot_num_rows_per_partition":    types.Int64Null(),
 							"snapshot_number_of_parallel_tables": types.Int64Null(),
 							"enable_failover_slots":              types.BoolNull(),
+							"delete_on_merge":                    types.BoolNull(),
 						},
 					),
 					"table_mappings": types.SetValueMust(
@@ -335,6 +341,7 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 									"use_custom_sorting_key": types.BoolNull(),
 									"sorting_keys":           types.ListNull(types.StringType),
 									"table_engine":           types.StringNull(),
+									"partition_key":          types.StringNull(),
 								},
 							),
 						},
