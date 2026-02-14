@@ -255,7 +255,7 @@ func (r *ServicePrivateEndpointsAttachmentResource) Delete(ctx context.Context, 
 	servicePrivateEndpointIds := make([]types.String, 0, len(state.PrivateEndpointIDs.Elements()))
 	state.PrivateEndpointIDs.ElementsAs(ctx, &servicePrivateEndpointIds, false)
 	for _, item := range servicePrivateEndpointIds {
-		service.PrivateEndpointIds.Remove = append(service.PrivateEndpointIds.Add, item.ValueString())
+		service.PrivateEndpointIds.Remove = append(service.PrivateEndpointIds.Remove, item.ValueString())
 	}
 
 	_, err := r.client.UpdateService(ctx, state.ServiceID.ValueString(), service)
