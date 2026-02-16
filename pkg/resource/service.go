@@ -2029,6 +2029,7 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					QueryAPIEndpoints:               priorStateData.QueryAPIEndpoints,
 					BackupConfiguration:             priorStateData.BackupConfiguration,
 					TransparentEncryptionData:       models.TransparentEncryptionData{}.ObjectValue(),
+					Tags:                            types.MapNull(types.StringType),
 				}
 
 				resp.Diagnostics.Append(resp.State.Set(ctx, upgradedStateData)...)
