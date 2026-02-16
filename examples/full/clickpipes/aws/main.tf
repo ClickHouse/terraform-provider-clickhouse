@@ -365,7 +365,7 @@ resource "clickhouse_clickpipe" "postgres_cdc" {
         initial_load_parallelism           = 2
         snapshot_num_rows_per_partition    = 50000
         snapshot_number_of_parallel_tables = 2
-        delete_on_merge                    = true
+        delete_on_merge                    = false
       }
 
       table_mappings = [
