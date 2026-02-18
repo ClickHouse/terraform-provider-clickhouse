@@ -177,6 +177,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"state": schema.StringAttribute{
 				MarkdownDescription: "The current state of the ClickPipe. This is a read-only field that reports the actual state from ClickHouse Cloud. Possible values include `Running`, `Stopped`, `Provisioning`, `Failed`, `InternalError`, etc.",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"source": schema.SingleNestedAttribute{
 				Description: "The data source for the ClickPipe. At least one source configuration must be provided.",
