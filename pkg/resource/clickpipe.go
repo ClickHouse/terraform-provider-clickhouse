@@ -438,12 +438,18 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"queue_url": schema.StringAttribute{
-								MarkdownDescription: "SQS queue URL for event-based continuous ingestion. When provided, files are ingested based on S3 event notifications rather than lexicographical order. Only applicable when `is_continuous` is `true`, storage type is `s3`, and authentication is provided. Format: `https://sqs.{region}.amazonaws.com/{account-id}/{queue-name}`",
+								MarkdownDescription: "Queue URL for event-based continuous ingestion. When provided, files are ingested based on event notifications rather than lexicographical order. Only applicable when `is_continuous` is `true` and authentication is provided. For S3: SQS URL in the format `https://sqs.{region}.amazonaws.com/{account-id}/{queue-name}`. For GCS: Pub/Sub subscription in the format `projects/{project}/subscriptions/{subscription}`.",
 								Optional:            true,
 								Validators: []validator.String{
-									stringvalidator.RegexMatches(
-										regexp.MustCompile(`^https://sqs\.[a-z0-9.-]+\.amazonaws\.com/\d{12}/[a-zA-Z0-9._-]+$`),
-										"must be a valid SQS URL in the format https://sqs.{region}.amazonaws.com/{12-digit-account-id}/{queue-name}",
+									stringvalidator.Any(
+										stringvalidator.RegexMatches(
+											regexp.MustCompile(`^https://sqs\.[a-z0-9.-]+\.amazonaws\.com/\d{12}/[a-zA-Z0-9._-]+$`),
+											"must be a valid SQS URL in the format https://sqs.{region}.amazonaws.com/{12-digit-account-id}/{queue-name}",
+										),
+										stringvalidator.RegexMatches(
+											regexp.MustCompile(`^projects/.+/subscriptions/.+$`),
+											"must be a valid Pub/Sub subscription in the format projects/{project}/subscriptions/{subscription}",
+										),
 									),
 								},
 								PlanModifiers: []planmodifier.String{
@@ -451,7 +457,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"authentication": schema.StringAttribute{
-								MarkdownDescription: "CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3/GCS/DigitalOcean. If not provided, no authentication is used",
+								MarkdownDescription: "CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER and SERVICE_ACCOUNT are for GCS. If not provided, no authentication is used",
 								Optional:            true,
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeObjectStorageAuthenticationMethods...),
@@ -476,6 +482,11 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"iam_role": schema.StringAttribute{
 								MarkdownDescription: "The IAM role for the S3 source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more in [ClickPipes documentation page](https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#authentication)",
 								Optional:            true,
+							},
+							"service_account_key": schema.StringAttribute{
+								MarkdownDescription: "Base64-encoded GCP service account JSON key for GCS authentication. Required when authentication is `SERVICE_ACCOUNT`.",
+								Optional:            true,
+								Sensitive:           true,
 							},
 							"connection_string": schema.StringAttribute{
 								MarkdownDescription: "Connection string for Azure Blob Storage authentication. Required when authentication is CONNECTION_STRING. Example: `DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=mykey;EndpointSuffix=core.windows.net`",
@@ -1224,7 +1235,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Validate queue_url configuration for object storage
+	// Validate object storage configuration
 	if !plan.Source.IsNull() {
 		sourceModel := models.ClickPipeSourceModel{}
 		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
@@ -1232,6 +1243,9 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		if !sourceModel.ObjectStorage.IsNull() {
 			objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
 			response.Diagnostics.Append(sourceModel.ObjectStorage.As(ctx, &objectStorageModel, basetypes.ObjectAsOptions{})...)
+
+			storageType := objectStorageModel.Type.ValueString()
+			authType := objectStorageModel.Authentication.ValueString()
 
 			// Validate queue_url is only provided when is_continuous is true
 			if !objectStorageModel.QueueURL.IsNull() && !objectStorageModel.QueueURL.IsUnknown() && objectStorageModel.QueueURL.ValueString() != "" {
@@ -1242,21 +1256,95 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 					)
 				}
 
-				// Validate queue_url is only used with S3 storage type
-				if objectStorageModel.Type.ValueString() != api.ClickPipeObjectStorageS3Type {
+				// Validate queue_url is only used with S3 or GCS storage type
+				if storageType != api.ClickPipeObjectStorageS3Type && storageType != api.ClickPipeObjectStorageGCSType {
 					response.Diagnostics.AddError(
 						"Invalid Configuration",
-						"queue_url is only supported for S3 object storage",
+						"queue_url is only supported for S3 and GCS object storage",
 					)
 				}
 
-				// Validate queue_url requires IAM authentication
-				authType := objectStorageModel.Authentication.ValueString()
-				if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationIAMRole {
+				// Validate queue_url requires compatible authentication per storage type
+				if storageType == api.ClickPipeObjectStorageS3Type {
+					if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationIAMRole {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"queue_url with S3 requires authentication type to be either IAM_USER or IAM_ROLE",
+						)
+					}
+				} else if storageType == api.ClickPipeObjectStorageGCSType {
+					if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationServiceAccount {
+						response.Diagnostics.AddError(
+							"Invalid Configuration",
+							"queue_url with GCS requires authentication type to be either IAM_USER or SERVICE_ACCOUNT",
+						)
+					}
+				}
+			}
+
+			// Validate IAM_ROLE is not used with GCS
+			if storageType == api.ClickPipeObjectStorageGCSType && authType == api.ClickPipeAuthenticationIAMRole {
+				response.Diagnostics.AddError(
+					"Invalid Configuration",
+					"IAM_ROLE authentication is not supported for GCS object storage",
+				)
+			}
+
+			// Validate SERVICE_ACCOUNT is only used with GCS
+			if authType == api.ClickPipeAuthenticationServiceAccount && storageType != api.ClickPipeObjectStorageGCSType {
+				response.Diagnostics.AddError(
+					"Invalid Configuration",
+					"SERVICE_ACCOUNT authentication is only supported for GCS object storage",
+				)
+			}
+
+			// Validate service_account_key is required when auth is SERVICE_ACCOUNT
+			if authType == api.ClickPipeAuthenticationServiceAccount {
+				if objectStorageModel.ServiceAccountKey.IsNull() || objectStorageModel.ServiceAccountKey.IsUnknown() || objectStorageModel.ServiceAccountKey.ValueString() == "" {
 					response.Diagnostics.AddError(
 						"Invalid Configuration",
-						"queue_url requires authentication type to be either IAM_USER or IAM_ROLE",
+						"service_account_key is required when authentication is SERVICE_ACCOUNT",
 					)
+				}
+			}
+
+			// Validate service_account_key is only used with SERVICE_ACCOUNT auth
+			if !objectStorageModel.ServiceAccountKey.IsNull() && !objectStorageModel.ServiceAccountKey.IsUnknown() && objectStorageModel.ServiceAccountKey.ValueString() != "" {
+				if authType != api.ClickPipeAuthenticationServiceAccount {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"service_account_key can only be used with SERVICE_ACCOUNT authentication",
+					)
+				}
+			}
+
+			// Validate GCS SERVICE_ACCOUNT auth type immutability on updates
+			if !request.State.Raw.IsNull() {
+				stateModel := models.ClickPipeResourceModel{}
+				response.Diagnostics.Append(request.State.Get(ctx, &stateModel)...)
+				if !stateModel.Source.IsNull() {
+					stateSourceModel := models.ClickPipeSourceModel{}
+					response.Diagnostics.Append(stateModel.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{})...)
+					if !stateSourceModel.ObjectStorage.IsNull() {
+						stateObjModel := models.ClickPipeObjectStorageSourceModel{}
+						response.Diagnostics.Append(stateSourceModel.ObjectStorage.As(ctx, &stateObjModel, basetypes.ObjectAsOptions{})...)
+
+						stateAuthType := stateObjModel.Authentication.ValueString()
+						if stateObjModel.Type.ValueString() == api.ClickPipeObjectStorageGCSType {
+							if stateAuthType == api.ClickPipeAuthenticationServiceAccount && authType != api.ClickPipeAuthenticationServiceAccount {
+								response.Diagnostics.AddError(
+									"Invalid Configuration",
+									"Cannot change authentication type from SERVICE_ACCOUNT for GCS ClickPipes",
+								)
+							}
+							if stateAuthType != api.ClickPipeAuthenticationServiceAccount && authType == api.ClickPipeAuthenticationServiceAccount {
+								response.Diagnostics.AddError(
+									"Invalid Configuration",
+									"Cannot change authentication type to SERVICE_ACCOUNT for GCS ClickPipes",
+								)
+							}
+						}
+					}
 				}
 			}
 		}
@@ -1880,6 +1968,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			objectStorage.ConnectionString = objectStorageModel.ConnectionString.ValueStringPointer()
 			objectStorage.Path = objectStorageModel.Path.ValueStringPointer()
 			objectStorage.AzureContainerName = objectStorageModel.AzureContainerName.ValueStringPointer()
+		} else if storageType == api.ClickPipeObjectStorageGCSType {
+			objectStorage.URL = objectStorageModel.URL.ValueString()
+			objectStorage.ServiceAccountKey = objectStorageModel.ServiceAccountKey.ValueStringPointer()
 		} else {
 			objectStorage.URL = objectStorageModel.URL.ValueString()
 		}
@@ -2449,6 +2540,10 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			objectStorageModel.ConnectionString = stateObjectStorageModel.ConnectionString
 			objectStorageModel.Path = stateObjectStorageModel.Path
 			objectStorageModel.AzureContainerName = stateObjectStorageModel.AzureContainerName
+		} else if clickPipe.Source.ObjectStorage.Type == api.ClickPipeObjectStorageGCSType {
+			objectStorageModel.Authentication = types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication)
+			objectStorageModel.URL = types.StringValue(clickPipe.Source.ObjectStorage.URL)
+			objectStorageModel.ServiceAccountKey = stateObjectStorageModel.ServiceAccountKey // preserve sensitive field from state
 		} else {
 			// For S3-compatible storage, use API response values
 			objectStorageModel.Authentication = types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication)

@@ -53,6 +53,7 @@ const (
 	ClickPipeAuthenticationIAMRole          = "IAM_ROLE"
 	ClickPipeAuthenticationIAMUser          = "IAM_USER"
 	ClickPipeAuthenticationConnectionString = "CONNECTION_STRING"
+	ClickPipeAuthenticationServiceAccount   = "SERVICE_ACCOUNT"
 
 	ClickPipeKafkaAuthenticationPlain       = "PLAIN"
 	ClickPipeKafkaAuthenticationScramSha256 = "SCRAM-SHA-256"
@@ -89,6 +90,7 @@ var ClickPipeObjectStorageAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
 	ClickPipeAuthenticationConnectionString,
+	ClickPipeAuthenticationServiceAccount,
 }
 
 var ClickPipeKinesisAuthenticationMethods = []string{
