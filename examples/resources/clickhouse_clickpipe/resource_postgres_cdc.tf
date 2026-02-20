@@ -4,6 +4,8 @@ resource "clickhouse_clickpipe" "postgres_cdc_clickpipe" {
 
   source {
     postgres {
+      # Can also use a reverse private endpoint DNS name for secure private connectivity:
+      # host = clickhouse_clickpipes_reverse_private_endpoint.endpoint.dns_names[0]
       host     = "postgres.example.com"
       port     = 5432
       database = "mydb"
