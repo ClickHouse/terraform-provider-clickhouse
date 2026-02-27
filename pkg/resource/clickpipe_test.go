@@ -298,6 +298,7 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 			Postgres: types.ObjectValueMust(
 				models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes,
 				map[string]attr.Value{
+					"type":           types.StringValue("postgres"),
 					"host":           types.StringValue("postgres.example.com"),
 					"port":           types.Int64Value(5432),
 					"database":       types.StringValue("mydb"),

@@ -85,6 +85,16 @@ var ClickPipeKafkaSourceTypes = []string{
 	ClickPipeKafkaAzureEventHubSourceType,
 }
 
+const (
+	ClickPipePostgresSourceType         = "postgres"
+	ClickPipePostgresSupabaseSourceType = "supabase"
+)
+
+var ClickPipePostgresSourceTypes = []string{
+	ClickPipePostgresSourceType,
+	ClickPipePostgresSupabaseSourceType,
+}
+
 var ClickPipeObjectStorageAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
