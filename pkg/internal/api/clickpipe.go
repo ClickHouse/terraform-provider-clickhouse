@@ -86,13 +86,19 @@ var ClickPipeKafkaSourceTypes = []string{
 }
 
 const (
-	ClickPipePostgresSourceType         = "postgres"
-	ClickPipePostgresSupabaseSourceType = "supabase"
+	ClickPipePostgresSourceType            = "postgres"
+	ClickPipePostgresSupabaseSourceType    = "supabase"
+	ClickPipePostgresNeonSourceType        = "neon"
+	ClickPipePostgresAlloyDBSourceType     = "alloydb"
+	ClickPipePostgresPlanetScaleSourceType = "planetscale"
 )
 
 var ClickPipePostgresSourceTypes = []string{
 	ClickPipePostgresSourceType,
 	ClickPipePostgresSupabaseSourceType,
+	ClickPipePostgresNeonSourceType,
+	ClickPipePostgresAlloyDBSourceType,
+	ClickPipePostgresPlanetScaleSourceType,
 }
 
 var ClickPipeObjectStorageAuthenticationMethods = []string{
