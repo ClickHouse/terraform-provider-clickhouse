@@ -249,6 +249,9 @@ func (p *clickhouseProvider) DataSources(_ context.Context) []func() upstreamdat
 	return []func() upstreamdatasource.DataSource{
 		datasource.NewPrivateEndpointConfigDataSource,
 		datasource.NewApiKeyIDDataSource,
+		datasource.NewRolesDataSource,
+		datasource.NewRoleDataSource,
+		datasource.NewUserDataSource,
 	}
 }
 
