@@ -91,6 +91,12 @@ const (
 	ClickPipePostgresNeonSourceType        = "neon"
 	ClickPipePostgresAlloyDBSourceType     = "alloydb"
 	ClickPipePostgresPlanetScaleSourceType = "planetscale"
+	ClickPipePostgresRDSSourceType         = "rdspostgres"
+	ClickPipePostgresAuroraSourceType      = "aurorapostgres"
+	ClickPipePostgresCloudSQLSourceType    = "cloudsqlpostgres"
+	ClickPipePostgresAzureSourceType       = "azurepostgres"
+	ClickPipePostgresCrunchySourceType     = "crunchybridge"
+	ClickPipePostgresTigerDataSourceType   = "tigerdata"
 )
 
 var ClickPipePostgresSourceTypes = []string{
@@ -99,6 +105,12 @@ var ClickPipePostgresSourceTypes = []string{
 	ClickPipePostgresNeonSourceType,
 	ClickPipePostgresAlloyDBSourceType,
 	ClickPipePostgresPlanetScaleSourceType,
+	ClickPipePostgresRDSSourceType,
+	ClickPipePostgresAuroraSourceType,
+	ClickPipePostgresCloudSQLSourceType,
+	ClickPipePostgresAzureSourceType,
+	ClickPipePostgresCrunchySourceType,
+	ClickPipePostgresTigerDataSourceType,
 }
 
 var ClickPipeObjectStorageAuthenticationMethods = []string{
