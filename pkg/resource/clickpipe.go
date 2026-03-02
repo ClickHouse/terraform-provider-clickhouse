@@ -615,6 +615,22 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							requiresReplaceIfSourceTypeChanges{},
 						},
 						Attributes: map[string]schema.Attribute{
+							"type": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The type of the Postgres source. (%s). Default is `%s`.",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipePostgresSourceTypes),
+									api.ClickPipePostgresSourceType,
+								),
+								Computed: true,
+								Optional: true,
+								Default:  stringdefault.StaticString(api.ClickPipePostgresSourceType),
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipePostgresSourceTypes...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"host": schema.StringAttribute{
 								Description: "The hostname of the Postgres instance.",
 								Required:    true,
@@ -2157,6 +2173,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Mappings: tableMappings,
 		}
 
+		if !isUpdate {
+			postgresSource.Type = postgresModel.Type.ValueString()
+		}
+
 		// Password is optional for IAM authentication
 		if !credentialsModel.Password.IsNull() {
 			postgresSource.Credentials.Password = credentialsModel.Password.ValueString()
@@ -2690,6 +2710,13 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Database:      types.StringValue(clickPipe.Source.Postgres.Database),
 			Settings:      settingsModel.ObjectValue(),
 			TableMappings: types.SetNull(models.ClickPipePostgresTableMappingModel{}.ObjectType()),
+		}
+
+		// Set type from API response
+		if clickPipe.Source.Postgres.Type != "" {
+			postgresModel.Type = types.StringValue(clickPipe.Source.Postgres.Type)
+		} else {
+			postgresModel.Type = types.StringValue(api.ClickPipePostgresSourceType)
 		}
 
 		// Set authentication fields from API response
