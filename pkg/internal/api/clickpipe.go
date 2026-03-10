@@ -183,6 +183,53 @@ var ClickPipeBigQueryTableEngines = []string{
 }
 
 const (
+	ClickPipeMySQLReplicationMechanismAuto    = "AUTO"
+	ClickPipeMySQLReplicationMechanismGTID    = "GTID"
+	ClickPipeMySQLReplicationMechanismFilePos = "FILE_POS"
+)
+
+var ClickPipeMySQLReplicationModes = []string{
+	ClickPipeReplicationModeCDC,
+	ClickPipeReplicationModeSnapshot,
+	ClickPipeReplicationModeCDCOnly,
+}
+
+var ClickPipeMySQLReplicationMechanisms = []string{
+	ClickPipeMySQLReplicationMechanismAuto,
+	ClickPipeMySQLReplicationMechanismGTID,
+	ClickPipeMySQLReplicationMechanismFilePos,
+}
+
+var ClickPipeMySQLTableEngines = []string{
+	ClickPipeTableEngineMergeTree,
+	ClickPipeTableEngineReplacingMergeTree,
+	ClickPipeTableEngineNull,
+}
+
+var ClickPipeMySQLAuthenticationMethods = []string{
+	"basic",
+	"IAM_ROLE",
+}
+
+const (
+	ClickPipeMySQLSourceTypeMySQL            = "mysql"
+	ClickPipeMySQLSourceTypeRDSMySQL         = "rdsmysql"
+	ClickPipeMySQLSourceTypeAuroraMySQL      = "auroramysql"
+	ClickPipeMySQLSourceTypePlanetScaleVites = "planetscalevitess"
+	ClickPipeMySQLSourceTypeMariaDB          = "mariadb"
+	ClickPipeMySQLSourceTypeRDSMariaDB       = "rdsmariadb"
+)
+
+var ClickPipeMySQLSourceTypes = []string{
+	ClickPipeMySQLSourceTypeMySQL,
+	ClickPipeMySQLSourceTypeRDSMySQL,
+	ClickPipeMySQLSourceTypeAuroraMySQL,
+	ClickPipeMySQLSourceTypePlanetScaleVites,
+	ClickPipeMySQLSourceTypeMariaDB,
+	ClickPipeMySQLSourceTypeRDSMariaDB,
+}
+
+const (
 	ClickPipeKafkaOffsetFromBeginningStrategy = "from_beginning"
 	ClickPipeKafkaOffsetFromLatestStrategy    = "from_latest"
 	ClickPipeKafkaOffsetFromTimestampStrategy = "from_timestamp"
