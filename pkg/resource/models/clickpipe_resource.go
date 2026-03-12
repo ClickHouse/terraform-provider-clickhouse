@@ -397,6 +397,9 @@ type ClickPipeObjectStorageSourceModel struct {
 	AccessKey      types.Object `tfsdk:"access_key"`
 	IAMRole        types.String `tfsdk:"iam_role"`
 
+	// GCS specific fields
+	ServiceAccountKey types.String `tfsdk:"service_account_key"`
+
 	// Azure Blob Storage specific fields
 	ConnectionString   types.String `tfsdk:"connection_string"`
 	Path               types.String `tfsdk:"path"`
@@ -416,6 +419,7 @@ func (m ClickPipeObjectStorageSourceModel) ObjectType() types.ObjectType {
 			"authentication":       types.StringType,
 			"access_key":           ClickPipeSourceAccessKeyModel{}.ObjectType(),
 			"iam_role":             types.StringType,
+			"service_account_key":  types.StringType,
 			"connection_string":    types.StringType,
 			"path":                 types.StringType,
 			"azure_container_name": types.StringType,
@@ -435,6 +439,7 @@ func (m ClickPipeObjectStorageSourceModel) ObjectValue() types.Object {
 		"authentication":       m.Authentication,
 		"access_key":           m.AccessKey,
 		"iam_role":             m.IAMRole,
+		"service_account_key":  m.ServiceAccountKey,
 		"connection_string":    m.ConnectionString,
 		"path":                 m.Path,
 		"azure_container_name": m.AzureContainerName,
