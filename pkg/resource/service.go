@@ -391,6 +391,9 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Validators: []validator.String{
 					stringvalidator.AlsoRequires(path.Expressions{path.MatchRoot("encryption_assumed_role_identifier")}...),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"encryption_assumed_role_identifier": schema.StringAttribute{
 				Description: "Custom role identifier ARN.",
