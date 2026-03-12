@@ -147,6 +147,7 @@ type ClickPipeKinesisSource struct {
 }
 
 type ClickPipePostgresSource struct {
+	Type                  string                          `json:"type,omitempty"`
 	Host                  string                          `json:"host,omitempty"`
 	Port                  int                             `json:"port,omitempty"`
 	Database              string                          `json:"database,omitempty"`

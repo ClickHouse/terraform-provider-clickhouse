@@ -86,6 +86,34 @@ var ClickPipeKafkaSourceTypes = []string{
 	ClickPipeKafkaAzureEventHubSourceType,
 }
 
+const (
+	ClickPipePostgresSourceType            = "postgres"
+	ClickPipePostgresSupabaseSourceType    = "supabase"
+	ClickPipePostgresNeonSourceType        = "neon"
+	ClickPipePostgresAlloyDBSourceType     = "alloydb"
+	ClickPipePostgresPlanetScaleSourceType = "planetscale"
+	ClickPipePostgresRDSSourceType         = "rdspostgres"
+	ClickPipePostgresAuroraSourceType      = "aurorapostgres"
+	ClickPipePostgresCloudSQLSourceType    = "cloudsqlpostgres"
+	ClickPipePostgresAzureSourceType       = "azurepostgres"
+	ClickPipePostgresCrunchySourceType     = "crunchybridge"
+	ClickPipePostgresTigerDataSourceType   = "tigerdata"
+)
+
+var ClickPipePostgresSourceTypes = []string{
+	ClickPipePostgresSourceType,
+	ClickPipePostgresSupabaseSourceType,
+	ClickPipePostgresNeonSourceType,
+	ClickPipePostgresAlloyDBSourceType,
+	ClickPipePostgresPlanetScaleSourceType,
+	ClickPipePostgresRDSSourceType,
+	ClickPipePostgresAuroraSourceType,
+	ClickPipePostgresCloudSQLSourceType,
+	ClickPipePostgresAzureSourceType,
+	ClickPipePostgresCrunchySourceType,
+	ClickPipePostgresTigerDataSourceType,
+}
+
 var ClickPipeObjectStorageAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
