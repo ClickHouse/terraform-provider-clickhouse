@@ -68,7 +68,7 @@ then a manual process is required after the upgrade. Please visit [https://githu
 terraform {
   required_providers {
     clickhouse = {
-      version = "3.10.0"
+      version = "3.11.1"
       source  = "ClickHouse/clickhouse"
     }
   }

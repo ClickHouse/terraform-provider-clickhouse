@@ -60,14 +60,14 @@ func TestConvertTerraformValueToJSON(t *testing.T) {
 func TestConvertJSONValueToTerraform(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    interface{}
-		expected interface{}
-		checkFn  func(t *testing.T, result interface{})
+		input    any
+		expected any
+		checkFn  func(t *testing.T, result any)
 	}{
 		{
 			name:  "String value",
 			input: "hello",
-			checkFn: func(t *testing.T, result interface{}) {
+			checkFn: func(t *testing.T, result any) {
 				strVal, ok := result.(types.String)
 				if !ok {
 					t.Errorf("Expected types.String, got %T", result)
@@ -81,7 +81,7 @@ func TestConvertJSONValueToTerraform(t *testing.T) {
 		{
 			name:  "Bool value true",
 			input: true,
-			checkFn: func(t *testing.T, result interface{}) {
+			checkFn: func(t *testing.T, result any) {
 				boolVal, ok := result.(types.Bool)
 				if !ok {
 					t.Errorf("Expected types.Bool, got %T", result)
@@ -95,7 +95,7 @@ func TestConvertJSONValueToTerraform(t *testing.T) {
 		{
 			name:  "Bool value false",
 			input: false,
-			checkFn: func(t *testing.T, result interface{}) {
+			checkFn: func(t *testing.T, result any) {
 				boolVal, ok := result.(types.Bool)
 				if !ok {
 					t.Errorf("Expected types.Bool, got %T", result)
@@ -109,7 +109,7 @@ func TestConvertJSONValueToTerraform(t *testing.T) {
 		{
 			name:  "Int64 value",
 			input: int64(42),
-			checkFn: func(t *testing.T, result interface{}) {
+			checkFn: func(t *testing.T, result any) {
 				numVal, ok := result.(types.Number)
 				if !ok {
 					t.Errorf("Expected types.Number, got %T", result)
@@ -124,7 +124,7 @@ func TestConvertJSONValueToTerraform(t *testing.T) {
 		{
 			name:  "Float64 value",
 			input: 3.14,
-			checkFn: func(t *testing.T, result interface{}) {
+			checkFn: func(t *testing.T, result any) {
 				numVal, ok := result.(types.Number)
 				if !ok {
 					t.Errorf("Expected types.Number, got %T", result)
@@ -139,7 +139,7 @@ func TestConvertJSONValueToTerraform(t *testing.T) {
 		{
 			name:  "Int value",
 			input: 100,
-			checkFn: func(t *testing.T, result interface{}) {
+			checkFn: func(t *testing.T, result any) {
 				numVal, ok := result.(types.Number)
 				if !ok {
 					t.Errorf("Expected types.Number, got %T", result)
@@ -154,7 +154,7 @@ func TestConvertJSONValueToTerraform(t *testing.T) {
 		{
 			name:  "Float32 value",
 			input: float32(2.5),
-			checkFn: func(t *testing.T, result interface{}) {
+			checkFn: func(t *testing.T, result any) {
 				numVal, ok := result.(types.Number)
 				if !ok {
 					t.Errorf("Expected types.Number, got %T", result)
@@ -169,7 +169,7 @@ func TestConvertJSONValueToTerraform(t *testing.T) {
 		{
 			name:  "Unknown type fallback",
 			input: []int{1, 2, 3},
-			checkFn: func(t *testing.T, result interface{}) {
+			checkFn: func(t *testing.T, result any) {
 				strVal, ok := result.(types.String)
 				if !ok {
 					t.Errorf("Expected types.String, got %T", result)
