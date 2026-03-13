@@ -12,6 +12,11 @@ variable "token_secret" {
   sensitive = true
 }
 
+variable "suffix" {
+  type    = string
+  default = ""
+}
+
 # Look up the ID of the API key used by the provider
 data "clickhouse_api_key_id" "current" {}
 
@@ -38,12 +43,12 @@ resource "clickhouse_role_assignment" "member" {
 
 # A minimal custom role with no actors or policies
 resource "clickhouse_role" "minimal" {
-  name = "tf-test-minimal"
+  name = "tf-test-minimal${var.suffix}"
 }
 
 # A custom role with actors managed via a role assignment resource
 resource "clickhouse_role" "with_actors" {
-  name = "tf-test-with-actors"
+  name = "tf-test-with-actors${var.suffix}"
 }
 
 resource "clickhouse_role_assignment" "with_actors" {
@@ -55,21 +60,28 @@ resource "clickhouse_role_assignment" "with_actors" {
 
 # A role with a simple ALLOW policy
 resource "clickhouse_role" "with_policy" {
-  name = "tf-test-with-policy"
+  name = "tf-test-with-policy${var.suffix}"
 
   policies = [
     {
-      effect  = "ALLOW"
+      effect      = "ALLOW"
       permissions = ["control-plane:service:view"]
       resources   = ["instance/*"]
     }
   ]
 }
 
+resource "clickhouse_role_assignment" "with_policy" {
+  role_id = clickhouse_role.with_policy.id
+
+  user_ids    = [data.clickhouse_user.alice.id]
+  api_key_ids = [data.clickhouse_api_key_id.current.id]
+}
+
 # A role that grants read-only access to organization-level billing information.
 # Organization permissions are scoped to "organization/<id>" rather than "instance/*".
 resource "clickhouse_role" "billing_viewer" {
-  name = "tf-test-billing-viewer"
+  name = "tf-test-billing-viewer${var.suffix}"
 
   policies = [
     {
@@ -86,7 +98,7 @@ resource "clickhouse_role" "billing_viewer" {
 # The operator can manage services, but billing and API key
 # management are explicitly denied at the organization level.
 resource "clickhouse_role" "restricted_operator" {
-  name = "tf-test-restricted-operator"
+  name = "tf-test-restricted-operator${var.suffix}"
 
   policies = [
     {
@@ -114,11 +126,11 @@ resource "clickhouse_role" "restricted_operator" {
 
 # A role with tags on the policy (sql-console access)
 resource "clickhouse_role" "sql_console" {
-  name = "tf-test-sql-console"
+  name = "tf-test-sql-console${var.suffix}"
 
   policies = [
     {
-      effect  = "ALLOW"
+      effect      = "ALLOW"
       permissions = ["sql-console:database:access"]
       resources   = ["instance/*"]
       tags = {
