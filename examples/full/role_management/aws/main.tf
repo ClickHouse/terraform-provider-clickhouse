@@ -74,7 +74,7 @@ resource "clickhouse_role" "with_policy" {
 resource "clickhouse_role_assignment" "with_policy" {
   role_id = clickhouse_role.with_policy.id
 
-  user_ids    = [data.clickhouse_user.alice.id]
+  // user_ids    = [data.clickhouse_user.alice.id]
   api_key_ids = [data.clickhouse_api_key_id.current.id]
 }
 
