@@ -948,12 +948,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									},
 									"replication_mechanism": schema.StringAttribute{
 										MarkdownDescription: fmt.Sprintf(
-											"Replication mechanism for the MySQL pipe. (%s). Default is `AUTO`.",
+											"Replication mechanism for the MySQL pipe. (%s). Default is `GTID`.",
 											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMySQLReplicationMechanisms),
 										),
 										Optional: true,
 										Computed: true,
-										Default:  stringdefault.StaticString(api.ClickPipeMySQLReplicationMechanismAuto),
+										Default:  stringdefault.StaticString(api.ClickPipeMySQLReplicationMechanismGTID),
 										Validators: []validator.String{
 											stringvalidator.OneOf(api.ClickPipeMySQLReplicationMechanisms...),
 										},
@@ -2782,7 +2782,7 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 	}
 
 	// Check if this is a snapshot-only DB pipe (Postgres/MySQL snapshot mode or BigQuery)
-	isDBCDCPipe := false
+	isDBPipe := false
 	isSnapshotOnly := false
 	var sourceModel models.ClickPipeSourceModel
 	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
@@ -2790,7 +2790,7 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 		if !sourceModel.BigQuery.IsNull() {
 			isSnapshotOnly = true
 		} else if !sourceModel.Postgres.IsNull() {
-			isDBCDCPipe = true
+			isDBPipe = true
 			var postgresSource models.ClickPipePostgresSourceModel
 			if diags := sourceModel.Postgres.As(ctx, &postgresSource, basetypes.ObjectAsOptions{}); !diags.HasError() {
 				if !postgresSource.Settings.IsNull() {
@@ -2801,7 +2801,7 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 				}
 			}
 		} else if !sourceModel.MySQL.IsNull() {
-			isDBCDCPipe = true
+			isDBPipe = true
 			var mysqlSource models.ClickPipeMySQLSourceModel
 			if diags := sourceModel.MySQL.As(ctx, &mysqlSource, basetypes.ObjectAsOptions{}); !diags.HasError() {
 				if !mysqlSource.Settings.IsNull() {
@@ -2826,7 +2826,7 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 
 	// For Postgres/MySQL CDC pipes, accept Running, Snapshot (initial snapshot phase), or Failed states
 	// Snapshot state is normal during the initial snapshot before CDC starts
-	if isDBCDCPipe {
+	if isDBPipe {
 		return func(state string) bool {
 			return state == api.ClickPipeRunningState ||
 				state == api.ClickPipeSnapShotState ||
@@ -3331,7 +3331,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		if clickPipe.Source.MySQL.Settings.ReplicationMechanism != nil && *clickPipe.Source.MySQL.Settings.ReplicationMechanism != "" {
 			settingsModel.ReplicationMechanism = types.StringValue(*clickPipe.Source.MySQL.Settings.ReplicationMechanism)
 		} else {
-			settingsModel.ReplicationMechanism = types.StringValue(api.ClickPipeMySQLReplicationMechanismAuto)
+			settingsModel.ReplicationMechanism = types.StringValue(api.ClickPipeMySQLReplicationMechanismGTID)
 		}
 
 		if clickPipe.Source.MySQL.Settings.UseCompression != nil {
@@ -4033,7 +4033,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				clickPipeUpdate.Source = source
 			}
 		} else {
-			// Non-DB-CDC source or type change
+			// Non-DB source or type change
 			source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
 
 			if source.Kafka != nil {

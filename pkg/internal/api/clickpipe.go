@@ -183,7 +183,6 @@ var ClickPipeBigQueryTableEngines = []string{
 }
 
 const (
-	ClickPipeMySQLReplicationMechanismAuto    = "AUTO"
 	ClickPipeMySQLReplicationMechanismGTID    = "GTID"
 	ClickPipeMySQLReplicationMechanismFilePos = "FILE_POS"
 )
@@ -195,7 +194,6 @@ var ClickPipeMySQLReplicationModes = []string{
 }
 
 var ClickPipeMySQLReplicationMechanisms = []string{
-	ClickPipeMySQLReplicationMechanismAuto,
 	ClickPipeMySQLReplicationMechanismGTID,
 	ClickPipeMySQLReplicationMechanismFilePos,
 }
