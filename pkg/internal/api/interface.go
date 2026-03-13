@@ -47,4 +47,13 @@ type Client interface {
 	CreateReversePrivateEndpoint(ctx context.Context, serviceId string, request CreateReversePrivateEndpoint) (*ReversePrivateEndpoint, error)
 	DeleteReversePrivateEndpoint(ctx context.Context, serviceId, reversePrivateEndpointId string) error
 	WaitForReversePrivateEndpointState(ctx context.Context, serviceId string, reversePrivateEndpointId string, stateChecker func(string) bool, maxWaitSeconds uint64) (*ReversePrivateEndpoint, error)
+
+	ListMembers(ctx context.Context) ([]Member, error)
+	GetMember(ctx context.Context, userID string) (*Member, error)
+
+	ListRoles(ctx context.Context) ([]RBACRole, error)
+	GetRole(ctx context.Context, roleId string) (*RBACRole, error)
+	CreateRole(ctx context.Context, req RoleCreateRequest) (*RBACRole, error)
+	UpdateRole(ctx context.Context, roleId string, req RoleUpdateRequest) (*RBACRole, error)
+	DeleteRole(ctx context.Context, roleId string) error
 }
