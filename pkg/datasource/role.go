@@ -77,6 +77,9 @@ func (d *roleDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 				Description: "Name of the role to look up. Exactly one of id or name must be set.",
 				Optional:    true,
 				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.ExactlyOneOf(path.MatchRoot("id"), path.MatchRoot("name")),
+				},
 			},
 			"tenant_id": schema.StringAttribute{
 				Description: "Tenant ID that owns this role.",

@@ -78,6 +78,9 @@ func (d *userDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 				Description: "Email address of the user. Exactly one of id or email must be set.",
 				Optional:    true,
 				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.ExactlyOneOf(path.MatchRoot("id"), path.MatchRoot("email")),
+				},
 			},
 			"name": schema.StringAttribute{
 				Description: "Display name of the user.",
