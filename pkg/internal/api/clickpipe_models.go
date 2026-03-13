@@ -121,6 +121,9 @@ type ClickPipeObjectStorageSource struct {
 	AccessKey      *ClickPipeSourceAccessKey `json:"accessKey,omitempty"`
 	IAMRole        *string                   `json:"iamRole,omitempty"`
 
+	// GCS specific fields
+	ServiceAccountKey *string `json:"serviceAccountKey,omitempty"`
+
 	// Azure Blob Storage specific fields
 	ConnectionString   *string `json:"connectionString,omitempty"`
 	Path               *string `json:"path,omitempty"`
@@ -144,6 +147,7 @@ type ClickPipeKinesisSource struct {
 }
 
 type ClickPipePostgresSource struct {
+	Type                  string                          `json:"type,omitempty"`
 	Host                  string                          `json:"host,omitempty"`
 	Port                  int                             `json:"port,omitempty"`
 	Database              string                          `json:"database,omitempty"`
