@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: ClickHouse Cloud documentation
+    url: https://clickhouse.com/docs/en/cloud/overview
+    about: Official ClickHouse Cloud docs
+  - name: Terraform provider docs
+    url: https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs
+    about: Resource and data source reference
+  - name: Community Slack
+    url: https://clickhouse.com/slack
+    about: Ask questions and get help from the community
