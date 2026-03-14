@@ -489,7 +489,7 @@ jobs:
   release-notes:
     permissions:
       contents: write
-    runs-on: k8s-small
+    runs-on: k8s-medium
     needs: [ "validate", "goreleaser" ]
     steps:
       - name: Checkout
