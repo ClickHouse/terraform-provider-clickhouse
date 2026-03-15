@@ -158,6 +158,7 @@ var ClickPipeObjectStorageTypes = []string{
 }
 
 const (
+	ClickPipeObjectStorageCompressionNone   = "none"
 	ClickPipeObjectStorageCompressionAuto   = "auto"
 	ClickPipeObjectStorageCompressionGZIP   = "gzip"
 	ClickPipeObjectStorageCompressionBrotli = "brotli"
@@ -168,6 +169,7 @@ const (
 )
 
 var ClickPipeObjectStorageCompressions = []string{
+	ClickPipeObjectStorageCompressionNone,
 	ClickPipeObjectStorageCompressionAuto,
 	ClickPipeObjectStorageCompressionGZIP,
 	ClickPipeObjectStorageCompressionBrotli,
