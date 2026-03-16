@@ -1,11 +1,16 @@
-name: Automatically label issues with 'terraform-provider'
+name: Automatically label issues and PRs
 on:
   issues:
     types:
       - reopened
       - opened
+  pull_request:
+    types:
+      - reopened
+      - opened
 jobs:
   label_issues:
+    if: github.event_name == 'issues'
     runs-on: k8s-nano
     permissions:
       issues: write
@@ -16,3 +21,23 @@ jobs:
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.issue.number }}
           LABELS: terraform-provider
+      - if: ${{ contains(toLower(github.event.issue.title), 'clickpipe') || contains(toLower(github.event.issue.body), 'clickpipe') }}
+        run: gh issue edit "$NUMBER" --add-label "$LABELS"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          LABELS: clickpipes
+  label_prs:
+    if: github.event_name == 'pull_request'
+    runs-on: k8s-nano
+    permissions:
+      pull-requests: write
+    steps:
+      - if: ${{ contains(toLower(github.event.pull_request.title), 'clickpipe') || contains(toLower(github.event.pull_request.body), 'clickpipe') }}
+        run: gh pr edit "$NUMBER" --add-label "$LABELS"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          LABELS: clickpipes
