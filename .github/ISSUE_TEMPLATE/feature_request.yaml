@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a new resource, attribute, or behaviour
+labels: ["enhancement"]
+body:
+  - type: textarea
+    attributes:
+      label: Use case
+      description: What are you trying to accomplish? Why is this needed?
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Proposed solution
+      description: Describe the Terraform resource, attribute, or behaviour you'd like to see.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Desired configuration (optional)
+      description: Sketch of what the ideal HCL would look like, if applicable.
+      render: hcl
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Current workaround
+      description: Any workaround you're using today, if one exists.
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Links to ClickHouse Cloud docs, related issues, or any other context.
+    validations:
+      required: false
