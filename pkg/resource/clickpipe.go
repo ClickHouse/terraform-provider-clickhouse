@@ -3107,13 +3107,16 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			settings.UseJsonNativeFormat = &v
 		}
 
+		// Extract table mappings (skip for updates as they're handled separately via TableMappingsToAdd/Remove)
 		var tableMappings []api.ClickPipeMongoDBTableMapping
-		if !mongodbModel.TableMappings.IsNull() {
-			tableMappingModels := make([]models.ClickPipeMongoDBTableMappingModel, len(mongodbModel.TableMappings.Elements()))
-			diagnostics.Append(mongodbModel.TableMappings.ElementsAs(ctx, &tableMappingModels, false)...)
-			tableMappings = make([]api.ClickPipeMongoDBTableMapping, len(tableMappingModels))
-			for i, mappingModel := range tableMappingModels {
-				tableMappings[i] = convertMongoDBTableMappingModelToAPI(ctx, diagnostics, mappingModel)
+		if !isUpdate {
+			if !mongodbModel.TableMappings.IsNull() {
+				tableMappingModels := make([]models.ClickPipeMongoDBTableMappingModel, len(mongodbModel.TableMappings.Elements()))
+				diagnostics.Append(mongodbModel.TableMappings.ElementsAs(ctx, &tableMappingModels, false)...)
+				tableMappings = make([]api.ClickPipeMongoDBTableMapping, len(tableMappingModels))
+				for i, mappingModel := range tableMappingModels {
+					tableMappings[i] = convertMongoDBTableMappingModelToAPI(ctx, diagnostics, mappingModel)
+				}
 			}
 		}
 
