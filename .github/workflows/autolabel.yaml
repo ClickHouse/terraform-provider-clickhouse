@@ -21,12 +21,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.issue.number }}
           LABELS: terraform-provider
-      - if: ${{ contains(toLower(github.event.issue.title), 'clickpipe') || contains(toLower(github.event.issue.body), 'clickpipe') }}
-        run: gh issue edit "$NUMBER" --add-label "$LABELS"
+      - run: echo "$TITLE $BODY" | grep -qi 'clickpipe' && gh issue edit "$NUMBER" --add-label "$LABELS" || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+          BODY: ${{ github.event.issue.body }}
           LABELS: clickpipes
   label_prs:
     if: github.event_name == 'pull_request'
@@ -34,10 +35,11 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - if: ${{ contains(toLower(github.event.pull_request.title), 'clickpipe') || contains(toLower(github.event.pull_request.body), 'clickpipe') }}
-        run: gh pr edit "$NUMBER" --add-label "$LABELS"
+      - run: echo "$TITLE $BODY" | grep -qi 'clickpipe' && gh pr edit "$NUMBER" --add-label "$LABELS" || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
           LABELS: clickpipes
