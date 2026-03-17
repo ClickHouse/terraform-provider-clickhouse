@@ -72,6 +72,10 @@ type ClickPipeKafkaSourceCredentials struct {
 	*ClickPipeSourceAccessKey
 
 	ConnectionString *string `json:"connectionString,omitempty"`
+
+	// MutualTLS credentials
+	Certificate *string `json:"certificate,omitempty"`
+	PrivateKey  *string `json:"privateKey,omitempty"`
 }
 
 type ClickPipeKafkaOffset struct {

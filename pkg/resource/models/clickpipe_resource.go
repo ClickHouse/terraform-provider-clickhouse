@@ -128,6 +128,10 @@ type ClickPipeKafkaSourceCredentialsModel struct {
 
 	// Azure EventHub connection string
 	ConnectionString types.String `tfsdk:"connection_string"`
+
+	// MutualTLS credentials
+	Certificate types.String `tfsdk:"certificate"`
+	PrivateKey  types.String `tfsdk:"private_key"`
 }
 
 func (m ClickPipeKafkaSourceCredentialsModel) ObjectType() types.ObjectType {
@@ -138,6 +142,8 @@ func (m ClickPipeKafkaSourceCredentialsModel) ObjectType() types.ObjectType {
 			"access_key_id":     types.StringType,
 			"secret_key":        types.StringType,
 			"connection_string": types.StringType,
+			"certificate":       types.StringType,
+			"private_key":       types.StringType,
 		},
 	}
 }
@@ -149,6 +155,8 @@ func (m ClickPipeKafkaSourceCredentialsModel) ObjectValue() types.Object {
 		"access_key_id":     m.AccessKeyID,
 		"secret_key":        m.SecretKey,
 		"connection_string": m.ConnectionString,
+		"certificate":       m.Certificate,
+		"private_key":       m.PrivateKey,
 	})
 }
 

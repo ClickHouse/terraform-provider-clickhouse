@@ -348,6 +348,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Optional:    true,
 										Sensitive:   true,
 									},
+									"certificate": schema.StringAttribute{
+										Description: "PEM encoded client certificate for mTLS authentication. Use with `MUTUAL_TLS` authentication.",
+										Optional:    true,
+										Sensitive:   true,
+									},
+									"private_key": schema.StringAttribute{
+										Description: "PEM encoded client private key for mTLS authentication. Use with `MUTUAL_TLS` authentication.",
+										Optional:    true,
+										Sensitive:   true,
+									},
 								},
 								Optional: true,
 							},
@@ -2235,6 +2245,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 						}
 					} else if !credentialsModel.ConnectionString.IsNull() {
 						credentials.ConnectionString = credentialsModel.ConnectionString.ValueStringPointer()
+					} else if !credentialsModel.Certificate.IsNull() && !credentialsModel.PrivateKey.IsNull() {
+						credentials.Certificate = credentialsModel.Certificate.ValueStringPointer()
+						credentials.PrivateKey = credentialsModel.PrivateKey.ValueStringPointer()
 					} else {
 						diagnostics.AddError(
 							"Error Creating ClickPipe",
