@@ -32,6 +32,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
@@ -1341,7 +1342,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"sorting_key": schema.ListAttribute{
 								MarkdownDescription: "The list of columns for the sorting key.",
 								Optional:            true,
+								Computed:            true,
 								ElementType:         types.StringType,
+								Default:             listdefault.StaticValue(tfutils.CreateEmptyList(types.StringType)),
 							},
 							"partition_by": schema.StringAttribute{
 								MarkdownDescription: "The column to partition the table by.",
@@ -3904,7 +3907,8 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			}
 			tableDefinitionModel.SortingKey, _ = types.ListValue(types.StringType, sortingKeyList)
 		} else {
-			tableDefinitionModel.SortingKey = types.ListNull(types.StringType)
+			// Normalize: API null/empty -> empty list (matches the schema default)
+			tableDefinitionModel.SortingKey = tfutils.CreateEmptyList(types.StringType)
 		}
 
 		destinationModel.TableDefinition = tableDefinitionModel.ObjectValue()
