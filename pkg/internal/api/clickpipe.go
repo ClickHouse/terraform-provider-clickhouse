@@ -264,10 +264,10 @@ var ClickPipeMySQLSourceTypes = []string{
 // MongoDB constants
 const (
 	ClickPipeMongoDBReadPreferencePrimary            = "primary"
-	ClickPipeMongoDBReadPreferencePrimaryPreferred    = "primaryPreferred"
-	ClickPipeMongoDBReadPreferenceSecondary           = "secondary"
-	ClickPipeMongoDBReadPreferenceSecondaryPreferred  = "secondaryPreferred"
-	ClickPipeMongoDBReadPreferenceNearest             = "nearest"
+	ClickPipeMongoDBReadPreferencePrimaryPreferred   = "primaryPreferred"
+	ClickPipeMongoDBReadPreferenceSecondary          = "secondary"
+	ClickPipeMongoDBReadPreferenceSecondaryPreferred = "secondaryPreferred"
+	ClickPipeMongoDBReadPreferenceNearest            = "nearest"
 )
 
 var ClickPipeMongoDBReadPreferences = []string{

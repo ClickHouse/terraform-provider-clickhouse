@@ -1319,7 +1319,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI.",
 								Optional:            true,
-								Sensitive:            true,
+								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"username": schema.StringAttribute{
 										Description: "The username for the MongoDB instance.",
