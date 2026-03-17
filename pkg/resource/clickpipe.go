@@ -4149,6 +4149,8 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				return fmt.Errorf("error reading ClickPipe MongoDB source credentials: %v", diags)
 			}
 			mongodbModel.Credentials = stateCredentialsModel.ObjectValue()
+		} else {
+			mongodbModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
 		}
 
 		mongodbModel.Settings = settingsModel.ObjectValue()
