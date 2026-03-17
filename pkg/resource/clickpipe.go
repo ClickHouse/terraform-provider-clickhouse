@@ -352,11 +352,17 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Description: "PEM encoded client certificate for mTLS authentication. Use with `MUTUAL_TLS` authentication.",
 										Optional:    true,
 										Sensitive:   true,
+										Validators: []validator.String{
+											stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("private_key")),
+										},
 									},
 									"private_key": schema.StringAttribute{
 										Description: "PEM encoded client private key for mTLS authentication. Use with `MUTUAL_TLS` authentication.",
 										Optional:    true,
 										Sensitive:   true,
+										Validators: []validator.String{
+											stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("certificate")),
+										},
 									},
 								},
 								Optional: true,
