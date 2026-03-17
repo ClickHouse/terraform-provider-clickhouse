@@ -261,6 +261,35 @@ var ClickPipeMySQLSourceTypes = []string{
 	ClickPipeMySQLSourceTypeRDSMariaDB,
 }
 
+// MongoDB constants
+const (
+	ClickPipeMongoDBReadPreferencePrimary            = "primary"
+	ClickPipeMongoDBReadPreferencePrimaryPreferred    = "primaryPreferred"
+	ClickPipeMongoDBReadPreferenceSecondary           = "secondary"
+	ClickPipeMongoDBReadPreferenceSecondaryPreferred  = "secondaryPreferred"
+	ClickPipeMongoDBReadPreferenceNearest             = "nearest"
+)
+
+var ClickPipeMongoDBReadPreferences = []string{
+	ClickPipeMongoDBReadPreferencePrimary,
+	ClickPipeMongoDBReadPreferencePrimaryPreferred,
+	ClickPipeMongoDBReadPreferenceSecondary,
+	ClickPipeMongoDBReadPreferenceSecondaryPreferred,
+	ClickPipeMongoDBReadPreferenceNearest,
+}
+
+var ClickPipeMongoDBReplicationModes = []string{
+	ClickPipeReplicationModeCDC,
+	ClickPipeReplicationModeSnapshot,
+	ClickPipeReplicationModeCDCOnly,
+}
+
+var ClickPipeMongoDBTableEngines = []string{
+	ClickPipeTableEngineMergeTree,
+	ClickPipeTableEngineReplacingMergeTree,
+	ClickPipeTableEngineNull,
+}
+
 const (
 	ClickPipeKafkaOffsetFromBeginningStrategy = "from_beginning"
 	ClickPipeKafkaOffsetFromLatestStrategy    = "from_latest"
