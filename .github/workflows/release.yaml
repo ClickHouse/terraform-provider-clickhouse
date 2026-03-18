@@ -489,6 +489,7 @@ jobs:
   release-notes:
     permissions:
       contents: write
+      id-token: write
     runs-on: k8s-medium
     needs: [ "validate", "goreleaser" ]
     steps:
