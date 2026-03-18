@@ -4100,7 +4100,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				sourceSchema: mapping.SourceDatabaseName,
 				sourceTable:  mapping.SourceCollection,
 			}
-			_ = key // used for state lookup
+			stateMapping, hasStateMapping := stateTableMappingsMap[key]
 
 			tableMappingModel := models.ClickPipeMongoDBTableMappingModel{
 				SourceDatabaseName: types.StringValue(mapping.SourceDatabaseName),
@@ -4108,8 +4108,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				TargetTable:        types.StringValue(mapping.TargetTable),
 			}
 
-			if mapping.TableEngine != nil && *mapping.TableEngine != "" {
+			if hasStateMapping && stateMapping.TableEngine.IsNull() {
+				tableMappingModel.TableEngine = types.StringNull()
+			} else if mapping.TableEngine != nil && *mapping.TableEngine != "" {
 				tableMappingModel.TableEngine = types.StringValue(*mapping.TableEngine)
+			} else if hasStateMapping {
+				tableMappingModel.TableEngine = stateMapping.TableEngine
 			} else {
 				tableMappingModel.TableEngine = types.StringValue(api.ClickPipeTableEngineReplacingMergeTree)
 			}
