@@ -2092,11 +2092,11 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 							var stateMappings, planMappings []models.ClickPipeMongoDBTableMappingModel
 							if !stateMongoDB.TableMappings.IsNull() {
 								stateMappings = make([]models.ClickPipeMongoDBTableMappingModel, len(stateMongoDB.TableMappings.Elements()))
-								stateMongoDB.TableMappings.ElementsAs(ctx, &stateMappings, false)
+								response.Diagnostics.Append(stateMongoDB.TableMappings.ElementsAs(ctx, &stateMappings, false)...)
 							}
 							if !planMongoDB.TableMappings.IsNull() {
 								planMappings = make([]models.ClickPipeMongoDBTableMappingModel, len(planMongoDB.TableMappings.Elements()))
-								planMongoDB.TableMappings.ElementsAs(ctx, &planMappings, false)
+								response.Diagnostics.Append(planMongoDB.TableMappings.ElementsAs(ctx, &planMappings, false)...)
 							}
 
 							// Validation 1: MongoDB CDC pipes must have at least one table mapping
