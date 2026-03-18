@@ -4683,6 +4683,9 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			tableMappingsChanged := !planMongoDBModel.TableMappings.Equal(stateMongoDBModel.TableMappings)
 			otherFieldsChanged := !planMongoDBModel.URI.Equal(stateMongoDBModel.URI) ||
 				!planMongoDBModel.ReadPreference.Equal(stateMongoDBModel.ReadPreference) ||
+				!planMongoDBModel.TLSHost.Equal(stateMongoDBModel.TLSHost) ||
+				!planMongoDBModel.CACertificate.Equal(stateMongoDBModel.CACertificate) ||
+				!planMongoDBModel.DisableTLS.Equal(stateMongoDBModel.DisableTLS) ||
 				!planMongoDBModel.Credentials.Equal(stateMongoDBModel.Credentials) ||
 				!planMongoDBModel.Settings.Equal(stateMongoDBModel.Settings)
 
