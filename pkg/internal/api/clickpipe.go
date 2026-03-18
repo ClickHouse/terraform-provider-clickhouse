@@ -58,6 +58,7 @@ const (
 	ClickPipeKafkaAuthenticationPlain       = "PLAIN"
 	ClickPipeKafkaAuthenticationScramSha256 = "SCRAM-SHA-256"
 	ClickPipeKafkaAuthenticationScramSha512 = "SCRAM-SHA-512"
+	ClickPipeKafkaAuthenticationMutualTLS   = "MUTUAL_TLS"
 )
 
 var ClickPipeKafkaAuthenticationMethods = []string{
@@ -66,6 +67,7 @@ var ClickPipeKafkaAuthenticationMethods = []string{
 	ClickPipeKafkaAuthenticationScramSha512,
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
+	ClickPipeKafkaAuthenticationMutualTLS,
 }
 
 const (
