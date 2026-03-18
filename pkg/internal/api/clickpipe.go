@@ -45,10 +45,14 @@ var ClickPipeStreamingFormats = []string{
 	ClickPipeAvroConfluentFormat,
 }
 
-var (
-	ClickPipeKafkaFormats   = append([]string{}, append(ClickPipeStreamingFormats, ClickPipeProtobufFormat)...)
-	ClickPipeKinesisFormats = ClickPipeStreamingFormats
-)
+var ClickPipeKafkaFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeAvroConfluentFormat,
+	ClickPipeProtobufFormat,
+}
+
+var ClickPipeKinesisFormats = ClickPipeStreamingFormats
 
 const (
 	ClickPipeAuthenticationIAMRole          = "IAM_ROLE"
