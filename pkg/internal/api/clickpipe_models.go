@@ -72,6 +72,10 @@ type ClickPipeKafkaSourceCredentials struct {
 	*ClickPipeSourceAccessKey
 
 	ConnectionString *string `json:"connectionString,omitempty"`
+
+	// MutualTLS credentials
+	Certificate *string `json:"certificate,omitempty"`
+	PrivateKey  *string `json:"privateKey,omitempty"`
 }
 
 type ClickPipeKafkaOffset struct {
@@ -187,6 +191,47 @@ type ClickPipePostgresTableMapping struct {
 	PartitionKey        *string  `json:"partitionKey,omitempty"`
 }
 
+type ClickPipeMySQLSource struct {
+	Type                  string                       `json:"type,omitempty"`
+	Host                  string                       `json:"host,omitempty"`
+	Port                  int                          `json:"port,omitempty"`
+	Authentication        *string                      `json:"authentication,omitempty"`
+	IAMRole               *string                      `json:"iamRole,omitempty"`
+	TLSHost               *string                      `json:"tlsHost,omitempty"`
+	CACertificate         *string                      `json:"caCertificate,omitempty"`
+	DisableTLS            *bool                        `json:"disableTls,omitempty"`
+	SkipCertVerification  *bool                        `json:"skipCertVerification,omitempty"`
+	Credentials           *ClickPipeSourceCredentials  `json:"credentials,omitempty"`
+	Settings              *ClickPipeMySQLSettings      `json:"settings,omitempty"`
+	Mappings              []ClickPipeMySQLTableMapping `json:"tableMappings,omitempty"`
+	TableMappingsToRemove []ClickPipeMySQLTableMapping `json:"tableMappingsToRemove,omitempty"`
+	TableMappingsToAdd    []ClickPipeMySQLTableMapping `json:"tableMappingsToAdd,omitempty"`
+}
+
+type ClickPipeMySQLSettings struct {
+	SyncIntervalSeconds            *int    `json:"syncIntervalSeconds,omitempty"`
+	PullBatchSize                  *int    `json:"pullBatchSize,omitempty"`
+	ReplicationMode                string  `json:"replicationMode,omitempty"`
+	ReplicationMechanism           *string `json:"replicationMechanism,omitempty"`
+	UseCompression                 *bool   `json:"useCompression,omitempty"`
+	AllowNullableColumns           *bool   `json:"allowNullableColumns,omitempty"`
+	InitialLoadParallelism         *int    `json:"initialLoadParallelism,omitempty"`
+	SnapshotNumRowsPerPartition    *int    `json:"snapshotNumRowsPerPartition,omitempty"`
+	SnapshotNumberOfParallelTables *int    `json:"snapshotNumberOfParallelTables,omitempty"`
+	DeleteOnMerge                  *bool   `json:"deleteOnMerge,omitempty"`
+}
+
+type ClickPipeMySQLTableMapping struct {
+	SourceSchemaName    string   `json:"sourceSchemaName"`
+	SourceTable         string   `json:"sourceTable"`
+	TargetTable         string   `json:"targetTable"`
+	ExcludedColumns     []string `json:"excludedColumns,omitempty"`
+	UseCustomSortingKey *bool    `json:"useCustomSortingKey,omitempty"`
+	SortingKeys         []string `json:"sortingKeys,omitempty"`
+	TableEngine         *string  `json:"tableEngine,omitempty"`
+	PartitionKey        *string  `json:"partitionKey,omitempty"`
+}
+
 type ClickPipeServiceAccount struct {
 	ServiceAccountFile string `json:"serviceAccountFile,omitempty"`
 }
@@ -223,6 +268,7 @@ type ClickPipeSource struct {
 	ObjectStorage   *ClickPipeObjectStorageSource `json:"objectStorage,omitempty"`
 	Kinesis         *ClickPipeKinesisSource       `json:"kinesis,omitempty"`
 	Postgres        *ClickPipePostgresSource      `json:"postgres,omitempty"`
+	MySQL           *ClickPipeMySQLSource         `json:"mysql,omitempty"`
 	BigQuery        *ClickPipeBigQuerySource      `json:"bigquery,omitempty"`
 	ValidateSamples bool                          `json:"validateSamples,omitempty"`
 }

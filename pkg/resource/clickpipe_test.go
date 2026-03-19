@@ -10,6 +10,7 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/stretchr/testify/assert"
@@ -295,6 +296,7 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
 			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
 			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
 			Postgres: types.ObjectValueMust(
 				models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes,
 				map[string]attr.Value{
@@ -383,4 +385,98 @@ func strPtr(s string) *string {
 
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func buildKafkaMutualTLSPlan(certificate, privateKey types.String) models.ClickPipeResourceModel {
+	credAttrs := map[string]attr.Value{
+		"username":          types.StringNull(),
+		"password":          types.StringNull(),
+		"access_key_id":     types.StringNull(),
+		"secret_key":        types.StringNull(),
+		"connection_string": types.StringNull(),
+		"certificate":       certificate,
+		"private_key":       privateKey,
+	}
+
+	kafkaAttrs := map[string]attr.Value{
+		"type":                         types.StringValue("kafka"),
+		"format":                       types.StringValue("JSONEachRow"),
+		"brokers":                      types.StringValue("broker:9092"),
+		"topics":                       types.StringValue("test-topic"),
+		"consumer_group":               types.StringNull(),
+		"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
+		"schema_registry":              types.ObjectNull(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes),
+		"authentication":               types.StringValue("MUTUAL_TLS"),
+		"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+		"iam_role":                     types.StringNull(),
+		"ca_certificate":               types.StringNull(),
+		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
+	}
+
+	sourceModel := models.ClickPipeSourceModel{
+		Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
+		ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+		Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+		MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+	}
+
+	return models.ClickPipeResourceModel{
+		ID:        types.StringValue("test-pipe-id"),
+		ServiceID: types.StringValue("service-123"),
+		Name:      types.StringValue("test-mtls-pipe"),
+		Source:    sourceModel.ObjectValue(),
+	}
+}
+
+func TestExtractSourceFromPlan_KafkaMutualTLS(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("success: both certificate and private_key provided", func(t *testing.T) {
+		plan := buildKafkaMutualTLSPlan(
+			types.StringValue("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"),
+			types.StringValue("-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----"),
+		)
+
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Kafka)
+		assert.NotNil(t, source.Kafka.Credentials)
+		assert.Equal(t, "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----", *source.Kafka.Credentials.Certificate)
+		assert.Equal(t, "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----", *source.Kafka.Credentials.PrivateKey)
+		assert.Nil(t, source.Kafka.Credentials.ClickPipeSourceCredentials, "SASL credentials should not be set")
+		assert.Nil(t, source.Kafka.Credentials.ClickPipeSourceAccessKey, "access key credentials should not be set")
+		assert.Nil(t, source.Kafka.Credentials.ConnectionString, "connection string should not be set")
+	})
+
+	t.Run("failure: only certificate provided without private_key", func(t *testing.T) {
+		plan := buildKafkaMutualTLSPlan(
+			types.StringValue("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"),
+			types.StringNull(),
+		)
+
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when private_key is missing")
+		assert.Nil(t, source)
+	})
+
+	t.Run("failure: only private_key provided without certificate", func(t *testing.T) {
+		plan := buildKafkaMutualTLSPlan(
+			types.StringNull(),
+			types.StringValue("-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----"),
+		)
+
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when certificate is missing")
+		assert.Nil(t, source)
+	})
 }

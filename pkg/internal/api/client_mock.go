@@ -47,6 +47,13 @@ type ClientMock struct {
 	beforeCreateReversePrivateEndpointCounter uint64
 	CreateReversePrivateEndpointMock          mClientMockCreateReversePrivateEndpoint
 
+	funcCreateRole          func(ctx context.Context, req RoleCreateRequest) (rp1 *RBACRole, err error)
+	funcCreateRoleOrigin    string
+	inspectFuncCreateRole   func(ctx context.Context, req RoleCreateRequest)
+	afterCreateRoleCounter  uint64
+	beforeCreateRoleCounter uint64
+	CreateRoleMock          mClientMockCreateRole
+
 	funcCreateService          func(ctx context.Context, s Service) (sp1 *Service, s1 string, err error)
 	funcCreateServiceOrigin    string
 	inspectFuncCreateService   func(ctx context.Context, s Service)
@@ -74,6 +81,13 @@ type ClientMock struct {
 	afterDeleteReversePrivateEndpointCounter  uint64
 	beforeDeleteReversePrivateEndpointCounter uint64
 	DeleteReversePrivateEndpointMock          mClientMockDeleteReversePrivateEndpoint
+
+	funcDeleteRole          func(ctx context.Context, roleId string) (err error)
+	funcDeleteRoleOrigin    string
+	inspectFuncDeleteRole   func(ctx context.Context, roleId string)
+	afterDeleteRoleCounter  uint64
+	beforeDeleteRoleCounter uint64
+	DeleteRoleMock          mClientMockDeleteRole
 
 	funcDeleteService          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
 	funcDeleteServiceOrigin    string
@@ -117,6 +131,13 @@ type ClientMock struct {
 	beforeGetClickPipeSettingsCounter uint64
 	GetClickPipeSettingsMock          mClientMockGetClickPipeSettings
 
+	funcGetMember          func(ctx context.Context, userID string) (mp1 *Member, err error)
+	funcGetMemberOrigin    string
+	inspectFuncGetMember   func(ctx context.Context, userID string)
+	afterGetMemberCounter  uint64
+	beforeGetMemberCounter uint64
+	GetMemberMock          mClientMockGetMember
+
 	funcGetOrgPrivateEndpointConfig          func(ctx context.Context, cloudProvider string, region string) (op1 *OrgPrivateEndpointConfig, err error)
 	funcGetOrgPrivateEndpointConfigOrigin    string
 	inspectFuncGetOrgPrivateEndpointConfig   func(ctx context.Context, cloudProvider string, region string)
@@ -159,6 +180,13 @@ type ClientMock struct {
 	beforeGetReversePrivateEndpointPathCounter uint64
 	GetReversePrivateEndpointPathMock          mClientMockGetReversePrivateEndpointPath
 
+	funcGetRole          func(ctx context.Context, roleId string) (rp1 *RBACRole, err error)
+	funcGetRoleOrigin    string
+	inspectFuncGetRole   func(ctx context.Context, roleId string)
+	afterGetRoleCounter  uint64
+	beforeGetRoleCounter uint64
+	GetRoleMock          mClientMockGetRole
+
 	funcGetService          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
 	funcGetServiceOrigin    string
 	inspectFuncGetService   func(ctx context.Context, serviceId string)
@@ -166,12 +194,26 @@ type ClientMock struct {
 	beforeGetServiceCounter uint64
 	GetServiceMock          mClientMockGetService
 
+	funcListMembers          func(ctx context.Context) (ma1 []Member, err error)
+	funcListMembersOrigin    string
+	inspectFuncListMembers   func(ctx context.Context)
+	afterListMembersCounter  uint64
+	beforeListMembersCounter uint64
+	ListMembersMock          mClientMockListMembers
+
 	funcListReversePrivateEndpoints          func(ctx context.Context, serviceId string) (rpa1 []*ReversePrivateEndpoint, err error)
 	funcListReversePrivateEndpointsOrigin    string
 	inspectFuncListReversePrivateEndpoints   func(ctx context.Context, serviceId string)
 	afterListReversePrivateEndpointsCounter  uint64
 	beforeListReversePrivateEndpointsCounter uint64
 	ListReversePrivateEndpointsMock          mClientMockListReversePrivateEndpoints
+
+	funcListRoles          func(ctx context.Context) (ra1 []RBACRole, err error)
+	funcListRolesOrigin    string
+	inspectFuncListRoles   func(ctx context.Context)
+	afterListRolesCounter  uint64
+	beforeListRolesCounter uint64
+	ListRolesMock          mClientMockListRoles
 
 	funcRotateTDEKey          func(ctx context.Context, serviceId string, keyId string) (err error)
 	funcRotateTDEKeyOrigin    string
@@ -236,6 +278,13 @@ type ClientMock struct {
 	beforeUpdateReplicaScalingCounter uint64
 	UpdateReplicaScalingMock          mClientMockUpdateReplicaScaling
 
+	funcUpdateRole          func(ctx context.Context, roleId string, req RoleUpdateRequest) (rp1 *RBACRole, err error)
+	funcUpdateRoleOrigin    string
+	inspectFuncUpdateRole   func(ctx context.Context, roleId string, req RoleUpdateRequest)
+	afterUpdateRoleCounter  uint64
+	beforeUpdateRoleCounter uint64
+	UpdateRoleMock          mClientMockUpdateRole
+
 	funcUpdateService          func(ctx context.Context, serviceId string, s ServiceUpdate) (sp1 *Service, err error)
 	funcUpdateServiceOrigin    string
 	inspectFuncUpdateService   func(ctx context.Context, serviceId string, s ServiceUpdate)
@@ -299,6 +348,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateReversePrivateEndpointMock = mClientMockCreateReversePrivateEndpoint{mock: m}
 	m.CreateReversePrivateEndpointMock.callArgs = []*ClientMockCreateReversePrivateEndpointParams{}
 
+	m.CreateRoleMock = mClientMockCreateRole{mock: m}
+	m.CreateRoleMock.callArgs = []*ClientMockCreateRoleParams{}
+
 	m.CreateServiceMock = mClientMockCreateService{mock: m}
 	m.CreateServiceMock.callArgs = []*ClientMockCreateServiceParams{}
 
@@ -310,6 +362,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeleteReversePrivateEndpointMock = mClientMockDeleteReversePrivateEndpoint{mock: m}
 	m.DeleteReversePrivateEndpointMock.callArgs = []*ClientMockDeleteReversePrivateEndpointParams{}
+
+	m.DeleteRoleMock = mClientMockDeleteRole{mock: m}
+	m.DeleteRoleMock.callArgs = []*ClientMockDeleteRoleParams{}
 
 	m.DeleteServiceMock = mClientMockDeleteService{mock: m}
 	m.DeleteServiceMock.callArgs = []*ClientMockDeleteServiceParams{}
@@ -329,6 +384,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetClickPipeSettingsMock = mClientMockGetClickPipeSettings{mock: m}
 	m.GetClickPipeSettingsMock.callArgs = []*ClientMockGetClickPipeSettingsParams{}
 
+	m.GetMemberMock = mClientMockGetMember{mock: m}
+	m.GetMemberMock.callArgs = []*ClientMockGetMemberParams{}
+
 	m.GetOrgPrivateEndpointConfigMock = mClientMockGetOrgPrivateEndpointConfig{mock: m}
 	m.GetOrgPrivateEndpointConfigMock.callArgs = []*ClientMockGetOrgPrivateEndpointConfigParams{}
 
@@ -347,11 +405,20 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetReversePrivateEndpointPathMock = mClientMockGetReversePrivateEndpointPath{mock: m}
 	m.GetReversePrivateEndpointPathMock.callArgs = []*ClientMockGetReversePrivateEndpointPathParams{}
 
+	m.GetRoleMock = mClientMockGetRole{mock: m}
+	m.GetRoleMock.callArgs = []*ClientMockGetRoleParams{}
+
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
 
+	m.ListMembersMock = mClientMockListMembers{mock: m}
+	m.ListMembersMock.callArgs = []*ClientMockListMembersParams{}
+
 	m.ListReversePrivateEndpointsMock = mClientMockListReversePrivateEndpoints{mock: m}
 	m.ListReversePrivateEndpointsMock.callArgs = []*ClientMockListReversePrivateEndpointsParams{}
+
+	m.ListRolesMock = mClientMockListRoles{mock: m}
+	m.ListRolesMock.callArgs = []*ClientMockListRolesParams{}
 
 	m.RotateTDEKeyMock = mClientMockRotateTDEKey{mock: m}
 	m.RotateTDEKeyMock.callArgs = []*ClientMockRotateTDEKeyParams{}
@@ -379,6 +446,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateReplicaScalingMock = mClientMockUpdateReplicaScaling{mock: m}
 	m.UpdateReplicaScalingMock.callArgs = []*ClientMockUpdateReplicaScalingParams{}
+
+	m.UpdateRoleMock = mClientMockUpdateRole{mock: m}
+	m.UpdateRoleMock.callArgs = []*ClientMockUpdateRoleParams{}
 
 	m.UpdateServiceMock = mClientMockUpdateService{mock: m}
 	m.UpdateServiceMock.callArgs = []*ClientMockUpdateServiceParams{}
@@ -1930,6 +2000,349 @@ func (m *ClientMock) MinimockCreateReversePrivateEndpointInspect() {
 	}
 }
 
+type mClientMockCreateRole struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateRoleExpectation
+	expectations       []*ClientMockCreateRoleExpectation
+
+	callArgs []*ClientMockCreateRoleParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateRoleExpectation specifies expectation struct of the Client.CreateRole
+type ClientMockCreateRoleExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateRoleParams
+	paramPtrs          *ClientMockCreateRoleParamPtrs
+	expectationOrigins ClientMockCreateRoleExpectationOrigins
+	results            *ClientMockCreateRoleResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateRoleParams contains parameters of the Client.CreateRole
+type ClientMockCreateRoleParams struct {
+	ctx context.Context
+	req RoleCreateRequest
+}
+
+// ClientMockCreateRoleParamPtrs contains pointers to parameters of the Client.CreateRole
+type ClientMockCreateRoleParamPtrs struct {
+	ctx *context.Context
+	req *RoleCreateRequest
+}
+
+// ClientMockCreateRoleResults contains results of the Client.CreateRole
+type ClientMockCreateRoleResults struct {
+	rp1 *RBACRole
+	err error
+}
+
+// ClientMockCreateRoleOrigins contains origins of expectations of the Client.CreateRole
+type ClientMockCreateRoleExpectationOrigins struct {
+	origin    string
+	originCtx string
+	originReq string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateRole *mClientMockCreateRole) Optional() *mClientMockCreateRole {
+	mmCreateRole.optional = true
+	return mmCreateRole
+}
+
+// Expect sets up expected params for Client.CreateRole
+func (mmCreateRole *mClientMockCreateRole) Expect(ctx context.Context, req RoleCreateRequest) *mClientMockCreateRole {
+	if mmCreateRole.mock.funcCreateRole != nil {
+		mmCreateRole.mock.t.Fatalf("ClientMock.CreateRole mock is already set by Set")
+	}
+
+	if mmCreateRole.defaultExpectation == nil {
+		mmCreateRole.defaultExpectation = &ClientMockCreateRoleExpectation{}
+	}
+
+	if mmCreateRole.defaultExpectation.paramPtrs != nil {
+		mmCreateRole.mock.t.Fatalf("ClientMock.CreateRole mock is already set by ExpectParams functions")
+	}
+
+	mmCreateRole.defaultExpectation.params = &ClientMockCreateRoleParams{ctx, req}
+	mmCreateRole.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateRole.expectations {
+		if minimock.Equal(e.params, mmCreateRole.defaultExpectation.params) {
+			mmCreateRole.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateRole.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateRole
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateRole
+func (mmCreateRole *mClientMockCreateRole) ExpectCtxParam1(ctx context.Context) *mClientMockCreateRole {
+	if mmCreateRole.mock.funcCreateRole != nil {
+		mmCreateRole.mock.t.Fatalf("ClientMock.CreateRole mock is already set by Set")
+	}
+
+	if mmCreateRole.defaultExpectation == nil {
+		mmCreateRole.defaultExpectation = &ClientMockCreateRoleExpectation{}
+	}
+
+	if mmCreateRole.defaultExpectation.params != nil {
+		mmCreateRole.mock.t.Fatalf("ClientMock.CreateRole mock is already set by Expect")
+	}
+
+	if mmCreateRole.defaultExpectation.paramPtrs == nil {
+		mmCreateRole.defaultExpectation.paramPtrs = &ClientMockCreateRoleParamPtrs{}
+	}
+	mmCreateRole.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateRole.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateRole
+}
+
+// ExpectReqParam2 sets up expected param req for Client.CreateRole
+func (mmCreateRole *mClientMockCreateRole) ExpectReqParam2(req RoleCreateRequest) *mClientMockCreateRole {
+	if mmCreateRole.mock.funcCreateRole != nil {
+		mmCreateRole.mock.t.Fatalf("ClientMock.CreateRole mock is already set by Set")
+	}
+
+	if mmCreateRole.defaultExpectation == nil {
+		mmCreateRole.defaultExpectation = &ClientMockCreateRoleExpectation{}
+	}
+
+	if mmCreateRole.defaultExpectation.params != nil {
+		mmCreateRole.mock.t.Fatalf("ClientMock.CreateRole mock is already set by Expect")
+	}
+
+	if mmCreateRole.defaultExpectation.paramPtrs == nil {
+		mmCreateRole.defaultExpectation.paramPtrs = &ClientMockCreateRoleParamPtrs{}
+	}
+	mmCreateRole.defaultExpectation.paramPtrs.req = &req
+	mmCreateRole.defaultExpectation.expectationOrigins.originReq = minimock.CallerInfo(1)
+
+	return mmCreateRole
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateRole
+func (mmCreateRole *mClientMockCreateRole) Inspect(f func(ctx context.Context, req RoleCreateRequest)) *mClientMockCreateRole {
+	if mmCreateRole.mock.inspectFuncCreateRole != nil {
+		mmCreateRole.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateRole")
+	}
+
+	mmCreateRole.mock.inspectFuncCreateRole = f
+
+	return mmCreateRole
+}
+
+// Return sets up results that will be returned by Client.CreateRole
+func (mmCreateRole *mClientMockCreateRole) Return(rp1 *RBACRole, err error) *ClientMock {
+	if mmCreateRole.mock.funcCreateRole != nil {
+		mmCreateRole.mock.t.Fatalf("ClientMock.CreateRole mock is already set by Set")
+	}
+
+	if mmCreateRole.defaultExpectation == nil {
+		mmCreateRole.defaultExpectation = &ClientMockCreateRoleExpectation{mock: mmCreateRole.mock}
+	}
+	mmCreateRole.defaultExpectation.results = &ClientMockCreateRoleResults{rp1, err}
+	mmCreateRole.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateRole.mock
+}
+
+// Set uses given function f to mock the Client.CreateRole method
+func (mmCreateRole *mClientMockCreateRole) Set(f func(ctx context.Context, req RoleCreateRequest) (rp1 *RBACRole, err error)) *ClientMock {
+	if mmCreateRole.defaultExpectation != nil {
+		mmCreateRole.mock.t.Fatalf("Default expectation is already set for the Client.CreateRole method")
+	}
+
+	if len(mmCreateRole.expectations) > 0 {
+		mmCreateRole.mock.t.Fatalf("Some expectations are already set for the Client.CreateRole method")
+	}
+
+	mmCreateRole.mock.funcCreateRole = f
+	mmCreateRole.mock.funcCreateRoleOrigin = minimock.CallerInfo(1)
+	return mmCreateRole.mock
+}
+
+// When sets expectation for the Client.CreateRole which will trigger the result defined by the following
+// Then helper
+func (mmCreateRole *mClientMockCreateRole) When(ctx context.Context, req RoleCreateRequest) *ClientMockCreateRoleExpectation {
+	if mmCreateRole.mock.funcCreateRole != nil {
+		mmCreateRole.mock.t.Fatalf("ClientMock.CreateRole mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateRoleExpectation{
+		mock:               mmCreateRole.mock,
+		params:             &ClientMockCreateRoleParams{ctx, req},
+		expectationOrigins: ClientMockCreateRoleExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateRole.expectations = append(mmCreateRole.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateRole return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateRoleExpectation) Then(rp1 *RBACRole, err error) *ClientMock {
+	e.results = &ClientMockCreateRoleResults{rp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateRole should be invoked
+func (mmCreateRole *mClientMockCreateRole) Times(n uint64) *mClientMockCreateRole {
+	if n == 0 {
+		mmCreateRole.mock.t.Fatalf("Times of ClientMock.CreateRole mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateRole.expectedInvocations, n)
+	mmCreateRole.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateRole
+}
+
+func (mmCreateRole *mClientMockCreateRole) invocationsDone() bool {
+	if len(mmCreateRole.expectations) == 0 && mmCreateRole.defaultExpectation == nil && mmCreateRole.mock.funcCreateRole == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateRole.mock.afterCreateRoleCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateRole.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateRole implements Client
+func (mmCreateRole *ClientMock) CreateRole(ctx context.Context, req RoleCreateRequest) (rp1 *RBACRole, err error) {
+	mm_atomic.AddUint64(&mmCreateRole.beforeCreateRoleCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateRole.afterCreateRoleCounter, 1)
+
+	mmCreateRole.t.Helper()
+
+	if mmCreateRole.inspectFuncCreateRole != nil {
+		mmCreateRole.inspectFuncCreateRole(ctx, req)
+	}
+
+	mm_params := ClientMockCreateRoleParams{ctx, req}
+
+	// Record call args
+	mmCreateRole.CreateRoleMock.mutex.Lock()
+	mmCreateRole.CreateRoleMock.callArgs = append(mmCreateRole.CreateRoleMock.callArgs, &mm_params)
+	mmCreateRole.CreateRoleMock.mutex.Unlock()
+
+	for _, e := range mmCreateRole.CreateRoleMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.rp1, e.results.err
+		}
+	}
+
+	if mmCreateRole.CreateRoleMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateRole.CreateRoleMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateRole.CreateRoleMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateRole.CreateRoleMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateRoleParams{ctx, req}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateRole.t.Errorf("ClientMock.CreateRole got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateRole.CreateRoleMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.req != nil && !minimock.Equal(*mm_want_ptrs.req, mm_got.req) {
+				mmCreateRole.t.Errorf("ClientMock.CreateRole got unexpected parameter req, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateRole.CreateRoleMock.defaultExpectation.expectationOrigins.originReq, *mm_want_ptrs.req, mm_got.req, minimock.Diff(*mm_want_ptrs.req, mm_got.req))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateRole.t.Errorf("ClientMock.CreateRole got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateRole.CreateRoleMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateRole.CreateRoleMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateRole.t.Fatal("No results are set for the ClientMock.CreateRole")
+		}
+		return (*mm_results).rp1, (*mm_results).err
+	}
+	if mmCreateRole.funcCreateRole != nil {
+		return mmCreateRole.funcCreateRole(ctx, req)
+	}
+	mmCreateRole.t.Fatalf("Unexpected call to ClientMock.CreateRole. %v %v", ctx, req)
+	return
+}
+
+// CreateRoleAfterCounter returns a count of finished ClientMock.CreateRole invocations
+func (mmCreateRole *ClientMock) CreateRoleAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateRole.afterCreateRoleCounter)
+}
+
+// CreateRoleBeforeCounter returns a count of ClientMock.CreateRole invocations
+func (mmCreateRole *ClientMock) CreateRoleBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateRole.beforeCreateRoleCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateRole.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateRole *mClientMockCreateRole) Calls() []*ClientMockCreateRoleParams {
+	mmCreateRole.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateRoleParams, len(mmCreateRole.callArgs))
+	copy(argCopy, mmCreateRole.callArgs)
+
+	mmCreateRole.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateRoleDone returns true if the count of the CreateRole invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateRoleDone() bool {
+	if m.CreateRoleMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateRoleMock.invocationsDone()
+}
+
+// MinimockCreateRoleInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateRoleInspect() {
+	for _, e := range m.CreateRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateRole at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateRoleCounter := mm_atomic.LoadUint64(&m.afterCreateRoleCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateRoleMock.defaultExpectation != nil && afterCreateRoleCounter < 1 {
+		if m.CreateRoleMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateRole at\n%s", m.CreateRoleMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateRole at\n%s with params: %#v", m.CreateRoleMock.defaultExpectation.expectationOrigins.origin, *m.CreateRoleMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateRole != nil && afterCreateRoleCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateRole at\n%s", m.funcCreateRoleOrigin)
+	}
+
+	if !m.CreateRoleMock.invocationsDone() && afterCreateRoleCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateRole at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateRoleMock.expectedInvocations), m.CreateRoleMock.expectedInvocationsOrigin, afterCreateRoleCounter)
+	}
+}
+
 type mClientMockCreateService struct {
 	optional           bool
 	mock               *ClientMock
@@ -3359,6 +3772,348 @@ func (m *ClientMock) MinimockDeleteReversePrivateEndpointInspect() {
 	if !m.DeleteReversePrivateEndpointMock.invocationsDone() && afterDeleteReversePrivateEndpointCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteReversePrivateEndpoint at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteReversePrivateEndpointMock.expectedInvocations), m.DeleteReversePrivateEndpointMock.expectedInvocationsOrigin, afterDeleteReversePrivateEndpointCounter)
+	}
+}
+
+type mClientMockDeleteRole struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteRoleExpectation
+	expectations       []*ClientMockDeleteRoleExpectation
+
+	callArgs []*ClientMockDeleteRoleParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteRoleExpectation specifies expectation struct of the Client.DeleteRole
+type ClientMockDeleteRoleExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteRoleParams
+	paramPtrs          *ClientMockDeleteRoleParamPtrs
+	expectationOrigins ClientMockDeleteRoleExpectationOrigins
+	results            *ClientMockDeleteRoleResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteRoleParams contains parameters of the Client.DeleteRole
+type ClientMockDeleteRoleParams struct {
+	ctx    context.Context
+	roleId string
+}
+
+// ClientMockDeleteRoleParamPtrs contains pointers to parameters of the Client.DeleteRole
+type ClientMockDeleteRoleParamPtrs struct {
+	ctx    *context.Context
+	roleId *string
+}
+
+// ClientMockDeleteRoleResults contains results of the Client.DeleteRole
+type ClientMockDeleteRoleResults struct {
+	err error
+}
+
+// ClientMockDeleteRoleOrigins contains origins of expectations of the Client.DeleteRole
+type ClientMockDeleteRoleExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originRoleId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteRole *mClientMockDeleteRole) Optional() *mClientMockDeleteRole {
+	mmDeleteRole.optional = true
+	return mmDeleteRole
+}
+
+// Expect sets up expected params for Client.DeleteRole
+func (mmDeleteRole *mClientMockDeleteRole) Expect(ctx context.Context, roleId string) *mClientMockDeleteRole {
+	if mmDeleteRole.mock.funcDeleteRole != nil {
+		mmDeleteRole.mock.t.Fatalf("ClientMock.DeleteRole mock is already set by Set")
+	}
+
+	if mmDeleteRole.defaultExpectation == nil {
+		mmDeleteRole.defaultExpectation = &ClientMockDeleteRoleExpectation{}
+	}
+
+	if mmDeleteRole.defaultExpectation.paramPtrs != nil {
+		mmDeleteRole.mock.t.Fatalf("ClientMock.DeleteRole mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteRole.defaultExpectation.params = &ClientMockDeleteRoleParams{ctx, roleId}
+	mmDeleteRole.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteRole.expectations {
+		if minimock.Equal(e.params, mmDeleteRole.defaultExpectation.params) {
+			mmDeleteRole.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteRole.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteRole
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteRole
+func (mmDeleteRole *mClientMockDeleteRole) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteRole {
+	if mmDeleteRole.mock.funcDeleteRole != nil {
+		mmDeleteRole.mock.t.Fatalf("ClientMock.DeleteRole mock is already set by Set")
+	}
+
+	if mmDeleteRole.defaultExpectation == nil {
+		mmDeleteRole.defaultExpectation = &ClientMockDeleteRoleExpectation{}
+	}
+
+	if mmDeleteRole.defaultExpectation.params != nil {
+		mmDeleteRole.mock.t.Fatalf("ClientMock.DeleteRole mock is already set by Expect")
+	}
+
+	if mmDeleteRole.defaultExpectation.paramPtrs == nil {
+		mmDeleteRole.defaultExpectation.paramPtrs = &ClientMockDeleteRoleParamPtrs{}
+	}
+	mmDeleteRole.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteRole.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteRole
+}
+
+// ExpectRoleIdParam2 sets up expected param roleId for Client.DeleteRole
+func (mmDeleteRole *mClientMockDeleteRole) ExpectRoleIdParam2(roleId string) *mClientMockDeleteRole {
+	if mmDeleteRole.mock.funcDeleteRole != nil {
+		mmDeleteRole.mock.t.Fatalf("ClientMock.DeleteRole mock is already set by Set")
+	}
+
+	if mmDeleteRole.defaultExpectation == nil {
+		mmDeleteRole.defaultExpectation = &ClientMockDeleteRoleExpectation{}
+	}
+
+	if mmDeleteRole.defaultExpectation.params != nil {
+		mmDeleteRole.mock.t.Fatalf("ClientMock.DeleteRole mock is already set by Expect")
+	}
+
+	if mmDeleteRole.defaultExpectation.paramPtrs == nil {
+		mmDeleteRole.defaultExpectation.paramPtrs = &ClientMockDeleteRoleParamPtrs{}
+	}
+	mmDeleteRole.defaultExpectation.paramPtrs.roleId = &roleId
+	mmDeleteRole.defaultExpectation.expectationOrigins.originRoleId = minimock.CallerInfo(1)
+
+	return mmDeleteRole
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteRole
+func (mmDeleteRole *mClientMockDeleteRole) Inspect(f func(ctx context.Context, roleId string)) *mClientMockDeleteRole {
+	if mmDeleteRole.mock.inspectFuncDeleteRole != nil {
+		mmDeleteRole.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteRole")
+	}
+
+	mmDeleteRole.mock.inspectFuncDeleteRole = f
+
+	return mmDeleteRole
+}
+
+// Return sets up results that will be returned by Client.DeleteRole
+func (mmDeleteRole *mClientMockDeleteRole) Return(err error) *ClientMock {
+	if mmDeleteRole.mock.funcDeleteRole != nil {
+		mmDeleteRole.mock.t.Fatalf("ClientMock.DeleteRole mock is already set by Set")
+	}
+
+	if mmDeleteRole.defaultExpectation == nil {
+		mmDeleteRole.defaultExpectation = &ClientMockDeleteRoleExpectation{mock: mmDeleteRole.mock}
+	}
+	mmDeleteRole.defaultExpectation.results = &ClientMockDeleteRoleResults{err}
+	mmDeleteRole.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteRole.mock
+}
+
+// Set uses given function f to mock the Client.DeleteRole method
+func (mmDeleteRole *mClientMockDeleteRole) Set(f func(ctx context.Context, roleId string) (err error)) *ClientMock {
+	if mmDeleteRole.defaultExpectation != nil {
+		mmDeleteRole.mock.t.Fatalf("Default expectation is already set for the Client.DeleteRole method")
+	}
+
+	if len(mmDeleteRole.expectations) > 0 {
+		mmDeleteRole.mock.t.Fatalf("Some expectations are already set for the Client.DeleteRole method")
+	}
+
+	mmDeleteRole.mock.funcDeleteRole = f
+	mmDeleteRole.mock.funcDeleteRoleOrigin = minimock.CallerInfo(1)
+	return mmDeleteRole.mock
+}
+
+// When sets expectation for the Client.DeleteRole which will trigger the result defined by the following
+// Then helper
+func (mmDeleteRole *mClientMockDeleteRole) When(ctx context.Context, roleId string) *ClientMockDeleteRoleExpectation {
+	if mmDeleteRole.mock.funcDeleteRole != nil {
+		mmDeleteRole.mock.t.Fatalf("ClientMock.DeleteRole mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteRoleExpectation{
+		mock:               mmDeleteRole.mock,
+		params:             &ClientMockDeleteRoleParams{ctx, roleId},
+		expectationOrigins: ClientMockDeleteRoleExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteRole.expectations = append(mmDeleteRole.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteRole return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteRoleExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteRoleResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteRole should be invoked
+func (mmDeleteRole *mClientMockDeleteRole) Times(n uint64) *mClientMockDeleteRole {
+	if n == 0 {
+		mmDeleteRole.mock.t.Fatalf("Times of ClientMock.DeleteRole mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteRole.expectedInvocations, n)
+	mmDeleteRole.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteRole
+}
+
+func (mmDeleteRole *mClientMockDeleteRole) invocationsDone() bool {
+	if len(mmDeleteRole.expectations) == 0 && mmDeleteRole.defaultExpectation == nil && mmDeleteRole.mock.funcDeleteRole == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteRole.mock.afterDeleteRoleCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteRole.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteRole implements Client
+func (mmDeleteRole *ClientMock) DeleteRole(ctx context.Context, roleId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteRole.beforeDeleteRoleCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteRole.afterDeleteRoleCounter, 1)
+
+	mmDeleteRole.t.Helper()
+
+	if mmDeleteRole.inspectFuncDeleteRole != nil {
+		mmDeleteRole.inspectFuncDeleteRole(ctx, roleId)
+	}
+
+	mm_params := ClientMockDeleteRoleParams{ctx, roleId}
+
+	// Record call args
+	mmDeleteRole.DeleteRoleMock.mutex.Lock()
+	mmDeleteRole.DeleteRoleMock.callArgs = append(mmDeleteRole.DeleteRoleMock.callArgs, &mm_params)
+	mmDeleteRole.DeleteRoleMock.mutex.Unlock()
+
+	for _, e := range mmDeleteRole.DeleteRoleMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteRole.DeleteRoleMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteRole.DeleteRoleMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteRole.DeleteRoleMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteRole.DeleteRoleMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteRoleParams{ctx, roleId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteRole.t.Errorf("ClientMock.DeleteRole got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteRole.DeleteRoleMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.roleId != nil && !minimock.Equal(*mm_want_ptrs.roleId, mm_got.roleId) {
+				mmDeleteRole.t.Errorf("ClientMock.DeleteRole got unexpected parameter roleId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteRole.DeleteRoleMock.defaultExpectation.expectationOrigins.originRoleId, *mm_want_ptrs.roleId, mm_got.roleId, minimock.Diff(*mm_want_ptrs.roleId, mm_got.roleId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteRole.t.Errorf("ClientMock.DeleteRole got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteRole.DeleteRoleMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteRole.DeleteRoleMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteRole.t.Fatal("No results are set for the ClientMock.DeleteRole")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteRole.funcDeleteRole != nil {
+		return mmDeleteRole.funcDeleteRole(ctx, roleId)
+	}
+	mmDeleteRole.t.Fatalf("Unexpected call to ClientMock.DeleteRole. %v %v", ctx, roleId)
+	return
+}
+
+// DeleteRoleAfterCounter returns a count of finished ClientMock.DeleteRole invocations
+func (mmDeleteRole *ClientMock) DeleteRoleAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteRole.afterDeleteRoleCounter)
+}
+
+// DeleteRoleBeforeCounter returns a count of ClientMock.DeleteRole invocations
+func (mmDeleteRole *ClientMock) DeleteRoleBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteRole.beforeDeleteRoleCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteRole.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteRole *mClientMockDeleteRole) Calls() []*ClientMockDeleteRoleParams {
+	mmDeleteRole.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteRoleParams, len(mmDeleteRole.callArgs))
+	copy(argCopy, mmDeleteRole.callArgs)
+
+	mmDeleteRole.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteRoleDone returns true if the count of the DeleteRole invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteRoleDone() bool {
+	if m.DeleteRoleMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteRoleMock.invocationsDone()
+}
+
+// MinimockDeleteRoleInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteRoleInspect() {
+	for _, e := range m.DeleteRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteRole at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteRoleCounter := mm_atomic.LoadUint64(&m.afterDeleteRoleCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteRoleMock.defaultExpectation != nil && afterDeleteRoleCounter < 1 {
+		if m.DeleteRoleMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteRole at\n%s", m.DeleteRoleMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteRole at\n%s with params: %#v", m.DeleteRoleMock.defaultExpectation.expectationOrigins.origin, *m.DeleteRoleMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteRole != nil && afterDeleteRoleCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteRole at\n%s", m.funcDeleteRoleOrigin)
+	}
+
+	if !m.DeleteRoleMock.invocationsDone() && afterDeleteRoleCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteRole at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteRoleMock.expectedInvocations), m.DeleteRoleMock.expectedInvocationsOrigin, afterDeleteRoleCounter)
 	}
 }
 
@@ -5482,6 +6237,349 @@ func (m *ClientMock) MinimockGetClickPipeSettingsInspect() {
 	}
 }
 
+type mClientMockGetMember struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetMemberExpectation
+	expectations       []*ClientMockGetMemberExpectation
+
+	callArgs []*ClientMockGetMemberParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetMemberExpectation specifies expectation struct of the Client.GetMember
+type ClientMockGetMemberExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetMemberParams
+	paramPtrs          *ClientMockGetMemberParamPtrs
+	expectationOrigins ClientMockGetMemberExpectationOrigins
+	results            *ClientMockGetMemberResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetMemberParams contains parameters of the Client.GetMember
+type ClientMockGetMemberParams struct {
+	ctx    context.Context
+	userID string
+}
+
+// ClientMockGetMemberParamPtrs contains pointers to parameters of the Client.GetMember
+type ClientMockGetMemberParamPtrs struct {
+	ctx    *context.Context
+	userID *string
+}
+
+// ClientMockGetMemberResults contains results of the Client.GetMember
+type ClientMockGetMemberResults struct {
+	mp1 *Member
+	err error
+}
+
+// ClientMockGetMemberOrigins contains origins of expectations of the Client.GetMember
+type ClientMockGetMemberExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originUserID string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetMember *mClientMockGetMember) Optional() *mClientMockGetMember {
+	mmGetMember.optional = true
+	return mmGetMember
+}
+
+// Expect sets up expected params for Client.GetMember
+func (mmGetMember *mClientMockGetMember) Expect(ctx context.Context, userID string) *mClientMockGetMember {
+	if mmGetMember.mock.funcGetMember != nil {
+		mmGetMember.mock.t.Fatalf("ClientMock.GetMember mock is already set by Set")
+	}
+
+	if mmGetMember.defaultExpectation == nil {
+		mmGetMember.defaultExpectation = &ClientMockGetMemberExpectation{}
+	}
+
+	if mmGetMember.defaultExpectation.paramPtrs != nil {
+		mmGetMember.mock.t.Fatalf("ClientMock.GetMember mock is already set by ExpectParams functions")
+	}
+
+	mmGetMember.defaultExpectation.params = &ClientMockGetMemberParams{ctx, userID}
+	mmGetMember.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetMember.expectations {
+		if minimock.Equal(e.params, mmGetMember.defaultExpectation.params) {
+			mmGetMember.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetMember.defaultExpectation.params)
+		}
+	}
+
+	return mmGetMember
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetMember
+func (mmGetMember *mClientMockGetMember) ExpectCtxParam1(ctx context.Context) *mClientMockGetMember {
+	if mmGetMember.mock.funcGetMember != nil {
+		mmGetMember.mock.t.Fatalf("ClientMock.GetMember mock is already set by Set")
+	}
+
+	if mmGetMember.defaultExpectation == nil {
+		mmGetMember.defaultExpectation = &ClientMockGetMemberExpectation{}
+	}
+
+	if mmGetMember.defaultExpectation.params != nil {
+		mmGetMember.mock.t.Fatalf("ClientMock.GetMember mock is already set by Expect")
+	}
+
+	if mmGetMember.defaultExpectation.paramPtrs == nil {
+		mmGetMember.defaultExpectation.paramPtrs = &ClientMockGetMemberParamPtrs{}
+	}
+	mmGetMember.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetMember.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetMember
+}
+
+// ExpectUserIDParam2 sets up expected param userID for Client.GetMember
+func (mmGetMember *mClientMockGetMember) ExpectUserIDParam2(userID string) *mClientMockGetMember {
+	if mmGetMember.mock.funcGetMember != nil {
+		mmGetMember.mock.t.Fatalf("ClientMock.GetMember mock is already set by Set")
+	}
+
+	if mmGetMember.defaultExpectation == nil {
+		mmGetMember.defaultExpectation = &ClientMockGetMemberExpectation{}
+	}
+
+	if mmGetMember.defaultExpectation.params != nil {
+		mmGetMember.mock.t.Fatalf("ClientMock.GetMember mock is already set by Expect")
+	}
+
+	if mmGetMember.defaultExpectation.paramPtrs == nil {
+		mmGetMember.defaultExpectation.paramPtrs = &ClientMockGetMemberParamPtrs{}
+	}
+	mmGetMember.defaultExpectation.paramPtrs.userID = &userID
+	mmGetMember.defaultExpectation.expectationOrigins.originUserID = minimock.CallerInfo(1)
+
+	return mmGetMember
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetMember
+func (mmGetMember *mClientMockGetMember) Inspect(f func(ctx context.Context, userID string)) *mClientMockGetMember {
+	if mmGetMember.mock.inspectFuncGetMember != nil {
+		mmGetMember.mock.t.Fatalf("Inspect function is already set for ClientMock.GetMember")
+	}
+
+	mmGetMember.mock.inspectFuncGetMember = f
+
+	return mmGetMember
+}
+
+// Return sets up results that will be returned by Client.GetMember
+func (mmGetMember *mClientMockGetMember) Return(mp1 *Member, err error) *ClientMock {
+	if mmGetMember.mock.funcGetMember != nil {
+		mmGetMember.mock.t.Fatalf("ClientMock.GetMember mock is already set by Set")
+	}
+
+	if mmGetMember.defaultExpectation == nil {
+		mmGetMember.defaultExpectation = &ClientMockGetMemberExpectation{mock: mmGetMember.mock}
+	}
+	mmGetMember.defaultExpectation.results = &ClientMockGetMemberResults{mp1, err}
+	mmGetMember.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetMember.mock
+}
+
+// Set uses given function f to mock the Client.GetMember method
+func (mmGetMember *mClientMockGetMember) Set(f func(ctx context.Context, userID string) (mp1 *Member, err error)) *ClientMock {
+	if mmGetMember.defaultExpectation != nil {
+		mmGetMember.mock.t.Fatalf("Default expectation is already set for the Client.GetMember method")
+	}
+
+	if len(mmGetMember.expectations) > 0 {
+		mmGetMember.mock.t.Fatalf("Some expectations are already set for the Client.GetMember method")
+	}
+
+	mmGetMember.mock.funcGetMember = f
+	mmGetMember.mock.funcGetMemberOrigin = minimock.CallerInfo(1)
+	return mmGetMember.mock
+}
+
+// When sets expectation for the Client.GetMember which will trigger the result defined by the following
+// Then helper
+func (mmGetMember *mClientMockGetMember) When(ctx context.Context, userID string) *ClientMockGetMemberExpectation {
+	if mmGetMember.mock.funcGetMember != nil {
+		mmGetMember.mock.t.Fatalf("ClientMock.GetMember mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetMemberExpectation{
+		mock:               mmGetMember.mock,
+		params:             &ClientMockGetMemberParams{ctx, userID},
+		expectationOrigins: ClientMockGetMemberExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetMember.expectations = append(mmGetMember.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetMember return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetMemberExpectation) Then(mp1 *Member, err error) *ClientMock {
+	e.results = &ClientMockGetMemberResults{mp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetMember should be invoked
+func (mmGetMember *mClientMockGetMember) Times(n uint64) *mClientMockGetMember {
+	if n == 0 {
+		mmGetMember.mock.t.Fatalf("Times of ClientMock.GetMember mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetMember.expectedInvocations, n)
+	mmGetMember.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetMember
+}
+
+func (mmGetMember *mClientMockGetMember) invocationsDone() bool {
+	if len(mmGetMember.expectations) == 0 && mmGetMember.defaultExpectation == nil && mmGetMember.mock.funcGetMember == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetMember.mock.afterGetMemberCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetMember.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetMember implements Client
+func (mmGetMember *ClientMock) GetMember(ctx context.Context, userID string) (mp1 *Member, err error) {
+	mm_atomic.AddUint64(&mmGetMember.beforeGetMemberCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetMember.afterGetMemberCounter, 1)
+
+	mmGetMember.t.Helper()
+
+	if mmGetMember.inspectFuncGetMember != nil {
+		mmGetMember.inspectFuncGetMember(ctx, userID)
+	}
+
+	mm_params := ClientMockGetMemberParams{ctx, userID}
+
+	// Record call args
+	mmGetMember.GetMemberMock.mutex.Lock()
+	mmGetMember.GetMemberMock.callArgs = append(mmGetMember.GetMemberMock.callArgs, &mm_params)
+	mmGetMember.GetMemberMock.mutex.Unlock()
+
+	for _, e := range mmGetMember.GetMemberMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.mp1, e.results.err
+		}
+	}
+
+	if mmGetMember.GetMemberMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetMember.GetMemberMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetMember.GetMemberMock.defaultExpectation.params
+		mm_want_ptrs := mmGetMember.GetMemberMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetMemberParams{ctx, userID}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetMember.t.Errorf("ClientMock.GetMember got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetMember.GetMemberMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.userID != nil && !minimock.Equal(*mm_want_ptrs.userID, mm_got.userID) {
+				mmGetMember.t.Errorf("ClientMock.GetMember got unexpected parameter userID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetMember.GetMemberMock.defaultExpectation.expectationOrigins.originUserID, *mm_want_ptrs.userID, mm_got.userID, minimock.Diff(*mm_want_ptrs.userID, mm_got.userID))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetMember.t.Errorf("ClientMock.GetMember got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetMember.GetMemberMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetMember.GetMemberMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetMember.t.Fatal("No results are set for the ClientMock.GetMember")
+		}
+		return (*mm_results).mp1, (*mm_results).err
+	}
+	if mmGetMember.funcGetMember != nil {
+		return mmGetMember.funcGetMember(ctx, userID)
+	}
+	mmGetMember.t.Fatalf("Unexpected call to ClientMock.GetMember. %v %v", ctx, userID)
+	return
+}
+
+// GetMemberAfterCounter returns a count of finished ClientMock.GetMember invocations
+func (mmGetMember *ClientMock) GetMemberAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetMember.afterGetMemberCounter)
+}
+
+// GetMemberBeforeCounter returns a count of ClientMock.GetMember invocations
+func (mmGetMember *ClientMock) GetMemberBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetMember.beforeGetMemberCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetMember.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetMember *mClientMockGetMember) Calls() []*ClientMockGetMemberParams {
+	mmGetMember.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetMemberParams, len(mmGetMember.callArgs))
+	copy(argCopy, mmGetMember.callArgs)
+
+	mmGetMember.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetMemberDone returns true if the count of the GetMember invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetMemberDone() bool {
+	if m.GetMemberMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetMemberMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetMemberMock.invocationsDone()
+}
+
+// MinimockGetMemberInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetMemberInspect() {
+	for _, e := range m.GetMemberMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetMember at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetMemberCounter := mm_atomic.LoadUint64(&m.afterGetMemberCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetMemberMock.defaultExpectation != nil && afterGetMemberCounter < 1 {
+		if m.GetMemberMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetMember at\n%s", m.GetMemberMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetMember at\n%s with params: %#v", m.GetMemberMock.defaultExpectation.expectationOrigins.origin, *m.GetMemberMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetMember != nil && afterGetMemberCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetMember at\n%s", m.funcGetMemberOrigin)
+	}
+
+	if !m.GetMemberMock.invocationsDone() && afterGetMemberCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetMember at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetMemberMock.expectedInvocations), m.GetMemberMock.expectedInvocationsOrigin, afterGetMemberCounter)
+	}
+}
+
 type mClientMockGetOrgPrivateEndpointConfig struct {
 	optional           bool
 	mock               *ClientMock
@@ -7539,6 +8637,349 @@ func (m *ClientMock) MinimockGetReversePrivateEndpointPathInspect() {
 	}
 }
 
+type mClientMockGetRole struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetRoleExpectation
+	expectations       []*ClientMockGetRoleExpectation
+
+	callArgs []*ClientMockGetRoleParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetRoleExpectation specifies expectation struct of the Client.GetRole
+type ClientMockGetRoleExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetRoleParams
+	paramPtrs          *ClientMockGetRoleParamPtrs
+	expectationOrigins ClientMockGetRoleExpectationOrigins
+	results            *ClientMockGetRoleResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetRoleParams contains parameters of the Client.GetRole
+type ClientMockGetRoleParams struct {
+	ctx    context.Context
+	roleId string
+}
+
+// ClientMockGetRoleParamPtrs contains pointers to parameters of the Client.GetRole
+type ClientMockGetRoleParamPtrs struct {
+	ctx    *context.Context
+	roleId *string
+}
+
+// ClientMockGetRoleResults contains results of the Client.GetRole
+type ClientMockGetRoleResults struct {
+	rp1 *RBACRole
+	err error
+}
+
+// ClientMockGetRoleOrigins contains origins of expectations of the Client.GetRole
+type ClientMockGetRoleExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originRoleId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetRole *mClientMockGetRole) Optional() *mClientMockGetRole {
+	mmGetRole.optional = true
+	return mmGetRole
+}
+
+// Expect sets up expected params for Client.GetRole
+func (mmGetRole *mClientMockGetRole) Expect(ctx context.Context, roleId string) *mClientMockGetRole {
+	if mmGetRole.mock.funcGetRole != nil {
+		mmGetRole.mock.t.Fatalf("ClientMock.GetRole mock is already set by Set")
+	}
+
+	if mmGetRole.defaultExpectation == nil {
+		mmGetRole.defaultExpectation = &ClientMockGetRoleExpectation{}
+	}
+
+	if mmGetRole.defaultExpectation.paramPtrs != nil {
+		mmGetRole.mock.t.Fatalf("ClientMock.GetRole mock is already set by ExpectParams functions")
+	}
+
+	mmGetRole.defaultExpectation.params = &ClientMockGetRoleParams{ctx, roleId}
+	mmGetRole.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetRole.expectations {
+		if minimock.Equal(e.params, mmGetRole.defaultExpectation.params) {
+			mmGetRole.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetRole.defaultExpectation.params)
+		}
+	}
+
+	return mmGetRole
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetRole
+func (mmGetRole *mClientMockGetRole) ExpectCtxParam1(ctx context.Context) *mClientMockGetRole {
+	if mmGetRole.mock.funcGetRole != nil {
+		mmGetRole.mock.t.Fatalf("ClientMock.GetRole mock is already set by Set")
+	}
+
+	if mmGetRole.defaultExpectation == nil {
+		mmGetRole.defaultExpectation = &ClientMockGetRoleExpectation{}
+	}
+
+	if mmGetRole.defaultExpectation.params != nil {
+		mmGetRole.mock.t.Fatalf("ClientMock.GetRole mock is already set by Expect")
+	}
+
+	if mmGetRole.defaultExpectation.paramPtrs == nil {
+		mmGetRole.defaultExpectation.paramPtrs = &ClientMockGetRoleParamPtrs{}
+	}
+	mmGetRole.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetRole.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetRole
+}
+
+// ExpectRoleIdParam2 sets up expected param roleId for Client.GetRole
+func (mmGetRole *mClientMockGetRole) ExpectRoleIdParam2(roleId string) *mClientMockGetRole {
+	if mmGetRole.mock.funcGetRole != nil {
+		mmGetRole.mock.t.Fatalf("ClientMock.GetRole mock is already set by Set")
+	}
+
+	if mmGetRole.defaultExpectation == nil {
+		mmGetRole.defaultExpectation = &ClientMockGetRoleExpectation{}
+	}
+
+	if mmGetRole.defaultExpectation.params != nil {
+		mmGetRole.mock.t.Fatalf("ClientMock.GetRole mock is already set by Expect")
+	}
+
+	if mmGetRole.defaultExpectation.paramPtrs == nil {
+		mmGetRole.defaultExpectation.paramPtrs = &ClientMockGetRoleParamPtrs{}
+	}
+	mmGetRole.defaultExpectation.paramPtrs.roleId = &roleId
+	mmGetRole.defaultExpectation.expectationOrigins.originRoleId = minimock.CallerInfo(1)
+
+	return mmGetRole
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetRole
+func (mmGetRole *mClientMockGetRole) Inspect(f func(ctx context.Context, roleId string)) *mClientMockGetRole {
+	if mmGetRole.mock.inspectFuncGetRole != nil {
+		mmGetRole.mock.t.Fatalf("Inspect function is already set for ClientMock.GetRole")
+	}
+
+	mmGetRole.mock.inspectFuncGetRole = f
+
+	return mmGetRole
+}
+
+// Return sets up results that will be returned by Client.GetRole
+func (mmGetRole *mClientMockGetRole) Return(rp1 *RBACRole, err error) *ClientMock {
+	if mmGetRole.mock.funcGetRole != nil {
+		mmGetRole.mock.t.Fatalf("ClientMock.GetRole mock is already set by Set")
+	}
+
+	if mmGetRole.defaultExpectation == nil {
+		mmGetRole.defaultExpectation = &ClientMockGetRoleExpectation{mock: mmGetRole.mock}
+	}
+	mmGetRole.defaultExpectation.results = &ClientMockGetRoleResults{rp1, err}
+	mmGetRole.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetRole.mock
+}
+
+// Set uses given function f to mock the Client.GetRole method
+func (mmGetRole *mClientMockGetRole) Set(f func(ctx context.Context, roleId string) (rp1 *RBACRole, err error)) *ClientMock {
+	if mmGetRole.defaultExpectation != nil {
+		mmGetRole.mock.t.Fatalf("Default expectation is already set for the Client.GetRole method")
+	}
+
+	if len(mmGetRole.expectations) > 0 {
+		mmGetRole.mock.t.Fatalf("Some expectations are already set for the Client.GetRole method")
+	}
+
+	mmGetRole.mock.funcGetRole = f
+	mmGetRole.mock.funcGetRoleOrigin = minimock.CallerInfo(1)
+	return mmGetRole.mock
+}
+
+// When sets expectation for the Client.GetRole which will trigger the result defined by the following
+// Then helper
+func (mmGetRole *mClientMockGetRole) When(ctx context.Context, roleId string) *ClientMockGetRoleExpectation {
+	if mmGetRole.mock.funcGetRole != nil {
+		mmGetRole.mock.t.Fatalf("ClientMock.GetRole mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetRoleExpectation{
+		mock:               mmGetRole.mock,
+		params:             &ClientMockGetRoleParams{ctx, roleId},
+		expectationOrigins: ClientMockGetRoleExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetRole.expectations = append(mmGetRole.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetRole return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetRoleExpectation) Then(rp1 *RBACRole, err error) *ClientMock {
+	e.results = &ClientMockGetRoleResults{rp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetRole should be invoked
+func (mmGetRole *mClientMockGetRole) Times(n uint64) *mClientMockGetRole {
+	if n == 0 {
+		mmGetRole.mock.t.Fatalf("Times of ClientMock.GetRole mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetRole.expectedInvocations, n)
+	mmGetRole.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetRole
+}
+
+func (mmGetRole *mClientMockGetRole) invocationsDone() bool {
+	if len(mmGetRole.expectations) == 0 && mmGetRole.defaultExpectation == nil && mmGetRole.mock.funcGetRole == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetRole.mock.afterGetRoleCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetRole.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetRole implements Client
+func (mmGetRole *ClientMock) GetRole(ctx context.Context, roleId string) (rp1 *RBACRole, err error) {
+	mm_atomic.AddUint64(&mmGetRole.beforeGetRoleCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetRole.afterGetRoleCounter, 1)
+
+	mmGetRole.t.Helper()
+
+	if mmGetRole.inspectFuncGetRole != nil {
+		mmGetRole.inspectFuncGetRole(ctx, roleId)
+	}
+
+	mm_params := ClientMockGetRoleParams{ctx, roleId}
+
+	// Record call args
+	mmGetRole.GetRoleMock.mutex.Lock()
+	mmGetRole.GetRoleMock.callArgs = append(mmGetRole.GetRoleMock.callArgs, &mm_params)
+	mmGetRole.GetRoleMock.mutex.Unlock()
+
+	for _, e := range mmGetRole.GetRoleMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.rp1, e.results.err
+		}
+	}
+
+	if mmGetRole.GetRoleMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetRole.GetRoleMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetRole.GetRoleMock.defaultExpectation.params
+		mm_want_ptrs := mmGetRole.GetRoleMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetRoleParams{ctx, roleId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetRole.t.Errorf("ClientMock.GetRole got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetRole.GetRoleMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.roleId != nil && !minimock.Equal(*mm_want_ptrs.roleId, mm_got.roleId) {
+				mmGetRole.t.Errorf("ClientMock.GetRole got unexpected parameter roleId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetRole.GetRoleMock.defaultExpectation.expectationOrigins.originRoleId, *mm_want_ptrs.roleId, mm_got.roleId, minimock.Diff(*mm_want_ptrs.roleId, mm_got.roleId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetRole.t.Errorf("ClientMock.GetRole got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetRole.GetRoleMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetRole.GetRoleMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetRole.t.Fatal("No results are set for the ClientMock.GetRole")
+		}
+		return (*mm_results).rp1, (*mm_results).err
+	}
+	if mmGetRole.funcGetRole != nil {
+		return mmGetRole.funcGetRole(ctx, roleId)
+	}
+	mmGetRole.t.Fatalf("Unexpected call to ClientMock.GetRole. %v %v", ctx, roleId)
+	return
+}
+
+// GetRoleAfterCounter returns a count of finished ClientMock.GetRole invocations
+func (mmGetRole *ClientMock) GetRoleAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetRole.afterGetRoleCounter)
+}
+
+// GetRoleBeforeCounter returns a count of ClientMock.GetRole invocations
+func (mmGetRole *ClientMock) GetRoleBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetRole.beforeGetRoleCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetRole.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetRole *mClientMockGetRole) Calls() []*ClientMockGetRoleParams {
+	mmGetRole.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetRoleParams, len(mmGetRole.callArgs))
+	copy(argCopy, mmGetRole.callArgs)
+
+	mmGetRole.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetRoleDone returns true if the count of the GetRole invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetRoleDone() bool {
+	if m.GetRoleMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetRoleMock.invocationsDone()
+}
+
+// MinimockGetRoleInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetRoleInspect() {
+	for _, e := range m.GetRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetRole at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetRoleCounter := mm_atomic.LoadUint64(&m.afterGetRoleCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetRoleMock.defaultExpectation != nil && afterGetRoleCounter < 1 {
+		if m.GetRoleMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetRole at\n%s", m.GetRoleMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetRole at\n%s with params: %#v", m.GetRoleMock.defaultExpectation.expectationOrigins.origin, *m.GetRoleMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetRole != nil && afterGetRoleCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetRole at\n%s", m.funcGetRoleOrigin)
+	}
+
+	if !m.GetRoleMock.invocationsDone() && afterGetRoleCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetRole at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetRoleMock.expectedInvocations), m.GetRoleMock.expectedInvocationsOrigin, afterGetRoleCounter)
+	}
+}
+
 type mClientMockGetService struct {
 	optional           bool
 	mock               *ClientMock
@@ -7882,6 +9323,318 @@ func (m *ClientMock) MinimockGetServiceInspect() {
 	}
 }
 
+type mClientMockListMembers struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListMembersExpectation
+	expectations       []*ClientMockListMembersExpectation
+
+	callArgs []*ClientMockListMembersParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListMembersExpectation specifies expectation struct of the Client.ListMembers
+type ClientMockListMembersExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListMembersParams
+	paramPtrs          *ClientMockListMembersParamPtrs
+	expectationOrigins ClientMockListMembersExpectationOrigins
+	results            *ClientMockListMembersResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListMembersParams contains parameters of the Client.ListMembers
+type ClientMockListMembersParams struct {
+	ctx context.Context
+}
+
+// ClientMockListMembersParamPtrs contains pointers to parameters of the Client.ListMembers
+type ClientMockListMembersParamPtrs struct {
+	ctx *context.Context
+}
+
+// ClientMockListMembersResults contains results of the Client.ListMembers
+type ClientMockListMembersResults struct {
+	ma1 []Member
+	err error
+}
+
+// ClientMockListMembersOrigins contains origins of expectations of the Client.ListMembers
+type ClientMockListMembersExpectationOrigins struct {
+	origin    string
+	originCtx string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListMembers *mClientMockListMembers) Optional() *mClientMockListMembers {
+	mmListMembers.optional = true
+	return mmListMembers
+}
+
+// Expect sets up expected params for Client.ListMembers
+func (mmListMembers *mClientMockListMembers) Expect(ctx context.Context) *mClientMockListMembers {
+	if mmListMembers.mock.funcListMembers != nil {
+		mmListMembers.mock.t.Fatalf("ClientMock.ListMembers mock is already set by Set")
+	}
+
+	if mmListMembers.defaultExpectation == nil {
+		mmListMembers.defaultExpectation = &ClientMockListMembersExpectation{}
+	}
+
+	if mmListMembers.defaultExpectation.paramPtrs != nil {
+		mmListMembers.mock.t.Fatalf("ClientMock.ListMembers mock is already set by ExpectParams functions")
+	}
+
+	mmListMembers.defaultExpectation.params = &ClientMockListMembersParams{ctx}
+	mmListMembers.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListMembers.expectations {
+		if minimock.Equal(e.params, mmListMembers.defaultExpectation.params) {
+			mmListMembers.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListMembers.defaultExpectation.params)
+		}
+	}
+
+	return mmListMembers
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListMembers
+func (mmListMembers *mClientMockListMembers) ExpectCtxParam1(ctx context.Context) *mClientMockListMembers {
+	if mmListMembers.mock.funcListMembers != nil {
+		mmListMembers.mock.t.Fatalf("ClientMock.ListMembers mock is already set by Set")
+	}
+
+	if mmListMembers.defaultExpectation == nil {
+		mmListMembers.defaultExpectation = &ClientMockListMembersExpectation{}
+	}
+
+	if mmListMembers.defaultExpectation.params != nil {
+		mmListMembers.mock.t.Fatalf("ClientMock.ListMembers mock is already set by Expect")
+	}
+
+	if mmListMembers.defaultExpectation.paramPtrs == nil {
+		mmListMembers.defaultExpectation.paramPtrs = &ClientMockListMembersParamPtrs{}
+	}
+	mmListMembers.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListMembers.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListMembers
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListMembers
+func (mmListMembers *mClientMockListMembers) Inspect(f func(ctx context.Context)) *mClientMockListMembers {
+	if mmListMembers.mock.inspectFuncListMembers != nil {
+		mmListMembers.mock.t.Fatalf("Inspect function is already set for ClientMock.ListMembers")
+	}
+
+	mmListMembers.mock.inspectFuncListMembers = f
+
+	return mmListMembers
+}
+
+// Return sets up results that will be returned by Client.ListMembers
+func (mmListMembers *mClientMockListMembers) Return(ma1 []Member, err error) *ClientMock {
+	if mmListMembers.mock.funcListMembers != nil {
+		mmListMembers.mock.t.Fatalf("ClientMock.ListMembers mock is already set by Set")
+	}
+
+	if mmListMembers.defaultExpectation == nil {
+		mmListMembers.defaultExpectation = &ClientMockListMembersExpectation{mock: mmListMembers.mock}
+	}
+	mmListMembers.defaultExpectation.results = &ClientMockListMembersResults{ma1, err}
+	mmListMembers.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListMembers.mock
+}
+
+// Set uses given function f to mock the Client.ListMembers method
+func (mmListMembers *mClientMockListMembers) Set(f func(ctx context.Context) (ma1 []Member, err error)) *ClientMock {
+	if mmListMembers.defaultExpectation != nil {
+		mmListMembers.mock.t.Fatalf("Default expectation is already set for the Client.ListMembers method")
+	}
+
+	if len(mmListMembers.expectations) > 0 {
+		mmListMembers.mock.t.Fatalf("Some expectations are already set for the Client.ListMembers method")
+	}
+
+	mmListMembers.mock.funcListMembers = f
+	mmListMembers.mock.funcListMembersOrigin = minimock.CallerInfo(1)
+	return mmListMembers.mock
+}
+
+// When sets expectation for the Client.ListMembers which will trigger the result defined by the following
+// Then helper
+func (mmListMembers *mClientMockListMembers) When(ctx context.Context) *ClientMockListMembersExpectation {
+	if mmListMembers.mock.funcListMembers != nil {
+		mmListMembers.mock.t.Fatalf("ClientMock.ListMembers mock is already set by Set")
+	}
+
+	expectation := &ClientMockListMembersExpectation{
+		mock:               mmListMembers.mock,
+		params:             &ClientMockListMembersParams{ctx},
+		expectationOrigins: ClientMockListMembersExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListMembers.expectations = append(mmListMembers.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListMembers return parameters for the expectation previously defined by the When method
+func (e *ClientMockListMembersExpectation) Then(ma1 []Member, err error) *ClientMock {
+	e.results = &ClientMockListMembersResults{ma1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListMembers should be invoked
+func (mmListMembers *mClientMockListMembers) Times(n uint64) *mClientMockListMembers {
+	if n == 0 {
+		mmListMembers.mock.t.Fatalf("Times of ClientMock.ListMembers mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListMembers.expectedInvocations, n)
+	mmListMembers.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListMembers
+}
+
+func (mmListMembers *mClientMockListMembers) invocationsDone() bool {
+	if len(mmListMembers.expectations) == 0 && mmListMembers.defaultExpectation == nil && mmListMembers.mock.funcListMembers == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListMembers.mock.afterListMembersCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListMembers.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListMembers implements Client
+func (mmListMembers *ClientMock) ListMembers(ctx context.Context) (ma1 []Member, err error) {
+	mm_atomic.AddUint64(&mmListMembers.beforeListMembersCounter, 1)
+	defer mm_atomic.AddUint64(&mmListMembers.afterListMembersCounter, 1)
+
+	mmListMembers.t.Helper()
+
+	if mmListMembers.inspectFuncListMembers != nil {
+		mmListMembers.inspectFuncListMembers(ctx)
+	}
+
+	mm_params := ClientMockListMembersParams{ctx}
+
+	// Record call args
+	mmListMembers.ListMembersMock.mutex.Lock()
+	mmListMembers.ListMembersMock.callArgs = append(mmListMembers.ListMembersMock.callArgs, &mm_params)
+	mmListMembers.ListMembersMock.mutex.Unlock()
+
+	for _, e := range mmListMembers.ListMembersMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ma1, e.results.err
+		}
+	}
+
+	if mmListMembers.ListMembersMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListMembers.ListMembersMock.defaultExpectation.Counter, 1)
+		mm_want := mmListMembers.ListMembersMock.defaultExpectation.params
+		mm_want_ptrs := mmListMembers.ListMembersMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListMembersParams{ctx}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListMembers.t.Errorf("ClientMock.ListMembers got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListMembers.ListMembersMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListMembers.t.Errorf("ClientMock.ListMembers got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListMembers.ListMembersMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListMembers.ListMembersMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListMembers.t.Fatal("No results are set for the ClientMock.ListMembers")
+		}
+		return (*mm_results).ma1, (*mm_results).err
+	}
+	if mmListMembers.funcListMembers != nil {
+		return mmListMembers.funcListMembers(ctx)
+	}
+	mmListMembers.t.Fatalf("Unexpected call to ClientMock.ListMembers. %v", ctx)
+	return
+}
+
+// ListMembersAfterCounter returns a count of finished ClientMock.ListMembers invocations
+func (mmListMembers *ClientMock) ListMembersAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListMembers.afterListMembersCounter)
+}
+
+// ListMembersBeforeCounter returns a count of ClientMock.ListMembers invocations
+func (mmListMembers *ClientMock) ListMembersBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListMembers.beforeListMembersCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListMembers.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListMembers *mClientMockListMembers) Calls() []*ClientMockListMembersParams {
+	mmListMembers.mutex.RLock()
+
+	argCopy := make([]*ClientMockListMembersParams, len(mmListMembers.callArgs))
+	copy(argCopy, mmListMembers.callArgs)
+
+	mmListMembers.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListMembersDone returns true if the count of the ListMembers invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListMembersDone() bool {
+	if m.ListMembersMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListMembersMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListMembersMock.invocationsDone()
+}
+
+// MinimockListMembersInspect logs each unmet expectation
+func (m *ClientMock) MinimockListMembersInspect() {
+	for _, e := range m.ListMembersMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListMembers at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListMembersCounter := mm_atomic.LoadUint64(&m.afterListMembersCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListMembersMock.defaultExpectation != nil && afterListMembersCounter < 1 {
+		if m.ListMembersMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListMembers at\n%s", m.ListMembersMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListMembers at\n%s with params: %#v", m.ListMembersMock.defaultExpectation.expectationOrigins.origin, *m.ListMembersMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListMembers != nil && afterListMembersCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListMembers at\n%s", m.funcListMembersOrigin)
+	}
+
+	if !m.ListMembersMock.invocationsDone() && afterListMembersCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListMembers at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListMembersMock.expectedInvocations), m.ListMembersMock.expectedInvocationsOrigin, afterListMembersCounter)
+	}
+}
+
 type mClientMockListReversePrivateEndpoints struct {
 	optional           bool
 	mock               *ClientMock
@@ -8222,6 +9975,318 @@ func (m *ClientMock) MinimockListReversePrivateEndpointsInspect() {
 	if !m.ListReversePrivateEndpointsMock.invocationsDone() && afterListReversePrivateEndpointsCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ListReversePrivateEndpoints at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ListReversePrivateEndpointsMock.expectedInvocations), m.ListReversePrivateEndpointsMock.expectedInvocationsOrigin, afterListReversePrivateEndpointsCounter)
+	}
+}
+
+type mClientMockListRoles struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListRolesExpectation
+	expectations       []*ClientMockListRolesExpectation
+
+	callArgs []*ClientMockListRolesParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListRolesExpectation specifies expectation struct of the Client.ListRoles
+type ClientMockListRolesExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListRolesParams
+	paramPtrs          *ClientMockListRolesParamPtrs
+	expectationOrigins ClientMockListRolesExpectationOrigins
+	results            *ClientMockListRolesResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListRolesParams contains parameters of the Client.ListRoles
+type ClientMockListRolesParams struct {
+	ctx context.Context
+}
+
+// ClientMockListRolesParamPtrs contains pointers to parameters of the Client.ListRoles
+type ClientMockListRolesParamPtrs struct {
+	ctx *context.Context
+}
+
+// ClientMockListRolesResults contains results of the Client.ListRoles
+type ClientMockListRolesResults struct {
+	ra1 []RBACRole
+	err error
+}
+
+// ClientMockListRolesOrigins contains origins of expectations of the Client.ListRoles
+type ClientMockListRolesExpectationOrigins struct {
+	origin    string
+	originCtx string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListRoles *mClientMockListRoles) Optional() *mClientMockListRoles {
+	mmListRoles.optional = true
+	return mmListRoles
+}
+
+// Expect sets up expected params for Client.ListRoles
+func (mmListRoles *mClientMockListRoles) Expect(ctx context.Context) *mClientMockListRoles {
+	if mmListRoles.mock.funcListRoles != nil {
+		mmListRoles.mock.t.Fatalf("ClientMock.ListRoles mock is already set by Set")
+	}
+
+	if mmListRoles.defaultExpectation == nil {
+		mmListRoles.defaultExpectation = &ClientMockListRolesExpectation{}
+	}
+
+	if mmListRoles.defaultExpectation.paramPtrs != nil {
+		mmListRoles.mock.t.Fatalf("ClientMock.ListRoles mock is already set by ExpectParams functions")
+	}
+
+	mmListRoles.defaultExpectation.params = &ClientMockListRolesParams{ctx}
+	mmListRoles.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListRoles.expectations {
+		if minimock.Equal(e.params, mmListRoles.defaultExpectation.params) {
+			mmListRoles.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListRoles.defaultExpectation.params)
+		}
+	}
+
+	return mmListRoles
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListRoles
+func (mmListRoles *mClientMockListRoles) ExpectCtxParam1(ctx context.Context) *mClientMockListRoles {
+	if mmListRoles.mock.funcListRoles != nil {
+		mmListRoles.mock.t.Fatalf("ClientMock.ListRoles mock is already set by Set")
+	}
+
+	if mmListRoles.defaultExpectation == nil {
+		mmListRoles.defaultExpectation = &ClientMockListRolesExpectation{}
+	}
+
+	if mmListRoles.defaultExpectation.params != nil {
+		mmListRoles.mock.t.Fatalf("ClientMock.ListRoles mock is already set by Expect")
+	}
+
+	if mmListRoles.defaultExpectation.paramPtrs == nil {
+		mmListRoles.defaultExpectation.paramPtrs = &ClientMockListRolesParamPtrs{}
+	}
+	mmListRoles.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListRoles.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListRoles
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListRoles
+func (mmListRoles *mClientMockListRoles) Inspect(f func(ctx context.Context)) *mClientMockListRoles {
+	if mmListRoles.mock.inspectFuncListRoles != nil {
+		mmListRoles.mock.t.Fatalf("Inspect function is already set for ClientMock.ListRoles")
+	}
+
+	mmListRoles.mock.inspectFuncListRoles = f
+
+	return mmListRoles
+}
+
+// Return sets up results that will be returned by Client.ListRoles
+func (mmListRoles *mClientMockListRoles) Return(ra1 []RBACRole, err error) *ClientMock {
+	if mmListRoles.mock.funcListRoles != nil {
+		mmListRoles.mock.t.Fatalf("ClientMock.ListRoles mock is already set by Set")
+	}
+
+	if mmListRoles.defaultExpectation == nil {
+		mmListRoles.defaultExpectation = &ClientMockListRolesExpectation{mock: mmListRoles.mock}
+	}
+	mmListRoles.defaultExpectation.results = &ClientMockListRolesResults{ra1, err}
+	mmListRoles.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListRoles.mock
+}
+
+// Set uses given function f to mock the Client.ListRoles method
+func (mmListRoles *mClientMockListRoles) Set(f func(ctx context.Context) (ra1 []RBACRole, err error)) *ClientMock {
+	if mmListRoles.defaultExpectation != nil {
+		mmListRoles.mock.t.Fatalf("Default expectation is already set for the Client.ListRoles method")
+	}
+
+	if len(mmListRoles.expectations) > 0 {
+		mmListRoles.mock.t.Fatalf("Some expectations are already set for the Client.ListRoles method")
+	}
+
+	mmListRoles.mock.funcListRoles = f
+	mmListRoles.mock.funcListRolesOrigin = minimock.CallerInfo(1)
+	return mmListRoles.mock
+}
+
+// When sets expectation for the Client.ListRoles which will trigger the result defined by the following
+// Then helper
+func (mmListRoles *mClientMockListRoles) When(ctx context.Context) *ClientMockListRolesExpectation {
+	if mmListRoles.mock.funcListRoles != nil {
+		mmListRoles.mock.t.Fatalf("ClientMock.ListRoles mock is already set by Set")
+	}
+
+	expectation := &ClientMockListRolesExpectation{
+		mock:               mmListRoles.mock,
+		params:             &ClientMockListRolesParams{ctx},
+		expectationOrigins: ClientMockListRolesExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListRoles.expectations = append(mmListRoles.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListRoles return parameters for the expectation previously defined by the When method
+func (e *ClientMockListRolesExpectation) Then(ra1 []RBACRole, err error) *ClientMock {
+	e.results = &ClientMockListRolesResults{ra1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListRoles should be invoked
+func (mmListRoles *mClientMockListRoles) Times(n uint64) *mClientMockListRoles {
+	if n == 0 {
+		mmListRoles.mock.t.Fatalf("Times of ClientMock.ListRoles mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListRoles.expectedInvocations, n)
+	mmListRoles.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListRoles
+}
+
+func (mmListRoles *mClientMockListRoles) invocationsDone() bool {
+	if len(mmListRoles.expectations) == 0 && mmListRoles.defaultExpectation == nil && mmListRoles.mock.funcListRoles == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListRoles.mock.afterListRolesCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListRoles.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListRoles implements Client
+func (mmListRoles *ClientMock) ListRoles(ctx context.Context) (ra1 []RBACRole, err error) {
+	mm_atomic.AddUint64(&mmListRoles.beforeListRolesCounter, 1)
+	defer mm_atomic.AddUint64(&mmListRoles.afterListRolesCounter, 1)
+
+	mmListRoles.t.Helper()
+
+	if mmListRoles.inspectFuncListRoles != nil {
+		mmListRoles.inspectFuncListRoles(ctx)
+	}
+
+	mm_params := ClientMockListRolesParams{ctx}
+
+	// Record call args
+	mmListRoles.ListRolesMock.mutex.Lock()
+	mmListRoles.ListRolesMock.callArgs = append(mmListRoles.ListRolesMock.callArgs, &mm_params)
+	mmListRoles.ListRolesMock.mutex.Unlock()
+
+	for _, e := range mmListRoles.ListRolesMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ra1, e.results.err
+		}
+	}
+
+	if mmListRoles.ListRolesMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListRoles.ListRolesMock.defaultExpectation.Counter, 1)
+		mm_want := mmListRoles.ListRolesMock.defaultExpectation.params
+		mm_want_ptrs := mmListRoles.ListRolesMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListRolesParams{ctx}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListRoles.t.Errorf("ClientMock.ListRoles got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListRoles.ListRolesMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListRoles.t.Errorf("ClientMock.ListRoles got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListRoles.ListRolesMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListRoles.ListRolesMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListRoles.t.Fatal("No results are set for the ClientMock.ListRoles")
+		}
+		return (*mm_results).ra1, (*mm_results).err
+	}
+	if mmListRoles.funcListRoles != nil {
+		return mmListRoles.funcListRoles(ctx)
+	}
+	mmListRoles.t.Fatalf("Unexpected call to ClientMock.ListRoles. %v", ctx)
+	return
+}
+
+// ListRolesAfterCounter returns a count of finished ClientMock.ListRoles invocations
+func (mmListRoles *ClientMock) ListRolesAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListRoles.afterListRolesCounter)
+}
+
+// ListRolesBeforeCounter returns a count of ClientMock.ListRoles invocations
+func (mmListRoles *ClientMock) ListRolesBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListRoles.beforeListRolesCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListRoles.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListRoles *mClientMockListRoles) Calls() []*ClientMockListRolesParams {
+	mmListRoles.mutex.RLock()
+
+	argCopy := make([]*ClientMockListRolesParams, len(mmListRoles.callArgs))
+	copy(argCopy, mmListRoles.callArgs)
+
+	mmListRoles.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListRolesDone returns true if the count of the ListRoles invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListRolesDone() bool {
+	if m.ListRolesMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListRolesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListRolesMock.invocationsDone()
+}
+
+// MinimockListRolesInspect logs each unmet expectation
+func (m *ClientMock) MinimockListRolesInspect() {
+	for _, e := range m.ListRolesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListRoles at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListRolesCounter := mm_atomic.LoadUint64(&m.afterListRolesCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListRolesMock.defaultExpectation != nil && afterListRolesCounter < 1 {
+		if m.ListRolesMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListRoles at\n%s", m.ListRolesMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListRoles at\n%s with params: %#v", m.ListRolesMock.defaultExpectation.expectationOrigins.origin, *m.ListRolesMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListRoles != nil && afterListRolesCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListRoles at\n%s", m.funcListRolesOrigin)
+	}
+
+	if !m.ListRolesMock.invocationsDone() && afterListRolesCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListRoles at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListRolesMock.expectedInvocations), m.ListRolesMock.expectedInvocationsOrigin, afterListRolesCounter)
 	}
 }
 
@@ -11621,6 +13686,380 @@ func (m *ClientMock) MinimockUpdateReplicaScalingInspect() {
 	}
 }
 
+type mClientMockUpdateRole struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateRoleExpectation
+	expectations       []*ClientMockUpdateRoleExpectation
+
+	callArgs []*ClientMockUpdateRoleParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateRoleExpectation specifies expectation struct of the Client.UpdateRole
+type ClientMockUpdateRoleExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateRoleParams
+	paramPtrs          *ClientMockUpdateRoleParamPtrs
+	expectationOrigins ClientMockUpdateRoleExpectationOrigins
+	results            *ClientMockUpdateRoleResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateRoleParams contains parameters of the Client.UpdateRole
+type ClientMockUpdateRoleParams struct {
+	ctx    context.Context
+	roleId string
+	req    RoleUpdateRequest
+}
+
+// ClientMockUpdateRoleParamPtrs contains pointers to parameters of the Client.UpdateRole
+type ClientMockUpdateRoleParamPtrs struct {
+	ctx    *context.Context
+	roleId *string
+	req    *RoleUpdateRequest
+}
+
+// ClientMockUpdateRoleResults contains results of the Client.UpdateRole
+type ClientMockUpdateRoleResults struct {
+	rp1 *RBACRole
+	err error
+}
+
+// ClientMockUpdateRoleOrigins contains origins of expectations of the Client.UpdateRole
+type ClientMockUpdateRoleExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originRoleId string
+	originReq    string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateRole *mClientMockUpdateRole) Optional() *mClientMockUpdateRole {
+	mmUpdateRole.optional = true
+	return mmUpdateRole
+}
+
+// Expect sets up expected params for Client.UpdateRole
+func (mmUpdateRole *mClientMockUpdateRole) Expect(ctx context.Context, roleId string, req RoleUpdateRequest) *mClientMockUpdateRole {
+	if mmUpdateRole.mock.funcUpdateRole != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by Set")
+	}
+
+	if mmUpdateRole.defaultExpectation == nil {
+		mmUpdateRole.defaultExpectation = &ClientMockUpdateRoleExpectation{}
+	}
+
+	if mmUpdateRole.defaultExpectation.paramPtrs != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateRole.defaultExpectation.params = &ClientMockUpdateRoleParams{ctx, roleId, req}
+	mmUpdateRole.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateRole.expectations {
+		if minimock.Equal(e.params, mmUpdateRole.defaultExpectation.params) {
+			mmUpdateRole.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateRole.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateRole
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateRole
+func (mmUpdateRole *mClientMockUpdateRole) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateRole {
+	if mmUpdateRole.mock.funcUpdateRole != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by Set")
+	}
+
+	if mmUpdateRole.defaultExpectation == nil {
+		mmUpdateRole.defaultExpectation = &ClientMockUpdateRoleExpectation{}
+	}
+
+	if mmUpdateRole.defaultExpectation.params != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by Expect")
+	}
+
+	if mmUpdateRole.defaultExpectation.paramPtrs == nil {
+		mmUpdateRole.defaultExpectation.paramPtrs = &ClientMockUpdateRoleParamPtrs{}
+	}
+	mmUpdateRole.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateRole.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateRole
+}
+
+// ExpectRoleIdParam2 sets up expected param roleId for Client.UpdateRole
+func (mmUpdateRole *mClientMockUpdateRole) ExpectRoleIdParam2(roleId string) *mClientMockUpdateRole {
+	if mmUpdateRole.mock.funcUpdateRole != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by Set")
+	}
+
+	if mmUpdateRole.defaultExpectation == nil {
+		mmUpdateRole.defaultExpectation = &ClientMockUpdateRoleExpectation{}
+	}
+
+	if mmUpdateRole.defaultExpectation.params != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by Expect")
+	}
+
+	if mmUpdateRole.defaultExpectation.paramPtrs == nil {
+		mmUpdateRole.defaultExpectation.paramPtrs = &ClientMockUpdateRoleParamPtrs{}
+	}
+	mmUpdateRole.defaultExpectation.paramPtrs.roleId = &roleId
+	mmUpdateRole.defaultExpectation.expectationOrigins.originRoleId = minimock.CallerInfo(1)
+
+	return mmUpdateRole
+}
+
+// ExpectReqParam3 sets up expected param req for Client.UpdateRole
+func (mmUpdateRole *mClientMockUpdateRole) ExpectReqParam3(req RoleUpdateRequest) *mClientMockUpdateRole {
+	if mmUpdateRole.mock.funcUpdateRole != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by Set")
+	}
+
+	if mmUpdateRole.defaultExpectation == nil {
+		mmUpdateRole.defaultExpectation = &ClientMockUpdateRoleExpectation{}
+	}
+
+	if mmUpdateRole.defaultExpectation.params != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by Expect")
+	}
+
+	if mmUpdateRole.defaultExpectation.paramPtrs == nil {
+		mmUpdateRole.defaultExpectation.paramPtrs = &ClientMockUpdateRoleParamPtrs{}
+	}
+	mmUpdateRole.defaultExpectation.paramPtrs.req = &req
+	mmUpdateRole.defaultExpectation.expectationOrigins.originReq = minimock.CallerInfo(1)
+
+	return mmUpdateRole
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateRole
+func (mmUpdateRole *mClientMockUpdateRole) Inspect(f func(ctx context.Context, roleId string, req RoleUpdateRequest)) *mClientMockUpdateRole {
+	if mmUpdateRole.mock.inspectFuncUpdateRole != nil {
+		mmUpdateRole.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateRole")
+	}
+
+	mmUpdateRole.mock.inspectFuncUpdateRole = f
+
+	return mmUpdateRole
+}
+
+// Return sets up results that will be returned by Client.UpdateRole
+func (mmUpdateRole *mClientMockUpdateRole) Return(rp1 *RBACRole, err error) *ClientMock {
+	if mmUpdateRole.mock.funcUpdateRole != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by Set")
+	}
+
+	if mmUpdateRole.defaultExpectation == nil {
+		mmUpdateRole.defaultExpectation = &ClientMockUpdateRoleExpectation{mock: mmUpdateRole.mock}
+	}
+	mmUpdateRole.defaultExpectation.results = &ClientMockUpdateRoleResults{rp1, err}
+	mmUpdateRole.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateRole.mock
+}
+
+// Set uses given function f to mock the Client.UpdateRole method
+func (mmUpdateRole *mClientMockUpdateRole) Set(f func(ctx context.Context, roleId string, req RoleUpdateRequest) (rp1 *RBACRole, err error)) *ClientMock {
+	if mmUpdateRole.defaultExpectation != nil {
+		mmUpdateRole.mock.t.Fatalf("Default expectation is already set for the Client.UpdateRole method")
+	}
+
+	if len(mmUpdateRole.expectations) > 0 {
+		mmUpdateRole.mock.t.Fatalf("Some expectations are already set for the Client.UpdateRole method")
+	}
+
+	mmUpdateRole.mock.funcUpdateRole = f
+	mmUpdateRole.mock.funcUpdateRoleOrigin = minimock.CallerInfo(1)
+	return mmUpdateRole.mock
+}
+
+// When sets expectation for the Client.UpdateRole which will trigger the result defined by the following
+// Then helper
+func (mmUpdateRole *mClientMockUpdateRole) When(ctx context.Context, roleId string, req RoleUpdateRequest) *ClientMockUpdateRoleExpectation {
+	if mmUpdateRole.mock.funcUpdateRole != nil {
+		mmUpdateRole.mock.t.Fatalf("ClientMock.UpdateRole mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateRoleExpectation{
+		mock:               mmUpdateRole.mock,
+		params:             &ClientMockUpdateRoleParams{ctx, roleId, req},
+		expectationOrigins: ClientMockUpdateRoleExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateRole.expectations = append(mmUpdateRole.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateRole return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateRoleExpectation) Then(rp1 *RBACRole, err error) *ClientMock {
+	e.results = &ClientMockUpdateRoleResults{rp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateRole should be invoked
+func (mmUpdateRole *mClientMockUpdateRole) Times(n uint64) *mClientMockUpdateRole {
+	if n == 0 {
+		mmUpdateRole.mock.t.Fatalf("Times of ClientMock.UpdateRole mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateRole.expectedInvocations, n)
+	mmUpdateRole.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateRole
+}
+
+func (mmUpdateRole *mClientMockUpdateRole) invocationsDone() bool {
+	if len(mmUpdateRole.expectations) == 0 && mmUpdateRole.defaultExpectation == nil && mmUpdateRole.mock.funcUpdateRole == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateRole.mock.afterUpdateRoleCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateRole.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateRole implements Client
+func (mmUpdateRole *ClientMock) UpdateRole(ctx context.Context, roleId string, req RoleUpdateRequest) (rp1 *RBACRole, err error) {
+	mm_atomic.AddUint64(&mmUpdateRole.beforeUpdateRoleCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateRole.afterUpdateRoleCounter, 1)
+
+	mmUpdateRole.t.Helper()
+
+	if mmUpdateRole.inspectFuncUpdateRole != nil {
+		mmUpdateRole.inspectFuncUpdateRole(ctx, roleId, req)
+	}
+
+	mm_params := ClientMockUpdateRoleParams{ctx, roleId, req}
+
+	// Record call args
+	mmUpdateRole.UpdateRoleMock.mutex.Lock()
+	mmUpdateRole.UpdateRoleMock.callArgs = append(mmUpdateRole.UpdateRoleMock.callArgs, &mm_params)
+	mmUpdateRole.UpdateRoleMock.mutex.Unlock()
+
+	for _, e := range mmUpdateRole.UpdateRoleMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.rp1, e.results.err
+		}
+	}
+
+	if mmUpdateRole.UpdateRoleMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateRole.UpdateRoleMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateRole.UpdateRoleMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateRole.UpdateRoleMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateRoleParams{ctx, roleId, req}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateRole.t.Errorf("ClientMock.UpdateRole got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateRole.UpdateRoleMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.roleId != nil && !minimock.Equal(*mm_want_ptrs.roleId, mm_got.roleId) {
+				mmUpdateRole.t.Errorf("ClientMock.UpdateRole got unexpected parameter roleId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateRole.UpdateRoleMock.defaultExpectation.expectationOrigins.originRoleId, *mm_want_ptrs.roleId, mm_got.roleId, minimock.Diff(*mm_want_ptrs.roleId, mm_got.roleId))
+			}
+
+			if mm_want_ptrs.req != nil && !minimock.Equal(*mm_want_ptrs.req, mm_got.req) {
+				mmUpdateRole.t.Errorf("ClientMock.UpdateRole got unexpected parameter req, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateRole.UpdateRoleMock.defaultExpectation.expectationOrigins.originReq, *mm_want_ptrs.req, mm_got.req, minimock.Diff(*mm_want_ptrs.req, mm_got.req))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateRole.t.Errorf("ClientMock.UpdateRole got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateRole.UpdateRoleMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateRole.UpdateRoleMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateRole.t.Fatal("No results are set for the ClientMock.UpdateRole")
+		}
+		return (*mm_results).rp1, (*mm_results).err
+	}
+	if mmUpdateRole.funcUpdateRole != nil {
+		return mmUpdateRole.funcUpdateRole(ctx, roleId, req)
+	}
+	mmUpdateRole.t.Fatalf("Unexpected call to ClientMock.UpdateRole. %v %v %v", ctx, roleId, req)
+	return
+}
+
+// UpdateRoleAfterCounter returns a count of finished ClientMock.UpdateRole invocations
+func (mmUpdateRole *ClientMock) UpdateRoleAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateRole.afterUpdateRoleCounter)
+}
+
+// UpdateRoleBeforeCounter returns a count of ClientMock.UpdateRole invocations
+func (mmUpdateRole *ClientMock) UpdateRoleBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateRole.beforeUpdateRoleCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateRole.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateRole *mClientMockUpdateRole) Calls() []*ClientMockUpdateRoleParams {
+	mmUpdateRole.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateRoleParams, len(mmUpdateRole.callArgs))
+	copy(argCopy, mmUpdateRole.callArgs)
+
+	mmUpdateRole.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateRoleDone returns true if the count of the UpdateRole invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateRoleDone() bool {
+	if m.UpdateRoleMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateRoleMock.invocationsDone()
+}
+
+// MinimockUpdateRoleInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateRoleInspect() {
+	for _, e := range m.UpdateRoleMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateRole at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateRoleCounter := mm_atomic.LoadUint64(&m.afterUpdateRoleCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateRoleMock.defaultExpectation != nil && afterUpdateRoleCounter < 1 {
+		if m.UpdateRoleMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateRole at\n%s", m.UpdateRoleMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateRole at\n%s with params: %#v", m.UpdateRoleMock.defaultExpectation.expectationOrigins.origin, *m.UpdateRoleMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateRole != nil && afterUpdateRoleCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateRole at\n%s", m.funcUpdateRoleOrigin)
+	}
+
+	if !m.UpdateRoleMock.invocationsDone() && afterUpdateRoleCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateRole at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateRoleMock.expectedInvocations), m.UpdateRoleMock.expectedInvocationsOrigin, afterUpdateRoleCounter)
+	}
+}
+
 type mClientMockUpdateService struct {
 	optional           bool
 	mock               *ClientMock
@@ -14093,6 +16532,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateReversePrivateEndpointInspect()
 
+			m.MinimockCreateRoleInspect()
+
 			m.MinimockCreateServiceInspect()
 
 			m.MinimockDeleteClickPipeInspect()
@@ -14100,6 +16541,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockDeleteQueryEndpointInspect()
 
 			m.MinimockDeleteReversePrivateEndpointInspect()
+
+			m.MinimockDeleteRoleInspect()
 
 			m.MinimockDeleteServiceInspect()
 
@@ -14113,6 +16556,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetClickPipeSettingsInspect()
 
+			m.MinimockGetMemberInspect()
+
 			m.MinimockGetOrgPrivateEndpointConfigInspect()
 
 			m.MinimockGetOrganizationInspect()
@@ -14125,9 +16570,15 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetReversePrivateEndpointPathInspect()
 
+			m.MinimockGetRoleInspect()
+
 			m.MinimockGetServiceInspect()
 
+			m.MinimockListMembersInspect()
+
 			m.MinimockListReversePrivateEndpointsInspect()
+
+			m.MinimockListRolesInspect()
 
 			m.MinimockRotateTDEKeyInspect()
 
@@ -14146,6 +16597,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateOrganizationPrivateEndpointsInspect()
 
 			m.MinimockUpdateReplicaScalingInspect()
+
+			m.MinimockUpdateRoleInspect()
 
 			m.MinimockUpdateServiceInspect()
 
@@ -14185,24 +16638,30 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreateQueryEndpointDone() &&
 		m.MinimockCreateReversePrivateEndpointDone() &&
+		m.MinimockCreateRoleDone() &&
 		m.MinimockCreateServiceDone() &&
 		m.MinimockDeleteClickPipeDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
 		m.MinimockDeleteReversePrivateEndpointDone() &&
+		m.MinimockDeleteRoleDone() &&
 		m.MinimockDeleteServiceDone() &&
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetClickPipeDone() &&
 		m.MinimockGetClickPipeCdcScalingDone() &&
 		m.MinimockGetClickPipeSettingsDone() &&
+		m.MinimockGetMemberDone() &&
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationDone() &&
 		m.MinimockGetOrganizationPrivateEndpointsDone() &&
 		m.MinimockGetQueryEndpointDone() &&
 		m.MinimockGetReversePrivateEndpointDone() &&
 		m.MinimockGetReversePrivateEndpointPathDone() &&
+		m.MinimockGetRoleDone() &&
 		m.MinimockGetServiceDone() &&
+		m.MinimockListMembersDone() &&
 		m.MinimockListReversePrivateEndpointsDone() &&
+		m.MinimockListRolesDone() &&
 		m.MinimockRotateTDEKeyDone() &&
 		m.MinimockScalingClickPipeDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
@@ -14212,6 +16671,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateOrganizationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdateReplicaScalingDone() &&
+		m.MinimockUpdateRoleDone() &&
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
