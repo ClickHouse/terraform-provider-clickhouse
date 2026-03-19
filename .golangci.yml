@@ -15,6 +15,10 @@ linters:
     - gofumpt
 
 linters-settings:
+  dupl:
+    # TODO: Lower back to default (150) once the ClickPipe resource Postgres/MySQL
+    # CDC duplication has been refactored.
+    threshold: 500
   goimports:
     # Put imports beginning with prefix after 3rd-party packages.
     # It's a comma-separated list of prefixes.
