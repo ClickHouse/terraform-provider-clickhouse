@@ -1374,9 +1374,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Description: "Number of rows per partition during the snapshot phase.",
 										Computed:    true,
 										Optional:    true,
-										Default:     int64default.StaticInt64(100000),
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.RequiresReplace(),
+											int64planmodifier.UseStateForUnknown(),
 										},
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
