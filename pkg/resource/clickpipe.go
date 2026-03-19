@@ -1,9 +1,8 @@
-//go:build alpha
-
 package resource
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"regexp"
 	"strings"
@@ -44,6 +43,9 @@ var (
 	_ resource.ResourceWithImportState = &ClickPipeResource{}
 )
 
+//go:embed descriptions/clickpipe.md
+var clickPipeResourceDescription string
+
 // SourceType represents the type of source for a ClickPipe
 type SourceType string
 
@@ -57,15 +59,6 @@ const (
 	SourceTypeMongoDB       SourceType = "mongodb"
 	SourceTypeUnknown       SourceType = "unknown"
 )
-
-const clickPipeResourceDescription = `
-This experimental resource allows you to create and manage ClickPipes data ingestion in ClickHouse Cloud.
-
-**Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.**
-
-Known limitations:
-- ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
-`
 
 const (
 	clickPipeStateChangeMaxWaitSeconds = time.Second * 60 * 2

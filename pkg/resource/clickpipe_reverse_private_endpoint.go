@@ -1,9 +1,8 @@
-//go:build alpha
-
 package resource
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"strings"
 	"time"
@@ -29,11 +28,8 @@ var (
 	_ resource.ResourceWithImportState = &ClickPipeReversePrivateEndpointResource{}
 )
 
-const clickPipeReversePrivateEndpointResourceDescription = `
-This experimental resource allows you to create and manage ClickPipes reverse private endpoints for a secure data source connections in ClickHouse Cloud.
-
-**Resource is early access and may change in future releases. Feature coverage might not fully cover all ClickPipe capabilities.**
-`
+//go:embed descriptions/clickpipes_reverse_private_endpoint.md
+var clickPipeReversePrivateEndpointResourceDescription string
 
 func NewClickPipeReversePrivateEndpointResource() resource.Resource {
 	return &ClickPipeReversePrivateEndpointResource{}
