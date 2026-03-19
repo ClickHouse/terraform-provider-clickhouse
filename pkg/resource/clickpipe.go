@@ -1308,7 +1308,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"ca_certificate": schema.StringAttribute{
 								Description: "PEM encoded CA certificate to validate the MongoDB server certificate.",
 								Optional:    true,
-								Sensitive:   true,
 							},
 							"disable_tls": schema.BoolAttribute{
 								Description: "Disable TLS for the MongoDB connection. Defaults to false (TLS enabled).",
