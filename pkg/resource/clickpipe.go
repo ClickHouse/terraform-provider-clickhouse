@@ -68,12 +68,16 @@ const (
 	ClickPipeEngineReplacingMergeTree = "ReplacingMergeTree"
 	ClickPipeEngineSummingMergeTree   = "SummingMergeTree"
 	ClickPipeEngineNull               = "Null"
+
+	// CDC table mapping change detail keys
+	clickPipeTargetTable = "target_table"
+
+	// Authentication types
+	clickPipeAuthBasic = "basic"
 )
 
-var (
-	// engineParenthesesRegex matches parentheses and any content within them
-	engineParenthesesRegex = regexp.MustCompile(`\([^)]*\)`)
-)
+// engineParenthesesRegex matches parentheses and any content within them
+var engineParenthesesRegex = regexp.MustCompile(`\([^)]*\)`)
 
 // normalizeEngineType removes parentheses from engine type strings
 // e.g., "MergeTree()" -> "MergeTree", "ReplacingMergeTree() " -> "ReplacingMergeTree"
@@ -675,9 +679,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "Authentication method for Postgres connection. Supported values: `basic`, `iam_role`. Default is `basic`.",
 								Optional:            true,
 								Computed:            true,
-								Default:             stringdefault.StaticString("basic"),
+								Default:             stringdefault.StaticString(clickPipeAuthBasic),
 								Validators: []validator.String{
-									stringvalidator.OneOf("basic", "iam_role"),
+									stringvalidator.OneOf(clickPipeAuthBasic, "iam_role"),
 								},
 							},
 							"iam_role": schema.StringAttribute{
@@ -921,7 +925,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								),
 								Optional: true,
 								Computed: true,
-								Default:  stringdefault.StaticString("basic"),
+								Default:  stringdefault.StaticString(clickPipeAuthBasic),
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeMySQLAuthenticationMethods...),
 								},
@@ -1805,7 +1809,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Validate Postgres table mappings have unique target tables
+	// Validate Postgres and MySQL table mappings have unique target tables
 	if !plan.Source.IsNull() {
 		sourceModel := models.ClickPipeSourceModel{}
 		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
@@ -1974,7 +1978,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 
 										if stateMapping.TargetTable.ValueString() != planMapping.TargetTable.ValueString() {
 											changed = true
-											changeDetail = "target_table"
+											changeDetail = clickPipeTargetTable
 										} else if !stateMapping.ExcludedColumns.Equal(planMapping.ExcludedColumns) {
 											changed = true
 											changeDetail = "excluded_columns"
@@ -2055,7 +2059,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 
 										if stateMapping.TargetTable.ValueString() != planMapping.TargetTable.ValueString() {
 											changed = true
-											changeDetail = "target_table"
+											changeDetail = clickPipeTargetTable
 										} else if !stateMapping.ExcludedColumns.Equal(planMapping.ExcludedColumns) {
 											changed = true
 											changeDetail = "excluded_columns"
@@ -2136,7 +2140,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 
 										if stateMapping.TargetTable.ValueString() != planMapping.TargetTable.ValueString() {
 											changed = true
-											changeDetail = "target_table"
+											changeDetail = clickPipeTargetTable
 										} else if !stateMapping.TableEngine.Equal(planMapping.TableEngine) {
 											changed = true
 											changeDetail = "table_engine"
@@ -2756,12 +2760,12 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		diagnostics.Append(postgresModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
 
 		// Validate authentication requirements
-		authentication := "basic" // default
+		authentication := clickPipeAuthBasic // default
 		if !postgresModel.Authentication.IsNull() {
 			authentication = postgresModel.Authentication.ValueString()
 		}
 
-		if authentication == "basic" {
+		if authentication == clickPipeAuthBasic {
 			if credentialsModel.Password.IsNull() {
 				diagnostics.AddError(
 					"Missing required attribute",
@@ -2928,12 +2932,12 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		diagnostics.Append(mysqlModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
 
 		// Validate authentication requirements
-		authentication := "basic" // default
+		authentication := clickPipeAuthBasic // default
 		if !mysqlModel.Authentication.IsNull() {
 			authentication = mysqlModel.Authentication.ValueString()
 		}
 
-		if authentication == "basic" {
+		if authentication == clickPipeAuthBasic {
 			if credentialsModel.Password.IsNull() {
 				diagnostics.AddError(
 					"Missing required attribute",
@@ -3741,7 +3745,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		if clickPipe.Source.Postgres.Authentication != nil && *clickPipe.Source.Postgres.Authentication != "" {
 			postgresModel.Authentication = types.StringValue(*clickPipe.Source.Postgres.Authentication)
 		} else {
-			postgresModel.Authentication = types.StringValue("basic")
+			postgresModel.Authentication = types.StringValue(clickPipeAuthBasic)
 		}
 
 		if clickPipe.Source.Postgres.IAMRole != nil && *clickPipe.Source.Postgres.IAMRole != "" {
@@ -3962,7 +3966,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		if clickPipe.Source.MySQL.Authentication != nil && *clickPipe.Source.MySQL.Authentication != "" {
 			mysqlModel.Authentication = types.StringValue(*clickPipe.Source.MySQL.Authentication)
 		} else {
-			mysqlModel.Authentication = types.StringValue("basic")
+			mysqlModel.Authentication = types.StringValue(clickPipeAuthBasic)
 		}
 
 		if clickPipe.Source.MySQL.IAMRole != nil && *clickPipe.Source.MySQL.IAMRole != "" {
@@ -4411,7 +4415,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 	state.Destination = destinationModel.ObjectValue()
 
-	if clickPipe.FieldMappings == nil || len(clickPipe.FieldMappings) == 0 {
+	if len(clickPipe.FieldMappings) == 0 {
 		state.FieldMappings = types.ListNull(models.ClickPipeFieldMappingModel{}.ObjectType())
 	} else {
 		fieldMappingList := make([]attr.Value, len(clickPipe.FieldMappings))
@@ -4426,23 +4430,18 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	}
 
 	// Handle settings
-	if clickPipe.Settings != nil && len(clickPipe.Settings) > 0 {
+	if len(clickPipe.Settings) > 0 {
 		settingsElements := make(map[string]attr.Value)
 		for key, value := range clickPipe.Settings {
 			settingsElements[key] = utils.ConvertJSONValueToTerraform(value)
 		}
-		settingsObj, _ := types.ObjectValue(
-			map[string]attr.Type{},
-			make(map[string]attr.Value),
-		)
-
 		// Create object type dynamically based on actual values
 		attrTypes := make(map[string]attr.Type)
 		for key := range settingsElements {
 			attrTypes[key] = settingsElements[key].Type(ctx)
 		}
 
-		settingsObj, _ = types.ObjectValue(attrTypes, settingsElements)
+		settingsObj, _ := types.ObjectValue(attrTypes, settingsElements)
 		state.Settings = types.DynamicValue(settingsObj)
 	} else {
 		state.Settings = types.DynamicNull()
