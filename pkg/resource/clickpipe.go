@@ -1377,6 +1377,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Optional:    true,
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.UseStateForUnknown(),
+											int64planmodifier.RequiresReplace(),
 										},
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
@@ -1388,6 +1389,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Optional:    true,
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.UseStateForUnknown(),
+											int64planmodifier.RequiresReplace(),
 										},
 										Validators: []validator.Int64{
 											int64validator.AtLeast(1),
@@ -1399,6 +1401,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Computed:    true,
 										PlanModifiers: []planmodifier.Bool{
 											boolplanmodifier.UseStateForUnknown(),
+											boolplanmodifier.RequiresReplace(),
 										},
 									},
 									"use_json_native_format": schema.BoolAttribute{
@@ -1407,6 +1410,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Computed:    true,
 										PlanModifiers: []planmodifier.Bool{
 											boolplanmodifier.UseStateForUnknown(),
+											boolplanmodifier.RequiresReplace(),
 										},
 									},
 								},
