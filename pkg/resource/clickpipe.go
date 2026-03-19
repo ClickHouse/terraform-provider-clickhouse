@@ -1286,6 +1286,9 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"mongodb": schema.SingleNestedAttribute{
 						MarkdownDescription: "The MongoDB CDC source configuration for the ClickPipe.",
 						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
 						Attributes: map[string]schema.Attribute{
 							"uri": schema.StringAttribute{
 								Description: "MongoDB connection URI. Supports both standard URIs (mongodb://...) and SRV URIs (mongodb+srv://...).",
