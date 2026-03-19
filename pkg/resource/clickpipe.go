@@ -1434,12 +1434,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 										"table_engine": schema.StringAttribute{
 											MarkdownDescription: fmt.Sprintf(
-												"ClickHouse table engine for the target table. (%s). Default is `ReplacingMergeTree`.",
+												"Table engine to use for the target table. (%s)",
 												wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMongoDBTableEngines),
 											),
-											Default:  stringdefault.StaticString(api.ClickPipeTableEngineReplacingMergeTree),
 											Optional: true,
-											Computed: true,
 											Validators: []validator.String{
 												stringvalidator.OneOf(api.ClickPipeMongoDBTableEngines...),
 											},
