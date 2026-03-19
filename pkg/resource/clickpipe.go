@@ -54,6 +54,7 @@ const (
 	SourceTypePostgres      SourceType = "postgres"
 	SourceTypeMySQL         SourceType = "mysql"
 	SourceTypeBigQuery      SourceType = "bigquery"
+	SourceTypeMongoDB       SourceType = "mongodb"
 	SourceTypeUnknown       SourceType = "unknown"
 )
 
@@ -1282,6 +1283,172 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							},
 						},
 					},
+					"mongodb": schema.SingleNestedAttribute{
+						MarkdownDescription: "The MongoDB CDC source configuration for the ClickPipe.",
+						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
+						Attributes: map[string]schema.Attribute{
+							"uri": schema.StringAttribute{
+								Description: "MongoDB connection URI. Supports both standard URIs (mongodb://...) and SRV URIs (mongodb+srv://...).",
+								Required:    true,
+							},
+							"read_preference": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"MongoDB read preference for replica set reads. (%s)",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMongoDBReadPreferences),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeMongoDBReadPreferences...),
+								},
+							},
+							"tls_host": schema.StringAttribute{
+								Description: "TLS/SSL host for secure connections.",
+								Optional:    true,
+							},
+							"ca_certificate": schema.StringAttribute{
+								Description: "PEM encoded CA certificate to validate the MongoDB server certificate.",
+								Optional:    true,
+							},
+							"disable_tls": schema.BoolAttribute{
+								Description: "Disable TLS for the MongoDB connection. Defaults to false (TLS enabled).",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+							},
+							"credentials": schema.SingleNestedAttribute{
+								MarkdownDescription: "The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI.",
+								Optional:            true,
+								Sensitive:           true,
+								Attributes: map[string]schema.Attribute{
+									"username": schema.StringAttribute{
+										Description: "The username for the MongoDB instance.",
+										Required:    true,
+									},
+									"password": schema.StringAttribute{
+										Description: "The password for the MongoDB instance.",
+										Optional:    true,
+										Sensitive:   true,
+									},
+								},
+							},
+							"settings": schema.SingleNestedAttribute{
+								MarkdownDescription: "Settings for the MongoDB CDC pipe.",
+								Required:            true,
+								Attributes: map[string]schema.Attribute{
+									"replication_mode": schema.StringAttribute{
+										Required: true,
+										MarkdownDescription: fmt.Sprintf(
+											"Replication mode for the MongoDB pipe. (%s)",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMongoDBReplicationModes),
+										),
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipeMongoDBReplicationModes...),
+										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
+									},
+									"sync_interval_seconds": schema.Int64Attribute{
+										Description: "Interval in seconds to sync data from MongoDB during CDC replication.",
+										Optional:    true,
+										Computed:    true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+									},
+									"pull_batch_size": schema.Int64Attribute{
+										Description: "Number of rows to pull in each batch during CDC replication.",
+										Optional:    true,
+										Computed:    true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+									},
+									"snapshot_num_rows_per_partition": schema.Int64Attribute{
+										Description: "Number of rows per partition during the snapshot phase.",
+										Computed:    true,
+										Optional:    true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+									},
+									"snapshot_number_of_parallel_tables": schema.Int64Attribute{
+										Description: "Number of collections to snapshot in parallel during the initial load phase.",
+										Computed:    true,
+										Optional:    true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+									},
+									"delete_on_merge": schema.BoolAttribute{
+										Description: "Enable hard delete behavior in ReplacingMergeTree for MongoDB DELETE operations.",
+										Optional:    true,
+										Computed:    true,
+										Default:     booldefault.StaticBool(false),
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.RequiresReplace(),
+										},
+									},
+									"use_json_native_format": schema.BoolAttribute{
+										Description: "Store JSON values in native ClickHouse JSON format. When disabled, JSON data is stored as String.",
+										Optional:    true,
+										Computed:    true,
+										Default:     booldefault.StaticBool(true),
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.RequiresReplace(),
+										},
+									},
+								},
+							},
+							"table_mappings": schema.SetNestedAttribute{
+								Description: "Collection mappings from MongoDB source to ClickHouse destination.",
+								Required:    true,
+								NestedObject: schema.NestedAttributeObject{
+									Attributes: map[string]schema.Attribute{
+										"source_database_name": schema.StringAttribute{
+											Description: "MongoDB source database name.",
+											Required:    true,
+										},
+										"source_collection": schema.StringAttribute{
+											Description: "MongoDB source collection name.",
+											Required:    true,
+										},
+										"target_table": schema.StringAttribute{
+											Description: "ClickHouse target table name. The table will be created automatically if it does not exist.",
+											Required:    true,
+										},
+										"table_engine": schema.StringAttribute{
+											MarkdownDescription: fmt.Sprintf(
+												"Table engine to use for the target table. (%s)",
+												wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMongoDBTableEngines),
+											),
+											Optional: true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(api.ClickPipeMongoDBTableEngines...),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: true,
 			},
@@ -1727,7 +1894,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 	var sourceModel models.ClickPipeSourceModel
 	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
 		sourceType := getSourceType(sourceModel)
-		isDBPipe := sourceType == SourceTypePostgres || sourceType == SourceTypeMySQL || sourceType == SourceTypeBigQuery
+		isDBPipe := sourceType == SourceTypePostgres || sourceType == SourceTypeMySQL || sourceType == SourceTypeBigQuery || sourceType == SourceTypeMongoDB
 
 		if isDBPipe {
 			var destinationModel models.ClickPipeDestinationModel
@@ -1919,6 +2086,81 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 						}
 					}
 				}
+
+				// Only validate if this is a MongoDB source
+				if !planSourceModel.MongoDB.IsNull() && !stateSourceModel.MongoDB.IsNull() {
+					var planMongoDB, stateMongoDB models.ClickPipeMongoDBSourceModel
+					if diags := planSourceModel.MongoDB.As(ctx, &planMongoDB, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						if diags := stateSourceModel.MongoDB.As(ctx, &stateMongoDB, basetypes.ObjectAsOptions{}); !diags.HasError() {
+
+							var stateMappings, planMappings []models.ClickPipeMongoDBTableMappingModel
+							if !stateMongoDB.TableMappings.IsNull() {
+								stateMappings = make([]models.ClickPipeMongoDBTableMappingModel, len(stateMongoDB.TableMappings.Elements()))
+								response.Diagnostics.Append(stateMongoDB.TableMappings.ElementsAs(ctx, &stateMappings, false)...)
+							}
+							if !planMongoDB.TableMappings.IsNull() {
+								planMappings = make([]models.ClickPipeMongoDBTableMappingModel, len(planMongoDB.TableMappings.Elements()))
+								response.Diagnostics.Append(planMongoDB.TableMappings.ElementsAs(ctx, &planMappings, false)...)
+							}
+
+							// Validation 1: MongoDB CDC pipes must have at least one table mapping
+							if len(planMappings) == 0 {
+								response.Diagnostics.AddError(
+									"Invalid table_mappings configuration",
+									"MongoDB CDC pipes require at least one table mapping.",
+								)
+							}
+
+							// Validation 2: Table mappings cannot be modified - only added or removed
+							if len(stateMappings) > 0 && len(planMappings) > 0 {
+								type sourceTableKey struct {
+									sourceDatabaseName string
+									sourceCollection   string
+								}
+
+								stateMap := make(map[sourceTableKey]models.ClickPipeMongoDBTableMappingModel)
+								planMap := make(map[sourceTableKey]models.ClickPipeMongoDBTableMappingModel)
+
+								for _, mapping := range stateMappings {
+									key := sourceTableKey{
+										sourceDatabaseName: mapping.SourceDatabaseName.ValueString(),
+										sourceCollection:   mapping.SourceCollection.ValueString(),
+									}
+									stateMap[key] = mapping
+								}
+								for _, mapping := range planMappings {
+									key := sourceTableKey{
+										sourceDatabaseName: mapping.SourceDatabaseName.ValueString(),
+										sourceCollection:   mapping.SourceCollection.ValueString(),
+									}
+									planMap[key] = mapping
+								}
+
+								for key, stateMapping := range stateMap {
+									if planMapping, exists := planMap[key]; exists {
+										changed := false
+										changeDetail := ""
+
+										if stateMapping.TargetTable.ValueString() != planMapping.TargetTable.ValueString() {
+											changed = true
+											changeDetail = "target_table"
+										} else if !stateMapping.TableEngine.Equal(planMapping.TableEngine) {
+											changed = true
+											changeDetail = "table_engine"
+										}
+
+										if changed {
+											response.Diagnostics.AddError(
+												"Invalid table_mappings configuration",
+												fmt.Sprintf("Cannot modify %s for existing table mapping '%s.%s'. Table mappings cannot be updated - you must remove the old mapping and add a new one.", changeDetail, key.sourceDatabaseName, key.sourceCollection),
+											)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1930,7 +2172,8 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
 			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
 				isCDCPipe := (!planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull()) ||
-					(!planSourceModel.MySQL.IsNull() && !stateSourceModel.MySQL.IsNull())
+					(!planSourceModel.MySQL.IsNull() && !stateSourceModel.MySQL.IsNull()) ||
+					(!planSourceModel.MongoDB.IsNull() && !stateSourceModel.MongoDB.IsNull())
 				if isCDCPipe {
 					response.Diagnostics.AddWarning(
 						"Note about CDC table cleanup",
@@ -1972,7 +2215,8 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	isPostgresSource := sourceType == SourceTypePostgres
 	isMySQLSource := sourceType == SourceTypeMySQL
 	isBigQuerySource := sourceType == SourceTypeBigQuery
-	isDBPipe := isPostgresSource || isMySQLSource || isBigQuerySource
+	isMongoDBSource := sourceType == SourceTypeMongoDB
+	isDBPipe := isPostgresSource || isMySQLSource || isBigQuerySource || isMongoDBSource
 
 	// Extract roles from the destination model
 	var rolesSlice []string
@@ -2199,6 +2443,8 @@ func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 		return SourceTypeMySQL
 	} else if !sourceModel.BigQuery.IsNull() {
 		return SourceTypeBigQuery
+	} else if !sourceModel.MongoDB.IsNull() {
+		return SourceTypeMongoDB
 	}
 	return SourceTypeUnknown
 }
@@ -2819,6 +3065,85 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		}
 
 		source.MySQL = mysqlSource
+	} else if !sourceModel.MongoDB.IsNull() {
+		mongodbModel := models.ClickPipeMongoDBSourceModel{}
+		diagnostics.Append(sourceModel.MongoDB.As(ctx, &mongodbModel, basetypes.ObjectAsOptions{})...)
+
+		var credentials *api.ClickPipeSourceCredentials
+		if !mongodbModel.Credentials.IsNull() {
+			credentialsModel := models.ClickPipeSourceCredentialsModel{}
+			diagnostics.Append(mongodbModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+			credentials = &api.ClickPipeSourceCredentials{
+				Username: credentialsModel.Username.ValueString(),
+				Password: credentialsModel.Password.ValueString(),
+			}
+		}
+
+		settingsModel := models.ClickPipeMongoDBSettingsModel{}
+		diagnostics.Append(mongodbModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
+
+		settings := &api.ClickPipeMongoDBSettings{
+			ReplicationMode: settingsModel.ReplicationMode.ValueString(),
+		}
+
+		if !settingsModel.SyncIntervalSeconds.IsNull() && !settingsModel.SyncIntervalSeconds.IsUnknown() {
+			v := int(settingsModel.SyncIntervalSeconds.ValueInt64())
+			settings.SyncIntervalSeconds = &v
+		}
+		if !settingsModel.PullBatchSize.IsNull() && !settingsModel.PullBatchSize.IsUnknown() {
+			v := int(settingsModel.PullBatchSize.ValueInt64())
+			settings.PullBatchSize = &v
+		}
+		if !settingsModel.SnapshotNumRowsPerPartition.IsNull() && !settingsModel.SnapshotNumRowsPerPartition.IsUnknown() {
+			v := int(settingsModel.SnapshotNumRowsPerPartition.ValueInt64())
+			settings.SnapshotNumRowsPerPartition = &v
+		}
+		if !settingsModel.SnapshotNumberOfParallelTables.IsNull() && !settingsModel.SnapshotNumberOfParallelTables.IsUnknown() {
+			v := int(settingsModel.SnapshotNumberOfParallelTables.ValueInt64())
+			settings.SnapshotNumberOfParallelTables = &v
+		}
+		if !settingsModel.DeleteOnMerge.IsNull() && !settingsModel.DeleteOnMerge.IsUnknown() {
+			v := settingsModel.DeleteOnMerge.ValueBool()
+			settings.DeleteOnMerge = &v
+		}
+		if !settingsModel.UseJsonNativeFormat.IsNull() && !settingsModel.UseJsonNativeFormat.IsUnknown() {
+			v := settingsModel.UseJsonNativeFormat.ValueBool()
+			settings.UseJsonNativeFormat = &v
+		}
+
+		// Extract table mappings (skip for updates as they're handled separately via TableMappingsToAdd/Remove)
+		var tableMappings []api.ClickPipeMongoDBTableMapping
+		if !isUpdate {
+			if !mongodbModel.TableMappings.IsNull() {
+				tableMappingModels := make([]models.ClickPipeMongoDBTableMappingModel, len(mongodbModel.TableMappings.Elements()))
+				diagnostics.Append(mongodbModel.TableMappings.ElementsAs(ctx, &tableMappingModels, false)...)
+				tableMappings = make([]api.ClickPipeMongoDBTableMapping, len(tableMappingModels))
+				for i, mappingModel := range tableMappingModels {
+					tableMappings[i] = convertMongoDBTableMappingModelToAPI(ctx, diagnostics, mappingModel)
+				}
+			}
+		}
+
+		mongodbSource := &api.ClickPipeMongoDBSource{
+			URI:            mongodbModel.URI.ValueString(),
+			ReadPreference: mongodbModel.ReadPreference.ValueString(),
+			Credentials:    credentials,
+			Settings:       settings,
+			Mappings:       tableMappings,
+		}
+
+		if !mongodbModel.TLSHost.IsNull() {
+			mongodbSource.TLSHost = mongodbModel.TLSHost.ValueStringPointer()
+		}
+		if !mongodbModel.CACertificate.IsNull() {
+			mongodbSource.CACertificate = mongodbModel.CACertificate.ValueStringPointer()
+		}
+		if !mongodbModel.DisableTLS.IsNull() {
+			v := mongodbModel.DisableTLS.ValueBool()
+			mongodbSource.DisableTLS = &v
+		}
+
+		source.MongoDB = mongodbSource
 	} else {
 		diagnostics.AddError(
 			"Error Creating ClickPipe",
@@ -2906,6 +3231,18 @@ func convertMySQLTableMappingModelToAPI(ctx context.Context, diagnostics *diag.D
 	return mapping
 }
 
+func convertMongoDBTableMappingModelToAPI(ctx context.Context, diagnostics *diag.Diagnostics, mappingModel models.ClickPipeMongoDBTableMappingModel) api.ClickPipeMongoDBTableMapping {
+	mapping := api.ClickPipeMongoDBTableMapping{
+		SourceDatabaseName: mappingModel.SourceDatabaseName.ValueString(),
+		SourceCollection:   mappingModel.SourceCollection.ValueString(),
+		TargetTable:        mappingModel.TargetTable.ValueString(),
+	}
+	if !mappingModel.TableEngine.IsNull() {
+		mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
+	}
+	return mapping
+}
+
 func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.ClickPipeResourceModel) func(string) bool {
 	// If stopped, wait for Stopped state
 	if plan.Stopped.ValueBool() {
@@ -2941,6 +3278,19 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 					var settings models.ClickPipeMySQLSettingsModel
 					if diags := mysqlSource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); diags == nil {
 						isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipeReplicationModeSnapshot
+					}
+				}
+			}
+		} else if !sourceModel.MongoDB.IsNull() {
+			isDBPipe = true
+			var mongodbSource models.ClickPipeMongoDBSourceModel
+			if diags := sourceModel.MongoDB.As(ctx, &mongodbSource, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				if !mongodbSource.Settings.IsNull() {
+					var settings models.ClickPipeMongoDBSettingsModel
+					if diags := mongodbSource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						if settings.ReplicationMode.ValueString() == api.ClickPipeReplicationModeSnapshot {
+							isSnapshotOnly = true
+						}
 					}
 				}
 			}
@@ -3672,6 +4022,155 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		sourceModel.MySQL = types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes)
 	}
 
+	if clickPipe.Source.MongoDB != nil {
+		stateMongoDBModel := models.ClickPipeMongoDBSourceModel{}
+		var stateSettingsModel models.ClickPipeMongoDBSettingsModel
+
+		if !stateSourceModel.MongoDB.IsNull() {
+			if diags := stateSourceModel.MongoDB.As(ctx, &stateMongoDBModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe MongoDB source: %v", diags)
+			}
+
+			if !stateMongoDBModel.Settings.IsNull() {
+				if diags := stateMongoDBModel.Settings.As(ctx, &stateSettingsModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+					return fmt.Errorf("error reading ClickPipe MongoDB settings: %v", diags)
+				}
+			}
+		}
+
+		settingsModel := models.ClickPipeMongoDBSettingsModel{
+			ReplicationMode: types.StringValue(clickPipe.Source.MongoDB.Settings.ReplicationMode),
+		}
+
+		if clickPipe.Source.MongoDB.Settings.SyncIntervalSeconds != nil {
+			settingsModel.SyncIntervalSeconds = types.Int64Value(int64(*clickPipe.Source.MongoDB.Settings.SyncIntervalSeconds))
+		} else {
+			settingsModel.SyncIntervalSeconds = stateSettingsModel.SyncIntervalSeconds
+		}
+
+		if clickPipe.Source.MongoDB.Settings.PullBatchSize != nil {
+			settingsModel.PullBatchSize = types.Int64Value(int64(*clickPipe.Source.MongoDB.Settings.PullBatchSize))
+		} else {
+			settingsModel.PullBatchSize = stateSettingsModel.PullBatchSize
+		}
+
+		if clickPipe.Source.MongoDB.Settings.SnapshotNumRowsPerPartition != nil {
+			settingsModel.SnapshotNumRowsPerPartition = types.Int64Value(int64(*clickPipe.Source.MongoDB.Settings.SnapshotNumRowsPerPartition))
+		} else {
+			settingsModel.SnapshotNumRowsPerPartition = stateSettingsModel.SnapshotNumRowsPerPartition
+		}
+
+		if clickPipe.Source.MongoDB.Settings.SnapshotNumberOfParallelTables != nil {
+			settingsModel.SnapshotNumberOfParallelTables = types.Int64Value(int64(*clickPipe.Source.MongoDB.Settings.SnapshotNumberOfParallelTables))
+		} else {
+			settingsModel.SnapshotNumberOfParallelTables = stateSettingsModel.SnapshotNumberOfParallelTables
+		}
+
+		if clickPipe.Source.MongoDB.Settings.DeleteOnMerge != nil {
+			settingsModel.DeleteOnMerge = types.BoolValue(*clickPipe.Source.MongoDB.Settings.DeleteOnMerge)
+		} else {
+			settingsModel.DeleteOnMerge = stateSettingsModel.DeleteOnMerge
+		}
+
+		if clickPipe.Source.MongoDB.Settings.UseJsonNativeFormat != nil {
+			settingsModel.UseJsonNativeFormat = types.BoolValue(*clickPipe.Source.MongoDB.Settings.UseJsonNativeFormat)
+		} else {
+			settingsModel.UseJsonNativeFormat = stateSettingsModel.UseJsonNativeFormat
+		}
+
+		// Build table mappings - preserve state values for sensitive fields
+		type tableMappingKey struct {
+			sourceSchema string
+			sourceTable  string
+		}
+		var stateTableMappingsMap map[tableMappingKey]models.ClickPipeMongoDBTableMappingModel
+		if !stateMongoDBModel.TableMappings.IsNull() && len(stateMongoDBModel.TableMappings.Elements()) > 0 {
+			stateTableMappings := make([]models.ClickPipeMongoDBTableMappingModel, len(stateMongoDBModel.TableMappings.Elements()))
+			stateMongoDBModel.TableMappings.ElementsAs(ctx, &stateTableMappings, false)
+
+			stateTableMappingsMap = make(map[tableMappingKey]models.ClickPipeMongoDBTableMappingModel)
+			for _, m := range stateTableMappings {
+				key := tableMappingKey{
+					sourceSchema: m.SourceDatabaseName.ValueString(),
+					sourceTable:  m.SourceCollection.ValueString(),
+				}
+				stateTableMappingsMap[key] = m
+			}
+		}
+
+		tableMappingList := make([]attr.Value, 0, len(clickPipe.Source.MongoDB.Mappings))
+		for _, mapping := range clickPipe.Source.MongoDB.Mappings {
+			key := tableMappingKey{
+				sourceSchema: mapping.SourceDatabaseName,
+				sourceTable:  mapping.SourceCollection,
+			}
+			stateMapping, hasStateMapping := stateTableMappingsMap[key]
+
+			tableMappingModel := models.ClickPipeMongoDBTableMappingModel{
+				SourceDatabaseName: types.StringValue(mapping.SourceDatabaseName),
+				SourceCollection:   types.StringValue(mapping.SourceCollection),
+				TargetTable:        types.StringValue(mapping.TargetTable),
+			}
+
+			if hasStateMapping && stateMapping.TableEngine.IsNull() {
+				tableMappingModel.TableEngine = types.StringNull()
+			} else if mapping.TableEngine != nil && *mapping.TableEngine != "" {
+				tableMappingModel.TableEngine = types.StringValue(*mapping.TableEngine)
+			} else if hasStateMapping {
+				tableMappingModel.TableEngine = stateMapping.TableEngine
+			} else {
+				tableMappingModel.TableEngine = types.StringValue(api.ClickPipeTableEngineReplacingMergeTree)
+			}
+
+			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
+		}
+
+		mongodbModel := models.ClickPipeMongoDBSourceModel{
+			URI:            types.StringValue(clickPipe.Source.MongoDB.URI),
+			ReadPreference: types.StringValue(clickPipe.Source.MongoDB.ReadPreference),
+			TableMappings:  types.SetNull(models.ClickPipeMongoDBTableMappingModel{}.ObjectType()),
+		}
+
+		if clickPipe.Source.MongoDB.TLSHost != nil && *clickPipe.Source.MongoDB.TLSHost != "" {
+			mongodbModel.TLSHost = types.StringValue(*clickPipe.Source.MongoDB.TLSHost)
+		} else {
+			mongodbModel.TLSHost = stateMongoDBModel.TLSHost
+		}
+
+		if clickPipe.Source.MongoDB.CACertificate != nil && *clickPipe.Source.MongoDB.CACertificate != "" {
+			mongodbModel.CACertificate = types.StringValue(*clickPipe.Source.MongoDB.CACertificate)
+		} else {
+			mongodbModel.CACertificate = stateMongoDBModel.CACertificate
+		}
+
+		if clickPipe.Source.MongoDB.DisableTLS != nil {
+			mongodbModel.DisableTLS = types.BoolValue(*clickPipe.Source.MongoDB.DisableTLS)
+		} else {
+			mongodbModel.DisableTLS = stateMongoDBModel.DisableTLS
+		}
+
+		if len(tableMappingList) > 0 {
+			mongodbModel.TableMappings, _ = types.SetValue(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), tableMappingList)
+		}
+
+		// Preserve credentials from state (API does not return them)
+		if !stateMongoDBModel.Credentials.IsNull() {
+			var stateCredentialsModel models.ClickPipeSourceCredentialsModel
+			if diags := stateMongoDBModel.Credentials.As(ctx, &stateCredentialsModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe MongoDB source credentials: %v", diags)
+			}
+			mongodbModel.Credentials = stateCredentialsModel.ObjectValue()
+		} else {
+			mongodbModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		}
+
+		mongodbModel.Settings = settingsModel.ObjectValue()
+
+		sourceModel.MongoDB = mongodbModel.ObjectValue()
+	} else {
+		sourceModel.MongoDB = types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes)
+	}
+
 	if clickPipe.Source.BigQuery != nil {
 		stateBigQueryModel := models.ClickPipeBigQuerySourceModel{}
 		var stateSettingsModel models.ClickPipeBigQuerySettingsModel
@@ -3809,7 +4308,8 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	isPostgresPipe := clickPipe.Source.Postgres != nil
 	isMySQLPipe := clickPipe.Source.MySQL != nil
 	isBigQueryPipe := clickPipe.Source.BigQuery != nil
-	isDBPipe := isPostgresPipe || isMySQLPipe || isBigQueryPipe
+	isMongoDBPipe := clickPipe.Source.MongoDB != nil
+	isDBPipe := isPostgresPipe || isMySQLPipe || isBigQueryPipe || isMongoDBPipe
 
 	stateDestinationModel := models.ClickPipeDestinationModel{}
 	if !state.Destination.IsNull() {
@@ -4177,6 +4677,69 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 				clickPipeUpdate.Source = source
 			}
+		} else if !planSourceModel.MongoDB.IsNull() && !stateSourceModel.MongoDB.IsNull() {
+			planMongoDBModel := models.ClickPipeMongoDBSourceModel{}
+			response.Diagnostics.Append(planSourceModel.MongoDB.As(ctx, &planMongoDBModel, basetypes.ObjectAsOptions{})...)
+
+			stateMongoDBModel := models.ClickPipeMongoDBSourceModel{}
+			response.Diagnostics.Append(stateSourceModel.MongoDB.As(ctx, &stateMongoDBModel, basetypes.ObjectAsOptions{})...)
+
+			tableMappingsChanged := !planMongoDBModel.TableMappings.Equal(stateMongoDBModel.TableMappings)
+			otherFieldsChanged := !planMongoDBModel.URI.Equal(stateMongoDBModel.URI) ||
+				!planMongoDBModel.ReadPreference.Equal(stateMongoDBModel.ReadPreference) ||
+				!planMongoDBModel.TLSHost.Equal(stateMongoDBModel.TLSHost) ||
+				!planMongoDBModel.CACertificate.Equal(stateMongoDBModel.CACertificate) ||
+				!planMongoDBModel.DisableTLS.Equal(stateMongoDBModel.DisableTLS) ||
+				!planMongoDBModel.Credentials.Equal(stateMongoDBModel.Credentials) ||
+				!planMongoDBModel.Settings.Equal(stateMongoDBModel.Settings)
+
+			if tableMappingsChanged || otherFieldsChanged {
+				pipeChanged = true
+				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
+				clickPipeUpdate.Source = source
+				if tableMappingsChanged && source.MongoDB != nil {
+					planTableMappingModels := make([]models.ClickPipeMongoDBTableMappingModel, len(planMongoDBModel.TableMappings.Elements()))
+					response.Diagnostics.Append(planMongoDBModel.TableMappings.ElementsAs(ctx, &planTableMappingModels, false)...)
+
+					stateTableMappingModels := make([]models.ClickPipeMongoDBTableMappingModel, len(stateMongoDBModel.TableMappings.Elements()))
+					response.Diagnostics.Append(stateMongoDBModel.TableMappings.ElementsAs(ctx, &stateTableMappingModels, false)...)
+
+					planMappingsMap := make(map[string]api.ClickPipeMongoDBTableMapping)
+					stateMappingsMap := make(map[string]api.ClickPipeMongoDBTableMapping)
+
+					for _, mappingModel := range planTableMappingModels {
+						mapping := convertMongoDBTableMappingModelToAPI(ctx, &response.Diagnostics, mappingModel)
+						key := fmt.Sprintf("%s.%s", mapping.SourceDatabaseName, mapping.SourceCollection)
+						planMappingsMap[key] = mapping
+					}
+					for _, mappingModel := range stateTableMappingModels {
+						mapping := convertMongoDBTableMappingModelToAPI(ctx, &response.Diagnostics, mappingModel)
+						key := fmt.Sprintf("%s.%s", mapping.SourceDatabaseName, mapping.SourceCollection)
+						stateMappingsMap[key] = mapping
+					}
+
+					var tableMappingsToAdd []api.ClickPipeMongoDBTableMapping
+					for key, mapping := range planMappingsMap {
+						if _, exists := stateMappingsMap[key]; !exists {
+							tableMappingsToAdd = append(tableMappingsToAdd, mapping)
+						}
+					}
+
+					var tableMappingsToRemove []api.ClickPipeMongoDBTableMapping
+					for key, mapping := range stateMappingsMap {
+						if _, exists := planMappingsMap[key]; !exists {
+							tableMappingsToRemove = append(tableMappingsToRemove, mapping)
+						}
+					}
+
+					if len(tableMappingsToAdd) > 0 {
+						source.MongoDB.TableMappingsToAdd = tableMappingsToAdd
+					}
+					if len(tableMappingsToRemove) > 0 {
+						source.MongoDB.TableMappingsToRemove = tableMappingsToRemove
+					}
+				}
+			}
 		} else {
 			// Non-DB source or type change
 			source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
@@ -4191,6 +4754,9 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				pipeChanged = true
 				clickPipeUpdate.Source = source
 			} else if source.MySQL != nil {
+				pipeChanged = true
+				clickPipeUpdate.Source = source
+			} else if source.MongoDB != nil {
 				pipeChanged = true
 				clickPipeUpdate.Source = source
 			} else {
@@ -4305,7 +4871,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			return
 		}
 
-		if !sourceModel.Postgres.IsNull() || !sourceModel.MySQL.IsNull() {
+		if !sourceModel.Postgres.IsNull() || !sourceModel.MySQL.IsNull() || !sourceModel.MongoDB.IsNull() {
 			// Trigger resync
 			if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), api.ClickPipeStateResync); err != nil {
 				response.Diagnostics.AddError(
@@ -4317,7 +4883,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		} else {
 			response.Diagnostics.AddWarning(
 				"Trigger Resync Not Applicable",
-				"trigger_resync is only applicable for Postgres and MySQL pipes and will be ignored for other source types.",
+				"trigger_resync is only applicable for Postgres, MySQL, and MongoDB pipes and will be ignored for other source types.",
 			)
 		}
 	}
@@ -4385,7 +4951,7 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 	// Check if this is a CDC pipe (Postgres or MySQL) - warn about manual table cleanup
 	var sourceModel models.ClickPipeSourceModel
 	if diags := state.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-		if !sourceModel.Postgres.IsNull() || !sourceModel.MySQL.IsNull() {
+		if !sourceModel.Postgres.IsNull() || !sourceModel.MySQL.IsNull() || !sourceModel.MongoDB.IsNull() {
 			response.Diagnostics.AddWarning(
 				"Manual table cleanup required",
 				"Previous destination tables need to be deleted manually before a recreation of the CDC pipe can occur.",
