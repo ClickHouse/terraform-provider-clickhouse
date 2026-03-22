@@ -73,7 +73,7 @@ jobs:
       matrix:
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "azure", "gcp" ]
-        test_name : ["generic"]
+        test_name : ["generic"] # TODO: add "postgres_instance" to matrix when ready
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
