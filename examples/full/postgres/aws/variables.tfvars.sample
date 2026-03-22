@@ -1,0 +1,5 @@
+organization_id = "<your-org-id>"
+token_key       = "<your-token-key>"
+token_secret    = "<your-token-secret>"
+service_name    = "tf-pg-e2e"
+region          = "us-east-1"
