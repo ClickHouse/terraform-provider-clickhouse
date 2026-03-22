@@ -102,7 +102,7 @@ func (r *PostgresInstanceResource) Schema(_ context.Context, _ resource.SchemaRe
 				},
 			},
 			"size": schema.StringAttribute{
-				Description: "Size of the Postgres instance (e.g. 'standard-2').",
+				Description: "Size of the Postgres instance (e.g. 'm6gd.medium').",
 				Required:    true,
 			},
 			"storage_size": schema.Int64Attribute{
@@ -128,6 +128,7 @@ func (r *PostgresInstanceResource) Schema(_ context.Context, _ resource.SchemaRe
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.Map{
 					mapplanmodifier.RequiresReplace(),
+					mapplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"pg_bouncer_config": schema.MapAttribute{
@@ -137,6 +138,7 @@ func (r *PostgresInstanceResource) Schema(_ context.Context, _ resource.SchemaRe
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.Map{
 					mapplanmodifier.RequiresReplace(),
+					mapplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"tags": schema.MapAttribute{

@@ -84,7 +84,7 @@ func (d *postgresInstanceDataSource) Schema(_ context.Context, _ datasource.Sche
 				Computed:    true,
 			},
 			"size": schema.StringAttribute{
-				Description: "Size of the Postgres instance (e.g. 'standard-2').",
+				Description: "Size of the Postgres instance (e.g. 'm6gd.medium').",
 				Computed:    true,
 			},
 			"storage_size": schema.Int64Attribute{

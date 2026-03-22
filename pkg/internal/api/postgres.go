@@ -122,6 +122,8 @@ func (c *ClientImpl) WaitForPostgresInstanceState(ctx context.Context, postgresI
 	checkState := func() error {
 		instance, err := c.GetPostgresInstance(ctx, postgresId)
 		if is5xx(err) {
+			// 500s are automatically retried in `GetPostgresInstance`.
+			// If we get it here, we consider it an unrecoverable error.
 			return backoff.Permanent(err)
 		} else if err != nil {
 			return err
