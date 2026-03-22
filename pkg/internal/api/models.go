@@ -48,6 +48,48 @@ type TagUpdate struct {
 	Remove []Tag `json:"remove,omitempty"`
 }
 
+// Postgres Instance models
+
+type PostgresInstance struct {
+	ID               string            `json:"id,omitempty"`
+	Name             string            `json:"name"`
+	Provider         string            `json:"provider"`
+	Region           string            `json:"region"`
+	PostgresVersion  string            `json:"postgresVersion,omitempty"`
+	Size             string            `json:"size"`
+	StorageSize      int               `json:"storageSize"`
+	HAType           string            `json:"haType,omitempty"`
+	State            string            `json:"state,omitempty"`
+	IsPrimary        bool              `json:"isPrimary,omitempty"`
+	Hostname         string            `json:"hostname,omitempty"`
+	ConnectionString string            `json:"connectionString,omitempty"`
+	Username         string            `json:"username,omitempty"`
+	Password         string            `json:"password,omitempty"`
+	PgConfig         map[string]string `json:"pgConfig,omitempty"`
+	PgBouncerConfig  map[string]string `json:"pgBouncerConfig,omitempty"`
+	Tags             []Tag             `json:"tags,omitempty"`
+}
+
+type PostgresInstanceCreate struct {
+	Name            string            `json:"name"`
+	Provider        string            `json:"provider"`
+	Region          string            `json:"region"`
+	PostgresVersion string            `json:"postgresVersion,omitempty"`
+	Size            string            `json:"size"`
+	StorageSize     int               `json:"storageSize"`
+	HAType          string            `json:"haType,omitempty"`
+	PgConfig        map[string]string `json:"pgConfig,omitempty"`
+	PgBouncerConfig map[string]string `json:"pgBouncerConfig,omitempty"`
+	Tags            []Tag             `json:"tags,omitempty"`
+}
+
+type PostgresInstanceUpdate struct {
+	Size        string `json:"size,omitempty"`
+	StorageSize *int   `json:"storageSize,omitempty"`
+	HAType      string `json:"haType,omitempty"`
+	Tags        []Tag  `json:"tags,omitempty"`
+}
+
 type Service struct {
 	Id                              string                        `json:"id,omitempty"`
 	BYOCId                          *string                       `json:"byocId,omitempty"`
