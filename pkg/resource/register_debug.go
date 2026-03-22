@@ -18,5 +18,6 @@ func GetResourceFactories() []func() upstreamresource.Resource {
 		NewClickPipeCdcInfrastructureResource,
 		NewRoleResource,
 		NewRoleAssignmentResource,
+		NewPostgresInstanceResource,
 	}
 }
