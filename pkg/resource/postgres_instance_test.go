@@ -338,6 +338,16 @@ func TestPostgresInstanceResource_syncPostgresState(t *testing.T) {
 			}).Get(),
 			wantErr: true,
 		},
+		{
+			name:        "Propagates not-found error when resource deleted outside Terraform",
+			state:       state,
+			response:    nil,
+			responseErr: fmt.Errorf("status: 404, body: not found"),
+			desiredState: test.NewUpdater(state).Update(func(src *models.PostgresInstanceResourceModel) {
+				// State should remain unchanged on error
+			}).Get(),
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

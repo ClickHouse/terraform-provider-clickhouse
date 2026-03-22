@@ -71,6 +71,7 @@ output "data_source_hostname" {
   value = data.clickhouse_postgres_instance.lookup.hostname
 }
 
-output "ca_cert_defined" {
-  value = data.clickhouse_postgres_instance_ca_certificate.cert.pem != ""
+output "ca_cert_pem" {
+  value     = data.clickhouse_postgres_instance_ca_certificate.cert.pem
+  sensitive = true
 }
