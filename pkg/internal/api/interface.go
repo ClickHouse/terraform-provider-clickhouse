@@ -64,4 +64,5 @@ type Client interface {
 	DeletePostgresInstance(ctx context.Context, postgresId string) error
 	GetPostgresInstanceCACertificate(ctx context.Context, postgresId string) (string, error)
 	WaitForPostgresInstanceState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) error
+	WaitForPostgresInstanceDeletion(ctx context.Context, postgresId string, maxWaitSeconds int) error
 }

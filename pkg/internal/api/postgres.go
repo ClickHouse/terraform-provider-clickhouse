@@ -117,6 +117,31 @@ func (c *ClientImpl) GetPostgresInstanceCACertificate(ctx context.Context, postg
 	return string(body), nil
 }
 
+// WaitForPostgresInstanceDeletion polls until the Postgres instance is fully deleted (404).
+func (c *ClientImpl) WaitForPostgresInstanceDeletion(ctx context.Context, postgresId string, maxWaitSeconds int) error {
+	checkDeleted := func() error {
+		_, err := c.GetPostgresInstance(ctx, postgresId)
+		if IsNotFound(err) {
+			return nil // Successfully deleted
+		}
+		if is5xx(err) {
+			// 500s are automatically retried in `GetPostgresInstance`.
+			// If we get it here, we consider it an unrecoverable error.
+			return backoff.Permanent(err)
+		}
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("postgres instance %s still exists", postgresId)
+	}
+
+	if maxWaitSeconds < 5 {
+		maxWaitSeconds = 5
+	}
+
+	return backoff.Retry(checkDeleted, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5))) //nolint:gosec
+}
+
 // WaitForPostgresInstanceState polls until the Postgres instance reaches a desired state.
 func (c *ClientImpl) WaitForPostgresInstanceState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) error {
 	checkState := func() error {

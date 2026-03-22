@@ -348,6 +348,13 @@ type ClientMock struct {
 	beforeWaitForClickPipeStateCounter uint64
 	WaitForClickPipeStateMock          mClientMockWaitForClickPipeState
 
+	funcWaitForPostgresInstanceDeletion          func(ctx context.Context, postgresId string, maxWaitSeconds int) (err error)
+	funcWaitForPostgresInstanceDeletionOrigin    string
+	inspectFuncWaitForPostgresInstanceDeletion   func(ctx context.Context, postgresId string, maxWaitSeconds int)
+	afterWaitForPostgresInstanceDeletionCounter  uint64
+	beforeWaitForPostgresInstanceDeletionCounter uint64
+	WaitForPostgresInstanceDeletionMock          mClientMockWaitForPostgresInstanceDeletion
+
 	funcWaitForPostgresInstanceState          func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
 	funcWaitForPostgresInstanceStateOrigin    string
 	inspectFuncWaitForPostgresInstanceState   func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int)
@@ -518,6 +525,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.WaitForClickPipeStateMock = mClientMockWaitForClickPipeState{mock: m}
 	m.WaitForClickPipeStateMock.callArgs = []*ClientMockWaitForClickPipeStateParams{}
+
+	m.WaitForPostgresInstanceDeletionMock = mClientMockWaitForPostgresInstanceDeletion{mock: m}
+	m.WaitForPostgresInstanceDeletionMock.callArgs = []*ClientMockWaitForPostgresInstanceDeletionParams{}
 
 	m.WaitForPostgresInstanceStateMock = mClientMockWaitForPostgresInstanceState{mock: m}
 	m.WaitForPostgresInstanceStateMock.callArgs = []*ClientMockWaitForPostgresInstanceStateParams{}
@@ -17485,6 +17495,379 @@ func (m *ClientMock) MinimockWaitForClickPipeStateInspect() {
 	}
 }
 
+type mClientMockWaitForPostgresInstanceDeletion struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForPostgresInstanceDeletionExpectation
+	expectations       []*ClientMockWaitForPostgresInstanceDeletionExpectation
+
+	callArgs []*ClientMockWaitForPostgresInstanceDeletionParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWaitForPostgresInstanceDeletionExpectation specifies expectation struct of the Client.WaitForPostgresInstanceDeletion
+type ClientMockWaitForPostgresInstanceDeletionExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWaitForPostgresInstanceDeletionParams
+	paramPtrs          *ClientMockWaitForPostgresInstanceDeletionParamPtrs
+	expectationOrigins ClientMockWaitForPostgresInstanceDeletionExpectationOrigins
+	results            *ClientMockWaitForPostgresInstanceDeletionResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWaitForPostgresInstanceDeletionParams contains parameters of the Client.WaitForPostgresInstanceDeletion
+type ClientMockWaitForPostgresInstanceDeletionParams struct {
+	ctx            context.Context
+	postgresId     string
+	maxWaitSeconds int
+}
+
+// ClientMockWaitForPostgresInstanceDeletionParamPtrs contains pointers to parameters of the Client.WaitForPostgresInstanceDeletion
+type ClientMockWaitForPostgresInstanceDeletionParamPtrs struct {
+	ctx            *context.Context
+	postgresId     *string
+	maxWaitSeconds *int
+}
+
+// ClientMockWaitForPostgresInstanceDeletionResults contains results of the Client.WaitForPostgresInstanceDeletion
+type ClientMockWaitForPostgresInstanceDeletionResults struct {
+	err error
+}
+
+// ClientMockWaitForPostgresInstanceDeletionOrigins contains origins of expectations of the Client.WaitForPostgresInstanceDeletion
+type ClientMockWaitForPostgresInstanceDeletionExpectationOrigins struct {
+	origin               string
+	originCtx            string
+	originPostgresId     string
+	originMaxWaitSeconds string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) Optional() *mClientMockWaitForPostgresInstanceDeletion {
+	mmWaitForPostgresInstanceDeletion.optional = true
+	return mmWaitForPostgresInstanceDeletion
+}
+
+// Expect sets up expected params for Client.WaitForPostgresInstanceDeletion
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) Expect(ctx context.Context, postgresId string, maxWaitSeconds int) *mClientMockWaitForPostgresInstanceDeletion {
+	if mmWaitForPostgresInstanceDeletion.mock.funcWaitForPostgresInstanceDeletion != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by Set")
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation == nil {
+		mmWaitForPostgresInstanceDeletion.defaultExpectation = &ClientMockWaitForPostgresInstanceDeletionExpectation{}
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.params = &ClientMockWaitForPostgresInstanceDeletionParams{ctx, postgresId, maxWaitSeconds}
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWaitForPostgresInstanceDeletion.expectations {
+		if minimock.Equal(e.params, mmWaitForPostgresInstanceDeletion.defaultExpectation.params) {
+			mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForPostgresInstanceDeletion.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForPostgresInstanceDeletion
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForPostgresInstanceDeletion
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForPostgresInstanceDeletion {
+	if mmWaitForPostgresInstanceDeletion.mock.funcWaitForPostgresInstanceDeletion != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by Set")
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation == nil {
+		mmWaitForPostgresInstanceDeletion.defaultExpectation = &ClientMockWaitForPostgresInstanceDeletionExpectation{}
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation.params != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresInstanceDeletionParamPtrs{}
+	}
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresInstanceDeletion
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.WaitForPostgresInstanceDeletion
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) ExpectPostgresIdParam2(postgresId string) *mClientMockWaitForPostgresInstanceDeletion {
+	if mmWaitForPostgresInstanceDeletion.mock.funcWaitForPostgresInstanceDeletion != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by Set")
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation == nil {
+		mmWaitForPostgresInstanceDeletion.defaultExpectation = &ClientMockWaitForPostgresInstanceDeletionExpectation{}
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation.params != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresInstanceDeletionParamPtrs{}
+	}
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresInstanceDeletion
+}
+
+// ExpectMaxWaitSecondsParam3 sets up expected param maxWaitSeconds for Client.WaitForPostgresInstanceDeletion
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) ExpectMaxWaitSecondsParam3(maxWaitSeconds int) *mClientMockWaitForPostgresInstanceDeletion {
+	if mmWaitForPostgresInstanceDeletion.mock.funcWaitForPostgresInstanceDeletion != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by Set")
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation == nil {
+		mmWaitForPostgresInstanceDeletion.defaultExpectation = &ClientMockWaitForPostgresInstanceDeletionExpectation{}
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation.params != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresInstanceDeletionParamPtrs{}
+	}
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.paramPtrs.maxWaitSeconds = &maxWaitSeconds
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.expectationOrigins.originMaxWaitSeconds = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresInstanceDeletion
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForPostgresInstanceDeletion
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) Inspect(f func(ctx context.Context, postgresId string, maxWaitSeconds int)) *mClientMockWaitForPostgresInstanceDeletion {
+	if mmWaitForPostgresInstanceDeletion.mock.inspectFuncWaitForPostgresInstanceDeletion != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForPostgresInstanceDeletion")
+	}
+
+	mmWaitForPostgresInstanceDeletion.mock.inspectFuncWaitForPostgresInstanceDeletion = f
+
+	return mmWaitForPostgresInstanceDeletion
+}
+
+// Return sets up results that will be returned by Client.WaitForPostgresInstanceDeletion
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) Return(err error) *ClientMock {
+	if mmWaitForPostgresInstanceDeletion.mock.funcWaitForPostgresInstanceDeletion != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by Set")
+	}
+
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation == nil {
+		mmWaitForPostgresInstanceDeletion.defaultExpectation = &ClientMockWaitForPostgresInstanceDeletionExpectation{mock: mmWaitForPostgresInstanceDeletion.mock}
+	}
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.results = &ClientMockWaitForPostgresInstanceDeletionResults{err}
+	mmWaitForPostgresInstanceDeletion.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresInstanceDeletion.mock
+}
+
+// Set uses given function f to mock the Client.WaitForPostgresInstanceDeletion method
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) Set(f func(ctx context.Context, postgresId string, maxWaitSeconds int) (err error)) *ClientMock {
+	if mmWaitForPostgresInstanceDeletion.defaultExpectation != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("Default expectation is already set for the Client.WaitForPostgresInstanceDeletion method")
+	}
+
+	if len(mmWaitForPostgresInstanceDeletion.expectations) > 0 {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("Some expectations are already set for the Client.WaitForPostgresInstanceDeletion method")
+	}
+
+	mmWaitForPostgresInstanceDeletion.mock.funcWaitForPostgresInstanceDeletion = f
+	mmWaitForPostgresInstanceDeletion.mock.funcWaitForPostgresInstanceDeletionOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresInstanceDeletion.mock
+}
+
+// When sets expectation for the Client.WaitForPostgresInstanceDeletion which will trigger the result defined by the following
+// Then helper
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) When(ctx context.Context, postgresId string, maxWaitSeconds int) *ClientMockWaitForPostgresInstanceDeletionExpectation {
+	if mmWaitForPostgresInstanceDeletion.mock.funcWaitForPostgresInstanceDeletion != nil {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("ClientMock.WaitForPostgresInstanceDeletion mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForPostgresInstanceDeletionExpectation{
+		mock:               mmWaitForPostgresInstanceDeletion.mock,
+		params:             &ClientMockWaitForPostgresInstanceDeletionParams{ctx, postgresId, maxWaitSeconds},
+		expectationOrigins: ClientMockWaitForPostgresInstanceDeletionExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWaitForPostgresInstanceDeletion.expectations = append(mmWaitForPostgresInstanceDeletion.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForPostgresInstanceDeletion return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForPostgresInstanceDeletionExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockWaitForPostgresInstanceDeletionResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForPostgresInstanceDeletion should be invoked
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) Times(n uint64) *mClientMockWaitForPostgresInstanceDeletion {
+	if n == 0 {
+		mmWaitForPostgresInstanceDeletion.mock.t.Fatalf("Times of ClientMock.WaitForPostgresInstanceDeletion mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForPostgresInstanceDeletion.expectedInvocations, n)
+	mmWaitForPostgresInstanceDeletion.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresInstanceDeletion
+}
+
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) invocationsDone() bool {
+	if len(mmWaitForPostgresInstanceDeletion.expectations) == 0 && mmWaitForPostgresInstanceDeletion.defaultExpectation == nil && mmWaitForPostgresInstanceDeletion.mock.funcWaitForPostgresInstanceDeletion == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresInstanceDeletion.mock.afterWaitForPostgresInstanceDeletionCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresInstanceDeletion.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForPostgresInstanceDeletion implements Client
+func (mmWaitForPostgresInstanceDeletion *ClientMock) WaitForPostgresInstanceDeletion(ctx context.Context, postgresId string, maxWaitSeconds int) (err error) {
+	mm_atomic.AddUint64(&mmWaitForPostgresInstanceDeletion.beforeWaitForPostgresInstanceDeletionCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForPostgresInstanceDeletion.afterWaitForPostgresInstanceDeletionCounter, 1)
+
+	mmWaitForPostgresInstanceDeletion.t.Helper()
+
+	if mmWaitForPostgresInstanceDeletion.inspectFuncWaitForPostgresInstanceDeletion != nil {
+		mmWaitForPostgresInstanceDeletion.inspectFuncWaitForPostgresInstanceDeletion(ctx, postgresId, maxWaitSeconds)
+	}
+
+	mm_params := ClientMockWaitForPostgresInstanceDeletionParams{ctx, postgresId, maxWaitSeconds}
+
+	// Record call args
+	mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.mutex.Lock()
+	mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.callArgs = append(mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.callArgs, &mm_params)
+	mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.mutex.Unlock()
+
+	for _, e := range mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForPostgresInstanceDeletionParams{ctx, postgresId, maxWaitSeconds}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForPostgresInstanceDeletion.t.Errorf("ClientMock.WaitForPostgresInstanceDeletion got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmWaitForPostgresInstanceDeletion.t.Errorf("ClientMock.WaitForPostgresInstanceDeletion got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.maxWaitSeconds != nil && !minimock.Equal(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds) {
+				mmWaitForPostgresInstanceDeletion.t.Errorf("ClientMock.WaitForPostgresInstanceDeletion got unexpected parameter maxWaitSeconds, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.defaultExpectation.expectationOrigins.originMaxWaitSeconds, *mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds, minimock.Diff(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForPostgresInstanceDeletion.t.Errorf("ClientMock.WaitForPostgresInstanceDeletion got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForPostgresInstanceDeletion.WaitForPostgresInstanceDeletionMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForPostgresInstanceDeletion.t.Fatal("No results are set for the ClientMock.WaitForPostgresInstanceDeletion")
+		}
+		return (*mm_results).err
+	}
+	if mmWaitForPostgresInstanceDeletion.funcWaitForPostgresInstanceDeletion != nil {
+		return mmWaitForPostgresInstanceDeletion.funcWaitForPostgresInstanceDeletion(ctx, postgresId, maxWaitSeconds)
+	}
+	mmWaitForPostgresInstanceDeletion.t.Fatalf("Unexpected call to ClientMock.WaitForPostgresInstanceDeletion. %v %v %v", ctx, postgresId, maxWaitSeconds)
+	return
+}
+
+// WaitForPostgresInstanceDeletionAfterCounter returns a count of finished ClientMock.WaitForPostgresInstanceDeletion invocations
+func (mmWaitForPostgresInstanceDeletion *ClientMock) WaitForPostgresInstanceDeletionAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresInstanceDeletion.afterWaitForPostgresInstanceDeletionCounter)
+}
+
+// WaitForPostgresInstanceDeletionBeforeCounter returns a count of ClientMock.WaitForPostgresInstanceDeletion invocations
+func (mmWaitForPostgresInstanceDeletion *ClientMock) WaitForPostgresInstanceDeletionBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresInstanceDeletion.beforeWaitForPostgresInstanceDeletionCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForPostgresInstanceDeletion.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForPostgresInstanceDeletion *mClientMockWaitForPostgresInstanceDeletion) Calls() []*ClientMockWaitForPostgresInstanceDeletionParams {
+	mmWaitForPostgresInstanceDeletion.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForPostgresInstanceDeletionParams, len(mmWaitForPostgresInstanceDeletion.callArgs))
+	copy(argCopy, mmWaitForPostgresInstanceDeletion.callArgs)
+
+	mmWaitForPostgresInstanceDeletion.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForPostgresInstanceDeletionDone returns true if the count of the WaitForPostgresInstanceDeletion invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForPostgresInstanceDeletionDone() bool {
+	if m.WaitForPostgresInstanceDeletionMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForPostgresInstanceDeletionMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForPostgresInstanceDeletionMock.invocationsDone()
+}
+
+// MinimockWaitForPostgresInstanceDeletionInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForPostgresInstanceDeletionInspect() {
+	for _, e := range m.WaitForPostgresInstanceDeletionMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresInstanceDeletion at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWaitForPostgresInstanceDeletionCounter := mm_atomic.LoadUint64(&m.afterWaitForPostgresInstanceDeletionCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForPostgresInstanceDeletionMock.defaultExpectation != nil && afterWaitForPostgresInstanceDeletionCounter < 1 {
+		if m.WaitForPostgresInstanceDeletionMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresInstanceDeletion at\n%s", m.WaitForPostgresInstanceDeletionMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresInstanceDeletion at\n%s with params: %#v", m.WaitForPostgresInstanceDeletionMock.defaultExpectation.expectationOrigins.origin, *m.WaitForPostgresInstanceDeletionMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForPostgresInstanceDeletion != nil && afterWaitForPostgresInstanceDeletionCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WaitForPostgresInstanceDeletion at\n%s", m.funcWaitForPostgresInstanceDeletionOrigin)
+	}
+
+	if !m.WaitForPostgresInstanceDeletionMock.invocationsDone() && afterWaitForPostgresInstanceDeletionCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForPostgresInstanceDeletion at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForPostgresInstanceDeletionMock.expectedInvocations), m.WaitForPostgresInstanceDeletionMock.expectedInvocationsOrigin, afterWaitForPostgresInstanceDeletionCounter)
+	}
+}
+
 type mClientMockWaitForPostgresInstanceState struct {
 	optional           bool
 	mock               *ClientMock
@@ -18827,6 +19210,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockWaitForClickPipeStateInspect()
 
+			m.MinimockWaitForPostgresInstanceDeletionInspect()
+
 			m.MinimockWaitForPostgresInstanceStateInspect()
 
 			m.MinimockWaitForReversePrivateEndpointStateInspect()
@@ -18902,6 +19287,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateServicePasswordDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
 		m.MinimockWaitForClickPipeStateDone() &&
+		m.MinimockWaitForPostgresInstanceDeletionDone() &&
 		m.MinimockWaitForPostgresInstanceStateDone() &&
 		m.MinimockWaitForReversePrivateEndpointStateDone() &&
 		m.MinimockWaitForServiceStateDone()

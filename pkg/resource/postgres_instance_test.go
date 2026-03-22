@@ -296,14 +296,14 @@ func TestPostgresInstanceResource_syncPostgresState(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:  "Handles empty tags returns MapNull",
+			name:  "Handles empty tags preserves empty map when state had tags",
 			state: state,
 			response: test.NewUpdater(getBasePostgresResponse(state.ID.ValueString())).Update(func(src *api.PostgresInstance) {
 				src.Tags = []api.Tag{}
 			}).GetPtr(),
 			responseErr: nil,
 			desiredState: test.NewUpdater(state).Update(func(src *models.PostgresInstanceResourceModel) {
-				src.Tags = types.MapNull(types.StringType)
+				src.Tags, _ = types.MapValue(types.StringType, map[string]attr.Value{})
 			}).Get(),
 			wantErr: false,
 		},

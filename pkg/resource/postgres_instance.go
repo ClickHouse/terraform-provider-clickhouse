@@ -24,6 +24,10 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
+// postgresOperationTimeoutSeconds is the maximum number of seconds to wait for
+// Postgres instance operations (create, update, delete) to complete.
+const postgresOperationTimeoutSeconds = 300
+
 // Ensure the implementation satisfies the expected interfaces.
 var (
 	_ resource.Resource                = &PostgresInstanceResource{}
@@ -253,7 +257,7 @@ func (r *PostgresInstanceResource) Create(ctx context.Context, req resource.Crea
 	}
 
 	// Wait for the instance to reach "running" state
-	err = r.client.WaitForPostgresInstanceState(ctx, instance.ID, func(state string) bool { return state == "running" }, 300)
+	err = r.client.WaitForPostgresInstanceState(ctx, instance.ID, func(state string) bool { return state == "running" }, postgresOperationTimeoutSeconds)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Waiting for Postgres Instance",
@@ -362,7 +366,7 @@ func (r *PostgresInstanceResource) Update(ctx context.Context, req resource.Upda
 				})
 			}
 		}
-		update.Tags = tags
+		update.Tags = &tags // pointer: sends "tags":[] to clear, or "tags":[...] to set
 	}
 
 	if hasChange {
@@ -376,7 +380,7 @@ func (r *PostgresInstanceResource) Update(ctx context.Context, req resource.Upda
 		}
 
 		// Wait for the instance to reach "running" state after update
-		err = r.client.WaitForPostgresInstanceState(ctx, postgresId, func(state string) bool { return state == "running" }, 300)
+		err = r.client.WaitForPostgresInstanceState(ctx, postgresId, func(state string) bool { return state == "running" }, postgresOperationTimeoutSeconds)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Waiting for Postgres Instance",
@@ -423,6 +427,15 @@ func (r *PostgresInstanceResource) Delete(ctx context.Context, req resource.Dele
 			"Could not delete Postgres instance, unexpected error: "+err.Error(),
 		)
 		return
+	}
+
+	// Wait for instance to be fully deleted
+	err = r.client.WaitForPostgresInstanceDeletion(ctx, state.ID.ValueString(), postgresOperationTimeoutSeconds)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Waiting for Postgres Instance Deletion",
+			"Instance deletion initiated but did not complete: "+err.Error(),
+		)
 	}
 }
 
@@ -513,10 +526,8 @@ func (r *PostgresInstanceResource) syncPostgresStateFromInstance(instance *api.P
 		state.PgBouncerConfig, _ = types.MapValue(types.StringType, pgBouncerConfigValues)
 	}
 
-	// Map tags
-	if len(instance.Tags) == 0 {
-		state.Tags = types.MapNull(types.StringType)
-	} else {
+	// Map tags — preserve empty map when state previously had tags (avoids perpetual diffs for tags = {})
+	if !state.Tags.IsNull() || len(instance.Tags) > 0 {
 		tagsValues := make(map[string]attr.Value, len(instance.Tags))
 		for _, tag := range instance.Tags {
 			tagsValues[tag.Key] = types.StringValue(tag.Value)

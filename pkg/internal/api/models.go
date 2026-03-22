@@ -87,7 +87,7 @@ type PostgresInstanceUpdate struct {
 	Size        string `json:"size,omitempty"`
 	StorageSize *int   `json:"storageSize,omitempty"`
 	HAType      string `json:"haType,omitempty"`
-	Tags        []Tag  `json:"tags"`
+	Tags        *[]Tag `json:"tags,omitempty"`
 }
 
 type Service struct {
