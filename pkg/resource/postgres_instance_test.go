@@ -13,6 +13,8 @@ import (
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -308,6 +310,38 @@ func TestPostgresInstanceResource_syncPostgresState(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Preserves empty map when tags were previously non-null",
+			state: test.NewUpdater(state).Update(func(src *models.PostgresInstanceResourceModel) {
+				// State has tags = {} (empty map, not null) — user wrote tags = {} in config
+				src.Tags, _ = types.MapValue(types.StringType, map[string]attr.Value{})
+			}).Get(),
+			response: test.NewUpdater(getBasePostgresResponse(state.ID.ValueString())).Update(func(src *api.PostgresInstance) {
+				src.Tags = []api.Tag{} // API returns empty tags
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.PostgresInstanceResourceModel) {
+				// Should stay as empty map, NOT become null — avoids perpetual diff
+				src.Tags, _ = types.MapValue(types.StringType, map[string]attr.Value{})
+			}).Get(),
+			wantErr: false,
+		},
+		{
+			name: "Null tags stay null when API returns no tags",
+			state: test.NewUpdater(state).Update(func(src *models.PostgresInstanceResourceModel) {
+				// State has tags = null — user did not set tags in config
+				src.Tags = types.MapNull(types.StringType)
+			}).Get(),
+			response: test.NewUpdater(getBasePostgresResponse(state.ID.ValueString())).Update(func(src *api.PostgresInstance) {
+				src.Tags = nil // API returns nil tags
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.PostgresInstanceResourceModel) {
+				// Should stay null
+				src.Tags = types.MapNull(types.StringType)
+			}).Get(),
+			wantErr: false,
+		},
+		{
 			name:  "Handles multiple tags",
 			state: state,
 			response: test.NewUpdater(getBasePostgresResponse(state.ID.ValueString())).Update(func(src *api.PostgresInstance) {
@@ -374,4 +408,120 @@ func TestPostgresInstanceResource_syncPostgresState(t *testing.T) {
 			}
 		})
 	}
+}
+
+// getPostgresSchema returns the schema for the PostgresInstanceResource.
+func getPostgresSchema() resource.SchemaResponse {
+	r := &PostgresInstanceResource{}
+	schemaResp := resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	return schemaResp
+}
+
+// makePostgresState creates a tfsdk.State populated with the given model.
+func makePostgresState(t *testing.T, model models.PostgresInstanceResourceModel) tfsdk.State {
+	t.Helper()
+	schemaResp := getPostgresSchema()
+	state := tfsdk.State{Schema: schemaResp.Schema}
+	diags := state.Set(context.Background(), model)
+	if diags.HasError() {
+		t.Fatalf("failed to set state: %s", diags.Errors())
+	}
+	return state
+}
+
+// makePostgresPlan creates a tfsdk.Plan populated with the given model.
+func makePostgresPlan(t *testing.T, model models.PostgresInstanceResourceModel) tfsdk.Plan {
+	t.Helper()
+	schemaResp := getPostgresSchema()
+	plan := tfsdk.Plan{Schema: schemaResp.Schema}
+	diags := plan.Set(context.Background(), model)
+	if diags.HasError() {
+		t.Fatalf("failed to set plan: %s", diags.Errors())
+	}
+	return plan
+}
+
+func TestPostgresInstanceResource_ModifyPlan_StorageShrinkRejected(t *testing.T) {
+	tests := []struct {
+		name          string
+		stateStorage  int64
+		planStorage   int64
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:         "allows storage increase",
+			stateStorage: 118,
+			planStorage:  256,
+			expectError:  false,
+		},
+		{
+			name:         "allows storage unchanged",
+			stateStorage: 118,
+			planStorage:  118,
+			expectError:  false,
+		},
+		{
+			name:          "rejects storage decrease",
+			stateStorage:  256,
+			planStorage:   118,
+			expectError:   true,
+			errorContains: "can only be increased",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stateModel := getInitialPostgresState()
+			stateModel.StorageSize = types.Int64Value(tt.stateStorage)
+
+			planModel := getInitialPostgresState()
+			planModel.StorageSize = types.Int64Value(tt.planStorage)
+
+			r := &PostgresInstanceResource{}
+			req := resource.ModifyPlanRequest{
+				State: makePostgresState(t, stateModel),
+				Plan:  makePostgresPlan(t, planModel),
+			}
+			resp := &resource.ModifyPlanResponse{}
+
+			r.ModifyPlan(context.Background(), req, resp)
+
+			if tt.expectError {
+				if !resp.Diagnostics.HasError() {
+					t.Errorf("expected error containing %q, but got no errors", tt.errorContains)
+				} else {
+					found := false
+					for _, d := range resp.Diagnostics.Errors() {
+						if contains(d.Detail(), tt.errorContains) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("expected error containing %q, got: %v", tt.errorContains, resp.Diagnostics.Errors())
+					}
+				}
+			} else {
+				if resp.Diagnostics.HasError() {
+					t.Errorf("expected no errors, got: %v", resp.Diagnostics.Errors())
+				}
+			}
+		})
+	}
+}
+
+// contains checks if s contains substr (simple helper to avoid importing strings).
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && searchString(s, substr)
+}
+
+func searchString(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
