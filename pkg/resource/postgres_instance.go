@@ -24,9 +24,11 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
-// postgresOperationTimeoutSeconds is the maximum number of seconds to wait for
-// Postgres instance operations (create, update, delete) to complete.
-const postgresOperationTimeoutSeconds = 300
+// postgresOperationTimeoutSeconds is the maximum time to wait for Postgres instance
+// state transitions (create, update, delete). The provider's timeout_seconds config
+// controls HTTP client timeouts, not polling timeouts.
+// TODO: Thread configurable operation timeout into resource (Terraform resource timeouts or provider config).
+const postgresOperationTimeoutSeconds = 1800
 
 // Ensure the implementation satisfies the expected interfaces.
 var (

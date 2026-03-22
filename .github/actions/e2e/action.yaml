@@ -329,3 +329,20 @@ runs:
         terraform destroy -no-color -auto-approve -var-file=variables.tfvars
 
         echo "::endgroup::"
+
+    - shell: bash
+      name: Fallback Postgres cleanup
+      if: ${{ always() && steps.defined.outputs.defined == 'true' }}
+      run: |
+        STATE_DIR="examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+        if [ -f "$STATE_DIR/terraform.tfstate" ]; then
+          PG_ID=$(jq -r '.resources[] | select(.type == "clickhouse_postgres_instance") | .instances[].attributes.id // empty' "$STATE_DIR/terraform.tfstate" 2>/dev/null)
+          if [ -n "$PG_ID" ]; then
+            echo "Cleaning up leftover Postgres instance $PG_ID..."
+            API_BASE="${{ inputs.api_url }}"
+            API_BASE="${API_BASE:-https://api.clickhouse.cloud/v1}"
+            curl -su "${{ inputs.token_key }}:${{ inputs.token_secret }}" \
+              -XDELETE "${API_BASE}/organizations/${{ inputs.organization_id }}/postgres/${PG_ID}" \
+              -o /dev/null || true
+          fi
+        fi
