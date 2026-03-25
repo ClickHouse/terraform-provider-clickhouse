@@ -232,6 +232,36 @@ type ClickPipeMySQLTableMapping struct {
 	PartitionKey        *string  `json:"partitionKey,omitempty"`
 }
 
+type ClickPipeMongoDBSettings struct {
+	SyncIntervalSeconds            *int   `json:"syncIntervalSeconds,omitempty"`
+	PullBatchSize                  *int   `json:"pullBatchSize,omitempty"`
+	ReplicationMode                string `json:"replicationMode,omitempty"`
+	SnapshotNumRowsPerPartition    *int   `json:"snapshotNumRowsPerPartition,omitempty"`
+	SnapshotNumberOfParallelTables *int   `json:"snapshotNumberOfParallelTables,omitempty"`
+	DeleteOnMerge                  *bool  `json:"deleteOnMerge,omitempty"`
+	UseJsonNativeFormat            *bool  `json:"useJsonNativeFormat,omitempty"`
+}
+
+type ClickPipeMongoDBTableMapping struct {
+	SourceDatabaseName string  `json:"sourceDatabaseName"`
+	SourceCollection   string  `json:"sourceCollection"`
+	TargetTable        string  `json:"targetTable"`
+	TableEngine        *string `json:"tableEngine,omitempty"`
+}
+
+type ClickPipeMongoDBSource struct {
+	URI                   string                         `json:"uri,omitempty"`
+	ReadPreference        string                         `json:"readPreference,omitempty"`
+	TLSHost               *string                        `json:"tlsHost,omitempty"`
+	DisableTLS            *bool                          `json:"disableTls,omitempty"`
+	CACertificate         *string                        `json:"caCertificate,omitempty"`
+	Credentials           *ClickPipeSourceCredentials    `json:"credentials,omitempty"`
+	Settings              *ClickPipeMongoDBSettings      `json:"settings,omitempty"`
+	Mappings              []ClickPipeMongoDBTableMapping `json:"tableMappings,omitempty"`
+	TableMappingsToRemove []ClickPipeMongoDBTableMapping `json:"tableMappingsToRemove,omitempty"`
+	TableMappingsToAdd    []ClickPipeMongoDBTableMapping `json:"tableMappingsToAdd,omitempty"`
+}
+
 type ClickPipeServiceAccount struct {
 	ServiceAccountFile string `json:"serviceAccountFile,omitempty"`
 }
@@ -270,6 +300,7 @@ type ClickPipeSource struct {
 	Postgres        *ClickPipePostgresSource      `json:"postgres,omitempty"`
 	MySQL           *ClickPipeMySQLSource         `json:"mysql,omitempty"`
 	BigQuery        *ClickPipeBigQuerySource      `json:"bigquery,omitempty"`
+	MongoDB         *ClickPipeMongoDBSource       `json:"mongodb,omitempty"`
 	ValidateSamples bool                          `json:"validateSamples,omitempty"`
 }
 

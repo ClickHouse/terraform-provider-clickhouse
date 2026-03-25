@@ -33,6 +33,7 @@ const (
 	ClickPipeJSONEachRowFormat   = "JSONEachRow"
 	ClickPipeAvroFormat          = "Avro"
 	ClickPipeAvroConfluentFormat = "AvroConfluent"
+	ClickPipeProtobufFormat      = "Protobuf"
 	ClickPipeCSVFormat           = "CSV"
 	ClickPipeCSVWithNamesFormat  = "CSVWithNames"
 	ClickPipeParquetFormat       = "Parquet"
@@ -44,10 +45,14 @@ var ClickPipeStreamingFormats = []string{
 	ClickPipeAvroConfluentFormat,
 }
 
-var (
-	ClickPipeKafkaFormats   = ClickPipeStreamingFormats
-	ClickPipeKinesisFormats = ClickPipeKafkaFormats
-)
+var ClickPipeKafkaFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeAvroConfluentFormat,
+	ClickPipeProtobufFormat,
+}
+
+var ClickPipeKinesisFormats = ClickPipeStreamingFormats
 
 const (
 	ClickPipeAuthenticationIAMRole          = "IAM_ROLE"
@@ -160,6 +165,7 @@ var ClickPipeObjectStorageTypes = []string{
 }
 
 const (
+	ClickPipeObjectStorageCompressionNone   = "none"
 	ClickPipeObjectStorageCompressionAuto   = "auto"
 	ClickPipeObjectStorageCompressionGZIP   = "gzip"
 	ClickPipeObjectStorageCompressionBrotli = "brotli"
@@ -170,6 +176,7 @@ const (
 )
 
 var ClickPipeObjectStorageCompressions = []string{
+	ClickPipeObjectStorageCompressionNone,
 	ClickPipeObjectStorageCompressionAuto,
 	ClickPipeObjectStorageCompressionGZIP,
 	ClickPipeObjectStorageCompressionBrotli,
@@ -257,6 +264,35 @@ var ClickPipeMySQLSourceTypes = []string{
 	ClickPipeMySQLSourceTypePlanetScaleVites,
 	ClickPipeMySQLSourceTypeMariaDB,
 	ClickPipeMySQLSourceTypeRDSMariaDB,
+}
+
+// MongoDB constants
+const (
+	ClickPipeMongoDBReadPreferencePrimary            = "primary"
+	ClickPipeMongoDBReadPreferencePrimaryPreferred   = "primaryPreferred"
+	ClickPipeMongoDBReadPreferenceSecondary          = "secondary"
+	ClickPipeMongoDBReadPreferenceSecondaryPreferred = "secondaryPreferred"
+	ClickPipeMongoDBReadPreferenceNearest            = "nearest"
+)
+
+var ClickPipeMongoDBReadPreferences = []string{
+	ClickPipeMongoDBReadPreferencePrimary,
+	ClickPipeMongoDBReadPreferencePrimaryPreferred,
+	ClickPipeMongoDBReadPreferenceSecondary,
+	ClickPipeMongoDBReadPreferenceSecondaryPreferred,
+	ClickPipeMongoDBReadPreferenceNearest,
+}
+
+var ClickPipeMongoDBReplicationModes = []string{
+	ClickPipeReplicationModeCDC,
+	ClickPipeReplicationModeSnapshot,
+	ClickPipeReplicationModeCDCOnly,
+}
+
+var ClickPipeMongoDBTableEngines = []string{
+	ClickPipeTableEngineMergeTree,
+	ClickPipeTableEngineReplacingMergeTree,
+	ClickPipeTableEngineNull,
 }
 
 const (
