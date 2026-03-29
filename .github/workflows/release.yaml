@@ -500,7 +500,7 @@ jobs:
           fetch-depth: 0
 
       - name: Generate release notes with Claude
-        uses: anthropics/claude-code-action@0ee1beea589a67d33340072691a5d42abec7ae6b # v1.0.78
+        uses: anthropics/claude-code-action@094bd24d575e7b30ac1576024817bf1a97c81262 # v1.0.80
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: --allowedTools "Read,Write,Bash(gh pr view:*),Bash(gh release view:*),Bash(gh release list:*)"
