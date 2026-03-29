@@ -159,6 +159,7 @@ runs:
         token_secret    = "${{ inputs.token_secret }}"
         service_name    = "${{ inputs.service_name }}"
         region          = "${{ inputs.region }}"
+        suffix          = "-${{ inputs.service_name }}"
         EOF
 
         if [ "${{ inputs.cloud_provider }}" == "aws" ]

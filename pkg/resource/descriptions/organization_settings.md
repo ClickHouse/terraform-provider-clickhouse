@@ -4,7 +4,7 @@ You can use the *clickhouse_organization_settings* resource to manage organizati
 
 ## Example Usage
 
-```terraform
+```hcl
 resource "clickhouse_organization_settings" "org_settings" {
   core_dumps_enabled = true
 }

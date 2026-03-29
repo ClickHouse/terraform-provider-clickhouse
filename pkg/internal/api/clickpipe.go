@@ -33,6 +33,7 @@ const (
 	ClickPipeJSONEachRowFormat   = "JSONEachRow"
 	ClickPipeAvroFormat          = "Avro"
 	ClickPipeAvroConfluentFormat = "AvroConfluent"
+	ClickPipeProtobufFormat      = "Protobuf"
 	ClickPipeCSVFormat           = "CSV"
 	ClickPipeCSVWithNamesFormat  = "CSVWithNames"
 	ClickPipeParquetFormat       = "Parquet"
@@ -44,10 +45,14 @@ var ClickPipeStreamingFormats = []string{
 	ClickPipeAvroConfluentFormat,
 }
 
-var (
-	ClickPipeKafkaFormats   = ClickPipeStreamingFormats
-	ClickPipeKinesisFormats = ClickPipeKafkaFormats
-)
+var ClickPipeKafkaFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeAvroConfluentFormat,
+	ClickPipeProtobufFormat,
+}
+
+var ClickPipeKinesisFormats = ClickPipeStreamingFormats
 
 const (
 	ClickPipeAuthenticationIAMRole          = "IAM_ROLE"
@@ -58,6 +63,7 @@ const (
 	ClickPipeKafkaAuthenticationPlain       = "PLAIN"
 	ClickPipeKafkaAuthenticationScramSha256 = "SCRAM-SHA-256"
 	ClickPipeKafkaAuthenticationScramSha512 = "SCRAM-SHA-512"
+	ClickPipeKafkaAuthenticationMutualTLS   = "MUTUAL_TLS"
 )
 
 var ClickPipeKafkaAuthenticationMethods = []string{
@@ -66,6 +72,7 @@ var ClickPipeKafkaAuthenticationMethods = []string{
 	ClickPipeKafkaAuthenticationScramSha512,
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
+	ClickPipeKafkaAuthenticationMutualTLS,
 }
 
 const (
@@ -158,6 +165,7 @@ var ClickPipeObjectStorageTypes = []string{
 }
 
 const (
+	ClickPipeObjectStorageCompressionNone   = "none"
 	ClickPipeObjectStorageCompressionAuto   = "auto"
 	ClickPipeObjectStorageCompressionGZIP   = "gzip"
 	ClickPipeObjectStorageCompressionBrotli = "brotli"
@@ -168,6 +176,7 @@ const (
 )
 
 var ClickPipeObjectStorageCompressions = []string{
+	ClickPipeObjectStorageCompressionNone,
 	ClickPipeObjectStorageCompressionAuto,
 	ClickPipeObjectStorageCompressionGZIP,
 	ClickPipeObjectStorageCompressionBrotli,
@@ -207,6 +216,80 @@ var ClickPipePostgresTableEngines = []string{
 }
 
 var ClickPipeBigQueryTableEngines = []string{
+	ClickPipeTableEngineMergeTree,
+	ClickPipeTableEngineReplacingMergeTree,
+	ClickPipeTableEngineNull,
+}
+
+const (
+	ClickPipeMySQLReplicationMechanismGTID    = "GTID"
+	ClickPipeMySQLReplicationMechanismFilePos = "FILE_POS"
+)
+
+var ClickPipeMySQLReplicationModes = []string{
+	ClickPipeReplicationModeCDC,
+	ClickPipeReplicationModeSnapshot,
+	ClickPipeReplicationModeCDCOnly,
+}
+
+var ClickPipeMySQLReplicationMechanisms = []string{
+	ClickPipeMySQLReplicationMechanismGTID,
+	ClickPipeMySQLReplicationMechanismFilePos,
+}
+
+var ClickPipeMySQLTableEngines = []string{
+	ClickPipeTableEngineMergeTree,
+	ClickPipeTableEngineReplacingMergeTree,
+	ClickPipeTableEngineNull,
+}
+
+var ClickPipeMySQLAuthenticationMethods = []string{
+	"basic",
+	"IAM_ROLE",
+}
+
+const (
+	ClickPipeMySQLSourceTypeMySQL            = "mysql"
+	ClickPipeMySQLSourceTypeRDSMySQL         = "rdsmysql"
+	ClickPipeMySQLSourceTypeAuroraMySQL      = "auroramysql"
+	ClickPipeMySQLSourceTypePlanetScaleVites = "planetscalevitess"
+	ClickPipeMySQLSourceTypeMariaDB          = "mariadb"
+	ClickPipeMySQLSourceTypeRDSMariaDB       = "rdsmariadb"
+)
+
+var ClickPipeMySQLSourceTypes = []string{
+	ClickPipeMySQLSourceTypeMySQL,
+	ClickPipeMySQLSourceTypeRDSMySQL,
+	ClickPipeMySQLSourceTypeAuroraMySQL,
+	ClickPipeMySQLSourceTypePlanetScaleVites,
+	ClickPipeMySQLSourceTypeMariaDB,
+	ClickPipeMySQLSourceTypeRDSMariaDB,
+}
+
+// MongoDB constants
+const (
+	ClickPipeMongoDBReadPreferencePrimary            = "primary"
+	ClickPipeMongoDBReadPreferencePrimaryPreferred   = "primaryPreferred"
+	ClickPipeMongoDBReadPreferenceSecondary          = "secondary"
+	ClickPipeMongoDBReadPreferenceSecondaryPreferred = "secondaryPreferred"
+	ClickPipeMongoDBReadPreferenceNearest            = "nearest"
+)
+
+var ClickPipeMongoDBReadPreferences = []string{
+	ClickPipeMongoDBReadPreferencePrimary,
+	ClickPipeMongoDBReadPreferencePrimaryPreferred,
+	ClickPipeMongoDBReadPreferenceSecondary,
+	ClickPipeMongoDBReadPreferenceSecondaryPreferred,
+	ClickPipeMongoDBReadPreferenceNearest,
+}
+
+var ClickPipeMongoDBReplicationModes = []string{
+	ClickPipeReplicationModeCDC,
+	ClickPipeReplicationModeSnapshot,
+	ClickPipeReplicationModeCDCOnly,
+}
+
+var ClickPipeMongoDBTableEngines = []string{
 	ClickPipeTableEngineMergeTree,
 	ClickPipeTableEngineReplacingMergeTree,
 	ClickPipeTableEngineNull,
