@@ -60,4 +60,4 @@ resource "clickhouse_clickpipe" "mysql_cdc" {
 - Only one CDC infrastructure resource should be created per service
 - Table mappings define which MySQL tables to replicate and their destination in ClickHouse
 - The `replication_mode` can be `cdc`, `snapshot`, or `cdc_only`
-- The `replication_mechanism` can be `AUTO`, `GTID`, or `FILE_POS`
+- The `replication_mechanism` can be `GTID` or `FILE_POS`

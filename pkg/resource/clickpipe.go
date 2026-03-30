@@ -393,7 +393,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
-									"The type of the S3-compatbile source (%s). Default is `%s`.",
+									"The type of the S3-compatible source (%s). Default is `%s`.",
 									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeObjectStorageTypes),
 									api.ClickPipeObjectStorageS3Type,
 								),

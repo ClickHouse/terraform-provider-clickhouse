@@ -67,7 +67,7 @@ resource "clickhouse_clickpipe" "mysql_cdc" {
 
       settings = {
         replication_mode      = "cdc" # Options: "cdc", "snapshot", "cdc_only"
-        replication_mechanism = "AUTO" # Options: "AUTO", "GTID", "FILE_POS"
+        replication_mechanism = "GTID" # Options: "GTID", "FILE_POS"
         # Optional: Uncomment to customize
         # use_compression = true
         # sync_interval_seconds = 60

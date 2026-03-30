@@ -25,8 +25,6 @@ Known limitations:
 ```terraform
 resource "clickhouse_clickpipe" "kafka_clickpipe" {
   name        = "My Kafka ClickPipe"
-  description = "Data pipeline from Kafka to ClickHouse"
-
   service_id = "e9465b4b-f7e5-4937-8e21-8d508b02843d"
 
   scaling {
@@ -34,8 +32,6 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
     replica_cpu_millicores = 250
     replica_memory_gb      = 1.0
   }
-
-  state = "Running"
 
   source {
     kafka {
@@ -57,7 +53,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
     table         = "my_table"
     managed_table = true
 
-    tableDefinition {
+    table_definition {
       engine {
         type = "MergeTree"
       }
@@ -467,7 +463,7 @@ Optional:
 - `path` (String) Path to the file(s) within the Azure container. Used for Azure Blob Storage sources. You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations. Example: `data/logs/*.json`
 - `queue_url` (String) Queue URL for event-based continuous ingestion. When provided, files are ingested based on event notifications rather than lexicographical order. Only applicable when `is_continuous` is `true` and authentication is provided. For S3: SQS URL in the format `https://sqs.{region}.amazonaws.com/{account-id}/{queue-name}`. For GCS: Pub/Sub subscription in the format `projects/{project}/subscriptions/{subscription}`.
 - `service_account_key` (String, Sensitive) Base64-encoded GCP service account JSON key for GCS authentication. Required when authentication is `SERVICE_ACCOUNT`.
-- `type` (String) The type of the S3-compatbile source (`s3`, `gcs`, `azureblobstorage`). Default is `s3`.
+- `type` (String) The type of the S3-compatible source (`s3`, `gcs`, `azureblobstorage`). Default is `s3`.
 - `url` (String) The URL of the S3/GCS bucket. Required for S3 and GCS types. Not used for Azure Blob Storage (use path and azure_container_name instead). You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations
 
 <a id="nestedatt--source--object_storage--access_key"></a>
