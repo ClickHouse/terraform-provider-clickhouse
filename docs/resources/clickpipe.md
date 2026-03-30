@@ -221,7 +221,7 @@ Optional:
 Required:
 
 - `brokers` (String) The list of Kafka bootstrap brokers. (comma separated)
-- `format` (String) The format of the Kafka source. (`JSONEachRow`, `Avro`, `AvroConfluent`)
+- `format` (String) The format of the Kafka source. (`JSONEachRow`, `Avro`, `AvroConfluent`, `Protobuf`)
 - `topics` (String) The list of Kafka topics. (comma separated)
 
 Optional:

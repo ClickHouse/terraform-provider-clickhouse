@@ -33,6 +33,7 @@ const (
 	ClickPipeJSONEachRowFormat   = "JSONEachRow"
 	ClickPipeAvroFormat          = "Avro"
 	ClickPipeAvroConfluentFormat = "AvroConfluent"
+	ClickPipeProtobufFormat      = "Protobuf"
 	ClickPipeCSVFormat           = "CSV"
 	ClickPipeCSVWithNamesFormat  = "CSVWithNames"
 	ClickPipeParquetFormat       = "Parquet"
@@ -44,10 +45,14 @@ var ClickPipeStreamingFormats = []string{
 	ClickPipeAvroConfluentFormat,
 }
 
-var (
-	ClickPipeKafkaFormats   = ClickPipeStreamingFormats
-	ClickPipeKinesisFormats = ClickPipeKafkaFormats
-)
+var ClickPipeKafkaFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeAvroConfluentFormat,
+	ClickPipeProtobufFormat,
+}
+
+var ClickPipeKinesisFormats = ClickPipeStreamingFormats
 
 const (
 	ClickPipeAuthenticationIAMRole          = "IAM_ROLE"
