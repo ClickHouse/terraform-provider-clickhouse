@@ -1,29 +1,34 @@
-//go:build alpha
-
 package resource
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"time"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
 var (
-	_ resource.Resource              = &ClickPipeCdcInfrastructureResource{}
-	_ resource.ResourceWithConfigure = &ClickPipeCdcInfrastructureResource{}
+	_ resource.Resource                = &ClickPipeCdcInfrastructureResource{}
+	_ resource.ResourceWithConfigure   = &ClickPipeCdcInfrastructureResource{}
+	_ resource.ResourceWithImportState = &ClickPipeCdcInfrastructureResource{}
 )
+
+//go:embed descriptions/clickpipe_cdc_infrastructure.md
+var clickPipeCdcInfrastructureResourceDescription string
 
 func NewClickPipeCdcInfrastructureResource() resource.Resource {
 	return &ClickPipeCdcInfrastructureResource{}
@@ -39,10 +44,7 @@ func (r *ClickPipeCdcInfrastructureResource) Metadata(_ context.Context, req res
 
 func (r *ClickPipeCdcInfrastructureResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "ClickPipe CDC Infrastructure resource. Manages scaling settings for CDC ClickPipes infrastructure shared across all DB ClickPipes in a service.\n\n" +
-			"**Important**: Only one CDC infrastructure resource per service is supported. Creating multiple instances for the same service will cause conflicts.\n\n" +
-			"This endpoint becomes available once at least one DB ClickPipe has been provisioned. The resource will poll for up to 10 minutes waiting for the endpoint to become available.\n\n" +
-			"For billing purposes, 2 CPU cores and 8 GB of RAM correspond to one compute unit.",
+		MarkdownDescription: clickPipeCdcInfrastructureResourceDescription,
 		Attributes: map[string]schema.Attribute{
 			"service_id": schema.StringAttribute{
 				MarkdownDescription: "ClickHouse Cloud service ID where the CDC infrastructure is located.",
@@ -236,6 +238,12 @@ func (r *ClickPipeCdcInfrastructureResource) Delete(ctx context.Context, req res
 			"The infrastructure will automatically be removed when all DB ClickPipes are deleted. "+
 			"This resource has been removed from Terraform state only.",
 	)
+}
+
+// ImportState imports CDC infrastructure scaling settings for a service.
+// Import using the service ID: terraform import clickhouse_clickpipe_cdc_infrastructure.example <service_id>
+func (r *ClickPipeCdcInfrastructureResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("service_id"), req, resp)
 }
 
 func (r *ClickPipeCdcInfrastructureResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {

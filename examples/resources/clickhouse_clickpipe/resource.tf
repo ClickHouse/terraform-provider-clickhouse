@@ -1,7 +1,5 @@
 resource "clickhouse_clickpipe" "kafka_clickpipe" {
   name        = "My Kafka ClickPipe"
-  description = "Data pipeline from Kafka to ClickHouse"
-
   service_id = "e9465b4b-f7e5-4937-8e21-8d508b02843d"
 
   scaling {
@@ -9,8 +7,6 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
     replica_cpu_millicores = 250
     replica_memory_gb      = 1.0
   }
-
-  state = "Running"
 
   source {
     kafka {
@@ -32,7 +28,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
     table         = "my_table"
     managed_table = true
 
-    tableDefinition {
+    table_definition {
       engine {
         type = "MergeTree"
       }
