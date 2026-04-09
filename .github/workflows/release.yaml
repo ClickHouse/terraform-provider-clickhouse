@@ -478,7 +478,7 @@ jobs:
           prev=$(git tag --list 'v*' --sort=-version:refname | grep -v -- '-' | grep -v "^${current}$" | head -1)
           if [ -n "$prev" ]; then
             echo "Previous stable tag: ${prev}"
-            echo "flag=--previous-tag ${prev}" >> "${GITHUB_OUTPUT}"
+            echo "tag=${prev}" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Import GPG key
@@ -491,11 +491,12 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         with:
-          args: release --clean --config ${{ needs.validate.outputs.goreleaser_config }} ${{ steps.prev_tag.outputs.flag }}
+          args: release --clean --config ${{ needs.validate.outputs.goreleaser_config }}
         env:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GORELEASER_PREVIOUS_TAG: ${{ steps.prev_tag.outputs.tag }}
 
   # Generate human-friendly release notes with an AI summary and update the draft release
   release-notes:
