@@ -302,7 +302,14 @@ runs:
           export TF_LOG=debug
         fi
 
-        terraform init -input=false -upgrade
+        # When using dev_overrides (skip_build=false), terraform init is not necessary
+        # and may fail if the version constraint references an unpublished version.
+        # See: https://developer.hashicorp.com/terraform/cli/config/config-file#development-overrides-for-provider-developers
+        if [ "${{ inputs.skip_build }}" == "true" ]
+        then
+          terraform init -input=false -upgrade
+        fi
+
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
         terraform refresh -no-color -var-file=variables.tfvars
