@@ -236,15 +236,30 @@ runs:
       name: Upgrade test - Run terraform using latest stable version
       run: |
         git checkout tags/${{ steps.get_latest_stable_release.outputs.tag }}
-        if [ $(find examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }} -name "*.tf" -type f 2>/dev/null | wc -l) -gt 0 ]
+
+        test_dir="examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+
+        # Skip if the test directory has no .tf files at this tag.
+        if [ $(find "$test_dir" -name "*.tf" -type f 2>/dev/null | wc -l) -eq 0 ]
         then
-          echo "::group::Run terraform using latest stable version"
-        else
           echo "::group::Skipping upgrade E2E test as it does not exist for cloud provider ${{ inputs.cloud_provider }} and version ${{ steps.get_latest_stable_release.outputs.tag }}"
           echo "SKIP_E2E_TEST=true" >> "$GITHUB_ENV"
           git checkout ${{ github.ref }}
           exit 0
         fi
+
+        # Skip if the test was alpha-only at this tag (no stable provider template).
+        # Alpha resources aren't in stable registry releases and alpha versions are
+        # not published to the Terraform registry, so the upgrade test can't run.
+        if [ ! -f "$test_dir/provider.tf.template" ] && [ -f "$test_dir/provider.tf.template.alpha" ]
+        then
+          echo "::group::Skipping upgrade E2E test as ${{ inputs.test_name }} was alpha-only in version ${{ steps.get_latest_stable_release.outputs.tag }}"
+          echo "SKIP_E2E_TEST=true" >> "$GITHUB_ENV"
+          git checkout ${{ github.ref }}
+          exit 0
+        fi
+
+        echo "::group::Run terraform using latest stable version"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
 
         if [ "${{inputs.api_url}}" != "" ]
@@ -302,13 +317,15 @@ runs:
           export TF_LOG=debug
         fi
 
-        # When using dev_overrides (skip_build=false), terraform init is not necessary
-        # and may fail if the version constraint references an unpublished version.
-        # See: https://developer.hashicorp.com/terraform/cli/config/config-file#development-overrides-for-provider-developers
-        if [ "${{ inputs.skip_build }}" == "true" ]
+        # When using dev_overrides, the ClickHouse provider version constraint is
+        # irrelevant (the local build is used). Remove it so terraform init doesn't
+        # fail on unpublished versions while still downloading other providers (e.g. AWS).
+        if [ "${{ inputs.skip_build }}" == "false" ]
         then
-          terraform init -input=false -upgrade
+          sed -i '/^\s*version\s*=/d' provider.tf
         fi
+
+        terraform init -input=false -upgrade
 
         terraform plan -no-color -var-file=variables.tfvars
         terraform apply -no-color -auto-approve -var-file=variables.tfvars
