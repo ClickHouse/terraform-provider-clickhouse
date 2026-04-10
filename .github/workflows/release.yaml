@@ -581,7 +581,7 @@ jobs:
 
             ## Step 5: Save to file
 
-            Use the Write tool (not Bash) to save the file to /tmp/release-notes.md in this format:
+            Write the complete release body to /tmp/release-notes.md using the Write tool (not Bash), in this format:
             ```
             <!-- AI-generated summary — please review before publishing -->
 
