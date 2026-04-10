@@ -513,7 +513,6 @@ jobs:
           fetch-depth: 0
 
       - name: Generate release notes with Claude
-        id: claude
         uses: anthropics/claude-code-action@094bd24d575e7b30ac1576024817bf1a97c81262 # v1.0.80
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -596,13 +595,6 @@ jobs:
 
             {original GoReleaser changelog, unchanged}
             ```
-
-      - name: Upload Claude execution log
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: claude-execution-log
-          path: ${{ steps.claude.outputs.execution_file }}
 
       - name: Update draft release notes
         env:
