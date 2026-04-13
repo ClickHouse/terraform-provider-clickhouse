@@ -1,5 +1,3 @@
-//go:build alpha
-
 package models
 
 import (
@@ -128,6 +126,10 @@ type ClickPipeKafkaSourceCredentialsModel struct {
 
 	// Azure EventHub connection string
 	ConnectionString types.String `tfsdk:"connection_string"`
+
+	// MutualTLS credentials
+	Certificate types.String `tfsdk:"certificate"`
+	PrivateKey  types.String `tfsdk:"private_key"`
 }
 
 func (m ClickPipeKafkaSourceCredentialsModel) ObjectType() types.ObjectType {
@@ -138,6 +140,8 @@ func (m ClickPipeKafkaSourceCredentialsModel) ObjectType() types.ObjectType {
 			"access_key_id":     types.StringType,
 			"secret_key":        types.StringType,
 			"connection_string": types.StringType,
+			"certificate":       types.StringType,
+			"private_key":       types.StringType,
 		},
 	}
 }
@@ -149,6 +153,8 @@ func (m ClickPipeKafkaSourceCredentialsModel) ObjectValue() types.Object {
 		"access_key_id":     m.AccessKeyID,
 		"secret_key":        m.SecretKey,
 		"connection_string": m.ConnectionString,
+		"certificate":       m.Certificate,
+		"private_key":       m.PrivateKey,
 	})
 }
 
@@ -338,6 +344,7 @@ func (m ClickPipePostgresTableMappingModel) ObjectValue() types.Object {
 }
 
 type ClickPipePostgresSourceModel struct {
+	Type           types.String `tfsdk:"type"`
 	Host           types.String `tfsdk:"host"`
 	Port           types.Int64  `tfsdk:"port"`
 	Database       types.String `tfsdk:"database"`
@@ -353,6 +360,7 @@ type ClickPipePostgresSourceModel struct {
 func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
+			"type":           types.StringType,
 			"host":           types.StringType,
 			"port":           types.Int64Type,
 			"database":       types.StringType,
@@ -369,6 +377,7 @@ func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
 
 func (m ClickPipePostgresSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"type":           m.Type,
 		"host":           m.Host,
 		"port":           m.Port,
 		"database":       m.Database,
@@ -394,6 +403,9 @@ type ClickPipeObjectStorageSourceModel struct {
 	AccessKey      types.Object `tfsdk:"access_key"`
 	IAMRole        types.String `tfsdk:"iam_role"`
 
+	// GCS specific fields
+	ServiceAccountKey types.String `tfsdk:"service_account_key"`
+
 	// Azure Blob Storage specific fields
 	ConnectionString   types.String `tfsdk:"connection_string"`
 	Path               types.String `tfsdk:"path"`
@@ -413,6 +425,7 @@ func (m ClickPipeObjectStorageSourceModel) ObjectType() types.ObjectType {
 			"authentication":       types.StringType,
 			"access_key":           ClickPipeSourceAccessKeyModel{}.ObjectType(),
 			"iam_role":             types.StringType,
+			"service_account_key":  types.StringType,
 			"connection_string":    types.StringType,
 			"path":                 types.StringType,
 			"azure_container_name": types.StringType,
@@ -432,6 +445,7 @@ func (m ClickPipeObjectStorageSourceModel) ObjectValue() types.Object {
 		"authentication":       m.Authentication,
 		"access_key":           m.AccessKey,
 		"iam_role":             m.IAMRole,
+		"service_account_key":  m.ServiceAccountKey,
 		"connection_string":    m.ConnectionString,
 		"path":                 m.Path,
 		"azure_container_name": m.AzureContainerName,
@@ -549,12 +563,251 @@ func (m ClickPipeBigQuerySourceModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeMySQLSettingsModel struct {
+	SyncIntervalSeconds            types.Int64  `tfsdk:"sync_interval_seconds"`
+	PullBatchSize                  types.Int64  `tfsdk:"pull_batch_size"`
+	ReplicationMode                types.String `tfsdk:"replication_mode"`
+	ReplicationMechanism           types.String `tfsdk:"replication_mechanism"`
+	UseCompression                 types.Bool   `tfsdk:"use_compression"`
+	AllowNullableColumns           types.Bool   `tfsdk:"allow_nullable_columns"`
+	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
+	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
+	SnapshotNumberOfParallelTables types.Int64  `tfsdk:"snapshot_number_of_parallel_tables"`
+	DeleteOnMerge                  types.Bool   `tfsdk:"delete_on_merge"`
+}
+
+func (m ClickPipeMySQLSettingsModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"sync_interval_seconds":              types.Int64Type,
+			"pull_batch_size":                    types.Int64Type,
+			"replication_mode":                   types.StringType,
+			"replication_mechanism":              types.StringType,
+			"use_compression":                    types.BoolType,
+			"allow_nullable_columns":             types.BoolType,
+			"initial_load_parallelism":           types.Int64Type,
+			"snapshot_num_rows_per_partition":    types.Int64Type,
+			"snapshot_number_of_parallel_tables": types.Int64Type,
+			"delete_on_merge":                    types.BoolType,
+		},
+	}
+}
+
+func (m ClickPipeMySQLSettingsModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"sync_interval_seconds":              m.SyncIntervalSeconds,
+		"pull_batch_size":                    m.PullBatchSize,
+		"replication_mode":                   m.ReplicationMode,
+		"replication_mechanism":              m.ReplicationMechanism,
+		"use_compression":                    m.UseCompression,
+		"allow_nullable_columns":             m.AllowNullableColumns,
+		"initial_load_parallelism":           m.InitialLoadParallelism,
+		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
+		"snapshot_number_of_parallel_tables": m.SnapshotNumberOfParallelTables,
+		"delete_on_merge":                    m.DeleteOnMerge,
+	})
+}
+
+type ClickPipeMySQLTableMappingModel struct {
+	SourceSchemaName    types.String `tfsdk:"source_schema_name"`
+	SourceTable         types.String `tfsdk:"source_table"`
+	TargetTable         types.String `tfsdk:"target_table"`
+	ExcludedColumns     types.List   `tfsdk:"excluded_columns"`
+	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
+	SortingKeys         types.List   `tfsdk:"sorting_keys"`
+	TableEngine         types.String `tfsdk:"table_engine"`
+	PartitionKey        types.String `tfsdk:"partition_key"`
+}
+
+func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"source_schema_name":     types.StringType,
+			"source_table":           types.StringType,
+			"target_table":           types.StringType,
+			"excluded_columns":       types.ListType{ElemType: types.StringType},
+			"use_custom_sorting_key": types.BoolType,
+			"sorting_keys":           types.ListType{ElemType: types.StringType},
+			"table_engine":           types.StringType,
+			"partition_key":          types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeMySQLTableMappingModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"source_schema_name":     m.SourceSchemaName,
+		"source_table":           m.SourceTable,
+		"target_table":           m.TargetTable,
+		"excluded_columns":       m.ExcludedColumns,
+		"use_custom_sorting_key": m.UseCustomSortingKey,
+		"sorting_keys":           m.SortingKeys,
+		"table_engine":           m.TableEngine,
+		"partition_key":          m.PartitionKey,
+	})
+}
+
+type ClickPipeMySQLSourceModel struct {
+	Type                 types.String `tfsdk:"type"`
+	Host                 types.String `tfsdk:"host"`
+	Port                 types.Int64  `tfsdk:"port"`
+	Authentication       types.String `tfsdk:"authentication"`
+	IAMRole              types.String `tfsdk:"iam_role"`
+	TLSHost              types.String `tfsdk:"tls_host"`
+	CACertificate        types.String `tfsdk:"ca_certificate"`
+	DisableTLS           types.Bool   `tfsdk:"disable_tls"`
+	SkipCertVerification types.Bool   `tfsdk:"skip_cert_verification"`
+	Credentials          types.Object `tfsdk:"credentials"`
+	Settings             types.Object `tfsdk:"settings"`
+	TableMappings        types.Set    `tfsdk:"table_mappings"`
+}
+
+func (m ClickPipeMySQLSourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"type":                   types.StringType,
+			"host":                   types.StringType,
+			"port":                   types.Int64Type,
+			"authentication":         types.StringType,
+			"iam_role":               types.StringType,
+			"tls_host":               types.StringType,
+			"ca_certificate":         types.StringType,
+			"disable_tls":            types.BoolType,
+			"skip_cert_verification": types.BoolType,
+			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"settings":               ClickPipeMySQLSettingsModel{}.ObjectType(),
+			"table_mappings":         types.SetType{ElemType: ClickPipeMySQLTableMappingModel{}.ObjectType()},
+		},
+	}
+}
+
+func (m ClickPipeMySQLSourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"type":                   m.Type,
+		"host":                   m.Host,
+		"port":                   m.Port,
+		"authentication":         m.Authentication,
+		"iam_role":               m.IAMRole,
+		"tls_host":               m.TLSHost,
+		"ca_certificate":         m.CACertificate,
+		"disable_tls":            m.DisableTLS,
+		"skip_cert_verification": m.SkipCertVerification,
+		"credentials":            m.Credentials,
+		"settings":               m.Settings,
+		"table_mappings":         m.TableMappings,
+	})
+}
+
+type ClickPipeMongoDBSettingsModel struct {
+	SyncIntervalSeconds            types.Int64  `tfsdk:"sync_interval_seconds"`
+	PullBatchSize                  types.Int64  `tfsdk:"pull_batch_size"`
+	ReplicationMode                types.String `tfsdk:"replication_mode"`
+	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
+	SnapshotNumberOfParallelTables types.Int64  `tfsdk:"snapshot_number_of_parallel_tables"`
+	DeleteOnMerge                  types.Bool   `tfsdk:"delete_on_merge"`
+	UseJsonNativeFormat            types.Bool   `tfsdk:"use_json_native_format"`
+}
+
+func (m ClickPipeMongoDBSettingsModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"sync_interval_seconds":              types.Int64Type,
+			"pull_batch_size":                    types.Int64Type,
+			"replication_mode":                   types.StringType,
+			"snapshot_num_rows_per_partition":    types.Int64Type,
+			"snapshot_number_of_parallel_tables": types.Int64Type,
+			"delete_on_merge":                    types.BoolType,
+			"use_json_native_format":             types.BoolType,
+		},
+	}
+}
+
+func (m ClickPipeMongoDBSettingsModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"sync_interval_seconds":              m.SyncIntervalSeconds,
+		"pull_batch_size":                    m.PullBatchSize,
+		"replication_mode":                   m.ReplicationMode,
+		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
+		"snapshot_number_of_parallel_tables": m.SnapshotNumberOfParallelTables,
+		"delete_on_merge":                    m.DeleteOnMerge,
+		"use_json_native_format":             m.UseJsonNativeFormat,
+	})
+}
+
+type ClickPipeMongoDBTableMappingModel struct {
+	SourceDatabaseName types.String `tfsdk:"source_database_name"`
+	SourceCollection   types.String `tfsdk:"source_collection"`
+	TargetTable        types.String `tfsdk:"target_table"`
+	TableEngine        types.String `tfsdk:"table_engine"`
+}
+
+func (m ClickPipeMongoDBTableMappingModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"source_database_name": types.StringType,
+			"source_collection":    types.StringType,
+			"target_table":         types.StringType,
+			"table_engine":         types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeMongoDBTableMappingModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"source_database_name": m.SourceDatabaseName,
+		"source_collection":    m.SourceCollection,
+		"target_table":         m.TargetTable,
+		"table_engine":         m.TableEngine,
+	})
+}
+
+type ClickPipeMongoDBSourceModel struct {
+	URI            types.String `tfsdk:"uri"`
+	ReadPreference types.String `tfsdk:"read_preference"`
+	TLSHost        types.String `tfsdk:"tls_host"`
+	CACertificate  types.String `tfsdk:"ca_certificate"`
+	DisableTLS     types.Bool   `tfsdk:"disable_tls"`
+	Credentials    types.Object `tfsdk:"credentials"`
+	Settings       types.Object `tfsdk:"settings"`
+	TableMappings  types.Set    `tfsdk:"table_mappings"`
+}
+
+func (m ClickPipeMongoDBSourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"uri":             types.StringType,
+			"read_preference": types.StringType,
+			"tls_host":        types.StringType,
+			"ca_certificate":  types.StringType,
+			"disable_tls":     types.BoolType,
+			"credentials":     ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"settings":        ClickPipeMongoDBSettingsModel{}.ObjectType(),
+			"table_mappings":  types.SetType{ElemType: ClickPipeMongoDBTableMappingModel{}.ObjectType()},
+		},
+	}
+}
+
+func (m ClickPipeMongoDBSourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"uri":             m.URI,
+		"read_preference": m.ReadPreference,
+		"tls_host":        m.TLSHost,
+		"ca_certificate":  m.CACertificate,
+		"disable_tls":     m.DisableTLS,
+		"credentials":     m.Credentials,
+		"settings":        m.Settings,
+		"table_mappings":  m.TableMappings,
+	})
+}
+
 type ClickPipeSourceModel struct {
 	Kafka         types.Object `tfsdk:"kafka"`
 	ObjectStorage types.Object `tfsdk:"object_storage"`
 	Kinesis       types.Object `tfsdk:"kinesis"`
 	Postgres      types.Object `tfsdk:"postgres"`
+	MySQL         types.Object `tfsdk:"mysql"`
 	BigQuery      types.Object `tfsdk:"bigquery"`
+	MongoDB       types.Object `tfsdk:"mongodb"`
 }
 
 func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
@@ -564,7 +817,9 @@ func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
 			"object_storage": ClickPipeObjectStorageSourceModel{}.ObjectType(),
 			"kinesis":        ClickPipeKinesisSourceModel{}.ObjectType(),
 			"postgres":       ClickPipePostgresSourceModel{}.ObjectType(),
+			"mysql":          ClickPipeMySQLSourceModel{}.ObjectType(),
 			"bigquery":       ClickPipeBigQuerySourceModel{}.ObjectType(),
+			"mongodb":        ClickPipeMongoDBSourceModel{}.ObjectType(),
 		},
 	}
 }
@@ -575,7 +830,9 @@ func (m ClickPipeSourceModel) ObjectValue() types.Object {
 		"object_storage": m.ObjectStorage,
 		"kinesis":        m.Kinesis,
 		"postgres":       m.Postgres,
+		"mysql":          m.MySQL,
 		"bigquery":       m.BigQuery,
+		"mongodb":        m.MongoDB,
 	})
 }
 

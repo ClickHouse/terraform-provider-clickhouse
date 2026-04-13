@@ -1,5 +1,3 @@
-//go:build alpha
-
 package models
 
 import (
