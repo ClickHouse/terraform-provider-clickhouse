@@ -37,10 +37,34 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
 
+      - name: Install Langfuse
+        run: pip3 install langfuse
+
       - name: Generate release notes with Claude
         uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          settings: |
+            {
+              "hooks": {
+                "Stop": [
+                  {
+                    "hooks": [
+                      {
+                        "type": "command",
+                        "command": "python3 $GITHUB_WORKSPACE/.claude/hooks/langfuse_hook.py"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "env": {
+                "TRACE_TO_LANGFUSE": "true",
+                "LANGFUSE_PUBLIC_KEY": "${{ secrets.LANGFUSE_PUBLIC_KEY }}",
+                "LANGFUSE_SECRET_KEY": "${{ secrets.LANGFUSE_SECRET_KEY }}",
+                "LANGFUSE_BASE_URL": "${{ secrets.LANGFUSE_BASE_URL }}"
+              }
+            }
           claude_args: --allowedTools "Read(pkg/**),Read(/tmp/**),Write(/tmp/release-notes.md),Bash(gh pr view:*),Bash(gh release view:*),Bash(gh release list:*)"
           prompt: |
             REPO: ${{ github.repository }}
