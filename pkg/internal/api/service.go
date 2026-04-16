@@ -213,7 +213,7 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 		return nil
 	}
 
-	err = backoff.Retry(deleteService, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 18))
+	err = backoff.Retry(deleteService, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 90))
 	if IsNotFound(err) {
 		// That is what we want
 		return nil, nil
