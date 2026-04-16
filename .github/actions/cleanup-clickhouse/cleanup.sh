@@ -81,4 +81,19 @@ EOF
   curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" -XPATCH "${API_URL}/organizations/${ORGANIZATION_ID}" -H 'Content-Type: application/json' -d "$BODY" -o /dev/null
 done
 
+echo "Cleanup of custom roles with suffix ${SUFFIX}..."
+
+OUTPUT="$(curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" "${API_URL}/organizations/${ORGANIZATION_ID}/roles")"
+mapfile -t ROLE_IDS < <(jq --arg suffix "${SUFFIX}" -r '.result[] | select(.type == "custom" and (.name | contains($suffix))) | .id' <<<"${OUTPUT}")
+
+if [[ "${#ROLE_IDS[@]}" -eq 0 ]]; then
+  echo "No roles to cleanup."
+else
+  echo "There are ${#ROLE_IDS[@]} roles to be cleaned up."
+  for ROLE_ID in "${ROLE_IDS[@]}"; do
+    echo "Deleting role ${ROLE_ID}..."
+    curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" -XDELETE "${API_URL}/organizations/${ORGANIZATION_ID}/roles/${ROLE_ID}" -o /dev/null
+  done
+fi
+
 echo "Cleanup complete."

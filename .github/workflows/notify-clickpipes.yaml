@@ -1,0 +1,33 @@
+name: Notify ClickPipes team on labeled issues and PRs
+
+on:
+  issues:
+    types:
+      - labeled
+  pull_request:
+    types:
+      - labeled
+
+jobs:
+  notify_issue:
+    if: github.event_name == 'issues' && github.event.label.name == 'clickpipes'
+    runs-on: k8s-nano
+    permissions:
+      issues: write
+    steps:
+      - run: gh issue comment "$NUMBER" --body "@ClickHouse/clickpipes This issue has been tagged as ClickPipes-related."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+  notify_pr:
+    if: github.event_name == 'pull_request' && github.event.label.name == 'clickpipes'
+    runs-on: k8s-nano
+    permissions:
+      pull-requests: write
+    steps:
+      - run: gh pr comment "$NUMBER" --body "@ClickHouse/clickpipes This PR has been tagged as ClickPipes-related."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}

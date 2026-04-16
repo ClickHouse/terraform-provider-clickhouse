@@ -190,17 +190,39 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodDelete, c.getServicePath(serviceId, ""), nil)
-	if err != nil {
-		return nil, err
+	// The API may return 409 Conflict if the service is still transitioning
+	// on the backend despite reporting as stopped. Retry the DELETE in that case.
+	var body []byte
+	deleteService := func() error {
+		req, err := http.NewRequest(http.MethodDelete, c.getServicePath(serviceId, ""), nil)
+		if err != nil {
+			return backoff.Permanent(err)
+		}
+		body, err = c.doRequest(ctx, req)
+		if IsNotFound(err) {
+			// That is what we want; signal success so the caller can return nil.
+			return nil
+		}
+		if IsConflict(err) {
+			// Service is still transitioning; retry.
+			return err
+		}
+		if err != nil {
+			return backoff.Permanent(err)
+		}
+		return nil
 	}
 
-	body, err := c.doRequest(ctx, req)
+	err = backoff.Retry(deleteService, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 90))
 	if IsNotFound(err) {
 		// That is what we want
 		return nil, nil
 	} else if err != nil {
 		return nil, err
+	}
+	if body == nil {
+		// Deleted before we could read a response body (404 path above exited early).
+		return nil, nil
 	}
 
 	serviceResponse := ResponseWithResult[ServiceResponseResult]{}
