@@ -50,10 +50,11 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "msk_multi_vpc" {
 
 - `description` (String) Description of the reverse private endpoint
 - `service_id` (String) The ID of the ClickHouse service to associate with this reverse private endpoint
-- `type` (String) Type of the reverse private endpoint (VPC_ENDPOINT_SERVICE, VPC_RESOURCE, or MSK_MULTI_VPC)
+- `type` (String) Type of the reverse private endpoint (VPC_ENDPOINT_SERVICE, VPC_RESOURCE, MSK_MULTI_VPC, or GCP_PSC_SERVICE_ATTACHMENT)
 
 ### Optional
 
+- `gcp_service_attachment` (String) GCP PSC service attachment URI, required for GCP_PSC_SERVICE_ATTACHMENT type. Format: projects/{project}/regions/{region}/serviceAttachments/{name}
 - `msk_authentication` (String) MSK cluster authentication type (SASL_IAM or SASL_SCRAM), required for MSK_MULTI_VPC type
 - `msk_cluster_arn` (String) MSK cluster ARN, required for MSK_MULTI_VPC type
 - `vpc_endpoint_service_name` (String) VPC endpoint service name, required for VPC_ENDPOINT_SERVICE type
