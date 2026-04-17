@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	ReversePrivateEndpointTypeVPCEndpointService = "VPC_ENDPOINT_SERVICE"
-	ReversePrivateEndpointTypeVPCResource        = "VPC_RESOURCE"
-	ReversePrivateEndpointTypeMSKMultiVPC        = "MSK_MULTI_VPC"
+	ReversePrivateEndpointTypeVPCEndpointService      = "VPC_ENDPOINT_SERVICE"
+	ReversePrivateEndpointTypeVPCResource             = "VPC_RESOURCE"
+	ReversePrivateEndpointTypeMSKMultiVPC             = "MSK_MULTI_VPC"
+	ReversePrivateEndpointTypeGcpPscServiceAttachment = "GCP_PSC_SERVICE_ATTACHMENT"
 )
 
 const (
@@ -38,6 +39,7 @@ var (
 		ReversePrivateEndpointTypeVPCEndpointService,
 		ReversePrivateEndpointTypeVPCResource,
 		ReversePrivateEndpointTypeMSKMultiVPC,
+		ReversePrivateEndpointTypeGcpPscServiceAttachment,
 	}
 
 	MSKAuthenticationTypes = []string{

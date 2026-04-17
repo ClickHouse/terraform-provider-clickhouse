@@ -73,7 +73,7 @@ func (r *ClickPipeReversePrivateEndpointResource) Schema(ctx context.Context, re
 			},
 			"type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Type of the reverse private endpoint (VPC_ENDPOINT_SERVICE, VPC_RESOURCE, or MSK_MULTI_VPC)",
+				MarkdownDescription: "Type of the reverse private endpoint (VPC_ENDPOINT_SERVICE, VPC_RESOURCE, MSK_MULTI_VPC, or GCP_PSC_SERVICE_ATTACHMENT)",
 				Validators: []validator.String{
 					stringvalidator.OneOf(api.ReversePrivateEndpointTypes...),
 				},
@@ -115,6 +115,13 @@ func (r *ClickPipeReversePrivateEndpointResource) Schema(ctx context.Context, re
 				Validators: []validator.String{
 					stringvalidator.OneOf(api.MSKAuthenticationTypes...),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"gcp_service_attachment": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "GCP PSC service attachment URI, required for GCP_PSC_SERVICE_ATTACHMENT type. Format: projects/{project}/regions/{region}/serviceAttachments/{name}",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -196,6 +203,14 @@ func (r *ClickPipeReversePrivateEndpointResource) Create(ctx context.Context, re
 			)
 			return
 		}
+	case api.ReversePrivateEndpointTypeGcpPscServiceAttachment:
+		if data.GcpServiceAttachment.IsNull() {
+			resp.Diagnostics.AddError(
+				"Missing required field",
+				"gcp_service_attachment is required when type is GCP_PSC_SERVICE_ATTACHMENT",
+			)
+			return
+		}
 	}
 
 	createReq := api.CreateReversePrivateEndpoint{
@@ -223,6 +238,10 @@ func (r *ClickPipeReversePrivateEndpointResource) Create(ctx context.Context, re
 	if !data.MSKAuthentication.IsNull() {
 		value := data.MSKAuthentication.ValueString()
 		createReq.MSKAuthentication = &value
+	}
+	if !data.GcpServiceAttachment.IsNull() {
+		value := data.GcpServiceAttachment.ValueString()
+		createReq.GcpServiceAttachment = &value
 	}
 
 	// Create new reverse private endpoint
@@ -283,6 +302,12 @@ func (r *ClickPipeReversePrivateEndpointResource) Create(ctx context.Context, re
 		data.MSKAuthentication = types.StringValue(*endpoint.MSKAuthentication)
 	} else {
 		data.MSKAuthentication = types.StringNull()
+	}
+
+	if endpoint.GcpServiceAttachment != nil {
+		data.GcpServiceAttachment = types.StringValue(*endpoint.GcpServiceAttachment)
+	} else {
+		data.GcpServiceAttachment = types.StringNull()
 	}
 
 	// Convert string slices to Terraform list values
@@ -362,6 +387,12 @@ func (r *ClickPipeReversePrivateEndpointResource) Read(ctx context.Context, req 
 		data.MSKAuthentication = types.StringValue(*endpoint.MSKAuthentication)
 	} else {
 		data.MSKAuthentication = types.StringNull()
+	}
+
+	if endpoint.GcpServiceAttachment != nil {
+		data.GcpServiceAttachment = types.StringValue(*endpoint.GcpServiceAttachment)
+	} else {
+		data.GcpServiceAttachment = types.StringNull()
 	}
 
 	// Convert string slices to Terraform list values
