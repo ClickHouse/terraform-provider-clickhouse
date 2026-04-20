@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -122,6 +123,12 @@ func (r *ClickPipeReversePrivateEndpointResource) Schema(ctx context.Context, re
 			"gcp_service_attachment": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "GCP PSC service attachment URI, required for GCP_PSC_SERVICE_ATTACHMENT type. Format: projects/{project}/regions/{region}/serviceAttachments/{name}",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^projects/[^/]+/regions/[^/]+/serviceAttachments/[^/]+$`),
+						"must be in the format projects/{project}/regions/{region}/serviceAttachments/{name}",
+					),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

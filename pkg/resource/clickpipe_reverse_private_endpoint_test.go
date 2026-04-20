@@ -41,6 +41,9 @@ func TestClickPipeReversePrivateEndpointResource_Schema(t *testing.T) {
 	if attr.Computed {
 		t.Error("Expected gcp_service_attachment to not be Computed")
 	}
+	if len(attr.Validators) != 1 {
+		t.Errorf("Expected gcp_service_attachment to have 1 validator, got %d", len(attr.Validators))
+	}
 
 	if !slices.Contains(api.ReversePrivateEndpointTypes, api.ReversePrivateEndpointTypeGcpPscServiceAttachment) {
 		t.Error("Expected ReversePrivateEndpointTypes to contain GCP_PSC_SERVICE_ATTACHMENT")
