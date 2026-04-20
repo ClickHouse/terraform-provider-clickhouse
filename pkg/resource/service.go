@@ -966,12 +966,11 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				"backup_configuration cannot be specified when warehouse_id is set",
 			)
 		}
-		if !state.BackupConfiguration.IsNull() {
-			resp.Diagnostics.AddError(
-				"Invalid state for service",
-				"backup_configuration cannot co-exist in terraform state for a service with data_warehouse_id set",
-			)
-		}
+		// Silently nullify backup_configuration in the plan when warehouse_id is set.
+		// The provider's GetService fetches backupConfiguration for all primary services
+		// and stores it in state, even for warehouse-attached services where it's managed
+		// at the warehouse level. Rather than erroring on provider-populated state, we
+		// just ensure it doesn't persist in the plan going forward.
 		plan.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
 		resp.Plan.Set(ctx, plan)
 	}
