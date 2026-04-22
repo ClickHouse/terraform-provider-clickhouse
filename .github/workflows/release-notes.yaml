@@ -1,8 +1,14 @@
 name: Release Notes
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+        description: "The tag to generate release notes for (e.g. v1.2.3 or v1.2.3-alpha1)"
 
 defaults:
   run:
@@ -10,7 +16,6 @@ defaults:
 
 jobs:
   release-notes:
-    if: github.event.release.draft == true
     permissions:
       contents: write
       id-token: write
@@ -19,7 +24,7 @@ jobs:
       - name: Compute release metadata
         id: meta
         run: |
-          tag="${{ github.event.release.tag_name }}"
+          tag="${{ inputs.tag || github.ref_name }}"
           # Strip leading 'v' to get bare version
           version="${tag#v}"
           # Determine if this is an alpha (pre-release) version
@@ -31,10 +36,26 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "enable_alpha=${enable_alpha}" >> "${GITHUB_OUTPUT}"
 
+      - name: Wait for draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          for i in $(seq 1 30); do
+            if gh release view "$tag" --repo "${{ github.repository }}" --json isDraft --jq '.isDraft' 2>/dev/null | grep -q true; then
+              echo "Draft release is ready"
+              exit 0
+            fi
+            echo "Attempt $i: draft not ready, waiting 20s..."
+            sleep 20
+          done
+          echo "Timed out waiting for draft release"
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
 
       - name: Install Langfuse
@@ -68,15 +89,15 @@ jobs:
           claude_args: --allowedTools "Read(pkg/**),Read(/tmp/**),Write(/tmp/release-notes.md),Bash(gh pr view:*),Bash(gh release view:*),Bash(gh release list:*)"
           prompt: |
             REPO: ${{ github.repository }}
-            VERSION: ${{ github.event.release.tag_name }}
+            VERSION: ${{ inputs.tag || github.ref_name }}
             IS_ALPHA: ${{ steps.meta.outputs.enable_alpha }}
 
-            You are writing a human-friendly summary to prepend to the draft release for the Terraform provider for ClickHouse (${{ github.event.release.tag_name }}).
+            You are writing a human-friendly summary to prepend to the draft release for the Terraform provider for ClickHouse (${{ inputs.tag || github.ref_name }}).
 
             ## Step 1: Read the existing draft release body
 
             GoReleaser has already populated the draft with the full changelog. Fetch it:
-              gh release view ${{ github.event.release.tag_name }} --repo ${{ github.repository }} --json body --jq '.body'
+              gh release view ${{ inputs.tag || github.ref_name }} --repo ${{ github.repository }} --json body --jq '.body'
 
             ## Step 2: Get the style reference
 
@@ -149,6 +170,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release edit ${{ github.event.release.tag_name }} \
+          gh release edit ${{ inputs.tag || github.ref_name }} \
             --repo ${{ github.repository }} \
             --notes-file /tmp/release-notes.md
