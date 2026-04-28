@@ -56,4 +56,13 @@ type Client interface {
 	CreateRole(ctx context.Context, req RoleCreateRequest) (*RBACRole, error)
 	UpdateRole(ctx context.Context, roleId string, req RoleUpdateRequest) (*RBACRole, error)
 	DeleteRole(ctx context.Context, roleId string) error
+
+	// Postgres Instance operations
+	GetPostgresInstance(ctx context.Context, postgresId string) (*PostgresInstance, error)
+	CreatePostgresInstance(ctx context.Context, instance PostgresInstanceCreate) (*PostgresInstance, error)
+	UpdatePostgresInstance(ctx context.Context, postgresId string, update PostgresInstanceUpdate) (*PostgresInstance, error)
+	DeletePostgresInstance(ctx context.Context, postgresId string) error
+	GetPostgresInstanceCACertificate(ctx context.Context, postgresId string) (string, error)
+	WaitForPostgresInstanceState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) error
+	WaitForPostgresInstanceDeletion(ctx context.Context, postgresId string, maxWaitSeconds int) error
 }

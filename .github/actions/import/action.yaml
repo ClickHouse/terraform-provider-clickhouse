@@ -62,7 +62,7 @@ runs:
         region          = "${{ inputs.region }}"
         EOF
 
-        if [ "${{ inputs.resource_type }}" == "service" ]
+        if [ "${{ inputs.resource_type }}" == "service" ] || [ "${{ inputs.resource_type }}" == "postgres_instance" ]
         then
           cat <<EOF >>tests/import/${{ inputs.resource_type }}/variables.tfvars
         service_name    = "${{ inputs.service_name }}"
@@ -77,7 +77,7 @@ runs:
         git checkout ${{ github.ref }}
         echo "::group::Build provider from branch and create terraformrc to use it"
         go get
-        go build -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
+        go build -tags alpha -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
 
         cat <<EOF >$HOME/.terraformrc
         provider_installation {

@@ -96,7 +96,7 @@ jobs:
       - uses: ./.github/actions/list-examples
         id: list
         with:
-          ignore: pci
+          ignore: ${{ needs.validate.outputs.enable_alpha == 'true' && 'pci' || 'pci|postgres' }}
 
   # Run e2e tests
   e2e:
@@ -274,7 +274,10 @@ jobs:
       matrix:
         tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
         cloud_provider: [ "aws", "azure", "gcp" ]
-        test_name : ["generic"]
+        test_name: ["service"]
+        include:
+          - cloud_provider: "aws"
+            test_name: "postgres_instance"
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -313,6 +316,7 @@ jobs:
           tf_release: ${{ matrix.tf_release }}
           cloud_provider: ${{ matrix.cloud_provider }}
           region: ${{ steps.credentials.outputs.region }}
+          resource_type: ${{ matrix.test_name }}
 
 
   report:

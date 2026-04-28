@@ -44,6 +44,14 @@ while :; do
   sleep 5
 done
 
+# TODO: Add Postgres instance cleanup here once a list endpoint (GET /v1/organizations/{org}/postgres)
+# is available from the control plane. Currently only single-instance operations exist:
+#   POST   /postgres          (create)
+#   GET    /postgres/{id}     (get single)
+#   PATCH  /postgres/{id}     (update)
+#   DELETE /postgres/{id}     (delete)
+# Without a list endpoint we cannot enumerate instances by name suffix for cleanup.
+
 echo "Cleanup of private link endpoints under the terraform organization..."
 
 OUTPUT="$(curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" "${API_URL}/organizations/${ORGANIZATION_ID}")"
