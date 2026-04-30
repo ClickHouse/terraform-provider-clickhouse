@@ -15,6 +15,7 @@ type ClickPipeReversePrivateEndpointResourceModel struct {
 	VPCResourceShareArn        types.String `tfsdk:"vpc_resource_share_arn"`
 	MSKClusterArn              types.String `tfsdk:"msk_cluster_arn"`
 	MSKAuthentication          types.String `tfsdk:"msk_authentication"`
+	GcpServiceAttachment       types.String `tfsdk:"gcp_service_attachment"`
 	EndpointID                 types.String `tfsdk:"endpoint_id"`
 	DNSNames                   types.List   `tfsdk:"dns_names"`
 	PrivateDNSNames            types.List   `tfsdk:"private_dns_names"`

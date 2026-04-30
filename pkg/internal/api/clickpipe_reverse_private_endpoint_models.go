@@ -21,4 +21,5 @@ type CreateReversePrivateEndpoint struct {
 	VPCResourceShareArn        *string `json:"vpcResourceShareArn,omitempty"`
 	MSKClusterArn              *string `json:"mskClusterArn,omitempty"`
 	MSKAuthentication          *string `json:"mskAuthentication,omitempty"`
+	GcpServiceAttachment       *string `json:"gcpServiceAttachment,omitempty"`
 }
