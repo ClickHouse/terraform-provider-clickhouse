@@ -76,7 +76,7 @@ runs:
         ./.github/actions/cleanup-cloud/cleanup-azure.sh
 
     - name: Authenticate to GCP
-      uses: google-github-actions/auth@v2
+      uses: google-github-actions/auth@v3
       if: inputs.cloud_provider == 'gcp' && inputs.gcp_workload_identity_provider != ''
       with:
         workload_identity_provider: ${{ inputs.gcp_workload_identity_provider }}
