@@ -150,6 +150,29 @@ type ClickPipeKinesisSource struct {
 	IAMRole        *string                   `json:"iamRole,omitempty"`
 }
 
+type ClickPipeServiceAccountKey struct {
+	// Base64-encoded GCP service account JSON key file.
+	ServiceAccountFile string `json:"serviceAccountFile"`
+}
+
+type ClickPipePubSubSource struct {
+	Format         string `json:"format"`
+	ProjectID      string `json:"projectId"`
+	Topic          string `json:"topic"`
+	Authentication string `json:"authentication"`
+
+	SeekType      string  `json:"seekType"`
+	SeekTimestamp *string `json:"seekTimestamp,omitempty"`
+	SeekSnapshot  *string `json:"seekSnapshot,omitempty"`
+
+	Filter         *string `json:"filter,omitempty"`
+	EnableOrdering *bool   `json:"enableOrdering,omitempty"`
+	AckDeadline    *int64  `json:"ackDeadline,omitempty"`
+
+	// Write-only; never returned by GET. Required on POST, optional on PATCH.
+	ServiceAccountKey *ClickPipeServiceAccountKey `json:"serviceAccountKey,omitempty"`
+}
+
 type ClickPipePostgresSource struct {
 	Type                  string                          `json:"type,omitempty"`
 	Host                  string                          `json:"host,omitempty"`
@@ -297,6 +320,7 @@ type ClickPipeSource struct {
 	Kafka           *ClickPipeKafkaSource         `json:"kafka,omitempty"`
 	ObjectStorage   *ClickPipeObjectStorageSource `json:"objectStorage,omitempty"`
 	Kinesis         *ClickPipeKinesisSource       `json:"kinesis,omitempty"`
+	PubSub          *ClickPipePubSubSource        `json:"pubsub,omitempty"`
 	Postgres        *ClickPipePostgresSource      `json:"postgres,omitempty"`
 	MySQL           *ClickPipeMySQLSource         `json:"mysql,omitempty"`
 	BigQuery        *ClickPipeBigQuerySource      `json:"bigquery,omitempty"`

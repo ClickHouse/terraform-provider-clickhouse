@@ -37,10 +37,11 @@ import (
 )
 
 var (
-	_ resource.Resource                = &ClickPipeResource{}
-	_ resource.ResourceWithModifyPlan  = &ClickPipeResource{}
-	_ resource.ResourceWithConfigure   = &ClickPipeResource{}
-	_ resource.ResourceWithImportState = &ClickPipeResource{}
+	_ resource.Resource                     = &ClickPipeResource{}
+	_ resource.ResourceWithModifyPlan       = &ClickPipeResource{}
+	_ resource.ResourceWithConfigure        = &ClickPipeResource{}
+	_ resource.ResourceWithImportState      = &ClickPipeResource{}
+	_ resource.ResourceWithConfigValidators = &ClickPipeResource{}
 )
 
 //go:embed descriptions/clickpipe.md
@@ -53,6 +54,7 @@ const (
 	SourceTypeKafka         SourceType = "kafka"
 	SourceTypeObjectStorage SourceType = "object_storage"
 	SourceTypeKinesis       SourceType = "kinesis"
+	SourceTypePubSub        SourceType = "pubsub"
 	SourceTypePostgres      SourceType = "postgres"
 	SourceTypeMySQL         SourceType = "mysql"
 	SourceTypeBigQuery      SourceType = "bigquery"
@@ -631,6 +633,120 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Optional:            true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
+								},
+							},
+						},
+					},
+					"pubsub": schema.SingleNestedAttribute{
+						MarkdownDescription: "The GCP Pub/Sub source configuration for the ClickPipe.",
+						Optional:            true,
+						PlanModifiers: []planmodifier.Object{
+							requiresReplaceIfSourceTypeChanges{},
+						},
+						Attributes: map[string]schema.Attribute{
+							"format": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The message format of the Pub/Sub topic. (%s)",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipePubSubFormats),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipePubSubFormats...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"project_id": schema.StringAttribute{
+								Description: "The GCP project ID that owns the Pub/Sub topic.",
+								Required:    true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^[a-z][a-z0-9-]{4,28}[a-z0-9]$`),
+										"must be a valid GCP project ID (6–30 chars, lowercase, digits and hyphens; cannot start with a digit or end with a hyphen)",
+									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"topic": schema.StringAttribute{
+								Description: "The Pub/Sub topic name (not the fully-qualified path).",
+								Required:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"authentication": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The authentication method for the Pub/Sub source. Currently only `%s` is supported.",
+									api.ClickPipeAuthenticationServiceAccount,
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipePubSubAuthenticationMethods...),
+								},
+							},
+							"seek_type": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The starting position for consuming the subscription. (%s)",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipePubSubSeekTypes),
+								),
+								Required: true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipePubSubSeekTypes...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"seek_timestamp": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"RFC 3339 timestamp (e.g. `2026-04-10T12:00:00Z`). Required when `seek_type = \"%s\"`; must be omitted otherwise.",
+									api.ClickPipePubSubSeekTypeTimestamp,
+								),
+								Optional: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"seek_snapshot": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"The Pub/Sub snapshot identifier. Required when `seek_type = \"%s\"`; must be omitted otherwise.",
+									api.ClickPipePubSubSeekTypeSnapshot,
+								),
+								Optional: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"filter": schema.StringAttribute{
+								MarkdownDescription: "Optional Pub/Sub subscription filter expression. Max 256 characters.",
+								Optional:            true,
+								Validators: []validator.String{
+									stringvalidator.LengthAtMost(256),
+								},
+							},
+							"enable_ordering": schema.BoolAttribute{
+								Description: "Whether to enable ordered message delivery.",
+								Optional:    true,
+							},
+							"ack_deadline": schema.Int64Attribute{
+								Description: "Acknowledgement deadline in seconds (10–600).",
+								Optional:    true,
+								Validators: []validator.Int64{
+									int64validator.Between(10, 600),
+								},
+							},
+							"service_account_key": schema.SingleNestedAttribute{
+								MarkdownDescription: "GCP service account credentials. Required on create; provide a new value on update to rotate the key.",
+								Required:            true,
+								Attributes: map[string]schema.Attribute{
+									"service_account_file": schema.StringAttribute{
+										MarkdownDescription: "Base64-encoded GCP service account JSON key file contents.",
+										Required:            true,
+										Sensitive:           true,
+									},
 								},
 							},
 						},
@@ -2434,6 +2550,8 @@ func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 		return SourceTypeObjectStorage
 	} else if !sourceModel.Kinesis.IsNull() {
 		return SourceTypeKinesis
+	} else if !sourceModel.PubSub.IsNull() {
+		return SourceTypePubSub
 	} else if !sourceModel.Postgres.IsNull() {
 		return SourceTypePostgres
 	} else if !sourceModel.MySQL.IsNull() {
@@ -2665,6 +2783,51 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 				return nil
 			}
 		}
+	} else if !sourceModel.PubSub.IsNull() {
+		pubsubModel := models.ClickPipePubSubSourceModel{}
+		diagnostics.Append(sourceModel.PubSub.As(ctx, &pubsubModel, basetypes.ObjectAsOptions{})...)
+
+		pubsub := &api.ClickPipePubSubSource{
+			Authentication: pubsubModel.Authentication.ValueString(),
+		}
+
+		if !isUpdate {
+			pubsub.Format = pubsubModel.Format.ValueString()
+			pubsub.ProjectID = pubsubModel.ProjectID.ValueString()
+			pubsub.Topic = pubsubModel.Topic.ValueString()
+			pubsub.SeekType = pubsubModel.SeekType.ValueString()
+			pubsub.SeekTimestamp = pubsubModel.SeekTimestamp.ValueStringPointer()
+			pubsub.SeekSnapshot = pubsubModel.SeekSnapshot.ValueStringPointer()
+		}
+
+		if !pubsubModel.Filter.IsNull() && !pubsubModel.Filter.IsUnknown() {
+			pubsub.Filter = pubsubModel.Filter.ValueStringPointer()
+		}
+		if !pubsubModel.EnableOrdering.IsNull() && !pubsubModel.EnableOrdering.IsUnknown() {
+			val := pubsubModel.EnableOrdering.ValueBool()
+			pubsub.EnableOrdering = &val
+		}
+		if !pubsubModel.AckDeadline.IsNull() && !pubsubModel.AckDeadline.IsUnknown() {
+			val := pubsubModel.AckDeadline.ValueInt64()
+			pubsub.AckDeadline = &val
+		}
+
+		if !pubsubModel.ServiceAccountKey.IsNull() && !pubsubModel.ServiceAccountKey.IsUnknown() {
+			keyModel := models.ClickPipeServiceAccountKeyModel{}
+			diagnostics.Append(pubsubModel.ServiceAccountKey.As(ctx, &keyModel, basetypes.ObjectAsOptions{})...)
+
+			pubsub.ServiceAccountKey = &api.ClickPipeServiceAccountKey{
+				ServiceAccountFile: keyModel.ServiceAccountFile.ValueString(),
+			}
+		} else if !isUpdate {
+			diagnostics.AddError(
+				"Error Creating ClickPipe",
+				"Pub/Sub source requires service_account_key",
+			)
+			return nil
+		}
+
+		source.PubSub = pubsub
 	} else if !sourceModel.BigQuery.IsNull() {
 		// BigQuery does not support updates
 		if isUpdate {
@@ -3549,6 +3712,48 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		sourceModel.Kinesis = kinesisModel.ObjectValue()
 	} else {
 		sourceModel.Kinesis = types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes)
+	}
+
+	if clickPipe.Source.PubSub != nil {
+		statePubSubModel := models.ClickPipePubSubSourceModel{}
+		if !stateSourceModel.PubSub.IsNull() {
+			if diags := stateSourceModel.PubSub.As(ctx, &statePubSubModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Pub/Sub source: %v", diags)
+			}
+		}
+
+		pubsubModel := models.ClickPipePubSubSourceModel{
+			Format:         types.StringValue(clickPipe.Source.PubSub.Format),
+			ProjectID:      types.StringValue(clickPipe.Source.PubSub.ProjectID),
+			Topic:          types.StringValue(clickPipe.Source.PubSub.Topic),
+			Authentication: types.StringValue(clickPipe.Source.PubSub.Authentication),
+			SeekType:       types.StringValue(clickPipe.Source.PubSub.SeekType),
+			SeekTimestamp:  types.StringPointerValue(clickPipe.Source.PubSub.SeekTimestamp),
+			SeekSnapshot:   types.StringPointerValue(clickPipe.Source.PubSub.SeekSnapshot),
+			Filter:         types.StringPointerValue(clickPipe.Source.PubSub.Filter),
+		}
+
+		if clickPipe.Source.PubSub.EnableOrdering != nil {
+			pubsubModel.EnableOrdering = types.BoolValue(*clickPipe.Source.PubSub.EnableOrdering)
+		} else {
+			pubsubModel.EnableOrdering = types.BoolNull()
+		}
+		if clickPipe.Source.PubSub.AckDeadline != nil {
+			pubsubModel.AckDeadline = types.Int64Value(*clickPipe.Source.PubSub.AckDeadline)
+		} else {
+			pubsubModel.AckDeadline = types.Int64Null()
+		}
+
+		// service_account_key is never returned by GET; preserve the user's value from state.
+		if !statePubSubModel.ServiceAccountKey.IsNull() && !statePubSubModel.ServiceAccountKey.IsUnknown() {
+			pubsubModel.ServiceAccountKey = statePubSubModel.ServiceAccountKey
+		} else {
+			pubsubModel.ServiceAccountKey = types.ObjectNull(models.ClickPipeServiceAccountKeyModel{}.ObjectType().AttrTypes)
+		}
+
+		sourceModel.PubSub = pubsubModel.ObjectValue()
+	} else {
+		sourceModel.PubSub = types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes)
 	}
 
 	if clickPipe.Source.Postgres != nil {
@@ -4736,10 +4941,25 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			// Non-DB source or type change
 			source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
 
+			// For Pub/Sub, only re-send the service_account_key when it changed
+			// (key rotation). Sending an unchanged value would re-encrypt without effect.
+			if source.PubSub != nil && !planSourceModel.PubSub.IsNull() && !stateSourceModel.PubSub.IsNull() {
+				planPubSubModel := models.ClickPipePubSubSourceModel{}
+				response.Diagnostics.Append(planSourceModel.PubSub.As(ctx, &planPubSubModel, basetypes.ObjectAsOptions{})...)
+				statePubSubModel := models.ClickPipePubSubSourceModel{}
+				response.Diagnostics.Append(stateSourceModel.PubSub.As(ctx, &statePubSubModel, basetypes.ObjectAsOptions{})...)
+				if planPubSubModel.ServiceAccountKey.Equal(statePubSubModel.ServiceAccountKey) {
+					source.PubSub.ServiceAccountKey = nil
+				}
+			}
+
 			if source.Kafka != nil {
 				pipeChanged = true
 				clickPipeUpdate.Source = source
 			} else if source.ObjectStorage != nil {
+				pipeChanged = true
+				clickPipeUpdate.Source = source
+			} else if source.PubSub != nil {
 				pipeChanged = true
 				clickPipeUpdate.Source = source
 			} else if source.Postgres != nil {
