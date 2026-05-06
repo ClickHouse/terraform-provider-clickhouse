@@ -281,7 +281,7 @@ type ClickPipePubSubSourceModel struct {
 	Authentication    types.String `tfsdk:"authentication"`
 	SeekType          types.String `tfsdk:"seek_type"`
 	SeekTimestamp     types.String `tfsdk:"seek_timestamp"`
-	SeekSnapshot     types.String `tfsdk:"seek_snapshot"`
+	SeekSnapshot      types.String `tfsdk:"seek_snapshot"`
 	Filter            types.String `tfsdk:"filter"`
 	EnableOrdering    types.Bool   `tfsdk:"enable_ordering"`
 	AckDeadline       types.Int64  `tfsdk:"ack_deadline"`
