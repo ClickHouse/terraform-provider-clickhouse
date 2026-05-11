@@ -421,13 +421,27 @@ jobs:
           make docs-alpha
 
       - name: Commit
-        run: |
-          git add docs/resources/
-          git diff --quiet --exit-code && (echo "No changes detected" && exit 0)
-          git config --global user.name "Release Github Action"
-          git config --global user.email "bot@users.noreply.github.com"
-          git commit -a -m "Bump provider version in examples to ${{ inputs.version }}"
-          git push
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          shell: bash
+          command: |
+            set -eo pipefail
+            git add docs/resources/
+            if git diff --quiet --exit-code; then
+              echo "No changes detected"
+              exit 0
+            fi
+            git config --global user.name "Release Github Action"
+            git config --global user.email "bot@users.noreply.github.com"
+
+            # On a retry the commit may already exist locally; `|| true` lets us
+            # fall through to the push so the retry can complete the operation
+            # that originally failed at the network step.
+            git commit -a -m "Bump provider version in examples to ${{ inputs.version }}" || true
+            git push
 
   # Create tag for the release
   tag:
@@ -443,10 +457,25 @@ jobs:
       with:
         ref: "main"
     - name: Create tag
-      run: |
-        tag="v${{ inputs.version }}"
-        git tag $tag
-        git push origin $tag
+      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+      with:
+        timeout_minutes: 3
+        max_attempts: 3
+        retry_wait_seconds: 15
+        shell: bash
+        command: |
+          set -eo pipefail
+          tag="v${{ inputs.version }}"
+
+          # Idempotent re-run: if the tag is already on origin, treat as success.
+          if git ls-remote --tags origin "refs/tags/${tag}" | grep -q "refs/tags/${tag}$"; then
+            echo "Tag ${tag} already exists on origin"
+            exit 0
+          fi
+
+          # Create (or re-point) the local tag without failing on "already exists".
+          git tag -f "${tag}"
+          git push origin "${tag}"
 
   # Make a new release out of the tag
   goreleaser:
@@ -488,10 +517,21 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
 
-      - name: Run GoReleaser
+      - name: Install GoReleaser
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         with:
-          args: release --clean --config ${{ needs.validate.outputs.goreleaser_config }}
+          install-only: true
+
+      - name: Run GoReleaser
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+        with:
+          timeout_minutes: 30
+          max_attempts: 3
+          retry_wait_seconds: 30
+          shell: bash
+          command: |
+            set -eo pipefail
+            goreleaser release --clean --config ${{ needs.validate.outputs.goreleaser_config }}
         env:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -524,10 +564,22 @@ jobs:
           make docs
 
       - name: Commit
-        run: |
-          git add docs/resources/
-          git diff --quiet --exit-code && (echo "No changes detected" && exit 0)
-          git config --global user.name "Release Github Action"
-          git config --global user.email "bot@users.noreply.github.com"
-          git commit -a -m "Remove alpha docs from main branch"
-          git push
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          shell: bash
+          command: |
+            set -eo pipefail
+            git add docs/resources/
+            if git diff --quiet --exit-code; then
+              echo "No changes detected"
+              exit 0
+            fi
+            git config --global user.name "Release Github Action"
+            git config --global user.email "bot@users.noreply.github.com"
+
+            # `|| true` lets a retry that already committed locally still push.
+            git commit -a -m "Remove alpha docs from main branch" || true
+            git push
