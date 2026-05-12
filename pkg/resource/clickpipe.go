@@ -295,9 +295,32 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												Sensitive:   true,
 											},
 											"password": schema.StringAttribute{
-												Description: "The password for the Schema Registry.",
-												Required:    true,
+												Description: "The password for the Schema Registry. Either `password` or `password_wo` must be provided.",
+												Optional:    true,
 												Sensitive:   true,
+												Validators: []validator.String{
+													stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+													stringvalidator.AtLeastOneOf(
+														path.MatchRelative(),
+														path.MatchRelative().AtParent().AtName("password_wo"),
+													),
+												},
+											},
+											"password_wo": schema.StringAttribute{
+												Description: "Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version` to trigger updates.",
+												Optional:    true,
+												Sensitive:   true,
+												WriteOnly:   true,
+												Validators: []validator.String{
+													stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo_version")),
+												},
+											},
+											"password_wo_version": schema.Int64Attribute{
+												Description: "Version trigger for `password_wo`. Increment to push a new password to the API.",
+												Optional:    true,
+												Validators: []validator.Int64{
+													int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo")),
+												},
 											},
 										},
 									},
@@ -328,9 +351,28 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Sensitive:   true,
 									},
 									"password": schema.StringAttribute{
-										Description: "The password for the Kafka source.",
+										Description: "The password for the Kafka source. Use `password_wo` instead to keep the value out of state.",
 										Optional:    true,
 										Sensitive:   true,
+										Validators: []validator.String{
+											stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+										},
+									},
+									"password_wo": schema.StringAttribute{
+										Description: "Write-only password for the Kafka source. Not persisted to state. Pair with `password_wo_version` to trigger updates.",
+										Optional:    true,
+										Sensitive:   true,
+										WriteOnly:   true,
+										Validators: []validator.String{
+											stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo_version")),
+										},
+									},
+									"password_wo_version": schema.Int64Attribute{
+										Description: "Version trigger for `password_wo`. Increment to push a new password to the API.",
+										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo")),
+										},
 									},
 									"access_key_id": schema.StringAttribute{
 										Description: "The access key ID for the Kafka source. Use with `IAM_USER` authentication.",
@@ -697,7 +739,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Optional:    true,
 							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. Password is required for `basic` authentication, optional for `iam_role` authentication.",
+								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `iam_role` authentication, password is optional.",
 								Required:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
@@ -707,9 +749,28 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Sensitive:   true,
 									},
 									"password": schema.StringAttribute{
-										Description: "The password for the Postgres instance. Required for `basic` authentication, optional for `iam_role` authentication.",
+										Description: "The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.",
 										Optional:    true,
 										Sensitive:   true,
+										Validators: []validator.String{
+											stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+										},
+									},
+									"password_wo": schema.StringAttribute{
+										Description: "Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.",
+										Optional:    true,
+										Sensitive:   true,
+										WriteOnly:   true,
+										Validators: []validator.String{
+											stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo_version")),
+										},
+									},
+									"password_wo_version": schema.Int64Attribute{
+										Description: "Version trigger for `password_wo`. Increment to push a new password to the API.",
+										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo")),
+										},
 									},
 								},
 							},
@@ -955,7 +1016,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Default:     booldefault.StaticBool(false),
 							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for the MySQL instance. Username is always required. Password is required for `basic` authentication, optional for `IAM_ROLE` authentication.",
+								MarkdownDescription: "The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
 								Required:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
@@ -965,9 +1026,28 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Sensitive:   true,
 									},
 									"password": schema.StringAttribute{
-										Description: "The password for the MySQL instance. Required for `basic` authentication, optional for `IAM_ROLE` authentication.",
+										Description: "The password for the MySQL instance. Use `password_wo` instead to keep the value out of state.",
 										Optional:    true,
 										Sensitive:   true,
+										Validators: []validator.String{
+											stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+										},
+									},
+									"password_wo": schema.StringAttribute{
+										Description: "Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.",
+										Optional:    true,
+										Sensitive:   true,
+										WriteOnly:   true,
+										Validators: []validator.String{
+											stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo_version")),
+										},
+									},
+									"password_wo_version": schema.Int64Attribute{
+										Description: "Version trigger for `password_wo`. Increment to push a new password to the API.",
+										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo")),
+										},
 									},
 								},
 							},
@@ -1325,9 +1405,28 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Required:    true,
 									},
 									"password": schema.StringAttribute{
-										Description: "The password for the MongoDB instance.",
+										Description: "The password for the MongoDB instance. Use `password_wo` instead to keep the value out of state.",
 										Optional:    true,
 										Sensitive:   true,
+										Validators: []validator.String{
+											stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+										},
+									},
+									"password_wo": schema.StringAttribute{
+										Description: "Write-only password for the MongoDB instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.",
+										Optional:    true,
+										Sensitive:   true,
+										WriteOnly:   true,
+										Validators: []validator.String{
+											stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo_version")),
+										},
+									},
+									"password_wo_version": schema.Int64Attribute{
+										Description: "Version trigger for `password_wo`. Increment to push a new password to the API.",
+										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo")),
+										},
 									},
 								},
 							},
@@ -2183,8 +2282,10 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
-	var plan models.ClickPipeResourceModel
+	var plan, config models.ClickPipeResourceModel
 	diags := request.Plan.Get(ctx, &plan)
+	response.Diagnostics.Append(diags...)
+	diags = request.Config.Get(ctx, &config)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
 		return
@@ -2196,7 +2297,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		Name: plan.Name.ValueString(),
 	}
 
-	if source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, false); source != nil {
+	if source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, false); source != nil {
 		clickPipe.Source = *source
 	} else {
 		return
@@ -2446,11 +2547,29 @@ func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 	return SourceTypeUnknown
 }
 
-func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics *diag.Diagnostics, plan models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
+// overlayPasswordWO returns the write-only password from config when set, else the plan
+// password. Write-only attributes are nulled in plan/state by the framework — the only
+// place to read them is req.Config.
+func overlayPasswordWO(planPassword, configPasswordWO types.String) types.String {
+	if !configPasswordWO.IsNull() && !configPasswordWO.IsUnknown() {
+		return configPasswordWO
+	}
+	return planPassword
+}
+
+// extractSourceFromPlan builds the API source struct from the plan. config supplies
+// write-only credential values that the framework strips from plan/state; pass nil from
+// unit tests that don't exercise write-only behavior.
+func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics *diag.Diagnostics, plan models.ClickPipeResourceModel, config *models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
 	source := &api.ClickPipeSource{}
 
 	sourceModel := models.ClickPipeSourceModel{}
 	diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+	configSourceModel := models.ClickPipeSourceModel{}
+	if config != nil && !config.Source.IsNull() && !config.Source.IsUnknown() {
+		diagnostics.Append(config.Source.As(ctx, &configSourceModel, basetypes.ObjectAsOptions{})...)
+	}
 
 	if !sourceModel.Kafka.IsNull() {
 		kafkaModel := models.ClickPipeKafkaSourceModel{}
@@ -2479,6 +2598,16 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			if !kafkaModel.Credentials.IsNull() {
 				credentialsModel := models.ClickPipeKafkaSourceCredentialsModel{}
 				diagnostics.Append(kafkaModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+
+				var configKafkaCredentials models.ClickPipeKafkaSourceCredentialsModel
+				if !configSourceModel.Kafka.IsNull() && !configSourceModel.Kafka.IsUnknown() {
+					configKafkaModel := models.ClickPipeKafkaSourceModel{}
+					diagnostics.Append(configSourceModel.Kafka.As(ctx, &configKafkaModel, basetypes.ObjectAsOptions{})...)
+					if !configKafkaModel.Credentials.IsNull() && !configKafkaModel.Credentials.IsUnknown() {
+						diagnostics.Append(configKafkaModel.Credentials.As(ctx, &configKafkaCredentials, basetypes.ObjectAsOptions{})...)
+					}
+				}
+				credentialsModel.Password = overlayPasswordWO(credentialsModel.Password, configKafkaCredentials.PasswordWO)
 
 				var credentials *api.ClickPipeKafkaSourceCredentials
 
@@ -2524,6 +2653,20 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			diagnostics.Append(kafkaModel.SchemaRegistry.As(ctx, &schemaRegistryModel, basetypes.ObjectAsOptions{})...)
 			credentialsModel := models.ClickPipeSourceCredentialsModel{}
 			diagnostics.Append(schemaRegistryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+
+			var configSchemaRegistryCreds models.ClickPipeSourceCredentialsModel
+			if !configSourceModel.Kafka.IsNull() && !configSourceModel.Kafka.IsUnknown() {
+				configKafkaModel := models.ClickPipeKafkaSourceModel{}
+				diagnostics.Append(configSourceModel.Kafka.As(ctx, &configKafkaModel, basetypes.ObjectAsOptions{})...)
+				if !configKafkaModel.SchemaRegistry.IsNull() && !configKafkaModel.SchemaRegistry.IsUnknown() {
+					configSchemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{}
+					diagnostics.Append(configKafkaModel.SchemaRegistry.As(ctx, &configSchemaRegistryModel, basetypes.ObjectAsOptions{})...)
+					if !configSchemaRegistryModel.Credentials.IsNull() && !configSchemaRegistryModel.Credentials.IsUnknown() {
+						diagnostics.Append(configSchemaRegistryModel.Credentials.As(ctx, &configSchemaRegistryCreds, basetypes.ObjectAsOptions{})...)
+					}
+				}
+			}
+			credentialsModel.Password = overlayPasswordWO(credentialsModel.Password, configSchemaRegistryCreds.PasswordWO)
 
 			source.Kafka.SchemaRegistry = &api.ClickPipeKafkaSchemaRegistry{
 				URL:            schemaRegistryModel.URL.ValueString(),
@@ -2759,6 +2902,16 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		credentialsModel := models.ClickPipeSourceCredentialsModel{}
 		diagnostics.Append(postgresModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
 
+		var configPostgresCreds models.ClickPipeSourceCredentialsModel
+		if !configSourceModel.Postgres.IsNull() && !configSourceModel.Postgres.IsUnknown() {
+			configPostgresModel := models.ClickPipePostgresSourceModel{}
+			diagnostics.Append(configSourceModel.Postgres.As(ctx, &configPostgresModel, basetypes.ObjectAsOptions{})...)
+			if !configPostgresModel.Credentials.IsNull() && !configPostgresModel.Credentials.IsUnknown() {
+				diagnostics.Append(configPostgresModel.Credentials.As(ctx, &configPostgresCreds, basetypes.ObjectAsOptions{})...)
+			}
+		}
+		credentialsModel.Password = overlayPasswordWO(credentialsModel.Password, configPostgresCreds.PasswordWO)
+
 		// Validate authentication requirements
 		authentication := clickPipeAuthBasic // default
 		if !postgresModel.Authentication.IsNull() {
@@ -2931,6 +3084,16 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		credentialsModel := models.ClickPipeSourceCredentialsModel{}
 		diagnostics.Append(mysqlModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
 
+		var configMySQLCreds models.ClickPipeSourceCredentialsModel
+		if !configSourceModel.MySQL.IsNull() && !configSourceModel.MySQL.IsUnknown() {
+			configMySQLModel := models.ClickPipeMySQLSourceModel{}
+			diagnostics.Append(configSourceModel.MySQL.As(ctx, &configMySQLModel, basetypes.ObjectAsOptions{})...)
+			if !configMySQLModel.Credentials.IsNull() && !configMySQLModel.Credentials.IsUnknown() {
+				diagnostics.Append(configMySQLModel.Credentials.As(ctx, &configMySQLCreds, basetypes.ObjectAsOptions{})...)
+			}
+		}
+		credentialsModel.Password = overlayPasswordWO(credentialsModel.Password, configMySQLCreds.PasswordWO)
+
 		// Validate authentication requirements
 		authentication := clickPipeAuthBasic // default
 		if !mysqlModel.Authentication.IsNull() {
@@ -3070,6 +3233,17 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !mongodbModel.Credentials.IsNull() {
 			credentialsModel := models.ClickPipeSourceCredentialsModel{}
 			diagnostics.Append(mongodbModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+
+			var configMongoDBCreds models.ClickPipeSourceCredentialsModel
+			if !configSourceModel.MongoDB.IsNull() && !configSourceModel.MongoDB.IsUnknown() {
+				configMongoDBModel := models.ClickPipeMongoDBSourceModel{}
+				diagnostics.Append(configSourceModel.MongoDB.As(ctx, &configMongoDBModel, basetypes.ObjectAsOptions{})...)
+				if !configMongoDBModel.Credentials.IsNull() && !configMongoDBModel.Credentials.IsUnknown() {
+					diagnostics.Append(configMongoDBModel.Credentials.As(ctx, &configMongoDBCreds, basetypes.ObjectAsOptions{})...)
+				}
+			}
+			credentialsModel.Password = overlayPasswordWO(credentialsModel.Password, configMongoDBCreds.PasswordWO)
+
 			credentials = &api.ClickPipeSourceCredentials{
 				Username: credentialsModel.Username.ValueString(),
 				Password: credentialsModel.Password.ValueString(),
@@ -4541,15 +4715,23 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			// Check if table_mappings or other Postgres fields changed
 			tableMappingsChanged := !planPostgresModel.TableMappings.Equal(statePostgresModel.TableMappings)
+			credentialsChanged := !planPostgresModel.Credentials.Equal(statePostgresModel.Credentials)
 			otherFieldsChanged := !planPostgresModel.Host.Equal(statePostgresModel.Host) ||
 				!planPostgresModel.Port.Equal(statePostgresModel.Port) ||
 				!planPostgresModel.Database.Equal(statePostgresModel.Database) ||
-				!planPostgresModel.Credentials.Equal(statePostgresModel.Credentials) ||
+				credentialsChanged ||
 				!planPostgresModel.Settings.Equal(statePostgresModel.Settings)
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
-				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
+				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, true)
+
+				// Skip re-sending credentials in the PATCH body when they did not change.
+				// The credentials object compares password and password_wo_version; an
+				// unchanged comparison means the user did not rotate the secret.
+				if !credentialsChanged && source.Postgres != nil {
+					source.Postgres.Credentials = nil
+				}
 
 				// If table_mappings changed, set TableMappingsToAdd/Remove on Postgres source
 				if tableMappingsChanged && source.Postgres != nil {
@@ -4614,14 +4796,19 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			response.Diagnostics.Append(stateSourceModel.MySQL.As(ctx, &stateMySQLModel, basetypes.ObjectAsOptions{})...)
 
 			tableMappingsChanged := !planMySQLModel.TableMappings.Equal(stateMySQLModel.TableMappings)
+			credentialsChanged := !planMySQLModel.Credentials.Equal(stateMySQLModel.Credentials)
 			otherFieldsChanged := !planMySQLModel.Host.Equal(stateMySQLModel.Host) ||
 				!planMySQLModel.Port.Equal(stateMySQLModel.Port) ||
-				!planMySQLModel.Credentials.Equal(stateMySQLModel.Credentials) ||
+				credentialsChanged ||
 				!planMySQLModel.Settings.Equal(stateMySQLModel.Settings)
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
-				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
+				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, true)
+
+				if !credentialsChanged && source.MySQL != nil {
+					source.MySQL.Credentials = nil
+				}
 
 				if tableMappingsChanged && source.MySQL != nil {
 					planTableMappingModels := make([]models.ClickPipeMySQLTableMappingModel, len(planMySQLModel.TableMappings.Elements()))
@@ -4677,17 +4864,21 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			response.Diagnostics.Append(stateSourceModel.MongoDB.As(ctx, &stateMongoDBModel, basetypes.ObjectAsOptions{})...)
 
 			tableMappingsChanged := !planMongoDBModel.TableMappings.Equal(stateMongoDBModel.TableMappings)
+			credentialsChanged := !planMongoDBModel.Credentials.Equal(stateMongoDBModel.Credentials)
 			otherFieldsChanged := !planMongoDBModel.URI.Equal(stateMongoDBModel.URI) ||
 				!planMongoDBModel.ReadPreference.Equal(stateMongoDBModel.ReadPreference) ||
 				!planMongoDBModel.TLSHost.Equal(stateMongoDBModel.TLSHost) ||
 				!planMongoDBModel.CACertificate.Equal(stateMongoDBModel.CACertificate) ||
 				!planMongoDBModel.DisableTLS.Equal(stateMongoDBModel.DisableTLS) ||
-				!planMongoDBModel.Credentials.Equal(stateMongoDBModel.Credentials) ||
+				credentialsChanged ||
 				!planMongoDBModel.Settings.Equal(stateMongoDBModel.Settings)
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
-				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
+				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, true)
+				if !credentialsChanged && source.MongoDB != nil {
+					source.MongoDB.Credentials = nil
+				}
 				clickPipeUpdate.Source = source
 				if tableMappingsChanged && source.MongoDB != nil {
 					planTableMappingModels := make([]models.ClickPipeMongoDBTableMappingModel, len(planMongoDBModel.TableMappings.Elements()))
@@ -4734,7 +4925,22 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			}
 		} else {
 			// Non-DB source or type change
-			source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, true)
+			source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, true)
+
+			// For Kafka (the main source type that lands here without a type change),
+			// avoid re-sending credentials if they did not change.
+			if source.Kafka != nil && !planSourceModel.Kafka.IsNull() && !stateSourceModel.Kafka.IsNull() {
+				planKafkaModel := models.ClickPipeKafkaSourceModel{}
+				response.Diagnostics.Append(planSourceModel.Kafka.As(ctx, &planKafkaModel, basetypes.ObjectAsOptions{})...)
+				stateKafkaModel := models.ClickPipeKafkaSourceModel{}
+				response.Diagnostics.Append(stateSourceModel.Kafka.As(ctx, &stateKafkaModel, basetypes.ObjectAsOptions{})...)
+				if planKafkaModel.Credentials.Equal(stateKafkaModel.Credentials) {
+					source.Kafka.Credentials = nil
+				}
+				if planKafkaModel.SchemaRegistry.Equal(stateKafkaModel.SchemaRegistry) && source.Kafka.SchemaRegistry != nil {
+					source.Kafka.SchemaRegistry.Credentials = nil
+				}
+			}
 
 			if source.Kafka != nil {
 				pipeChanged = true

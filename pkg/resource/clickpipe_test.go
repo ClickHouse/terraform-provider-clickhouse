@@ -324,8 +324,10 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 					"credentials": types.ObjectValueMust(
 						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
 						map[string]attr.Value{
-							"username": types.StringValue("user"),
-							"password": types.StringValue("pass"),
+							"username":            types.StringValue("user"),
+							"password":            types.StringValue("pass"),
+							"password_wo":         types.StringNull(),
+							"password_wo_version": types.Int64Null(),
 						},
 					),
 					"settings": types.ObjectValueMust(
@@ -402,13 +404,15 @@ func boolPtr(b bool) *bool {
 
 func buildKafkaMutualTLSPlan(certificate, privateKey types.String) models.ClickPipeResourceModel {
 	credAttrs := map[string]attr.Value{
-		"username":          types.StringNull(),
-		"password":          types.StringNull(),
-		"access_key_id":     types.StringNull(),
-		"secret_key":        types.StringNull(),
-		"connection_string": types.StringNull(),
-		"certificate":       certificate,
-		"private_key":       privateKey,
+		"username":            types.StringNull(),
+		"password":            types.StringNull(),
+		"password_wo":         types.StringNull(),
+		"password_wo_version": types.Int64Null(),
+		"access_key_id":       types.StringNull(),
+		"secret_key":          types.StringNull(),
+		"connection_string":   types.StringNull(),
+		"certificate":         certificate,
+		"private_key":         privateKey,
 	}
 
 	kafkaAttrs := map[string]attr.Value{
@@ -455,7 +459,7 @@ func TestExtractSourceFromPlan_KafkaMutualTLS(t *testing.T) {
 		)
 
 		diagnostics := diag.Diagnostics{}
-		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
 		assert.NotNil(t, source)
@@ -475,7 +479,7 @@ func TestExtractSourceFromPlan_KafkaMutualTLS(t *testing.T) {
 		)
 
 		diagnostics := diag.Diagnostics{}
-		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 		assert.True(t, diagnostics.HasError(), "expected error when private_key is missing")
 		assert.Nil(t, source)
@@ -488,10 +492,113 @@ func TestExtractSourceFromPlan_KafkaMutualTLS(t *testing.T) {
 		)
 
 		diagnostics := diag.Diagnostics{}
-		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 		assert.True(t, diagnostics.HasError(), "expected error when certificate is missing")
 		assert.Nil(t, source)
+	})
+}
+
+// buildPostgresCredentialsPlan returns plan and config models where Postgres credentials
+// take the supplied password / password_wo values. Plan never carries password_wo (the
+// framework nulls write-only attrs in plan/state); only config does.
+func buildPostgresCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		credAttrs := map[string]attr.Value{
+			"username":            types.StringValue("user"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+		}
+		settingsAttrs := map[string]attr.Value{
+			"replication_mode":                   types.StringValue("cdc"),
+			"sync_interval_seconds":              types.Int64Null(),
+			"pull_batch_size":                    types.Int64Null(),
+			"publication_name":                   types.StringNull(),
+			"replication_slot_name":              types.StringNull(),
+			"allow_nullable_columns":             types.BoolNull(),
+			"initial_load_parallelism":           types.Int64Null(),
+			"snapshot_num_rows_per_partition":    types.Int64Null(),
+			"snapshot_number_of_parallel_tables": types.Int64Null(),
+			"enable_failover_slots":              types.BoolNull(),
+			"delete_on_merge":                    types.BoolNull(),
+		}
+		pgAttrs := map[string]attr.Value{
+			"type":           types.StringValue("postgres"),
+			"host":           types.StringValue("postgres.example.com"),
+			"port":           types.Int64Value(5432),
+			"database":       types.StringValue("mydb"),
+			"authentication": types.StringNull(),
+			"iam_role":       types.StringNull(),
+			"tls_host":       types.StringNull(),
+			"ca_certificate": types.StringNull(),
+			"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":       types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings": types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{}),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectValueMust(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes, pgAttrs),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-pg-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	// Plan never sees password_wo — the framework strips it before the provider receives plan.
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_PostgresWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildPostgresCredentialsPlan(types.StringNull(), types.StringValue("wo-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Postgres)
+		assert.NotNil(t, source.Postgres.Credentials)
+		assert.Equal(t, "wo-secret", source.Postgres.Credentials.Password)
+	})
+
+	t.Run("legacy password used when no write-only set", func(t *testing.T) {
+		plan, config := buildPostgresCredentialsPlan(types.StringValue("legacy-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-pass", source.Postgres.Credentials.Password)
+	})
+
+	t.Run("nil config falls back to plan password", func(t *testing.T) {
+		plan, _ := buildPostgresCredentialsPlan(types.StringValue("plan-only-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "plan-only-pass", source.Postgres.Credentials.Password)
+	})
+
+	t.Run("missing password and password_wo errors for basic auth", func(t *testing.T) {
+		plan, config := buildPostgresCredentialsPlan(types.StringNull(), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when no password supplied for basic auth")
+		_ = source
 	})
 }
 
@@ -639,8 +746,10 @@ func getMongoDBInitialState() models.ClickPipeResourceModel {
 					"credentials": types.ObjectValueMust(
 						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
 						map[string]attr.Value{
-							"username": types.StringValue("user"),
-							"password": types.StringValue("pass"),
+							"username":            types.StringValue("user"),
+							"password":            types.StringValue("pass"),
+							"password_wo":         types.StringNull(),
+							"password_wo_version": types.Int64Null(),
 						},
 					),
 					"settings": types.ObjectValueMust(
