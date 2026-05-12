@@ -178,7 +178,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				MarkdownDescription: "The current state of the ClickPipe. This is a read-only field that reports the actual state from ClickHouse Cloud. Possible values include `Running`, `Stopped`, `Provisioning`, `Failed`, `InternalError`, etc.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					volatileComputedString{},
 				},
 			},
 			"source": schema.SingleNestedAttribute{
@@ -2755,18 +2755,24 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		postgresModel := models.ClickPipePostgresSourceModel{}
 		diagnostics.Append(sourceModel.Postgres.As(ctx, &postgresModel, basetypes.ObjectAsOptions{})...)
 
-		// Extract credentials
+		// Extract credentials. With lifecycle.ignore_changes, the credentials block
+		// may come through as null or unknown — in that case we leave it out of the
+		// API request entirely so partial PATCHes do not send empty fields.
 		credentialsModel := models.ClickPipeSourceCredentialsModel{}
-		diagnostics.Append(postgresModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+		credentialsKnown := !postgresModel.Credentials.IsNull() && !postgresModel.Credentials.IsUnknown()
+		if credentialsKnown {
+			diagnostics.Append(postgresModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+		}
 
-		// Validate authentication requirements
+		// Validate authentication requirements. Skip credential-shape checks during
+		// update when the credentials block was ignored (null/unknown).
 		authentication := clickPipeAuthBasic // default
 		if !postgresModel.Authentication.IsNull() {
 			authentication = postgresModel.Authentication.ValueString()
 		}
 
 		if authentication == clickPipeAuthBasic {
-			if credentialsModel.Password.IsNull() {
+			if credentialsKnown && credentialsModel.Password.IsNull() && !credentialsModel.Password.IsUnknown() {
 				diagnostics.AddError(
 					"Missing required attribute",
 					"Password is required when authentication is set to 'basic'.",
@@ -2787,7 +2793,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 					"IAM role is required when authentication is set to 'iam_role'.",
 				)
 			}
-			if !credentialsModel.Password.IsNull() {
+			if credentialsKnown && !credentialsModel.Password.IsNull() && !credentialsModel.Password.IsUnknown() {
 				diagnostics.AddError(
 					"Invalid attribute combination",
 					"Password should not be set when authentication is set to 'iam_role'.",
@@ -2892,9 +2898,6 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Host:     postgresModel.Host.ValueString(),
 			Port:     int(postgresModel.Port.ValueInt64()),
 			Database: postgresModel.Database.ValueString(),
-			Credentials: &api.ClickPipeSourceCredentials{
-				Username: credentialsModel.Username.ValueString(),
-			},
 			Settings: settings,
 			Mappings: tableMappings,
 		}
@@ -2903,9 +2906,16 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			postgresSource.Type = postgresModel.Type.ValueString()
 		}
 
-		// Password is optional for IAM authentication
-		if !credentialsModel.Password.IsNull() {
-			postgresSource.Credentials.Password = credentialsModel.Password.ValueString()
+		// Only attach a credentials block when the username is actually known.
+		// When the block is null/unknown (e.g., ignore_changes hides it during an
+		// update) we omit it so the API performs a partial PATCH on other fields.
+		if credentialsKnown && !credentialsModel.Username.IsNull() && !credentialsModel.Username.IsUnknown() && credentialsModel.Username.ValueString() != "" {
+			postgresSource.Credentials = &api.ClickPipeSourceCredentials{
+				Username: credentialsModel.Username.ValueString(),
+			}
+			if !credentialsModel.Password.IsNull() && !credentialsModel.Password.IsUnknown() {
+				postgresSource.Credentials.Password = credentialsModel.Password.ValueString()
+			}
 		}
 
 		// Add optional authentication fields
@@ -2927,18 +2937,24 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		mysqlModel := models.ClickPipeMySQLSourceModel{}
 		diagnostics.Append(sourceModel.MySQL.As(ctx, &mysqlModel, basetypes.ObjectAsOptions{})...)
 
-		// Extract credentials
+		// Extract credentials. With lifecycle.ignore_changes, the credentials block
+		// may come through as null or unknown — in that case we leave it out of the
+		// API request entirely so partial PATCHes do not send empty fields.
 		credentialsModel := models.ClickPipeSourceCredentialsModel{}
-		diagnostics.Append(mysqlModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+		credentialsKnown := !mysqlModel.Credentials.IsNull() && !mysqlModel.Credentials.IsUnknown()
+		if credentialsKnown {
+			diagnostics.Append(mysqlModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+		}
 
-		// Validate authentication requirements
+		// Validate authentication requirements. Skip credential-shape checks during
+		// update when the credentials block was ignored (null/unknown).
 		authentication := clickPipeAuthBasic // default
 		if !mysqlModel.Authentication.IsNull() {
 			authentication = mysqlModel.Authentication.ValueString()
 		}
 
 		if authentication == clickPipeAuthBasic {
-			if credentialsModel.Password.IsNull() {
+			if credentialsKnown && credentialsModel.Password.IsNull() && !credentialsModel.Password.IsUnknown() {
 				diagnostics.AddError(
 					"Missing required attribute",
 					"Password is required when authentication is set to 'basic'.",
@@ -2959,7 +2975,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 					"IAM role is required when authentication is set to 'IAM_ROLE'.",
 				)
 			}
-			if !credentialsModel.Password.IsNull() {
+			if credentialsKnown && !credentialsModel.Password.IsNull() && !credentialsModel.Password.IsUnknown() {
 				diagnostics.AddError(
 					"Invalid attribute combination",
 					"Password should not be set when authentication is set to 'IAM_ROLE'.",
@@ -3024,19 +3040,23 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		}
 
 		mysqlSource := &api.ClickPipeMySQLSource{
-			Type: mysqlModel.Type.ValueString(),
-			Host: mysqlModel.Host.ValueString(),
-			Port: int(mysqlModel.Port.ValueInt64()),
-			Credentials: &api.ClickPipeSourceCredentials{
-				Username: credentialsModel.Username.ValueString(),
-			},
+			Type:     mysqlModel.Type.ValueString(),
+			Host:     mysqlModel.Host.ValueString(),
+			Port:     int(mysqlModel.Port.ValueInt64()),
 			Settings: settings,
 			Mappings: tableMappings,
 		}
 
-		// Password is optional for IAM authentication
-		if !credentialsModel.Password.IsNull() {
-			mysqlSource.Credentials.Password = credentialsModel.Password.ValueString()
+		// Only attach a credentials block when the username is actually known.
+		// When the block is null/unknown (e.g., ignore_changes hides it during an
+		// update) we omit it so the API performs a partial PATCH on other fields.
+		if credentialsKnown && !credentialsModel.Username.IsNull() && !credentialsModel.Username.IsUnknown() && credentialsModel.Username.ValueString() != "" {
+			mysqlSource.Credentials = &api.ClickPipeSourceCredentials{
+				Username: credentialsModel.Username.ValueString(),
+			}
+			if !credentialsModel.Password.IsNull() && !credentialsModel.Password.IsUnknown() {
+				mysqlSource.Credentials.Password = credentialsModel.Password.ValueString()
+			}
 		}
 
 		// Add optional authentication fields
@@ -3345,6 +3365,16 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		cpuMillicores := clickPipe.Scaling.GetCpuMillicores()
 		memoryGb := clickPipe.Scaling.GetMemoryGb()
 
+		// Read existing values from state so we can preserve them when the API
+		// returns a transient/uninitialised reading (e.g., 0 immediately after a
+		// scaling PATCH, before propagation completes — see GH #513).
+		var existingScaling models.ClickPipeScalingModel
+		if !state.Scaling.IsUnknown() {
+			if diags := state.Scaling.As(ctx, &existingScaling, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading existing scaling: %v", diags)
+			}
+		}
+
 		// Create scaling model with proper null handling
 		var replicasValue types.Int64
 		var cpuValue types.Int64
@@ -3356,14 +3386,22 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			replicasValue = types.Int64Null()
 		}
 
-		if cpuMillicores != nil {
+		// CPU millicores must be ≥ 125 to be valid. A return of 0 means the scaling
+		// change has not propagated yet; keep the prior planned value to avoid
+		// failing Terraform's post-apply consistency check.
+		if cpuMillicores != nil && *cpuMillicores >= 125 {
 			cpuValue = types.Int64Value(*cpuMillicores)
+		} else if !existingScaling.ReplicaCpuMillicores.IsNull() && !existingScaling.ReplicaCpuMillicores.IsUnknown() {
+			cpuValue = existingScaling.ReplicaCpuMillicores
 		} else {
 			cpuValue = types.Int64Null()
 		}
 
-		if memoryGb != nil {
+		// Memory GB must be ≥ 0.5; same rationale as CPU above.
+		if memoryGb != nil && *memoryGb >= 0.5 {
 			memoryValue = types.Float64Value(*memoryGb)
+		} else if !existingScaling.ReplicaMemoryGb.IsNull() && !existingScaling.ReplicaMemoryGb.IsUnknown() {
+			memoryValue = existingScaling.ReplicaMemoryGb
 		} else {
 			memoryValue = types.Float64Null()
 		}
