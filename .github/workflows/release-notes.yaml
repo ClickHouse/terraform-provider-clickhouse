@@ -59,7 +59,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install Langfuse
-        run: pip3 install langfuse
+        run: |
+          python3 -m venv /tmp/langfuse-venv
+          /tmp/langfuse-venv/bin/pip install langfuse
 
       - name: Generate release notes with Claude
         uses: anthropics/claude-code-action@c3d45e8e941e1b2ad7b278c57482d9c5bf1f35b3 # v1.0.99
@@ -73,7 +75,7 @@ jobs:
                     "hooks": [
                       {
                         "type": "command",
-                        "command": "python3 $GITHUB_WORKSPACE/.claude/hooks/langfuse_hook.py"
+                        "command": "/tmp/langfuse-venv/bin/python3 $GITHUB_WORKSPACE/.claude/hooks/langfuse_hook.py"
                       }
                     ]
                   }
