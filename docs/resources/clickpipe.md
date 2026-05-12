@@ -244,7 +244,9 @@ Optional:
 - `access_key_id` (String, Sensitive) The access key ID for the Kafka source. Use with `IAM_USER` authentication.
 - `certificate` (String, Sensitive) PEM encoded client certificate for mTLS authentication. Use with `MUTUAL_TLS` authentication.
 - `connection_string` (String, Sensitive) The connection string for the Kafka source. Use with `azureeventhub` Kafka source type. Use with `PLAIN` authentication.
-- `password` (String, Sensitive) The password for the Kafka source.
+- `password` (String, Sensitive) The password for the Kafka source. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive) Write-only password for the Kafka source. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 - `private_key` (String, Sensitive) PEM encoded client private key for mTLS authentication. Use with `MUTUAL_TLS` authentication.
 - `secret_key` (String, Sensitive) The secret key for the Kafka source. Use with `IAM_USER` authentication.
 - `username` (String, Sensitive) The username for the Kafka source.
@@ -276,8 +278,13 @@ Required:
 
 Required:
 
-- `password` (String, Sensitive) The password for the Schema Registry.
 - `username` (String, Sensitive) The username for the Schema Registry.
+
+Optional:
+
+- `password` (String, Sensitive) The password for the Schema Registry. Either `password` or `password_wo` must be provided.
+- `password_wo` (String, Sensitive) Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
 
@@ -367,7 +374,9 @@ Required:
 
 Optional:
 
-- `password` (String, Sensitive) The password for the MongoDB instance.
+- `password` (String, Sensitive) The password for the MongoDB instance. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive) Write-only password for the MongoDB instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
 
@@ -376,7 +385,7 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for the MySQL instance. Username is always required. Password is required for `basic` authentication, optional for `IAM_ROLE` authentication. (see [below for nested schema](#nestedatt--source--mysql--credentials))
+- `credentials` (Attributes, Sensitive) The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. (see [below for nested schema](#nestedatt--source--mysql--credentials))
 - `host` (String) The hostname of the MySQL instance.
 - `settings` (Attributes) Settings for the MySQL CDC pipe. (see [below for nested schema](#nestedatt--source--mysql--settings))
 - `table_mappings` (Attributes Set) Table mappings from MySQL source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--mysql--table_mappings))
@@ -401,7 +410,9 @@ Required:
 
 Optional:
 
-- `password` (String, Sensitive) The password for the MySQL instance. Required for `basic` authentication, optional for `IAM_ROLE` authentication.
+- `password` (String, Sensitive) The password for the MySQL instance. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive) Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
 <a id="nestedatt--source--mysql--settings"></a>
@@ -481,7 +492,7 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Username is always required. Password is required for `basic` authentication, optional for `iam_role` authentication. (see [below for nested schema](#nestedatt--source--postgres--credentials))
+- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `iam_role` authentication, password is optional. (see [below for nested schema](#nestedatt--source--postgres--credentials))
 - `database` (String) The database name of the Postgres instance.
 - `host` (String) The hostname of the Postgres instance.
 - `settings` (Attributes) Settings for the Postgres CDC pipe. (see [below for nested schema](#nestedatt--source--postgres--settings))
@@ -505,7 +516,9 @@ Required:
 
 Optional:
 
-- `password` (String, Sensitive) The password for the Postgres instance. Required for `basic` authentication, optional for `iam_role` authentication.
+- `password` (String, Sensitive) The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
 <a id="nestedatt--source--postgres--settings"></a>
