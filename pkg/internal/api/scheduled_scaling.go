@@ -7,6 +7,11 @@ import (
 	"net/http"
 )
 
+// MaxAutoScalingScheduleEntries is the server-side cap on entries per schedule
+// (MAX_AUTOSCALING_SCHEDULE_ENTRIES). Exposed so the provider's schema validator
+// stays in sync with the server.
+const MaxAutoScalingScheduleEntries = 10
+
 // AutoScalingScheduleEntry mirrors the OpenAPI public AutoScalingScheduleEntryV1
 // shape: a single weekly recurring scaling window.
 type AutoScalingScheduleEntry struct {

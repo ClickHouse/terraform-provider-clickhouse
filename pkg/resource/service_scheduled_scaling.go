@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -14,6 +15,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -23,8 +26,6 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
-
-const maxScheduledScalingEntries = 10
 
 var (
 	_ resource.Resource                = &ServiceScheduledScalingResource{}
@@ -51,6 +52,13 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 	resp.Schema = schema.Schema{
 		MarkdownDescription: serviceScheduledScalingResourceDescription,
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Description: "Resource identifier. Equal to service_id (one schedule per service).",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"service_id": schema.StringAttribute{
 				Description: "ClickHouse Cloud service ID this schedule applies to.",
 				Required:    true,
@@ -62,14 +70,11 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 				Description: "Ordered list of recurring scaling windows. The first entry whose weekday and hour range covers \"now\" is applied; otherwise base_config applies.",
 				Required:    true,
 				Validators: []validator.List{
-					listvalidator.SizeAtMost(maxScheduledScalingEntries),
+					listvalidator.SizeAtLeast(1),
+					listvalidator.SizeAtMost(api.MaxAutoScalingScheduleEntries),
 				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id": schema.StringAttribute{
-							Description: "Server-generated entry ID. Shown as \"known after apply\" on any change to the entries list because IDs are assigned by the server in positional order.",
-							Computed:    true,
-						},
 						"name": schema.StringAttribute{
 							Description: "Human-readable name for the entry (e.g. \"Business hours\").",
 							Required:    true,
@@ -87,14 +92,14 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 							},
 						},
 						"start_hour_utc": schema.Int64Attribute{
-							Description: "Start hour in UTC (0-23). If end_hour_utc < start_hour_utc the window wraps overnight.",
+							Description: "Start hour in UTC (0-23). If end_hour_utc < start_hour_utc the window wraps overnight. Set start_hour_utc=0 and end_hour_utc=24 for a 24-hour window.",
 							Required:    true,
 							Validators: []validator.Int64{
 								int64validator.Between(0, 23),
 							},
 						},
 						"end_hour_utc": schema.Int64Attribute{
-							Description: "End hour in UTC (1-24). Must differ from start_hour_utc.",
+							Description: "End hour in UTC (1-24). Must differ from start_hour_utc. Note the asymmetric range: end_hour_utc=0 is invalid; use end_hour_utc=24 to mean midnight at end of day.",
 							Required:    true,
 							Validators: []validator.Int64{
 								int64validator.Between(1, 24),
@@ -103,26 +108,59 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 						"min_replica_memory_gb": schema.Int64Attribute{
 							Description: "Minimum memory per replica in GiB. Must be set together with max_replica_memory_gb.",
 							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
+							Validators: []validator.Int64{
+								int64validator.AtLeast(1),
+							},
 						},
 						"max_replica_memory_gb": schema.Int64Attribute{
 							Description: "Maximum memory per replica in GiB. Must be set together with min_replica_memory_gb.",
 							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
+							Validators: []validator.Int64{
+								int64validator.AtLeast(1),
+							},
 						},
 						"min_replicas": schema.Int64Attribute{
 							Description: "Minimum replica count while the window is active. Currently the server requires min_replicas == max_replicas.",
 							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
 						},
 						"max_replicas": schema.Int64Attribute{
 							Description: "Maximum replica count while the window is active. Currently the server requires min_replicas == max_replicas.",
 							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
 						},
 						"idle_scaling": schema.BoolAttribute{
 							Description: "Whether idle scaling is enabled while the window is active.",
 							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"idle_timeout_minutes": schema.Int64Attribute{
-							Description: "Minutes of inactivity before the service scales to zero (only relevant when idle_scaling is true).",
+							Description: "Minutes of inactivity before the service scales to zero. Must be at least 5. Only meaningful when idle_scaling is true.",
 							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
+							Validators: []validator.Int64{
+								int64validator.AtLeast(5),
+							},
 						},
 					},
 				},
@@ -169,18 +207,42 @@ func (r *ServiceScheduledScalingResource) Create(ctx context.Context, req resour
 		return
 	}
 
+	serviceID := plan.ServiceID.ValueString()
+
+	// Refuse to clobber an existing schedule. The user should import it.
+	existing, err := r.client.GetScheduledScaling(ctx, serviceID)
+	if err != nil && !api.IsNotFound(err) {
+		resp.Diagnostics.AddError("Error checking for existing scheduled scaling", err.Error())
+		return
+	}
+	if existing != nil && len(existing.Entries) > 0 {
+		resp.Diagnostics.AddError(
+			"Scheduled scaling already exists for this service",
+			fmt.Sprintf("Service %s already has a scaling schedule with %d entries. Import it into Terraform with: terraform import clickhouse_service_scheduled_scaling.<name> %s", serviceID, len(existing.Entries), serviceID),
+		)
+		return
+	}
+
 	entries, d := planEntriesToAPI(ctx, plan.Entries)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	schedule, err := r.client.UpdateScheduledScaling(ctx, plan.ServiceID.ValueString(), api.AutoScalingScheduleUpdate{Entries: entries})
+	schedule, err := r.client.UpdateScheduledScaling(ctx, serviceID, api.AutoScalingScheduleUpdate{Entries: entries})
 	if err != nil {
+		if api.IsNotFound(err) {
+			resp.Diagnostics.AddError(
+				"Service not found",
+				fmt.Sprintf("Service %s does not exist or has been deleted. Confirm clickhouse_service.<name>.id is correct.", serviceID),
+			)
+			return
+		}
 		resp.Diagnostics.AddError("Error creating scheduled scaling", err.Error())
 		return
 	}
 
+	plan.ID = plan.ServiceID
 	resp.Diagnostics.Append(applyScheduleToState(schedule, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -196,7 +258,14 @@ func (r *ServiceScheduledScalingResource) Read(ctx context.Context, req resource
 		return
 	}
 
-	schedule, err := r.client.GetScheduledScaling(ctx, state.ServiceID.ValueString())
+	serviceID := state.ServiceID.ValueString()
+	if serviceID == "" {
+		// Populated from `id` on import.
+		serviceID = state.ID.ValueString()
+		state.ServiceID = state.ID
+	}
+
+	schedule, err := r.client.GetScheduledScaling(ctx, serviceID)
 	if err != nil {
 		if api.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
@@ -206,6 +275,7 @@ func (r *ServiceScheduledScalingResource) Read(ctx context.Context, req resource
 		return
 	}
 
+	state.ID = state.ServiceID
 	resp.Diagnostics.Append(applyScheduleToState(schedule, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -229,10 +299,18 @@ func (r *ServiceScheduledScalingResource) Update(ctx context.Context, req resour
 
 	schedule, err := r.client.UpdateScheduledScaling(ctx, plan.ServiceID.ValueString(), api.AutoScalingScheduleUpdate{Entries: entries})
 	if err != nil {
+		if api.IsNotFound(err) {
+			resp.Diagnostics.AddError(
+				"Service not found",
+				fmt.Sprintf("Service %s no longer exists. Remove the resource from configuration or recreate the service.", plan.ServiceID.ValueString()),
+			)
+			return
+		}
 		resp.Diagnostics.AddError("Error updating scheduled scaling", err.Error())
 		return
 	}
 
+	plan.ID = plan.ServiceID
 	resp.Diagnostics.Append(applyScheduleToState(schedule, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -255,7 +333,9 @@ func (r *ServiceScheduledScalingResource) Delete(ctx context.Context, req resour
 }
 
 func (r *ServiceScheduledScalingResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("service_id"), req, resp)
+	// `id` and `service_id` are equal — write both so Read finds the service.
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), req.ID)...)
 }
 
 func (r *ServiceScheduledScalingResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
@@ -279,7 +359,8 @@ func (r *ServiceScheduledScalingResource) ValidateConfig(ctx context.Context, re
 }
 
 // validateScheduledScalingEntries enforces per-entry rules that aren't expressed
-// by individual attribute validators (paired fields, min==max, non-zero window).
+// by individual attribute validators (paired fields, min==max, non-zero window,
+// memory ordering, idle-timeout-without-idle-scaling).
 func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	entriesPath := path.Root("entries")
@@ -305,6 +386,13 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 				"Either set both attributes or omit both.",
 			)
 		}
+		if minMemSet && maxMemSet && e.MinReplicaMemoryGb.ValueInt64() > e.MaxReplicaMemoryGb.ValueInt64() {
+			diags.AddAttributeError(
+				entryPath,
+				"min_replica_memory_gb must be <= max_replica_memory_gb",
+				fmt.Sprintf("Got min=%d, max=%d.", e.MinReplicaMemoryGb.ValueInt64(), e.MaxReplicaMemoryGb.ValueInt64()),
+			)
+		}
 
 		minRepSet := !e.MinReplicas.IsNull() && !e.MinReplicas.IsUnknown()
 		maxRepSet := !e.MaxReplicas.IsNull() && !e.MaxReplicas.IsUnknown()
@@ -321,6 +409,17 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 				"min_replicas must equal max_replicas",
 				"The scheduled scaling API currently requires a fixed replica count per entry.",
 			)
+		}
+
+		if !e.IdleTimeoutMinutes.IsNull() && !e.IdleTimeoutMinutes.IsUnknown() {
+			idleSet := !e.IdleScaling.IsNull() && !e.IdleScaling.IsUnknown()
+			if !idleSet || !e.IdleScaling.ValueBool() {
+				diags.AddAttributeError(
+					entryPath,
+					"idle_timeout_minutes requires idle_scaling = true",
+					"idle_timeout_minutes only has an effect when idle_scaling is enabled for this entry.",
+				)
+			}
 		}
 	}
 	return diags
@@ -351,6 +450,10 @@ func planEntriesToAPI(ctx context.Context, entriesList types.List) ([]api.AutoSc
 		for j, w := range weekdays {
 			intWeekdays[j] = int(w)
 		}
+		// Sort for deterministic wire output across applies — set iteration is
+		// non-deterministic and would otherwise produce gratuitously different
+		// request bodies for the same config.
+		sort.Ints(intWeekdays)
 
 		entry := api.AutoScalingScheduleEntry{
 			Name:         em.Name.ValueString(),
@@ -433,7 +536,6 @@ func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEnt
 	}
 
 	model := models.ScheduledScalingEntryModel{
-		ID:                 types.StringValue(e.ID),
 		Name:               types.StringValue(e.Name),
 		Weekdays:           weekdaySet,
 		StartHourUtc:       types.Int64Value(int64(e.StartHourUtc)),

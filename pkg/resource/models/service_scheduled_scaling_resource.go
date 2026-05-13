@@ -8,7 +8,6 @@ import (
 
 // ScheduledScalingEntryModel mirrors a single entry in the scaling schedule.
 type ScheduledScalingEntryModel struct {
-	ID                 types.String `tfsdk:"id"`
 	Name               types.String `tfsdk:"name"`
 	Weekdays           types.Set    `tfsdk:"weekdays"`
 	StartHourUtc       types.Int64  `tfsdk:"start_hour_utc"`
@@ -24,7 +23,6 @@ type ScheduledScalingEntryModel struct {
 func (m ScheduledScalingEntryModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"id":                    types.StringType,
 			"name":                  types.StringType,
 			"weekdays":              types.SetType{ElemType: types.Int64Type},
 			"start_hour_utc":        types.Int64Type,
@@ -41,7 +39,6 @@ func (m ScheduledScalingEntryModel) ObjectType() types.ObjectType {
 
 func (m ScheduledScalingEntryModel) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"id":                    m.ID,
 		"name":                  m.Name,
 		"weekdays":              m.Weekdays,
 		"start_hour_utc":        m.StartHourUtc,
@@ -93,6 +90,7 @@ func (m ScheduledScalingBaseConfigModel) ObjectValue() basetypes.ObjectValue {
 // ServiceScheduledScalingResourceModel is the Terraform state model for the
 // clickhouse_service_scheduled_scaling resource.
 type ServiceScheduledScalingResourceModel struct {
+	ID         types.String `tfsdk:"id"`
 	ServiceID  types.String `tfsdk:"service_id"`
 	Entries    types.List   `tfsdk:"entries"`
 	BaseConfig types.Object `tfsdk:"base_config"`

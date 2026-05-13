@@ -2,6 +2,8 @@ package resource
 
 import (
 	"context"
+	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -15,7 +17,6 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 	schedule := &api.AutoScalingSchedule{
 		Entries: []api.AutoScalingScheduleEntry{
 			{
-				ID:           "entry-1",
 				Name:         "business",
 				Weekdays:     []int{1, 2, 3, 4, 5},
 				StartHourUtc: 8,
@@ -23,7 +24,6 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 				MinReplicas:  intPtr(3),
 				MaxReplicas:  intPtr(3),
 				IdleScaling:  boolPtr(false),
-				IsActiveNow:  true, // server-only field, not in TF state but must not crash
 			},
 		},
 		BaseConfig: &api.AutoScalingScheduleBaseConfig{
@@ -32,7 +32,6 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 			IdleScaling:        boolPtr(true),
 			IdleTimeoutMinutes: intPtr(5),
 		},
-		ActiveEntryID: "entry-1",
 	}
 
 	state := &models.ServiceScheduledScalingResourceModel{
@@ -60,9 +59,6 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 		t.Fatalf("len(entries) = %d; want 1", len(entries))
 	}
 	e := entries[0]
-	if e.ID.ValueString() != "entry-1" {
-		t.Errorf("entry.ID = %q; want entry-1", e.ID.ValueString())
-	}
 	if e.MinReplicas.ValueInt64() != 3 || e.MaxReplicas.ValueInt64() != 3 {
 		t.Errorf("replicas = (%d, %d); want (3, 3)", e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64())
 	}
@@ -71,6 +67,21 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 	}
 	if !e.MinReplicaMemoryGb.IsNull() {
 		t.Errorf("min_replica_memory_gb should be null when API omits it")
+	}
+
+	// Weekday content assertion (set ordering is non-deterministic — sort).
+	var weekdays []int64
+	diags = e.Weekdays.ElementsAs(context.Background(), &weekdays, false)
+	if diags.HasError() {
+		t.Fatalf("Weekdays.ElementsAs: %v", diags)
+	}
+	got := make([]int, len(weekdays))
+	for i, v := range weekdays {
+		got[i] = int(v)
+	}
+	sort.Ints(got)
+	if !reflect.DeepEqual(got, []int{1, 2, 3, 4, 5}) {
+		t.Errorf("weekdays = %v; want [1 2 3 4 5]", got)
 	}
 }
 
@@ -88,6 +99,31 @@ func TestApplyScheduleToState_NullBaseConfigWhenAbsent(t *testing.T) {
 	}
 	if !state.BaseConfig.IsNull() {
 		t.Errorf("BaseConfig should be null when API omits it")
+	}
+}
+
+func TestApplyScheduleToState_PreservesMultiEntryOrder(t *testing.T) {
+	schedule := &api.AutoScalingSchedule{
+		Entries: []api.AutoScalingScheduleEntry{
+			{Name: "first", Weekdays: []int{1}, StartHourUtc: 0, EndHourUtc: 8},
+			{Name: "second", Weekdays: []int{1}, StartHourUtc: 8, EndHourUtc: 16},
+			{Name: "third", Weekdays: []int{1}, StartHourUtc: 16, EndHourUtc: 24},
+		},
+	}
+
+	state := &models.ServiceScheduledScalingResourceModel{ServiceID: types.StringValue("svc-1")}
+	diags := applyScheduleToState(schedule, state)
+	if diags.HasError() {
+		t.Fatalf("diags: %v", diags)
+	}
+
+	var entries []models.ScheduledScalingEntryModel
+	if d := state.Entries.ElementsAs(context.Background(), &entries, false); d.HasError() {
+		t.Fatalf("ElementsAs: %v", d)
+	}
+	names := []string{entries[0].Name.ValueString(), entries[1].Name.ValueString(), entries[2].Name.ValueString()}
+	if !reflect.DeepEqual(names, []string{"first", "second", "third"}) {
+		t.Errorf("entry order = %v; want first/second/third", names)
 	}
 }
 
@@ -127,13 +163,14 @@ func TestPlanEntriesToAPI_EmptyAndNullInputs(t *testing.T) {
 }
 
 func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
-	weekdaySet, diags := types.SetValue(types.Int64Type, []attr.Value{types.Int64Value(1), types.Int64Value(3)})
+	// Build the set in deliberately non-sorted order to verify planEntriesToAPI
+	// sorts before sending.
+	weekdaySet, diags := types.SetValue(types.Int64Type, []attr.Value{types.Int64Value(3), types.Int64Value(1)})
 	if diags.HasError() {
 		t.Fatalf("SetValue: %v", diags)
 	}
 
 	entry := models.ScheduledScalingEntryModel{
-		ID:                 types.StringNull(),
 		Name:               types.StringValue("primary"),
 		Weekdays:           weekdaySet,
 		StartHourUtc:       types.Int64Value(9),
@@ -157,8 +194,8 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 	if g.Name != "primary" || g.StartHourUtc != 9 || g.EndHourUtc != 17 {
 		t.Errorf("scalar fields mismatch: %+v", g)
 	}
-	if len(g.Weekdays) != 2 {
-		t.Errorf("weekdays len = %d; want 2", len(g.Weekdays))
+	if !reflect.DeepEqual(g.Weekdays, []int{1, 3}) {
+		t.Errorf("weekdays = %v; want [1 3] (sorted)", g.Weekdays)
 	}
 	if g.MinReplicaMemoryGb == nil || *g.MinReplicaMemoryGb != 8 {
 		t.Errorf("MinReplicaMemoryGb = %v; want 8", g.MinReplicaMemoryGb)
@@ -224,6 +261,18 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			wantErrCount: 1,
 		},
 		{
+			name: "memory min > max",
+			entry: models.ScheduledScalingEntryModel{
+				Name:               types.StringValue("inverted-memory"),
+				Weekdays:           mustSet(1),
+				StartHourUtc:       types.Int64Value(0),
+				EndHourUtc:         types.Int64Value(24),
+				MinReplicaMemoryGb: types.Int64Value(64),
+				MaxReplicaMemoryGb: types.Int64Value(8),
+			},
+			wantErrCount: 1,
+		},
+		{
 			name: "replica pair mismatch",
 			entry: models.ScheduledScalingEntryModel{
 				Name:         types.StringValue("partial-replicas"),
@@ -247,6 +296,29 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			},
 			wantErrCount: 1,
 		},
+		{
+			name: "idle_timeout without idle_scaling",
+			entry: models.ScheduledScalingEntryModel{
+				Name:               types.StringValue("orphan-timeout"),
+				Weekdays:           mustSet(1),
+				StartHourUtc:       types.Int64Value(0),
+				EndHourUtc:         types.Int64Value(24),
+				IdleTimeoutMinutes: types.Int64Value(10),
+			},
+			wantErrCount: 1,
+		},
+		{
+			name: "idle_timeout with idle_scaling=false",
+			entry: models.ScheduledScalingEntryModel{
+				Name:               types.StringValue("explicit-false"),
+				Weekdays:           mustSet(1),
+				StartHourUtc:       types.Int64Value(0),
+				EndHourUtc:         types.Int64Value(24),
+				IdleScaling:        types.BoolValue(false),
+				IdleTimeoutMinutes: types.Int64Value(10),
+			},
+			wantErrCount: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -266,7 +338,6 @@ func TestPlanEntriesToAPI_OmitsNullOptionalFields(t *testing.T) {
 	}
 
 	entry := models.ScheduledScalingEntryModel{
-		ID:                 types.StringNull(),
 		Name:               types.StringValue("minimal"),
 		Weekdays:           weekdaySet,
 		StartHourUtc:       types.Int64Value(0),
@@ -292,5 +363,77 @@ func TestPlanEntriesToAPI_OmitsNullOptionalFields(t *testing.T) {
 	}
 	if g.IdleScaling != nil || g.IdleTimeoutMinutes != nil {
 		t.Errorf("idle pointers should be nil, got %v / %v", g.IdleScaling, g.IdleTimeoutMinutes)
+	}
+}
+
+// TestRoundTrip_NoServerNormalization simulates: user writes config, provider
+// POSTs entries, server echoes them back verbatim, Read maps back to state.
+// State should equal the original plan — proves the provider doesn't introduce
+// gratuitous drift when the server is a faithful echo. Catches model-typing
+// regressions (e.g. nil-pointer-to-Null mapping).
+func TestRoundTrip_NoServerNormalization(t *testing.T) {
+	ctx := context.Background()
+
+	weekdaySet, _ := types.SetValue(types.Int64Type, []attr.Value{types.Int64Value(1), types.Int64Value(2), types.Int64Value(3)})
+	planEntry := models.ScheduledScalingEntryModel{
+		Name:               types.StringValue("planA"),
+		Weekdays:           weekdaySet,
+		StartHourUtc:       types.Int64Value(9),
+		EndHourUtc:         types.Int64Value(17),
+		MinReplicaMemoryGb: types.Int64Value(8),
+		MaxReplicaMemoryGb: types.Int64Value(32),
+		MinReplicas:        types.Int64Value(2),
+		MaxReplicas:        types.Int64Value(2),
+		IdleScaling:        types.BoolValue(true),
+		IdleTimeoutMinutes: types.Int64Value(15),
+	}
+	planList := buildEntryList(t, planEntry)
+
+	apiEntries, d := planEntriesToAPI(ctx, planList)
+	if d.HasError() {
+		t.Fatalf("planEntriesToAPI: %v", d)
+	}
+
+	// Server echoes the request verbatim, no defaults filled.
+	serverResponse := &api.AutoScalingSchedule{Entries: apiEntries}
+
+	state := &models.ServiceScheduledScalingResourceModel{}
+	if d := applyScheduleToState(serverResponse, state); d.HasError() {
+		t.Fatalf("applyScheduleToState: %v", d)
+	}
+
+	var roundTripped []models.ScheduledScalingEntryModel
+	if d := state.Entries.ElementsAs(ctx, &roundTripped, false); d.HasError() {
+		t.Fatalf("ElementsAs: %v", d)
+	}
+	if len(roundTripped) != 1 {
+		t.Fatalf("len = %d; want 1", len(roundTripped))
+	}
+	r := roundTripped[0]
+
+	if r.Name.ValueString() != "planA" {
+		t.Errorf("Name = %q; want planA", r.Name.ValueString())
+	}
+	if r.MinReplicas.ValueInt64() != 2 || r.MaxReplicas.ValueInt64() != 2 {
+		t.Errorf("replicas = (%d, %d); want (2, 2)", r.MinReplicas.ValueInt64(), r.MaxReplicas.ValueInt64())
+	}
+	if !r.IdleScaling.ValueBool() {
+		t.Errorf("IdleScaling = false; want true")
+	}
+	if r.IdleTimeoutMinutes.ValueInt64() != 15 {
+		t.Errorf("IdleTimeoutMinutes = %d; want 15", r.IdleTimeoutMinutes.ValueInt64())
+	}
+
+	var wd []int64
+	if d := r.Weekdays.ElementsAs(ctx, &wd, false); d.HasError() {
+		t.Fatalf("Weekdays.ElementsAs: %v", d)
+	}
+	got := make([]int, len(wd))
+	for i, v := range wd {
+		got[i] = int(v)
+	}
+	sort.Ints(got)
+	if !reflect.DeepEqual(got, []int{1, 2, 3}) {
+		t.Errorf("weekdays = %v; want [1 2 3]", got)
 	}
 }
