@@ -414,10 +414,14 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 		if !e.IdleTimeoutMinutes.IsNull() && !e.IdleTimeoutMinutes.IsUnknown() {
 			idleSet := !e.IdleScaling.IsNull() && !e.IdleScaling.IsUnknown()
 			if !idleSet || !e.IdleScaling.ValueBool() {
-				diags.AddAttributeError(
+				// Warn rather than error: the server accepts this combination
+				// (e.g. schedules created via the UI may persist a timeout
+				// without idle scaling), so a hard error would block legitimate
+				// imports.
+				diags.AddAttributeWarning(
 					entryPath,
-					"idle_timeout_minutes requires idle_scaling = true",
-					"idle_timeout_minutes only has an effect when idle_scaling is enabled for this entry.",
+					"idle_timeout_minutes set without idle_scaling = true",
+					"idle_timeout_minutes only has an effect when idle_scaling is enabled. The server accepts this combination; this is just a heads-up that the timeout will not take effect for this entry.",
 				)
 			}
 		}

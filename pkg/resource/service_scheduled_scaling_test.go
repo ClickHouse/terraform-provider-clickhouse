@@ -226,9 +226,10 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		entry        models.ScheduledScalingEntryModel
-		wantErrCount int
+		name          string
+		entry         models.ScheduledScalingEntryModel
+		wantErrCount  int
+		wantWarnCount int
 	}{
 		{
 			name: "valid entry",
@@ -301,6 +302,9 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			wantErrCount: 1,
 		},
 		{
+			// Server accepts idle_timeout_minutes without idle_scaling (UI
+			// creates schedules with this combination). Validator warns,
+			// doesn't error — otherwise imports break.
 			name: "idle_timeout without idle_scaling",
 			entry: models.ScheduledScalingEntryModel{
 				Name:               types.StringValue("orphan-timeout"),
@@ -309,7 +313,8 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 				EndHourUtc:         types.Int64Value(24),
 				IdleTimeoutMinutes: types.Int64Value(10),
 			},
-			wantErrCount: 1,
+			wantErrCount:  0,
+			wantWarnCount: 1,
 		},
 		{
 			name: "idle_timeout with idle_scaling=false",
@@ -321,7 +326,8 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 				IdleScaling:        types.BoolValue(false),
 				IdleTimeoutMinutes: types.Int64Value(10),
 			},
-			wantErrCount: 1,
+			wantErrCount:  0,
+			wantWarnCount: 1,
 		},
 	}
 
@@ -330,6 +336,9 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			diags := validateScheduledScalingEntries([]models.ScheduledScalingEntryModel{tt.entry})
 			if diags.ErrorsCount() != tt.wantErrCount {
 				t.Errorf("ErrorsCount = %d; want %d; diags = %v", diags.ErrorsCount(), tt.wantErrCount, diags)
+			}
+			if diags.WarningsCount() != tt.wantWarnCount {
+				t.Errorf("WarningsCount = %d; want %d; diags = %v", diags.WarningsCount(), tt.wantWarnCount, diags)
 			}
 		})
 	}
