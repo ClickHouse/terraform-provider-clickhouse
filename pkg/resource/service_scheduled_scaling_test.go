@@ -226,10 +226,9 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		entry         models.ScheduledScalingEntryModel
-		wantErrCount  int
-		wantWarnCount int
+		name         string
+		entry        models.ScheduledScalingEntryModel
+		wantErrCount int
 	}{
 		{
 			name: "valid entry",
@@ -302,9 +301,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			wantErrCount: 1,
 		},
 		{
-			// Server accepts idle_timeout_minutes without idle_scaling (UI
-			// creates schedules with this combination). Validator warns,
-			// doesn't error — otherwise imports break.
+			// Server rejects the lone-timeout case: pair-required.
 			name: "idle_timeout without idle_scaling",
 			entry: models.ScheduledScalingEntryModel{
 				Name:               types.StringValue("orphan-timeout"),
@@ -313,21 +310,43 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 				EndHourUtc:         types.Int64Value(24),
 				IdleTimeoutMinutes: types.Int64Value(10),
 			},
-			wantErrCount:  0,
-			wantWarnCount: 1,
+			wantErrCount: 1,
 		},
 		{
-			name: "idle_timeout with idle_scaling=false",
+			// Server rejects the lone-idle-scaling case: pair-required.
+			name: "idle_scaling without idle_timeout",
 			entry: models.ScheduledScalingEntryModel{
-				Name:               types.StringValue("explicit-false"),
+				Name:         types.StringValue("orphan-idle"),
+				Weekdays:     mustSet(1),
+				StartHourUtc: types.Int64Value(0),
+				EndHourUtc:   types.Int64Value(24),
+				IdleScaling:  types.BoolValue(true),
+			},
+			wantErrCount: 1,
+		},
+		{
+			// Server accepts idle_scaling=false + idle_timeout_minutes set
+			// (UI persists this combination — see PR #536 bug report).
+			name: "idle_scaling=false with idle_timeout set is accepted",
+			entry: models.ScheduledScalingEntryModel{
+				Name:               types.StringValue("ui-persisted"),
 				Weekdays:           mustSet(1),
 				StartHourUtc:       types.Int64Value(0),
 				EndHourUtc:         types.Int64Value(24),
 				IdleScaling:        types.BoolValue(false),
-				IdleTimeoutMinutes: types.Int64Value(10),
+				IdleTimeoutMinutes: types.Int64Value(15),
 			},
-			wantErrCount:  0,
-			wantWarnCount: 1,
+			wantErrCount: 0,
+		},
+		{
+			name: "both idle fields unset",
+			entry: models.ScheduledScalingEntryModel{
+				Name:         types.StringValue("no-idle"),
+				Weekdays:     mustSet(1),
+				StartHourUtc: types.Int64Value(0),
+				EndHourUtc:   types.Int64Value(24),
+			},
+			wantErrCount: 0,
 		},
 	}
 
@@ -336,9 +355,6 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			diags := validateScheduledScalingEntries([]models.ScheduledScalingEntryModel{tt.entry})
 			if diags.ErrorsCount() != tt.wantErrCount {
 				t.Errorf("ErrorsCount = %d; want %d; diags = %v", diags.ErrorsCount(), tt.wantErrCount, diags)
-			}
-			if diags.WarningsCount() != tt.wantWarnCount {
-				t.Errorf("WarningsCount = %d; want %d; diags = %v", diags.WarningsCount(), tt.wantWarnCount, diags)
 			}
 		})
 	}
