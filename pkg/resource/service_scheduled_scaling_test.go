@@ -300,34 +300,23 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			},
 			wantErrCount: 1,
 		},
+		// idle_scaling and idle_timeout_minutes are independently optional on
+		// the server — all four combinations below must validate cleanly.
 		{
-			// Server rejects the lone-timeout case: pair-required.
-			name: "idle_timeout without idle_scaling",
+			name: "idle: both set, idle_scaling=true",
 			entry: models.ScheduledScalingEntryModel{
-				Name:               types.StringValue("orphan-timeout"),
+				Name:               types.StringValue("both-true"),
 				Weekdays:           mustSet(1),
 				StartHourUtc:       types.Int64Value(0),
 				EndHourUtc:         types.Int64Value(24),
+				IdleScaling:        types.BoolValue(true),
 				IdleTimeoutMinutes: types.Int64Value(10),
 			},
-			wantErrCount: 1,
+			wantErrCount: 0,
 		},
 		{
-			// Server rejects the lone-idle-scaling case: pair-required.
-			name: "idle_scaling without idle_timeout",
-			entry: models.ScheduledScalingEntryModel{
-				Name:         types.StringValue("orphan-idle"),
-				Weekdays:     mustSet(1),
-				StartHourUtc: types.Int64Value(0),
-				EndHourUtc:   types.Int64Value(24),
-				IdleScaling:  types.BoolValue(true),
-			},
-			wantErrCount: 1,
-		},
-		{
-			// Server accepts idle_scaling=false + idle_timeout_minutes set
-			// (UI persists this combination — see PR #536 bug report).
-			name: "idle_scaling=false with idle_timeout set is accepted",
+			// UI persists this combination — see PR #536 bug report.
+			name: "idle: both set, idle_scaling=false",
 			entry: models.ScheduledScalingEntryModel{
 				Name:               types.StringValue("ui-persisted"),
 				Weekdays:           mustSet(1),
@@ -339,7 +328,29 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			wantErrCount: 0,
 		},
 		{
-			name: "both idle fields unset",
+			name: "idle: only idle_timeout set",
+			entry: models.ScheduledScalingEntryModel{
+				Name:               types.StringValue("lone-timeout"),
+				Weekdays:           mustSet(1),
+				StartHourUtc:       types.Int64Value(0),
+				EndHourUtc:         types.Int64Value(24),
+				IdleTimeoutMinutes: types.Int64Value(10),
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "idle: only idle_scaling set",
+			entry: models.ScheduledScalingEntryModel{
+				Name:         types.StringValue("lone-scaling"),
+				Weekdays:     mustSet(1),
+				StartHourUtc: types.Int64Value(0),
+				EndHourUtc:   types.Int64Value(24),
+				IdleScaling:  types.BoolValue(true),
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "idle: both unset",
 			entry: models.ScheduledScalingEntryModel{
 				Name:         types.StringValue("no-idle"),
 				Weekdays:     mustSet(1),

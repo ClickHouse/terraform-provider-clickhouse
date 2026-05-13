@@ -411,15 +411,10 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 			)
 		}
 
-		idleScalingSet := !e.IdleScaling.IsNull() && !e.IdleScaling.IsUnknown()
-		idleTimeoutSet := !e.IdleTimeoutMinutes.IsNull() && !e.IdleTimeoutMinutes.IsUnknown()
-		if idleScalingSet != idleTimeoutSet {
-			diags.AddAttributeError(
-				entryPath,
-				"idle_scaling and idle_timeout_minutes must be set together",
-				"The scheduled scaling API rejects entries that contain one of these fields without the other. Set both attributes (idle_scaling can be true or false) or omit both.",
-			)
-		}
+		// idle_scaling and idle_timeout_minutes are independently optional on
+		// the server side — no client-side pair check (verified against
+		// validateScheduleEntryPublicFields and validateScheduleEntries on
+		// the control-plane).
 	}
 	return diags
 }
