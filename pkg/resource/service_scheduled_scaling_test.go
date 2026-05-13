@@ -7,7 +7,11 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
@@ -363,6 +367,49 @@ func TestPlanEntriesToAPI_OmitsNullOptionalFields(t *testing.T) {
 	}
 	if g.IdleScaling != nil || g.IdleTimeoutMinutes != nil {
 		t.Errorf("idle pointers should be nil, got %v / %v", g.IdleScaling, g.IdleTimeoutMinutes)
+	}
+}
+
+// TestServiceScheduledScalingResource_ImportState verifies that the custom
+// ImportState handler writes both `id` and `service_id` from the user-supplied
+// import ID. Drives the actual resource method through a constructed
+// tfsdk.State (no acceptance harness needed).
+func TestServiceScheduledScalingResource_ImportState(t *testing.T) {
+	ctx := context.Background()
+	r := NewServiceScheduledScalingResource().(*ServiceScheduledScalingResource)
+
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("Schema: %v", schemaResp.Diagnostics)
+	}
+	sch := schemaResp.Schema
+
+	req := resource.ImportStateRequest{ID: "abc-123"}
+	resp := &resource.ImportStateResponse{
+		State: tfsdk.State{
+			Schema: sch,
+			Raw:    tftypes.NewValue(sch.Type().TerraformType(ctx), nil),
+		},
+	}
+
+	r.ImportState(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("ImportState diags: %v", resp.Diagnostics)
+	}
+
+	var id, serviceID types.String
+	if d := resp.State.GetAttribute(ctx, path.Root("id"), &id); d.HasError() {
+		t.Fatalf("read id: %v", d)
+	}
+	if d := resp.State.GetAttribute(ctx, path.Root("service_id"), &serviceID); d.HasError() {
+		t.Fatalf("read service_id: %v", d)
+	}
+	if id.ValueString() != "abc-123" {
+		t.Errorf("id = %q; want abc-123", id.ValueString())
+	}
+	if serviceID.ValueString() != "abc-123" {
+		t.Errorf("service_id = %q; want abc-123", serviceID.ValueString())
 	}
 }
 
