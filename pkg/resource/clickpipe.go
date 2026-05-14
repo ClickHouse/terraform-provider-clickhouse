@@ -673,6 +673,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"topic": schema.StringAttribute{
 								Description: "The Pub/Sub topic name (not the fully-qualified path).",
 								Required:    true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^[^/]+$`),
+										`must be the topic name only, not a fully-qualified path (e.g. "my-topic", not "projects/<project>/topics/my-topic")`,
+									),
+								},
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
 								},
