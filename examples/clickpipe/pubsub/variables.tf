@@ -25,12 +25,6 @@ variable "pipe_name" {
   default     = "pubsub-example"
 }
 
-variable "database" {
-  description = "The database to store the data"
-  type        = string
-  default     = "default"
-}
-
 variable "table" {
   description = "The table to store the data"
   type        = string

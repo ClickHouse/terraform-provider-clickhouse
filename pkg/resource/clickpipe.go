@@ -721,15 +721,21 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"filter": schema.StringAttribute{
-								MarkdownDescription: "Optional Pub/Sub subscription filter expression. Max 256 characters.",
+								MarkdownDescription: "Optional Pub/Sub subscription filter expression (CEL). Max 256 characters. Immutable — changing it requires destroy+create because the underlying subscription filter cannot be edited in place.",
 								Optional:            true,
 								Validators: []validator.String{
 									stringvalidator.LengthAtMost(256),
 								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"enable_ordering": schema.BoolAttribute{
-								Description: "Whether to enable ordered message delivery.",
+								Description: "Whether to enable ordered message delivery. Immutable — changing it requires destroy+create because ordered delivery is a property of the subscription at creation time.",
 								Optional:    true,
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.RequiresReplace(),
+								},
 							},
 							"ack_deadline": schema.Int64Attribute{
 								Description: "Acknowledgement deadline in seconds (10–600).",
@@ -2788,43 +2794,25 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		diagnostics.Append(sourceModel.PubSub.As(ctx, &pubsubModel, basetypes.ObjectAsOptions{})...)
 
 		pubsub := &api.ClickPipePubSubSource{
+			Format:         pubsubModel.Format.ValueString(),
+			ProjectID:      pubsubModel.ProjectID.ValueString(),
+			Topic:          pubsubModel.Topic.ValueString(),
 			Authentication: pubsubModel.Authentication.ValueString(),
-		}
-
-		if !isUpdate {
-			pubsub.Format = pubsubModel.Format.ValueString()
-			pubsub.ProjectID = pubsubModel.ProjectID.ValueString()
-			pubsub.Topic = pubsubModel.Topic.ValueString()
-			pubsub.SeekType = pubsubModel.SeekType.ValueString()
-			pubsub.SeekTimestamp = pubsubModel.SeekTimestamp.ValueStringPointer()
-			pubsub.SeekSnapshot = pubsubModel.SeekSnapshot.ValueStringPointer()
-		}
-
-		if !pubsubModel.Filter.IsNull() && !pubsubModel.Filter.IsUnknown() {
-			pubsub.Filter = pubsubModel.Filter.ValueStringPointer()
-		}
-		if !pubsubModel.EnableOrdering.IsNull() && !pubsubModel.EnableOrdering.IsUnknown() {
-			val := pubsubModel.EnableOrdering.ValueBool()
-			pubsub.EnableOrdering = &val
-		}
-		if !pubsubModel.AckDeadline.IsNull() && !pubsubModel.AckDeadline.IsUnknown() {
-			val := pubsubModel.AckDeadline.ValueInt64()
-			pubsub.AckDeadline = &val
+			SeekType:       pubsubModel.SeekType.ValueString(),
+			SeekTimestamp:  pubsubModel.SeekTimestamp.ValueStringPointer(),
+			SeekSnapshot:   pubsubModel.SeekSnapshot.ValueStringPointer(),
+			Filter:         pubsubModel.Filter.ValueStringPointer(),
+			EnableOrdering: pubsubModel.EnableOrdering.ValueBoolPointer(),
+			AckDeadline:    pubsubModel.AckDeadline.ValueInt64Pointer(),
 		}
 
 		if !pubsubModel.ServiceAccountKey.IsNull() && !pubsubModel.ServiceAccountKey.IsUnknown() {
-			keyModel := models.ClickPipeServiceAccountKeyModel{}
+			keyModel := models.ClickPipeServiceAccountModel{}
 			diagnostics.Append(pubsubModel.ServiceAccountKey.As(ctx, &keyModel, basetypes.ObjectAsOptions{})...)
 
-			pubsub.ServiceAccountKey = &api.ClickPipeServiceAccountKey{
+			pubsub.ServiceAccountKey = &api.ClickPipeServiceAccount{
 				ServiceAccountFile: keyModel.ServiceAccountFile.ValueString(),
 			}
-		} else if !isUpdate {
-			diagnostics.AddError(
-				"Error Creating ClickPipe",
-				"Pub/Sub source requires service_account_key",
-			)
-			return nil
 		}
 
 		source.PubSub = pubsub
@@ -3748,7 +3736,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		if !statePubSubModel.ServiceAccountKey.IsNull() && !statePubSubModel.ServiceAccountKey.IsUnknown() {
 			pubsubModel.ServiceAccountKey = statePubSubModel.ServiceAccountKey
 		} else {
-			pubsubModel.ServiceAccountKey = types.ObjectNull(models.ClickPipeServiceAccountKeyModel{}.ObjectType().AttrTypes)
+			pubsubModel.ServiceAccountKey = types.ObjectNull(models.ClickPipeServiceAccountModel{}.ObjectType().AttrTypes)
 		}
 
 		sourceModel.PubSub = pubsubModel.ObjectValue()

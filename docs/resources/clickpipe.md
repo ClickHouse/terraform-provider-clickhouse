@@ -564,8 +564,8 @@ Required:
 Optional:
 
 - `ack_deadline` (Number) Acknowledgement deadline in seconds (10–600).
-- `enable_ordering` (Boolean) Whether to enable ordered message delivery.
-- `filter` (String) Optional Pub/Sub subscription filter expression. Max 256 characters.
+- `enable_ordering` (Boolean) Whether to enable ordered message delivery. Immutable — changing it requires destroy+create because ordered delivery is a property of the subscription at creation time.
+- `filter` (String) Optional Pub/Sub subscription filter expression (CEL). Max 256 characters. Immutable — changing it requires destroy+create because the underlying subscription filter cannot be edited in place.
 - `seek_snapshot` (String) The Pub/Sub snapshot identifier. Required when `seek_type = "snapshot"`; must be omitted otherwise.
 - `seek_timestamp` (String) RFC 3339 timestamp (e.g. `2026-04-10T12:00:00Z`). Required when `seek_type = "timestamp"`; must be omitted otherwise.
 

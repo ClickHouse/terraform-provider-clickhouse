@@ -69,6 +69,15 @@ func TestGetSourceType(t *testing.T) {
 			expectedType: SourceTypeKinesis,
 		},
 		{
+			name: "PubSub source",
+			sourceModel: func() models.ClickPipeSourceModel {
+				s := nullSource
+				s.PubSub = types.ObjectUnknown(pubsubTypes)
+				return s
+			}(),
+			expectedType: SourceTypePubSub,
+		},
+		{
 			name: "Postgres source",
 			sourceModel: func() models.ClickPipeSourceModel {
 				s := nullSource

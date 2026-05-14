@@ -37,7 +37,7 @@ func buildPubSubPlan(
 		"filter":              filter,
 		"enable_ordering":     enableOrdering,
 		"ack_deadline":        ackDeadline,
-		"service_account_key": types.ObjectValueMust(models.ClickPipeServiceAccountKeyModel{}.ObjectType().AttrTypes, keyAttrs),
+		"service_account_key": types.ObjectValueMust(models.ClickPipeServiceAccountModel{}.ObjectType().AttrTypes, keyAttrs),
 	}
 	sourceModel := models.ClickPipeSourceModel{
 		Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
@@ -127,7 +127,7 @@ func TestExtractSourceFromPlan_PubSub_TimestampWithOptionalFields(t *testing.T) 
 	assert.Equal(t, int64(120), *source.PubSub.AckDeadline)
 }
 
-func TestExtractSourceFromPlan_PubSub_UpdateOmitsImmutableFields(t *testing.T) {
+func TestExtractSourceFromPlan_PubSub_UpdateIncludesAllFields(t *testing.T) {
 	ctx := context.Background()
 	r := &ClickPipeResource{}
 
@@ -149,32 +149,15 @@ func TestExtractSourceFromPlan_PubSub_UpdateOmitsImmutableFields(t *testing.T) {
 
 	assert.False(t, diagnostics.HasError())
 	assert.NotNil(t, source.PubSub)
-	// Immutable fields are not populated on update.
-	assert.Empty(t, source.PubSub.Format)
-	assert.Empty(t, source.PubSub.ProjectID)
-	assert.Empty(t, source.PubSub.Topic)
-	assert.Empty(t, source.PubSub.SeekType)
-	assert.Nil(t, source.PubSub.SeekTimestamp)
-	assert.Nil(t, source.PubSub.SeekSnapshot)
-	// Mutable fields are populated.
+	// Immutable (RequiresReplace) fields still populated on update — values match state
+	// because the framework would have forced replacement if they had changed.
+	assert.Equal(t, api.ClickPipeJSONEachRowFormat, source.PubSub.Format)
+	assert.Equal(t, "my-gcp-project", source.PubSub.ProjectID)
+	assert.Equal(t, "events", source.PubSub.Topic)
+	assert.Equal(t, api.ClickPipePubSubSeekTypeLatest, source.PubSub.SeekType)
 	assert.NotNil(t, source.PubSub.Filter)
 	assert.NotNil(t, source.PubSub.EnableOrdering)
 	assert.NotNil(t, source.PubSub.AckDeadline)
 	assert.NotNil(t, source.PubSub.ServiceAccountKey)
 	assert.Equal(t, "rotated-key", source.PubSub.ServiceAccountKey.ServiceAccountFile)
-}
-
-func TestGetSourceType_PubSub(t *testing.T) {
-	pubsubTypes := models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes
-	src := models.ClickPipeSourceModel{
-		Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
-		ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
-		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
-		PubSub:        types.ObjectUnknown(pubsubTypes),
-		Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
-		MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
-		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
-		MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
-	}
-	assert.Equal(t, SourceTypePubSub, getSourceType(src))
 }

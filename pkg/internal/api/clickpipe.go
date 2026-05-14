@@ -149,7 +149,6 @@ const (
 	ClickPipePubSubSourceType = "pubsub"
 )
 
-// Pub/Sub accepts JSONEachRow, Avro, and Protobuf (no AvroConfluent).
 var ClickPipePubSubFormats = []string{
 	ClickPipeJSONEachRowFormat,
 	ClickPipeAvroFormat,

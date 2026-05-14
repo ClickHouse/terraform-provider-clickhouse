@@ -150,11 +150,6 @@ type ClickPipeKinesisSource struct {
 	IAMRole        *string                   `json:"iamRole,omitempty"`
 }
 
-type ClickPipeServiceAccountKey struct {
-	// Base64-encoded GCP service account JSON key file.
-	ServiceAccountFile string `json:"serviceAccountFile"`
-}
-
 type ClickPipePubSubSource struct {
 	Format         string `json:"format"`
 	ProjectID      string `json:"projectId"`
@@ -170,7 +165,7 @@ type ClickPipePubSubSource struct {
 	AckDeadline    *int64  `json:"ackDeadline,omitempty"`
 
 	// Write-only; never returned by GET. Required on POST, optional on PATCH.
-	ServiceAccountKey *ClickPipeServiceAccountKey `json:"serviceAccountKey,omitempty"`
+	ServiceAccountKey *ClickPipeServiceAccount `json:"serviceAccountKey,omitempty"`
 }
 
 type ClickPipePostgresSource struct {

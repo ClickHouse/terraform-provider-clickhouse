@@ -2,7 +2,7 @@
 
 This example demonstrates how to deploy a Pub/Sub ClickPipe using GCP service account authentication.
 
-The `service_account_file` variable expects the **base64-encoded** contents of a GCP service account JSON key. To generate it:
+The `gcp_service_account_b64` variable expects the **base64-encoded** contents of a GCP service account JSON key. To generate it:
 
 ```sh
 base64 -w 0 < path/to/service-account.json

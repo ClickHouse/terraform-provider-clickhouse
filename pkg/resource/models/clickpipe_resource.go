@@ -256,24 +256,6 @@ func (m ClickPipeKinesisSourceModel) ObjectValue() types.Object {
 	})
 }
 
-type ClickPipeServiceAccountKeyModel struct {
-	ServiceAccountFile types.String `tfsdk:"service_account_file"`
-}
-
-func (m ClickPipeServiceAccountKeyModel) ObjectType() types.ObjectType {
-	return types.ObjectType{
-		AttrTypes: map[string]attr.Type{
-			"service_account_file": types.StringType,
-		},
-	}
-}
-
-func (m ClickPipeServiceAccountKeyModel) ObjectValue() types.Object {
-	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"service_account_file": m.ServiceAccountFile,
-	})
-}
-
 type ClickPipePubSubSourceModel struct {
 	Format            types.String `tfsdk:"format"`
 	ProjectID         types.String `tfsdk:"project_id"`
@@ -301,7 +283,7 @@ func (m ClickPipePubSubSourceModel) ObjectType() types.ObjectType {
 			"filter":              types.StringType,
 			"enable_ordering":     types.BoolType,
 			"ack_deadline":        types.Int64Type,
-			"service_account_key": ClickPipeServiceAccountKeyModel{}.ObjectType(),
+			"service_account_key": ClickPipeServiceAccountModel{}.ObjectType(),
 		},
 	}
 }
