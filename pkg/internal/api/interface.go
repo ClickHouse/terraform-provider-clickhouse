@@ -14,6 +14,9 @@ type Client interface {
 	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error
 	UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error)
 	UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (*Service, error)
+	GetScheduledScaling(ctx context.Context, serviceId string) (*AutoScalingSchedule, error)
+	UpdateScheduledScaling(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (*AutoScalingSchedule, error)
+	DeleteScheduledScaling(ctx context.Context, serviceId string) error
 	UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error)
 	DeleteService(ctx context.Context, serviceId string) (*Service, error)
 	GetOrganization(ctx context.Context) (*OrgResult, error)
