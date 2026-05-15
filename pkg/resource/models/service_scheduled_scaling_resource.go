@@ -92,6 +92,6 @@ func (m ScheduledScalingBaseConfigModel) ObjectValue() basetypes.ObjectValue {
 type ServiceScheduledScalingResourceModel struct {
 	ID         types.String `tfsdk:"id"`
 	ServiceID  types.String `tfsdk:"service_id"`
-	Entries    types.List   `tfsdk:"entries"`
+	Entries    types.Set    `tfsdk:"entries"`
 	BaseConfig types.Object `tfsdk:"base_config"`
 }

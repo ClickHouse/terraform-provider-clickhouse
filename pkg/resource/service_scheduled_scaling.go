@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -66,12 +65,12 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"entries": schema.ListNestedAttribute{
-				Description: "Ordered list of recurring scaling windows. The first entry whose weekday and hour range covers \"now\" is applied; otherwise base_config applies.",
+			"entries": schema.SetNestedAttribute{
+				Description: "Recurring scaling windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment; otherwise base_config applies.",
 				Required:    true,
-				Validators: []validator.List{
-					listvalidator.SizeAtLeast(1),
-					listvalidator.SizeAtMost(api.MaxAutoScalingScheduleEntries),
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+					setvalidator.SizeAtMost(api.MaxAutoScalingScheduleEntries),
 				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -369,15 +368,15 @@ func (r *ServiceScheduledScalingResource) ValidateConfig(ctx context.Context, re
 func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	entriesPath := path.Root("entries")
-	for i, e := range entries {
-		entryPath := entriesPath.AtListIndex(i)
+	for _, e := range entries {
+		entryRef := fmt.Sprintf("Entry %q", e.Name.ValueString())
 
 		if !e.StartHourUtc.IsNull() && !e.StartHourUtc.IsUnknown() && !e.EndHourUtc.IsNull() && !e.EndHourUtc.IsUnknown() {
 			if e.StartHourUtc.ValueInt64() == e.EndHourUtc.ValueInt64() {
 				diags.AddAttributeError(
-					entryPath,
+					entriesPath,
 					"start_hour_utc and end_hour_utc must differ",
-					"Zero-duration windows are not allowed.",
+					fmt.Sprintf("%s has a zero-duration window.", entryRef),
 				)
 			}
 		}
@@ -386,9 +385,9 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 		maxMemSet := !e.MaxReplicaMemoryGb.IsNull() && !e.MaxReplicaMemoryGb.IsUnknown()
 		if minMemSet && maxMemSet && e.MinReplicaMemoryGb.ValueInt64() > e.MaxReplicaMemoryGb.ValueInt64() {
 			diags.AddAttributeError(
-				entryPath,
+				entriesPath,
 				"min_replica_memory_gb must be <= max_replica_memory_gb",
-				fmt.Sprintf("Got min=%d, max=%d.", e.MinReplicaMemoryGb.ValueInt64(), e.MaxReplicaMemoryGb.ValueInt64()),
+				fmt.Sprintf("%s has min=%d, max=%d.", entryRef, e.MinReplicaMemoryGb.ValueInt64(), e.MaxReplicaMemoryGb.ValueInt64()),
 			)
 		}
 
@@ -396,25 +395,25 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 		maxRepSet := !e.MaxReplicas.IsNull() && !e.MaxReplicas.IsUnknown()
 		if minRepSet && maxRepSet && e.MinReplicas.ValueInt64() != e.MaxReplicas.ValueInt64() {
 			diags.AddAttributeError(
-				entryPath,
+				entriesPath,
 				"min_replicas must equal max_replicas",
-				"The scheduled scaling API currently requires a fixed replica count per entry.",
+				fmt.Sprintf("%s has min=%d, max=%d. The scheduled scaling API currently requires a fixed replica count per entry.", entryRef, e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64()),
 			)
 		}
 	}
 	return diags
 }
 
-// planEntriesToAPI converts the Terraform plan list of entries into API entries.
-func planEntriesToAPI(ctx context.Context, entriesList types.List) ([]api.AutoScalingScheduleEntry, diag.Diagnostics) {
+// planEntriesToAPI converts the Terraform plan set of entries into API entries.
+func planEntriesToAPI(ctx context.Context, entriesSet types.Set) ([]api.AutoScalingScheduleEntry, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if entriesList.IsNull() || entriesList.IsUnknown() {
+	if entriesSet.IsNull() || entriesSet.IsUnknown() {
 		return []api.AutoScalingScheduleEntry{}, diags
 	}
 
 	var entryModels []models.ScheduledScalingEntryModel
-	diags.Append(entriesList.ElementsAs(ctx, &entryModels, false)...)
+	diags.Append(entriesSet.ElementsAs(ctx, &entryModels, false)...)
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -486,12 +485,12 @@ func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.Servi
 		}
 		entryValues[i] = entryModel.ObjectValue()
 	}
-	entriesList, d := types.ListValue(models.ScheduledScalingEntryModel{}.ObjectType(), entryValues)
+	entriesSet, d := types.SetValue(models.ScheduledScalingEntryModel{}.ObjectType(), entryValues)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
 	}
-	state.Entries = entriesList
+	state.Entries = entriesSet
 
 	if schedule.BaseConfig != nil {
 		state.BaseConfig = apiBaseConfigToModel(*schedule.BaseConfig).ObjectValue()

@@ -106,7 +106,7 @@ func TestApplyScheduleToState_NullBaseConfigWhenAbsent(t *testing.T) {
 	}
 }
 
-func TestApplyScheduleToState_PreservesMultiEntryOrder(t *testing.T) {
+func TestApplyScheduleToState_CapturesAllEntries(t *testing.T) {
 	schedule := &api.AutoScalingSchedule{
 		Entries: []api.AutoScalingScheduleEntry{
 			{Name: "first", Weekdays: []int{1}, StartHourUtc: 0, EndHourUtc: 8},
@@ -125,31 +125,35 @@ func TestApplyScheduleToState_PreservesMultiEntryOrder(t *testing.T) {
 	if d := state.Entries.ElementsAs(context.Background(), &entries, false); d.HasError() {
 		t.Fatalf("ElementsAs: %v", d)
 	}
-	names := []string{entries[0].Name.ValueString(), entries[1].Name.ValueString(), entries[2].Name.ValueString()}
-	if !reflect.DeepEqual(names, []string{"first", "second", "third"}) {
-		t.Errorf("entry order = %v; want first/second/third", names)
+	got := map[string]bool{}
+	for _, e := range entries {
+		got[e.Name.ValueString()] = true
+	}
+	want := map[string]bool{"first": true, "second": true, "third": true}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("entry names = %v; want %v", got, want)
 	}
 }
 
-// buildEntryList constructs a types.List of ScheduledScalingEntryModel for
+// buildEntrySet constructs a types.Set of ScheduledScalingEntryModel for
 // driving planEntriesToAPI in tests.
-func buildEntryList(t *testing.T, entries ...models.ScheduledScalingEntryModel) types.List {
+func buildEntrySet(t *testing.T, entries ...models.ScheduledScalingEntryModel) types.Set {
 	t.Helper()
 	values := make([]attr.Value, len(entries))
 	for i, e := range entries {
 		values[i] = e.ObjectValue()
 	}
-	list, diags := types.ListValue(models.ScheduledScalingEntryModel{}.ObjectType(), values)
+	set, diags := types.SetValue(models.ScheduledScalingEntryModel{}.ObjectType(), values)
 	if diags.HasError() {
-		t.Fatalf("ListValue: %v", diags)
+		t.Fatalf("SetValue: %v", diags)
 	}
-	return list
+	return set
 }
 
 func TestPlanEntriesToAPI_EmptyAndNullInputs(t *testing.T) {
 	ctx := context.Background()
 
-	got, diags := planEntriesToAPI(ctx, types.ListNull(models.ScheduledScalingEntryModel{}.ObjectType()))
+	got, diags := planEntriesToAPI(ctx, types.SetNull(models.ScheduledScalingEntryModel{}.ObjectType()))
 	if diags.HasError() {
 		t.Fatalf("null input diags: %v", diags)
 	}
@@ -157,7 +161,7 @@ func TestPlanEntriesToAPI_EmptyAndNullInputs(t *testing.T) {
 		t.Errorf("null input: len = %d; want 0", len(got))
 	}
 
-	got, diags = planEntriesToAPI(ctx, buildEntryList(t))
+	got, diags = planEntriesToAPI(ctx, buildEntrySet(t))
 	if diags.HasError() {
 		t.Fatalf("empty input diags: %v", diags)
 	}
@@ -187,7 +191,7 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 		IdleTimeoutMinutes: types.Int64Value(15),
 	}
 
-	got, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
+	got, diags := planEntriesToAPI(context.Background(), buildEntrySet(t, entry))
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -368,7 +372,7 @@ func TestPlanEntriesToAPI_OmitsNullOptionalFields(t *testing.T) {
 		IdleTimeoutMinutes: types.Int64Null(),
 	}
 
-	got, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
+	got, diags := planEntriesToAPI(context.Background(), buildEntrySet(t, entry))
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -448,7 +452,7 @@ func TestRoundTrip_NoServerNormalization(t *testing.T) {
 		IdleScaling:        types.BoolValue(true),
 		IdleTimeoutMinutes: types.Int64Value(15),
 	}
-	planList := buildEntryList(t, planEntry)
+	planList := buildEntrySet(t, planEntry)
 
 	apiEntries, d := planEntriesToAPI(ctx, planList)
 	if d.HasError() {
