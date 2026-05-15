@@ -145,6 +145,34 @@ var ClickPipeKinesisIteratorTypes = []string{
 	ClickPipeKinesisAtTimestampIteratorType,
 }
 
+const (
+	ClickPipePubSubSourceType = "pubsub"
+)
+
+var ClickPipePubSubFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeProtobufFormat,
+}
+
+const (
+	ClickPipePubSubSeekTypeLatest    = "latest"
+	ClickPipePubSubSeekTypeEarliest  = "earliest"
+	ClickPipePubSubSeekTypeTimestamp = "timestamp"
+	ClickPipePubSubSeekTypeSnapshot  = "snapshot"
+)
+
+var ClickPipePubSubSeekTypes = []string{
+	ClickPipePubSubSeekTypeLatest,
+	ClickPipePubSubSeekTypeEarliest,
+	ClickPipePubSubSeekTypeTimestamp,
+	ClickPipePubSubSeekTypeSnapshot,
+}
+
+var ClickPipePubSubAuthenticationMethods = []string{
+	ClickPipeAuthenticationServiceAccount,
+}
+
 var ClickPipeObjectStorageFormats = []string{
 	ClickPipeJSONEachRowFormat,
 	ClickPipeCSVFormat,
