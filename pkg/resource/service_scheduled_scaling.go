@@ -114,6 +114,7 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 							},
 							Validators: []validator.Int64{
 								int64validator.AtLeast(1),
+								int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("max_replica_memory_gb")),
 							},
 						},
 						"max_replica_memory_gb": schema.Int64Attribute{
@@ -125,6 +126,7 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 							},
 							Validators: []validator.Int64{
 								int64validator.AtLeast(1),
+								int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("min_replica_memory_gb")),
 							},
 						},
 						"min_replicas": schema.Int64Attribute{
@@ -134,6 +136,9 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 							PlanModifiers: []planmodifier.Int64{
 								int64planmodifier.UseStateForUnknown(),
 							},
+							Validators: []validator.Int64{
+								int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("max_replicas")),
+							},
 						},
 						"max_replicas": schema.Int64Attribute{
 							Description: "Maximum replica count while the window is active. Currently the server requires min_replicas == max_replicas.",
@@ -141,6 +146,9 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 							Computed:    true,
 							PlanModifiers: []planmodifier.Int64{
 								int64planmodifier.UseStateForUnknown(),
+							},
+							Validators: []validator.Int64{
+								int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("min_replicas")),
 							},
 						},
 						"idle_scaling": schema.BoolAttribute{
@@ -259,11 +267,6 @@ func (r *ServiceScheduledScalingResource) Read(ctx context.Context, req resource
 	}
 
 	serviceID := state.ServiceID.ValueString()
-	if serviceID == "" {
-		// Populated from `id` on import.
-		serviceID = state.ID.ValueString()
-		state.ServiceID = state.ID
-	}
 
 	schedule, err := r.client.GetScheduledScaling(ctx, serviceID)
 	if err != nil {
@@ -358,9 +361,11 @@ func (r *ServiceScheduledScalingResource) ValidateConfig(ctx context.Context, re
 	resp.Diagnostics.Append(validateScheduledScalingEntries(entries)...)
 }
 
-// validateScheduledScalingEntries enforces per-entry rules that aren't expressed
-// by individual attribute validators (paired fields, min==max, non-zero window,
-// memory ordering, idle-timeout-without-idle-scaling).
+// validateScheduledScalingEntries enforces per-entry cross-field rules that
+// can't be expressed as individual attribute validators (non-zero window,
+// min <= max for memory, min == max for replicas). The "set together"
+// constraints on the memory and replica pairs are handled at schema level
+// via int64validator.AlsoRequires.
 func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	entriesPath := path.Root("entries")
@@ -379,13 +384,6 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 
 		minMemSet := !e.MinReplicaMemoryGb.IsNull() && !e.MinReplicaMemoryGb.IsUnknown()
 		maxMemSet := !e.MaxReplicaMemoryGb.IsNull() && !e.MaxReplicaMemoryGb.IsUnknown()
-		if minMemSet != maxMemSet {
-			diags.AddAttributeError(
-				entryPath,
-				"min_replica_memory_gb and max_replica_memory_gb must be set together",
-				"Either set both attributes or omit both.",
-			)
-		}
 		if minMemSet && maxMemSet && e.MinReplicaMemoryGb.ValueInt64() > e.MaxReplicaMemoryGb.ValueInt64() {
 			diags.AddAttributeError(
 				entryPath,
@@ -396,13 +394,6 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 
 		minRepSet := !e.MinReplicas.IsNull() && !e.MinReplicas.IsUnknown()
 		maxRepSet := !e.MaxReplicas.IsNull() && !e.MaxReplicas.IsUnknown()
-		if minRepSet != maxRepSet {
-			diags.AddAttributeError(
-				entryPath,
-				"min_replicas and max_replicas must be set together",
-				"Either set both attributes or omit both.",
-			)
-		}
 		if minRepSet && maxRepSet && e.MinReplicas.ValueInt64() != e.MaxReplicas.ValueInt64() {
 			diags.AddAttributeError(
 				entryPath,
@@ -410,11 +401,6 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 				"The scheduled scaling API currently requires a fixed replica count per entry.",
 			)
 		}
-
-		// idle_scaling and idle_timeout_minutes are independently optional on
-		// the server side — no client-side pair check (verified against
-		// validateScheduleEntryPublicFields and validateScheduleEntries on
-		// the control-plane).
 	}
 	return diags
 }

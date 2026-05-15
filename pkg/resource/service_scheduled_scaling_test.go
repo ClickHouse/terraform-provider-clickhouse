@@ -252,18 +252,8 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			},
 			wantErrCount: 1,
 		},
-		{
-			name: "memory pair mismatch",
-			entry: models.ScheduledScalingEntryModel{
-				Name:               types.StringValue("partial-memory"),
-				Weekdays:           mustSet(1),
-				StartHourUtc:       types.Int64Value(0),
-				EndHourUtc:         types.Int64Value(24),
-				MinReplicaMemoryGb: types.Int64Value(8),
-				MaxReplicaMemoryGb: types.Int64Null(),
-			},
-			wantErrCount: 1,
-		},
+		// Pair-mismatch ("set together") cases are caught at schema level by
+		// int64validator.AlsoRequires and so never reach this helper.
 		{
 			name: "memory min > max",
 			entry: models.ScheduledScalingEntryModel{
@@ -273,18 +263,6 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 				EndHourUtc:         types.Int64Value(24),
 				MinReplicaMemoryGb: types.Int64Value(64),
 				MaxReplicaMemoryGb: types.Int64Value(8),
-			},
-			wantErrCount: 1,
-		},
-		{
-			name: "replica pair mismatch",
-			entry: models.ScheduledScalingEntryModel{
-				Name:         types.StringValue("partial-replicas"),
-				Weekdays:     mustSet(1),
-				StartHourUtc: types.Int64Value(0),
-				EndHourUtc:   types.Int64Value(24),
-				MinReplicas:  types.Int64Value(3),
-				MaxReplicas:  types.Int64Null(),
 			},
 			wantErrCount: 1,
 		},

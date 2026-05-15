@@ -1,5 +1,9 @@
+resource "clickhouse_service" "svc" {
+  ...
+}
+
 resource "clickhouse_service_scheduled_scaling" "example" {
-  service_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  service_id = clickhouse_service.svc.id
 
   entries = [
     {
