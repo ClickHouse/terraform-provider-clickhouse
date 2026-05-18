@@ -51,9 +51,11 @@ fmt: ensure-golangci-lint
 mock:
 	cd ./pkg/internal/api && minimock -i github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api.Client -o client_mock.go -n ClientMock -p api && cd ../../..
 
-TFPLUGINDOCS = /tmp/tfplugindocs-patched
+# Pin the tfplugindocs fork to a specific commit so local and CI produce byte-identical docs. Bump deliberately.
+TFPLUGINDOCS_REF = 4fd627fdaf76816965ab234af87986ce3fa67c3e
+TFPLUGINDOCS = /tmp/tfplugindocs-patched-$(TFPLUGINDOCS_REF)
 ensure-tfplugindocs: ## Download tfplugindocs locally if necessary.
-	$(call get-tfplugindocs,$(TFPLUGINDOCS),github.com/whites11/terraform-plugin-docs)
+	$(call get-tfplugindocs,$(TFPLUGINDOCS),github.com/whites11/terraform-plugin-docs,$(TFPLUGINDOCS_REF))
 
 GOLANGCILINT = $(shell go env GOPATH)/bin/golangci-lint
 # Test if golangci-lint is available in the GOPATH, if not, set to local and download if needed
@@ -82,9 +84,10 @@ define get-tfplugindocs
 set -e ;\
 TMP_DIR=$$(mktemp -d) ;\
 cd $$TMP_DIR ;\
-echo "Cloning https://$(2).git into $$TMP_DIR" ;\
+echo "Cloning https://$(2).git@$(3) into $$TMP_DIR" ;\
 git clone https://$(2).git tfplugindocs ;\
 cd tfplugindocs ;\
+git checkout $(3) ;\
 echo "Building tfplugindocs into $(1)" ;\
 go build -o $(1) cmd/tfplugindocs/main.go ;\
 rm -rf $$TMP_DIR ;\
