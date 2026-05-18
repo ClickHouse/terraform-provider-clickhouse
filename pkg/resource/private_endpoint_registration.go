@@ -49,7 +49,7 @@ func (r *PrivateEndpointRegistrationResource) Schema(_ context.Context, _ resour
 				Required:    true,
 			},
 		},
-		MarkdownDescription: `This resource is deprecated since version 3.2.0. Please refer to [the docs](https://github.com/ClickHouse/terraform-provider-clickhouse?tab=readme-ov-file#breaking-changes-and-deprecations) for migration steps.`,
+		MarkdownDescription: `This resource is deprecated since version 3.2.0. Please refer to the docs for migration steps: https://github.com/ClickHouse/terraform-provider-clickhouse?tab=readme-ov-file#breaking-changes-and-deprecations`,
 		Version:             1,
 	}
 }
