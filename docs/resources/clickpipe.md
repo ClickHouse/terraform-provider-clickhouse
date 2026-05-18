@@ -163,6 +163,7 @@ Optional:
 - `mysql` (Attributes) The MySQL CDC source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--mysql))
 - `object_storage` (Attributes) The compatible object storage source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--object_storage))
 - `postgres` (Attributes) The Postgres CDC source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--postgres))
+- `pubsub` (Attributes) The GCP Pub/Sub source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--pubsub))
 
 <a id="nestedatt--source--bigquery"></a>
 ### Nested Schema for `source.bigquery`
@@ -545,6 +546,35 @@ Optional:
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
+
+
+
+<a id="nestedatt--source--pubsub"></a>
+### Nested Schema for `source.pubsub`
+
+Required:
+
+- `authentication` (String) The authentication method for the Pub/Sub source. Currently only `SERVICE_ACCOUNT` is supported.
+- `format` (String) The message format of the Pub/Sub topic. (`JSONEachRow`, `Avro`, `Protobuf`)
+- `project_id` (String) The GCP project ID that owns the Pub/Sub topic.
+- `seek_type` (String) The starting position for consuming the subscription. (`latest`, `earliest`, `timestamp`, `snapshot`)
+- `service_account_key` (Attributes) GCP service account credentials. Required on create; provide a new value on update to rotate the key. (see [below for nested schema](#nestedatt--source--pubsub--service_account_key))
+- `topic` (String) The Pub/Sub topic name (not the fully-qualified path).
+
+Optional:
+
+- `ack_deadline` (Number) Acknowledgement deadline in seconds (10–600).
+- `enable_ordering` (Boolean) Whether to enable ordered message delivery. Immutable — changing it requires destroy+create because ordered delivery is a property of the subscription at creation time.
+- `filter` (String) Optional Pub/Sub subscription filter expression (CEL). Max 256 characters. Immutable — changing it requires destroy+create because the underlying subscription filter cannot be edited in place.
+- `seek_snapshot` (String) The Pub/Sub snapshot identifier. Required when `seek_type = "snapshot"`; must be omitted otherwise.
+- `seek_timestamp` (String) RFC 3339 timestamp (e.g. `2026-04-10T12:00:00Z`). Required when `seek_type = "timestamp"`; must be omitted otherwise.
+
+<a id="nestedatt--source--pubsub--service_account_key"></a>
+### Nested Schema for `source.pubsub.service_account_key`
+
+Required:
+
+- `service_account_file` (String, Sensitive) Base64-encoded GCP service account JSON key file contents.
 
 
 
