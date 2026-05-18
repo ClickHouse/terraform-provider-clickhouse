@@ -325,9 +325,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 									},
 								},
-								PlanModifiers: []planmodifier.Object{
-									objectplanmodifier.RequiresReplace(),
-								},
 							},
 							"authentication": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
@@ -2547,9 +2544,7 @@ func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 	return SourceTypeUnknown
 }
 
-// overlayPasswordWO returns the write-only password from config when set, else the plan
-// password. Write-only attributes are nulled in plan/state by the framework — the only
-// place to read them is req.Config.
+// overlayPasswordWO returns config password_wo when set, else plan password. Write-only attrs are nulled in plan/state — only req.Config has them.
 func overlayPasswordWO(planPassword, configPasswordWO types.String) types.String {
 	if !configPasswordWO.IsNull() && !configPasswordWO.IsUnknown() {
 		return configPasswordWO
@@ -2557,9 +2552,12 @@ func overlayPasswordWO(planPassword, configPasswordWO types.String) types.String
 	return planPassword
 }
 
-// extractSourceFromPlan builds the API source struct from the plan. config supplies
-// write-only credential values that the framework strips from plan/state; pass nil from
-// unit tests that don't exercise write-only behavior.
+// credentialsObjectChanged reports whether plan and state credentials differ. A `password_wo_version` bump produces inequality because the version is not write-only.
+func credentialsObjectChanged(planCredentials, stateCredentials types.Object) bool {
+	return !planCredentials.Equal(stateCredentials)
+}
+
+// extractSourceFromPlan builds the API source from plan. config supplies write-only credentials stripped from plan; pass nil in unit tests not exercising write-only behavior.
 func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics *diag.Diagnostics, plan models.ClickPipeResourceModel, config *models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
 	source := &api.ClickPipeSource{}
 
@@ -2943,7 +2941,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			if !credentialsModel.Password.IsNull() {
 				diagnostics.AddError(
 					"Invalid attribute combination",
-					"Password should not be set when authentication is set to 'iam_role'.",
+					"Password (or `password_wo`) should not be set when authentication is set to 'iam_role'.",
 				)
 			}
 		}
@@ -3125,7 +3123,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			if !credentialsModel.Password.IsNull() {
 				diagnostics.AddError(
 					"Invalid attribute combination",
-					"Password should not be set when authentication is set to 'IAM_ROLE'.",
+					"Password (or `password_wo`) should not be set when authentication is set to 'IAM_ROLE'.",
 				)
 			}
 		}
@@ -4715,7 +4713,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			// Check if table_mappings or other Postgres fields changed
 			tableMappingsChanged := !planPostgresModel.TableMappings.Equal(statePostgresModel.TableMappings)
-			credentialsChanged := !planPostgresModel.Credentials.Equal(statePostgresModel.Credentials)
+			credentialsChanged := credentialsObjectChanged(planPostgresModel.Credentials, statePostgresModel.Credentials)
 			otherFieldsChanged := !planPostgresModel.Host.Equal(statePostgresModel.Host) ||
 				!planPostgresModel.Port.Equal(statePostgresModel.Port) ||
 				!planPostgresModel.Database.Equal(statePostgresModel.Database) ||
@@ -4726,9 +4724,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				pipeChanged = true
 				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, true)
 
-				// Skip re-sending credentials in the PATCH body when they did not change.
-				// The credentials object compares password and password_wo_version; an
-				// unchanged comparison means the user did not rotate the secret.
+				// Omit unchanged credentials from PATCH to avoid server-side re-encryption.
 				if !credentialsChanged && source.Postgres != nil {
 					source.Postgres.Credentials = nil
 				}
@@ -4796,7 +4792,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			response.Diagnostics.Append(stateSourceModel.MySQL.As(ctx, &stateMySQLModel, basetypes.ObjectAsOptions{})...)
 
 			tableMappingsChanged := !planMySQLModel.TableMappings.Equal(stateMySQLModel.TableMappings)
-			credentialsChanged := !planMySQLModel.Credentials.Equal(stateMySQLModel.Credentials)
+			credentialsChanged := credentialsObjectChanged(planMySQLModel.Credentials, stateMySQLModel.Credentials)
 			otherFieldsChanged := !planMySQLModel.Host.Equal(stateMySQLModel.Host) ||
 				!planMySQLModel.Port.Equal(stateMySQLModel.Port) ||
 				credentialsChanged ||
@@ -4864,7 +4860,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			response.Diagnostics.Append(stateSourceModel.MongoDB.As(ctx, &stateMongoDBModel, basetypes.ObjectAsOptions{})...)
 
 			tableMappingsChanged := !planMongoDBModel.TableMappings.Equal(stateMongoDBModel.TableMappings)
-			credentialsChanged := !planMongoDBModel.Credentials.Equal(stateMongoDBModel.Credentials)
+			credentialsChanged := credentialsObjectChanged(planMongoDBModel.Credentials, stateMongoDBModel.Credentials)
 			otherFieldsChanged := !planMongoDBModel.URI.Equal(stateMongoDBModel.URI) ||
 				!planMongoDBModel.ReadPreference.Equal(stateMongoDBModel.ReadPreference) ||
 				!planMongoDBModel.TLSHost.Equal(stateMongoDBModel.TLSHost) ||
@@ -4927,14 +4923,13 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			// Non-DB source or type change
 			source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, true)
 
-			// For Kafka (the main source type that lands here without a type change),
-			// avoid re-sending credentials if they did not change.
+			// Kafka (the main source type that lands here): omit unchanged credentials from PATCH.
 			if source.Kafka != nil && !planSourceModel.Kafka.IsNull() && !stateSourceModel.Kafka.IsNull() {
 				planKafkaModel := models.ClickPipeKafkaSourceModel{}
 				response.Diagnostics.Append(planSourceModel.Kafka.As(ctx, &planKafkaModel, basetypes.ObjectAsOptions{})...)
 				stateKafkaModel := models.ClickPipeKafkaSourceModel{}
 				response.Diagnostics.Append(stateSourceModel.Kafka.As(ctx, &stateKafkaModel, basetypes.ObjectAsOptions{})...)
-				if planKafkaModel.Credentials.Equal(stateKafkaModel.Credentials) {
+				if !credentialsObjectChanged(planKafkaModel.Credentials, stateKafkaModel.Credentials) {
 					source.Kafka.Credentials = nil
 				}
 				if planKafkaModel.SchemaRegistry.Equal(stateKafkaModel.SchemaRegistry) && source.Kafka.SchemaRegistry != nil {
