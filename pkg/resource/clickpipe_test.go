@@ -23,11 +23,13 @@ func TestGetSourceType(t *testing.T) {
 	mysqlTypes := models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes
 	bigqueryTypes := models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes
 	mongodbTypes := models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes
+	pubsubTypes := models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes
 
 	nullSource := models.ClickPipeSourceModel{
 		Kafka:         types.ObjectNull(kafkaTypes),
 		ObjectStorage: types.ObjectNull(objectStorageTypes),
 		Kinesis:       types.ObjectNull(kinesisTypes),
+		PubSub:        types.ObjectNull(pubsubTypes),
 		Postgres:      types.ObjectNull(postgresTypes),
 		MySQL:         types.ObjectNull(mysqlTypes),
 		BigQuery:      types.ObjectNull(bigqueryTypes),
@@ -65,6 +67,15 @@ func TestGetSourceType(t *testing.T) {
 				return s
 			}(),
 			expectedType: SourceTypeKinesis,
+		},
+		{
+			name: "PubSub source",
+			sourceModel: func() models.ClickPipeSourceModel {
+				s := nullSource
+				s.PubSub = types.ObjectUnknown(pubsubTypes)
+				return s
+			}(),
+			expectedType: SourceTypePubSub,
 		},
 		{
 			name: "Postgres source",
@@ -307,6 +318,7 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
 			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
 			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
 			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
 			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
 			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
@@ -434,6 +446,7 @@ func buildKafkaMutualTLSPlan(certificate, privateKey types.String) models.ClickP
 		Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
 		ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
 		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+		PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
 		Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
 		MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
 		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
@@ -1140,6 +1153,7 @@ func getMongoDBInitialState() models.ClickPipeResourceModel {
 			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
 			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
 			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
 			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
 			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
 			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),

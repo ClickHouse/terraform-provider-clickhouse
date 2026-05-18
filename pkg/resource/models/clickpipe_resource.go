@@ -266,6 +266,54 @@ func (m ClickPipeKinesisSourceModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipePubSubSourceModel struct {
+	Format            types.String `tfsdk:"format"`
+	ProjectID         types.String `tfsdk:"project_id"`
+	Topic             types.String `tfsdk:"topic"`
+	Authentication    types.String `tfsdk:"authentication"`
+	SeekType          types.String `tfsdk:"seek_type"`
+	SeekTimestamp     types.String `tfsdk:"seek_timestamp"`
+	SeekSnapshot      types.String `tfsdk:"seek_snapshot"`
+	Filter            types.String `tfsdk:"filter"`
+	EnableOrdering    types.Bool   `tfsdk:"enable_ordering"`
+	AckDeadline       types.Int64  `tfsdk:"ack_deadline"`
+	ServiceAccountKey types.Object `tfsdk:"service_account_key"`
+}
+
+func (m ClickPipePubSubSourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"format":              types.StringType,
+			"project_id":          types.StringType,
+			"topic":               types.StringType,
+			"authentication":      types.StringType,
+			"seek_type":           types.StringType,
+			"seek_timestamp":      types.StringType,
+			"seek_snapshot":       types.StringType,
+			"filter":              types.StringType,
+			"enable_ordering":     types.BoolType,
+			"ack_deadline":        types.Int64Type,
+			"service_account_key": ClickPipeServiceAccountModel{}.ObjectType(),
+		},
+	}
+}
+
+func (m ClickPipePubSubSourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"format":              m.Format,
+		"project_id":          m.ProjectID,
+		"topic":               m.Topic,
+		"authentication":      m.Authentication,
+		"seek_type":           m.SeekType,
+		"seek_timestamp":      m.SeekTimestamp,
+		"seek_snapshot":       m.SeekSnapshot,
+		"filter":              m.Filter,
+		"enable_ordering":     m.EnableOrdering,
+		"ack_deadline":        m.AckDeadline,
+		"service_account_key": m.ServiceAccountKey,
+	})
+}
+
 type ClickPipePostgresSettingsModel struct {
 	SyncIntervalSeconds            types.Int64  `tfsdk:"sync_interval_seconds"`
 	PullBatchSize                  types.Int64  `tfsdk:"pull_batch_size"`
@@ -814,6 +862,7 @@ type ClickPipeSourceModel struct {
 	Kafka         types.Object `tfsdk:"kafka"`
 	ObjectStorage types.Object `tfsdk:"object_storage"`
 	Kinesis       types.Object `tfsdk:"kinesis"`
+	PubSub        types.Object `tfsdk:"pubsub"`
 	Postgres      types.Object `tfsdk:"postgres"`
 	MySQL         types.Object `tfsdk:"mysql"`
 	BigQuery      types.Object `tfsdk:"bigquery"`
@@ -826,6 +875,7 @@ func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
 			"kafka":          ClickPipeKafkaSourceModel{}.ObjectType(),
 			"object_storage": ClickPipeObjectStorageSourceModel{}.ObjectType(),
 			"kinesis":        ClickPipeKinesisSourceModel{}.ObjectType(),
+			"pubsub":         ClickPipePubSubSourceModel{}.ObjectType(),
 			"postgres":       ClickPipePostgresSourceModel{}.ObjectType(),
 			"mysql":          ClickPipeMySQLSourceModel{}.ObjectType(),
 			"bigquery":       ClickPipeBigQuerySourceModel{}.ObjectType(),
@@ -839,6 +889,7 @@ func (m ClickPipeSourceModel) ObjectValue() types.Object {
 		"kafka":          m.Kafka,
 		"object_storage": m.ObjectStorage,
 		"kinesis":        m.Kinesis,
+		"pubsub":         m.PubSub,
 		"postgres":       m.Postgres,
 		"mysql":          m.MySQL,
 		"bigquery":       m.BigQuery,
