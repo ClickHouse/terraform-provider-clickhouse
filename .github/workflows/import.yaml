@@ -61,9 +61,34 @@ jobs:
         with:
           count: '1'
 
+  build-import-matrix:
+    needs: [ "find-tf-releases" ]
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    runs-on: k8s-nano
+    steps:
+      - name: Build import matrix
+        id: build
+        env:
+          releases: ${{ needs.find-tf-releases.outputs.releases }}
+        run: |
+          matrix="$(jq -cn \
+            --argjson releases "${releases}" \
+            '
+            [
+              $releases[] as $tf_release |
+              { "tf_release": $tf_release, "cloud_provider": "aws", "test_name": "service" },
+              { "tf_release": $tf_release, "cloud_provider": "azure", "test_name": "service" },
+              { "tf_release": $tf_release, "cloud_provider": "gcp", "test_name": "service" },
+              { "tf_release": $tf_release, "cloud_provider": "aws", "test_name": "postgres_instance" }
+            ]'
+          )"
+
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
   # Run import tests
   import:
-    needs: [ "token", "find-tf-releases" ]
+    needs: [ "token", "build-import-matrix" ]
     runs-on: k8s-medium
     permissions:
       id-token: write
@@ -71,12 +96,7 @@ jobs:
       fail-fast: false
       max-parallel: 10
       matrix:
-        tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
-        cloud_provider: [ "aws", "azure", "gcp" ]
-        test_name: ["service"]
-        include:
-          - cloud_provider: "aws"
-            test_name: "postgres_instance"
+        include: ${{ fromJSON(needs.build-import-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

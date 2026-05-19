@@ -72,7 +72,7 @@ func (d *postgresInstanceCACertificateDataSource) Read(ctx context.Context, req 
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Postgres Instance CA Certificate",
-			"Could not read CA certificate for Postgres instance "+data.PostgresInstanceID.ValueString()+": "+err.Error(),
+			"Could not read CA certificate for Postgres instance "+data.PostgresInstanceID.ValueString()+": "+api.DescribePostgresAPIError(err),
 		)
 		return
 	}

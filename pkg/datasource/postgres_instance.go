@@ -146,7 +146,7 @@ func (d *postgresInstanceDataSource) Read(ctx context.Context, req datasource.Re
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Postgres Instance",
-			"Could not read Postgres instance id "+data.ID.ValueString()+": "+err.Error(),
+			"Could not read Postgres instance id "+data.ID.ValueString()+": "+api.DescribePostgresAPIError(err),
 		)
 		return
 	}

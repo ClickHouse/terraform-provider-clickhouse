@@ -5,7 +5,9 @@ package resource
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/test"
@@ -509,6 +511,21 @@ func TestPostgresInstanceResource_ModifyPlan_StorageShrinkRejected(t *testing.T)
 				}
 			}
 		})
+	}
+}
+
+func TestPostgresInstanceResource_Configure_UsesProviderTimeout(t *testing.T) {
+	r := &PostgresInstanceResource{}
+	client := &api.ClientImpl{
+		HttpClient: &http.Client{Timeout: 7 * time.Minute},
+	}
+
+	r.Configure(context.Background(), resource.ConfigureRequest{
+		ProviderData: client,
+	}, &resource.ConfigureResponse{})
+
+	if got := r.getOperationTimeoutSeconds(); got != 420 {
+		t.Fatalf("expected operation timeout to follow provider timeout, got %d", got)
 	}
 }
 

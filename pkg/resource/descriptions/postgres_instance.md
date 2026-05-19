@@ -9,8 +9,8 @@ The following fields cannot be changed after creation and will force a replaceme
 - `cloud_provider`
 - `region`
 - `postgres_version`
-- `pg_config`
-- `pg_bouncer_config`
+- `pg_config` (omit entirely to use defaults; empty maps are not valid)
+- `pg_bouncer_config` (omit entirely to use defaults; empty maps are not valid)
 
 ## Mutable Fields
 

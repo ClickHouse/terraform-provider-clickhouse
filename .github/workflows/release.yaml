@@ -83,6 +83,41 @@ jobs:
         uses: ./.github/actions/find-tf-releases
         id: find
 
+  build-import-matrix:
+    needs: [ "validate", "find-tf-releases" ]
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    runs-on: k8s-nano
+    steps:
+      - name: Build import matrix
+        id: build
+        env:
+          releases: ${{ needs.find-tf-releases.outputs.releases }}
+          enable_alpha: ${{ needs.validate.outputs.enable_alpha }}
+        run: |
+          matrix="$(jq -cn \
+            --argjson releases "${releases}" \
+            --arg enable_alpha "${enable_alpha}" \
+            '
+            [
+              $releases[] as $tf_release |
+              { "tf_release": $tf_release, "cloud_provider": "aws", "test_name": "service" },
+              { "tf_release": $tf_release, "cloud_provider": "azure", "test_name": "service" },
+              { "tf_release": $tf_release, "cloud_provider": "gcp", "test_name": "service" }
+            ] + (
+              if $enable_alpha == "true" then
+                [
+                  $releases[] as $tf_release |
+                  { "tf_release": $tf_release, "cloud_provider": "aws", "test_name": "postgres_instance" }
+                ]
+              else
+                []
+              end
+            )'
+          )"
+
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
   # List examples split by cloud provider as a JSON
   list-examples:
     needs: ["validate"]
@@ -264,7 +299,7 @@ jobs:
   import:
     outputs:
       status: ${{ steps.status.outputs.status }}
-    needs: [ "token", "find-tf-releases" , "e2e"]
+    needs: [ "token", "build-import-matrix", "e2e" ]
     runs-on: k8s-large
     permissions:
       id-token: write
@@ -272,12 +307,7 @@ jobs:
       fail-fast: false
       max-parallel: 5
       matrix:
-        tf_release: ${{ fromJSON(needs.find-tf-releases.outputs.releases) }}
-        cloud_provider: [ "aws", "azure", "gcp" ]
-        test_name: ["service"]
-        include:
-          - cloud_provider: "aws"
-            test_name: "postgres_instance"
+        include: ${{ fromJSON(needs.build-import-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

@@ -17,7 +17,7 @@ inputs:
   resource_type:
     required: true
     default: "service"
-    description: "The type of resource to import. Only supported resource is 'service'"
+    description: "The type of resource to import. Supported values are 'service' and 'postgres_instance'"
   service_name:
     required: true
     description: "The name of the existing service to import"
@@ -77,7 +77,12 @@ runs:
         git checkout ${{ github.ref }}
         echo "::group::Build provider from branch and create terraformrc to use it"
         go get
-        go build -tags alpha -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
+        BUILD_TAGS=()
+        if [ "${{ inputs.resource_type }}" == "postgres_instance" ]; then
+          BUILD_TAGS+=(-tags alpha)
+        fi
+
+        go build "${BUILD_TAGS[@]}" -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/pkg/project.commit=${{ github.sha }}'
 
         cat <<EOF >$HOME/.terraformrc
         provider_installation {
@@ -109,8 +114,12 @@ runs:
         terraform init -input=false -upgrade
         terraform apply -no-color -var-file=variables.tfvars -auto-approve
 
-        id="$(cat terraform.tfstate | jq '.resources[0].instances[0].attributes.id')"
+        id="$(jq -r '.resources[0].instances[0].attributes.id' terraform.tfstate)"
         echo "id=${id}" >> "$GITHUB_OUTPUT"
+
+        if [ "${{ inputs.resource_type }}" == "postgres_instance" ]; then
+          printf '%s' "${id}" > "${RUNNER_TEMP}/postgres_instance_import_id"
+        fi
 
         # Ensure there is no state file
         rm terraform.tfstate
@@ -138,9 +147,66 @@ runs:
         echo "::endgroup::"
 
     - shell: bash
+      name: Verify imported state is clean
+      run: |
+        echo "::group::Verify imported state is clean"
+        cd "tests/import/${{ inputs.resource_type }}"
+
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+          echo "Using '$CLICKHOUSE_API_URL' as API URL"
+        fi
+
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+          export TF_LOG=debug
+        fi
+
+        set +e
+        terraform plan -detailed-exitcode -no-color -var-file=variables.tfvars
+        EXIT_CODE=$?
+        set -e
+
+        if [ "${EXIT_CODE}" -eq 1 ]; then
+          exit 1
+        fi
+
+        if [ "${EXIT_CODE}" -eq 2 ]; then
+          echo "Imported state does not match configuration."
+          exit 1
+        fi
+
+        echo "::endgroup::"
+
+    - shell: bash
       name: Terraform destroy
+      if: ${{ always() }}
       env:
         RESOURCE_TYPE: ${{ inputs.resource_type }}
         API_URL: ${{inputs.api_url}}
       run: |
         ./.github/actions/import/import.sh
+
+    - shell: bash
+      name: Fallback Postgres cleanup
+      if: ${{ always() && inputs.resource_type == 'postgres_instance' }}
+      env:
+        API_URL: ${{ inputs.api_url }}
+        ORGANIZATION_ID: ${{ inputs.organization_id }}
+        TOKEN_KEY: ${{ inputs.token_key }}
+        TOKEN_SECRET: ${{ inputs.token_secret }}
+      run: |
+        ID_FILE="${RUNNER_TEMP}/postgres_instance_import_id"
+        if [ ! -f "${ID_FILE}" ]; then
+          exit 0
+        fi
+
+        POSTGRES_ID="$(cat "${ID_FILE}")"
+        if [ -z "${POSTGRES_ID}" ]; then
+          exit 0
+        fi
+
+        API_BASE="${API_URL:-https://api.clickhouse.cloud/v1}"
+        curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" \
+          -XDELETE "${API_BASE}/organizations/${ORGANIZATION_ID}/postgres/${POSTGRES_ID}" \
+          -o /dev/null || true

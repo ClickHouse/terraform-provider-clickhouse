@@ -6,8 +6,10 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -24,11 +26,7 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
-// postgresOperationTimeoutSeconds is the maximum time to wait for Postgres instance
-// state transitions (create, update, delete). The provider's timeout_seconds config
-// controls HTTP client timeouts, not polling timeouts.
-// TODO: Thread configurable operation timeout into resource (Terraform resource timeouts or provider config).
-const postgresOperationTimeoutSeconds = 1800
+const defaultPostgresOperationTimeoutSeconds = 300
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
@@ -48,7 +46,8 @@ func NewPostgresInstanceResource() resource.Resource {
 
 // PostgresInstanceResource is the resource implementation.
 type PostgresInstanceResource struct {
-	client api.Client
+	client                  api.Client
+	operationTimeoutSeconds int
 }
 
 // Metadata returns the resource type name.
@@ -132,6 +131,9 @@ func (r *PostgresInstanceResource) Schema(_ context.Context, _ resource.SchemaRe
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
+				Validators: []validator.Map{
+					mapvalidator.SizeAtLeast(1),
+				},
 				PlanModifiers: []planmodifier.Map{
 					mapplanmodifier.RequiresReplace(),
 					mapplanmodifier.UseStateForUnknown(),
@@ -142,6 +144,9 @@ func (r *PostgresInstanceResource) Schema(_ context.Context, _ resource.SchemaRe
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
+				Validators: []validator.Map{
+					mapvalidator.SizeAtLeast(1),
+				},
 				PlanModifiers: []planmodifier.Map{
 					mapplanmodifier.RequiresReplace(),
 					mapplanmodifier.UseStateForUnknown(),
@@ -183,7 +188,17 @@ func (r *PostgresInstanceResource) Configure(_ context.Context, req resource.Con
 		return
 	}
 
-	r.client = req.ProviderData.(api.Client)
+	r.operationTimeoutSeconds = defaultPostgresOperationTimeoutSeconds
+
+	switch client := req.ProviderData.(type) {
+	case *api.ClientImpl:
+		r.client = client
+		if client.HttpClient != nil && client.HttpClient.Timeout > 0 {
+			r.operationTimeoutSeconds = int(client.HttpClient.Timeout / time.Second)
+		}
+	case api.Client:
+		r.client = client
+	}
 }
 
 // Create creates the resource and sets the initial Terraform state.
@@ -253,17 +268,17 @@ func (r *PostgresInstanceResource) Create(ctx context.Context, req resource.Crea
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Creating Postgres Instance",
-			"Could not create Postgres instance, unexpected error: "+err.Error(),
+			"Could not create Postgres instance, unexpected error: "+api.DescribePostgresAPIError(err),
 		)
 		return
 	}
 
 	// Wait for the instance to reach "running" state
-	err = r.client.WaitForPostgresInstanceState(ctx, instance.ID, func(state string) bool { return state == "running" }, postgresOperationTimeoutSeconds)
+	err = r.client.WaitForPostgresInstanceState(ctx, instance.ID, func(state string) bool { return state == "running" }, r.getOperationTimeoutSeconds())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Waiting for Postgres Instance",
-			"Could not wait for Postgres instance to reach running state, unexpected error: "+err.Error(),
+			"Could not wait for Postgres instance to reach running state, unexpected error: "+api.DescribePostgresAPIError(err),
 		)
 		return
 	}
@@ -274,7 +289,7 @@ func (r *PostgresInstanceResource) Create(ctx context.Context, req resource.Crea
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Postgres Instance",
-			"Could not read Postgres instance id "+plan.ID.ValueString()+": "+err.Error(),
+			"Could not read Postgres instance id "+plan.ID.ValueString()+": "+api.DescribePostgresAPIError(err),
 		)
 		return
 	}
@@ -304,7 +319,7 @@ func (r *PostgresInstanceResource) Read(ctx context.Context, req resource.ReadRe
 	} else if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Postgres Instance",
-			"Could not read Postgres instance id "+state.ID.ValueString()+": "+err.Error(),
+			"Could not read Postgres instance id "+state.ID.ValueString()+": "+api.DescribePostgresAPIError(err),
 		)
 		return
 	}
@@ -376,17 +391,17 @@ func (r *PostgresInstanceResource) Update(ctx context.Context, req resource.Upda
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating Postgres Instance",
-				"Could not update Postgres instance, unexpected error: "+err.Error(),
+				"Could not update Postgres instance, unexpected error: "+api.DescribePostgresAPIError(err),
 			)
 			return
 		}
 
 		// Wait for the instance to reach "running" state after update
-		err = r.client.WaitForPostgresInstanceState(ctx, postgresId, func(state string) bool { return state == "running" }, postgresOperationTimeoutSeconds)
+		err = r.client.WaitForPostgresInstanceState(ctx, postgresId, func(state string) bool { return state == "running" }, r.getOperationTimeoutSeconds())
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Waiting for Postgres Instance",
-				"Could not wait for Postgres instance to reach running state after update, unexpected error: "+err.Error(),
+				"Could not wait for Postgres instance to reach running state after update, unexpected error: "+api.DescribePostgresAPIError(err),
 			)
 			return
 		}
@@ -398,7 +413,7 @@ func (r *PostgresInstanceResource) Update(ctx context.Context, req resource.Upda
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Postgres Instance",
-			"Could not read Postgres instance id "+plan.ID.ValueString()+": "+err.Error(),
+			"Could not read Postgres instance id "+plan.ID.ValueString()+": "+api.DescribePostgresAPIError(err),
 		)
 		return
 	}
@@ -426,17 +441,17 @@ func (r *PostgresInstanceResource) Delete(ctx context.Context, req resource.Dele
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting Postgres Instance",
-			"Could not delete Postgres instance, unexpected error: "+err.Error(),
+			"Could not delete Postgres instance, unexpected error: "+api.DescribePostgresAPIError(err),
 		)
 		return
 	}
 
 	// Wait for instance to be fully deleted
-	err = r.client.WaitForPostgresInstanceDeletion(ctx, state.ID.ValueString(), postgresOperationTimeoutSeconds)
+	err = r.client.WaitForPostgresInstanceDeletion(ctx, state.ID.ValueString(), r.getOperationTimeoutSeconds())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Waiting for Postgres Instance Deletion",
-			"Instance deletion initiated but did not complete: "+err.Error(),
+			"Instance deletion initiated but did not complete: "+api.DescribePostgresAPIError(err),
 		)
 	}
 }
@@ -536,4 +551,12 @@ func (r *PostgresInstanceResource) syncPostgresStateFromInstance(instance *api.P
 		}
 		state.Tags, _ = types.MapValue(types.StringType, tagsValues)
 	}
+}
+
+func (r *PostgresInstanceResource) getOperationTimeoutSeconds() int {
+	if r.operationTimeoutSeconds <= 0 {
+		return defaultPostgresOperationTimeoutSeconds
+	}
+
+	return r.operationTimeoutSeconds
 }
