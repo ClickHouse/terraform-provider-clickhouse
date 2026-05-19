@@ -50,6 +50,18 @@ inputs:
   azure_subscription_id:
     required: true
     description: The Azure subscription id to use for Azure tests
+  gcp_project:
+    required: false
+    default: ""
+    description: The GCP project ID to use for GCP tests
+  gcp_workload_identity_provider:
+    required: false
+    default: ""
+    description: The GCP Workload Identity Federation provider resource name for OIDC auth
+  gcp_service_account:
+    required: false
+    default: ""
+    description: The GCP service account email to impersonate via Workload Identity Federation
   region:
     required: true
     description: The Cloud region to use for tests
@@ -147,6 +159,13 @@ runs:
         tenant-id: ${{ inputs.azure_tenant_id }}
         subscription-id: ${{ inputs.azure_subscription_id }}
 
+    - name: Authenticate to GCP
+      uses: google-github-actions/auth@v3
+      if: ${{ inputs.cloud_provider == 'gcp' && inputs.gcp_workload_identity_provider != '' }}
+      with:
+        workload_identity_provider: ${{ inputs.gcp_workload_identity_provider }}
+        service_account: ${{ inputs.gcp_service_account }}
+
     - shell: bash
       if: ${{steps.defined.outputs.defined == 'true' }}
       name: Set env variables
@@ -179,6 +198,13 @@ runs:
 
           cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
         subscription_id = "${{ inputs.azure_subscription_id }}"
+        EOF
+        fi
+
+        if [ "${{ inputs.cloud_provider }}" == "gcp" ]
+        then
+          cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
+        gcp_project = "${{ inputs.gcp_project }}"
         EOF
         fi
 
