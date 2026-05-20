@@ -20,6 +20,92 @@ type ResponseWithResult[T any] struct {
 	Result T `json:"result"`
 }
 
+const (
+	redactedPlaceholder            = "REDACTED"
+	unparseableRedactedPlaceholder = `"<unparseable, redacted>"`
+)
+
+var sensitiveBodyKeys = map[string]struct{}{
+	"password":          {},
+	"newPassword":       {},
+	"newPasswordHash":   {},
+	"newDoubleSha1Hash": {},
+	"password_wo":       {},
+	"tokenSecret":       {},
+}
+
+var sensitiveBodyContainers = map[string]struct{}{
+	"secrets":     {},
+	"credentials": {},
+}
+
+// redactSensitiveBody returns body with values of known sensitive keys replaced
+// by a placeholder string. Walks JSON recursively; arrays and nested objects
+// are traversed. Containers named "secrets" or "credentials" have their entire
+// subtree replaced by a scalar placeholder.
+//
+// Empty input is returned unchanged. Malformed JSON returns a generic placeholder
+// rather than the raw bytes so a logging path never leaks unredacted content.
+func redactSensitiveBody(body []byte) []byte {
+	if len(body) == 0 {
+		return body
+	}
+	var v interface{}
+	if err := json.Unmarshal(body, &v); err != nil {
+		return []byte(unparseableRedactedPlaceholder)
+	}
+	redacted := redactJSONValue(v)
+	out, err := json.Marshal(redacted)
+	if err != nil {
+		return []byte(unparseableRedactedPlaceholder)
+	}
+	return out
+}
+
+// formatLogBody returns a string suitable for logging the given JSON body.
+// Sensitive fields are redacted and the output is pretty-printed when possible.
+// Empty input yields an empty string. Malformed JSON yields a generic placeholder
+// rather than leaking the raw bytes into logs.
+func formatLogBody(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	redacted := redactSensitiveBody(body)
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, redacted, "", "  "); err != nil {
+		// redactSensitiveBody emits valid JSON for any non-empty input, so this
+		// is defensive. If we ever land here, fall back to the placeholder so
+		// nothing unredacted reaches the logs.
+		return unparseableRedactedPlaceholder
+	}
+	return buf.String()
+}
+
+func redactJSONValue(v interface{}) interface{} {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		for k, child := range t {
+			if _, ok := sensitiveBodyKeys[k]; ok {
+				t[k] = redactedPlaceholder
+				continue
+			}
+			if _, ok := sensitiveBodyContainers[k]; ok {
+				t[k] = redactedPlaceholder
+				continue
+			}
+			t[k] = redactJSONValue(child)
+		}
+		return t
+	case []interface{}:
+		for i, child := range t {
+			t[i] = redactJSONValue(child)
+		}
+		return t
+	default:
+		return v
+	}
+}
+
 func (c *ClientImpl) getOrgPath(path string) string {
 	return fmt.Sprintf("%s/organizations/%s%s", c.BaseUrl, c.OrganizationId, path)
 }
@@ -33,6 +119,13 @@ func (c *ClientImpl) getServicePath(serviceId string, path string) string {
 
 func (c *ClientImpl) getPrivateEndpointConfigPath(cloudProvider string, region string) string {
 	return c.getOrgPath(fmt.Sprintf("/privateEndpointConfig?cloud_provider=%s&region_id=%s", cloudProvider, region))
+}
+
+func (c *ClientImpl) getPostgresPath(postgresId string, path string) string {
+	if postgresId == "" {
+		return c.getOrgPath("/postgres")
+	}
+	return c.getOrgPath(fmt.Sprintf("/postgres/%s%s", postgresId, path))
 }
 
 func (c *ClientImpl) getQueryAPIPath(queryAPIBaseUrl string, serviceID string, format string) string { //nolint
@@ -57,17 +150,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		bodyBytes, _ = io.ReadAll(initialReq.Body)
 		initialReq.Body.Close()
 		initialReq.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		{
-			var buf bytes.Buffer
-			err := json.Indent(&buf, bodyBytes, "", "  ")
-			if err != nil {
-				// Parsing/indentation failed, fallback to raw body
-				debugctx = tflog.SetField(debugctx, "requestBody", string(bodyBytes))
-			} else {
-				// Parsing ok, use formatted body.
-				debugctx = tflog.SetField(debugctx, "requestBody", buf.String())
-			}
-		}
+		debugctx = tflog.SetField(debugctx, "requestBody", formatLogBody(bodyBytes))
 
 		initialReq.Header.Set("Content-Type", "application/json; charset=utf-8")
 	}
@@ -112,17 +195,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		debugctx = tflog.SetField(debugctx, "requestTimeMS", stop.Sub(start).Milliseconds())
 		debugctx = tflog.SetField(debugctx, "statusCode", res.StatusCode)
 		debugctx = tflog.SetField(debugctx, "responseHeaders", res.Header)
-		{
-			var buf bytes.Buffer
-			err = json.Indent(&buf, body, "", "  ")
-			if err != nil {
-				// Parsing/indentation failed, fallback to raw body
-				debugctx = tflog.SetField(debugctx, "responseBody", string(body))
-			} else {
-				// Parsing ok, use formatted body.
-				debugctx = tflog.SetField(debugctx, "responseBody", buf.String())
-			}
-		}
+		debugctx = tflog.SetField(debugctx, "responseBody", formatLogBody(body))
 		tflog.Debug(debugctx, "API request")
 
 		if res.StatusCode != http.StatusOK {

@@ -59,4 +59,20 @@ type Client interface {
 	CreateRole(ctx context.Context, req RoleCreateRequest) (*RBACRole, error)
 	UpdateRole(ctx context.Context, roleId string, req RoleUpdateRequest) (*RBACRole, error)
 	DeleteRole(ctx context.Context, roleId string) error
+
+	GetPostgres(ctx context.Context, postgresId string) (*Postgres, error)
+	ListPostgres(ctx context.Context) ([]PostgresListItem, error)
+	CreatePostgres(ctx context.Context, body PostgresCreate) (*Postgres, *string, error)
+	UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (*Postgres, error)
+	DeletePostgres(ctx context.Context, postgresId string) error
+	WaitForPostgresState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) error
+	WaitForPostgresLeaveAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) error
+	RestorePostgres(ctx context.Context, sourceId string, body PostgresRestoreRequest) (*Postgres, error)
+	SetPostgresPassword(ctx context.Context, postgresId string, body PostgresPassword) (*PostgresPassword, error)
+	CreatePostgresReadReplica(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (*Postgres, error)
+	GetPostgresConfig(ctx context.Context, postgresId string) (*PostgresConfig, error)
+	ReplacePostgresConfig(ctx context.Context, postgresId string, body PostgresConfig) (*PostgresConfigUpdateResponse, error)
+	UpdatePostgresConfig(ctx context.Context, postgresId string, body PostgresConfig) (*PostgresConfigUpdateResponse, error)
+	PostgresStateCommandSend(ctx context.Context, postgresId string, command string) (*Postgres, error)
+	GetPostgresCaCertificates(ctx context.Context, postgresId string) ([]byte, error)
 }
