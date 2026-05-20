@@ -284,6 +284,32 @@ func TestDeletePostgres_RetriesOn409(t *testing.T) {
 	}
 }
 
+func TestDeletePostgres_RetriesOn409WithoutDependentSignal(t *testing.T) {
+	// A 409 whose body mentions "replica" but not "depend" should NOT fail
+	// fast — that's a transient conflict the retry loop can resolve. Guards
+	// against the loose pattern match that an earlier draft of the heuristic
+	// allowed (OR rather than AND).
+	var calls int32
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&calls, 1)
+		if n <= 2 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":"replication slot still active; try again"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"requestId":"r","status":200}`))
+	})
+	err := client.deletePostgresWithBudget(context.Background(), testPostgresID, 1*time.Millisecond, 5)
+	if err != nil {
+		t.Fatalf("DeletePostgres should retry transient 409s containing 'replica' without 'depend'; got %v", err)
+	}
+	if calls < 3 {
+		t.Errorf("expected ≥3 calls (2x 409 retried then 200); got %d", calls)
+	}
+}
+
 func TestDeletePostgres_FailsFastOnDependentReplica(t *testing.T) {
 	var calls int32
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {

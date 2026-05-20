@@ -173,8 +173,21 @@ func (c *ClientImpl) deletePostgresWithBudget(ctx context.Context, postgresId st
 }
 
 // errIndicatesDependentReplica inspects an error from doRequest (formatted as
-// "status: N, body: {...}") for keywords the server uses to signal that a
-// replica blocks deletion of the primary.
+// "status: N, body: {...}") for the conjunction of "depend" and "replica" in
+// the message, which the server uses to signal that a read replica blocks
+// deletion of its primary.
+//
+// The conjunction is deliberate: matching only "replica" (e.g., for a 409
+// containing "replication slot exists") would cause false-positive fail-fast
+// behavior on transient conflicts that retry could resolve.
+//
+// FIXME(phase-6): the keyword list is speculative. The Phase 6 integration
+// test `tests/postgres/drift/` should provision a primary + replica, attempt
+// to delete the primary, and capture the verbatim 409 response. Update this
+// heuristic to anchor to a stable structured field (errorCode/reason if the
+// server provides one) or to the captured wording with a regression test.
+// Worst case until then: a dependent-replica delete burns the full 15-min
+// retry budget instead of failing fast.
 func errIndicatesDependentReplica(err error) bool {
 	if err == nil {
 		return false
@@ -183,9 +196,7 @@ func errIndicatesDependentReplica(err error) bool {
 	if !strings.Contains(msg, "409") {
 		return false
 	}
-	return strings.Contains(msg, "dependent") ||
-		strings.Contains(msg, "replica") ||
-		strings.Contains(msg, "depend")
+	return strings.Contains(msg, "depend") && strings.Contains(msg, "replica")
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +246,22 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 // then come back to it. Used after PATCH operations (size change, ha_type
 // change, config replace) to avoid the race where the API responds before
 // the transition begins server-side.
+//
+// **Caller precondition:** the mutating request that should trigger the
+// transition MUST have already returned a 2xx from the server. This helper
+// treats "state never left terminal" as a no-op success (e.g., a config
+// change that hot-reloaded without a restart). If you invoke it after a
+// silently-failed mutation, it will report success even though nothing
+// happened — so verify the PATCH/POST return value first.
+//
+// FIXME(phase-2): the "never left = success" fallback can also miss a real
+// race — if the server hasn't started transitioning by the time leave-detection
+// exhausts its budget, we return success and the caller proceeds before the
+// actual transition. Phase 2's resource Update will exercise this for real
+// against the dev cluster. If the race is observable, add a minimum observation
+// window (always poll ≥ N times before concluding "no transition") with N
+// anchored to measured transition latency. The `*WithInterval` test seam
+// already supports parameterizing the window.
 func (c *ClientImpl) WaitForPostgresLeaveAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) error {
 	return c.waitForPostgresLeaveAndReturnWithInterval(ctx, postgresId, terminalState, postgresStatePollInterval, nonNegU64(maxWaitSeconds/int(postgresStatePollInterval/time.Second)))
 }
@@ -449,7 +476,23 @@ func (c *ClientImpl) PostgresStateCommandSend(ctx context.Context, postgresId st
 // GetPostgresCaCertificates fetches the CA certificate chain for the instance
 // in PEM format. The endpoint's server-side handler bypasses the standard
 // response envelope wrapping, so we issue the request directly through the
-// HTTP client instead of doRequest (which assumes a JSON response).
+// HTTP client instead of doRequest (which assumes a JSON response and would
+// otherwise emit a PEM blob through the JSON pretty-printer into tflog).
+//
+// **Operational trade-offs vs. every other client method:**
+//   - No `User-Agent: terraform-provider-clickhouse/{version}` header — this
+//     endpoint shows up as anonymous in server-side traffic attribution.
+//   - No 429 / 5xx retry (transient hiccups return immediately).
+//   - No tflog request/response logging.
+//   - Bypasses the centralized basic-auth setup.
+//
+// FIXME(phase-5): the first Terraform consumer of this method is Phase 5's
+// `data.clickhouse_postgres_service_ca_certificates` data source. When that
+// lands, add a sibling `doRawRequest` helper in common.go that mirrors
+// doRequest's retry / logging / auth / User-Agent machinery but returns bytes
+// directly without JSON envelope decoding, and route this method through it.
+// The signature `GetPostgresCaCertificates(ctx, id) ([]byte, error)` is stable;
+// only the implementation changes.
 func (c *ClientImpl) GetPostgresCaCertificates(ctx context.Context, postgresId string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.getPostgresPath(postgresId, "/caCertificates"), nil)
 	if err != nil {
