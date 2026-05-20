@@ -121,6 +121,13 @@ func (c *ClientImpl) getPrivateEndpointConfigPath(cloudProvider string, region s
 	return c.getOrgPath(fmt.Sprintf("/privateEndpointConfig?cloud_provider=%s&region_id=%s", cloudProvider, region))
 }
 
+func (c *ClientImpl) getPostgresPath(postgresId string, path string) string {
+	if postgresId == "" {
+		return c.getOrgPath("/postgres")
+	}
+	return c.getOrgPath(fmt.Sprintf("/postgres/%s%s", postgresId, path))
+}
+
 func (c *ClientImpl) getQueryAPIPath(queryAPIBaseUrl string, serviceID string, format string) string { //nolint
 	if format == "" {
 		panic("format can't be empty in getQueryAPIPath")
