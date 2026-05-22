@@ -3,6 +3,12 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "vpc_endpoint_service"
   description               = "VPC_ENDPOINT_SERVICE reverse private endpoint for ClickPipes"
   type                      = "VPC_ENDPOINT_SERVICE"
   vpc_endpoint_service_name = "com.amazonaws.vpce.eu-west-1.vpce-svc-080826a65b5b27d4e"
+
+  custom_private_dns_mappings = [
+    {
+      private_dns_name = "my-service.example.com"
+    }
+  ]
 }
 
 resource "clickhouse_clickpipes_reverse_private_endpoint" "vpc_resource" {
@@ -19,4 +25,11 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "msk_multi_vpc" {
   type               = "MSK_MULTI_VPC"
   msk_cluster_arn    = "arn:aws:kafka:us-east-1:123456789012:cluster/ClickHouse-Cluster/1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6-1"
   msk_authentication = "SASL_IAM"
+}
+
+resource "clickhouse_clickpipes_reverse_private_endpoint" "gcp_psc_service_attachment" {
+  service_id             = "3a10a385-ced2-452e-abb8-908c80976a8f"
+  description            = "GCP_PSC_SERVICE_ATTACHMENT reverse private endpoint for ClickPipes"
+  type                   = "GCP_PSC_SERVICE_ATTACHMENT"
+  gcp_service_attachment = "projects/my-project/regions/us-central1/serviceAttachments/my-service"
 }

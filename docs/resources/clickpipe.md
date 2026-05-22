@@ -235,7 +235,7 @@ Optional:
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
 - `schema_registry` (Attributes) The schema registry for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
-- `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`). Default is `kafka`.
+- `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.
 
 <a id="nestedatt--source--kafka--credentials"></a>
 ### Nested Schema for `source.kafka.credentials`
