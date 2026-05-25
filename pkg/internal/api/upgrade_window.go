@@ -7,6 +7,19 @@ import (
 	"net/http"
 )
 
+// UpgradeWindowAllowedStartHoursUtc is the server-side allowed set for
+// `startHourUtc` (`UPGRADE_WINDOW_ALLOWED_START_HOURS_UTC` in the OpenAPI
+// spec). Exposed so the provider's schema validator stays in sync with the
+// server — if the server ever expands the set, only this constant needs to
+// change.
+var UpgradeWindowAllowedStartHoursUtc = []int64{0, 6, 12, 18}
+
+// UpgradeWindowDurationHours is the server-fixed window duration in hours
+// (`UPGRADE_WINDOW_ALLOWED_DURATION_HOURS` in the OpenAPI spec). The provider
+// does not let users configure this — the resource exposes `duration` as a
+// `Computed` attribute and the server stays authoritative.
+const UpgradeWindowDurationHours = 6
+
 // UpgradeWindow mirrors the OpenAPI public UpgradeWindowV1 shape: a weekly
 // recurring window during which the data plane is allowed to perform service
 // upgrades.

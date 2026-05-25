@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -69,7 +70,7 @@ func (r *ServiceUpgradeWindowResource) Schema(_ context.Context, _ resource.Sche
 				Description: "UTC hour when the upgrade window starts. Must be one of 0, 6, 12, or 18.",
 				Required:    true,
 				Validators: []validator.Int64{
-					int64validator.OneOf(0, 6, 12, 18),
+					int64validator.OneOf(api.UpgradeWindowAllowedStartHoursUtc...),
 				},
 			},
 			"duration": schema.Int64Attribute{
@@ -127,14 +128,7 @@ func (r *ServiceUpgradeWindowResource) Create(ctx context.Context, req resource.
 		StartHourUtc: int(plan.StartHourUtc.ValueInt64()),
 	})
 	if err != nil {
-		if api.IsNotFound(err) {
-			resp.Diagnostics.AddError(
-				"Service not found",
-				fmt.Sprintf("Service %s does not exist or has been deleted. Confirm clickhouse_service.<name>.id is correct.", serviceID),
-			)
-			return
-		}
-		resp.Diagnostics.AddError("Error creating upgrade window", err.Error())
+		addUpgradeWindowWriteErrorDiagnostic(&resp.Diagnostics, "creating", serviceID, err)
 		return
 	}
 
@@ -179,14 +173,7 @@ func (r *ServiceUpgradeWindowResource) Update(ctx context.Context, req resource.
 		StartHourUtc: int(plan.StartHourUtc.ValueInt64()),
 	})
 	if err != nil {
-		if api.IsNotFound(err) {
-			resp.Diagnostics.AddError(
-				"Service not found",
-				fmt.Sprintf("Service %s no longer exists. Remove the resource from configuration or recreate the service.", plan.ServiceID.ValueString()),
-			)
-			return
-		}
-		resp.Diagnostics.AddError("Error updating upgrade window", err.Error())
+		addUpgradeWindowWriteErrorDiagnostic(&resp.Diagnostics, "updating", plan.ServiceID.ValueString(), err)
 		return
 	}
 
@@ -212,6 +199,34 @@ func (r *ServiceUpgradeWindowResource) ImportState(ctx context.Context, req reso
 	// `id` and `service_id` are equal — write both so Read finds the service.
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), req.ID)...)
+}
+
+// addUpgradeWindowWriteErrorDiagnostic specializes the diagnostic for the
+// documented client errors of `PUT /upgradeWindow` (404 service-missing,
+// 400 secondary-service, 403 entitlement). Anything else falls through to
+// the raw error string, which is the same shape every other resource uses.
+// `verb` is "creating" or "updating" so the operation reads naturally in
+// the diagnostic summary.
+func addUpgradeWindowWriteErrorDiagnostic(diags *diag.Diagnostics, verb, serviceID string, err error) {
+	switch {
+	case api.IsNotFound(err):
+		diags.AddError(
+			"Service not found",
+			fmt.Sprintf("Service %s does not exist or is not visible to the caller. Confirm clickhouse_service.<name>.id is correct and the API key has access.", serviceID),
+		)
+	case api.IsBadRequestWith(err, "secondary service"):
+		diags.AddError(
+			"Upgrade windows can only be set on primary services",
+			fmt.Sprintf("Service %s is a secondary service and inherits its upgrade window from the primary. Configure the upgrade window on the primary service instead.", serviceID),
+		)
+	case api.IsForbidden(err):
+		diags.AddError(
+			"Setting an upgrade window requires the scheduled upgrades entitlement",
+			"The organization does not have the `canUseScheduledUpgrades` feature enabled, or the API key lacks `control-plane:service:manage`. Contact ClickHouse support to enable the entitlement.",
+		)
+	default:
+		diags.AddError(fmt.Sprintf("Error %s upgrade window", verb), err.Error())
+	}
 }
 
 // applyUpgradeWindowToState maps an API UpgradeWindow response into the
