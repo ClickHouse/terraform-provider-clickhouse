@@ -196,6 +196,31 @@ func (r *ServiceUpgradeWindowResource) Delete(ctx context.Context, req resource.
 }
 
 func (r *ServiceUpgradeWindowResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Validate the service exists and is a primary before writing state.
+	// GET /upgradeWindow on a secondary returns the inherited primary's window
+	// (so import would succeed at the upgrade-window layer), but every
+	// subsequent PUT/DELETE would 400 on "secondary service" — wedging the
+	// resource. Reject up front via GetService, which exposes isPrimary.
+	service, err := r.client.GetService(ctx, req.ID)
+	if err != nil {
+		if api.IsNotFound(err) {
+			resp.Diagnostics.AddError(
+				"Service not found",
+				fmt.Sprintf("Service %s does not exist or is not visible to the caller. Confirm the service ID is correct and the API key has access.", req.ID),
+			)
+			return
+		}
+		resp.Diagnostics.AddError("Error verifying service for import", err.Error())
+		return
+	}
+	if service.IsPrimary != nil && !*service.IsPrimary {
+		resp.Diagnostics.AddError(
+			"Cannot import upgrade window on a secondary service",
+			fmt.Sprintf("Service %s is a secondary service. Upgrade windows can only be managed on the primary service; secondary services inherit the primary's window.", req.ID),
+		)
+		return
+	}
+
 	// `id` and `service_id` are equal — write both so Read finds the service.
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), req.ID)...)

@@ -23,7 +23,7 @@ The upgrade window can only be set on primary services. Secondary services inher
 terraform import clickhouse_service_upgrade_window.example <service_id>
 ```
 
-Imports against a service whose upgrade window has not been configured succeed (the framework runs Read after Import), but the subsequent Read returns `404` and removes the resource from state — leaving the next plan proposing a fresh create. Confirm the service ID is correct before importing.
+Import is refused with a clear diagnostic when the supplied service ID does not exist or points at a secondary service. Importing a primary service that does not yet have an upgrade window configured succeeds, but the subsequent Read returns `404` and removes the resource from state — leaving the next plan proposing a fresh create. Confirm the service ID is correct before importing.
 
 ## Example Usage
 

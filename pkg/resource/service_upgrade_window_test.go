@@ -19,6 +19,8 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
+const serviceNotFoundSummary = "Service not found"
+
 func TestApplyUpgradeWindowToState_PopulatesAllFields(t *testing.T) {
 	window := &api.UpgradeWindow{Weekday: 3, StartHourUtc: 12, Duration: 6}
 
@@ -39,19 +41,19 @@ func TestApplyUpgradeWindowToState_PopulatesAllFields(t *testing.T) {
 	}
 }
 
-// TestServiceUpgradeWindowResource_ImportState verifies that the custom
-// ImportState handler writes both `id` and `service_id` from the user-supplied
-// import ID.
-func TestServiceUpgradeWindowResource_ImportState(t *testing.T) {
+// TestServiceUpgradeWindowResource_ImportState_Primary verifies the happy
+// path: GetService returns a primary service, ImportState writes both `id`
+// and `service_id` from the user-supplied import ID.
+func TestServiceUpgradeWindowResource_ImportState_Primary(t *testing.T) {
 	ctx := context.Background()
-	r := NewServiceUpgradeWindowResource().(*ServiceUpgradeWindowResource)
+	r, sch := resourceWithSchema(t)
 
-	schemaResp := &resource.SchemaResponse{}
-	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
-	if schemaResp.Diagnostics.HasError() {
-		t.Fatalf("Schema: %v", schemaResp.Diagnostics)
-	}
-	sch := schemaResp.Schema
+	isPrimary := true
+	mc := minimock.NewController(t)
+	r.client = api.NewClientMock(mc).
+		GetServiceMock.
+		Expect(ctx, "uw-import-1").
+		Return(&api.Service{Id: "uw-import-1", IsPrimary: &isPrimary}, nil)
 
 	req := resource.ImportStateRequest{ID: "uw-import-1"}
 	resp := &resource.ImportStateResponse{
@@ -78,6 +80,70 @@ func TestServiceUpgradeWindowResource_ImportState(t *testing.T) {
 	}
 	if serviceID.ValueString() != "uw-import-1" {
 		t.Errorf("service_id = %q; want uw-import-1", serviceID.ValueString())
+	}
+}
+
+// TestServiceUpgradeWindowResource_ImportState_Secondary verifies the guard
+// added after PR review: importing a secondary service ID is refused with a
+// clear diagnostic rather than wedging the resource (GET would succeed on a
+// secondary because it returns the inherited primary's window, but every
+// subsequent PUT/DELETE would 400).
+func TestServiceUpgradeWindowResource_ImportState_Secondary(t *testing.T) {
+	ctx := context.Background()
+	r, sch := resourceWithSchema(t)
+
+	isPrimary := false
+	mc := minimock.NewController(t)
+	r.client = api.NewClientMock(mc).
+		GetServiceMock.
+		Expect(ctx, "secondary-1").
+		Return(&api.Service{Id: "secondary-1", IsPrimary: &isPrimary}, nil)
+
+	req := resource.ImportStateRequest{ID: "secondary-1"}
+	resp := &resource.ImportStateResponse{
+		State: tfsdk.State{
+			Schema: sch,
+			Raw:    tftypes.NewValue(sch.Type().TerraformType(ctx), nil),
+		},
+	}
+
+	r.ImportState(ctx, req, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatalf("ImportState should refuse a secondary service; got %v", resp.Diagnostics)
+	}
+	if got := resp.Diagnostics[0].Summary(); got != "Cannot import upgrade window on a secondary service" {
+		t.Errorf("diagnostic summary = %q; want \"Cannot import upgrade window on a secondary service\"", got)
+	}
+}
+
+// TestServiceUpgradeWindowResource_ImportState_ServiceNotFound verifies that
+// importing a non-existent service ID fails fast with a clear diagnostic,
+// instead of the previous "succeed-then-disappear" flow where Read would 404
+// and silently remove the resource on next refresh.
+func TestServiceUpgradeWindowResource_ImportState_ServiceNotFound(t *testing.T) {
+	ctx := context.Background()
+	r, sch := resourceWithSchema(t)
+
+	mc := minimock.NewController(t)
+	r.client = api.NewClientMock(mc).
+		GetServiceMock.
+		Expect(ctx, "missing-svc").
+		Return(nil, errors.New("status: 404, body: not found"))
+
+	req := resource.ImportStateRequest{ID: "missing-svc"}
+	resp := &resource.ImportStateResponse{
+		State: tfsdk.State{
+			Schema: sch,
+			Raw:    tftypes.NewValue(sch.Type().TerraformType(ctx), nil),
+		},
+	}
+
+	r.ImportState(ctx, req, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatalf("ImportState should error on 404; got %v", resp.Diagnostics)
+	}
+	if got := resp.Diagnostics[0].Summary(); got != serviceNotFoundSummary {
+		t.Errorf("diagnostic summary = %q; want %q", got, serviceNotFoundSummary)
 	}
 }
 
@@ -346,8 +412,8 @@ func TestServiceUpgradeWindowResource_Create_UpdateReturns404(t *testing.T) {
 	if !resp.Diagnostics.HasError() {
 		t.Fatalf("Create should error when PUT returns 404; got %v", resp.Diagnostics)
 	}
-	if got := resp.Diagnostics[0].Summary(); got != "Service not found" {
-		t.Errorf("diagnostic summary = %q; want \"Service not found\"", got)
+	if got := resp.Diagnostics[0].Summary(); got != serviceNotFoundSummary {
+		t.Errorf("diagnostic summary = %q; want %q", got, serviceNotFoundSummary)
 	}
 }
 
@@ -519,8 +585,8 @@ func TestServiceUpgradeWindowResource_Update_404(t *testing.T) {
 	if !resp.Diagnostics.HasError() {
 		t.Fatalf("Update should error on 404; got %v", resp.Diagnostics)
 	}
-	if got := resp.Diagnostics[0].Summary(); got != "Service not found" {
-		t.Errorf("diagnostic summary = %q; want \"Service not found\"", got)
+	if got := resp.Diagnostics[0].Summary(); got != serviceNotFoundSummary {
+		t.Errorf("diagnostic summary = %q; want %q", got, serviceNotFoundSummary)
 	}
 }
 
