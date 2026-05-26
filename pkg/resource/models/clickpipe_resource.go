@@ -263,7 +263,6 @@ type ClickPipePubSubSourceModel struct {
 	Authentication    types.String `tfsdk:"authentication"`
 	SeekType          types.String `tfsdk:"seek_type"`
 	SeekTimestamp     types.String `tfsdk:"seek_timestamp"`
-	SeekSnapshot      types.String `tfsdk:"seek_snapshot"`
 	Filter            types.String `tfsdk:"filter"`
 	EnableOrdering    types.Bool   `tfsdk:"enable_ordering"`
 	AckDeadline       types.Int64  `tfsdk:"ack_deadline"`
@@ -279,7 +278,6 @@ func (m ClickPipePubSubSourceModel) ObjectType() types.ObjectType {
 			"authentication":      types.StringType,
 			"seek_type":           types.StringType,
 			"seek_timestamp":      types.StringType,
-			"seek_snapshot":       types.StringType,
 			"filter":              types.StringType,
 			"enable_ordering":     types.BoolType,
 			"ack_deadline":        types.Int64Type,
@@ -296,7 +294,6 @@ func (m ClickPipePubSubSourceModel) ObjectValue() types.Object {
 		"authentication":      m.Authentication,
 		"seek_type":           m.SeekType,
 		"seek_timestamp":      m.SeekTimestamp,
-		"seek_snapshot":       m.SeekSnapshot,
 		"filter":              m.Filter,
 		"enable_ordering":     m.EnableOrdering,
 		"ack_deadline":        m.AckDeadline,
