@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 )
+
+// errPostgresStateUnchanged signals that a poll observed the terminal state
+// during a leave-and-return wait. It is treated as a legitimate "no-op
+// success" by the caller; any OTHER error from GetPostgres (404, 401/403,
+// 5xx, context cancellation) propagates instead.
+var errPostgresStateUnchanged = errors.New("postgres state unchanged from terminal")
 
 // Default retry budgets for Postgres operations. Exposed as package-level
 // vars so callers (e.g., resource Delete with a custom `timeouts {}` block)
@@ -268,6 +275,12 @@ func (c *ClientImpl) WaitForPostgresLeaveAndReturn(ctx context.Context, postgres
 
 func (c *ClientImpl) waitForPostgresLeaveAndReturnWithInterval(ctx context.Context, postgresId string, terminalState string, interval time.Duration, maxRetries uint64) error {
 	// Phase 1: wait until state differs from terminalState.
+	//
+	// leftCheck distinguishes three outcomes via its return error:
+	//   nil                            -> state has left terminalState; advance to phase 2
+	//   errPostgresStateUnchanged      -> polled successfully, state still terminal; retry
+	//   backoff.Permanent(realErr)     -> 5xx; bail
+	//   any other err                  -> 4xx/transport/cancel; retry up to budget, then bail
 	left := false
 	leftCheck := func() error {
 		pg, err := c.GetPostgres(ctx, postgresId)
@@ -280,7 +293,7 @@ func (c *ClientImpl) waitForPostgresLeaveAndReturnWithInterval(ctx context.Conte
 			left = true
 			return nil
 		}
-		return fmt.Errorf("postgres %s still in terminal state %s; waiting for transition to start", postgresId, terminalState)
+		return errPostgresStateUnchanged
 	}
 	if maxRetries < 2 {
 		maxRetries = 2
@@ -289,10 +302,16 @@ func (c *ClientImpl) waitForPostgresLeaveAndReturnWithInterval(ctx context.Conte
 	if halfBudget < 1 {
 		halfBudget = 1
 	}
-	if err := backoff.Retry(leftCheck, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), halfBudget)); err != nil && !left {
-		// Never left terminalState — could mean the operation was a no-op.
-		// Treat as success: terminal state is also the target.
-		return nil
+	err := backoff.Retry(leftCheck, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), halfBudget))
+	if err != nil && !left {
+		// Only the sentinel-caused exhaustion is a no-op success. Anything
+		// else (404, 401/403, context cancellation, exhausted 5xx) is a real
+		// failure and the caller must see it — otherwise the resource layer
+		// would proceed as if the update succeeded when polling itself failed.
+		if errors.Is(err, errPostgresStateUnchanged) {
+			return nil
+		}
+		return err
 	}
 	// Phase 2: wait until state returns to terminalState.
 	return c.waitForPostgresStateWithInterval(ctx, postgresId, func(s string) bool { return s == terminalState }, interval, maxRetries-halfBudget)

@@ -117,10 +117,20 @@ type PostgresCreate struct {
 // (PostgresInstancePatchRequestV1). The server accepts ONLY these three
 // fields; anything else returns 400. In particular, `name` is intentionally
 // absent — the server's patch shape has no `name` field.
+//
+// Tags is a *[]Tag rather than []Tag so callers can express the three
+// distinct PATCH intents:
+//
+//	Tags == nil               -> field omitted; server leaves existing tags alone
+//	Tags == &[]Tag{}          -> field present as []; server clears all tags
+//	Tags == &[]Tag{{...}, ...} -> field present with values; server replaces with these
+//
+// With a plain []Tag and omitempty, the empty-list intent (clear) would
+// marshal identically to nil (no field), making tag clearing impossible.
 type PostgresUpdate struct {
 	Size   string `json:"size,omitempty"`
 	HaType string `json:"haType,omitempty"`
-	Tags   []Tag  `json:"tags,omitempty"`
+	Tags   *[]Tag `json:"tags,omitempty"`
 }
 
 // PostgresRestoreRequest is the POST /postgres/{id}/restoredService body

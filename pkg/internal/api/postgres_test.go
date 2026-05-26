@@ -406,6 +406,38 @@ func TestWaitForPostgresLeaveAndReturn_TransitionsAwayAndBack(t *testing.T) {
 	}
 }
 
+func TestWaitForPostgresLeaveAndReturn_PropagatesGetErrors(t *testing.T) {
+	// Phase-1 polling repeatedly errors (instance was deleted out-of-band,
+	// or an auth token expired). The wait helper must surface the error
+	// rather than silently returning nil — otherwise the resource layer
+	// would proceed as if the update completed.
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+	})
+	err := client.waitForPostgresLeaveAndReturnWithInterval(context.Background(), testPostgresID,
+		PostgresStateRunning, 1*time.Millisecond, 4)
+	if err == nil {
+		t.Fatal("expected error to propagate from failing GetPostgres; got nil")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("expected 404 to propagate via IsNotFound; got %v", err)
+	}
+}
+
+func TestWaitForPostgresLeaveAndReturn_NoOpSuccessOnlyWhenObservedStable(t *testing.T) {
+	// Server returns the terminal state cleanly throughout phase-1. This is
+	// the legitimate no-op case (e.g., a config change that hot-reloaded);
+	// the helper should succeed.
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning}})
+	})
+	err := client.waitForPostgresLeaveAndReturnWithInterval(context.Background(), testPostgresID,
+		PostgresStateRunning, 1*time.Millisecond, 4)
+	if err != nil {
+		t.Errorf("observed-stable case should be no-op success; got %v", err)
+	}
+}
+
 // ----- SetPostgresPassword -------------------------------------------------
 
 func TestSetPostgresPassword_UserSuppliedReturnsNil(t *testing.T) {

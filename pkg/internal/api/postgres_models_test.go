@@ -126,6 +126,39 @@ func TestPostgresUpdate_OmitsUnsetFields(t *testing.T) {
 	}
 }
 
+func TestPostgresUpdate_NilTagsOmitsField(t *testing.T) {
+	body, err := json.Marshal(PostgresUpdate{Size: "r6gd.large"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(body), "tags") {
+		t.Errorf("nil Tags must omit the field; got %s", body)
+	}
+}
+
+func TestPostgresUpdate_EmptyTagsListClearsTags(t *testing.T) {
+	// The whole point of using *[]Tag: an explicit empty list must produce
+	// `"tags":[]` on the wire so the server replaces the tag list with
+	// nothing instead of leaving existing tags alone.
+	body, err := json.Marshal(PostgresUpdate{Tags: &[]Tag{}})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(body), `"tags":[]`) {
+		t.Errorf("explicit empty Tags must marshal as `\"tags\":[]`; got %s", body)
+	}
+}
+
+func TestPostgresUpdate_PopulatedTagsList(t *testing.T) {
+	body, err := json.Marshal(PostgresUpdate{Tags: &[]Tag{{Key: "team", Value: "billing"}}})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(body), `"tags":[{"key":"team","value":"billing"}]`) {
+		t.Errorf("populated tags marshal wrong; got %s", body)
+	}
+}
+
 func TestPostgres_OmitsAbsentableFields(t *testing.T) {
 	// Hostname, ConnectionString, Username, Password are *string so a nil
 	// value gets omitted from outgoing JSON.

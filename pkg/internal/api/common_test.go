@@ -54,6 +54,21 @@ func TestRedactSensitiveBody(t *testing.T) {
 			want:  `{"tokenSecret":"REDACTED"}`,
 		},
 		{
+			name:  "top-level connectionString redacted (URI with embedded password)",
+			input: `{"connectionString":"postgresql://default:Secret123@host:5432/db?channel_binding=require"}`,
+			want:  `{"connectionString":"REDACTED"}`,
+		},
+		{
+			name:  "snake_case connection_string redacted",
+			input: `{"connection_string":"postgresql://u:p@h/d"}`,
+			want:  `{"connection_string":"REDACTED"}`,
+		},
+		{
+			name:  "Postgres create response: password and connectionString both redacted",
+			input: `{"result":{"id":"pg-1","password":"Secret123","connectionString":"postgresql://default:Secret123@host:5432/db"}}`,
+			want:  `{"result":{"id":"pg-1","password":"REDACTED","connectionString":"REDACTED"}}`,
+		},
+		{
 			name:  "secrets container redacted to scalar",
 			input: `{"secrets":{"username":"u","password":"p"}}`,
 			want:  `{"secrets":"REDACTED"}`,
@@ -164,6 +179,18 @@ func TestFormatLogBody(t *testing.T) {
 		// Pretty-printing inserts newlines and indentation.
 		if got == input {
 			t.Errorf("expected pretty-printed output; got original: %s", got)
+		}
+	})
+
+	t.Run("connection string with embedded password does not leak", func(t *testing.T) {
+		// Realistic Postgres create response shape. Synthetic test secret;
+		// the whole point of this test is to verify it gets REDACTED before
+		// it can reach a log sink.
+		secret := "Hunter2-Aa1!"
+		input := `{"result":{"id":"pg-1","password":"` + secret + `","connectionString":"postgresql://default:` + secret + `@host:5432/db?channel_binding=require"}}` //nolint:gosec // synthetic test fixture
+		got := formatLogBody([]byte(input))
+		if jsonContainsValueAnywhere(t, got, secret) {
+			t.Errorf("plaintext secret leaked through connectionString: %s", got)
 		}
 	})
 }
