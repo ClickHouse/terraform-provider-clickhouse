@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -14,6 +15,11 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
+
+// stringvalidatorLengthAtLeast1 returns the same validator the schema uses
+// for the tags.value attribute. Centralized in tests so a refactor of the
+// schema validator surfaces in TestTagValueValidator_RejectsEmptyString.
+func stringvalidatorLengthAtLeast1() validator.String { return stringvalidator.LengthAtLeast(1) }
 
 // boolPtrPG / strPtrPG — local readability sugar for *bool / *string
 // fixtures. Renamed from the codebase-wide convention to avoid duplicate
@@ -212,6 +218,27 @@ func TestApiTagsToSetValue_OnlySystemTagsReturnsNull(t *testing.T) {
 	}
 	if !got.IsNull() {
 		t.Errorf("expected null set when every server tag is filtered; got %v", got)
+	}
+}
+
+// TagValueLengthRejectsEmptyString is a documentation-style test rather
+// than a functional one — the actual rejection lives in the upstream
+// stringvalidator.LengthAtLeast(1) attached to the tags.value attribute
+// in the resource schema. We exercise the validator directly here so the
+// rationale (avoid perpetual plan/state drift when the server normalizes
+// "" to no-value) stays anchored to a test that fails loudly if someone
+// drops the validator in a future refactor.
+func TestTagValueValidator_RejectsEmptyString(t *testing.T) {
+	ctx := context.Background()
+	// Build the same validator the schema uses.
+	v := stringvalidatorLengthAtLeast1()
+	resp := &validator.StringResponse{}
+	v.ValidateString(ctx, validator.StringRequest{
+		Path:        path.Root("tags").AtName("value"),
+		ConfigValue: types.StringValue(""),
+	}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Errorf("expected diagnostic for empty-string tag value; got %v", resp.Diagnostics)
 	}
 }
 
@@ -447,10 +474,22 @@ func TestNotReservedTagPrefixValidator(t *testing.T) {
 	ctx := context.Background()
 	v := notReservedTagPrefixValidator{}
 
+	// Build a syntactically correct path into a SetNestedAttribute. The set
+	// element type is the {key, value} object, so AtSetValue must take an
+	// ObjectValue (NOT a StringValue — earlier tests passed because the
+	// validator never inspects Path, but the path was technically malformed).
+	tagPath := func(key, value string) path.Path {
+		obj, _ := types.ObjectValue(
+			tagAttrTypes(),
+			map[string]attr.Value{"key": types.StringValue(key), "value": types.StringValue(value)},
+		)
+		return path.Root("tags").AtSetValue(obj).AtName("key")
+	}
+
 	t.Run("accepts non-prefixed key", func(t *testing.T) {
 		resp := &validator.StringResponse{}
 		v.ValidateString(ctx, validator.StringRequest{
-			Path:        path.Root("tags").AtSetValue(types.StringValue("team")).AtName("key"),
+			Path:        tagPath("team", "billing"),
 			ConfigValue: types.StringValue("team"),
 		}, resp)
 		if resp.Diagnostics.HasError() {
@@ -461,7 +500,7 @@ func TestNotReservedTagPrefixValidator(t *testing.T) {
 	t.Run("rejects chc_ prefixed key", func(t *testing.T) {
 		resp := &validator.StringResponse{}
 		v.ValidateString(ctx, validator.StringRequest{
-			Path:        path.Root("tags").AtSetValue(types.StringValue("chc_internal")).AtName("key"),
+			Path:        tagPath("chc_internal", ""),
 			ConfigValue: types.StringValue("chc_internal"),
 		}, resp)
 		if !resp.Diagnostics.HasError() {
@@ -472,7 +511,7 @@ func TestNotReservedTagPrefixValidator(t *testing.T) {
 	t.Run("ignores null / unknown values", func(t *testing.T) {
 		resp := &validator.StringResponse{}
 		v.ValidateString(ctx, validator.StringRequest{
-			Path:        path.Root("tags").AtSetValue(types.StringValue("k")).AtName("key"),
+			Path:        tagPath("k", "v"),
 			ConfigValue: types.StringNull(),
 		}, resp)
 		if resp.Diagnostics.HasError() {
@@ -481,11 +520,14 @@ func TestNotReservedTagPrefixValidator(t *testing.T) {
 	})
 
 	t.Run("accepts key whose name is shorter than the prefix", func(t *testing.T) {
-		// Defends the prefix-check bounds: len(key) < len(chc_) used to be a
-		// classic off-by-one trap; this test prevents regression.
+		// Defends against a regression on the prefix-check bounds. The
+		// original implementation hand-rolled `len(key) >= len(prefix) &&
+		// key[:len(prefix)] == prefix` (a classic off-by-one trap); after
+		// the switch to strings.HasPrefix the bound is implicit but we
+		// keep the test for documentation value.
 		resp := &validator.StringResponse{}
 		v.ValidateString(ctx, validator.StringRequest{
-			Path:        path.Root("tags").AtSetValue(types.StringValue("ab")).AtName("key"),
+			Path:        tagPath("ab", ""),
 			ConfigValue: types.StringValue("ab"),
 		}, resp)
 		if resp.Diagnostics.HasError() {

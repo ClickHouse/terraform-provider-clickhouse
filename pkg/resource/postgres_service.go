@@ -6,8 +6,8 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"strings"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -138,8 +137,11 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 							},
 						},
 						"value": schema.StringAttribute{
-							Description: "Tag value. May be omitted; the server treats null and empty-string as 'no value'.",
+							Description: "Tag value. Omit or set to null when no value is needed. Explicit empty strings are rejected at plan time because the server normalizes them to no-value, which would cause perpetual drift between plan and state.",
 							Optional:    true,
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+							},
 						},
 					},
 				},
@@ -161,12 +163,11 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"is_primary": schema.BoolAttribute{
-				Description: "True when this instance is a primary; false when it's a read replica. Phase 2 only ever provisions primaries (replicas land in Phase 5).",
+				Description: "True when this instance is a primary; false when it's a read replica. Phase 2 only ever provisions primaries (replicas land in Phase 5). syncPostgresState supplies the 'primary' fallback when the server response omits the field.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
-				Default: booldefault.StaticBool(true),
 			},
 			"hostname": schema.StringAttribute{
 				Description: "Network hostname for client connections.",
@@ -180,9 +181,6 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
-				},
-				Validators: []validator.Int64{
-					int64validator.Between(1, 65535),
 				},
 			},
 			"username": schema.StringAttribute{
@@ -316,12 +314,13 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
+	// GetPostgres never echoes the password, so we only have the value the
+	// server returned at create time. Phase 4 widens this once user-supplied
+	// passwords land.
 	model := plan
 	model.ID = types.StringValue(final.Id)
 	if generatedPassword != nil {
 		model.Password = types.StringValue(*generatedPassword)
-	} else if final.Password != nil {
-		model.Password = types.StringValue(*final.Password)
 	} else {
 		model.Password = types.StringNull()
 	}
@@ -411,8 +410,10 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	// Carry the password forward from prior state — GET never echoes it.
-	plan.Password = state.Password
+	// password is Computed with UseStateForUnknown — the framework already
+	// carries the prior state value through to plan. syncPostgresState
+	// intentionally does not touch model.Password, so the prior value
+	// survives this final state write unchanged.
 	resp.Diagnostics.Append(syncPostgresState(ctx, pg, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -629,7 +630,7 @@ func apiTagsToSetValue(apiTags []api.Tag) (types.Set, diag.Diagnostics) {
 
 	filtered := make([]attr.Value, 0, len(apiTags))
 	for _, t := range apiTags {
-		if len(t.Key) >= len(postgresReservedTagPrefix) && t.Key[:len(postgresReservedTagPrefix)] == postgresReservedTagPrefix {
+		if strings.HasPrefix(t.Key, postgresReservedTagPrefix) {
 			continue
 		}
 		var value attr.Value
@@ -679,7 +680,7 @@ func (v notReservedTagPrefixValidator) ValidateString(_ context.Context, req val
 		return
 	}
 	key := req.ConfigValue.ValueString()
-	if len(key) >= len(postgresReservedTagPrefix) && key[:len(postgresReservedTagPrefix)] == postgresReservedTagPrefix {
+	if strings.HasPrefix(key, postgresReservedTagPrefix) {
 		resp.Diagnostics.AddAttributeError(
 			req.Path,
 			"Reserved tag prefix",

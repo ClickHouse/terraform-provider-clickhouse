@@ -37,7 +37,9 @@ intentionally deferred:
   server's `ResourceTagV1` shape is an array of objects with optional
   `value`. Using nested attributes preserves that distinction. Tags whose
   key starts with `chc_` are reserved by the server and rejected at plan
-  time.
+  time. **Tag values cannot be explicit empty strings** — the server
+  normalizes `""` to no-value, which would cause perpetual plan/state
+  drift; omit the `value` attribute or set it to `null` instead.
 - **No IP allowlist, private endpoints, backup configuration, maintenance
   windows, customer-managed encryption keys, or BYOC support.** All blocked
   on server-side endpoint additions; tracked in the project plan as Phases
