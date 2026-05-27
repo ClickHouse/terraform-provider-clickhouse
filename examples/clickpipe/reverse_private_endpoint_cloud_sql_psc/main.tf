@@ -19,8 +19,13 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "cloud_sql" {
   description            = "Cloud SQL PSC reverse private endpoint"
   type                   = "GCP_PSC_SERVICE_ATTACHMENT"
   gcp_service_attachment = var.cloud_sql_service_attachment
+}
 
-  custom_private_dns_mappings = [
+resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "cloud_sql" {
+  service_id                  = var.service_id
+  reverse_private_endpoint_id = clickhouse_clickpipes_reverse_private_endpoint.cloud_sql.id
+
+  mapping = [
     {
       private_dns_name = var.cloud_sql_private_dns_name
     }

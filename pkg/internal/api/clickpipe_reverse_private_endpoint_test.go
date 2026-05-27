@@ -95,3 +95,96 @@ func TestCreateReversePrivateEndpoint_PostsGCPPSCAndCustomDNSMappings(t *testing
 		t.Fatalf("CustomPrivateDNSMappings = %#v; want my-service.example.com", got.CustomPrivateDNSMappings)
 	}
 }
+
+func TestUpdateReversePrivateEndpoint_PatchesCustomDNSMappings(t *testing.T) {
+	expectedPath := "/organizations/org-1/services/svc-1/clickpipesReversePrivateEndpoints/rpe-1"
+	mappings := []CustomPrivateDNSMapping{
+		{PrivateDNSName: "one.example.com"},
+		{PrivateDNSName: "two.example.com"},
+	}
+	request := UpdateReversePrivateEndpoint{CustomPrivateDNSMappings: &mappings}
+
+	var capturedBody map[string]any
+	client, _ := newReversePrivateEndpointTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Errorf("method = %q; want PATCH", r.Method)
+		}
+		if r.URL.Path != expectedPath {
+			t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
+		}
+
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &capturedBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+
+		response := ReversePrivateEndpoint{
+			CreateReversePrivateEndpoint: CreateReversePrivateEndpoint{
+				CustomPrivateDNSMappings: mappings,
+			},
+			ID:        "rpe-1",
+			ServiceID: "svc-1",
+			Status:    ReversePrivateEndpointStatusReady,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[ReversePrivateEndpoint]{Result: response})
+	})
+
+	got, err := client.UpdateReversePrivateEndpoint(context.Background(), "svc-1", "rpe-1", request)
+	if err != nil {
+		t.Fatalf("UpdateReversePrivateEndpoint: %v", err)
+	}
+
+	capturedMappings, ok := capturedBody["customPrivateDnsMappings"].([]any)
+	if !ok || len(capturedMappings) != 2 {
+		t.Fatalf("customPrivateDnsMappings = %#v; want two mappings", capturedBody["customPrivateDnsMappings"])
+	}
+	mapping, ok := capturedMappings[0].(map[string]any)
+	if !ok {
+		t.Fatalf("customPrivateDnsMappings[0] = %#v; want object", capturedMappings[0])
+	}
+	if mapping["privateDnsName"] != "one.example.com" {
+		t.Errorf("privateDnsName = %v; want one.example.com", mapping["privateDnsName"])
+	}
+
+	if len(got.CustomPrivateDNSMappings) != 2 || got.CustomPrivateDNSMappings[1].PrivateDNSName != "two.example.com" {
+		t.Fatalf("CustomPrivateDNSMappings = %#v; want two mappings", got.CustomPrivateDNSMappings)
+	}
+}
+
+func TestUpdateReversePrivateEndpoint_PreservesEmptyCustomDNSMappings(t *testing.T) {
+	mappings := []CustomPrivateDNSMapping{}
+	request := UpdateReversePrivateEndpoint{CustomPrivateDNSMappings: &mappings}
+
+	var capturedBody map[string]any
+	client, _ := newReversePrivateEndpointTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &capturedBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+
+		response := ReversePrivateEndpoint{
+			CreateReversePrivateEndpoint: CreateReversePrivateEndpoint{
+				CustomPrivateDNSMappings: mappings,
+			},
+			ID:        "rpe-1",
+			ServiceID: "svc-1",
+			Status:    ReversePrivateEndpointStatusReady,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[ReversePrivateEndpoint]{Result: response})
+	})
+
+	_, err := client.UpdateReversePrivateEndpoint(context.Background(), "svc-1", "rpe-1", request)
+	if err != nil {
+		t.Fatalf("UpdateReversePrivateEndpoint: %v", err)
+	}
+
+	capturedMappings, ok := capturedBody["customPrivateDnsMappings"].([]any)
+	if !ok {
+		t.Fatalf("customPrivateDnsMappings = %#v; want empty array", capturedBody["customPrivateDnsMappings"])
+	}
+	if len(capturedMappings) != 0 {
+		t.Fatalf("customPrivateDnsMappings length = %d; want 0", len(capturedMappings))
+	}
+}

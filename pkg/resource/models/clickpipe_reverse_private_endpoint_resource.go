@@ -37,9 +37,16 @@ type ClickPipeReversePrivateEndpointResourceModel struct {
 	MSKClusterArn              types.String `tfsdk:"msk_cluster_arn"`
 	MSKAuthentication          types.String `tfsdk:"msk_authentication"`
 	GCPServiceAttachment       types.String `tfsdk:"gcp_service_attachment"`
-	CustomPrivateDNSMappings   types.List   `tfsdk:"custom_private_dns_mappings"`
 	EndpointID                 types.String `tfsdk:"endpoint_id"`
 	DNSNames                   types.List   `tfsdk:"dns_names"`
 	PrivateDNSNames            types.List   `tfsdk:"private_dns_names"`
 	Status                     types.String `tfsdk:"status"`
+}
+
+// ClickPipeReversePrivateEndpointCustomPrivateDNSResourceModel describes custom private DNS mappings for a reverse private endpoint.
+type ClickPipeReversePrivateEndpointCustomPrivateDNSResourceModel struct {
+	ID                       types.String `tfsdk:"id"`
+	ServiceID                types.String `tfsdk:"service_id"`
+	ReversePrivateEndpointID types.String `tfsdk:"reverse_private_endpoint_id"`
+	Mapping                  types.List   `tfsdk:"mapping"`
 }

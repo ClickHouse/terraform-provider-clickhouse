@@ -36,8 +36,8 @@ func TestCustomPrivateDNSMappingsFromPlan(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("null input diags: %v", diags)
 	}
-	if got != nil {
-		t.Fatalf("null input = %#v; want nil", got)
+	if len(got) != 0 {
+		t.Fatalf("null input = %#v; want empty list", got)
 	}
 
 	got, diags = customPrivateDNSMappingsFromPlan(ctx, buildCustomPrivateDNSMappingList(t, "one.example.com", "two.example.com"))
@@ -62,9 +62,6 @@ func TestApplyReversePrivateEndpointToModel_GCPPSCAndCustomDNSMappings(t *testin
 			Description:          "gcp psc endpoint",
 			Type:                 api.ReversePrivateEndpointTypeGCPPSCServiceAttachment,
 			GCPServiceAttachment: &gcpServiceAttachment,
-			CustomPrivateDNSMappings: []api.CustomPrivateDNSMapping{
-				{PrivateDNSName: "my-service.example.com"},
-			},
 		},
 		ID:              "rpe-1",
 		EndpointID:      "psc-endpoint",
@@ -88,12 +85,35 @@ func TestApplyReversePrivateEndpointToModel_GCPPSCAndCustomDNSMappings(t *testin
 	if state.GCPServiceAttachment.ValueString() != gcpServiceAttachment {
 		t.Fatalf("gcp_service_attachment = %q; want %s", state.GCPServiceAttachment.ValueString(), gcpServiceAttachment)
 	}
+}
+
+func TestApplyReversePrivateEndpointCustomPrivateDNSToModel(t *testing.T) {
+	endpoint := &api.ReversePrivateEndpoint{
+		CreateReversePrivateEndpoint: api.CreateReversePrivateEndpoint{
+			CustomPrivateDNSMappings: []api.CustomPrivateDNSMapping{
+				{PrivateDNSName: "my-service.example.com"},
+			},
+		},
+	}
+
+	state := models.ClickPipeReversePrivateEndpointCustomPrivateDNSResourceModel{
+		ServiceID:                types.StringValue("svc-1"),
+		ReversePrivateEndpointID: types.StringValue("rpe-1"),
+	}
+	diags := applyReversePrivateEndpointCustomPrivateDNSToModel(endpoint, &state)
+	if diags.HasError() {
+		t.Fatalf("applyReversePrivateEndpointCustomPrivateDNSToModel: %v", diags)
+	}
+
+	if state.ID.ValueString() != "svc-1:rpe-1" {
+		t.Fatalf("id = %q; want svc-1:rpe-1", state.ID.ValueString())
+	}
 
 	var mappings []models.CustomPrivateDNSMappingModel
-	if d := state.CustomPrivateDNSMappings.ElementsAs(ctx, &mappings, false); d.HasError() {
-		t.Fatalf("CustomPrivateDNSMappings.ElementsAs: %v", d)
+	if d := state.Mapping.ElementsAs(context.Background(), &mappings, false); d.HasError() {
+		t.Fatalf("Mapping.ElementsAs: %v", d)
 	}
 	if len(mappings) != 1 || mappings[0].PrivateDNSName.ValueString() != "my-service.example.com" {
-		t.Fatalf("custom_private_dns_mappings = %#v; want my-service.example.com", mappings)
+		t.Fatalf("mapping = %#v; want my-service.example.com", mappings)
 	}
 }
