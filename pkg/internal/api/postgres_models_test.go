@@ -191,16 +191,6 @@ func TestPostgresCreate_OmitsEmptyConfigMaps(t *testing.T) {
 	}
 }
 
-func TestPostgresStateCommandRequest_LowercaseTag(t *testing.T) {
-	body, err := json.Marshal(PostgresStateCommandRequest{Command: PostgresCommandRestart})
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	if string(body) != `{"command":"restart"}` {
-		t.Errorf("got %s; want lowercase command field with restart value", body)
-	}
-}
-
 func TestPostgresConfig_RoundTripsMixedValueTypes(t *testing.T) {
 	// Verify the full PostgresConfig response can be unmarshaled from a wire
 	// payload with mixed string and numeric values.

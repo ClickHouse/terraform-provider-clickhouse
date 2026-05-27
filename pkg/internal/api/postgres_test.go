@@ -616,21 +616,6 @@ func TestReplacePostgresConfig_AcceptsEmptyMaps(t *testing.T) {
 	}
 }
 
-func TestUpdatePostgresConfig_UsesPatchMethod(t *testing.T) {
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPatch {
-			t.Errorf("method = %q; want PATCH", r.Method)
-		}
-		_, _ = w.Write([]byte(`{"result":{"pgConfig":{},"pgBouncerConfig":{}}}`))
-	})
-	_, err := client.UpdatePostgresConfig(context.Background(), testPostgresID, PostgresConfig{
-		PgConfig: PgConfigMap{"max_connections": "200"},
-	})
-	if err != nil {
-		t.Fatalf("UpdatePostgresConfig: %v", err)
-	}
-}
-
 // ----- Restore + Read Replica ---------------------------------------------
 
 func TestRestorePostgres_HappyPath(t *testing.T) {
@@ -672,35 +657,6 @@ func TestCreatePostgresReadReplica_HappyPath(t *testing.T) {
 	}
 	if got.IsPrimary == nil || *got.IsPrimary {
 		t.Errorf("replica should have IsPrimary=false; got %v", got.IsPrimary)
-	}
-}
-
-// ----- State command ------------------------------------------------------
-
-func TestPostgresStateCommandSend_TableTest(t *testing.T) {
-	for _, cmd := range []string{PostgresCommandRestart, PostgresCommandPromote, PostgresCommandSwitchover} {
-		t.Run(cmd, func(t *testing.T) {
-			expectedPath := "/organizations/org-1/postgres/pg-1/state"
-			var captured PostgresStateCommandRequest
-			client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != http.MethodPatch {
-					t.Errorf("method = %q; want PATCH", r.Method)
-				}
-				if r.URL.Path != expectedPath {
-					t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
-				}
-				body, _ := io.ReadAll(r.Body)
-				_ = json.Unmarshal(body, &captured)
-				_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRestarting}})
-			})
-			_, err := client.PostgresStateCommandSend(context.Background(), testPostgresID, cmd)
-			if err != nil {
-				t.Fatalf("PostgresStateCommandSend(%s): %v", cmd, err)
-			}
-			if captured.Command != cmd {
-				t.Errorf("command = %q; want %q", captured.Command, cmd)
-			}
-		})
 	}
 }
 

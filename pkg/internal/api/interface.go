@@ -75,7 +75,5 @@ type Client interface {
 	CreatePostgresReadReplica(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (*Postgres, error)
 	GetPostgresConfig(ctx context.Context, postgresId string) (*PostgresConfig, error)
 	ReplacePostgresConfig(ctx context.Context, postgresId string, body PostgresConfig) (*PostgresConfigUpdateResponse, error)
-	UpdatePostgresConfig(ctx context.Context, postgresId string, body PostgresConfig) (*PostgresConfigUpdateResponse, error)
-	PostgresStateCommandSend(ctx context.Context, postgresId string, command string) (*Postgres, error)
 	GetPostgresCaCertificates(ctx context.Context, postgresId string) ([]byte, error)
 }

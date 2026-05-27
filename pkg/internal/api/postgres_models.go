@@ -5,9 +5,8 @@ import (
 	"fmt"
 )
 
-// Postgres instance state values returned by the server.
-// Mirrors ManagedPostgresInstanceStatuses in
-// packages/cp-common/src/protocol/postgres/ManagedPostgres.ts:59-68.
+// Postgres instance state values. Mirrors ManagedPostgresInstanceStatuses
+// in packages/cp-common/src/protocol/postgres/ManagedPostgres.ts:59-68.
 const (
 	PostgresStateCreating          = "creating"
 	PostgresStateRestarting        = "restarting"
@@ -19,20 +18,10 @@ const (
 	PostgresStateDeleting          = "deleting"
 )
 
-// State command values accepted by PATCH /postgres/{id}/state.
-// Mirrors ManagedPostgresInstanceCommands in
-// packages/cp-common/src/protocol/postgres/ManagedPostgres.ts:55-57.
-const (
-	PostgresCommandRestart    = "restart"
-	PostgresCommandPromote    = "promote"
-	PostgresCommandSwitchover = "switchover"
-)
-
-// PgConfigMap is the Go-side representation of the server's
-// `pgConfig` / `pgBouncerConfig` shape `{[key: string]: string | number}`.
-// Outbound: marshals as a plain string map.
-// Inbound: accepts mixed string and numeric values; numeric values are
-// coerced to their JSON string form (preserves precision via json.Number).
+// PgConfigMap mirrors the server's `pgConfig` / `pgBouncerConfig` shape
+// `{[key: string]: string | number}`. Marshals as a plain string map;
+// unmarshal accepts mixed string and numeric values and coerces numbers
+// to their JSON string form via json.Number.
 type PgConfigMap map[string]string
 
 func (m *PgConfigMap) UnmarshalJSON(data []byte) error {
@@ -59,11 +48,8 @@ func (m *PgConfigMap) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Postgres mirrors PostgresInstanceV1 from the server's OpenAPI definition
-// (apps/openapi/src/protocol/v1/ManagedPostgresV1.ts:60-70).
-//
-// storageSize is deliberately omitted — it is DEPRECATED server-side and the
-// resource does not expose it.
+// Postgres mirrors PostgresInstanceV1 (ManagedPostgresV1.ts:60-70).
+// storageSize is omitted intentionally — DEPRECATED server-side.
 type Postgres struct {
 	Id               string  `json:"id,omitempty"`
 	Name             string  `json:"name"`
@@ -82,10 +68,9 @@ type Postgres struct {
 	Tags             []Tag   `json:"tags,omitempty"`
 }
 
-// PostgresListItem mirrors the abbreviated form returned by GET /postgres.
-// The server returns the full instance shape today, but we model the listing
-// surface separately so callers don't accidentally depend on fields the server
-// may stop emitting in list endpoints.
+// PostgresListItem is the abbreviated GET /postgres response item. Modeled
+// separately from Postgres so callers don't depend on fields the server may
+// stop emitting in list endpoints.
 type PostgresListItem struct {
 	Id              string `json:"id"`
 	Name            string `json:"name"`
@@ -113,28 +98,20 @@ type PostgresCreate struct {
 	PgBouncerConfig PgConfigMap `json:"pgBouncerConfig,omitempty"`
 }
 
-// PostgresUpdate is the PATCH /postgres/{id} request body
-// (PostgresInstancePatchRequestV1). The server accepts ONLY these three
-// fields; anything else returns 400. In particular, `name` is intentionally
-// absent — the server's patch shape has no `name` field.
+// PostgresUpdate is the PATCH /postgres/{id} body. Server accepts ONLY
+// size / haType / tags; `name` is intentionally absent (no field in the
+// server schema). Tags is *[]Tag so callers can distinguish:
 //
-// Tags is a *[]Tag rather than []Tag so callers can express the three
-// distinct PATCH intents:
-//
-//	Tags == nil               -> field omitted; server leaves existing tags alone
-//	Tags == &[]Tag{}          -> field present as []; server clears all tags
-//	Tags == &[]Tag{{...}, ...} -> field present with values; server replaces with these
-//
-// With a plain []Tag and omitempty, the empty-list intent (clear) would
-// marshal identically to nil (no field), making tag clearing impossible.
+//	nil       -> field omitted; server leaves existing tags alone
+//	&[]Tag{}  -> server clears all tags
+//	&[]Tag{…} -> server replaces with these
 type PostgresUpdate struct {
 	Size   string `json:"size,omitempty"`
 	HaType string `json:"haType,omitempty"`
 	Tags   *[]Tag `json:"tags,omitempty"`
 }
 
-// PostgresRestoreRequest is the POST /postgres/{id}/restoredService body
-// (PostgresInstanceRestoreRequestV1).
+// PostgresRestoreRequest is the POST /postgres/{id}/restoredService body.
 type PostgresRestoreRequest struct {
 	Name            string      `json:"name"`
 	RestoreTarget   string      `json:"restoreTarget"`
@@ -143,8 +120,7 @@ type PostgresRestoreRequest struct {
 	Tags            []Tag       `json:"tags,omitempty"`
 }
 
-// PostgresReadReplicaRequest is the POST /postgres/{id}/readReplica body
-// (PostgresInstanceReadReplicaRequestV1).
+// PostgresReadReplicaRequest is the POST /postgres/{id}/readReplica body.
 type PostgresReadReplicaRequest struct {
 	Name            string      `json:"name"`
 	PgConfig        PgConfigMap `json:"pgConfig,omitempty"`
@@ -152,35 +128,21 @@ type PostgresReadReplicaRequest struct {
 	Tags            []Tag       `json:"tags,omitempty"`
 }
 
-// PostgresStateCommandRequest is the PATCH /postgres/{id}/state body
-// (PostgresInstanceStateResourceV1). The lowercase JSON tag is mandatory.
-type PostgresStateCommandRequest struct {
-	Command string `json:"command"`
-}
-
-// PostgresPassword is the PATCH /postgres/{id}/password body and response
-// (PostgresInstancePasswordResourceV1).
-//
-// On request: nil / empty → server generates and returns plaintext in response.
-// User-supplied → server adopts it and returns an empty body (Password=nil).
-//
-// On response: nil means user-supplied. Populated means server-generated.
+// PostgresPassword is the PATCH /postgres/{id}/password body and response.
+// Request: nil → server generates; set → server adopts. Response: nil means
+// the client supplied a value; populated means server-generated.
 type PostgresPassword struct {
 	Password *string `json:"password,omitempty"`
 }
 
-// PostgresConfig mirrors postgresInstanceConfigResourceV1 — the body of
-// GET / POST / PATCH on /postgres/{id}/config.
+// PostgresConfig is the GET /postgres/{id}/config response and POST body.
 type PostgresConfig struct {
 	PgConfig        PgConfigMap `json:"pgConfig"`
 	PgBouncerConfig PgConfigMap `json:"pgBouncerConfig"`
 }
 
-// PostgresConfigUpdateResponse mirrors
-// PostgresInstanceUpdateConfigResponseResourceV1 — the response of
-// POST / PATCH on /postgres/{id}/config. Message is the server's hint about
-// whether a restart is required for changes to take effect; the resource
-// surfaces it as a warning diagnostic.
+// PostgresConfigUpdateResponse is the POST /config response. Message carries
+// the server's restart-required hint when applicable.
 type PostgresConfigUpdateResponse struct {
 	PgConfig        PgConfigMap `json:"pgConfig"`
 	PgBouncerConfig PgConfigMap `json:"pgBouncerConfig"`
