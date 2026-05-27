@@ -13,6 +13,7 @@ func GetResourceFactories() []func() upstreamresource.Resource {
 		NewClickPipeReversePrivateEndpointCustomPrivateDNSResource,
 		NewClickPipeReversePrivateEndpointResource,
 		NewOrganizationSettingsResource,
+		NewPostgresServiceResource,
 		NewPrivateEndpointRegistrationResource,
 		NewRoleAssignmentResource,
 		NewRoleResource,
