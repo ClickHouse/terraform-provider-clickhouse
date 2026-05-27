@@ -20,6 +20,13 @@ import (
 // 5xx, context cancellation) propagates instead.
 var errPostgresStateUnchanged = errors.New("postgres state unchanged from terminal")
 
+// errPostgresStateNotYetTarget signals that a poll observed the instance
+// successfully but the stateChecker callback returned false. Used to
+// distinguish budget exhaustion (legitimate timeout, surface with the last
+// seen state) from real GetPostgres errors (404, auth, exhausted 5xx,
+// context cancellation) which must propagate to the caller verbatim.
+var errPostgresStateNotYetTarget = errors.New("postgres state checker not yet true")
+
 // Default retry budgets for Postgres operations. Exposed as package-level
 // vars so callers (e.g., resource Delete with a custom `timeouts {}` block)
 // can override them per-call via the *WithBudget / *WithInterval variants.
@@ -224,6 +231,13 @@ func (c *ClientImpl) WaitForPostgresState(ctx context.Context, postgresId string
 
 // waitForPostgresStateWithInterval is the parameterized core, exposed for
 // unit tests.
+//
+// check distinguishes three outcomes via its return error:
+//
+//	nil                              -> stateChecker matched; success
+//	errPostgresStateNotYetTarget     -> polled OK, target not yet hit; retry
+//	backoff.Permanent(realErr)       -> 5xx; bail immediately
+//	any other err                    -> 4xx/transport/cancel; retry up to budget, then bail
 func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postgresId string, stateChecker func(string) bool, interval time.Duration, maxRetries uint64) error {
 	var lastSeenState string
 	check := func() error {
@@ -237,7 +251,7 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 		if stateChecker(pg.State) {
 			return nil
 		}
-		return fmt.Errorf("postgres %s is in state %s", postgresId, pg.State)
+		return errPostgresStateNotYetTarget
 	}
 	if maxRetries < 1 {
 		maxRetries = 1
@@ -246,7 +260,16 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("postgres %s did not reach the expected state in the allocated time (last seen state: %s)", postgresId, lastSeenState)
+	if errors.Is(err, errPostgresStateNotYetTarget) {
+		// Legitimate timeout: polling succeeded throughout, target just
+		// never became true. Surface with the last seen state so callers
+		// can debug.
+		return fmt.Errorf("postgres %s did not reach the expected state in the allocated time (last seen state: %s)", postgresId, lastSeenState)
+	}
+	// Real GetPostgres error (404, auth, exhausted 5xx, context cancel) —
+	// surface it verbatim so the caller can react (e.g., IsNotFound) rather
+	// than mistakenly believing the state-check timed out.
+	return err
 }
 
 // WaitForPostgresLeaveAndReturn waits for state to leave terminalState and

@@ -369,6 +369,28 @@ func TestWaitForPostgresState_TimesOutWithLastSeenState(t *testing.T) {
 	}
 }
 
+func TestWaitForPostgresState_PropagatesGetErrors(t *testing.T) {
+	// If every poll's GetPostgres fails (e.g., instance deleted out-of-band,
+	// token revoked), the helper must surface the real error rather than
+	// rewriting it to the misleading "did not reach the expected state"
+	// timeout message. Same shape as the LeaveAndReturn equivalent test.
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+	})
+	err := client.waitForPostgresStateWithInterval(context.Background(), testPostgresID,
+		func(s string) bool { return s == PostgresStateRunning },
+		1*time.Millisecond, 4)
+	if err == nil {
+		t.Fatal("expected error to propagate from failing GetPostgres; got nil")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("expected 404 to propagate via IsNotFound; got %v", err)
+	}
+	if strings.Contains(err.Error(), "did not reach the expected state") {
+		t.Errorf("real GetPostgres error must not be rewritten to the timeout message; got %v", err)
+	}
+}
+
 func TestWaitForPostgresState_UnknownStateDoesNotCrash(t *testing.T) {
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: "something_brand_new"}})
