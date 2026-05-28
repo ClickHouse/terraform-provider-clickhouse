@@ -89,6 +89,13 @@ type ClientMock struct {
 	beforeDeleteRoleCounter uint64
 	DeleteRoleMock          mClientMockDeleteRole
 
+	funcDeleteScheduledScaling          func(ctx context.Context, serviceId string) (err error)
+	funcDeleteScheduledScalingOrigin    string
+	inspectFuncDeleteScheduledScaling   func(ctx context.Context, serviceId string)
+	afterDeleteScheduledScalingCounter  uint64
+	beforeDeleteScheduledScalingCounter uint64
+	DeleteScheduledScalingMock          mClientMockDeleteScheduledScaling
+
 	funcDeleteService          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
 	funcDeleteServiceOrigin    string
 	inspectFuncDeleteService   func(ctx context.Context, serviceId string)
@@ -186,6 +193,13 @@ type ClientMock struct {
 	afterGetRoleCounter  uint64
 	beforeGetRoleCounter uint64
 	GetRoleMock          mClientMockGetRole
+
+	funcGetScheduledScaling          func(ctx context.Context, serviceId string) (ap1 *AutoScalingSchedule, err error)
+	funcGetScheduledScalingOrigin    string
+	inspectFuncGetScheduledScaling   func(ctx context.Context, serviceId string)
+	afterGetScheduledScalingCounter  uint64
+	beforeGetScheduledScalingCounter uint64
+	GetScheduledScalingMock          mClientMockGetScheduledScaling
 
 	funcGetService          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
 	funcGetServiceOrigin    string
@@ -285,6 +299,13 @@ type ClientMock struct {
 	beforeUpdateRoleCounter uint64
 	UpdateRoleMock          mClientMockUpdateRole
 
+	funcUpdateScheduledScaling          func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (ap1 *AutoScalingSchedule, err error)
+	funcUpdateScheduledScalingOrigin    string
+	inspectFuncUpdateScheduledScaling   func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate)
+	afterUpdateScheduledScalingCounter  uint64
+	beforeUpdateScheduledScalingCounter uint64
+	UpdateScheduledScalingMock          mClientMockUpdateScheduledScaling
+
 	funcUpdateService          func(ctx context.Context, serviceId string, s ServiceUpdate) (sp1 *Service, err error)
 	funcUpdateServiceOrigin    string
 	inspectFuncUpdateService   func(ctx context.Context, serviceId string, s ServiceUpdate)
@@ -366,6 +387,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.DeleteRoleMock = mClientMockDeleteRole{mock: m}
 	m.DeleteRoleMock.callArgs = []*ClientMockDeleteRoleParams{}
 
+	m.DeleteScheduledScalingMock = mClientMockDeleteScheduledScaling{mock: m}
+	m.DeleteScheduledScalingMock.callArgs = []*ClientMockDeleteScheduledScalingParams{}
+
 	m.DeleteServiceMock = mClientMockDeleteService{mock: m}
 	m.DeleteServiceMock.callArgs = []*ClientMockDeleteServiceParams{}
 
@@ -408,6 +432,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetRoleMock = mClientMockGetRole{mock: m}
 	m.GetRoleMock.callArgs = []*ClientMockGetRoleParams{}
 
+	m.GetScheduledScalingMock = mClientMockGetScheduledScaling{mock: m}
+	m.GetScheduledScalingMock.callArgs = []*ClientMockGetScheduledScalingParams{}
+
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
 
@@ -449,6 +476,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateRoleMock = mClientMockUpdateRole{mock: m}
 	m.UpdateRoleMock.callArgs = []*ClientMockUpdateRoleParams{}
+
+	m.UpdateScheduledScalingMock = mClientMockUpdateScheduledScaling{mock: m}
+	m.UpdateScheduledScalingMock.callArgs = []*ClientMockUpdateScheduledScalingParams{}
 
 	m.UpdateServiceMock = mClientMockUpdateService{mock: m}
 	m.UpdateServiceMock.callArgs = []*ClientMockUpdateServiceParams{}
@@ -4114,6 +4144,348 @@ func (m *ClientMock) MinimockDeleteRoleInspect() {
 	if !m.DeleteRoleMock.invocationsDone() && afterDeleteRoleCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteRole at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteRoleMock.expectedInvocations), m.DeleteRoleMock.expectedInvocationsOrigin, afterDeleteRoleCounter)
+	}
+}
+
+type mClientMockDeleteScheduledScaling struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteScheduledScalingExpectation
+	expectations       []*ClientMockDeleteScheduledScalingExpectation
+
+	callArgs []*ClientMockDeleteScheduledScalingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteScheduledScalingExpectation specifies expectation struct of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteScheduledScalingParams
+	paramPtrs          *ClientMockDeleteScheduledScalingParamPtrs
+	expectationOrigins ClientMockDeleteScheduledScalingExpectationOrigins
+	results            *ClientMockDeleteScheduledScalingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteScheduledScalingParams contains parameters of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockDeleteScheduledScalingParamPtrs contains pointers to parameters of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockDeleteScheduledScalingResults contains results of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingResults struct {
+	err error
+}
+
+// ClientMockDeleteScheduledScalingOrigins contains origins of expectations of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Optional() *mClientMockDeleteScheduledScaling {
+	mmDeleteScheduledScaling.optional = true
+	return mmDeleteScheduledScaling
+}
+
+// Expect sets up expected params for Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Expect(ctx context.Context, serviceId string) *mClientMockDeleteScheduledScaling {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation == nil {
+		mmDeleteScheduledScaling.defaultExpectation = &ClientMockDeleteScheduledScalingExpectation{}
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.paramPtrs != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteScheduledScaling.defaultExpectation.params = &ClientMockDeleteScheduledScalingParams{ctx, serviceId}
+	mmDeleteScheduledScaling.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteScheduledScaling.expectations {
+		if minimock.Equal(e.params, mmDeleteScheduledScaling.defaultExpectation.params) {
+			mmDeleteScheduledScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteScheduledScaling.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteScheduledScaling
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteScheduledScaling {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation == nil {
+		mmDeleteScheduledScaling.defaultExpectation = &ClientMockDeleteScheduledScalingExpectation{}
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.params != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Expect")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmDeleteScheduledScaling.defaultExpectation.paramPtrs = &ClientMockDeleteScheduledScalingParamPtrs{}
+	}
+	mmDeleteScheduledScaling.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteScheduledScaling.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteScheduledScaling
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) ExpectServiceIdParam2(serviceId string) *mClientMockDeleteScheduledScaling {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation == nil {
+		mmDeleteScheduledScaling.defaultExpectation = &ClientMockDeleteScheduledScalingExpectation{}
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.params != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Expect")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmDeleteScheduledScaling.defaultExpectation.paramPtrs = &ClientMockDeleteScheduledScalingParamPtrs{}
+	}
+	mmDeleteScheduledScaling.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmDeleteScheduledScaling.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmDeleteScheduledScaling
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockDeleteScheduledScaling {
+	if mmDeleteScheduledScaling.mock.inspectFuncDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteScheduledScaling")
+	}
+
+	mmDeleteScheduledScaling.mock.inspectFuncDeleteScheduledScaling = f
+
+	return mmDeleteScheduledScaling
+}
+
+// Return sets up results that will be returned by Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Return(err error) *ClientMock {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation == nil {
+		mmDeleteScheduledScaling.defaultExpectation = &ClientMockDeleteScheduledScalingExpectation{mock: mmDeleteScheduledScaling.mock}
+	}
+	mmDeleteScheduledScaling.defaultExpectation.results = &ClientMockDeleteScheduledScalingResults{err}
+	mmDeleteScheduledScaling.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteScheduledScaling.mock
+}
+
+// Set uses given function f to mock the Client.DeleteScheduledScaling method
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Set(f func(ctx context.Context, serviceId string) (err error)) *ClientMock {
+	if mmDeleteScheduledScaling.defaultExpectation != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("Default expectation is already set for the Client.DeleteScheduledScaling method")
+	}
+
+	if len(mmDeleteScheduledScaling.expectations) > 0 {
+		mmDeleteScheduledScaling.mock.t.Fatalf("Some expectations are already set for the Client.DeleteScheduledScaling method")
+	}
+
+	mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling = f
+	mmDeleteScheduledScaling.mock.funcDeleteScheduledScalingOrigin = minimock.CallerInfo(1)
+	return mmDeleteScheduledScaling.mock
+}
+
+// When sets expectation for the Client.DeleteScheduledScaling which will trigger the result defined by the following
+// Then helper
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) When(ctx context.Context, serviceId string) *ClientMockDeleteScheduledScalingExpectation {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteScheduledScalingExpectation{
+		mock:               mmDeleteScheduledScaling.mock,
+		params:             &ClientMockDeleteScheduledScalingParams{ctx, serviceId},
+		expectationOrigins: ClientMockDeleteScheduledScalingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteScheduledScaling.expectations = append(mmDeleteScheduledScaling.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteScheduledScaling return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteScheduledScalingExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteScheduledScalingResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteScheduledScaling should be invoked
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Times(n uint64) *mClientMockDeleteScheduledScaling {
+	if n == 0 {
+		mmDeleteScheduledScaling.mock.t.Fatalf("Times of ClientMock.DeleteScheduledScaling mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteScheduledScaling.expectedInvocations, n)
+	mmDeleteScheduledScaling.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteScheduledScaling
+}
+
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) invocationsDone() bool {
+	if len(mmDeleteScheduledScaling.expectations) == 0 && mmDeleteScheduledScaling.defaultExpectation == nil && mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteScheduledScaling.mock.afterDeleteScheduledScalingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteScheduledScaling.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteScheduledScaling implements Client
+func (mmDeleteScheduledScaling *ClientMock) DeleteScheduledScaling(ctx context.Context, serviceId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteScheduledScaling.beforeDeleteScheduledScalingCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteScheduledScaling.afterDeleteScheduledScalingCounter, 1)
+
+	mmDeleteScheduledScaling.t.Helper()
+
+	if mmDeleteScheduledScaling.inspectFuncDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.inspectFuncDeleteScheduledScaling(ctx, serviceId)
+	}
+
+	mm_params := ClientMockDeleteScheduledScalingParams{ctx, serviceId}
+
+	// Record call args
+	mmDeleteScheduledScaling.DeleteScheduledScalingMock.mutex.Lock()
+	mmDeleteScheduledScaling.DeleteScheduledScalingMock.callArgs = append(mmDeleteScheduledScaling.DeleteScheduledScalingMock.callArgs, &mm_params)
+	mmDeleteScheduledScaling.DeleteScheduledScalingMock.mutex.Unlock()
+
+	for _, e := range mmDeleteScheduledScaling.DeleteScheduledScalingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteScheduledScalingParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteScheduledScaling.t.Errorf("ClientMock.DeleteScheduledScaling got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmDeleteScheduledScaling.t.Errorf("ClientMock.DeleteScheduledScaling got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteScheduledScaling.t.Errorf("ClientMock.DeleteScheduledScaling got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteScheduledScaling.t.Fatal("No results are set for the ClientMock.DeleteScheduledScaling")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteScheduledScaling.funcDeleteScheduledScaling != nil {
+		return mmDeleteScheduledScaling.funcDeleteScheduledScaling(ctx, serviceId)
+	}
+	mmDeleteScheduledScaling.t.Fatalf("Unexpected call to ClientMock.DeleteScheduledScaling. %v %v", ctx, serviceId)
+	return
+}
+
+// DeleteScheduledScalingAfterCounter returns a count of finished ClientMock.DeleteScheduledScaling invocations
+func (mmDeleteScheduledScaling *ClientMock) DeleteScheduledScalingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteScheduledScaling.afterDeleteScheduledScalingCounter)
+}
+
+// DeleteScheduledScalingBeforeCounter returns a count of ClientMock.DeleteScheduledScaling invocations
+func (mmDeleteScheduledScaling *ClientMock) DeleteScheduledScalingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteScheduledScaling.beforeDeleteScheduledScalingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteScheduledScaling.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Calls() []*ClientMockDeleteScheduledScalingParams {
+	mmDeleteScheduledScaling.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteScheduledScalingParams, len(mmDeleteScheduledScaling.callArgs))
+	copy(argCopy, mmDeleteScheduledScaling.callArgs)
+
+	mmDeleteScheduledScaling.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteScheduledScalingDone returns true if the count of the DeleteScheduledScaling invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteScheduledScalingDone() bool {
+	if m.DeleteScheduledScalingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteScheduledScalingMock.invocationsDone()
+}
+
+// MinimockDeleteScheduledScalingInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteScheduledScalingInspect() {
+	for _, e := range m.DeleteScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteScheduledScaling at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteScheduledScalingCounter := mm_atomic.LoadUint64(&m.afterDeleteScheduledScalingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteScheduledScalingMock.defaultExpectation != nil && afterDeleteScheduledScalingCounter < 1 {
+		if m.DeleteScheduledScalingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteScheduledScaling at\n%s", m.DeleteScheduledScalingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteScheduledScaling at\n%s with params: %#v", m.DeleteScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *m.DeleteScheduledScalingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteScheduledScaling != nil && afterDeleteScheduledScalingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteScheduledScaling at\n%s", m.funcDeleteScheduledScalingOrigin)
+	}
+
+	if !m.DeleteScheduledScalingMock.invocationsDone() && afterDeleteScheduledScalingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteScheduledScaling at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteScheduledScalingMock.expectedInvocations), m.DeleteScheduledScalingMock.expectedInvocationsOrigin, afterDeleteScheduledScalingCounter)
 	}
 }
 
@@ -8977,6 +9349,349 @@ func (m *ClientMock) MinimockGetRoleInspect() {
 	if !m.GetRoleMock.invocationsDone() && afterGetRoleCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetRole at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetRoleMock.expectedInvocations), m.GetRoleMock.expectedInvocationsOrigin, afterGetRoleCounter)
+	}
+}
+
+type mClientMockGetScheduledScaling struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetScheduledScalingExpectation
+	expectations       []*ClientMockGetScheduledScalingExpectation
+
+	callArgs []*ClientMockGetScheduledScalingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetScheduledScalingExpectation specifies expectation struct of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetScheduledScalingParams
+	paramPtrs          *ClientMockGetScheduledScalingParamPtrs
+	expectationOrigins ClientMockGetScheduledScalingExpectationOrigins
+	results            *ClientMockGetScheduledScalingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetScheduledScalingParams contains parameters of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetScheduledScalingParamPtrs contains pointers to parameters of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetScheduledScalingResults contains results of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingResults struct {
+	ap1 *AutoScalingSchedule
+	err error
+}
+
+// ClientMockGetScheduledScalingOrigins contains origins of expectations of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Optional() *mClientMockGetScheduledScaling {
+	mmGetScheduledScaling.optional = true
+	return mmGetScheduledScaling
+}
+
+// Expect sets up expected params for Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Expect(ctx context.Context, serviceId string) *mClientMockGetScheduledScaling {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation == nil {
+		mmGetScheduledScaling.defaultExpectation = &ClientMockGetScheduledScalingExpectation{}
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.paramPtrs != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by ExpectParams functions")
+	}
+
+	mmGetScheduledScaling.defaultExpectation.params = &ClientMockGetScheduledScalingParams{ctx, serviceId}
+	mmGetScheduledScaling.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetScheduledScaling.expectations {
+		if minimock.Equal(e.params, mmGetScheduledScaling.defaultExpectation.params) {
+			mmGetScheduledScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetScheduledScaling.defaultExpectation.params)
+		}
+	}
+
+	return mmGetScheduledScaling
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) ExpectCtxParam1(ctx context.Context) *mClientMockGetScheduledScaling {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation == nil {
+		mmGetScheduledScaling.defaultExpectation = &ClientMockGetScheduledScalingExpectation{}
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.params != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Expect")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmGetScheduledScaling.defaultExpectation.paramPtrs = &ClientMockGetScheduledScalingParamPtrs{}
+	}
+	mmGetScheduledScaling.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetScheduledScaling.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetScheduledScaling
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) ExpectServiceIdParam2(serviceId string) *mClientMockGetScheduledScaling {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation == nil {
+		mmGetScheduledScaling.defaultExpectation = &ClientMockGetScheduledScalingExpectation{}
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.params != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Expect")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmGetScheduledScaling.defaultExpectation.paramPtrs = &ClientMockGetScheduledScalingParamPtrs{}
+	}
+	mmGetScheduledScaling.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetScheduledScaling.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetScheduledScaling
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetScheduledScaling {
+	if mmGetScheduledScaling.mock.inspectFuncGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.GetScheduledScaling")
+	}
+
+	mmGetScheduledScaling.mock.inspectFuncGetScheduledScaling = f
+
+	return mmGetScheduledScaling
+}
+
+// Return sets up results that will be returned by Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Return(ap1 *AutoScalingSchedule, err error) *ClientMock {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation == nil {
+		mmGetScheduledScaling.defaultExpectation = &ClientMockGetScheduledScalingExpectation{mock: mmGetScheduledScaling.mock}
+	}
+	mmGetScheduledScaling.defaultExpectation.results = &ClientMockGetScheduledScalingResults{ap1, err}
+	mmGetScheduledScaling.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetScheduledScaling.mock
+}
+
+// Set uses given function f to mock the Client.GetScheduledScaling method
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Set(f func(ctx context.Context, serviceId string) (ap1 *AutoScalingSchedule, err error)) *ClientMock {
+	if mmGetScheduledScaling.defaultExpectation != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("Default expectation is already set for the Client.GetScheduledScaling method")
+	}
+
+	if len(mmGetScheduledScaling.expectations) > 0 {
+		mmGetScheduledScaling.mock.t.Fatalf("Some expectations are already set for the Client.GetScheduledScaling method")
+	}
+
+	mmGetScheduledScaling.mock.funcGetScheduledScaling = f
+	mmGetScheduledScaling.mock.funcGetScheduledScalingOrigin = minimock.CallerInfo(1)
+	return mmGetScheduledScaling.mock
+}
+
+// When sets expectation for the Client.GetScheduledScaling which will trigger the result defined by the following
+// Then helper
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) When(ctx context.Context, serviceId string) *ClientMockGetScheduledScalingExpectation {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetScheduledScalingExpectation{
+		mock:               mmGetScheduledScaling.mock,
+		params:             &ClientMockGetScheduledScalingParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetScheduledScalingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetScheduledScaling.expectations = append(mmGetScheduledScaling.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetScheduledScaling return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetScheduledScalingExpectation) Then(ap1 *AutoScalingSchedule, err error) *ClientMock {
+	e.results = &ClientMockGetScheduledScalingResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetScheduledScaling should be invoked
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Times(n uint64) *mClientMockGetScheduledScaling {
+	if n == 0 {
+		mmGetScheduledScaling.mock.t.Fatalf("Times of ClientMock.GetScheduledScaling mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetScheduledScaling.expectedInvocations, n)
+	mmGetScheduledScaling.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetScheduledScaling
+}
+
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) invocationsDone() bool {
+	if len(mmGetScheduledScaling.expectations) == 0 && mmGetScheduledScaling.defaultExpectation == nil && mmGetScheduledScaling.mock.funcGetScheduledScaling == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetScheduledScaling.mock.afterGetScheduledScalingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetScheduledScaling.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetScheduledScaling implements Client
+func (mmGetScheduledScaling *ClientMock) GetScheduledScaling(ctx context.Context, serviceId string) (ap1 *AutoScalingSchedule, err error) {
+	mm_atomic.AddUint64(&mmGetScheduledScaling.beforeGetScheduledScalingCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetScheduledScaling.afterGetScheduledScalingCounter, 1)
+
+	mmGetScheduledScaling.t.Helper()
+
+	if mmGetScheduledScaling.inspectFuncGetScheduledScaling != nil {
+		mmGetScheduledScaling.inspectFuncGetScheduledScaling(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetScheduledScalingParams{ctx, serviceId}
+
+	// Record call args
+	mmGetScheduledScaling.GetScheduledScalingMock.mutex.Lock()
+	mmGetScheduledScaling.GetScheduledScalingMock.callArgs = append(mmGetScheduledScaling.GetScheduledScalingMock.callArgs, &mm_params)
+	mmGetScheduledScaling.GetScheduledScalingMock.mutex.Unlock()
+
+	for _, e := range mmGetScheduledScaling.GetScheduledScalingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.params
+		mm_want_ptrs := mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetScheduledScalingParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetScheduledScaling.t.Errorf("ClientMock.GetScheduledScaling got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetScheduledScaling.t.Errorf("ClientMock.GetScheduledScaling got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetScheduledScaling.t.Errorf("ClientMock.GetScheduledScaling got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetScheduledScaling.t.Fatal("No results are set for the ClientMock.GetScheduledScaling")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmGetScheduledScaling.funcGetScheduledScaling != nil {
+		return mmGetScheduledScaling.funcGetScheduledScaling(ctx, serviceId)
+	}
+	mmGetScheduledScaling.t.Fatalf("Unexpected call to ClientMock.GetScheduledScaling. %v %v", ctx, serviceId)
+	return
+}
+
+// GetScheduledScalingAfterCounter returns a count of finished ClientMock.GetScheduledScaling invocations
+func (mmGetScheduledScaling *ClientMock) GetScheduledScalingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetScheduledScaling.afterGetScheduledScalingCounter)
+}
+
+// GetScheduledScalingBeforeCounter returns a count of ClientMock.GetScheduledScaling invocations
+func (mmGetScheduledScaling *ClientMock) GetScheduledScalingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetScheduledScaling.beforeGetScheduledScalingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetScheduledScaling.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Calls() []*ClientMockGetScheduledScalingParams {
+	mmGetScheduledScaling.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetScheduledScalingParams, len(mmGetScheduledScaling.callArgs))
+	copy(argCopy, mmGetScheduledScaling.callArgs)
+
+	mmGetScheduledScaling.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetScheduledScalingDone returns true if the count of the GetScheduledScaling invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetScheduledScalingDone() bool {
+	if m.GetScheduledScalingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetScheduledScalingMock.invocationsDone()
+}
+
+// MinimockGetScheduledScalingInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetScheduledScalingInspect() {
+	for _, e := range m.GetScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetScheduledScaling at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetScheduledScalingCounter := mm_atomic.LoadUint64(&m.afterGetScheduledScalingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetScheduledScalingMock.defaultExpectation != nil && afterGetScheduledScalingCounter < 1 {
+		if m.GetScheduledScalingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetScheduledScaling at\n%s", m.GetScheduledScalingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetScheduledScaling at\n%s with params: %#v", m.GetScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *m.GetScheduledScalingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetScheduledScaling != nil && afterGetScheduledScalingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetScheduledScaling at\n%s", m.funcGetScheduledScalingOrigin)
+	}
+
+	if !m.GetScheduledScalingMock.invocationsDone() && afterGetScheduledScalingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetScheduledScaling at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetScheduledScalingMock.expectedInvocations), m.GetScheduledScalingMock.expectedInvocationsOrigin, afterGetScheduledScalingCounter)
 	}
 }
 
@@ -14060,6 +14775,380 @@ func (m *ClientMock) MinimockUpdateRoleInspect() {
 	}
 }
 
+type mClientMockUpdateScheduledScaling struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateScheduledScalingExpectation
+	expectations       []*ClientMockUpdateScheduledScalingExpectation
+
+	callArgs []*ClientMockUpdateScheduledScalingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateScheduledScalingExpectation specifies expectation struct of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateScheduledScalingParams
+	paramPtrs          *ClientMockUpdateScheduledScalingParamPtrs
+	expectationOrigins ClientMockUpdateScheduledScalingExpectationOrigins
+	results            *ClientMockUpdateScheduledScalingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateScheduledScalingParams contains parameters of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingParams struct {
+	ctx       context.Context
+	serviceId string
+	s         AutoScalingScheduleUpdate
+}
+
+// ClientMockUpdateScheduledScalingParamPtrs contains pointers to parameters of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	s         *AutoScalingScheduleUpdate
+}
+
+// ClientMockUpdateScheduledScalingResults contains results of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingResults struct {
+	ap1 *AutoScalingSchedule
+	err error
+}
+
+// ClientMockUpdateScheduledScalingOrigins contains origins of expectations of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originS         string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Optional() *mClientMockUpdateScheduledScaling {
+	mmUpdateScheduledScaling.optional = true
+	return mmUpdateScheduledScaling
+}
+
+// Expect sets up expected params for Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Expect(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{}
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.paramPtrs != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateScheduledScaling.defaultExpectation.params = &ClientMockUpdateScheduledScalingParams{ctx, serviceId, s}
+	mmUpdateScheduledScaling.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateScheduledScaling.expectations {
+		if minimock.Equal(e.params, mmUpdateScheduledScaling.defaultExpectation.params) {
+			mmUpdateScheduledScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateScheduledScaling.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateScheduledScaling
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{}
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.params != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Expect")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateScheduledScaling.defaultExpectation.paramPtrs = &ClientMockUpdateScheduledScalingParamPtrs{}
+	}
+	mmUpdateScheduledScaling.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateScheduledScaling.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateScheduledScaling
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{}
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.params != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Expect")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateScheduledScaling.defaultExpectation.paramPtrs = &ClientMockUpdateScheduledScalingParamPtrs{}
+	}
+	mmUpdateScheduledScaling.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmUpdateScheduledScaling.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmUpdateScheduledScaling
+}
+
+// ExpectSParam3 sets up expected param s for Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) ExpectSParam3(s AutoScalingScheduleUpdate) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{}
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.params != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Expect")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateScheduledScaling.defaultExpectation.paramPtrs = &ClientMockUpdateScheduledScalingParamPtrs{}
+	}
+	mmUpdateScheduledScaling.defaultExpectation.paramPtrs.s = &s
+	mmUpdateScheduledScaling.defaultExpectation.expectationOrigins.originS = minimock.CallerInfo(1)
+
+	return mmUpdateScheduledScaling
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Inspect(f func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate)) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.inspectFuncUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateScheduledScaling")
+	}
+
+	mmUpdateScheduledScaling.mock.inspectFuncUpdateScheduledScaling = f
+
+	return mmUpdateScheduledScaling
+}
+
+// Return sets up results that will be returned by Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Return(ap1 *AutoScalingSchedule, err error) *ClientMock {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{mock: mmUpdateScheduledScaling.mock}
+	}
+	mmUpdateScheduledScaling.defaultExpectation.results = &ClientMockUpdateScheduledScalingResults{ap1, err}
+	mmUpdateScheduledScaling.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateScheduledScaling.mock
+}
+
+// Set uses given function f to mock the Client.UpdateScheduledScaling method
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Set(f func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (ap1 *AutoScalingSchedule, err error)) *ClientMock {
+	if mmUpdateScheduledScaling.defaultExpectation != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("Default expectation is already set for the Client.UpdateScheduledScaling method")
+	}
+
+	if len(mmUpdateScheduledScaling.expectations) > 0 {
+		mmUpdateScheduledScaling.mock.t.Fatalf("Some expectations are already set for the Client.UpdateScheduledScaling method")
+	}
+
+	mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling = f
+	mmUpdateScheduledScaling.mock.funcUpdateScheduledScalingOrigin = minimock.CallerInfo(1)
+	return mmUpdateScheduledScaling.mock
+}
+
+// When sets expectation for the Client.UpdateScheduledScaling which will trigger the result defined by the following
+// Then helper
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) When(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) *ClientMockUpdateScheduledScalingExpectation {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateScheduledScalingExpectation{
+		mock:               mmUpdateScheduledScaling.mock,
+		params:             &ClientMockUpdateScheduledScalingParams{ctx, serviceId, s},
+		expectationOrigins: ClientMockUpdateScheduledScalingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateScheduledScaling.expectations = append(mmUpdateScheduledScaling.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateScheduledScaling return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateScheduledScalingExpectation) Then(ap1 *AutoScalingSchedule, err error) *ClientMock {
+	e.results = &ClientMockUpdateScheduledScalingResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateScheduledScaling should be invoked
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Times(n uint64) *mClientMockUpdateScheduledScaling {
+	if n == 0 {
+		mmUpdateScheduledScaling.mock.t.Fatalf("Times of ClientMock.UpdateScheduledScaling mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateScheduledScaling.expectedInvocations, n)
+	mmUpdateScheduledScaling.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateScheduledScaling
+}
+
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) invocationsDone() bool {
+	if len(mmUpdateScheduledScaling.expectations) == 0 && mmUpdateScheduledScaling.defaultExpectation == nil && mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateScheduledScaling.mock.afterUpdateScheduledScalingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateScheduledScaling.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateScheduledScaling implements Client
+func (mmUpdateScheduledScaling *ClientMock) UpdateScheduledScaling(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (ap1 *AutoScalingSchedule, err error) {
+	mm_atomic.AddUint64(&mmUpdateScheduledScaling.beforeUpdateScheduledScalingCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateScheduledScaling.afterUpdateScheduledScalingCounter, 1)
+
+	mmUpdateScheduledScaling.t.Helper()
+
+	if mmUpdateScheduledScaling.inspectFuncUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.inspectFuncUpdateScheduledScaling(ctx, serviceId, s)
+	}
+
+	mm_params := ClientMockUpdateScheduledScalingParams{ctx, serviceId, s}
+
+	// Record call args
+	mmUpdateScheduledScaling.UpdateScheduledScalingMock.mutex.Lock()
+	mmUpdateScheduledScaling.UpdateScheduledScalingMock.callArgs = append(mmUpdateScheduledScaling.UpdateScheduledScalingMock.callArgs, &mm_params)
+	mmUpdateScheduledScaling.UpdateScheduledScalingMock.mutex.Unlock()
+
+	for _, e := range mmUpdateScheduledScaling.UpdateScheduledScalingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateScheduledScalingParams{ctx, serviceId, s}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateScheduledScaling.t.Errorf("ClientMock.UpdateScheduledScaling got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateScheduledScaling.t.Errorf("ClientMock.UpdateScheduledScaling got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.s != nil && !minimock.Equal(*mm_want_ptrs.s, mm_got.s) {
+				mmUpdateScheduledScaling.t.Errorf("ClientMock.UpdateScheduledScaling got unexpected parameter s, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.originS, *mm_want_ptrs.s, mm_got.s, minimock.Diff(*mm_want_ptrs.s, mm_got.s))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateScheduledScaling.t.Errorf("ClientMock.UpdateScheduledScaling got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateScheduledScaling.t.Fatal("No results are set for the ClientMock.UpdateScheduledScaling")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmUpdateScheduledScaling.funcUpdateScheduledScaling != nil {
+		return mmUpdateScheduledScaling.funcUpdateScheduledScaling(ctx, serviceId, s)
+	}
+	mmUpdateScheduledScaling.t.Fatalf("Unexpected call to ClientMock.UpdateScheduledScaling. %v %v %v", ctx, serviceId, s)
+	return
+}
+
+// UpdateScheduledScalingAfterCounter returns a count of finished ClientMock.UpdateScheduledScaling invocations
+func (mmUpdateScheduledScaling *ClientMock) UpdateScheduledScalingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateScheduledScaling.afterUpdateScheduledScalingCounter)
+}
+
+// UpdateScheduledScalingBeforeCounter returns a count of ClientMock.UpdateScheduledScaling invocations
+func (mmUpdateScheduledScaling *ClientMock) UpdateScheduledScalingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateScheduledScaling.beforeUpdateScheduledScalingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateScheduledScaling.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Calls() []*ClientMockUpdateScheduledScalingParams {
+	mmUpdateScheduledScaling.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateScheduledScalingParams, len(mmUpdateScheduledScaling.callArgs))
+	copy(argCopy, mmUpdateScheduledScaling.callArgs)
+
+	mmUpdateScheduledScaling.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateScheduledScalingDone returns true if the count of the UpdateScheduledScaling invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateScheduledScalingDone() bool {
+	if m.UpdateScheduledScalingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateScheduledScalingMock.invocationsDone()
+}
+
+// MinimockUpdateScheduledScalingInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateScheduledScalingInspect() {
+	for _, e := range m.UpdateScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateScheduledScaling at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateScheduledScalingCounter := mm_atomic.LoadUint64(&m.afterUpdateScheduledScalingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateScheduledScalingMock.defaultExpectation != nil && afterUpdateScheduledScalingCounter < 1 {
+		if m.UpdateScheduledScalingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateScheduledScaling at\n%s", m.UpdateScheduledScalingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateScheduledScaling at\n%s with params: %#v", m.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *m.UpdateScheduledScalingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateScheduledScaling != nil && afterUpdateScheduledScalingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateScheduledScaling at\n%s", m.funcUpdateScheduledScalingOrigin)
+	}
+
+	if !m.UpdateScheduledScalingMock.invocationsDone() && afterUpdateScheduledScalingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateScheduledScaling at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateScheduledScalingMock.expectedInvocations), m.UpdateScheduledScalingMock.expectedInvocationsOrigin, afterUpdateScheduledScalingCounter)
+	}
+}
+
 type mClientMockUpdateService struct {
 	optional           bool
 	mock               *ClientMock
@@ -16544,6 +17633,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockDeleteRoleInspect()
 
+			m.MinimockDeleteScheduledScalingInspect()
+
 			m.MinimockDeleteServiceInspect()
 
 			m.MinimockGetApiKeyIDInspect()
@@ -16572,6 +17663,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetRoleInspect()
 
+			m.MinimockGetScheduledScalingInspect()
+
 			m.MinimockGetServiceInspect()
 
 			m.MinimockListMembersInspect()
@@ -16599,6 +17692,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateReplicaScalingInspect()
 
 			m.MinimockUpdateRoleInspect()
+
+			m.MinimockUpdateScheduledScalingInspect()
 
 			m.MinimockUpdateServiceInspect()
 
@@ -16644,6 +17739,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteQueryEndpointDone() &&
 		m.MinimockDeleteReversePrivateEndpointDone() &&
 		m.MinimockDeleteRoleDone() &&
+		m.MinimockDeleteScheduledScalingDone() &&
 		m.MinimockDeleteServiceDone() &&
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
@@ -16658,6 +17754,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetReversePrivateEndpointDone() &&
 		m.MinimockGetReversePrivateEndpointPathDone() &&
 		m.MinimockGetRoleDone() &&
+		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockListMembersDone() &&
 		m.MinimockListReversePrivateEndpointsDone() &&
@@ -16672,6 +17769,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdateReplicaScalingDone() &&
 		m.MinimockUpdateRoleDone() &&
+		m.MinimockUpdateScheduledScalingDone() &&
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
