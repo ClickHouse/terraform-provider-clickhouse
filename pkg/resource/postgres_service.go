@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -123,9 +124,18 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"tags": schema.SetNestedAttribute{
-				Description: "Resource tags. Set of {key, value} objects; value is optional. Keys starting with 'chc_' are reserved by the server and rejected at plan time.",
+				Description: "Resource tags. Set of {key, value} objects; value is optional. Keys starting with 'chc_' are reserved by the server and rejected at plan time. The server rejects PATCHes containing tags whose value field is omitted, so each tag entry must include a non-null value.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Set{
+					// CRITICAL: without UseStateForUnknown, the framework
+					// marks tags as Unknown in every plan (Optional+Computed
+					// semantics), and Update would PATCH "tags": [] on every
+					// apply that touches any other attribute — silent data
+					// loss for any user with tags set. The Phase 2 e2e
+					// resize test caught this live.
+					setplanmodifier.UseStateForUnknown(),
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"key": schema.StringAttribute{
@@ -146,7 +156,19 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					},
 				},
 				Validators: []validator.Set{
-					setvalidator.SizeAtMost(64),
+					// SizeAtLeast(1) intentionally rejects explicit `tags = []`
+					// in .tf. The round-trip server → state collapses empty
+					// arrays to SetNull (because chc_-filtering produces an
+					// empty filtered list), so an explicit empty set in
+					// config would diff perpetually against null state.
+					// Users who want no tags must omit the attribute
+					// entirely; UseStateForUnknown then carries the prior
+					// state forward without diff.
+					setvalidator.SizeAtLeast(1),
+					// SizeAtMost matches the server's MAX_TAGS_PER_RESOURCE
+					// (50) at packages/cp-common/src/protocol/ResourcesTags.ts:9.
+					// Earlier 64 was an over-permissive guess.
+					setvalidator.SizeAtMost(50),
 				},
 			},
 
@@ -262,35 +284,8 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 
 	// Step 3: mid-Create partial state write. Persists id + password so a
 	// later step-4/5 failure leaves a state Terraform can reconcile against
-	// the real server resource. Every other computed attribute must be
-	// explicitly null (not zero-value), or the framework rejects the write.
-	partial := plan
-	partial.ID = types.StringValue(pg.Id)
-	if generatedPassword != nil {
-		partial.Password = types.StringValue(*generatedPassword)
-	} else {
-		partial.Password = types.StringNull()
-	}
-	partial.State = types.StringNull()
-	partial.CreatedAt = types.StringNull()
-	partial.IsPrimary = types.BoolNull()
-	partial.Hostname = types.StringNull()
-	partial.Port = types.Int64Null()
-	partial.Username = types.StringNull()
-	partial.ConnectionString = types.StringNull()
-	// HaType / PostgresVersion came in from the plan, may have been Unknown.
-	// Initialize the computed-only side of those Optional+Computed attrs.
-	if partial.HaType.IsUnknown() {
-		partial.HaType = types.StringValue("none")
-	}
-	if partial.PostgresVersion.IsUnknown() {
-		partial.PostgresVersion = types.StringValue(pg.PostgresVersion)
-	}
-	// Tags is Optional+Computed — if the user didn't set any, hold null until
-	// the post-wait re-read populates it. If the user set tags, keep them.
-	if partial.Tags.IsUnknown() {
-		partial.Tags = types.SetNull(models.PostgresServiceTagObjectType())
-	}
+	// the real server resource.
+	partial := buildPartialCreateState(plan, pg, generatedPassword)
 	resp.Diagnostics.Append(resp.State.Set(ctx, partial)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -371,19 +366,19 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	update, transitionExpected, d := buildPostgresUpdate(ctx, plan, state)
+	updatePlan, d := buildPostgresUpdate(ctx, plan, state)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if update == nil {
+	if updatePlan.Body == nil {
 		// No diff — write plan back so Computed-from-Optional attrs propagate.
 		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 		return
 	}
 
-	if _, err := r.client.UpdatePostgres(ctx, state.ID.ValueString(), *update); err != nil {
+	if _, err := r.client.UpdatePostgres(ctx, state.ID.ValueString(), *updatePlan.Body); err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating Postgres service",
 			"Could not update Postgres service "+state.ID.ValueString()+": "+err.Error(),
@@ -391,7 +386,7 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	if transitionExpected {
+	if updatePlan.TransitionExpected {
 		if err := r.client.WaitForPostgresLeaveAndReturn(ctx, state.ID.ValueString(), api.PostgresStateRunning, postgresDefaultUpdateTimeoutSeconds); err != nil {
 			resp.Diagnostics.AddError(
 				"Error waiting for Postgres service to settle after update",
@@ -454,6 +449,50 @@ func (r *PostgresServiceResource) ImportState(ctx context.Context, req resource.
 // transitioning, including server states the provider hasn't learned yet.
 func isPostgresStateRunning(s string) bool { return s == api.PostgresStateRunning }
 
+// buildPartialCreateState produces the intermediate model written to state
+// between the CreatePostgres response and the post-wait re-read. It captures
+// the two values that can't be recovered later (id + server-generated
+// password) and explicitly nulls every other computed attribute so the
+// plugin-framework state-write validator accepts the mid-Create write.
+//
+// Reason it exists as a separate helper: this is the most novel piece of
+// Phase 2's lifecycle ordering. Inline in Create it was untestable without
+// constructing synthetic tfsdk.Plan / tfsdk.State — extracting makes the
+// regression target obvious.
+func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.Postgres, generatedPassword *string) models.PostgresServiceResourceModel {
+	partial := plan
+	partial.ID = types.StringValue(pg.Id)
+	if generatedPassword != nil {
+		partial.Password = types.StringValue(*generatedPassword)
+	} else {
+		partial.Password = types.StringNull()
+	}
+	// Every other computed attribute must be explicitly null (not zero-value),
+	// or the framework rejects the state write mid-Create.
+	partial.State = types.StringNull()
+	partial.CreatedAt = types.StringNull()
+	partial.IsPrimary = types.BoolNull()
+	partial.Hostname = types.StringNull()
+	partial.Port = types.Int64Null()
+	partial.Username = types.StringNull()
+	partial.ConnectionString = types.StringNull()
+	// HaType / PostgresVersion came in from the plan; the computed-side may
+	// still be Unknown if the user didn't set them. Pin to a sensible value:
+	// HaType default is "none"; PostgresVersion comes from the create response.
+	if partial.HaType.IsUnknown() {
+		partial.HaType = types.StringValue("none")
+	}
+	if partial.PostgresVersion.IsUnknown() {
+		partial.PostgresVersion = types.StringValue(pg.PostgresVersion)
+	}
+	// Tags is Optional+Computed — if the user didn't set any, hold null until
+	// the post-wait re-read populates it. If the user set tags, keep them.
+	if partial.Tags.IsUnknown() {
+		partial.Tags = types.SetNull(models.PostgresServiceTagObjectType())
+	}
+	return partial
+}
+
 // planToPostgresCreate maps a fully-resolved plan into the wire shape.
 // Tags use a value-by-value walk so the cmp.Diff in tests sees a stable order.
 func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResourceModel) (api.PostgresCreate, diag.Diagnostics) {
@@ -484,19 +523,32 @@ func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResour
 	return body, diags
 }
 
-// buildPostgresUpdate diffs plan vs state and produces a sparse PATCH body,
-// or returns nil when nothing actually changed (true no-op).
+// postgresUpdatePlan bundles the two artifacts buildPostgresUpdate produces
+// so the call site doesn't have to remember positional bool semantics.
 //
-// transitionExpected is true when the diff includes a field whose mutation
-// the server processes via a state transition (currently size, ha_type),
-// signaling the caller should run WaitForPostgresLeaveAndReturn.
+//   - Body == nil           → no diff; caller skips the API call entirely.
+//   - Body != nil           → sparse PATCH body containing only the changed
+//                             fields (size, ha_type, tags).
+//   - TransitionExpected    → the server processes the mutation as a state
+//                             transition (size, ha_type); caller should
+//                             follow up with WaitForPostgresLeaveAndReturn.
+type postgresUpdatePlan struct {
+	Body               *api.PostgresUpdate
+	TransitionExpected bool
+}
+
+// buildPostgresUpdate diffs plan vs state and produces a sparse PATCH body,
+// or returns Body=nil when nothing actually changed (true no-op).
 //
 // Tag handling follows plan line 158: *[]Tag. nil means "leave server-side
 // tags alone"; pointer to empty slice means "clear all tags"; pointer to
 // non-empty slice means "replace". Critical: callers must NEVER receive a
 // PATCH body where Tags is the zero-value *[]Tag — that would marshal as
 // the omitted field and silently fail to clear tags.
-func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresServiceResourceModel) (*api.PostgresUpdate, bool, diag.Diagnostics) {
+//
+// Plan.Tags == Unknown is treated specially (see inline comment) to defend
+// against a regression in the schema's UseStateForUnknown plan modifier.
+func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresServiceResourceModel) (postgresUpdatePlan, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	update := api.PostgresUpdate{}
 	changed := false
@@ -512,11 +564,23 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		changed = true
 		transitionExpected = true
 	}
-	if !plan.Tags.Equal(state.Tags) {
+	// Tags handling. Three plan states to handle correctly:
+	//   - Unknown    -> framework hasn't resolved the attribute. NEVER include
+	//                   tags in the PATCH body. Including it would either omit
+	//                   the field (treated by server as no-change, OK) or send
+	//                   [] (DATA LOSS — silently clears server-side tags the
+	//                   user never asked to clear). Defense-in-depth against
+	//                   a regression in the schema's UseStateForUnknown.
+	//   - Null       -> user removed the tags block; clear server-side tags
+	//                   (send tags: []).
+	//   - Populated  -> send the mapped slice; server replaces.
+	if plan.Tags.IsUnknown() {
+		// Skip — Tags untouched in PATCH.
+	} else if !plan.Tags.Equal(state.Tags) {
 		mapped, d := planTagsToAPI(ctx, plan.Tags)
 		diags.Append(d...)
 		if diags.HasError() {
-			return nil, false, diags
+			return postgresUpdatePlan{}, diags
 		}
 		if mapped == nil {
 			// User removed the tags block from .tf -> clear all tags
@@ -530,9 +594,9 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 	}
 
 	if !changed {
-		return nil, false, diags
+		return postgresUpdatePlan{}, diags
 	}
-	return &update, transitionExpected, diags
+	return postgresUpdatePlan{Body: &update, TransitionExpected: transitionExpected}, diags
 }
 
 // planTagsToAPI extracts an *[]api.Tag from a Terraform set-of-objects
@@ -571,6 +635,16 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	state.CloudProvider = types.StringValue(pg.Provider)
 	state.Region = types.StringValue(pg.Region)
 
+	// Empty-string handling for postgres_version / size:
+	// the server should never return empty strings here for a valid instance.
+	// If it ever does (mid-transition wire shape we don't currently know
+	// about, or a future API change), we deliberately preserve the prior
+	// state value rather than overwriting with an empty string — overwriting
+	// would silently corrupt RequiresReplace-tracked state. The trade-off:
+	// if the server permanently starts returning empty, the resource will
+	// silently lie about its state. The expectation is that Phase 6
+	// integration tests would catch this; the comment exists so a future
+	// debugger knows where to look.
 	if pg.PostgresVersion != "" {
 		state.PostgresVersion = types.StringValue(pg.PostgresVersion)
 	}
@@ -584,6 +658,12 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	}
 	state.State = types.StringValue(pg.State)
 	state.CreatedAt = types.StringValue(pg.CreatedAt)
+	// IsPrimary fallback: Phase 2 only ever provisions primaries (Phase 5
+	// adds read replicas). Defaulting nil to true is safe for Phase 2 but
+	// will mismark a Phase 5 replica if the server starts returning
+	// IsPrimary=nil for replicas. Revisit in Phase 5: prefer to error
+	// loudly when the server omits a field the resource depends on, since
+	// is_primary drives replica-specific UX.
 	if pg.IsPrimary != nil {
 		state.IsPrimary = types.BoolValue(*pg.IsPrimary)
 	} else {
@@ -623,7 +703,14 @@ func apiTagsToSetValue(apiTags []api.Tag) (types.Set, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	objType, ok := models.PostgresServiceTagObjectType().(attr.TypeWithAttributeTypes)
 	if !ok {
-		diags.AddError("internal error", "tag object type does not implement TypeWithAttributeTypes")
+		// Unreachable unless models.PostgresServiceTagObjectType is changed
+		// to return a non-Object type (e.g., a switch to types.MapType during
+		// a future refactor). Surface the concrete type so the future
+		// debugger doesn't need to grep for the assertion.
+		diags.AddError(
+			"Postgres tag schema definition is corrupt",
+			fmt.Sprintf("models.PostgresServiceTagObjectType() returned %T, which does not implement attr.TypeWithAttributeTypes. The tag attribute requires an Object type. Report this to the provider developers.", models.PostgresServiceTagObjectType()),
+		)
 		return types.SetNull(models.PostgresServiceTagObjectType()), diags
 	}
 	attrTypes := objType.AttributeTypes()

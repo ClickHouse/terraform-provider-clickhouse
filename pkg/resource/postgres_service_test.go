@@ -322,6 +322,141 @@ func TestPlanTagsToAPI(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// buildPartialCreateState — mid-Create intermediate state shape
+//
+// The plan documents this as "the most novel piece of Phase 2": between
+// CreatePostgres' 200 and the post-wait re-read, we write a state with
+// just id + password so a step-4/5 failure leaves Terraform able to
+// reconcile against the real server resource. The function is small but
+// behavioral: if the framework rejects the mid-Create write (e.g.,
+// because a computed attribute is Unknown), the user ends up with an
+// orphaned server-side instance and no Terraform-visible reference.
+// ---------------------------------------------------------------------------
+
+func TestBuildPartialCreateState(t *testing.T) {
+	// Minimal plan resembling what req.Plan.Get would return for a fresh
+	// resource: required attrs set, computed attrs Unknown (the framework's
+	// default before any state exists).
+	planFresh := func() models.PostgresServiceResourceModel {
+		return models.PostgresServiceResourceModel{
+			Name:             types.StringValue("primary-1"),
+			CloudProvider:    types.StringValue("aws"),
+			Region:           types.StringValue("us-east-1"),
+			Size:             types.StringValue("c6gd.large"),
+			PostgresVersion:  types.StringUnknown(), // Optional+Computed, not set in .tf
+			HaType:           types.StringUnknown(),
+			Tags:             types.SetUnknown(models.PostgresServiceTagObjectType()),
+			ID:               types.StringUnknown(),
+			Password:         types.StringUnknown(),
+			State:            types.StringUnknown(),
+			CreatedAt:        types.StringUnknown(),
+			IsPrimary:        types.BoolUnknown(),
+			Hostname:         types.StringUnknown(),
+			Port:             types.Int64Unknown(),
+			Username:         types.StringUnknown(),
+			ConnectionString: types.StringUnknown(),
+		}
+	}
+
+	pg := &api.Postgres{
+		Id:              "pg-mid-create",
+		Name:            "primary-1",
+		Provider:        "aws",
+		Region:          "us-east-1",
+		Size:            "c6gd.large",
+		PostgresVersion: "18",
+		State:           api.PostgresStateCreating,
+	}
+
+	t.Run("with server-generated password", func(t *testing.T) {
+		password := "ServerGen123XYZ"
+		partial := buildPartialCreateState(planFresh(), pg, &password)
+
+		// Must carry id + password; otherwise Phase 2's recovery contract breaks.
+		if partial.ID.ValueString() != "pg-mid-create" {
+			t.Errorf("id missing or wrong; got %v", partial.ID)
+		}
+		if partial.Password.ValueString() != password {
+			t.Errorf("password not persisted; got %v", partial.Password)
+		}
+
+		// Every other Computed attr must be explicitly Null, never Unknown —
+		// the framework rejects mid-Create state writes containing Unknown
+		// computed values. The whole point of this helper.
+		mustBeNull := []struct {
+			name string
+			v    attr.Value
+		}{
+			{"State", partial.State},
+			{"CreatedAt", partial.CreatedAt},
+			{"IsPrimary", partial.IsPrimary},
+			{"Hostname", partial.Hostname},
+			{"Port", partial.Port},
+			{"Username", partial.Username},
+			{"ConnectionString", partial.ConnectionString},
+			{"Tags", partial.Tags},
+		}
+		for _, attr := range mustBeNull {
+			if attr.v.IsUnknown() {
+				t.Errorf("%s must not be Unknown mid-Create; got %v", attr.name, attr.v)
+			}
+			if !attr.v.IsNull() {
+				t.Errorf("%s must be explicit Null mid-Create; got %v", attr.name, attr.v)
+			}
+		}
+
+		// HaType / PostgresVersion: came in as Unknown from a fresh plan;
+		// helper must pin them to concrete values so the state write
+		// validator accepts them.
+		if partial.HaType.IsUnknown() || partial.HaType.ValueString() != "none" {
+			t.Errorf("HaType must default to 'none'; got %v", partial.HaType)
+		}
+		if partial.PostgresVersion.IsUnknown() || partial.PostgresVersion.ValueString() != "18" {
+			t.Errorf("PostgresVersion must be pinned from server response; got %v", partial.PostgresVersion)
+		}
+	})
+
+	t.Run("with no server-generated password (user-supplied path, Phase 4 preview)", func(t *testing.T) {
+		partial := buildPartialCreateState(planFresh(), pg, nil)
+		if !partial.Password.IsNull() {
+			t.Errorf("Password must be explicit Null when no generated password; got %v", partial.Password)
+		}
+	})
+
+	t.Run("preserves user-set HaType from plan", func(t *testing.T) {
+		plan := planFresh()
+		plan.HaType = types.StringValue("async")
+		partial := buildPartialCreateState(plan, pg, nil)
+		if partial.HaType.ValueString() != "async" {
+			t.Errorf("user-set HaType must survive; got %v", partial.HaType)
+		}
+	})
+
+	t.Run("preserves user-set PostgresVersion from plan", func(t *testing.T) {
+		plan := planFresh()
+		plan.PostgresVersion = types.StringValue("17")
+		partial := buildPartialCreateState(plan, pg, nil)
+		if partial.PostgresVersion.ValueString() != "17" {
+			t.Errorf("user-set PostgresVersion must survive; got %v", partial.PostgresVersion)
+		}
+	})
+
+	t.Run("preserves user-set tags from plan", func(t *testing.T) {
+		plan := planFresh()
+		tagObj, _ := types.ObjectValue(
+			tagAttrTypes(),
+			map[string]attr.Value{"key": types.StringValue("team"), "value": types.StringValue("billing")},
+		)
+		set, _ := types.SetValue(models.PostgresServiceTagObjectType(), []attr.Value{tagObj})
+		plan.Tags = set
+		partial := buildPartialCreateState(plan, pg, nil)
+		if partial.Tags.IsNull() || partial.Tags.IsUnknown() {
+			t.Errorf("user-set tags must survive mid-Create; got %v", partial.Tags)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
 // buildPostgresUpdate — diff matrix
 // ---------------------------------------------------------------------------
 
@@ -353,72 +488,72 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	t.Run("no diff returns nil update and no transition", func(t *testing.T) {
 		plan := baseModel("c6gd.large", "none", emptyTags())
 		state := baseModel("c6gd.large", "none", emptyTags())
-		update, transition, diags := buildPostgresUpdate(ctx, plan, state)
+		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
-		if update != nil {
-			t.Errorf("expected nil update for full no-op, got %#v", *update)
+		if result.Body != nil {
+			t.Errorf("expected nil Body for full no-op, got %#v", *result.Body)
 		}
-		if transition {
-			t.Errorf("transitionExpected should be false on no-op")
+		if result.TransitionExpected {
+			t.Errorf("TransitionExpected should be false on no-op")
 		}
 	})
 
-	t.Run("size-only diff produces size-only body with transitionExpected", func(t *testing.T) {
+	t.Run("size-only diff produces size-only body with TransitionExpected", func(t *testing.T) {
 		plan := baseModel("c6gd.xlarge", "none", emptyTags())
 		state := baseModel("c6gd.large", "none", emptyTags())
-		update, transition, diags := buildPostgresUpdate(ctx, plan, state)
+		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
-		if update == nil {
-			t.Fatal("expected non-nil update")
+		if result.Body == nil {
+			t.Fatal("expected non-nil Body")
 		}
-		if update.Size != "c6gd.xlarge" {
-			t.Errorf("size: got %q want c6gd.xlarge", update.Size)
+		if result.Body.Size != "c6gd.xlarge" {
+			t.Errorf("size: got %q want c6gd.xlarge", result.Body.Size)
 		}
-		if update.HaType != "" {
-			t.Errorf("ha_type should not be set when unchanged; got %q", update.HaType)
+		if result.Body.HaType != "" {
+			t.Errorf("ha_type should not be set when unchanged; got %q", result.Body.HaType)
 		}
-		if update.Tags != nil {
-			t.Errorf("tags should be nil (omitted) when unchanged; got %#v", update.Tags)
+		if result.Body.Tags != nil {
+			t.Errorf("tags should be nil (omitted) when unchanged; got %#v", result.Body.Tags)
 		}
-		if !transition {
-			t.Errorf("size change must signal transitionExpected=true")
+		if !result.TransitionExpected {
+			t.Errorf("size change must signal TransitionExpected=true")
 		}
 	})
 
-	t.Run("ha_type-only diff signals transitionExpected", func(t *testing.T) {
+	t.Run("ha_type-only diff signals TransitionExpected", func(t *testing.T) {
 		plan := baseModel("c6gd.large", "async", emptyTags())
 		state := baseModel("c6gd.large", "none", emptyTags())
-		update, transition, diags := buildPostgresUpdate(ctx, plan, state)
+		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
-		if update == nil || update.HaType != "async" {
-			t.Errorf("expected ha_type=async update, got %#v", update)
+		if result.Body == nil || result.Body.HaType != "async" {
+			t.Errorf("expected ha_type=async body, got %#v", result.Body)
 		}
-		if !transition {
-			t.Errorf("ha_type flip must signal transitionExpected=true")
+		if !result.TransitionExpected {
+			t.Errorf("ha_type flip must signal TransitionExpected=true")
 		}
 	})
 
-	t.Run("tags-only change does NOT signal transitionExpected", func(t *testing.T) {
+	t.Run("tags-only change does NOT signal TransitionExpected", func(t *testing.T) {
 		plan := baseModel("c6gd.large", "none", tagSet("team", "billing"))
 		state := baseModel("c6gd.large", "none", emptyTags())
-		update, transition, diags := buildPostgresUpdate(ctx, plan, state)
+		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
-		if update == nil || update.Tags == nil {
-			t.Fatalf("expected tags in update, got %#v", update)
+		if result.Body == nil || result.Body.Tags == nil {
+			t.Fatalf("expected tags in body, got %#v", result.Body)
 		}
-		if len(*update.Tags) != 1 || (*update.Tags)[0].Key != "team" {
-			t.Errorf("unexpected tag body: %#v", *update.Tags)
+		if len(*result.Body.Tags) != 1 || (*result.Body.Tags)[0].Key != "team" {
+			t.Errorf("unexpected tag body: %#v", *result.Body.Tags)
 		}
-		if transition {
-			t.Errorf("tags-only mutations are hot; transitionExpected must be false")
+		if result.TransitionExpected {
+			t.Errorf("tags-only mutations are hot; TransitionExpected must be false")
 		}
 	})
 
@@ -429,39 +564,64 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		// pointer-to-slice in PostgresUpdate.Tags is being used correctly.
 		plan := baseModel("c6gd.large", "none", emptyTags())
 		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
-		update, transition, diags := buildPostgresUpdate(ctx, plan, state)
+		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
-		if update == nil || update.Tags == nil {
-			t.Fatalf("expected non-nil tags pointer (empty slice) to clear server-side tags; got %#v", update)
+		if result.Body == nil || result.Body.Tags == nil {
+			t.Fatalf("expected non-nil tags pointer (empty slice) to clear server-side tags; got %#v", result.Body)
 		}
-		if len(*update.Tags) != 0 {
-			t.Errorf("expected empty tags slice to clear; got %#v", *update.Tags)
+		if len(*result.Body.Tags) != 0 {
+			t.Errorf("expected empty tags slice to clear; got %#v", *result.Body.Tags)
 		}
-		if transition {
-			t.Errorf("tag-clear must not signal transitionExpected")
+		if result.TransitionExpected {
+			t.Errorf("tag-clear must not signal TransitionExpected")
+		}
+	})
+
+	t.Run("plan.Tags == Unknown is treated as 'leave server tags alone'", func(t *testing.T) {
+		// REGRESSION TEST: caught live in Phase 2 e2e (resize step). Without
+		// setplanmodifier.UseStateForUnknown() on the tags attribute the
+		// framework marks tags as Unknown in plan-time; buildPostgresUpdate
+		// must NOT clear server-side tags in that case (silent data loss).
+		// Defense-in-depth check: even if a future schema regression drops
+		// the plan modifier, the diff logic refuses to touch the tags
+		// field while it's Unknown.
+		plan := baseModel("c6gd.xlarge", "none", types.SetUnknown(models.PostgresServiceTagObjectType()))
+		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
+		result, diags := buildPostgresUpdate(ctx, plan, state)
+		if diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if result.Body == nil {
+			t.Fatal("expected size diff to still produce a Body")
+		}
+		if result.Body.Tags != nil {
+			t.Errorf("Unknown plan tags must NOT include the tags field in PATCH; got %#v (would silently clear server-side tags)", result.Body.Tags)
+		}
+		if result.Body.Size != "c6gd.xlarge" {
+			t.Errorf("size change must still propagate; got %q", result.Body.Size)
 		}
 	})
 
 	t.Run("combined size + tags change signals transition once", func(t *testing.T) {
 		plan := baseModel("c6gd.xlarge", "none", tagSet("env", "prod"))
 		state := baseModel("c6gd.large", "none", emptyTags())
-		update, transition, diags := buildPostgresUpdate(ctx, plan, state)
+		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
-		if update == nil {
-			t.Fatal("expected non-nil update")
+		if result.Body == nil {
+			t.Fatal("expected non-nil Body")
 		}
-		if update.Size != "c6gd.xlarge" {
+		if result.Body.Size != "c6gd.xlarge" {
 			t.Errorf("size not propagated")
 		}
-		if update.Tags == nil || len(*update.Tags) != 1 {
+		if result.Body.Tags == nil || len(*result.Body.Tags) != 1 {
 			t.Errorf("tags not propagated")
 		}
-		if !transition {
-			t.Errorf("size change inside combined diff must still surface transitionExpected")
+		if !result.TransitionExpected {
+			t.Errorf("size change inside combined diff must still surface TransitionExpected")
 		}
 	})
 }

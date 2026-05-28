@@ -40,6 +40,19 @@ intentionally deferred:
   time. **Tag values cannot be explicit empty strings** — the server
   normalizes `""` to no-value, which would cause perpetual plan/state
   drift; omit the `value` attribute or set it to `null` instead.
+  **Each tag must include a non-null `value` on update.** Even though
+  the server's create endpoint accepts no-value tags, the PATCH endpoint
+  returns `400 BAD_REQUEST` if any tag entry omits `value`. Always set
+  a non-empty alphanumeric/`.`/`-`/`_` value (server regex
+  `^[a-zA-Z0-9._-]+$`) when declaring tags. The provider rejects empty
+  strings at plan time; the no-value case is a server-side 400.
+- **No support for explicit empty tag lists.** Writing `tags = []` is
+  rejected at plan time. To express "no tags," omit the attribute
+  entirely — `Optional + Computed + UseStateForUnknown` then carries
+  the prior state forward without spurious diffs. The constraint
+  exists because the server-side round-trip of an empty array
+  collapses to no-value on read, which a literal `tags = []` in `.tf`
+  would diff against forever.
 - **No IP allowlist, private endpoints, backup configuration, maintenance
   windows, customer-managed encryption keys, or BYOC support.** All blocked
   on server-side endpoint additions; tracked in the project plan as Phases
@@ -78,10 +91,28 @@ terraform import clickhouse_postgres_service.example <postgres-instance-id>
 ```
 
 Post-import: every attribute except `password` is hydrated from the server.
-`password` will be empty in state because the server does not echo it on
-`GET`. In Phase 4, an explicit password rotation (`password_wo_version`
-bump) post-import will make the resource usable; in Phase 2 the resource is
-read-only after import.
+
+> **⚠ Password is unrecoverable after import.**
+> The server does not echo the superuser password on `GET`, so `terraform
+> import` cannot retrieve the value the instance was created with. After
+> import:
+>
+> - `password` will be null in state.
+> - `connection_string` will contain the password embedded in the URI
+>   (the server includes it in the GET response), so the credential is
+>   not lost — but Terraform itself cannot manage it until Phase 4 ships
+>   user-supplied passwords. In Phase 2, an imported instance is
+>   effectively **read-only**: any future apply that needs to surface
+>   the password as the standalone `password` attribute will show drift
+>   that cannot be reconciled.
+> - Workaround in Phase 2: parse the password out of `connection_string`
+>   externally and store it where your CI/automation needs it. Don't try
+>   to set it back into Terraform state by hand — there is no
+>   `terraform import`-time hook to do this safely.
+> - Phase 4 will add an explicit password-rotation flow
+>   (`password_wo_version` bump) that makes imported instances fully
+>   manageable. Until then, treat imported services as observable but
+>   not mutable.
 
 ## Known limitations (alpha)
 
