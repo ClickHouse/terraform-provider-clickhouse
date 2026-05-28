@@ -231,54 +231,64 @@ runs:
             echo "tag=${{ inputs.upgrade_from }}" >> "$GITHUB_OUTPUT"
           fi
 
-    - shell: bash
+    - name: Upgrade test - Run terraform using latest stable version
       if: ${{ inputs.upgrade_test == 'true' && steps.defined.outputs.defined == 'true' }}
-      name: Upgrade test - Run terraform using latest stable version
-      run: |
-        git checkout tags/${{ steps.get_latest_stable_release.outputs.tag }}
+      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+      with:
+        timeout_minutes: 30
+        max_attempts: 3
+        retry_wait_seconds: 30
+        shell: bash
+        command: |
+          set -eo pipefail
 
-        test_dir="examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+          # -f makes the checkout idempotent across retry attempts even if a
+          # previous attempt left local working-tree changes behind.
+          git checkout -f tags/${{ steps.get_latest_stable_release.outputs.tag }}
 
-        # Skip if the test directory has no .tf files at this tag.
-        if [ $(find "$test_dir" -name "*.tf" -type f 2>/dev/null | wc -l) -eq 0 ]
-        then
-          echo "::group::Skipping upgrade E2E test as it does not exist for cloud provider ${{ inputs.cloud_provider }} and version ${{ steps.get_latest_stable_release.outputs.tag }}"
-          echo "SKIP_E2E_TEST=true" >> "$GITHUB_ENV"
-          git checkout ${{ github.ref }}
-          exit 0
-        fi
+          test_dir="examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
 
-        # Skip if the test was alpha-only at this tag (no stable provider template).
-        # Alpha resources aren't in stable registry releases and alpha versions are
-        # not published to the Terraform registry, so the upgrade test can't run.
-        if [ ! -f "$test_dir/provider.tf.template" ] && [ -f "$test_dir/provider.tf.template.alpha" ]
-        then
-          echo "::group::Skipping upgrade E2E test as ${{ inputs.test_name }} was alpha-only in version ${{ steps.get_latest_stable_release.outputs.tag }}"
-          echo "SKIP_E2E_TEST=true" >> "$GITHUB_ENV"
-          git checkout ${{ github.ref }}
-          exit 0
-        fi
+          # Skip if the test directory has no .tf files at this tag.
+          if [ $(find "$test_dir" -name "*.tf" -type f 2>/dev/null | wc -l) -eq 0 ]
+          then
+            echo "::group::Skipping upgrade E2E test as it does not exist for cloud provider ${{ inputs.cloud_provider }} and version ${{ steps.get_latest_stable_release.outputs.tag }}"
+            echo "SKIP_E2E_TEST=true" >> "$GITHUB_ENV"
+            git checkout -f ${{ github.ref }}
+            exit 0
+          fi
 
-        echo "::group::Run terraform using latest stable version"
-        cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+          # Skip if the test was alpha-only at this tag (no stable provider template).
+          # Alpha resources aren't in stable registry releases and alpha versions are
+          # not published to the Terraform registry, so the upgrade test can't run.
+          if [ ! -f "$test_dir/provider.tf.template" ] && [ -f "$test_dir/provider.tf.template.alpha" ]
+          then
+            echo "::group::Skipping upgrade E2E test as ${{ inputs.test_name }} was alpha-only in version ${{ steps.get_latest_stable_release.outputs.tag }}"
+            echo "SKIP_E2E_TEST=true" >> "$GITHUB_ENV"
+            git checkout -f ${{ github.ref }}
+            exit 0
+          fi
 
-        if [ "${{inputs.api_url}}" != "" ]
-        then
-          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
-          echo "Using '$CLICKHOUSE_API_URL' as API URL"
-        fi
+          echo "::group::Run terraform using latest stable version"
+          cd "$test_dir"
 
-        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
-          export TF_LOG=debug
-        fi
+          if [ "${{inputs.api_url}}" != "" ]
+          then
+            export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+            echo "Using '$CLICKHOUSE_API_URL' as API URL"
+          fi
 
-        terraform init -input=false
-        terraform plan -no-color -var-file=variables.tfvars
-        terraform apply -no-color -auto-approve -var-file=variables.tfvars
+          if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+            export TF_LOG=debug
+          fi
 
-        git checkout ${{ github.ref }}
+          terraform init -input=false
+          terraform plan -no-color -var-file=variables.tfvars
+          terraform apply -no-color -auto-approve -var-file=variables.tfvars
 
-        echo "::endgroup::"
+          cd - >/dev/null
+          git checkout -f ${{ github.ref }}
+
+          echo "::endgroup::"
 
     - shell: bash
       if: ${{ inputs.skip_build == 'false' && steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
@@ -300,38 +310,46 @@ runs:
 
         echo "::endgroup::"
 
-    - shell: bash
+    - name: Run terraform
       if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
-      name: Run terraform
-      run: |
-        echo "::group::Run terraform"
-        cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+      with:
+        timeout_minutes: 30
+        max_attempts: 3
+        retry_wait_seconds: 30
+        shell: bash
+        command: |
+          set -eo pipefail
 
-        if [ "${{inputs.api_url}}" != "" ]
-        then
-          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
-          echo "Using '$CLICKHOUSE_API_URL' as API URL"
-        fi
+          echo "::group::Run terraform"
+          cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
 
-        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
-          export TF_LOG=debug
-        fi
+          if [ "${{inputs.api_url}}" != "" ]
+          then
+            export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+            echo "Using '$CLICKHOUSE_API_URL' as API URL"
+          fi
 
-        # When using dev_overrides, the ClickHouse provider version constraint is
-        # irrelevant (the local build is used). Remove it so terraform init doesn't
-        # fail on unpublished versions while still downloading other providers (e.g. AWS).
-        if [ "${{ inputs.skip_build }}" == "false" ]
-        then
-          sed -i '/^\s*version\s*=/d' provider.tf
-        fi
+          if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+            export TF_LOG=debug
+          fi
 
-        terraform init -input=false -upgrade
+          # When using dev_overrides, the ClickHouse provider version constraint is
+          # irrelevant (the local build is used). Remove it so terraform init doesn't
+          # fail on unpublished versions while still downloading other providers (e.g. AWS).
+          # sed is run unconditionally on retries; it's a line-delete that is idempotent.
+          if [ "${{ inputs.skip_build }}" == "false" ]
+          then
+            sed -i '/^\s*version\s*=/d' provider.tf
+          fi
 
-        terraform plan -no-color -var-file=variables.tfvars
-        terraform apply -no-color -auto-approve -var-file=variables.tfvars
-        terraform refresh -no-color -var-file=variables.tfvars
+          terraform init -input=false -upgrade
 
-        echo "::endgroup::"
+          terraform plan -no-color -var-file=variables.tfvars
+          terraform apply -no-color -auto-approve -var-file=variables.tfvars
+          terraform refresh -no-color -var-file=variables.tfvars
+
+          echo "::endgroup::"
 
     - shell: bash
       name: Terraform destroy
