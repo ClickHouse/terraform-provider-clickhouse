@@ -94,7 +94,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 - `field_mappings` (Attributes List) Field mapping between source and destination table. (see [below for nested schema](#nestedatt--field_mappings))
 - `scaling` (Attributes) (see [below for nested schema](#nestedatt--scaling))
 - `settings` (Dynamic) Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the OpenAPI documentation at https://clickhouse.com/docs/cloud/manage/api/swagger (search for the ClickPipes settings endpoint).
-- `stopped` (Boolean) Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running).
+- `stopped` (Boolean) Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running). Cannot be set to `true` on creation — the ClickPipe must be created in a running state and then stopped via a subsequent apply.
 - `trigger_resync` (Boolean) Set to `true` to trigger a resync operation. Only applicable for Postgres pipes. Automatically resets to `false` after the resync is triggered. **Note:** This will always show a diff in `terraform plan` after setting to `true` since it resets to `false` in state.
 
 ### Read-Only

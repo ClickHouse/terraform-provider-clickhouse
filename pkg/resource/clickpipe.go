@@ -171,16 +171,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional: true,
 			},
 			"stopped": schema.BoolAttribute{
-				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running).",
+				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running). Cannot be set to `true` on creation — the ClickPipe must be created in a running state and then stopped via a subsequent apply.",
 				Computed:            true,
 				Optional:            true,
 				Default:             booldefault.StaticBool(false),
 			},
 			"state": schema.StringAttribute{
-				MarkdownDescription: "The current state of the ClickPipe. This is a read-only field that reports the actual state from ClickHouse Cloud. Possible values include `Running`, `Stopped`, `Provisioning`, `Failed`, `InternalError`, etc.",
+				MarkdownDescription: "The current state of the ClickPipe. This is a read-only field that reports the actual state from ClickHouse Cloud. Possible values include `Running`, `Stopped`, `Paused`, `Provisioning`, `Failed`, `InternalError`, etc.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					volatileComputedString{},
 				},
 			},
 			"source": schema.SingleNestedAttribute{
@@ -286,6 +286,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											stringvalidator.OneOf("PLAIN"),
 										},
 									},
+									// Schema Registry has no alternative auth method (no IAM_USER, IAM_ROLE, mTLS, etc.),
+									// so we enforce `AtLeastOneOf(password, password_wo)` at the schema level here.
+									// Other sources (Kafka, Postgres, MySQL, MongoDB) defer this requirement to runtime
+									// validation in extractSourceFromPlan because it's conditional on the `authentication` field.
 									"credentials": schema.SingleNestedAttribute{
 										MarkdownDescription: "The credentials for the Schema Registry.",
 										Required:            true,
@@ -1811,6 +1815,17 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		response.Diagnostics.Append(request.Config.Get(ctx, &config)...)
 	}
 
+	// Reject `stopped = true` on creation. The API does not support provisioning a pipe
+	// in a stopped state; the pipe must be created running and then stopped via update.
+	if request.State.Raw.IsNull() && plan.Stopped.ValueBool() {
+		response.Diagnostics.AddAttributeError(
+			path.Root("stopped"),
+			"Cannot create a ClickPipe in a stopped state",
+			"`stopped = true` is not allowed when creating a new ClickPipe. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it.",
+		)
+		return
+	}
+
 	// Validate table engine configuration
 	if !plan.Destination.IsNull() {
 		destinationModel := models.ClickPipeDestinationModel{}
@@ -2664,7 +2679,7 @@ func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 	return SourceTypeUnknown
 }
 
-// overlayPasswordWO returns config password_wo when set, else plan password. Write-only attrs are nulled in plan/state — only req.Config has them.
+// overlayPasswordWO returns the write-only password from config when set, else the plan password. The framework leaves write-only attrs in req.Plan and req.Config, but nulls them in req.State; we read from config to keep the source of truth explicit.
 func overlayPasswordWO(planPassword, configPasswordWO types.String) types.String {
 	if !configPasswordWO.IsNull() && !configPasswordWO.IsUnknown() {
 		return configPasswordWO
@@ -2672,9 +2687,27 @@ func overlayPasswordWO(planPassword, configPasswordWO types.String) types.String
 	return planPassword
 }
 
-// credentialsObjectChanged reports whether plan and state credentials differ. A `password_wo_version` bump produces inequality because the version is not write-only.
+// credentialsObjectChanged reports whether plan and state credentials differ, ignoring the `password_wo` attribute. password_wo is write-only — populated in req.Plan from config but nulled in req.State after each operation — so a direct Equal would always disagree and trigger spurious PATCH calls. password_wo_version is persisted and is the rotation trigger by design.
+//
+// Both Object arguments must share the same schema (same attribute names). This holds for the two credential model types this helper is used with (ClickPipeSourceCredentialsModel and ClickPipeKafkaSourceCredentialsModel) because both embed `password_wo` under the same attribute name. The framework's state migration guarantees state and plan share the current schema.
 func credentialsObjectChanged(planCredentials, stateCredentials types.Object) bool {
-	return !planCredentials.Equal(stateCredentials)
+	if planCredentials.IsNull() != stateCredentials.IsNull() {
+		return true
+	}
+	if planCredentials.IsNull() {
+		return false
+	}
+	planAttrs := planCredentials.Attributes()
+	stateAttrs := stateCredentials.Attributes()
+	for name, planVal := range planAttrs {
+		if name == "password_wo" {
+			continue
+		}
+		if !planVal.Equal(stateAttrs[name]) {
+			return true
+		}
+	}
+	return false
 }
 
 // extractSourceFromPlan builds the API source from plan. config supplies write-only credentials stripped from plan; pass nil in unit tests not exercising write-only behavior.
@@ -3559,10 +3592,10 @@ func convertMongoDBTableMappingModelToAPI(ctx context.Context, diagnostics *diag
 }
 
 func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.ClickPipeResourceModel) func(string) bool {
-	// If stopped, wait for Stopped state
+	// If stopped, wait for Stopped (streaming pipes) or Paused (CDC pipes — Postgres/MySQL/MongoDB).
 	if plan.Stopped.ValueBool() {
 		return func(state string) bool {
-			return state == api.ClickPipeStoppedState
+			return state == api.ClickPipeStoppedState || state == api.ClickPipePausedState
 		}
 	}
 
@@ -5212,14 +5245,24 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
+	// Track the live pipe state across this Update. We start from the prior state
+	// loaded at the top of the function, but the API may auto-resume a paused pipe
+	// when certain fields change — in which case we must trust the UpdateClickPipe
+	// response, not the stale prior state, to decide whether to issue stop/start.
+	liveState := state.State.ValueString()
+
 	// Update the main ClickPipe if non-settings fields changed
 	if pipeChanged {
-		if _, err := c.client.UpdateClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), clickPipeUpdate); err != nil {
+		updatedPipe, err := c.client.UpdateClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), clickPipeUpdate)
+		if err != nil {
 			response.Diagnostics.AddError(
 				"Error Updating ClickPipe",
 				"Could not update ClickPipe, unexpected error: "+err.Error(),
 			)
 			return
+		}
+		if updatedPipe != nil {
+			liveState = updatedPipe.State
 		}
 	}
 
@@ -5235,15 +5278,26 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	desiredStopped := plan.Stopped.ValueBool()
-	currentState := state.State.ValueString()
+	currentState := liveState
 
-	isStopped := currentState == api.ClickPipeStoppedState || currentState == api.ClickPipeStoppingState
+	isStopped := currentState == api.ClickPipeStoppedState ||
+		currentState == api.ClickPipeStoppingState ||
+		currentState == api.ClickPipePausedState ||
+		currentState == api.ClickPipePausingState
 	isFailed := currentState == api.ClickPipeFailedState
 
 	var command string
-	if !desiredStopped && (isStopped || isFailed) {
+	switch {
+	case !desiredStopped && (isStopped || isFailed):
 		command = api.ClickPipeStateStart
-	} else if desiredStopped && !isStopped {
+	case desiredStopped && pipeChanged:
+		// Certain source edits (e.g., credential rotation) cause the API to auto-resume a
+		// paused pipe so it can apply the change. The UpdateClickPipe response can return
+		// before that transition is observable, so we can't rely on the post-PATCH state
+		// to detect the resume. Trust the user's `stopped = true` intent and issue stop
+		// unconditionally. ChangeClickPipeState is idempotent for already-paused pipes.
+		command = api.ClickPipeStateStop
+	case desiredStopped && !isStopped:
 		command = api.ClickPipeStateStop
 	}
 

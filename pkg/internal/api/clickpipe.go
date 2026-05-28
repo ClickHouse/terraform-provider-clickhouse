@@ -17,6 +17,8 @@ const (
 	ClickPipeRunningState       = "Running"
 	ClickPipeStoppingState      = "Stopping"
 	ClickPipeStoppedState       = "Stopped"
+	ClickPipePausingState       = "Pausing"
+	ClickPipePausedState        = "Paused"
 	ClickPipeFailedState        = "Failed"
 	ClickPipeCompletedState     = "Completed"
 	ClickPipeSnapShotState      = "Snapshot"

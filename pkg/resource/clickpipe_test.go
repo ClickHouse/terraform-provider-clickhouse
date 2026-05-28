@@ -1020,6 +1020,21 @@ func TestCredentialsObjectChanged(t *testing.T) {
 		assert.False(t, credentialsObjectChanged(plan, state), "no-op apply with stable version should omit credentials from PATCH")
 	})
 
+	t.Run("password_wo populated in plan but null in state at same version is not flagged", func(t *testing.T) {
+		// Real framework behavior: write-only attrs ride along in req.Plan from config but are nulled in req.State.
+		// Without excluding password_wo, every plan after the first apply spuriously detects a credentials change.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringValue("secret"), types.Int64Value(1))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.False(t, credentialsObjectChanged(plan, state), "plan-side password_wo with stable version must not trigger PATCH")
+	})
+
+	t.Run("password_wo populated in plan with version bump is flagged", func(t *testing.T) {
+		// Rotation path: user bumps version AND the framework still surfaces password_wo in plan.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringValue("new-secret"), types.Int64Value(2))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.True(t, credentialsObjectChanged(plan, state), "version bump must trigger PATCH even with password_wo present in plan")
+	})
+
 	t.Run("migration from legacy password to write-only is detected", func(t *testing.T) {
 		// State was created with legacy `password`; user is now switching to password_wo.
 		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
