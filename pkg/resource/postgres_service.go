@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -108,23 +107,32 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 
 			// --- Mutable -----------------------------------------------------
 			"size": schema.StringAttribute{
-				Description: "Instance size (VM SKU). See ClickHouse Cloud docs for the supported set; the validator snapshot matches VM_SPECS at provider build time. Resizable in place.",
+				Description: "Instance size (VM SKU). See ClickHouse Cloud docs for the supported set. The server is the source of truth — invalid sizes are rejected with HTTP 400 at apply time. (Earlier alpha pinned the list to an 82-entry compile-time snapshot; that meant new AWS instance families needed a provider patch release before users could use them. Dropped in favor of the lower-friction 'server validates' pattern matching the region attribute.) Resizable in place.",
 				Required:    true,
 				Validators: []validator.String{
-					stringvalidator.OneOf(postgresSizes...),
+					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"ha_type": schema.StringAttribute{
-				Description: "High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition.",
+				Description: "High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = \"none\"' explicitly.",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("none"),
+				// No Default("none"): the server applies "none" by default on
+				// Create when omitted. A schema-level Default would also fire
+				// when a user DELETES the line on an existing resource, which
+				// would silently downgrade HA from "async"/"sync" → "none" —
+				// a real footgun caught in PR review. UseStateForUnknown
+				// preserves the prior state when the user omits the line.
+				// Explicit "none" still works and still triggers a downgrade.
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Validators: []validator.String{
 					stringvalidator.OneOf(postgresHaTypes...),
 				},
 			},
 			"tags": schema.SetNestedAttribute{
-				Description: "Resource tags. Set of {key, value} objects; value is optional. Keys starting with 'chc_' are reserved by the server and rejected at plan time. The server rejects PATCHes containing tags whose value field is omitted, so each tag entry must include a non-null value.",
+				Description: "Resource tags. Set of {key, value} objects where both fields are required (value of null or '' is rejected at plan time). Keys starting with 'chc_' are reserved by the server and rejected at plan time.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Set{
@@ -147,8 +155,8 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 							},
 						},
 						"value": schema.StringAttribute{
-							Description: "Tag value. Omit or set to null when no value is needed. Explicit empty strings are rejected at plan time because the server normalizes them to no-value, which would cause perpetual drift between plan and state.",
-							Optional:    true,
+							Description: "Tag value. Must be a non-empty alphanumeric/'.'/'-'/'_' string. The server rejects PATCHes containing tags whose value field is omitted, so we require it at the schema layer to keep CREATE and UPDATE behavior symmetric. (Empty strings are also rejected because the server normalizes them to no-value, which would cause perpetual plan/state drift.)",
+							Required:    true,
 							Validators: []validator.String{
 								stringvalidator.LengthAtLeast(1),
 							},
@@ -176,6 +184,16 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 			"state": schema.StringAttribute{
 				Description: "Server-reported state. Examples: 'creating', 'running', 'restarting', 'unavailable', 'deleting'. Forward-compatible: unknown values from the server are surfaced verbatim.",
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					// Without UseStateForUnknown, every plan would mark state
+					// as (known after apply), forcing an Update on every apply
+					// — and the no-op Update branch would write the Unknown
+					// straight back to state, which the framework rejects as
+					// "Provider produced inconsistent result after apply."
+					// Drift is still detected on Read/refresh; USFU only
+					// affects planning.
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"created_at": schema.StringAttribute{
 				Description: "RFC3339 timestamp when the service was created.",
@@ -314,8 +332,8 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 	// passwords land.
 	model := plan
 	model.ID = types.StringValue(final.Id)
-	if generatedPassword != nil {
-		model.Password = types.StringValue(*generatedPassword)
+	if generatedPassword != "" {
+		model.Password = types.StringValue(generatedPassword)
 	} else {
 		model.Password = types.StringNull()
 	}
@@ -387,7 +405,7 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 	}
 
 	if updatePlan.TransitionExpected {
-		if err := r.client.WaitForPostgresLeaveAndReturn(ctx, state.ID.ValueString(), api.PostgresStateRunning, postgresDefaultUpdateTimeoutSeconds); err != nil {
+		if err := r.client.WaitForPostgresStateTransitionAndReturn(ctx, state.ID.ValueString(), api.PostgresStateRunning, postgresDefaultUpdateTimeoutSeconds); err != nil {
 			resp.Diagnostics.AddError(
 				"Error waiting for Postgres service to settle after update",
 				"Could not confirm Postgres service "+state.ID.ValueString()+" returned to 'running': "+err.Error(),
@@ -433,6 +451,7 @@ func (r *PostgresServiceResource) Delete(ctx context.Context, req resource.Delet
 			"Error deleting Postgres service",
 			"Could not delete Postgres service "+state.ID.ValueString()+": "+err.Error(),
 		)
+		return
 	}
 }
 
@@ -459,11 +478,11 @@ func isPostgresStateRunning(s string) bool { return s == api.PostgresStateRunnin
 // Phase 2's lifecycle ordering. Inline in Create it was untestable without
 // constructing synthetic tfsdk.Plan / tfsdk.State — extracting makes the
 // regression target obvious.
-func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.Postgres, generatedPassword *string) models.PostgresServiceResourceModel {
+func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.Postgres, generatedPassword string) models.PostgresServiceResourceModel {
 	partial := plan
 	partial.ID = types.StringValue(pg.Id)
-	if generatedPassword != nil {
-		partial.Password = types.StringValue(*generatedPassword)
+	if generatedPassword != "" {
+		partial.Password = types.StringValue(generatedPassword)
 	} else {
 		partial.Password = types.StringNull()
 	}
@@ -477,10 +496,14 @@ func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.P
 	partial.Username = types.StringNull()
 	partial.ConnectionString = types.StringNull()
 	// HaType / PostgresVersion came in from the plan; the computed-side may
-	// still be Unknown if the user didn't set them. Pin to a sensible value:
-	// HaType default is "none"; PostgresVersion comes from the create response.
+	// still be Unknown if the user didn't set them. Pin to the value the
+	// server returned in the create response (typically "none" for HaType).
 	if partial.HaType.IsUnknown() {
-		partial.HaType = types.StringValue("none")
+		if pg.HaType != "" {
+			partial.HaType = types.StringValue(pg.HaType)
+		} else {
+			partial.HaType = types.StringValue("none")
+		}
 	}
 	if partial.PostgresVersion.IsUnknown() {
 		partial.PostgresVersion = types.StringValue(pg.PostgresVersion)
@@ -531,7 +554,7 @@ func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResour
 //     fields (size, ha_type, tags).
 //   - TransitionExpected    → the server processes the mutation as a state
 //     transition (size, ha_type); caller should
-//     follow up with WaitForPostgresLeaveAndReturn.
+//     follow up with WaitForPostgresStateTransitionAndReturn.
 type postgresUpdatePlan struct {
 	Body               *api.PostgresUpdate
 	TransitionExpected bool
@@ -733,8 +756,8 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 		state.Hostname = types.StringNull()
 	}
 	state.Port = types.Int64Value(postgresDefaultPort)
-	if pg.Username != nil {
-		state.Username = types.StringValue(*pg.Username)
+	if pg.Username != "" {
+		state.Username = types.StringValue(pg.Username)
 	} else {
 		state.Username = types.StringNull()
 	}

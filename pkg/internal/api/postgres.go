@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Sentinel errors distinguishing "poll succeeded but target not yet met"
@@ -141,6 +142,15 @@ func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId 
 		}
 		if IsConflict(err) {
 			if errIndicatesDependentReplica(err) {
+				// FIXME(phase-6): the keyword heuristic at errIndicatesDependentReplica
+				// is speculative. Log the verbatim 409 here so Phase 6's
+				// dependent-replica integration test has real data to anchor
+				// the heuristic against (or replace with a stable error code
+				// if the server surfaces one).
+				tflog.Warn(ctx, "Postgres delete failing fast due to dependent-replica heuristic", map[string]interface{}{
+					"postgresId": postgresId,
+					"error":      err.Error(),
+				})
 				return backoff.Permanent(err)
 			}
 			return err
@@ -150,7 +160,10 @@ func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId 
 	if interval <= 0 {
 		interval = postgresDeleteRetryInterval
 	}
-	return backoff.Retry(deleteOnce, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
+	// backoff.WithContext makes a cancelled ctx (Ctrl-C, Terraform deadline)
+	// abort the retry loop promptly instead of sleeping out the full budget.
+	b := backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries), ctx)
+	return backoff.Retry(deleteOnce, b)
 }
 
 // errIndicatesDependentReplica fails fast on 409s caused by a read replica
@@ -214,7 +227,8 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 	if maxRetries < 1 {
 		maxRetries = 1
 	}
-	err := backoff.Retry(check, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
+	b := backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries), ctx)
+	err := backoff.Retry(check, b)
 	if err == nil {
 		return nil
 	}
@@ -265,7 +279,11 @@ func (c *ClientImpl) waitForPostgresStateTransitionAndReturnWithInterval(ctx con
 		maxRetries = 2
 	}
 	halfBudget := maxRetries / 2
-	err := backoff.Retry(leftCheck, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), halfBudget))
+	if halfBudget < 1 {
+		halfBudget = 1
+	}
+	b := backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), halfBudget), ctx)
+	err := backoff.Retry(leftCheck, b)
 	if err != nil && !left {
 		// Only sentinel-caused exhaustion is a no-op success; everything else
 		// propagates so the caller doesn't mistake polling failure for success.

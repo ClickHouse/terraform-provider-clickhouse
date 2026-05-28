@@ -34,28 +34,13 @@ var postgresHaTypes = []string{
 	"sync",
 }
 
-// postgresSizes mirrors the keys of VM_SPECS at ManagedPostgres.ts:203.
-// Snapshotted with `grep -oE "'[a-z0-9]+\.[a-z0-9]+'" ManagedPostgres.ts | sort -u`
-// = 82 keys at snapshot time.
-var postgresSizes = []string{
-	"c6gd.16xlarge", "c6gd.2xlarge", "c6gd.4xlarge", "c6gd.8xlarge", "c6gd.large", "c6gd.xlarge",
-	"i7i.12xlarge", "i7i.16xlarge", "i7i.24xlarge", "i7i.2xlarge", "i7i.4xlarge", "i7i.8xlarge",
-	"i7i.large", "i7i.xlarge",
-	"i7ie.12xlarge", "i7ie.18xlarge", "i7ie.24xlarge", "i7ie.2xlarge", "i7ie.3xlarge",
-	"i7ie.6xlarge", "i7ie.large", "i7ie.xlarge",
-	"i8g.16xlarge", "i8g.24xlarge", "i8g.2xlarge", "i8g.4xlarge", "i8g.8xlarge", "i8g.large", "i8g.xlarge",
-	"i8ge.12xlarge", "i8ge.18xlarge", "i8ge.24xlarge", "i8ge.2xlarge", "i8ge.3xlarge",
-	"i8ge.6xlarge", "i8ge.large", "i8ge.xlarge",
-	"m6gd.16xlarge", "m6gd.2xlarge", "m6gd.4xlarge", "m6gd.8xlarge", "m6gd.large", "m6gd.xlarge",
-	"m6id.16xlarge", "m6id.2xlarge", "m6id.4xlarge", "m6id.8xlarge", "m6id.large", "m6id.xlarge",
-	"m8gd.16xlarge", "m8gd.2xlarge", "m8gd.4xlarge", "m8gd.8xlarge", "m8gd.large", "m8gd.xlarge",
-	"r6gd.12xlarge", "r6gd.16xlarge", "r6gd.2xlarge", "r6gd.4xlarge", "r6gd.8xlarge",
-	"r6gd.large", "r6gd.medium", "r6gd.xlarge",
-	"r6id.12xlarge", "r6id.16xlarge", "r6id.24xlarge", "r6id.2xlarge", "r6id.32xlarge",
-	"r6id.4xlarge", "r6id.8xlarge", "r6id.large", "r6id.xlarge",
-	"r8gd.12xlarge", "r8gd.16xlarge", "r8gd.24xlarge", "r8gd.2xlarge", "r8gd.48xlarge",
-	"r8gd.4xlarge", "r8gd.8xlarge", "r8gd.large", "r8gd.medium", "r8gd.xlarge",
-}
+// Note: an earlier alpha pinned a `postgresSizes` snapshot of the 82 VM_SPECS
+// keys at ManagedPostgres.ts:203 as a client-side OneOf validator on `size`.
+// Removed in PR review — the maintenance burden (provider patch needed on
+// every new AWS instance family) outweighed the plan-time error benefit for
+// what is the most-frequently-changed attribute. The schema now matches the
+// region attribute: pass through to the server, which rejects invalid sizes
+// with HTTP 400 at apply time.
 
 // postgresInstanceNameMin / postgresInstanceNameMax mirror
 // MIN_INSTANCE_NAME_LENGTH / MAX_INSTANCE_NAME_LENGTH at ValidationUtils.ts:354-355.

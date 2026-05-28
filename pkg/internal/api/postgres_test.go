@@ -412,6 +412,40 @@ func TestWaitForPostgresState_UnknownStateDoesNotCrash(t *testing.T) {
 	}
 }
 
+func TestWaitForPostgresState_HonorsContextCancellation(t *testing.T) {
+	// Without backoff.WithContext, a cancelled context (Ctrl-C, Terraform
+	// deadline) would let the retry loop sleep through its full budget
+	// because GetPostgres returns a non-5xx error that check() treats as
+	// retryable. With backoff.WithContext the loop aborts promptly.
+	requests := make(chan struct{}, 1024)
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case requests <- struct{}{}:
+		default:
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateCreating}})
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel after one observed request so we know polling started.
+	go func() {
+		<-requests
+		cancel()
+	}()
+	start := time.Now()
+	err := client.waitForPostgresStateWithInterval(ctx, testPostgresID,
+		func(s string) bool { return s == PostgresStateRunning },
+		// 5s interval × 100 retries would be 500s wall-clock without
+		// cancellation; we expect this to return in well under that.
+		5*time.Second, 100)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("expected error after context cancel; got nil")
+	}
+	if elapsed > 15*time.Second {
+		t.Errorf("expected wait to abort within ~5s after cancel; took %s", elapsed)
+	}
+}
+
 // ----- WaitForPostgresStateTransitionAndReturn --------------------------------------
 
 func TestWaitForPostgresStateTransitionAndReturn_TransitionsAwayAndBack(t *testing.T) {

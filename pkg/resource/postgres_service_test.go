@@ -4,6 +4,8 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -576,6 +578,51 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		}
 		if result.TransitionExpected {
 			t.Errorf("tag-clear must not signal TransitionExpected")
+		}
+		// Stronger assertion: confirm JSON wire shape — server must see
+		// "tags": [] (NOT field omitted), otherwise Phase 1's *[]Tag
+		// pointer-to-slice intent is lost in marshalling.
+		marshaled, err := json.Marshal(*result.Body)
+		if err != nil {
+			t.Fatalf("marshal failed: %v", err)
+		}
+		if !strings.Contains(string(marshaled), `"tags":[]`) {
+			t.Errorf("expected JSON body to contain \"tags\":[] to clear server-side; got %s", string(marshaled))
+		}
+	})
+
+	t.Run("tag value mutation: same key, different value", func(t *testing.T) {
+		// Review feedback: the existing matrix never exercised changing a
+		// value on an existing key. This is the exact path that would have
+		// caught the (now-fixed) "tag value omitted" issue if the value
+		// transitioned to null.
+		plan := baseModel("c6gd.large", "none", tagSet("team", "engineering"))
+		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
+		result, diags := buildPostgresUpdate(ctx, plan, state)
+		if diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if result.Body == nil || result.Body.Tags == nil {
+			t.Fatalf("expected non-nil tags pointer in PATCH body; got %#v", result.Body)
+		}
+		if len(*result.Body.Tags) != 1 {
+			t.Fatalf("expected 1 tag in PATCH body; got %d", len(*result.Body.Tags))
+		}
+		t0 := (*result.Body.Tags)[0]
+		if t0.Key != "team" || t0.Value != "engineering" {
+			t.Errorf("expected key=team value=engineering, got key=%q value=%q", t0.Key, t0.Value)
+		}
+		if result.TransitionExpected {
+			t.Errorf("tag value mutation must NOT signal TransitionExpected")
+		}
+		// Wire-shape assertion: value must be present on the wire (not
+		// omitted via the api.Tag.Value omitempty tag).
+		marshaled, err := json.Marshal(*result.Body)
+		if err != nil {
+			t.Fatalf("marshal failed: %v", err)
+		}
+		if !strings.Contains(string(marshaled), `"value":"engineering"`) {
+			t.Errorf("expected value in JSON body; got %s", string(marshaled))
 		}
 	})
 

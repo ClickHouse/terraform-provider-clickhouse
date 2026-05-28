@@ -35,17 +35,14 @@ intentionally deferred:
   in-place rename.
 - **Tags are a set of nested `{ key, value }` objects, not a flat map.** The
   server's `ResourceTagV1` shape is an array of objects with optional
-  `value`. Using nested attributes preserves that distinction. Tags whose
-  key starts with `chc_` are reserved by the server and rejected at plan
-  time. **Tag values cannot be explicit empty strings** — the server
-  normalizes `""` to no-value, which would cause perpetual plan/state
-  drift; omit the `value` attribute or set it to `null` instead.
-  **Each tag must include a non-null `value` on update.** Even though
-  the server's create endpoint accepts no-value tags, the PATCH endpoint
-  returns `400 BAD_REQUEST` if any tag entry omits `value`. Always set
-  a non-empty alphanumeric/`.`/`-`/`_` value (server regex
-  `^[a-zA-Z0-9._-]+$`) when declaring tags. The provider rejects empty
-  strings at plan time; the no-value case is a server-side 400.
+  `value`, but **the provider requires both fields** — `value` must be
+  a non-empty alphanumeric / `.` / `-` / `_` string (server regex
+  `^[a-zA-Z0-9._-]+$`). Reason: the server's create endpoint accepts
+  no-value tags but the PATCH endpoint returns `400 BAD_REQUEST` if
+  any tag entry omits `value`. Rather than expose that asymmetry, the
+  schema rejects null / empty-string values at plan time. Tags whose
+  key starts with `chc_` are reserved by the server and also rejected
+  at plan time.
 - **Server-side PUT-like tag semantics on PATCH.** The Postgres PATCH
   endpoint clears all tags when the request body omits the `tags` field,
   even though omitting any other field (`size`, `ha_type`) preserves its
@@ -124,9 +121,14 @@ Post-import: every attribute except `password` is hydrated from the server.
 
 ## Known limitations (alpha)
 
-- The `size` attribute is validated against a compile-time snapshot of
-  `VM_SPECS`. New AWS instance families added server-side require a
-  provider patch release before they are usable in `.tf`.
+- The `size` attribute is not validated client-side beyond non-empty.
+  Invalid sizes surface as an HTTP 400 at apply time rather than a
+  plan-time error. This is intentional — pinning the list to a
+  compile-time snapshot meant new AWS instance families required a
+  provider patch release before users could adopt them. The
+  `cloud_provider`, `ha_type`, and `postgres_version` attributes
+  remain client-side validated because they churn rarely enough that
+  the trade-off goes the other way.
 - Lifecycle timeouts are not user-configurable in Phase 2 (see "Phase 2
   scope" above).
 - The connection string and password are visible in plan output even
