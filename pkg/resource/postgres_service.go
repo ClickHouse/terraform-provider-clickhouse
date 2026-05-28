@@ -628,8 +628,8 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 // diffTags compares the plan's tags attribute against the state's, returning:
 //   - changed: true if the plan represents a different tag intent than state.
 //   - body:    the *[]api.Tag to put in the PATCH body when the caller chooses
-//             to send the diff. nil if plan.Tags is Unknown (treat as
-//             "no diff" — defense-in-depth against missing UseStateForUnknown).
+//     to send the diff. nil if plan.Tags is Unknown (treat as
+//     "no diff" — defense-in-depth against missing UseStateForUnknown).
 //
 // Cases:
 //   - Plan Unknown -> changed=false, body=nil. Caller should NOT touch tags
