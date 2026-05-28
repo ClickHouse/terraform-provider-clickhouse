@@ -159,14 +159,12 @@ const (
 	ClickPipePubSubSeekTypeLatest    = "latest"
 	ClickPipePubSubSeekTypeEarliest  = "earliest"
 	ClickPipePubSubSeekTypeTimestamp = "timestamp"
-	ClickPipePubSubSeekTypeSnapshot  = "snapshot"
 )
 
 var ClickPipePubSubSeekTypes = []string{
 	ClickPipePubSubSeekTypeLatest,
 	ClickPipePubSubSeekTypeEarliest,
 	ClickPipePubSubSeekTypeTimestamp,
-	ClickPipePubSubSeekTypeSnapshot,
 }
 
 var ClickPipePubSubAuthenticationMethods = []string{
