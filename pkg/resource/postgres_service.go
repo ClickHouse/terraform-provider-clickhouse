@@ -528,10 +528,10 @@ func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResour
 //
 //   - Body == nil           → no diff; caller skips the API call entirely.
 //   - Body != nil           → sparse PATCH body containing only the changed
-//                             fields (size, ha_type, tags).
+//     fields (size, ha_type, tags).
 //   - TransitionExpected    → the server processes the mutation as a state
-//                             transition (size, ha_type); caller should
-//                             follow up with WaitForPostgresLeaveAndReturn.
+//     transition (size, ha_type); caller should
+//     follow up with WaitForPostgresLeaveAndReturn.
 type postgresUpdatePlan struct {
 	Body               *api.PostgresUpdate
 	TransitionExpected bool
