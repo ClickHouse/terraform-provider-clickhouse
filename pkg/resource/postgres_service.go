@@ -564,39 +564,97 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		changed = true
 		transitionExpected = true
 	}
-	// Tags handling. Three plan states to handle correctly:
-	//   - Unknown    -> framework hasn't resolved the attribute. NEVER include
-	//                   tags in the PATCH body. Including it would either omit
-	//                   the field (treated by server as no-change, OK) or send
-	//                   [] (DATA LOSS — silently clears server-side tags the
-	//                   user never asked to clear). Defense-in-depth against
-	//                   a regression in the schema's UseStateForUnknown.
-	//   - Null       -> user removed the tags block; clear server-side tags
-	//                   (send tags: []).
-	//   - Populated  -> send the mapped slice; server replaces.
-	if plan.Tags.IsUnknown() {
-		// Skip — Tags untouched in PATCH.
-	} else if !plan.Tags.Equal(state.Tags) {
-		mapped, d := planTagsToAPI(ctx, plan.Tags)
+	// Tags handling.
+	//
+	// CRITICAL server-side gotcha (caught in Phase 2 e2e v2 run, 2026-05-28):
+	// the Postgres PATCH endpoint has PUT-like semantics for tags. If the
+	// request body omits the `tags` field, the server CLEARS all tags
+	// server-side. This is asymmetric with `size` / `ha_type`, which the
+	// server preserves when omitted.
+	//
+	// The implication: whenever we PATCH any field (size or ha_type), we
+	// MUST also include the current tags in the body, or they'll be silently
+	// wiped. This is independent of whether the user changed tags or not.
+	//
+	// Plan-state combinations and our action:
+	//   - Unknown plan tags + any state             -> include state.Tags
+	//     (defense-in-depth: framework shouldn't resolve to Unknown after
+	//     UseStateForUnknown, but if a regression slips through we still
+	//     preserve server-side tags rather than clearing them).
+	//   - Plan tags == state tags (no diff)         -> include state.Tags
+	//     when ANYTHING ELSE changes, otherwise leave update.Tags nil.
+	//   - Plan null, state populated (clear)        -> send tags: [].
+	//     This branch counts as a tag change (sets `changed`).
+	//   - Plan populated, state different           -> send the mapped slice.
+	//   - Plan null + state null (no tags at all)   -> leave update.Tags nil.
+	//
+	// The implementation below funnels everything through a single helper
+	// for clarity. Only set Tags when the caller will actually send a PATCH
+	// (i.e., `changed` is true via size/ha_type or via a tag diff itself);
+	// callers checking `Body == nil` for no-op should not see Tags forced in.
+	tagsChanged, mappedFromPlan, d := diffTags(ctx, plan, state)
+	diags.Append(d...)
+	if diags.HasError() {
+		return postgresUpdatePlan{}, diags
+	}
+	if tagsChanged {
+		// Plan vs. state differs — adopt the plan's tag intent verbatim
+		// (whether that's clear-all or replace).
+		update.Tags = mappedFromPlan
+		changed = true
+	} else if changed {
+		// Tags are unchanged but size or ha_type IS changing. Defend
+		// against server-side PUT-like tag semantics by re-asserting the
+		// current state tags in the PATCH body.
+		preserved, d := planTagsToAPI(ctx, state.Tags)
 		diags.Append(d...)
 		if diags.HasError() {
 			return postgresUpdatePlan{}, diags
 		}
-		if mapped == nil {
-			// User removed the tags block from .tf -> clear all tags
-			// (send []) rather than omit the field.
-			empty := []api.Tag{}
-			update.Tags = &empty
+		if preserved == nil {
+			// No tags in state — nothing to preserve. Leave update.Tags
+			// nil; server has no tags to clear, so omitting is safe.
 		} else {
-			update.Tags = mapped
+			update.Tags = preserved
 		}
-		changed = true
 	}
 
 	if !changed {
 		return postgresUpdatePlan{}, diags
 	}
 	return postgresUpdatePlan{Body: &update, TransitionExpected: transitionExpected}, diags
+}
+
+// diffTags compares the plan's tags attribute against the state's, returning:
+//   - changed: true if the plan represents a different tag intent than state.
+//   - body:    the *[]api.Tag to put in the PATCH body when the caller chooses
+//             to send the diff. nil if plan.Tags is Unknown (treat as
+//             "no diff" — defense-in-depth against missing UseStateForUnknown).
+//
+// Cases:
+//   - Plan Unknown -> changed=false, body=nil. Caller should NOT touch tags
+//     (covered by the UseStateForUnknown plan modifier in normal operation).
+//   - Plan == state -> changed=false, body=nil.
+//   - Plan null, state populated -> changed=true, body=&[]Tag{} (clear).
+//   - Plan populated, plan != state -> changed=true, body=&mapped.
+func diffTags(ctx context.Context, plan, state models.PostgresServiceResourceModel) (bool, *[]api.Tag, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if plan.Tags.IsUnknown() {
+		return false, nil, diags
+	}
+	if plan.Tags.Equal(state.Tags) {
+		return false, nil, diags
+	}
+	mapped, d := planTagsToAPI(ctx, plan.Tags)
+	diags.Append(d...)
+	if diags.HasError() {
+		return false, nil, diags
+	}
+	if mapped == nil {
+		empty := []api.Tag{}
+		return true, &empty, diags
+	}
+	return true, mapped, diags
 }
 
 // planTagsToAPI extracts an *[]api.Tag from a Terraform set-of-objects

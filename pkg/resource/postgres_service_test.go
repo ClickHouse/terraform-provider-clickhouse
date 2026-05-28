@@ -579,14 +579,18 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("plan.Tags == Unknown is treated as 'leave server tags alone'", func(t *testing.T) {
-		// REGRESSION TEST: caught live in Phase 2 e2e (resize step). Without
-		// setplanmodifier.UseStateForUnknown() on the tags attribute the
-		// framework marks tags as Unknown in plan-time; buildPostgresUpdate
-		// must NOT clear server-side tags in that case (silent data loss).
-		// Defense-in-depth check: even if a future schema regression drops
-		// the plan modifier, the diff logic refuses to touch the tags
-		// field while it's Unknown.
+	t.Run("plan.Tags == Unknown: re-asserts state.Tags so server doesn't clear them", func(t *testing.T) {
+		// REGRESSION TEST: combined fix for two distinct e2e-caught bugs:
+		//   1) Phase 2 e2e v1: without UseStateForUnknown on the tags
+		//      attribute, framework marked tags as Unknown → buildPostgresUpdate
+		//      treated nil-from-Unknown as "clear all tags" → silent data loss.
+		//   2) Phase 2 e2e v2: PATCH with just {"size":...} (no tags field)
+		//      ALSO clears server-side tags because the server's PATCH
+		//      endpoint has PUT-like semantics for the tags field.
+		//
+		// The combined defensive behavior: whenever Unknown plan tags meet
+		// non-empty state tags AND we're patching something else, force the
+		// state's tags into the PATCH body so the server can't drop them.
 		plan := baseModel("c6gd.xlarge", "none", types.SetUnknown(models.PostgresServiceTagObjectType()))
 		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
 		result, diags := buildPostgresUpdate(ctx, plan, state)
@@ -596,11 +600,55 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		if result.Body == nil {
 			t.Fatal("expected size diff to still produce a Body")
 		}
-		if result.Body.Tags != nil {
-			t.Errorf("Unknown plan tags must NOT include the tags field in PATCH; got %#v (would silently clear server-side tags)", result.Body.Tags)
+		if result.Body.Tags == nil {
+			t.Errorf("expected state.Tags to be re-asserted in PATCH body to defend against server-side clear; got nil")
+		} else if len(*result.Body.Tags) != 1 || (*result.Body.Tags)[0].Key != "team" {
+			t.Errorf("expected state.Tags ([team=billing]) preserved in PATCH; got %#v", *result.Body.Tags)
 		}
 		if result.Body.Size != "c6gd.xlarge" {
 			t.Errorf("size change must still propagate; got %q", result.Body.Size)
+		}
+	})
+
+	t.Run("size-only diff with non-empty state tags: server-clear defense", func(t *testing.T) {
+		// Phase 2 e2e v2 caught this: server PATCH endpoint clears tags when
+		// the request body omits them. When the user changes size and state
+		// has tags, we MUST include those tags in the PATCH body even though
+		// the user didn't ask us to.
+		plan := baseModel("c6gd.xlarge", "none", tagSet("team", "billing"))
+		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
+		result, diags := buildPostgresUpdate(ctx, plan, state)
+		if diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if result.Body == nil {
+			t.Fatal("expected size diff to produce a Body")
+		}
+		if result.Body.Size != "c6gd.xlarge" {
+			t.Errorf("size not propagated")
+		}
+		if result.Body.Tags == nil {
+			t.Errorf("expected tags re-asserted in PATCH body to defend against server-side clear; got nil")
+		} else if len(*result.Body.Tags) != 1 || (*result.Body.Tags)[0].Key != "team" {
+			t.Errorf("expected unchanged tags preserved; got %#v", *result.Body.Tags)
+		}
+	})
+
+	t.Run("size-only diff with no state tags: tags stays nil (nothing to defend)", func(t *testing.T) {
+		// Inverse case: no tags in state means no risk of server-clear.
+		// Body.Tags should stay nil so we don't send an empty array
+		// unnecessarily.
+		plan := baseModel("c6gd.xlarge", "none", emptyTags())
+		state := baseModel("c6gd.large", "none", emptyTags())
+		result, diags := buildPostgresUpdate(ctx, plan, state)
+		if diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if result.Body == nil || result.Body.Size != "c6gd.xlarge" {
+			t.Fatalf("size diff missing: %#v", result.Body)
+		}
+		if result.Body.Tags != nil {
+			t.Errorf("no state tags → tags should remain nil; got %#v", result.Body.Tags)
 		}
 	})
 

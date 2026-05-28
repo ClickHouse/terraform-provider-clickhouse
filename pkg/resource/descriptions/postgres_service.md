@@ -46,6 +46,14 @@ intentionally deferred:
   a non-empty alphanumeric/`.`/`-`/`_` value (server regex
   `^[a-zA-Z0-9._-]+$`) when declaring tags. The provider rejects empty
   strings at plan time; the no-value case is a server-side 400.
+- **Server-side PUT-like tag semantics on PATCH.** The Postgres PATCH
+  endpoint clears all tags when the request body omits the `tags` field,
+  even though omitting any other field (`size`, `ha_type`) preserves its
+  value. The provider works around this by re-asserting the current state
+  tags in every PATCH that mutates `size` or `ha_type`, so users won't
+  lose tags when they resize or change the HA mode. This is invisible to
+  end users but worth knowing if you inspect `TF_LOG=DEBUG` request
+  bodies — you'll see tags repeated on non-tag mutations.
 - **No support for explicit empty tag lists.** Writing `tags = []` is
   rejected at plan time. To express "no tags," omit the attribute
   entirely — `Optional + Computed + UseStateForUnknown` then carries
