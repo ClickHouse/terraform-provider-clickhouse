@@ -1041,6 +1041,41 @@ func TestCredentialsObjectChanged(t *testing.T) {
 		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("legacy-pass"), types.StringNull(), types.Int64Null())
 		assert.True(t, credentialsObjectChanged(plan, state), "switching from legacy password to password_wo should re-send credentials")
 	})
+
+	// Robustness guards (PR #532 review comment): Unknown objects and older-schema
+	// state must not panic and must err on the side of "changed".
+	t.Run("unknown plan credentials are treated as changed", func(t *testing.T) {
+		plan := types.ObjectUnknown(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		assert.True(t, credentialsObjectChanged(plan, state), "unknown plan credentials cannot be proven equal — treat as changed")
+	})
+
+	t.Run("unknown state credentials are treated as changed", func(t *testing.T) {
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		state := types.ObjectUnknown(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		assert.True(t, credentialsObjectChanged(plan, state), "unknown state credentials cannot be proven equal — treat as changed")
+	})
+
+	t.Run("older-schema state missing password_wo_version does not panic and is treated as changed", func(t *testing.T) {
+		// Simulate state produced before password_wo_version existed: a credentials object
+		// whose attribute set lacks the newer key. A direct stateAttrs[name] index would
+		// previously yield a nil value and panic on .Equal().
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		legacyState := types.ObjectValueMust(
+			map[string]attr.Type{
+				"username": types.StringType,
+				"password": types.StringType,
+				// password_wo and password_wo_version intentionally absent (older schema)
+			},
+			map[string]attr.Value{
+				"username": types.StringValue("user"),
+				"password": types.StringValue("pass"),
+			},
+		)
+		assert.NotPanics(t, func() {
+			assert.True(t, credentialsObjectChanged(plan, legacyState), "missing newer attribute means schema changed — treat as changed")
+		})
+	})
 }
 
 func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {

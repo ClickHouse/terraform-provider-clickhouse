@@ -305,7 +305,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												Optional:    true,
 												Sensitive:   true,
 												Validators: []validator.String{
-													stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+													// `password` is mutually exclusive with the write-only fields. Conflicting with both
+													// `password_wo` and `password_wo_version` keeps the two auth styles unambiguous.
+													stringvalidator.ConflictsWith(
+														path.MatchRelative().AtParent().AtName("password_wo"),
+														path.MatchRelative().AtParent().AtName("password_wo_version"),
+													),
 													stringvalidator.AtLeastOneOf(
 														path.MatchRelative(),
 														path.MatchRelative().AtParent().AtName("password_wo"),
@@ -358,7 +363,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Optional:    true,
 										Sensitive:   true,
 										Validators: []validator.String{
-											stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+											// `password` is mutually exclusive with the write-only fields. Conflicting with both
+											// `password_wo` and `password_wo_version` keeps the two auth styles unambiguous.
+											stringvalidator.ConflictsWith(
+												path.MatchRelative().AtParent().AtName("password_wo"),
+												path.MatchRelative().AtParent().AtName("password_wo_version"),
+											),
 										},
 									},
 									"password_wo": schema.StringAttribute{
@@ -872,7 +882,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Optional:    true,
 										Sensitive:   true,
 										Validators: []validator.String{
-											stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+											// `password` is mutually exclusive with the write-only fields. Conflicting with both
+											// `password_wo` and `password_wo_version` keeps the two auth styles unambiguous.
+											stringvalidator.ConflictsWith(
+												path.MatchRelative().AtParent().AtName("password_wo"),
+												path.MatchRelative().AtParent().AtName("password_wo_version"),
+											),
 										},
 									},
 									"password_wo": schema.StringAttribute{
@@ -1149,7 +1164,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Optional:    true,
 										Sensitive:   true,
 										Validators: []validator.String{
-											stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+											// `password` is mutually exclusive with the write-only fields. Conflicting with both
+											// `password_wo` and `password_wo_version` keeps the two auth styles unambiguous.
+											stringvalidator.ConflictsWith(
+												path.MatchRelative().AtParent().AtName("password_wo"),
+												path.MatchRelative().AtParent().AtName("password_wo_version"),
+											),
 										},
 									},
 									"password_wo": schema.StringAttribute{
@@ -1528,7 +1548,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Optional:    true,
 										Sensitive:   true,
 										Validators: []validator.String{
-											stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("password_wo")),
+											// `password` is mutually exclusive with the write-only fields. Conflicting with both
+											// `password_wo` and `password_wo_version` keeps the two auth styles unambiguous.
+											stringvalidator.ConflictsWith(
+												path.MatchRelative().AtParent().AtName("password_wo"),
+												path.MatchRelative().AtParent().AtName("password_wo_version"),
+											),
 										},
 									},
 									"password_wo": schema.StringAttribute{
@@ -1817,11 +1842,18 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 
 	// Reject `stopped = true` on creation. The API does not support provisioning a pipe
 	// in a stopped state; the pipe must be created running and then stopped via update.
-	if request.State.Raw.IsNull() && plan.Stopped.ValueBool() {
+	// An Unknown value (e.g. `stopped` derived from an apply-time computed expression)
+	// is also rejected: we cannot prove it will resolve to false, and a true would put
+	// us in the unsupported create-stopped path. Require a known false on creation.
+	if request.State.Raw.IsNull() && (plan.Stopped.IsUnknown() || plan.Stopped.ValueBool()) {
+		detail := "`stopped = true` is not allowed when creating a new ClickPipe. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
+		if plan.Stopped.IsUnknown() {
+			detail = "`stopped` must be a known value (false) when creating a new ClickPipe; it cannot be derived from an apply-time computed value. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
+		}
 		response.Diagnostics.AddAttributeError(
 			path.Root("stopped"),
 			"Cannot create a ClickPipe in a stopped state",
-			"`stopped = true` is not allowed when creating a new ClickPipe. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it.",
+			detail,
 		)
 		return
 	}
@@ -2689,8 +2721,13 @@ func overlayPasswordWO(planPassword, configPasswordWO types.String) types.String
 
 // credentialsObjectChanged reports whether plan and state credentials differ, ignoring the `password_wo` attribute. password_wo is write-only — populated in req.Plan from config but nulled in req.State after each operation — so a direct Equal would always disagree and trigger spurious PATCH calls. password_wo_version is persisted and is the rotation trigger by design.
 //
-// Both Object arguments must share the same schema (same attribute names). This holds for the two credential model types this helper is used with (ClickPipeSourceCredentialsModel and ClickPipeKafkaSourceCredentialsModel) because both embed `password_wo` under the same attribute name. The framework's state migration guarantees state and plan share the current schema.
+// Robustness: an Unknown object (apply-time computed) is treated as changed so we never skip a real rotation. Map lookups against the state attributes are guarded — state produced by an older schema may be missing newly added keys (e.g. `password_wo_version`); a missing key counts as changed rather than panicking on a nil value.
 func credentialsObjectChanged(planCredentials, stateCredentials types.Object) bool {
+	// Unknown on either side means we can't prove equality; treat as changed so the
+	// PATCH includes credentials rather than silently skipping a rotation.
+	if planCredentials.IsUnknown() || stateCredentials.IsUnknown() {
+		return true
+	}
 	if planCredentials.IsNull() != stateCredentials.IsNull() {
 		return true
 	}
@@ -2703,7 +2740,13 @@ func credentialsObjectChanged(planCredentials, stateCredentials types.Object) bo
 		if name == "password_wo" {
 			continue
 		}
-		if !planVal.Equal(stateAttrs[name]) {
+		// Guard the lookup: older-schema state may not contain this attribute.
+		// A missing key means the schema changed under us — treat as changed.
+		stateVal, ok := stateAttrs[name]
+		if !ok {
+			return true
+		}
+		if !planVal.Equal(stateVal) {
 			return true
 		}
 	}
