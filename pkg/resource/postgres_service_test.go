@@ -56,7 +56,7 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				IsPrimary:        boolPtrPG(true),
 				Hostname:         strPtrPG("primary-1.example.com"),
 				ConnectionString: strPtrPG("postgresql://default:secret@primary-1.example.com:5432/postgres"),
-				Username:         strPtrPG("default"),
+				Username:         "default",
 				Tags:             []api.Tag{{Key: "team", Value: "billing"}},
 			},
 			want: func() models.PostgresServiceResourceModel {
@@ -372,7 +372,7 @@ func TestBuildPartialCreateState(t *testing.T) {
 
 	t.Run("with server-generated password", func(t *testing.T) {
 		password := "ServerGen123XYZ"
-		partial := buildPartialCreateState(planFresh(), pg, &password)
+		partial := buildPartialCreateState(planFresh(), pg, password)
 
 		// Must carry id + password; otherwise Phase 2's recovery contract breaks.
 		if partial.ID.ValueString() != "pg-mid-create" {
@@ -419,7 +419,7 @@ func TestBuildPartialCreateState(t *testing.T) {
 	})
 
 	t.Run("with no server-generated password (user-supplied path, Phase 4 preview)", func(t *testing.T) {
-		partial := buildPartialCreateState(planFresh(), pg, nil)
+		partial := buildPartialCreateState(planFresh(), pg, "")
 		if !partial.Password.IsNull() {
 			t.Errorf("Password must be explicit Null when no generated password; got %v", partial.Password)
 		}
@@ -428,7 +428,7 @@ func TestBuildPartialCreateState(t *testing.T) {
 	t.Run("preserves user-set HaType from plan", func(t *testing.T) {
 		plan := planFresh()
 		plan.HaType = types.StringValue("async")
-		partial := buildPartialCreateState(plan, pg, nil)
+		partial := buildPartialCreateState(plan, pg, "")
 		if partial.HaType.ValueString() != "async" {
 			t.Errorf("user-set HaType must survive; got %v", partial.HaType)
 		}
@@ -437,7 +437,7 @@ func TestBuildPartialCreateState(t *testing.T) {
 	t.Run("preserves user-set PostgresVersion from plan", func(t *testing.T) {
 		plan := planFresh()
 		plan.PostgresVersion = types.StringValue("17")
-		partial := buildPartialCreateState(plan, pg, nil)
+		partial := buildPartialCreateState(plan, pg, "")
 		if partial.PostgresVersion.ValueString() != "17" {
 			t.Errorf("user-set PostgresVersion must survive; got %v", partial.PostgresVersion)
 		}
@@ -451,7 +451,7 @@ func TestBuildPartialCreateState(t *testing.T) {
 		)
 		set, _ := types.SetValue(models.PostgresServiceTagObjectType(), []attr.Value{tagObj})
 		plan.Tags = set
-		partial := buildPartialCreateState(plan, pg, nil)
+		partial := buildPartialCreateState(plan, pg, "")
 		if partial.Tags.IsNull() || partial.Tags.IsUnknown() {
 			t.Errorf("user-set tags must survive mid-Create; got %v", partial.Tags)
 		}

@@ -8,11 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Sentinel errors distinguishing "poll succeeded but target not yet met"
@@ -121,7 +119,18 @@ func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body
 }
 
 // DeletePostgres deletes an instance. 404 → nil (idempotent). 409 retries
-// for ~15 min UNLESS the body indicates a dependent replica blocks deletion.
+// for ~15 min (some 409s are transient: instance in 'creating'/'restarting'
+// state, replication slot draining, concurrent operation locks — retry
+// resolves all of these).
+//
+// Note: an earlier alpha shipped a speculative dependent-replica fail-fast
+// heuristic that text-matched the 409 body for "depend" + "replica". Removed
+// because we could not trigger the scenario from Phase 2 (read replicas
+// arrive in Phase 5) and never confirmed what Ubicloud actually returns —
+// the status code (409 vs 422 vs 400) and the response shape were all
+// guesses. If Phase 5's dependent-replica integration test surfaces a
+// real, non-retryable 4xx with a stable distinguishing field, reintroduce
+// the fail-fast there with the captured data as the anchor.
 func (c *ClientImpl) DeletePostgres(ctx context.Context, postgresId string) error {
 	return c.deletePostgresWithInterval(ctx, postgresId, postgresDeleteRetryInterval, postgresDeleteRetryAttempts)
 }
@@ -141,18 +150,6 @@ func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId 
 			return nil
 		}
 		if IsConflict(err) {
-			if errIndicatesDependentReplica(err) {
-				// FIXME(phase-6): the keyword heuristic at errIndicatesDependentReplica
-				// is speculative. Log the verbatim 409 here so Phase 6's
-				// dependent-replica integration test has real data to anchor
-				// the heuristic against (or replace with a stable error code
-				// if the server surfaces one).
-				tflog.Warn(ctx, "Postgres delete failing fast due to dependent-replica heuristic", map[string]interface{}{
-					"postgresId": postgresId,
-					"error":      err.Error(),
-				})
-				return backoff.Permanent(err)
-			}
 			return err
 		}
 		return backoff.Permanent(err)
@@ -164,26 +161,6 @@ func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId 
 	// abort the retry loop promptly instead of sleeping out the full budget.
 	b := backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries), ctx)
 	return backoff.Retry(deleteOnce, b)
-}
-
-// errIndicatesDependentReplica fails fast on 409s caused by a read replica
-// blocking primary deletion. AND-conjunction (not OR) avoids false-positives
-// on transient conflicts like "replication slot exists" that retry resolves.
-//
-// FIXME: the keyword list is speculative — no real dev-cluster response has
-// been captured yet. Once an integration test provisions a primary + replica
-// and triggers a real 409, anchor this to a structured errorCode/reason field
-// or the exact wording with a regression test. Until then, a real dependent-
-// replica delete burns the full 15-min retry budget instead of failing fast.
-func errIndicatesDependentReplica(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	if !strings.Contains(msg, "409") {
-		return false
-	}
-	return strings.Contains(msg, "depend") && strings.Contains(msg, "replica")
 }
 
 // ---------------------------------------------------------------------------

@@ -435,7 +435,7 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 }
 
 // Delete is a thin wrapper: the Phase 1 DeletePostgres client method already
-// owns the 404-idempotent / 409-retry / dependent-replica fail-fast machinery.
+// owns the 404-idempotent / 409-retry machinery.
 func (r *PostgresServiceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)

@@ -290,53 +290,6 @@ func TestDeletePostgres_RetriesOn409(t *testing.T) {
 	}
 }
 
-func TestDeletePostgres_RetriesOn409WithoutDependentSignal(t *testing.T) {
-	// A 409 whose body mentions "replica" but not "depend" should NOT fail
-	// fast — that's a transient conflict the retry loop can resolve. Guards
-	// against the loose pattern match that an earlier draft of the heuristic
-	// allowed (OR rather than AND).
-	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		n := calls.Add(1)
-		if n <= 2 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusConflict)
-			_, _ = w.Write([]byte(`{"error":"replication slot still active; try again"}`))
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"requestId":"r","status":200}`))
-	})
-	err := client.deletePostgresWithInterval(context.Background(), testPostgresID, 1*time.Millisecond, 5)
-	if err != nil {
-		t.Fatalf("DeletePostgres should retry transient 409s containing 'replica' without 'depend'; got %v", err)
-	}
-	if calls.Load() < 3 {
-		t.Errorf("expected ≥3 calls (2x 409 retried then 200); got %d", calls.Load())
-	}
-}
-
-func TestDeletePostgres_FailsFastOnDependentReplica(t *testing.T) {
-	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		calls.Add(1)
-		// Server signals a dependent replica blocks deletion.
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		_, _ = w.Write([]byte(`{"error":"cannot delete primary while dependent replicas exist","code":"DEPENDENT_REPLICA"}`))
-	})
-	err := client.deletePostgresWithInterval(context.Background(), testPostgresID, 5*time.Millisecond, 10)
-	if err == nil {
-		t.Fatal("expected error; got nil")
-	}
-	if !strings.Contains(err.Error(), "dependent") && !strings.Contains(err.Error(), "replica") {
-		t.Errorf("expected error to mention dependent replica; got %v", err)
-	}
-	if calls.Load() != 1 {
-		t.Errorf("expected fail-fast (1 call); got %d calls", calls.Load())
-	}
-}
-
 // ----- WaitForPostgresState ------------------------------------------------
 
 func TestWaitForPostgresState_TransitionsToRunning(t *testing.T) {
