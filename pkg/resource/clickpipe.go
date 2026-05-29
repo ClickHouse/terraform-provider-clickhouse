@@ -716,16 +716,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									stringplanmodifier.RequiresReplace(),
 								},
 							},
-							"seek_snapshot": schema.StringAttribute{
-								MarkdownDescription: fmt.Sprintf(
-									"The Pub/Sub snapshot identifier. Required when `seek_type = \"%s\"`; must be omitted otherwise.",
-									api.ClickPipePubSubSeekTypeSnapshot,
-								),
-								Optional: true,
-								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.RequiresReplace(),
-								},
-							},
 							"filter": schema.StringAttribute{
 								MarkdownDescription: "Optional Pub/Sub subscription filter expression (CEL). Max 256 characters. Immutable — changing it requires destroy+create because the underlying subscription filter cannot be edited in place.",
 								Optional:            true,
@@ -2806,7 +2796,6 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Authentication: pubsubModel.Authentication.ValueString(),
 			SeekType:       pubsubModel.SeekType.ValueString(),
 			SeekTimestamp:  pubsubModel.SeekTimestamp.ValueStringPointer(),
-			SeekSnapshot:   pubsubModel.SeekSnapshot.ValueStringPointer(),
 			Filter:         pubsubModel.Filter.ValueStringPointer(),
 			EnableOrdering: pubsubModel.EnableOrdering.ValueBoolPointer(),
 			AckDeadline:    pubsubModel.AckDeadline.ValueInt64Pointer(),
@@ -3723,7 +3712,6 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Authentication: types.StringValue(clickPipe.Source.PubSub.Authentication),
 			SeekType:       types.StringValue(clickPipe.Source.PubSub.SeekType),
 			SeekTimestamp:  types.StringPointerValue(clickPipe.Source.PubSub.SeekTimestamp),
-			SeekSnapshot:   types.StringPointerValue(clickPipe.Source.PubSub.SeekSnapshot),
 			Filter:         types.StringPointerValue(clickPipe.Source.PubSub.Filter),
 		}
 
