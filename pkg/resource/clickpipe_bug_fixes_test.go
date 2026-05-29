@@ -397,6 +397,86 @@ func TestClickPipeResource_syncClickPipeState_ScalingPropagation(t *testing.T) {
 	}
 }
 
+// TestClickPipeResource_syncClickPipeState_ReplicasPropagation covers the same
+// transient-propagation guard as the CPU/memory cases above, applied to
+// `replicas`. Issue #513 only surfaced cpu/memory going to 0, but a nil or 0
+// replicas reading from the API would trip the identical consistency check, so
+// the fallback is mirrored defensively.
+func TestClickPipeResource_syncClickPipeState_ReplicasPropagation(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name             string
+		responseReplicas *int64
+		expectedReplicas int64
+		note             string
+	}{
+		{
+			name:             "valid replicas from API is used as-is (control)",
+			responseReplicas: int64Ptr(3),
+			expectedReplicas: 3,
+			note:             "API supplied a valid replica count; sync should adopt it",
+		},
+		{
+			name:             "transient zero replicas falls back to prior planned value",
+			responseReplicas: int64Ptr(0),
+			expectedReplicas: 2,
+			note:             "replicas < 1 → not propagated yet → preserve prior",
+		},
+		{
+			name:             "nil replicas falls back to prior planned value",
+			responseReplicas: nil,
+			expectedReplicas: 2,
+			note:             "missing replicas in response → preserve prior",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := getPostgresStateWithScaling(2, 125, 0.5)
+
+			mc := minimock.NewController(t)
+			apiClientMock := api.NewClientMock(mc).
+				GetClickPipeMock.
+				Expect(context.Background(), state.ServiceID.ValueString(), state.ID.ValueString()).
+				Return(&api.ClickPipe{
+					ID:    "test-pipe-id",
+					Name:  "test-pipe",
+					State: "running",
+					Source: api.ClickPipeSource{
+						Postgres: &api.ClickPipePostgresSource{
+							Host:     "postgres.example.com",
+							Port:     5432,
+							Database: "mydb",
+							Settings: &api.ClickPipePostgresSettings{ReplicationMode: "cdc"},
+							Mappings: []api.ClickPipePostgresTableMapping{{
+								SourceSchemaName: "public",
+								SourceTable:      "users",
+								TargetTable:      "users",
+							}},
+						},
+					},
+					Destination: api.ClickPipeDestination{Database: "default"},
+					Scaling: &api.ClickPipeScaling{
+						Replicas:             tt.responseReplicas,
+						ReplicaCpuMillicores: float64(125),
+						ReplicaMemoryGb:      float64(0.5),
+					},
+				}, nil)
+
+			resource := &ClickPipeResource{client: apiClientMock}
+
+			err := resource.syncClickPipeState(ctx, &state)
+			assert.NoError(t, err)
+
+			var scalingModel models.ClickPipeScalingModel
+			state.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})
+
+			assert.Equal(t, tt.expectedReplicas, scalingModel.Replicas.ValueInt64(), tt.note)
+		})
+	}
+}
+
 // ============================================================================
 // Pause/Paused state recognition — supporting the issue #529 fix.
 //

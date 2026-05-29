@@ -1842,7 +1842,6 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 
 	// Reject `stopped = true` on creation. The API does not support provisioning a pipe
 	// in a stopped state; the pipe must be created running and then stopped via update.
-	//
 	// An Unknown value (e.g. `stopped` derived from an apply-time computed expression)
 	// is also rejected: we cannot prove it will resolve to false, and a true would put
 	// us in the unsupported create-stopped path. Require a known false on creation.
@@ -3775,8 +3774,15 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		var cpuValue types.Int64
 		var memoryValue types.Float64
 
-		if clickPipe.Scaling.Replicas != nil {
+		// Replicas must be ≥ 1 to be valid. A nil or 0 reading means the scaling
+		// change has not propagated yet; keep the prior planned value to avoid
+		// failing Terraform's post-apply consistency check (mirrors CPU/memory
+		// below). Issue #513 only reported cpu/memory transient-0s, but the same
+		// window could in principle surface a 0/nil replicas — guard defensively.
+		if clickPipe.Scaling.Replicas != nil && *clickPipe.Scaling.Replicas >= 1 {
 			replicasValue = types.Int64Value(*clickPipe.Scaling.Replicas)
+		} else if !existingScaling.Replicas.IsNull() && !existingScaling.Replicas.IsUnknown() {
+			replicasValue = existingScaling.Replicas
 		} else {
 			replicasValue = types.Int64Null()
 		}
