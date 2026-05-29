@@ -17,6 +17,9 @@ type Client interface {
 	GetScheduledScaling(ctx context.Context, serviceId string) (*AutoScalingSchedule, error)
 	UpdateScheduledScaling(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (*AutoScalingSchedule, error)
 	DeleteScheduledScaling(ctx context.Context, serviceId string) error
+	GetUpgradeWindow(ctx context.Context, serviceId string) (*UpgradeWindow, error)
+	UpdateUpgradeWindow(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (*UpgradeWindow, error)
+	DeleteUpgradeWindow(ctx context.Context, serviceId string) error
 	UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error)
 	DeleteService(ctx context.Context, serviceId string) (*Service, error)
 	GetOrganization(ctx context.Context) (*OrgResult, error)
