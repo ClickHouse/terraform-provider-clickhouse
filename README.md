@@ -14,6 +14,17 @@ Please refer to the [official docs](https://registry.terraform.io/providers/Clic
 
 ## Breaking changes and deprecations
 
+### Upgrading to version >= 3.15.0
+
+In version 3.15.0 we deprecated the `CLICKHOUSE_TOKEN_KEY` and `CLICKHOUSE_TOKEN_SECRET` environment variables in favor of `CLICKHOUSE_CLOUD_API_KEY` and `CLICKHOUSE_CLOUD_API_SECRET`. The new names align with how API credentials are referred to in the [ClickHouse Cloud UI](https://clickhouse.cloud/) and the [OpenAPI docs](https://clickhouse.com/docs/en/cloud/manage/openapi).
+
+You can keep using the old env vars, but they will be removed in a future release. If both are set, the new ones take precedence.
+
+| Old (deprecated)          | New                           |
+|---------------------------|-------------------------------|
+| `CLICKHOUSE_TOKEN_KEY`    | `CLICKHOUSE_CLOUD_API_KEY`    |
+| `CLICKHOUSE_TOKEN_SECRET` | `CLICKHOUSE_CLOUD_API_SECRET` |
+
 ### Upgrading to version >= 3.2.0
 
 In version 3.2.0 we introduced a change in the `Private Endpoints` feature that requires a change on your side if you use this setting.

@@ -3,10 +3,10 @@ resource "random_id" "suffix" {
 }
 
 locals {
-  dataset_name    = split("/", data.google_bigquery_dataset.dataset.id)[length(split("/", data.google_bigquery_dataset.dataset.id)) - 1]
-  staging_bucket_name     = "${var.gcp_project_id}-clickpipe-staging-${random_id.suffix.hex}"
-  sa_name         = "clickpipe-bigquery-${random_id.suffix.hex}"
-  sa_display_name = "ClickPipe BigQuery Service Account"
+  dataset_name        = split("/", data.google_bigquery_dataset.dataset.id)[length(split("/", data.google_bigquery_dataset.dataset.id)) - 1]
+  staging_bucket_name = "${var.gcp_project_id}-clickpipe-staging-${random_id.suffix.hex}"
+  sa_name             = "clickpipe-bigquery-${random_id.suffix.hex}"
+  sa_display_name     = "ClickPipe BigQuery Service Account"
 }
 
 // Ensures the BigQuery dataset and tables exist

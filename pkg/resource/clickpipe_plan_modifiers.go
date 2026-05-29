@@ -43,8 +43,9 @@ func (r requiresReplaceIfSourceTypeChanges) PlanModifyObject(ctx context.Context
 // volatileComputedString preserves the prior state for refresh-only plans, but marks
 // the planned value as Unknown whenever the resource is actually being updated. This
 // is intended for server-driven fields like `state` that may transition through
-// transient values (e.g., Snapshot during a table-mapping update on a CDC pipe) which
-// would otherwise trip Terraform's post-apply consistency check.
+// transient values (e.g., Snapshot during a table-mapping update on a CDC pipe, or
+// Paused during a stopped=true toggle) which would otherwise trip Terraform's
+// post-apply consistency check.
 type volatileComputedString struct{}
 
 func (v volatileComputedString) Description(ctx context.Context) string {
@@ -74,6 +75,6 @@ func (v volatileComputedString) PlanModifyString(ctx context.Context, req planmo
 	}
 
 	// A real update is in flight. The server may transition this attribute to a
-	// transient value (e.g., Snapshot) before settling, so mark it Unknown.
+	// transient value (e.g., Snapshot, Paused) before settling, so mark it Unknown.
 	resp.PlanValue = types.StringUnknown()
 }
