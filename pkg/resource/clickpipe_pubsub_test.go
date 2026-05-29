@@ -73,7 +73,7 @@ func TestExtractSourceFromPlan_PubSub_LatestCreate(t *testing.T) {
 	)
 
 	diagnostics := diag.Diagnostics{}
-	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 	assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
 	assert.NotNil(t, source)
@@ -108,7 +108,7 @@ func TestExtractSourceFromPlan_PubSub_TimestampWithOptionalFields(t *testing.T) 
 	)
 
 	diagnostics := diag.Diagnostics{}
-	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 	assert.False(t, diagnostics.HasError())
 	assert.NotNil(t, source.PubSub)
@@ -140,7 +140,7 @@ func TestExtractSourceFromPlan_PubSub_UpdateIncludesAllFields(t *testing.T) {
 	)
 
 	diagnostics := diag.Diagnostics{}
-	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, true)
+	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
 
 	assert.False(t, diagnostics.HasError())
 	assert.NotNil(t, source.PubSub)
