@@ -8,86 +8,71 @@ Manages a [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postg
 service. A Managed Postgres service is a fully-managed Postgres instance
 provisioned in the ClickHouse Cloud control plane.
 
-## Phase 2 scope
+## Current scope
 
 This release ships the minimum useful surface: create, read, update
-(`size`, `ha_type`, `tags`), delete, and import. The following are
-intentionally deferred:
+(`size`, `ha_type`, `tags`), delete, and import. The following are not
+yet supported:
 
-- **`pg_config` / `pgbouncer_config`** — Phase 3.
-- **User-supplied passwords (`password`, `password_wo`)** — Phase 4. Today
-  the server always generates the password; it is exposed as a sensitive
-  computed attribute and persisted in state from the create response.
-- **Point-in-time restore (`restore_to_point_in_time`)** — Phase 5.
-- **Read replicas (`read_replica_of`)** — Phase 5.
-- **CA certificate data source** — Phase 5.
-- **Operational commands (restart / promote / switchover)** — out of scope
-  for v1. Use the ClickHouse Cloud UI or API directly. See "Operational
-  commands" below.
-- **`timeouts {}` block** — Phase 5. Create/update/delete budgets are
-  currently hardcoded to 30m / 30m / 10m.
+- Postgres / PgBouncer runtime parameters (`pg_config` /
+  `pgbouncer_config`).
+- User-supplied passwords (`password`, `password_wo`). Today the server
+  always generates the password; it is exposed as a sensitive computed
+  attribute and persisted in state from the create response.
+- Point-in-time restore (`restore_to_point_in_time`).
+- Read replicas (`read_replica_of`).
+- CA certificate data source.
+- Operational commands (restart / promote / switchover) are
+  deliberately out of scope. Use the ClickHouse Cloud UI or API
+  directly. See "Operational commands" below for the rationale.
+- Configurable lifecycle timeouts (`timeouts {}` block). Create / update
+  / delete budgets are currently hardcoded to 30m / 30m / 10m.
+- IP allowlist, private endpoints, backup configuration, maintenance
+  windows, customer-managed encryption keys, BYOC. All blocked on
+  server-side endpoint additions.
 
-## Differences from `clickhouse_service`
+## Tag semantics
 
-- **Name is immutable.** The server's PATCH body has no `name` field
-  (`PostgresInstancePatchRequestV1`). Changing `name` triggers
-  destroy-and-recreate via `RequiresReplace`. `clickhouse_service` allows
-  in-place rename.
-- **Tags are a set of nested `{ key, value }` objects, not a flat map.** The
-  server's `ResourceTagV1` shape is an array of objects with optional
-  `value`, but **the provider requires both fields** — `value` must be
-  a non-empty alphanumeric / `.` / `-` / `_` string (server regex
-  `^[a-zA-Z0-9._-]+$`). Reason: the server's create endpoint accepts
-  no-value tags but the PATCH endpoint returns `400 BAD_REQUEST` if
-  any tag entry omits `value`. Rather than expose that asymmetry, the
-  schema rejects null / empty-string values at plan time. Tags whose
-  key starts with `chc_` are reserved by the server and also rejected
-  at plan time.
-- **Server-side PUT-like tag semantics on PATCH.** The Postgres PATCH
-  endpoint clears all tags when the request body omits the `tags` field,
-  even though omitting any other field (`size`, `ha_type`) preserves its
-  value. The provider works around this by re-asserting the current state
-  tags in every PATCH that mutates `size` or `ha_type`, so users won't
-  lose tags when they resize or change the HA mode. This is invisible to
-  end users but worth knowing if you inspect `TF_LOG=DEBUG` request
-  bodies — you'll see tags repeated on non-tag mutations.
-- **No support for explicit empty tag lists.** Writing `tags = []` is
-  rejected at plan time. To express "no tags," omit the attribute
-  entirely — `Optional + Computed + UseStateForUnknown` then carries
-  the prior state forward without spurious diffs. The constraint
-  exists because the server-side round-trip of an empty array
-  collapses to no-value on read, which a literal `tags = []` in `.tf`
-  would diff against forever.
-- **No IP allowlist, private endpoints, backup configuration, maintenance
-  windows, customer-managed encryption keys, or BYOC support.** All blocked
-  on server-side endpoint additions; tracked in the project plan as Phases
-  8–14.
+Tags are a set of nested `{ key, value }` objects (not a flat map). Both
+fields are required: `value` must be a non-empty alphanumeric / `.` /
+`-` / `_` string (server regex `^[a-zA-Z0-9._-]+$`). The server-side
+PATCH endpoint returns `400 BAD_REQUEST` if any tag omits `value`, so
+the schema rejects null / empty values at plan time. Tag keys starting
+with `chc_` are reserved by the server and also rejected at plan time.
+
+Writing `tags = []` is rejected at plan time. To express "no tags," omit
+the attribute entirely — `Optional + Computed + UseStateForUnknown`
+then carries the prior state forward without spurious diffs.
+
+The Postgres PATCH endpoint has PUT-like semantics specifically for the
+`tags` field: omitting it from the request body clears all tags
+server-side. The provider works around this by re-asserting the current
+state tags in every PATCH that mutates `size` or `ha_type`, so users
+won't lose tags when they resize or change HA mode. This is invisible
+end-to-end but worth knowing if you inspect `TF_LOG=DEBUG` request
+bodies — you'll see tags repeated on non-tag mutations.
 
 ## Out-of-band changes
 
-- **`pg_config` / `pgbouncer_config`** (Phase 3+): once shipped, any
-  change made via the ClickHouse Cloud UI or API will be reverted on the
-  next `terraform apply`.
-- **Password** (Phase 4+): the server does not echo the password on `GET`,
-  so a rotation done outside Terraform cannot be detected. Terraform will
-  continue to hold the old value in state.
-- **`is_primary` flip**: if a user promotes a replica via the API, this
-  resource will detect the change but the recovery path is destructive in
-  v1 (`terraform state rm` and re-import). Phase 18 addresses this
-  gracefully.
+- **Password rotated externally**: the server does not echo the password
+  on `GET`, so a rotation done outside Terraform cannot be detected.
+  Terraform will continue to hold the old value in state.
+- **Replica promoted externally**: the resource will detect the change
+  (`is_primary` flips), but recovery requires `terraform state rm` and
+  re-importing as a fresh primary.
 
 ## Operational commands
 
-Restart, promote, and switchover are deliberately not exposed as Terraform
-attributes. They are state transitions that don't map to a declarative
-resource. Use the API, UI, or CLI directly.
+Restart, promote, and switchover are deliberately not exposed as
+Terraform attributes. They are state transitions that don't map to a
+declarative resource. Use the API, UI, or CLI directly.
 
-Rationale: industry survey across AWS RDS (silent attribute removal), GCP
-Cloud SQL (coordinated attribute flip), Azure Postgres Flexible (explicit
-`replication_role`), Aiven (explicitly excluded), and DigitalOcean (also
-excluded) showed real disagreement and real footguns. ClickHouse Cloud
-follows the Aiven model: Terraform describes infrastructure shape;
-operational state changes are API calls.
+Rationale: industry survey across AWS RDS (silent attribute removal),
+GCP Cloud SQL (coordinated attribute flip), Azure Postgres Flexible
+(explicit `replication_role`), Aiven (explicitly excluded), and
+DigitalOcean (also excluded) showed real disagreement and real
+footguns. ClickHouse Cloud follows the Aiven model: Terraform describes
+infrastructure shape; operational state changes are API calls.
 
 ## Import
 
@@ -95,44 +80,45 @@ operational state changes are API calls.
 terraform import clickhouse_postgres_service.example <postgres-instance-id>
 ```
 
-Post-import: every attribute except `password` is hydrated from the server.
+Post-import, every attribute except `password` is hydrated from the
+server.
 
 > **⚠ Password is unrecoverable after import.**
-> The server does not echo the superuser password on `GET`, so `terraform
-> import` cannot retrieve the value the instance was created with. After
-> import:
+> The server does not echo the superuser password on `GET`, so
+> `terraform import` cannot retrieve the value the instance was created
+> with. After import:
 >
 > - `password` will be null in state.
 > - `connection_string` will contain the password embedded in the URI
 >   (the server includes it in the GET response), so the credential is
->   not lost — but Terraform itself cannot manage it until Phase 4 ships
->   user-supplied passwords. In Phase 2, an imported instance is
->   effectively **read-only**: any future apply that needs to surface
->   the password as the standalone `password` attribute will show drift
->   that cannot be reconciled.
-> - Workaround in Phase 2: parse the password out of `connection_string`
->   externally and store it where your CI/automation needs it. Don't try
->   to set it back into Terraform state by hand — there is no
+>   not lost — but Terraform cannot manage it as a standalone attribute
+>   without user-supplied password support, which this release does not
+>   ship. Imported instances are effectively read-only via Terraform:
+>   any future apply that needs to surface the password as the
+>   standalone `password` attribute will show drift that cannot be
+>   reconciled.
+> - Workaround: parse the password out of `connection_string` externally
+>   and store it where your CI/automation needs it. Don't try to set it
+>   back into Terraform state by hand — there is no
 >   `terraform import`-time hook to do this safely.
-> - Phase 4 will add an explicit password-rotation flow
->   (`password_wo_version` bump) that makes imported instances fully
->   manageable. Until then, treat imported services as observable but
->   not mutable.
 
 ## Known limitations (alpha)
 
 - The `size` attribute is not validated client-side beyond non-empty.
   Invalid sizes surface as an HTTP 400 at apply time rather than a
-  plan-time error. This is intentional — pinning the list to a
-  compile-time snapshot meant new AWS instance families required a
-  provider patch release before users could adopt them. The
+  plan-time error. Pinning the list to a compile-time snapshot would
+  mean new AWS instance families require a provider patch release
+  before users can adopt them; `size` is the most frequently changed
+  attribute, so the trade-off goes the other way here. The
   `cloud_provider`, `ha_type`, and `postgres_version` attributes
-  remain client-side validated because they churn rarely enough that
-  the trade-off goes the other way.
-- Lifecycle timeouts are not user-configurable in Phase 2 (see "Phase 2
-  scope" above).
+  remain client-side validated because they churn rarely.
+- Lifecycle timeouts are not user-configurable in this release.
+- `name` is immutable post-create. The server's PATCH body has no
+  `name` field, so changing it forces destroy-and-recreate via
+  `RequiresReplace`.
 - The connection string and password are visible in plan output even
-  though both are marked `Sensitive`. Terraform CLI treats `Sensitive`
-  attributes as `(sensitive value)` in human-readable output but the
-  underlying state file is plaintext — ensure your state backend is
-  configured for at-rest encryption.
+  though both are marked `Sensitive`. The Terraform CLI renders
+  `Sensitive` attributes as `(sensitive value)` in human-readable
+  output but the underlying state file is plaintext — ensure your
+  state backend is configured for at-rest encryption.
+
