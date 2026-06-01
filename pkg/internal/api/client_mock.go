@@ -103,6 +103,13 @@ type ClientMock struct {
 	beforeDeleteServiceCounter uint64
 	DeleteServiceMock          mClientMockDeleteService
 
+	funcDeleteUpgradeWindow          func(ctx context.Context, serviceId string) (err error)
+	funcDeleteUpgradeWindowOrigin    string
+	inspectFuncDeleteUpgradeWindow   func(ctx context.Context, serviceId string)
+	afterDeleteUpgradeWindowCounter  uint64
+	beforeDeleteUpgradeWindowCounter uint64
+	DeleteUpgradeWindowMock          mClientMockDeleteUpgradeWindow
+
 	funcGetApiKeyID          func(ctx context.Context, name *string) (ap1 *ApiKey, err error)
 	funcGetApiKeyIDOrigin    string
 	inspectFuncGetApiKeyID   func(ctx context.Context, name *string)
@@ -207,6 +214,13 @@ type ClientMock struct {
 	afterGetServiceCounter  uint64
 	beforeGetServiceCounter uint64
 	GetServiceMock          mClientMockGetService
+
+	funcGetUpgradeWindow          func(ctx context.Context, serviceId string) (up1 *UpgradeWindow, err error)
+	funcGetUpgradeWindowOrigin    string
+	inspectFuncGetUpgradeWindow   func(ctx context.Context, serviceId string)
+	afterGetUpgradeWindowCounter  uint64
+	beforeGetUpgradeWindowCounter uint64
+	GetUpgradeWindowMock          mClientMockGetUpgradeWindow
 
 	funcListMembers          func(ctx context.Context) (ma1 []Member, err error)
 	funcListMembersOrigin    string
@@ -320,6 +334,13 @@ type ClientMock struct {
 	beforeUpdateServicePasswordCounter uint64
 	UpdateServicePasswordMock          mClientMockUpdateServicePassword
 
+	funcUpdateUpgradeWindow          func(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (up1 *UpgradeWindow, err error)
+	funcUpdateUpgradeWindowOrigin    string
+	inspectFuncUpdateUpgradeWindow   func(ctx context.Context, serviceId string, u UpgradeWindowUpdate)
+	afterUpdateUpgradeWindowCounter  uint64
+	beforeUpdateUpgradeWindowCounter uint64
+	UpdateUpgradeWindowMock          mClientMockUpdateUpgradeWindow
+
 	funcWaitForClickPipeCdcScaling          func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (cp1 *ClickPipeCdcScaling, err error)
 	funcWaitForClickPipeCdcScalingOrigin    string
 	inspectFuncWaitForClickPipeCdcScaling   func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration)
@@ -393,6 +414,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.DeleteServiceMock = mClientMockDeleteService{mock: m}
 	m.DeleteServiceMock.callArgs = []*ClientMockDeleteServiceParams{}
 
+	m.DeleteUpgradeWindowMock = mClientMockDeleteUpgradeWindow{mock: m}
+	m.DeleteUpgradeWindowMock.callArgs = []*ClientMockDeleteUpgradeWindowParams{}
+
 	m.GetApiKeyIDMock = mClientMockGetApiKeyID{mock: m}
 	m.GetApiKeyIDMock.callArgs = []*ClientMockGetApiKeyIDParams{}
 
@@ -437,6 +461,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
+
+	m.GetUpgradeWindowMock = mClientMockGetUpgradeWindow{mock: m}
+	m.GetUpgradeWindowMock.callArgs = []*ClientMockGetUpgradeWindowParams{}
 
 	m.ListMembersMock = mClientMockListMembers{mock: m}
 	m.ListMembersMock.callArgs = []*ClientMockListMembersParams{}
@@ -485,6 +512,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateServicePasswordMock = mClientMockUpdateServicePassword{mock: m}
 	m.UpdateServicePasswordMock.callArgs = []*ClientMockUpdateServicePasswordParams{}
+
+	m.UpdateUpgradeWindowMock = mClientMockUpdateUpgradeWindow{mock: m}
+	m.UpdateUpgradeWindowMock.callArgs = []*ClientMockUpdateUpgradeWindowParams{}
 
 	m.WaitForClickPipeCdcScalingMock = mClientMockWaitForClickPipeCdcScaling{mock: m}
 	m.WaitForClickPipeCdcScalingMock.callArgs = []*ClientMockWaitForClickPipeCdcScalingParams{}
@@ -4829,6 +4859,348 @@ func (m *ClientMock) MinimockDeleteServiceInspect() {
 	if !m.DeleteServiceMock.invocationsDone() && afterDeleteServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteService at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteServiceMock.expectedInvocations), m.DeleteServiceMock.expectedInvocationsOrigin, afterDeleteServiceCounter)
+	}
+}
+
+type mClientMockDeleteUpgradeWindow struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteUpgradeWindowExpectation
+	expectations       []*ClientMockDeleteUpgradeWindowExpectation
+
+	callArgs []*ClientMockDeleteUpgradeWindowParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteUpgradeWindowExpectation specifies expectation struct of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteUpgradeWindowParams
+	paramPtrs          *ClientMockDeleteUpgradeWindowParamPtrs
+	expectationOrigins ClientMockDeleteUpgradeWindowExpectationOrigins
+	results            *ClientMockDeleteUpgradeWindowResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteUpgradeWindowParams contains parameters of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockDeleteUpgradeWindowParamPtrs contains pointers to parameters of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockDeleteUpgradeWindowResults contains results of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowResults struct {
+	err error
+}
+
+// ClientMockDeleteUpgradeWindowOrigins contains origins of expectations of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Optional() *mClientMockDeleteUpgradeWindow {
+	mmDeleteUpgradeWindow.optional = true
+	return mmDeleteUpgradeWindow
+}
+
+// Expect sets up expected params for Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Expect(ctx context.Context, serviceId string) *mClientMockDeleteUpgradeWindow {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation == nil {
+		mmDeleteUpgradeWindow.defaultExpectation = &ClientMockDeleteUpgradeWindowExpectation{}
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.paramPtrs != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteUpgradeWindow.defaultExpectation.params = &ClientMockDeleteUpgradeWindowParams{ctx, serviceId}
+	mmDeleteUpgradeWindow.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteUpgradeWindow.expectations {
+		if minimock.Equal(e.params, mmDeleteUpgradeWindow.defaultExpectation.params) {
+			mmDeleteUpgradeWindow.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteUpgradeWindow.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteUpgradeWindow
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteUpgradeWindow {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation == nil {
+		mmDeleteUpgradeWindow.defaultExpectation = &ClientMockDeleteUpgradeWindowExpectation{}
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.params != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmDeleteUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockDeleteUpgradeWindowParamPtrs{}
+	}
+	mmDeleteUpgradeWindow.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteUpgradeWindow.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteUpgradeWindow
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) ExpectServiceIdParam2(serviceId string) *mClientMockDeleteUpgradeWindow {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation == nil {
+		mmDeleteUpgradeWindow.defaultExpectation = &ClientMockDeleteUpgradeWindowExpectation{}
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.params != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmDeleteUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockDeleteUpgradeWindowParamPtrs{}
+	}
+	mmDeleteUpgradeWindow.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmDeleteUpgradeWindow.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmDeleteUpgradeWindow
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockDeleteUpgradeWindow {
+	if mmDeleteUpgradeWindow.mock.inspectFuncDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteUpgradeWindow")
+	}
+
+	mmDeleteUpgradeWindow.mock.inspectFuncDeleteUpgradeWindow = f
+
+	return mmDeleteUpgradeWindow
+}
+
+// Return sets up results that will be returned by Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Return(err error) *ClientMock {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation == nil {
+		mmDeleteUpgradeWindow.defaultExpectation = &ClientMockDeleteUpgradeWindowExpectation{mock: mmDeleteUpgradeWindow.mock}
+	}
+	mmDeleteUpgradeWindow.defaultExpectation.results = &ClientMockDeleteUpgradeWindowResults{err}
+	mmDeleteUpgradeWindow.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteUpgradeWindow.mock
+}
+
+// Set uses given function f to mock the Client.DeleteUpgradeWindow method
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Set(f func(ctx context.Context, serviceId string) (err error)) *ClientMock {
+	if mmDeleteUpgradeWindow.defaultExpectation != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("Default expectation is already set for the Client.DeleteUpgradeWindow method")
+	}
+
+	if len(mmDeleteUpgradeWindow.expectations) > 0 {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("Some expectations are already set for the Client.DeleteUpgradeWindow method")
+	}
+
+	mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow = f
+	mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindowOrigin = minimock.CallerInfo(1)
+	return mmDeleteUpgradeWindow.mock
+}
+
+// When sets expectation for the Client.DeleteUpgradeWindow which will trigger the result defined by the following
+// Then helper
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) When(ctx context.Context, serviceId string) *ClientMockDeleteUpgradeWindowExpectation {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteUpgradeWindowExpectation{
+		mock:               mmDeleteUpgradeWindow.mock,
+		params:             &ClientMockDeleteUpgradeWindowParams{ctx, serviceId},
+		expectationOrigins: ClientMockDeleteUpgradeWindowExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteUpgradeWindow.expectations = append(mmDeleteUpgradeWindow.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteUpgradeWindow return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteUpgradeWindowExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteUpgradeWindowResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteUpgradeWindow should be invoked
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Times(n uint64) *mClientMockDeleteUpgradeWindow {
+	if n == 0 {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("Times of ClientMock.DeleteUpgradeWindow mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteUpgradeWindow.expectedInvocations, n)
+	mmDeleteUpgradeWindow.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteUpgradeWindow
+}
+
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) invocationsDone() bool {
+	if len(mmDeleteUpgradeWindow.expectations) == 0 && mmDeleteUpgradeWindow.defaultExpectation == nil && mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteUpgradeWindow.mock.afterDeleteUpgradeWindowCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteUpgradeWindow.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteUpgradeWindow implements Client
+func (mmDeleteUpgradeWindow *ClientMock) DeleteUpgradeWindow(ctx context.Context, serviceId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteUpgradeWindow.beforeDeleteUpgradeWindowCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteUpgradeWindow.afterDeleteUpgradeWindowCounter, 1)
+
+	mmDeleteUpgradeWindow.t.Helper()
+
+	if mmDeleteUpgradeWindow.inspectFuncDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.inspectFuncDeleteUpgradeWindow(ctx, serviceId)
+	}
+
+	mm_params := ClientMockDeleteUpgradeWindowParams{ctx, serviceId}
+
+	// Record call args
+	mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.mutex.Lock()
+	mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.callArgs = append(mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.callArgs, &mm_params)
+	mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.mutex.Unlock()
+
+	for _, e := range mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteUpgradeWindowParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteUpgradeWindow.t.Errorf("ClientMock.DeleteUpgradeWindow got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmDeleteUpgradeWindow.t.Errorf("ClientMock.DeleteUpgradeWindow got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteUpgradeWindow.t.Errorf("ClientMock.DeleteUpgradeWindow got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteUpgradeWindow.t.Fatal("No results are set for the ClientMock.DeleteUpgradeWindow")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteUpgradeWindow.funcDeleteUpgradeWindow != nil {
+		return mmDeleteUpgradeWindow.funcDeleteUpgradeWindow(ctx, serviceId)
+	}
+	mmDeleteUpgradeWindow.t.Fatalf("Unexpected call to ClientMock.DeleteUpgradeWindow. %v %v", ctx, serviceId)
+	return
+}
+
+// DeleteUpgradeWindowAfterCounter returns a count of finished ClientMock.DeleteUpgradeWindow invocations
+func (mmDeleteUpgradeWindow *ClientMock) DeleteUpgradeWindowAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteUpgradeWindow.afterDeleteUpgradeWindowCounter)
+}
+
+// DeleteUpgradeWindowBeforeCounter returns a count of ClientMock.DeleteUpgradeWindow invocations
+func (mmDeleteUpgradeWindow *ClientMock) DeleteUpgradeWindowBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteUpgradeWindow.beforeDeleteUpgradeWindowCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteUpgradeWindow.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Calls() []*ClientMockDeleteUpgradeWindowParams {
+	mmDeleteUpgradeWindow.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteUpgradeWindowParams, len(mmDeleteUpgradeWindow.callArgs))
+	copy(argCopy, mmDeleteUpgradeWindow.callArgs)
+
+	mmDeleteUpgradeWindow.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteUpgradeWindowDone returns true if the count of the DeleteUpgradeWindow invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteUpgradeWindowDone() bool {
+	if m.DeleteUpgradeWindowMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteUpgradeWindowMock.invocationsDone()
+}
+
+// MinimockDeleteUpgradeWindowInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteUpgradeWindowInspect() {
+	for _, e := range m.DeleteUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteUpgradeWindow at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteUpgradeWindowCounter := mm_atomic.LoadUint64(&m.afterDeleteUpgradeWindowCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteUpgradeWindowMock.defaultExpectation != nil && afterDeleteUpgradeWindowCounter < 1 {
+		if m.DeleteUpgradeWindowMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteUpgradeWindow at\n%s", m.DeleteUpgradeWindowMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteUpgradeWindow at\n%s with params: %#v", m.DeleteUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *m.DeleteUpgradeWindowMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteUpgradeWindow != nil && afterDeleteUpgradeWindowCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteUpgradeWindow at\n%s", m.funcDeleteUpgradeWindowOrigin)
+	}
+
+	if !m.DeleteUpgradeWindowMock.invocationsDone() && afterDeleteUpgradeWindowCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteUpgradeWindow at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteUpgradeWindowMock.expectedInvocations), m.DeleteUpgradeWindowMock.expectedInvocationsOrigin, afterDeleteUpgradeWindowCounter)
 	}
 }
 
@@ -10035,6 +10407,349 @@ func (m *ClientMock) MinimockGetServiceInspect() {
 	if !m.GetServiceMock.invocationsDone() && afterGetServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetService at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetServiceMock.expectedInvocations), m.GetServiceMock.expectedInvocationsOrigin, afterGetServiceCounter)
+	}
+}
+
+type mClientMockGetUpgradeWindow struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetUpgradeWindowExpectation
+	expectations       []*ClientMockGetUpgradeWindowExpectation
+
+	callArgs []*ClientMockGetUpgradeWindowParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetUpgradeWindowExpectation specifies expectation struct of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetUpgradeWindowParams
+	paramPtrs          *ClientMockGetUpgradeWindowParamPtrs
+	expectationOrigins ClientMockGetUpgradeWindowExpectationOrigins
+	results            *ClientMockGetUpgradeWindowResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetUpgradeWindowParams contains parameters of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetUpgradeWindowParamPtrs contains pointers to parameters of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetUpgradeWindowResults contains results of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowResults struct {
+	up1 *UpgradeWindow
+	err error
+}
+
+// ClientMockGetUpgradeWindowOrigins contains origins of expectations of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Optional() *mClientMockGetUpgradeWindow {
+	mmGetUpgradeWindow.optional = true
+	return mmGetUpgradeWindow
+}
+
+// Expect sets up expected params for Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Expect(ctx context.Context, serviceId string) *mClientMockGetUpgradeWindow {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation == nil {
+		mmGetUpgradeWindow.defaultExpectation = &ClientMockGetUpgradeWindowExpectation{}
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.paramPtrs != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by ExpectParams functions")
+	}
+
+	mmGetUpgradeWindow.defaultExpectation.params = &ClientMockGetUpgradeWindowParams{ctx, serviceId}
+	mmGetUpgradeWindow.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetUpgradeWindow.expectations {
+		if minimock.Equal(e.params, mmGetUpgradeWindow.defaultExpectation.params) {
+			mmGetUpgradeWindow.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetUpgradeWindow.defaultExpectation.params)
+		}
+	}
+
+	return mmGetUpgradeWindow
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) ExpectCtxParam1(ctx context.Context) *mClientMockGetUpgradeWindow {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation == nil {
+		mmGetUpgradeWindow.defaultExpectation = &ClientMockGetUpgradeWindowExpectation{}
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.params != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmGetUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockGetUpgradeWindowParamPtrs{}
+	}
+	mmGetUpgradeWindow.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetUpgradeWindow.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetUpgradeWindow
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) ExpectServiceIdParam2(serviceId string) *mClientMockGetUpgradeWindow {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation == nil {
+		mmGetUpgradeWindow.defaultExpectation = &ClientMockGetUpgradeWindowExpectation{}
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.params != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmGetUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockGetUpgradeWindowParamPtrs{}
+	}
+	mmGetUpgradeWindow.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetUpgradeWindow.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetUpgradeWindow
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetUpgradeWindow {
+	if mmGetUpgradeWindow.mock.inspectFuncGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("Inspect function is already set for ClientMock.GetUpgradeWindow")
+	}
+
+	mmGetUpgradeWindow.mock.inspectFuncGetUpgradeWindow = f
+
+	return mmGetUpgradeWindow
+}
+
+// Return sets up results that will be returned by Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Return(up1 *UpgradeWindow, err error) *ClientMock {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation == nil {
+		mmGetUpgradeWindow.defaultExpectation = &ClientMockGetUpgradeWindowExpectation{mock: mmGetUpgradeWindow.mock}
+	}
+	mmGetUpgradeWindow.defaultExpectation.results = &ClientMockGetUpgradeWindowResults{up1, err}
+	mmGetUpgradeWindow.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetUpgradeWindow.mock
+}
+
+// Set uses given function f to mock the Client.GetUpgradeWindow method
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Set(f func(ctx context.Context, serviceId string) (up1 *UpgradeWindow, err error)) *ClientMock {
+	if mmGetUpgradeWindow.defaultExpectation != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("Default expectation is already set for the Client.GetUpgradeWindow method")
+	}
+
+	if len(mmGetUpgradeWindow.expectations) > 0 {
+		mmGetUpgradeWindow.mock.t.Fatalf("Some expectations are already set for the Client.GetUpgradeWindow method")
+	}
+
+	mmGetUpgradeWindow.mock.funcGetUpgradeWindow = f
+	mmGetUpgradeWindow.mock.funcGetUpgradeWindowOrigin = minimock.CallerInfo(1)
+	return mmGetUpgradeWindow.mock
+}
+
+// When sets expectation for the Client.GetUpgradeWindow which will trigger the result defined by the following
+// Then helper
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) When(ctx context.Context, serviceId string) *ClientMockGetUpgradeWindowExpectation {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetUpgradeWindowExpectation{
+		mock:               mmGetUpgradeWindow.mock,
+		params:             &ClientMockGetUpgradeWindowParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetUpgradeWindowExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetUpgradeWindow.expectations = append(mmGetUpgradeWindow.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetUpgradeWindow return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetUpgradeWindowExpectation) Then(up1 *UpgradeWindow, err error) *ClientMock {
+	e.results = &ClientMockGetUpgradeWindowResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetUpgradeWindow should be invoked
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Times(n uint64) *mClientMockGetUpgradeWindow {
+	if n == 0 {
+		mmGetUpgradeWindow.mock.t.Fatalf("Times of ClientMock.GetUpgradeWindow mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetUpgradeWindow.expectedInvocations, n)
+	mmGetUpgradeWindow.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetUpgradeWindow
+}
+
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) invocationsDone() bool {
+	if len(mmGetUpgradeWindow.expectations) == 0 && mmGetUpgradeWindow.defaultExpectation == nil && mmGetUpgradeWindow.mock.funcGetUpgradeWindow == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetUpgradeWindow.mock.afterGetUpgradeWindowCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetUpgradeWindow.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetUpgradeWindow implements Client
+func (mmGetUpgradeWindow *ClientMock) GetUpgradeWindow(ctx context.Context, serviceId string) (up1 *UpgradeWindow, err error) {
+	mm_atomic.AddUint64(&mmGetUpgradeWindow.beforeGetUpgradeWindowCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetUpgradeWindow.afterGetUpgradeWindowCounter, 1)
+
+	mmGetUpgradeWindow.t.Helper()
+
+	if mmGetUpgradeWindow.inspectFuncGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.inspectFuncGetUpgradeWindow(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetUpgradeWindowParams{ctx, serviceId}
+
+	// Record call args
+	mmGetUpgradeWindow.GetUpgradeWindowMock.mutex.Lock()
+	mmGetUpgradeWindow.GetUpgradeWindowMock.callArgs = append(mmGetUpgradeWindow.GetUpgradeWindowMock.callArgs, &mm_params)
+	mmGetUpgradeWindow.GetUpgradeWindowMock.mutex.Unlock()
+
+	for _, e := range mmGetUpgradeWindow.GetUpgradeWindowMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.params
+		mm_want_ptrs := mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetUpgradeWindowParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetUpgradeWindow.t.Errorf("ClientMock.GetUpgradeWindow got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetUpgradeWindow.t.Errorf("ClientMock.GetUpgradeWindow got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetUpgradeWindow.t.Errorf("ClientMock.GetUpgradeWindow got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetUpgradeWindow.t.Fatal("No results are set for the ClientMock.GetUpgradeWindow")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmGetUpgradeWindow.funcGetUpgradeWindow != nil {
+		return mmGetUpgradeWindow.funcGetUpgradeWindow(ctx, serviceId)
+	}
+	mmGetUpgradeWindow.t.Fatalf("Unexpected call to ClientMock.GetUpgradeWindow. %v %v", ctx, serviceId)
+	return
+}
+
+// GetUpgradeWindowAfterCounter returns a count of finished ClientMock.GetUpgradeWindow invocations
+func (mmGetUpgradeWindow *ClientMock) GetUpgradeWindowAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUpgradeWindow.afterGetUpgradeWindowCounter)
+}
+
+// GetUpgradeWindowBeforeCounter returns a count of ClientMock.GetUpgradeWindow invocations
+func (mmGetUpgradeWindow *ClientMock) GetUpgradeWindowBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUpgradeWindow.beforeGetUpgradeWindowCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetUpgradeWindow.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Calls() []*ClientMockGetUpgradeWindowParams {
+	mmGetUpgradeWindow.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetUpgradeWindowParams, len(mmGetUpgradeWindow.callArgs))
+	copy(argCopy, mmGetUpgradeWindow.callArgs)
+
+	mmGetUpgradeWindow.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetUpgradeWindowDone returns true if the count of the GetUpgradeWindow invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetUpgradeWindowDone() bool {
+	if m.GetUpgradeWindowMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetUpgradeWindowMock.invocationsDone()
+}
+
+// MinimockGetUpgradeWindowInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetUpgradeWindowInspect() {
+	for _, e := range m.GetUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetUpgradeWindow at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetUpgradeWindowCounter := mm_atomic.LoadUint64(&m.afterGetUpgradeWindowCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetUpgradeWindowMock.defaultExpectation != nil && afterGetUpgradeWindowCounter < 1 {
+		if m.GetUpgradeWindowMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetUpgradeWindow at\n%s", m.GetUpgradeWindowMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetUpgradeWindow at\n%s with params: %#v", m.GetUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *m.GetUpgradeWindowMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetUpgradeWindow != nil && afterGetUpgradeWindowCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetUpgradeWindow at\n%s", m.funcGetUpgradeWindowOrigin)
+	}
+
+	if !m.GetUpgradeWindowMock.invocationsDone() && afterGetUpgradeWindowCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetUpgradeWindow at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetUpgradeWindowMock.expectedInvocations), m.GetUpgradeWindowMock.expectedInvocationsOrigin, afterGetUpgradeWindowCounter)
 	}
 }
 
@@ -15897,6 +16612,380 @@ func (m *ClientMock) MinimockUpdateServicePasswordInspect() {
 	}
 }
 
+type mClientMockUpdateUpgradeWindow struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateUpgradeWindowExpectation
+	expectations       []*ClientMockUpdateUpgradeWindowExpectation
+
+	callArgs []*ClientMockUpdateUpgradeWindowParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateUpgradeWindowExpectation specifies expectation struct of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateUpgradeWindowParams
+	paramPtrs          *ClientMockUpdateUpgradeWindowParamPtrs
+	expectationOrigins ClientMockUpdateUpgradeWindowExpectationOrigins
+	results            *ClientMockUpdateUpgradeWindowResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateUpgradeWindowParams contains parameters of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowParams struct {
+	ctx       context.Context
+	serviceId string
+	u         UpgradeWindowUpdate
+}
+
+// ClientMockUpdateUpgradeWindowParamPtrs contains pointers to parameters of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	u         *UpgradeWindowUpdate
+}
+
+// ClientMockUpdateUpgradeWindowResults contains results of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowResults struct {
+	up1 *UpgradeWindow
+	err error
+}
+
+// ClientMockUpdateUpgradeWindowOrigins contains origins of expectations of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originU         string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Optional() *mClientMockUpdateUpgradeWindow {
+	mmUpdateUpgradeWindow.optional = true
+	return mmUpdateUpgradeWindow
+}
+
+// Expect sets up expected params for Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Expect(ctx context.Context, serviceId string, u UpgradeWindowUpdate) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{}
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.paramPtrs != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateUpgradeWindow.defaultExpectation.params = &ClientMockUpdateUpgradeWindowParams{ctx, serviceId, u}
+	mmUpdateUpgradeWindow.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateUpgradeWindow.expectations {
+		if minimock.Equal(e.params, mmUpdateUpgradeWindow.defaultExpectation.params) {
+			mmUpdateUpgradeWindow.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateUpgradeWindow.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateUpgradeWindow
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{}
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.params != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmUpdateUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockUpdateUpgradeWindowParamPtrs{}
+	}
+	mmUpdateUpgradeWindow.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateUpgradeWindow.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateUpgradeWindow
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{}
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.params != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmUpdateUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockUpdateUpgradeWindowParamPtrs{}
+	}
+	mmUpdateUpgradeWindow.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmUpdateUpgradeWindow.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmUpdateUpgradeWindow
+}
+
+// ExpectUParam3 sets up expected param u for Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) ExpectUParam3(u UpgradeWindowUpdate) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{}
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.params != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmUpdateUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockUpdateUpgradeWindowParamPtrs{}
+	}
+	mmUpdateUpgradeWindow.defaultExpectation.paramPtrs.u = &u
+	mmUpdateUpgradeWindow.defaultExpectation.expectationOrigins.originU = minimock.CallerInfo(1)
+
+	return mmUpdateUpgradeWindow
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Inspect(f func(ctx context.Context, serviceId string, u UpgradeWindowUpdate)) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.inspectFuncUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateUpgradeWindow")
+	}
+
+	mmUpdateUpgradeWindow.mock.inspectFuncUpdateUpgradeWindow = f
+
+	return mmUpdateUpgradeWindow
+}
+
+// Return sets up results that will be returned by Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Return(up1 *UpgradeWindow, err error) *ClientMock {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{mock: mmUpdateUpgradeWindow.mock}
+	}
+	mmUpdateUpgradeWindow.defaultExpectation.results = &ClientMockUpdateUpgradeWindowResults{up1, err}
+	mmUpdateUpgradeWindow.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateUpgradeWindow.mock
+}
+
+// Set uses given function f to mock the Client.UpdateUpgradeWindow method
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Set(f func(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (up1 *UpgradeWindow, err error)) *ClientMock {
+	if mmUpdateUpgradeWindow.defaultExpectation != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("Default expectation is already set for the Client.UpdateUpgradeWindow method")
+	}
+
+	if len(mmUpdateUpgradeWindow.expectations) > 0 {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("Some expectations are already set for the Client.UpdateUpgradeWindow method")
+	}
+
+	mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow = f
+	mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindowOrigin = minimock.CallerInfo(1)
+	return mmUpdateUpgradeWindow.mock
+}
+
+// When sets expectation for the Client.UpdateUpgradeWindow which will trigger the result defined by the following
+// Then helper
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) When(ctx context.Context, serviceId string, u UpgradeWindowUpdate) *ClientMockUpdateUpgradeWindowExpectation {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateUpgradeWindowExpectation{
+		mock:               mmUpdateUpgradeWindow.mock,
+		params:             &ClientMockUpdateUpgradeWindowParams{ctx, serviceId, u},
+		expectationOrigins: ClientMockUpdateUpgradeWindowExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateUpgradeWindow.expectations = append(mmUpdateUpgradeWindow.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateUpgradeWindow return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateUpgradeWindowExpectation) Then(up1 *UpgradeWindow, err error) *ClientMock {
+	e.results = &ClientMockUpdateUpgradeWindowResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateUpgradeWindow should be invoked
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Times(n uint64) *mClientMockUpdateUpgradeWindow {
+	if n == 0 {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("Times of ClientMock.UpdateUpgradeWindow mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateUpgradeWindow.expectedInvocations, n)
+	mmUpdateUpgradeWindow.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateUpgradeWindow
+}
+
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) invocationsDone() bool {
+	if len(mmUpdateUpgradeWindow.expectations) == 0 && mmUpdateUpgradeWindow.defaultExpectation == nil && mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateUpgradeWindow.mock.afterUpdateUpgradeWindowCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateUpgradeWindow.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateUpgradeWindow implements Client
+func (mmUpdateUpgradeWindow *ClientMock) UpdateUpgradeWindow(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (up1 *UpgradeWindow, err error) {
+	mm_atomic.AddUint64(&mmUpdateUpgradeWindow.beforeUpdateUpgradeWindowCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateUpgradeWindow.afterUpdateUpgradeWindowCounter, 1)
+
+	mmUpdateUpgradeWindow.t.Helper()
+
+	if mmUpdateUpgradeWindow.inspectFuncUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.inspectFuncUpdateUpgradeWindow(ctx, serviceId, u)
+	}
+
+	mm_params := ClientMockUpdateUpgradeWindowParams{ctx, serviceId, u}
+
+	// Record call args
+	mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.mutex.Lock()
+	mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.callArgs = append(mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.callArgs, &mm_params)
+	mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.mutex.Unlock()
+
+	for _, e := range mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateUpgradeWindowParams{ctx, serviceId, u}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateUpgradeWindow.t.Errorf("ClientMock.UpdateUpgradeWindow got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateUpgradeWindow.t.Errorf("ClientMock.UpdateUpgradeWindow got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.u != nil && !minimock.Equal(*mm_want_ptrs.u, mm_got.u) {
+				mmUpdateUpgradeWindow.t.Errorf("ClientMock.UpdateUpgradeWindow got unexpected parameter u, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.originU, *mm_want_ptrs.u, mm_got.u, minimock.Diff(*mm_want_ptrs.u, mm_got.u))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateUpgradeWindow.t.Errorf("ClientMock.UpdateUpgradeWindow got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateUpgradeWindow.t.Fatal("No results are set for the ClientMock.UpdateUpgradeWindow")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmUpdateUpgradeWindow.funcUpdateUpgradeWindow != nil {
+		return mmUpdateUpgradeWindow.funcUpdateUpgradeWindow(ctx, serviceId, u)
+	}
+	mmUpdateUpgradeWindow.t.Fatalf("Unexpected call to ClientMock.UpdateUpgradeWindow. %v %v %v", ctx, serviceId, u)
+	return
+}
+
+// UpdateUpgradeWindowAfterCounter returns a count of finished ClientMock.UpdateUpgradeWindow invocations
+func (mmUpdateUpgradeWindow *ClientMock) UpdateUpgradeWindowAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateUpgradeWindow.afterUpdateUpgradeWindowCounter)
+}
+
+// UpdateUpgradeWindowBeforeCounter returns a count of ClientMock.UpdateUpgradeWindow invocations
+func (mmUpdateUpgradeWindow *ClientMock) UpdateUpgradeWindowBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateUpgradeWindow.beforeUpdateUpgradeWindowCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateUpgradeWindow.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Calls() []*ClientMockUpdateUpgradeWindowParams {
+	mmUpdateUpgradeWindow.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateUpgradeWindowParams, len(mmUpdateUpgradeWindow.callArgs))
+	copy(argCopy, mmUpdateUpgradeWindow.callArgs)
+
+	mmUpdateUpgradeWindow.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateUpgradeWindowDone returns true if the count of the UpdateUpgradeWindow invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateUpgradeWindowDone() bool {
+	if m.UpdateUpgradeWindowMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateUpgradeWindowMock.invocationsDone()
+}
+
+// MinimockUpdateUpgradeWindowInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateUpgradeWindowInspect() {
+	for _, e := range m.UpdateUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateUpgradeWindow at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateUpgradeWindowCounter := mm_atomic.LoadUint64(&m.afterUpdateUpgradeWindowCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateUpgradeWindowMock.defaultExpectation != nil && afterUpdateUpgradeWindowCounter < 1 {
+		if m.UpdateUpgradeWindowMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateUpgradeWindow at\n%s", m.UpdateUpgradeWindowMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateUpgradeWindow at\n%s with params: %#v", m.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *m.UpdateUpgradeWindowMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateUpgradeWindow != nil && afterUpdateUpgradeWindowCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateUpgradeWindow at\n%s", m.funcUpdateUpgradeWindowOrigin)
+	}
+
+	if !m.UpdateUpgradeWindowMock.invocationsDone() && afterUpdateUpgradeWindowCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateUpgradeWindow at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateUpgradeWindowMock.expectedInvocations), m.UpdateUpgradeWindowMock.expectedInvocationsOrigin, afterUpdateUpgradeWindowCounter)
+	}
+}
+
 type mClientMockWaitForClickPipeCdcScaling struct {
 	optional           bool
 	mock               *ClientMock
@@ -17637,6 +18726,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockDeleteServiceInspect()
 
+			m.MinimockDeleteUpgradeWindowInspect()
+
 			m.MinimockGetApiKeyIDInspect()
 
 			m.MinimockGetBackupConfigurationInspect()
@@ -17666,6 +18757,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetScheduledScalingInspect()
 
 			m.MinimockGetServiceInspect()
+
+			m.MinimockGetUpgradeWindowInspect()
 
 			m.MinimockListMembersInspect()
 
@@ -17698,6 +18791,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateServiceInspect()
 
 			m.MinimockUpdateServicePasswordInspect()
+
+			m.MinimockUpdateUpgradeWindowInspect()
 
 			m.MinimockWaitForClickPipeCdcScalingInspect()
 
@@ -17741,6 +18836,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteRoleDone() &&
 		m.MinimockDeleteScheduledScalingDone() &&
 		m.MinimockDeleteServiceDone() &&
+		m.MinimockDeleteUpgradeWindowDone() &&
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetClickPipeDone() &&
@@ -17756,6 +18852,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetRoleDone() &&
 		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
+		m.MinimockGetUpgradeWindowDone() &&
 		m.MinimockListMembersDone() &&
 		m.MinimockListReversePrivateEndpointsDone() &&
 		m.MinimockListRolesDone() &&
@@ -17772,6 +18869,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateScheduledScalingDone() &&
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
+		m.MinimockUpdateUpgradeWindowDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
 		m.MinimockWaitForClickPipeStateDone() &&
 		m.MinimockWaitForReversePrivateEndpointStateDone() &&
