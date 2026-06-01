@@ -32,19 +32,18 @@ func (m *PgConfigMap) UnmarshalJSON(data []byte) error {
 	if err := dec.Decode(&raw); err != nil {
 		return err
 	}
-	if *m == nil {
-		*m = make(PgConfigMap, len(raw))
-	}
+	out := make(PgConfigMap, len(raw))
 	for k, v := range raw {
 		switch val := v.(type) {
 		case string:
-			(*m)[k] = val
+			out[k] = val
 		case json.Number:
-			(*m)[k] = val.String()
+			out[k] = val.String()
 		default:
 			return fmt.Errorf("pgConfig key %q: unsupported value type %T", k, v)
 		}
 	}
+	*m = out
 	return nil
 }
 

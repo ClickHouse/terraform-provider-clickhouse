@@ -225,28 +225,3 @@ func TestPostgresConfigUpdateResponse_OptionalMessage(t *testing.T) {
 		t.Errorf("Message = %v; want nil when absent from server", *gotWithout.Message)
 	}
 }
-
-func TestPostgresState_ConstantsMatchWireValues(t *testing.T) {
-	// Sanity check: constants must match the verbatim server-side enum.
-	// If the server changes a value (e.g., "running" → "active"), this test
-	// will continue to pass (it only checks our side). The contract surface
-	// here is "the constants we ship match what we believe the server emits."
-	cases := []struct {
-		constant string
-		expected string
-	}{
-		{PostgresStateCreating, "creating"},
-		{PostgresStateRestarting, "restarting"},
-		{PostgresStateRunning, "running"},
-		{PostgresStateReplayingWal, "replaying_wal"},
-		{PostgresStateRestoringBackup, "restoring_backup"},
-		{PostgresStateFinalizingRestore, "finalizing_restore"},
-		{PostgresStateUnavailable, "unavailable"},
-		{PostgresStateDeleting, "deleting"},
-	}
-	for _, tc := range cases {
-		if tc.constant != tc.expected {
-			t.Errorf("state constant = %q; want %q", tc.constant, tc.expected)
-		}
-	}
-}

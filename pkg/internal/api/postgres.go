@@ -24,9 +24,9 @@ var (
 // Retry budgets. Overridable per-call via the *WithBudget / *WithInterval
 // helpers so unit tests can run in milliseconds.
 var (
-	postgresDeleteRetryInterval   = 10 * time.Second
-	postgresDeleteRetryBudgetSecs = 15 * 60 // 15 minutes
-	postgresStatePollInterval     = 5 * time.Second
+	postgresDeleteRetryInterval        = 10 * time.Second
+	postgresDeleteRetryAttempts uint64 = 90 // 90 × 10s = 15 minutes
+	postgresStatePollInterval          = 5 * time.Second
 )
 
 // ---------------------------------------------------------------------------
@@ -122,12 +122,11 @@ func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body
 // DeletePostgres deletes an instance. 404 → nil (idempotent). 409 retries
 // for ~15 min UNLESS the body indicates a dependent replica blocks deletion.
 func (c *ClientImpl) DeletePostgres(ctx context.Context, postgresId string) error {
-	return c.deletePostgresWithBudget(ctx, postgresId, postgresDeleteRetryInterval,
-		uint64(postgresDeleteRetryBudgetSecs)/uint64(postgresDeleteRetryInterval/time.Second)) //nolint:gosec
+	return c.deletePostgresWithInterval(ctx, postgresId, postgresDeleteRetryInterval, postgresDeleteRetryAttempts)
 }
 
-// deletePostgresWithBudget is the test seam for DeletePostgres.
-func (c *ClientImpl) deletePostgresWithBudget(ctx context.Context, postgresId string, interval time.Duration, maxRetries uint64) error {
+// deletePostgresWithInterval is the test seam for DeletePostgres.
+func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId string, interval time.Duration, maxRetries uint64) error {
 	deleteOnce := func() error {
 		req, err := http.NewRequest(http.MethodDelete, c.getPostgresPath(postgresId, ""), nil)
 		if err != nil {
@@ -226,7 +225,7 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 	return err
 }
 
-// WaitForPostgresLeaveAndReturn waits for state to leave terminalState and
+// WaitForPostgresStateTransitionAndReturn waits for state to leave terminalState and
 // then come back. Mitigates the post-PATCH race where the API returns 200
 // before the transition begins server-side.
 //
@@ -241,11 +240,11 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 // Once a real resource Update exercises this against the dev cluster, add
 // a minimum-observation window via the *WithInterval seam if the race
 // turns out to be observable.
-func (c *ClientImpl) WaitForPostgresLeaveAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) error {
-	return c.waitForPostgresLeaveAndReturnWithInterval(ctx, postgresId, terminalState, postgresStatePollInterval, uint64(maxWaitSeconds/int(postgresStatePollInterval/time.Second))) //nolint:gosec
+func (c *ClientImpl) WaitForPostgresStateTransitionAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) error {
+	return c.waitForPostgresStateTransitionAndReturnWithInterval(ctx, postgresId, terminalState, postgresStatePollInterval, uint64(maxWaitSeconds/int(postgresStatePollInterval/time.Second))) //nolint:gosec
 }
 
-func (c *ClientImpl) waitForPostgresLeaveAndReturnWithInterval(ctx context.Context, postgresId string, terminalState string, interval time.Duration, maxRetries uint64) error {
+func (c *ClientImpl) waitForPostgresStateTransitionAndReturnWithInterval(ctx context.Context, postgresId string, terminalState string, interval time.Duration, maxRetries uint64) error {
 	// Phase 1: wait until state differs from terminalState.
 	// Return values follow the same convention as waitForPostgresStateWithInterval.
 	left := false
@@ -266,9 +265,6 @@ func (c *ClientImpl) waitForPostgresLeaveAndReturnWithInterval(ctx context.Conte
 		maxRetries = 2
 	}
 	halfBudget := maxRetries / 2
-	if halfBudget < 1 {
-		halfBudget = 1
-	}
 	err := backoff.Retry(leftCheck, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), halfBudget))
 	if err != nil && !left {
 		// Only sentinel-caused exhaustion is a no-op success; everything else

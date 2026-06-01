@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -154,16 +155,16 @@ func TestRedactSensitiveBody(t *testing.T) {
 
 func TestFormatLogBody(t *testing.T) {
 	t.Run("empty body produces empty string", func(t *testing.T) {
-		if got := formatLogBody(nil); got != "" {
+		if got := formatLogBody(context.Background(), nil); got != "" {
 			t.Errorf("expected empty string for nil input; got %q", got)
 		}
-		if got := formatLogBody([]byte{}); got != "" {
+		if got := formatLogBody(context.Background(), []byte{}); got != "" {
 			t.Errorf("expected empty string for empty input; got %q", got)
 		}
 	})
 
 	t.Run("sensitive value is redacted before formatting", func(t *testing.T) {
-		got := formatLogBody([]byte(`{"password":"super-secret"}`))
+		got := formatLogBody(context.Background(), []byte(`{"password":"super-secret"}`))
 		if got == "" {
 			t.Fatal("expected non-empty formatted output")
 		}
@@ -177,7 +178,7 @@ func TestFormatLogBody(t *testing.T) {
 
 	t.Run("malformed JSON yields placeholder, not raw bytes", func(t *testing.T) {
 		raw := `{"password":"super-secret"`
-		got := formatLogBody([]byte(raw))
+		got := formatLogBody(context.Background(), []byte(raw))
 		if got == "" {
 			t.Fatal("expected non-empty output for malformed JSON")
 		}
@@ -188,7 +189,7 @@ func TestFormatLogBody(t *testing.T) {
 
 	t.Run("nested response envelope is redacted and pretty-printed", func(t *testing.T) {
 		input := `{"result":{"id":"abc","password":"plain"}}`
-		got := formatLogBody([]byte(input))
+		got := formatLogBody(context.Background(), []byte(input))
 		if strings.Contains(got, "plain") {
 			t.Errorf("plaintext password leaked: %s", got)
 		}
@@ -204,7 +205,7 @@ func TestFormatLogBody(t *testing.T) {
 		// it can reach a log sink.
 		secret := "Hunter2-Aa1!"
 		input := `{"result":{"id":"pg-1","password":"` + secret + `","connectionString":"postgresql://default:` + secret + `@host:5432/db?channel_binding=require"}}` //nolint:gosec // synthetic test fixture
-		got := formatLogBody([]byte(input))
+		got := formatLogBody(context.Background(), []byte(input))
 		if strings.Contains(got, secret) {
 			t.Errorf("plaintext secret leaked through connectionString: %s", got)
 		}

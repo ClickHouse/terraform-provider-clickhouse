@@ -272,9 +272,9 @@ func TestDeletePostgres_NotFoundReturnsNil(t *testing.T) {
 }
 
 func TestDeletePostgres_RetriesOn409(t *testing.T) {
-	var calls int32
+	var calls atomic.Int32
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&calls, 1)
+		n := calls.Add(1)
 		if n <= 2 {
 			http.Error(w, `{"error":"transient conflict"}`, http.StatusConflict)
 			return
@@ -284,12 +284,12 @@ func TestDeletePostgres_RetriesOn409(t *testing.T) {
 	})
 	// Use a very short retry budget so this test runs fast. The client should
 	// still succeed after two 409s.
-	err := client.deletePostgresWithBudget(context.Background(), testPostgresID, 1*time.Millisecond, 5)
+	err := client.deletePostgresWithInterval(context.Background(), testPostgresID, 1*time.Millisecond, 5)
 	if err != nil {
 		t.Fatalf("DeletePostgres should retry on 409 and succeed; got %v", err)
 	}
-	if calls < 3 {
-		t.Errorf("expected at least 3 calls (2x 409 + 1x 200); got %d", calls)
+	if calls.Load() < 3 {
+		t.Errorf("expected at least 3 calls (2x 409 + 1x 200); got %d", calls.Load())
 	}
 }
 
@@ -298,9 +298,9 @@ func TestDeletePostgres_RetriesOn409WithoutDependentSignal(t *testing.T) {
 	// fast — that's a transient conflict the retry loop can resolve. Guards
 	// against the loose pattern match that an earlier draft of the heuristic
 	// allowed (OR rather than AND).
-	var calls int32
+	var calls atomic.Int32
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&calls, 1)
+		n := calls.Add(1)
 		if n <= 2 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusConflict)
@@ -310,42 +310,42 @@ func TestDeletePostgres_RetriesOn409WithoutDependentSignal(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"requestId":"r","status":200}`))
 	})
-	err := client.deletePostgresWithBudget(context.Background(), testPostgresID, 1*time.Millisecond, 5)
+	err := client.deletePostgresWithInterval(context.Background(), testPostgresID, 1*time.Millisecond, 5)
 	if err != nil {
 		t.Fatalf("DeletePostgres should retry transient 409s containing 'replica' without 'depend'; got %v", err)
 	}
-	if calls < 3 {
-		t.Errorf("expected ≥3 calls (2x 409 retried then 200); got %d", calls)
+	if calls.Load() < 3 {
+		t.Errorf("expected ≥3 calls (2x 409 retried then 200); got %d", calls.Load())
 	}
 }
 
 func TestDeletePostgres_FailsFastOnDependentReplica(t *testing.T) {
-	var calls int32
+	var calls atomic.Int32
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&calls, 1)
+		calls.Add(1)
 		// Server signals a dependent replica blocks deletion.
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
 		_, _ = w.Write([]byte(`{"error":"cannot delete primary while dependent replicas exist","code":"DEPENDENT_REPLICA"}`))
 	})
-	err := client.deletePostgresWithBudget(context.Background(), testPostgresID, 5*time.Millisecond, 10)
+	err := client.deletePostgresWithInterval(context.Background(), testPostgresID, 5*time.Millisecond, 10)
 	if err == nil {
 		t.Fatal("expected error; got nil")
 	}
 	if !strings.Contains(err.Error(), "dependent") && !strings.Contains(err.Error(), "replica") {
 		t.Errorf("expected error to mention dependent replica; got %v", err)
 	}
-	if calls != 1 {
-		t.Errorf("expected fail-fast (1 call); got %d calls", calls)
+	if calls.Load() != 1 {
+		t.Errorf("expected fail-fast (1 call); got %d calls", calls.Load())
 	}
 }
 
 // ----- WaitForPostgresState ------------------------------------------------
 
 func TestWaitForPostgresState_TransitionsToRunning(t *testing.T) {
-	var calls int32
+	var calls atomic.Int32
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&calls, 1)
+		n := calls.Add(1)
 		state := PostgresStateCreating
 		if n >= 3 {
 			state = PostgresStateRunning
@@ -358,8 +358,8 @@ func TestWaitForPostgresState_TransitionsToRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WaitForPostgresState: %v", err)
 	}
-	if calls < 3 {
-		t.Errorf("expected at least 3 polls; got %d", calls)
+	if calls.Load() < 3 {
+		t.Errorf("expected at least 3 polls; got %d", calls.Load())
 	}
 }
 
@@ -415,29 +415,29 @@ func TestWaitForPostgresState_UnknownStateDoesNotCrash(t *testing.T) {
 	}
 }
 
-// ----- WaitForPostgresLeaveAndReturn --------------------------------------
+// ----- WaitForPostgresStateTransitionAndReturn --------------------------------------
 
-func TestWaitForPostgresLeaveAndReturn_TransitionsAwayAndBack(t *testing.T) {
-	var calls int32
+func TestWaitForPostgresStateTransitionAndReturn_TransitionsAwayAndBack(t *testing.T) {
+	var calls atomic.Int32
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&calls, 1)
+		n := calls.Add(1)
 		state := PostgresStateRunning
 		if n == 2 {
 			state = PostgresStateRestarting
 		}
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: state}})
 	})
-	err := client.waitForPostgresLeaveAndReturnWithInterval(context.Background(), testPostgresID,
+	err := client.waitForPostgresStateTransitionAndReturnWithInterval(context.Background(), testPostgresID,
 		PostgresStateRunning, 1*time.Millisecond, 20)
 	if err != nil {
-		t.Fatalf("WaitForPostgresLeaveAndReturn: %v", err)
+		t.Fatalf("WaitForPostgresStateTransitionAndReturn: %v", err)
 	}
-	if calls < 3 {
-		t.Errorf("expected ≥3 polls (running → restarting → running); got %d", calls)
+	if calls.Load() < 3 {
+		t.Errorf("expected ≥3 polls (running → restarting → running); got %d", calls.Load())
 	}
 }
 
-func TestWaitForPostgresLeaveAndReturn_PropagatesGetErrors(t *testing.T) {
+func TestWaitForPostgresStateTransitionAndReturn_PropagatesGetErrors(t *testing.T) {
 	// Phase-1 polling repeatedly errors (instance was deleted out-of-band,
 	// or an auth token expired). The wait helper must surface the error
 	// rather than silently returning nil — otherwise the resource layer
@@ -445,7 +445,7 @@ func TestWaitForPostgresLeaveAndReturn_PropagatesGetErrors(t *testing.T) {
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 	})
-	err := client.waitForPostgresLeaveAndReturnWithInterval(context.Background(), testPostgresID,
+	err := client.waitForPostgresStateTransitionAndReturnWithInterval(context.Background(), testPostgresID,
 		PostgresStateRunning, 1*time.Millisecond, 4)
 	if err == nil {
 		t.Fatal("expected error to propagate from failing GetPostgres; got nil")
@@ -455,14 +455,14 @@ func TestWaitForPostgresLeaveAndReturn_PropagatesGetErrors(t *testing.T) {
 	}
 }
 
-func TestWaitForPostgresLeaveAndReturn_NoOpSuccessOnlyWhenObservedStable(t *testing.T) {
+func TestWaitForPostgresStateTransitionAndReturn_NoOpSuccessOnlyWhenObservedStable(t *testing.T) {
 	// Server returns the terminal state cleanly throughout phase-1. This is
 	// the legitimate no-op case (e.g., a config change that hot-reloaded);
 	// the helper should succeed.
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning}})
 	})
-	err := client.waitForPostgresLeaveAndReturnWithInterval(context.Background(), testPostgresID,
+	err := client.waitForPostgresStateTransitionAndReturnWithInterval(context.Background(), testPostgresID,
 		PostgresStateRunning, 1*time.Millisecond, 4)
 	if err != nil {
 		t.Errorf("observed-stable case should be no-op success; got %v", err)
@@ -710,10 +710,10 @@ func TestGetPostgresCaCertificates_ReturnsRawPEM(t *testing.T) {
 // ----- Rate limit honored (sanity check on doRequest) -----------------------
 
 func TestPostgres_RateLimit429HonorsResetHeader(t *testing.T) {
-	var calls int32
+	var calls atomic.Int32
 	start := time.Now()
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&calls, 1)
+		n := calls.Add(1)
 		if n == 1 {
 			w.Header().Set(ResponseHeaderRateLimitReset, "0")
 			http.Error(w, `{"error":"rate limited"}`, http.StatusTooManyRequests)
@@ -725,8 +725,8 @@ func TestPostgres_RateLimit429HonorsResetHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPostgres should retry past 429; got %v", err)
 	}
-	if calls < 2 {
-		t.Errorf("expected ≥2 calls (429 then 200); got %d", calls)
+	if calls.Load() < 2 {
+		t.Errorf("expected ≥2 calls (429 then 200); got %d", calls.Load())
 	}
 	// X-RateLimit-Reset=0 should mean we retry almost immediately.
 	if elapsed := time.Since(start); elapsed > 5*time.Second {

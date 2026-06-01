@@ -32,9 +32,7 @@ var sensitiveBodyKeys = map[string]struct{}{
 	"newDoubleSha1Hash": {},
 	"password_wo":       {},
 	"tokenSecret":       {},
-	// Postgres connection strings embed the generated password in the URI
-	// (postgresql://user:secret@host:port/db) so the raw value is sensitive
-	// even though the field name doesn't say "password".
+	// Postgres connection strings embed the generated password in the URI.
 	"connectionString":  {},
 	"connection_string": {},
 }
@@ -71,16 +69,17 @@ func redactSensitiveBody(body []byte) []byte {
 // Sensitive fields are redacted and the output is pretty-printed when possible.
 // Empty input yields an empty string. Malformed JSON yields a generic placeholder
 // rather than leaking the raw bytes into logs.
-func formatLogBody(body []byte) string {
+func formatLogBody(ctx context.Context, body []byte) string {
 	if len(body) == 0 {
 		return ""
 	}
 	redacted := redactSensitiveBody(body)
 	var buf bytes.Buffer
 	if err := json.Indent(&buf, redacted, "", "  "); err != nil {
-		// redactSensitiveBody emits valid JSON for any non-empty input, so this
-		// is defensive. If we ever land here, fall back to the placeholder so
-		// nothing unredacted reaches the logs.
+		// Should be unreachable: redactSensitiveBody emits valid JSON for any
+		// non-empty input. Surface the failure rather than silently returning
+		// the placeholder.
+		tflog.Warn(ctx, "formatLogBody: json.Indent failed on already-redacted output", map[string]any{"error": err.Error()})
 		return unparseableRedactedPlaceholder
 	}
 	return buf.String()
@@ -155,7 +154,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		bodyBytes, _ = io.ReadAll(initialReq.Body)
 		initialReq.Body.Close()
 		initialReq.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		debugctx = tflog.SetField(debugctx, "requestBody", formatLogBody(bodyBytes))
+		debugctx = tflog.SetField(debugctx, "requestBody", formatLogBody(debugctx, bodyBytes))
 
 		initialReq.Header.Set("Content-Type", "application/json; charset=utf-8")
 	}
@@ -200,7 +199,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		debugctx = tflog.SetField(debugctx, "requestTimeMS", stop.Sub(start).Milliseconds())
 		debugctx = tflog.SetField(debugctx, "statusCode", res.StatusCode)
 		debugctx = tflog.SetField(debugctx, "responseHeaders", res.Header)
-		debugctx = tflog.SetField(debugctx, "responseBody", formatLogBody(body))
+		debugctx = tflog.SetField(debugctx, "responseBody", formatLogBody(debugctx, body))
 		tflog.Debug(debugctx, "API request")
 
 		if res.StatusCode != http.StatusOK {

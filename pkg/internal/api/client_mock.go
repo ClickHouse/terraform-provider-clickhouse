@@ -432,19 +432,19 @@ type ClientMock struct {
 	beforeWaitForClickPipeStateCounter uint64
 	WaitForClickPipeStateMock          mClientMockWaitForClickPipeState
 
-	funcWaitForPostgresLeaveAndReturn          func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) (err error)
-	funcWaitForPostgresLeaveAndReturnOrigin    string
-	inspectFuncWaitForPostgresLeaveAndReturn   func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int)
-	afterWaitForPostgresLeaveAndReturnCounter  uint64
-	beforeWaitForPostgresLeaveAndReturnCounter uint64
-	WaitForPostgresLeaveAndReturnMock          mClientMockWaitForPostgresLeaveAndReturn
-
 	funcWaitForPostgresState          func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
 	funcWaitForPostgresStateOrigin    string
 	inspectFuncWaitForPostgresState   func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int)
 	afterWaitForPostgresStateCounter  uint64
 	beforeWaitForPostgresStateCounter uint64
 	WaitForPostgresStateMock          mClientMockWaitForPostgresState
+
+	funcWaitForPostgresStateTransitionAndReturn          func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) (err error)
+	funcWaitForPostgresStateTransitionAndReturnOrigin    string
+	inspectFuncWaitForPostgresStateTransitionAndReturn   func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int)
+	afterWaitForPostgresStateTransitionAndReturnCounter  uint64
+	beforeWaitForPostgresStateTransitionAndReturnCounter uint64
+	WaitForPostgresStateTransitionAndReturnMock          mClientMockWaitForPostgresStateTransitionAndReturn
 
 	funcWaitForReversePrivateEndpointState          func(ctx context.Context, serviceId string, reversePrivateEndpointId string, stateChecker func(string) bool, maxWaitSeconds uint64) (rp1 *ReversePrivateEndpoint, err error)
 	funcWaitForReversePrivateEndpointStateOrigin    string
@@ -646,11 +646,11 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.WaitForClickPipeStateMock = mClientMockWaitForClickPipeState{mock: m}
 	m.WaitForClickPipeStateMock.callArgs = []*ClientMockWaitForClickPipeStateParams{}
 
-	m.WaitForPostgresLeaveAndReturnMock = mClientMockWaitForPostgresLeaveAndReturn{mock: m}
-	m.WaitForPostgresLeaveAndReturnMock.callArgs = []*ClientMockWaitForPostgresLeaveAndReturnParams{}
-
 	m.WaitForPostgresStateMock = mClientMockWaitForPostgresState{mock: m}
 	m.WaitForPostgresStateMock.callArgs = []*ClientMockWaitForPostgresStateParams{}
+
+	m.WaitForPostgresStateTransitionAndReturnMock = mClientMockWaitForPostgresStateTransitionAndReturn{mock: m}
+	m.WaitForPostgresStateTransitionAndReturnMock.callArgs = []*ClientMockWaitForPostgresStateTransitionAndReturnParams{}
 
 	m.WaitForReversePrivateEndpointStateMock = mClientMockWaitForReversePrivateEndpointState{mock: m}
 	m.WaitForReversePrivateEndpointStateMock.callArgs = []*ClientMockWaitForReversePrivateEndpointStateParams{}
@@ -21885,410 +21885,6 @@ func (m *ClientMock) MinimockWaitForClickPipeStateInspect() {
 	}
 }
 
-type mClientMockWaitForPostgresLeaveAndReturn struct {
-	optional           bool
-	mock               *ClientMock
-	defaultExpectation *ClientMockWaitForPostgresLeaveAndReturnExpectation
-	expectations       []*ClientMockWaitForPostgresLeaveAndReturnExpectation
-
-	callArgs []*ClientMockWaitForPostgresLeaveAndReturnParams
-	mutex    sync.RWMutex
-
-	expectedInvocations       uint64
-	expectedInvocationsOrigin string
-}
-
-// ClientMockWaitForPostgresLeaveAndReturnExpectation specifies expectation struct of the Client.WaitForPostgresLeaveAndReturn
-type ClientMockWaitForPostgresLeaveAndReturnExpectation struct {
-	mock               *ClientMock
-	params             *ClientMockWaitForPostgresLeaveAndReturnParams
-	paramPtrs          *ClientMockWaitForPostgresLeaveAndReturnParamPtrs
-	expectationOrigins ClientMockWaitForPostgresLeaveAndReturnExpectationOrigins
-	results            *ClientMockWaitForPostgresLeaveAndReturnResults
-	returnOrigin       string
-	Counter            uint64
-}
-
-// ClientMockWaitForPostgresLeaveAndReturnParams contains parameters of the Client.WaitForPostgresLeaveAndReturn
-type ClientMockWaitForPostgresLeaveAndReturnParams struct {
-	ctx            context.Context
-	postgresId     string
-	terminalState  string
-	maxWaitSeconds int
-}
-
-// ClientMockWaitForPostgresLeaveAndReturnParamPtrs contains pointers to parameters of the Client.WaitForPostgresLeaveAndReturn
-type ClientMockWaitForPostgresLeaveAndReturnParamPtrs struct {
-	ctx            *context.Context
-	postgresId     *string
-	terminalState  *string
-	maxWaitSeconds *int
-}
-
-// ClientMockWaitForPostgresLeaveAndReturnResults contains results of the Client.WaitForPostgresLeaveAndReturn
-type ClientMockWaitForPostgresLeaveAndReturnResults struct {
-	err error
-}
-
-// ClientMockWaitForPostgresLeaveAndReturnOrigins contains origins of expectations of the Client.WaitForPostgresLeaveAndReturn
-type ClientMockWaitForPostgresLeaveAndReturnExpectationOrigins struct {
-	origin               string
-	originCtx            string
-	originPostgresId     string
-	originTerminalState  string
-	originMaxWaitSeconds string
-}
-
-// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
-// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
-// Optional() makes method check to work in '0 or more' mode.
-// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
-// catch the problems when the expected method call is totally skipped during test run.
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) Optional() *mClientMockWaitForPostgresLeaveAndReturn {
-	mmWaitForPostgresLeaveAndReturn.optional = true
-	return mmWaitForPostgresLeaveAndReturn
-}
-
-// Expect sets up expected params for Client.WaitForPostgresLeaveAndReturn
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) Expect(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) *mClientMockWaitForPostgresLeaveAndReturn {
-	if mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturn != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Set")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation = &ClientMockWaitForPostgresLeaveAndReturnExpectation{}
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by ExpectParams functions")
-	}
-
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.params = &ClientMockWaitForPostgresLeaveAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds}
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
-	for _, e := range mmWaitForPostgresLeaveAndReturn.expectations {
-		if minimock.Equal(e.params, mmWaitForPostgresLeaveAndReturn.defaultExpectation.params) {
-			mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForPostgresLeaveAndReturn.defaultExpectation.params)
-		}
-	}
-
-	return mmWaitForPostgresLeaveAndReturn
-}
-
-// ExpectCtxParam1 sets up expected param ctx for Client.WaitForPostgresLeaveAndReturn
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForPostgresLeaveAndReturn {
-	if mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturn != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Set")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation = &ClientMockWaitForPostgresLeaveAndReturnExpectation{}
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation.params != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Expect")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresLeaveAndReturnParamPtrs{}
-	}
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs.ctx = &ctx
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
-
-	return mmWaitForPostgresLeaveAndReturn
-}
-
-// ExpectPostgresIdParam2 sets up expected param postgresId for Client.WaitForPostgresLeaveAndReturn
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) ExpectPostgresIdParam2(postgresId string) *mClientMockWaitForPostgresLeaveAndReturn {
-	if mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturn != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Set")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation = &ClientMockWaitForPostgresLeaveAndReturnExpectation{}
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation.params != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Expect")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresLeaveAndReturnParamPtrs{}
-	}
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs.postgresId = &postgresId
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
-
-	return mmWaitForPostgresLeaveAndReturn
-}
-
-// ExpectTerminalStateParam3 sets up expected param terminalState for Client.WaitForPostgresLeaveAndReturn
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) ExpectTerminalStateParam3(terminalState string) *mClientMockWaitForPostgresLeaveAndReturn {
-	if mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturn != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Set")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation = &ClientMockWaitForPostgresLeaveAndReturnExpectation{}
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation.params != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Expect")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresLeaveAndReturnParamPtrs{}
-	}
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs.terminalState = &terminalState
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.expectationOrigins.originTerminalState = minimock.CallerInfo(1)
-
-	return mmWaitForPostgresLeaveAndReturn
-}
-
-// ExpectMaxWaitSecondsParam4 sets up expected param maxWaitSeconds for Client.WaitForPostgresLeaveAndReturn
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) ExpectMaxWaitSecondsParam4(maxWaitSeconds int) *mClientMockWaitForPostgresLeaveAndReturn {
-	if mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturn != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Set")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation = &ClientMockWaitForPostgresLeaveAndReturnExpectation{}
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation.params != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Expect")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresLeaveAndReturnParamPtrs{}
-	}
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.paramPtrs.maxWaitSeconds = &maxWaitSeconds
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.expectationOrigins.originMaxWaitSeconds = minimock.CallerInfo(1)
-
-	return mmWaitForPostgresLeaveAndReturn
-}
-
-// Inspect accepts an inspector function that has same arguments as the Client.WaitForPostgresLeaveAndReturn
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) Inspect(f func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int)) *mClientMockWaitForPostgresLeaveAndReturn {
-	if mmWaitForPostgresLeaveAndReturn.mock.inspectFuncWaitForPostgresLeaveAndReturn != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForPostgresLeaveAndReturn")
-	}
-
-	mmWaitForPostgresLeaveAndReturn.mock.inspectFuncWaitForPostgresLeaveAndReturn = f
-
-	return mmWaitForPostgresLeaveAndReturn
-}
-
-// Return sets up results that will be returned by Client.WaitForPostgresLeaveAndReturn
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) Return(err error) *ClientMock {
-	if mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturn != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Set")
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation == nil {
-		mmWaitForPostgresLeaveAndReturn.defaultExpectation = &ClientMockWaitForPostgresLeaveAndReturnExpectation{mock: mmWaitForPostgresLeaveAndReturn.mock}
-	}
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.results = &ClientMockWaitForPostgresLeaveAndReturnResults{err}
-	mmWaitForPostgresLeaveAndReturn.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
-	return mmWaitForPostgresLeaveAndReturn.mock
-}
-
-// Set uses given function f to mock the Client.WaitForPostgresLeaveAndReturn method
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) Set(f func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) (err error)) *ClientMock {
-	if mmWaitForPostgresLeaveAndReturn.defaultExpectation != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("Default expectation is already set for the Client.WaitForPostgresLeaveAndReturn method")
-	}
-
-	if len(mmWaitForPostgresLeaveAndReturn.expectations) > 0 {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("Some expectations are already set for the Client.WaitForPostgresLeaveAndReturn method")
-	}
-
-	mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturn = f
-	mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturnOrigin = minimock.CallerInfo(1)
-	return mmWaitForPostgresLeaveAndReturn.mock
-}
-
-// When sets expectation for the Client.WaitForPostgresLeaveAndReturn which will trigger the result defined by the following
-// Then helper
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) When(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) *ClientMockWaitForPostgresLeaveAndReturnExpectation {
-	if mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturn != nil {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresLeaveAndReturn mock is already set by Set")
-	}
-
-	expectation := &ClientMockWaitForPostgresLeaveAndReturnExpectation{
-		mock:               mmWaitForPostgresLeaveAndReturn.mock,
-		params:             &ClientMockWaitForPostgresLeaveAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds},
-		expectationOrigins: ClientMockWaitForPostgresLeaveAndReturnExpectationOrigins{origin: minimock.CallerInfo(1)},
-	}
-	mmWaitForPostgresLeaveAndReturn.expectations = append(mmWaitForPostgresLeaveAndReturn.expectations, expectation)
-	return expectation
-}
-
-// Then sets up Client.WaitForPostgresLeaveAndReturn return parameters for the expectation previously defined by the When method
-func (e *ClientMockWaitForPostgresLeaveAndReturnExpectation) Then(err error) *ClientMock {
-	e.results = &ClientMockWaitForPostgresLeaveAndReturnResults{err}
-	return e.mock
-}
-
-// Times sets number of times Client.WaitForPostgresLeaveAndReturn should be invoked
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) Times(n uint64) *mClientMockWaitForPostgresLeaveAndReturn {
-	if n == 0 {
-		mmWaitForPostgresLeaveAndReturn.mock.t.Fatalf("Times of ClientMock.WaitForPostgresLeaveAndReturn mock can not be zero")
-	}
-	mm_atomic.StoreUint64(&mmWaitForPostgresLeaveAndReturn.expectedInvocations, n)
-	mmWaitForPostgresLeaveAndReturn.expectedInvocationsOrigin = minimock.CallerInfo(1)
-	return mmWaitForPostgresLeaveAndReturn
-}
-
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) invocationsDone() bool {
-	if len(mmWaitForPostgresLeaveAndReturn.expectations) == 0 && mmWaitForPostgresLeaveAndReturn.defaultExpectation == nil && mmWaitForPostgresLeaveAndReturn.mock.funcWaitForPostgresLeaveAndReturn == nil {
-		return true
-	}
-
-	totalInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresLeaveAndReturn.mock.afterWaitForPostgresLeaveAndReturnCounter)
-	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresLeaveAndReturn.expectedInvocations)
-
-	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
-}
-
-// WaitForPostgresLeaveAndReturn implements Client
-func (mmWaitForPostgresLeaveAndReturn *ClientMock) WaitForPostgresLeaveAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) (err error) {
-	mm_atomic.AddUint64(&mmWaitForPostgresLeaveAndReturn.beforeWaitForPostgresLeaveAndReturnCounter, 1)
-	defer mm_atomic.AddUint64(&mmWaitForPostgresLeaveAndReturn.afterWaitForPostgresLeaveAndReturnCounter, 1)
-
-	mmWaitForPostgresLeaveAndReturn.t.Helper()
-
-	if mmWaitForPostgresLeaveAndReturn.inspectFuncWaitForPostgresLeaveAndReturn != nil {
-		mmWaitForPostgresLeaveAndReturn.inspectFuncWaitForPostgresLeaveAndReturn(ctx, postgresId, terminalState, maxWaitSeconds)
-	}
-
-	mm_params := ClientMockWaitForPostgresLeaveAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds}
-
-	// Record call args
-	mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.mutex.Lock()
-	mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.callArgs = append(mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.callArgs, &mm_params)
-	mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.mutex.Unlock()
-
-	for _, e := range mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.expectations {
-		if minimock.Equal(*e.params, mm_params) {
-			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.err
-		}
-	}
-
-	if mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation != nil {
-		mm_atomic.AddUint64(&mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation.Counter, 1)
-		mm_want := mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation.params
-		mm_want_ptrs := mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation.paramPtrs
-
-		mm_got := ClientMockWaitForPostgresLeaveAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds}
-
-		if mm_want_ptrs != nil {
-
-			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
-				mmWaitForPostgresLeaveAndReturn.t.Errorf("ClientMock.WaitForPostgresLeaveAndReturn got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-					mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
-			}
-
-			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
-				mmWaitForPostgresLeaveAndReturn.t.Errorf("ClientMock.WaitForPostgresLeaveAndReturn got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-					mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
-			}
-
-			if mm_want_ptrs.terminalState != nil && !minimock.Equal(*mm_want_ptrs.terminalState, mm_got.terminalState) {
-				mmWaitForPostgresLeaveAndReturn.t.Errorf("ClientMock.WaitForPostgresLeaveAndReturn got unexpected parameter terminalState, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-					mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation.expectationOrigins.originTerminalState, *mm_want_ptrs.terminalState, mm_got.terminalState, minimock.Diff(*mm_want_ptrs.terminalState, mm_got.terminalState))
-			}
-
-			if mm_want_ptrs.maxWaitSeconds != nil && !minimock.Equal(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds) {
-				mmWaitForPostgresLeaveAndReturn.t.Errorf("ClientMock.WaitForPostgresLeaveAndReturn got unexpected parameter maxWaitSeconds, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-					mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation.expectationOrigins.originMaxWaitSeconds, *mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds, minimock.Diff(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds))
-			}
-
-		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
-			mmWaitForPostgresLeaveAndReturn.t.Errorf("ClientMock.WaitForPostgresLeaveAndReturn got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-				mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
-		}
-
-		mm_results := mmWaitForPostgresLeaveAndReturn.WaitForPostgresLeaveAndReturnMock.defaultExpectation.results
-		if mm_results == nil {
-			mmWaitForPostgresLeaveAndReturn.t.Fatal("No results are set for the ClientMock.WaitForPostgresLeaveAndReturn")
-		}
-		return (*mm_results).err
-	}
-	if mmWaitForPostgresLeaveAndReturn.funcWaitForPostgresLeaveAndReturn != nil {
-		return mmWaitForPostgresLeaveAndReturn.funcWaitForPostgresLeaveAndReturn(ctx, postgresId, terminalState, maxWaitSeconds)
-	}
-	mmWaitForPostgresLeaveAndReturn.t.Fatalf("Unexpected call to ClientMock.WaitForPostgresLeaveAndReturn. %v %v %v %v", ctx, postgresId, terminalState, maxWaitSeconds)
-	return
-}
-
-// WaitForPostgresLeaveAndReturnAfterCounter returns a count of finished ClientMock.WaitForPostgresLeaveAndReturn invocations
-func (mmWaitForPostgresLeaveAndReturn *ClientMock) WaitForPostgresLeaveAndReturnAfterCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmWaitForPostgresLeaveAndReturn.afterWaitForPostgresLeaveAndReturnCounter)
-}
-
-// WaitForPostgresLeaveAndReturnBeforeCounter returns a count of ClientMock.WaitForPostgresLeaveAndReturn invocations
-func (mmWaitForPostgresLeaveAndReturn *ClientMock) WaitForPostgresLeaveAndReturnBeforeCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmWaitForPostgresLeaveAndReturn.beforeWaitForPostgresLeaveAndReturnCounter)
-}
-
-// Calls returns a list of arguments used in each call to ClientMock.WaitForPostgresLeaveAndReturn.
-// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
-func (mmWaitForPostgresLeaveAndReturn *mClientMockWaitForPostgresLeaveAndReturn) Calls() []*ClientMockWaitForPostgresLeaveAndReturnParams {
-	mmWaitForPostgresLeaveAndReturn.mutex.RLock()
-
-	argCopy := make([]*ClientMockWaitForPostgresLeaveAndReturnParams, len(mmWaitForPostgresLeaveAndReturn.callArgs))
-	copy(argCopy, mmWaitForPostgresLeaveAndReturn.callArgs)
-
-	mmWaitForPostgresLeaveAndReturn.mutex.RUnlock()
-
-	return argCopy
-}
-
-// MinimockWaitForPostgresLeaveAndReturnDone returns true if the count of the WaitForPostgresLeaveAndReturn invocations corresponds
-// the number of defined expectations
-func (m *ClientMock) MinimockWaitForPostgresLeaveAndReturnDone() bool {
-	if m.WaitForPostgresLeaveAndReturnMock.optional {
-		// Optional methods provide '0 or more' call count restriction.
-		return true
-	}
-
-	for _, e := range m.WaitForPostgresLeaveAndReturnMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			return false
-		}
-	}
-
-	return m.WaitForPostgresLeaveAndReturnMock.invocationsDone()
-}
-
-// MinimockWaitForPostgresLeaveAndReturnInspect logs each unmet expectation
-func (m *ClientMock) MinimockWaitForPostgresLeaveAndReturnInspect() {
-	for _, e := range m.WaitForPostgresLeaveAndReturnMock.expectations {
-		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Errorf("Expected call to ClientMock.WaitForPostgresLeaveAndReturn at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
-		}
-	}
-
-	afterWaitForPostgresLeaveAndReturnCounter := mm_atomic.LoadUint64(&m.afterWaitForPostgresLeaveAndReturnCounter)
-	// if default expectation was set then invocations count should be greater than zero
-	if m.WaitForPostgresLeaveAndReturnMock.defaultExpectation != nil && afterWaitForPostgresLeaveAndReturnCounter < 1 {
-		if m.WaitForPostgresLeaveAndReturnMock.defaultExpectation.params == nil {
-			m.t.Errorf("Expected call to ClientMock.WaitForPostgresLeaveAndReturn at\n%s", m.WaitForPostgresLeaveAndReturnMock.defaultExpectation.returnOrigin)
-		} else {
-			m.t.Errorf("Expected call to ClientMock.WaitForPostgresLeaveAndReturn at\n%s with params: %#v", m.WaitForPostgresLeaveAndReturnMock.defaultExpectation.expectationOrigins.origin, *m.WaitForPostgresLeaveAndReturnMock.defaultExpectation.params)
-		}
-	}
-	// if func was set then invocations count should be greater than zero
-	if m.funcWaitForPostgresLeaveAndReturn != nil && afterWaitForPostgresLeaveAndReturnCounter < 1 {
-		m.t.Errorf("Expected call to ClientMock.WaitForPostgresLeaveAndReturn at\n%s", m.funcWaitForPostgresLeaveAndReturnOrigin)
-	}
-
-	if !m.WaitForPostgresLeaveAndReturnMock.invocationsDone() && afterWaitForPostgresLeaveAndReturnCounter > 0 {
-		m.t.Errorf("Expected %d calls to ClientMock.WaitForPostgresLeaveAndReturn at\n%s but found %d calls",
-			mm_atomic.LoadUint64(&m.WaitForPostgresLeaveAndReturnMock.expectedInvocations), m.WaitForPostgresLeaveAndReturnMock.expectedInvocationsOrigin, afterWaitForPostgresLeaveAndReturnCounter)
-	}
-}
-
 type mClientMockWaitForPostgresState struct {
 	optional           bool
 	mock               *ClientMock
@@ -22690,6 +22286,410 @@ func (m *ClientMock) MinimockWaitForPostgresStateInspect() {
 	if !m.WaitForPostgresStateMock.invocationsDone() && afterWaitForPostgresStateCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.WaitForPostgresState at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.WaitForPostgresStateMock.expectedInvocations), m.WaitForPostgresStateMock.expectedInvocationsOrigin, afterWaitForPostgresStateCounter)
+	}
+}
+
+type mClientMockWaitForPostgresStateTransitionAndReturn struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForPostgresStateTransitionAndReturnExpectation
+	expectations       []*ClientMockWaitForPostgresStateTransitionAndReturnExpectation
+
+	callArgs []*ClientMockWaitForPostgresStateTransitionAndReturnParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnExpectation specifies expectation struct of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWaitForPostgresStateTransitionAndReturnParams
+	paramPtrs          *ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs
+	expectationOrigins ClientMockWaitForPostgresStateTransitionAndReturnExpectationOrigins
+	results            *ClientMockWaitForPostgresStateTransitionAndReturnResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnParams contains parameters of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnParams struct {
+	ctx            context.Context
+	postgresId     string
+	terminalState  string
+	maxWaitSeconds int
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs contains pointers to parameters of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs struct {
+	ctx            *context.Context
+	postgresId     *string
+	terminalState  *string
+	maxWaitSeconds *int
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnResults contains results of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnResults struct {
+	err error
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnOrigins contains origins of expectations of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnExpectationOrigins struct {
+	origin               string
+	originCtx            string
+	originPostgresId     string
+	originTerminalState  string
+	originMaxWaitSeconds string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Optional() *mClientMockWaitForPostgresStateTransitionAndReturn {
+	mmWaitForPostgresStateTransitionAndReturn.optional = true
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// Expect sets up expected params for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Expect(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params = &ClientMockWaitForPostgresStateTransitionAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWaitForPostgresStateTransitionAndReturn.expectations {
+		if minimock.Equal(e.params, mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params) {
+			mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs{}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) ExpectPostgresIdParam2(postgresId string) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs{}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// ExpectTerminalStateParam3 sets up expected param terminalState for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) ExpectTerminalStateParam3(terminalState string) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs{}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs.terminalState = &terminalState
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.originTerminalState = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// ExpectMaxWaitSecondsParam4 sets up expected param maxWaitSeconds for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) ExpectMaxWaitSecondsParam4(maxWaitSeconds int) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs{}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs.maxWaitSeconds = &maxWaitSeconds
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.originMaxWaitSeconds = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Inspect(f func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int)) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.inspectFuncWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForPostgresStateTransitionAndReturn")
+	}
+
+	mmWaitForPostgresStateTransitionAndReturn.mock.inspectFuncWaitForPostgresStateTransitionAndReturn = f
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// Return sets up results that will be returned by Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Return(err error) *ClientMock {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{mock: mmWaitForPostgresStateTransitionAndReturn.mock}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.results = &ClientMockWaitForPostgresStateTransitionAndReturnResults{err}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresStateTransitionAndReturn.mock
+}
+
+// Set uses given function f to mock the Client.WaitForPostgresStateTransitionAndReturn method
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Set(f func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) (err error)) *ClientMock {
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Default expectation is already set for the Client.WaitForPostgresStateTransitionAndReturn method")
+	}
+
+	if len(mmWaitForPostgresStateTransitionAndReturn.expectations) > 0 {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Some expectations are already set for the Client.WaitForPostgresStateTransitionAndReturn method")
+	}
+
+	mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn = f
+	mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturnOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresStateTransitionAndReturn.mock
+}
+
+// When sets expectation for the Client.WaitForPostgresStateTransitionAndReturn which will trigger the result defined by the following
+// Then helper
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) When(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) *ClientMockWaitForPostgresStateTransitionAndReturnExpectation {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{
+		mock:               mmWaitForPostgresStateTransitionAndReturn.mock,
+		params:             &ClientMockWaitForPostgresStateTransitionAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds},
+		expectationOrigins: ClientMockWaitForPostgresStateTransitionAndReturnExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWaitForPostgresStateTransitionAndReturn.expectations = append(mmWaitForPostgresStateTransitionAndReturn.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForPostgresStateTransitionAndReturn return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForPostgresStateTransitionAndReturnExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockWaitForPostgresStateTransitionAndReturnResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForPostgresStateTransitionAndReturn should be invoked
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Times(n uint64) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if n == 0 {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Times of ClientMock.WaitForPostgresStateTransitionAndReturn mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForPostgresStateTransitionAndReturn.expectedInvocations, n)
+	mmWaitForPostgresStateTransitionAndReturn.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) invocationsDone() bool {
+	if len(mmWaitForPostgresStateTransitionAndReturn.expectations) == 0 && mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil && mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresStateTransitionAndReturn.mock.afterWaitForPostgresStateTransitionAndReturnCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresStateTransitionAndReturn.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForPostgresStateTransitionAndReturn implements Client
+func (mmWaitForPostgresStateTransitionAndReturn *ClientMock) WaitForPostgresStateTransitionAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) (err error) {
+	mm_atomic.AddUint64(&mmWaitForPostgresStateTransitionAndReturn.beforeWaitForPostgresStateTransitionAndReturnCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForPostgresStateTransitionAndReturn.afterWaitForPostgresStateTransitionAndReturnCounter, 1)
+
+	mmWaitForPostgresStateTransitionAndReturn.t.Helper()
+
+	if mmWaitForPostgresStateTransitionAndReturn.inspectFuncWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.inspectFuncWaitForPostgresStateTransitionAndReturn(ctx, postgresId, terminalState, maxWaitSeconds)
+	}
+
+	mm_params := ClientMockWaitForPostgresStateTransitionAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds}
+
+	// Record call args
+	mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.mutex.Lock()
+	mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.callArgs = append(mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.callArgs, &mm_params)
+	mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.mutex.Unlock()
+
+	for _, e := range mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForPostgresStateTransitionAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.terminalState != nil && !minimock.Equal(*mm_want_ptrs.terminalState, mm_got.terminalState) {
+				mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameter terminalState, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.originTerminalState, *mm_want_ptrs.terminalState, mm_got.terminalState, minimock.Diff(*mm_want_ptrs.terminalState, mm_got.terminalState))
+			}
+
+			if mm_want_ptrs.maxWaitSeconds != nil && !minimock.Equal(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds) {
+				mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameter maxWaitSeconds, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.originMaxWaitSeconds, *mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds, minimock.Diff(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForPostgresStateTransitionAndReturn.t.Fatal("No results are set for the ClientMock.WaitForPostgresStateTransitionAndReturn")
+		}
+		return (*mm_results).err
+	}
+	if mmWaitForPostgresStateTransitionAndReturn.funcWaitForPostgresStateTransitionAndReturn != nil {
+		return mmWaitForPostgresStateTransitionAndReturn.funcWaitForPostgresStateTransitionAndReturn(ctx, postgresId, terminalState, maxWaitSeconds)
+	}
+	mmWaitForPostgresStateTransitionAndReturn.t.Fatalf("Unexpected call to ClientMock.WaitForPostgresStateTransitionAndReturn. %v %v %v %v", ctx, postgresId, terminalState, maxWaitSeconds)
+	return
+}
+
+// WaitForPostgresStateTransitionAndReturnAfterCounter returns a count of finished ClientMock.WaitForPostgresStateTransitionAndReturn invocations
+func (mmWaitForPostgresStateTransitionAndReturn *ClientMock) WaitForPostgresStateTransitionAndReturnAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresStateTransitionAndReturn.afterWaitForPostgresStateTransitionAndReturnCounter)
+}
+
+// WaitForPostgresStateTransitionAndReturnBeforeCounter returns a count of ClientMock.WaitForPostgresStateTransitionAndReturn invocations
+func (mmWaitForPostgresStateTransitionAndReturn *ClientMock) WaitForPostgresStateTransitionAndReturnBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresStateTransitionAndReturn.beforeWaitForPostgresStateTransitionAndReturnCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForPostgresStateTransitionAndReturn.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Calls() []*ClientMockWaitForPostgresStateTransitionAndReturnParams {
+	mmWaitForPostgresStateTransitionAndReturn.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForPostgresStateTransitionAndReturnParams, len(mmWaitForPostgresStateTransitionAndReturn.callArgs))
+	copy(argCopy, mmWaitForPostgresStateTransitionAndReturn.callArgs)
+
+	mmWaitForPostgresStateTransitionAndReturn.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForPostgresStateTransitionAndReturnDone returns true if the count of the WaitForPostgresStateTransitionAndReturn invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForPostgresStateTransitionAndReturnDone() bool {
+	if m.WaitForPostgresStateTransitionAndReturnMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForPostgresStateTransitionAndReturnMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForPostgresStateTransitionAndReturnMock.invocationsDone()
+}
+
+// MinimockWaitForPostgresStateTransitionAndReturnInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForPostgresStateTransitionAndReturnInspect() {
+	for _, e := range m.WaitForPostgresStateTransitionAndReturnMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWaitForPostgresStateTransitionAndReturnCounter := mm_atomic.LoadUint64(&m.afterWaitForPostgresStateTransitionAndReturnCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation != nil && afterWaitForPostgresStateTransitionAndReturnCounter < 1 {
+		if m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s", m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s with params: %#v", m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.origin, *m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForPostgresStateTransitionAndReturn != nil && afterWaitForPostgresStateTransitionAndReturnCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s", m.funcWaitForPostgresStateTransitionAndReturnOrigin)
+	}
+
+	if !m.WaitForPostgresStateTransitionAndReturnMock.invocationsDone() && afterWaitForPostgresStateTransitionAndReturnCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForPostgresStateTransitionAndReturnMock.expectedInvocations), m.WaitForPostgresStateTransitionAndReturnMock.expectedInvocationsOrigin, afterWaitForPostgresStateTransitionAndReturnCounter)
 	}
 }
 
@@ -23655,9 +23655,9 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockWaitForClickPipeStateInspect()
 
-			m.MinimockWaitForPostgresLeaveAndReturnInspect()
-
 			m.MinimockWaitForPostgresStateInspect()
+
+			m.MinimockWaitForPostgresStateTransitionAndReturnInspect()
 
 			m.MinimockWaitForReversePrivateEndpointStateInspect()
 
@@ -23744,8 +23744,8 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateUpgradeWindowDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
 		m.MinimockWaitForClickPipeStateDone() &&
-		m.MinimockWaitForPostgresLeaveAndReturnDone() &&
 		m.MinimockWaitForPostgresStateDone() &&
+		m.MinimockWaitForPostgresStateTransitionAndReturnDone() &&
 		m.MinimockWaitForReversePrivateEndpointStateDone() &&
 		m.MinimockWaitForServiceStateDone()
 }
