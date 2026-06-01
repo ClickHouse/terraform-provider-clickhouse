@@ -18,14 +18,8 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
-// stringvalidatorLengthAtLeast1 returns the same validator the schema uses
-// for the tags.value attribute. Centralized in tests so a refactor of the
-// schema validator surfaces in TestTagValueValidator_RejectsEmptyString.
-func stringvalidatorLengthAtLeast1() validator.String { return stringvalidator.LengthAtLeast(1) }
-
 // boolPtrPG / strPtrPG — local readability sugar for *bool / *string
-// fixtures. Renamed from the codebase-wide convention to avoid duplicate
-// declarations with clickpipe_test.go's boolPtr / strPtr.
+// fixtures. Suffixed to avoid duplicate declarations with clickpipe_test.go.
 func boolPtrPG(b bool) *bool    { return &b }
 func strPtrPG(s string) *string { return &s }
 
@@ -233,7 +227,7 @@ func TestApiTagsToSetValue_OnlySystemTagsReturnsNull(t *testing.T) {
 func TestTagValueValidator_RejectsEmptyString(t *testing.T) {
 	ctx := context.Background()
 	// Build the same validator the schema uses.
-	v := stringvalidatorLengthAtLeast1()
+	v := stringvalidator.LengthAtLeast(1)
 	resp := &validator.StringResponse{}
 	v.ValidateString(ctx, validator.StringRequest{
 		Path:        path.Root("tags").AtName("value"),
@@ -326,13 +320,12 @@ func TestPlanTagsToAPI(t *testing.T) {
 // ---------------------------------------------------------------------------
 // buildPartialCreateState — mid-Create intermediate state shape
 //
-// The plan documents this as "the most novel piece of Phase 2": between
-// CreatePostgres' 200 and the post-wait re-read, we write a state with
-// just id + password so a step-4/5 failure leaves Terraform able to
-// reconcile against the real server resource. The function is small but
-// behavioral: if the framework rejects the mid-Create write (e.g.,
-// because a computed attribute is Unknown), the user ends up with an
-// orphaned server-side instance and no Terraform-visible reference.
+// Between CreatePostgres' 200 and the post-wait re-read, the resource
+// writes a state with just id + password so a wait-step failure leaves
+// Terraform able to reconcile against the real server resource. The
+// function is small but behavioral: if the framework rejects the mid-
+// Create write (e.g., a computed attribute is Unknown), the user ends
+// up with an orphaned server-side instance and no Terraform reference.
 // ---------------------------------------------------------------------------
 
 func TestBuildPartialCreateState(t *testing.T) {
@@ -374,7 +367,7 @@ func TestBuildPartialCreateState(t *testing.T) {
 		password := "ServerGen123XYZ"
 		partial := buildPartialCreateState(planFresh(), pg, password)
 
-		// Must carry id + password; otherwise Phase 2's recovery contract breaks.
+		// Must carry id + password; otherwise the recovery contract breaks.
 		if partial.ID.ValueString() != "pg-mid-create" {
 			t.Errorf("id missing or wrong; got %v", partial.ID)
 		}
@@ -418,7 +411,7 @@ func TestBuildPartialCreateState(t *testing.T) {
 		}
 	})
 
-	t.Run("with no server-generated password (user-supplied path, Phase 4 preview)", func(t *testing.T) {
+	t.Run("with no server-generated password", func(t *testing.T) {
 		partial := buildPartialCreateState(planFresh(), pg, "")
 		if !partial.Password.IsNull() {
 			t.Errorf("Password must be explicit Null when no generated password; got %v", partial.Password)
@@ -560,10 +553,9 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("tags cleared: plan has null tags, state had tags", func(t *testing.T) {
-		// This is the regression test for the Phase 1 Fix #3 contract +
-		// plan-line-158 guidance: removing all tags must send "tags": []
-		// (empty array), not omit the field entirely. Validates that the
-		// pointer-to-slice in PostgresUpdate.Tags is being used correctly.
+		// Removing all tags must send "tags": [] (empty array), not omit
+		// the field entirely. Validates that the pointer-to-slice in
+		// PostgresUpdate.Tags is being used correctly.
 		plan := baseModel("c6gd.large", "none", emptyTags())
 		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
 		result, diags := buildPostgresUpdate(ctx, plan, state)
@@ -579,9 +571,9 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		if result.TransitionExpected {
 			t.Errorf("tag-clear must not signal TransitionExpected")
 		}
-		// Stronger assertion: confirm JSON wire shape — server must see
-		// "tags": [] (NOT field omitted), otherwise Phase 1's *[]Tag
-		// pointer-to-slice intent is lost in marshalling.
+		// Confirm JSON wire shape — server must see "tags": []
+		// (NOT field omitted), otherwise the *[]Tag pointer-to-slice
+		// intent is lost in marshalling.
 		marshaled, err := json.Marshal(*result.Body)
 		if err != nil {
 			t.Fatalf("marshal failed: %v", err)
@@ -627,17 +619,17 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("plan.Tags == Unknown: re-asserts state.Tags so server doesn't clear them", func(t *testing.T) {
-		// REGRESSION TEST: combined fix for two distinct e2e-caught bugs:
-		//   1) Phase 2 e2e v1: without UseStateForUnknown on the tags
-		//      attribute, framework marked tags as Unknown → buildPostgresUpdate
-		//      treated nil-from-Unknown as "clear all tags" → silent data loss.
-		//   2) Phase 2 e2e v2: PATCH with just {"size":...} (no tags field)
-		//      ALSO clears server-side tags because the server's PATCH
-		//      endpoint has PUT-like semantics for the tags field.
+		// Regression test for two distinct silent-data-loss paths:
+		//   1) Without UseStateForUnknown on the tags attribute, the
+		//      framework marks tags as Unknown and buildPostgresUpdate
+		//      would treat nil-from-Unknown as "clear all tags".
+		//   2) The server's PATCH endpoint has PUT-like semantics for the
+		//      tags field, so a body of just {"size":...} (no tags) also
+		//      clears server-side tags.
 		//
-		// The combined defensive behavior: whenever Unknown plan tags meet
-		// non-empty state tags AND we're patching something else, force the
-		// state's tags into the PATCH body so the server can't drop them.
+		// Combined defence: whenever Unknown plan tags meet non-empty
+		// state tags AND we're patching something else, force the state's
+		// tags into the PATCH body so the server can't drop them.
 		plan := baseModel("c6gd.xlarge", "none", types.SetUnknown(models.PostgresServiceTagObjectType()))
 		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
 		result, diags := buildPostgresUpdate(ctx, plan, state)
@@ -658,10 +650,10 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("size-only diff with non-empty state tags: server-clear defense", func(t *testing.T) {
-		// Phase 2 e2e v2 caught this: server PATCH endpoint clears tags when
-		// the request body omits them. When the user changes size and state
-		// has tags, we MUST include those tags in the PATCH body even though
-		// the user didn't ask us to.
+		// Server PATCH endpoint clears tags when the request body omits
+		// them. When the user changes size and state has tags, we MUST
+		// include those tags in the PATCH body even though the user
+		// didn't ask us to.
 		plan := baseModel("c6gd.xlarge", "none", tagSet("team", "billing"))
 		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
 		result, diags := buildPostgresUpdate(ctx, plan, state)
@@ -824,7 +816,7 @@ func tagAttrTypes() map[string]attr.Type {
 }
 
 // modelsEqual compares two PostgresServiceResourceModel values for the
-// fields Phase 2 syncs. Uses Equal() on each types.* field so types.Set
+// fields the resource syncs. Uses Equal() on each types.* field so types.Set
 // element ordering doesn't make the comparison flaky.
 func modelsEqual(t *testing.T, got, want models.PostgresServiceResourceModel) bool {
 	t.Helper()

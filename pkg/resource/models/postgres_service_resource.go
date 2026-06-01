@@ -6,13 +6,7 @@ import (
 )
 
 // PostgresServiceResourceModel is the Terraform plan/state model for the
-// clickhouse_postgres_service resource (Phase 2 alpha).
-//
-// Phase 4 will flip Password from Computed-only to Optional+Computed and add
-// PasswordWO / PasswordWOVersion. Phase 3 will add PgConfig / PgBouncerConfig.
-// Phase 5 will add ReadReplicaOf / RestoreToPointInTime and the Timeouts
-// block. Each field's eventual home is documented inline so the model can
-// be extended incrementally without renaming.
+// clickhouse_postgres_service resource.
 type PostgresServiceResourceModel struct {
 	// Identity / immutable.
 	ID              types.String `tfsdk:"id"`
@@ -36,7 +30,7 @@ type PostgresServiceResourceModel struct {
 	ConnectionString types.String `tfsdk:"connection_string"`
 
 	// Sensitive / write-only.
-	// Phase 2: Computed-only (server always generates). Phase 4 will widen.
+	// Currently Computed-only (server always generates).
 	Password types.String `tfsdk:"password"`
 }
 

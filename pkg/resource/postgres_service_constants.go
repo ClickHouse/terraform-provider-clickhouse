@@ -2,16 +2,11 @@
 
 package resource
 
-// Snapshot of validator constants from cp-common protocol definitions.
-//
-// Source of truth (read at Phase 2 implementation time):
-//
-//	control-plane/packages/cp-common/src/protocol/postgres/ManagedPostgres.ts
-//
+// Snapshot of validator constants from cp-common protocol definitions
+// (control-plane/packages/cp-common/src/protocol/postgres/ManagedPostgres.ts).
 // When the server adds new values, bump this list in a follow-up patch
-// release. Users on the prior provider release will see a plan-time
-// validation error against the new value; documented as a known limitation
-// in descriptions/postgres_service.md.
+// release; users on the prior provider release see a plan-time validation
+// error against the new value until they upgrade.
 
 // postgresCloudProviders mirrors CLOUD_PROVIDERS at ManagedPostgres.ts:90.
 // Server today is AWS-only; GCP/Azure marked "coming soon" in source.
@@ -34,14 +29,6 @@ var postgresHaTypes = []string{
 	"sync",
 }
 
-// Note: an earlier alpha pinned a `postgresSizes` snapshot of the 82 VM_SPECS
-// keys at ManagedPostgres.ts:203 as a client-side OneOf validator on `size`.
-// Removed in PR review — the maintenance burden (provider patch needed on
-// every new AWS instance family) outweighed the plan-time error benefit for
-// what is the most-frequently-changed attribute. The schema now matches the
-// region attribute: pass through to the server, which rejects invalid sizes
-// with HTTP 400 at apply time.
-
 // postgresInstanceNameMin / postgresInstanceNameMax mirror
 // MIN_INSTANCE_NAME_LENGTH / MAX_INSTANCE_NAME_LENGTH at ValidationUtils.ts:354-355.
 const (
@@ -61,10 +48,9 @@ const postgresReservedTagPrefix = "chc_"
 // gains a port field.
 const postgresDefaultPort int64 = 5432
 
-// Lifecycle timeouts (seconds).
-// Used as defaults for the timeouts {} block. Generous Create/Update
-// budgets cover slow regions and HA-flip resizes; Delete is faster on
-// dev (Phase 0 observed <15s) but kept conservative for prod.
+// Lifecycle timeout budgets (seconds). Generous Create/Update budgets
+// cover slow regions and HA-flip resizes; Delete returns fast in practice
+// but the budget stays wide for safety.
 const (
 	postgresDefaultCreateTimeoutSeconds = 30 * 60 // 30 minutes
 	postgresDefaultUpdateTimeoutSeconds = 30 * 60 // 30 minutes

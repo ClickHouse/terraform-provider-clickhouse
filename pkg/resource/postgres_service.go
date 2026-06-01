@@ -107,7 +107,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 
 			// --- Mutable -----------------------------------------------------
 			"size": schema.StringAttribute{
-				Description: "Instance size (VM SKU). See ClickHouse Cloud docs for the supported set. The server is the source of truth — invalid sizes are rejected with HTTP 400 at apply time. (Earlier alpha pinned the list to an 82-entry compile-time snapshot; that meant new AWS instance families needed a provider patch release before users could use them. Dropped in favor of the lower-friction 'server validates' pattern matching the region attribute.) Resizable in place.",
+				Description: "Instance size (VM SKU). See ClickHouse Cloud docs for the supported set. No client-side enum; the server rejects unsupported sizes with HTTP 400 at apply time. Resizable in place.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
@@ -117,13 +117,12 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Description: "High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = \"none\"' explicitly.",
 				Optional:    true,
 				Computed:    true,
-				// No Default("none"): the server applies "none" by default on
-				// Create when omitted. A schema-level Default would also fire
-				// when a user DELETES the line on an existing resource, which
-				// would silently downgrade HA from "async"/"sync" → "none" —
-				// a real footgun caught in PR review. UseStateForUnknown
-				// preserves the prior state when the user omits the line.
-				// Explicit "none" still works and still triggers a downgrade.
+				// No schema-level Default("none"): the server applies "none"
+				// by default on Create when omitted, AND a Default would also
+				// fire when the user later deletes the line on an existing
+				// resource — silently downgrading HA from "async"/"sync" to
+				// "none". UseStateForUnknown preserves the prior state on
+				// omission; explicit "none" still downgrades.
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -136,12 +135,11 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Set{
-					// CRITICAL: without UseStateForUnknown, the framework
-					// marks tags as Unknown in every plan (Optional+Computed
-					// semantics), and Update would PATCH "tags": [] on every
-					// apply that touches any other attribute — silent data
-					// loss for any user with tags set. The Phase 2 e2e
-					// resize test caught this live.
+					// Without UseStateForUnknown, framework marks tags as
+					// Unknown in every plan (Optional+Computed semantics)
+					// and Update would PATCH "tags": [] on every apply that
+					// touches any other attribute — silent data loss for any
+					// user with tags set.
 					setplanmodifier.UseStateForUnknown(),
 				},
 				NestedObject: schema.NestedAttributeObject{
@@ -164,18 +162,14 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					},
 				},
 				Validators: []validator.Set{
-					// SizeAtLeast(1) intentionally rejects explicit `tags = []`
-					// in .tf. The round-trip server → state collapses empty
-					// arrays to SetNull (because chc_-filtering produces an
-					// empty filtered list), so an explicit empty set in
-					// config would diff perpetually against null state.
-					// Users who want no tags must omit the attribute
-					// entirely; UseStateForUnknown then carries the prior
-					// state forward without diff.
+					// SizeAtLeast(1) rejects explicit `tags = []` in .tf. The
+					// server → state round-trip collapses empty arrays to
+					// SetNull (chc_-filtering produces an empty filtered
+					// list), so an explicit empty set in config would diff
+					// perpetually against null state. Users wanting no tags
+					// omit the attribute entirely.
 					setvalidator.SizeAtLeast(1),
-					// SizeAtMost matches the server's MAX_TAGS_PER_RESOURCE
-					// (50) at packages/cp-common/src/protocol/ResourcesTags.ts:9.
-					// Earlier 64 was an over-permissive guess.
+					// Matches the server's MAX_TAGS_PER_RESOURCE = 50.
 					setvalidator.SizeAtMost(50),
 				},
 			},
@@ -203,7 +197,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"is_primary": schema.BoolAttribute{
-				Description: "True when this instance is a primary; false when it's a read replica. Phase 2 only ever provisions primaries (replicas land in Phase 5). syncPostgresState supplies the 'primary' fallback when the server response omits the field.",
+				Description: "True when this instance is a primary; false when it's a read replica. This resource currently only provisions primaries. If the server response omits the field, true is assumed.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
@@ -231,7 +225,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"connection_string": schema.StringAttribute{
-				Description: "Full connection URI embedding the username and the server-generated password. Marked sensitive; secret-redaction also covers it in TF_LOG=DEBUG output.",
+				Description: "Full connection URI embedding the username and the server-generated password. Marked sensitive; the secret-redaction layer also covers it in TF_LOG=DEBUG output.",
 				Computed:    true,
 				Sensitive:   true,
 				PlanModifiers: []planmodifier.String{
@@ -241,7 +235,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 
 			// --- Sensitive / write-only -------------------------------------
 			"password": schema.StringAttribute{
-				Description: "Server-generated superuser password. The GET endpoint never echoes it, so the resource captures it from the create response and pins state via UseStateForUnknown. User-supplied passwords land in Phase 4.",
+				Description: "Server-generated superuser password. The GET endpoint may not echo it, so the resource captures it from the create response and pins state via UseStateForUnknown so subsequent refreshes don't unset it.",
 				Computed:    true,
 				Sensitive:   true,
 				PlanModifiers: []planmodifier.String{
@@ -269,15 +263,10 @@ func (r *PostgresServiceResource) Configure(_ context.Context, req resource.Conf
 
 // Create provisions a new Postgres instance.
 //
-// Sequence (per plan Phase 2):
-//  1. Read plan, build PostgresCreate body.
-//  2. POST /postgres — capture id + server-generated password.
-//  3. Write partial state (id + password + explicit-null computed attrs) so a
-//     subsequent failure leaves a recoverable Terraform state pointing at the
-//     real server resource.
-//  4. Wait for state=running.
-//  5. Re-read to hydrate hostname/connection_string/created_at/state.
-//  6. Write final state.
+// Between the POST and the wait-for-running poll, the resource writes a
+// partial state containing just id + server-generated password. That way
+// a failure mid-wait leaves a state Terraform can reconcile against,
+// rather than orphaning the server resource.
 func (r *PostgresServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -327,9 +316,8 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	// GetPostgres never echoes the password, so we only have the value the
-	// server returned at create time. Phase 4 widens this once user-supplied
-	// passwords land.
+	// GetPostgres may not echo the password, so the create-time response is
+	// the only place to capture it.
 	model := plan
 	model.ID = types.StringValue(final.Id)
 	if generatedPassword != "" {
@@ -372,10 +360,9 @@ func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Update applies in-place mutations for size, ha_type, and tags.
-//
-// Phase 2 does NOT mutate: id, name, cloud_provider, region, postgres_version
-// (all RequiresReplace), or password (Phase 4 owns rotation).
+// Update applies in-place mutations for size, ha_type, and tags. All other
+// attributes that can change at all are RequiresReplace; password is not
+// mutable by this resource.
 func (r *PostgresServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan, state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -434,8 +421,8 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-// Delete is a thin wrapper: the Phase 1 DeletePostgres client method already
-// owns the 404-idempotent / 409-retry machinery.
+// Delete is a thin wrapper around DeletePostgres, which owns the
+// 404-idempotent / 409-retry machinery.
 func (r *PostgresServiceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -474,10 +461,9 @@ func isPostgresStateRunning(s string) bool { return s == api.PostgresStateRunnin
 // password) and explicitly nulls every other computed attribute so the
 // plugin-framework state-write validator accepts the mid-Create write.
 //
-// Reason it exists as a separate helper: this is the most novel piece of
-// Phase 2's lifecycle ordering. Inline in Create it was untestable without
-// constructing synthetic tfsdk.Plan / tfsdk.State — extracting makes the
-// regression target obvious.
+// Extracted into its own helper rather than inlined in Create so the
+// state-shape contract is unit-testable without constructing synthetic
+// tfsdk.Plan / tfsdk.State values.
 func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.Postgres, generatedPassword string) models.PostgresServiceResourceModel {
 	partial := plan
 	partial.ID = types.StringValue(pg.Id)
@@ -561,16 +547,17 @@ type postgresUpdatePlan struct {
 }
 
 // buildPostgresUpdate diffs plan vs state and produces a sparse PATCH body,
-// or returns Body=nil when nothing actually changed (true no-op).
+// or returns Body=nil when nothing actually changed.
 //
-// Tag handling follows plan line 158: *[]Tag. nil means "leave server-side
-// tags alone"; pointer to empty slice means "clear all tags"; pointer to
-// non-empty slice means "replace". Critical: callers must NEVER receive a
-// PATCH body where Tags is the zero-value *[]Tag — that would marshal as
-// the omitted field and silently fail to clear tags.
+// Tags use the api.PostgresUpdate.Tags *[]Tag contract: nil means "leave
+// server-side tags alone"; pointer to empty slice means "clear all tags";
+// pointer to non-empty slice means "replace". A zero-value *[]Tag must
+// NEVER be sent — it would marshal as an omitted field and silently fail
+// to clear tags.
 //
-// Plan.Tags == Unknown is treated specially (see inline comment) to defend
-// against a regression in the schema's UseStateForUnknown plan modifier.
+// Plan.Tags == Unknown is handled specially (see inline comment) so a
+// regression in the schema's UseStateForUnknown plan modifier cannot
+// cause silent server-side tag loss.
 func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresServiceResourceModel) (postgresUpdatePlan, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	update := api.PostgresUpdate{}
@@ -589,32 +576,23 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 	}
 	// Tags handling.
 	//
-	// CRITICAL server-side gotcha (caught in Phase 2 e2e v2 run, 2026-05-28):
-	// the Postgres PATCH endpoint has PUT-like semantics for tags. If the
-	// request body omits the `tags` field, the server CLEARS all tags
-	// server-side. This is asymmetric with `size` / `ha_type`, which the
-	// server preserves when omitted.
+	// The Postgres PATCH endpoint has PUT-like semantics for the tags field:
+	// if the request body omits `tags`, the server clears them server-side.
+	// This is asymmetric with size/ha_type, which the server preserves when
+	// omitted. Implication: whenever we PATCH any field, we must also
+	// include the current tags in the body, or they'll be silently wiped.
 	//
-	// The implication: whenever we PATCH any field (size or ha_type), we
-	// MUST also include the current tags in the body, or they'll be silently
-	// wiped. This is independent of whether the user changed tags or not.
+	// Plan-state combinations:
+	//   - Unknown plan tags + populated state -> include state.Tags (defense
+	//     against UseStateForUnknown regression).
+	//   - plan == state (no diff) + other field changes -> include state.Tags.
+	//   - plan null + state populated -> send tags: [] (clear).
+	//   - plan populated + plan != state -> send mapped slice.
+	//   - plan null + state null -> leave update.Tags nil.
 	//
-	// Plan-state combinations and our action:
-	//   - Unknown plan tags + any state             -> include state.Tags
-	//     (defense-in-depth: framework shouldn't resolve to Unknown after
-	//     UseStateForUnknown, but if a regression slips through we still
-	//     preserve server-side tags rather than clearing them).
-	//   - Plan tags == state tags (no diff)         -> include state.Tags
-	//     when ANYTHING ELSE changes, otherwise leave update.Tags nil.
-	//   - Plan null, state populated (clear)        -> send tags: [].
-	//     This branch counts as a tag change (sets `changed`).
-	//   - Plan populated, state different           -> send the mapped slice.
-	//   - Plan null + state null (no tags at all)   -> leave update.Tags nil.
-	//
-	// The implementation below funnels everything through a single helper
-	// for clarity. Only set Tags when the caller will actually send a PATCH
-	// (i.e., `changed` is true via size/ha_type or via a tag diff itself);
-	// callers checking `Body == nil` for no-op should not see Tags forced in.
+	// Funnelled through diffTags + a state-reassert branch below. Tags only
+	// gets set on update when the PATCH is actually going to be sent
+	// (`changed == true`); a no-op return leaves Tags nil.
 	tagsChanged, mappedFromPlan, d := diffTags(ctx, plan, state)
 	diags.Append(d...)
 	if diags.HasError() {
@@ -716,16 +694,12 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	state.CloudProvider = types.StringValue(pg.Provider)
 	state.Region = types.StringValue(pg.Region)
 
-	// Empty-string handling for postgres_version / size:
-	// the server should never return empty strings here for a valid instance.
-	// If it ever does (mid-transition wire shape we don't currently know
-	// about, or a future API change), we deliberately preserve the prior
-	// state value rather than overwriting with an empty string — overwriting
-	// would silently corrupt RequiresReplace-tracked state. The trade-off:
-	// if the server permanently starts returning empty, the resource will
-	// silently lie about its state. The expectation is that Phase 6
-	// integration tests would catch this; the comment exists so a future
-	// debugger knows where to look.
+	// Preserve prior state on empty-string responses for postgres_version
+	// and size. Both are RequiresReplace; overwriting with "" would silently
+	// corrupt the tracking value if the server ever omits them mid-
+	// transition. The trade-off is detectable drift only via integration
+	// testing — debuggers chasing "state lies about its actual server-side
+	// value" should look here first.
 	if pg.PostgresVersion != "" {
 		state.PostgresVersion = types.StringValue(pg.PostgresVersion)
 	}
@@ -739,12 +713,10 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	}
 	state.State = types.StringValue(pg.State)
 	state.CreatedAt = types.StringValue(pg.CreatedAt)
-	// IsPrimary fallback: Phase 2 only ever provisions primaries (Phase 5
-	// adds read replicas). Defaulting nil to true is safe for Phase 2 but
-	// will mismark a Phase 5 replica if the server starts returning
-	// IsPrimary=nil for replicas. Revisit in Phase 5: prefer to error
-	// loudly when the server omits a field the resource depends on, since
-	// is_primary drives replica-specific UX.
+	// IsPrimary fallback: this resource only ever provisions primaries, so
+	// defaulting nil to true is safe today. Once read replicas exist as a
+	// resource attribute, this fallback must change — a replica whose
+	// IsPrimary the server omitted would silently be marked as a primary.
 	if pg.IsPrimary != nil {
 		state.IsPrimary = types.BoolValue(*pg.IsPrimary)
 	} else {
