@@ -10,6 +10,7 @@ func GetResourceFactories() []func() upstreamresource.Resource {
 	return []func() upstreamresource.Resource{
 		NewClickPipeCdcInfrastructureResource,
 		NewClickPipeResource,
+		NewClickPipeReversePrivateEndpointCustomPrivateDNSResource,
 		NewClickPipeReversePrivateEndpointResource,
 		NewOrganizationSettingsResource,
 		NewPrivateEndpointRegistrationResource,

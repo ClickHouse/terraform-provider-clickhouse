@@ -2,7 +2,7 @@
 terraform {
   required_providers {
     clickhouse = {
-      version = "3.14.0"
+      version = "3.16.0"
       source  = "ClickHouse/clickhouse"
     }
   }
@@ -15,6 +15,6 @@ provider "clickhouse" {
 }
 
 provider "google" {
-  project = var.gcp_project_id
-  region  = var.gcp_region
+  project     = var.gcp_project_id
+  region      = var.gcp_region
 }
