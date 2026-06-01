@@ -3,12 +3,12 @@
 page_title: "clickhouse_private_endpoint_registration Resource - clickhouse"
 subcategory: ""
 description: |-
-  This resource is deprecated since version 3.2.0. Please refer to the docs https://github.com/ClickHouse/terraform-provider-clickhouse?tab=readme-ov-file#breaking-changes-and-deprecations for migration steps.
+  This resource is deprecated since version 3.2.0. Please refer to the docs for migration steps: https://github.com/ClickHouse/terraform-provider-clickhouse?tab=readme-ov-file#breaking-changes-and-deprecations
 ---
 
 # clickhouse_private_endpoint_registration (Resource)
 
-This resource is deprecated since version 3.2.0. Please refer to [the docs](https://github.com/ClickHouse/terraform-provider-clickhouse?tab=readme-ov-file#breaking-changes-and-deprecations) for migration steps.
+This resource is deprecated since version 3.2.0. Please refer to the docs for migration steps: https://github.com/ClickHouse/terraform-provider-clickhouse?tab=readme-ov-file#breaking-changes-and-deprecations
 
 
 

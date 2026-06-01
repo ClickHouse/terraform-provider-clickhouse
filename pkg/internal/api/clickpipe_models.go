@@ -158,7 +158,6 @@ type ClickPipePubSubSource struct {
 
 	SeekType      string  `json:"seekType"`
 	SeekTimestamp *string `json:"seekTimestamp,omitempty"`
-	SeekSnapshot  *string `json:"seekSnapshot,omitempty"`
 
 	Filter         *string `json:"filter,omitempty"`
 	EnableOrdering *bool   `json:"enableOrdering,omitempty"`

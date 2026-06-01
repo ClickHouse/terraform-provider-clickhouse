@@ -13,12 +13,12 @@ import (
 )
 
 // pubsubSeekValidator enforces the cross-field rules between
-// source.pubsub.seek_type, seek_timestamp, and seek_snapshot. The server
-// rejects mismatches with a 400; this surfaces the same error at plan time.
+// source.pubsub.seek_type and seek_timestamp. The server rejects mismatches
+// with a 400; this surfaces the same error at plan time.
 type pubsubSeekValidator struct{}
 
 func (v pubsubSeekValidator) Description(_ context.Context) string {
-	return "Validates that source.pubsub.seek_timestamp and seek_snapshot match the chosen seek_type."
+	return "Validates that source.pubsub.seek_timestamp matches the chosen seek_type."
 }
 
 func (v pubsubSeekValidator) MarkdownDescription(ctx context.Context) string {
@@ -59,10 +59,8 @@ func (v pubsubSeekValidator) ValidateResource(ctx context.Context, req resource.
 
 	seekType := pubsubModel.SeekType.ValueString()
 	tsSet := !pubsubModel.SeekTimestamp.IsNull() && !pubsubModel.SeekTimestamp.IsUnknown()
-	snapSet := !pubsubModel.SeekSnapshot.IsNull() && !pubsubModel.SeekSnapshot.IsUnknown()
 
 	timestampPath := path.Root("source").AtName("pubsub").AtName("seek_timestamp")
-	snapshotPath := path.Root("source").AtName("pubsub").AtName("seek_snapshot")
 
 	switch seekType {
 	case api.ClickPipePubSubSeekTypeLatest, api.ClickPipePubSubSeekTypeEarliest:
@@ -73,41 +71,12 @@ func (v pubsubSeekValidator) ValidateResource(ctx context.Context, req resource.
 				fmt.Sprintf("seek_timestamp must not be set when seek_type is %q.", seekType),
 			)
 		}
-		if snapSet {
-			resp.Diagnostics.AddAttributeError(
-				snapshotPath,
-				"Invalid Pub/Sub seek configuration",
-				fmt.Sprintf("seek_snapshot must not be set when seek_type is %q.", seekType),
-			)
-		}
 	case api.ClickPipePubSubSeekTypeTimestamp:
 		if !tsSet {
 			resp.Diagnostics.AddAttributeError(
 				timestampPath,
 				"Invalid Pub/Sub seek configuration",
 				fmt.Sprintf("seek_timestamp is required when seek_type is %q.", seekType),
-			)
-		}
-		if snapSet {
-			resp.Diagnostics.AddAttributeError(
-				snapshotPath,
-				"Invalid Pub/Sub seek configuration",
-				fmt.Sprintf("seek_snapshot must not be set when seek_type is %q.", seekType),
-			)
-		}
-	case api.ClickPipePubSubSeekTypeSnapshot:
-		if !snapSet {
-			resp.Diagnostics.AddAttributeError(
-				snapshotPath,
-				"Invalid Pub/Sub seek configuration",
-				fmt.Sprintf("seek_snapshot is required when seek_type is %q.", seekType),
-			)
-		}
-		if tsSet {
-			resp.Diagnostics.AddAttributeError(
-				timestampPath,
-				"Invalid Pub/Sub seek configuration",
-				fmt.Sprintf("seek_timestamp must not be set when seek_type is %q.", seekType),
 			)
 		}
 	}

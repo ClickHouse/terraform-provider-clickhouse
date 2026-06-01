@@ -17,6 +17,8 @@ const (
 	ClickPipeRunningState       = "Running"
 	ClickPipeStoppingState      = "Stopping"
 	ClickPipeStoppedState       = "Stopped"
+	ClickPipePausingState       = "Pausing"
+	ClickPipePausedState        = "Paused"
 	ClickPipeFailedState        = "Failed"
 	ClickPipeCompletedState     = "Completed"
 	ClickPipeSnapShotState      = "Snapshot"
@@ -161,14 +163,12 @@ const (
 	ClickPipePubSubSeekTypeLatest    = "latest"
 	ClickPipePubSubSeekTypeEarliest  = "earliest"
 	ClickPipePubSubSeekTypeTimestamp = "timestamp"
-	ClickPipePubSubSeekTypeSnapshot  = "snapshot"
 )
 
 var ClickPipePubSubSeekTypes = []string{
 	ClickPipePubSubSeekTypeLatest,
 	ClickPipePubSubSeekTypeEarliest,
 	ClickPipePubSubSeekTypeTimestamp,
-	ClickPipePubSubSeekTypeSnapshot,
 }
 
 var ClickPipePubSubAuthenticationMethods = []string{

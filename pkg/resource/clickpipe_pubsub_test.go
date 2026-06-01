@@ -18,7 +18,7 @@ import (
 // as-is so tests can exercise null vs. set behavior.
 func buildPubSubPlan(
 	format, projectID, topic, seekType string,
-	seekTimestamp, seekSnapshot, filter types.String,
+	seekTimestamp, filter types.String,
 	enableOrdering types.Bool,
 	ackDeadline types.Int64,
 	serviceAccountFile types.String,
@@ -33,7 +33,6 @@ func buildPubSubPlan(
 		"authentication":      types.StringValue(api.ClickPipeAuthenticationServiceAccount),
 		"seek_type":           types.StringValue(seekType),
 		"seek_timestamp":      seekTimestamp,
-		"seek_snapshot":       seekSnapshot,
 		"filter":              filter,
 		"enable_ordering":     enableOrdering,
 		"ack_deadline":        ackDeadline,
@@ -68,14 +67,13 @@ func TestExtractSourceFromPlan_PubSub_LatestCreate(t *testing.T) {
 		api.ClickPipePubSubSeekTypeLatest,
 		types.StringNull(),
 		types.StringNull(),
-		types.StringNull(),
 		types.BoolNull(),
 		types.Int64Null(),
 		types.StringValue("base64-encoded-key"),
 	)
 
 	diagnostics := diag.Diagnostics{}
-	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 	assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
 	assert.NotNil(t, source)
@@ -86,7 +84,6 @@ func TestExtractSourceFromPlan_PubSub_LatestCreate(t *testing.T) {
 	assert.Equal(t, api.ClickPipeAuthenticationServiceAccount, source.PubSub.Authentication)
 	assert.Equal(t, api.ClickPipePubSubSeekTypeLatest, source.PubSub.SeekType)
 	assert.Nil(t, source.PubSub.SeekTimestamp)
-	assert.Nil(t, source.PubSub.SeekSnapshot)
 	assert.Nil(t, source.PubSub.Filter)
 	assert.Nil(t, source.PubSub.EnableOrdering)
 	assert.Nil(t, source.PubSub.AckDeadline)
@@ -104,7 +101,6 @@ func TestExtractSourceFromPlan_PubSub_TimestampWithOptionalFields(t *testing.T) 
 		"events",
 		api.ClickPipePubSubSeekTypeTimestamp,
 		types.StringValue("2026-04-10T12:00:00Z"),
-		types.StringNull(),
 		types.StringValue(`attributes.env = "prod"`),
 		types.BoolValue(true),
 		types.Int64Value(120),
@@ -112,7 +108,7 @@ func TestExtractSourceFromPlan_PubSub_TimestampWithOptionalFields(t *testing.T) 
 	)
 
 	diagnostics := diag.Diagnostics{}
-	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 	assert.False(t, diagnostics.HasError())
 	assert.NotNil(t, source.PubSub)
@@ -137,7 +133,6 @@ func TestExtractSourceFromPlan_PubSub_UpdateIncludesAllFields(t *testing.T) {
 		"events",
 		api.ClickPipePubSubSeekTypeLatest,
 		types.StringNull(),
-		types.StringNull(),
 		types.StringValue("attributes.env = \"prod\""),
 		types.BoolValue(false),
 		types.Int64Value(60),
@@ -145,7 +140,7 @@ func TestExtractSourceFromPlan_PubSub_UpdateIncludesAllFields(t *testing.T) {
 	)
 
 	diagnostics := diag.Diagnostics{}
-	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, true)
+	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
 
 	assert.False(t, diagnostics.HasError())
 	assert.NotNil(t, source.PubSub)

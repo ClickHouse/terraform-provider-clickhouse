@@ -26,5 +26,5 @@ variable "bigquery_dataset_id" {
 
 variable "bigquery_table_names" {
   description = "Source BigQuery table names"
-    type        = list(string)
+  type        = list(string)
 }

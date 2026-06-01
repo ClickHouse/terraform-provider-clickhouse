@@ -76,23 +76,29 @@ func (m ClickPipeKafkaSchemaRegistryModel) ObjectValue() types.Object {
 }
 
 type ClickPipeSourceCredentialsModel struct {
-	Username types.String `tfsdk:"username"`
-	Password types.String `tfsdk:"password"`
+	Username          types.String `tfsdk:"username"`
+	Password          types.String `tfsdk:"password"`
+	PasswordWO        types.String `tfsdk:"password_wo"`
+	PasswordWOVersion types.Int64  `tfsdk:"password_wo_version"`
 }
 
 func (m ClickPipeSourceCredentialsModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"username": types.StringType,
-			"password": types.StringType,
+			"username":            types.StringType,
+			"password":            types.StringType,
+			"password_wo":         types.StringType,
+			"password_wo_version": types.Int64Type,
 		},
 	}
 }
 
 func (m ClickPipeSourceCredentialsModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"username": m.Username,
-		"password": m.Password,
+		"username":            m.Username,
+		"password":            m.Password,
+		"password_wo":         m.PasswordWO,
+		"password_wo_version": m.PasswordWOVersion,
 	})
 }
 
@@ -135,26 +141,30 @@ type ClickPipeKafkaSourceCredentialsModel struct {
 func (m ClickPipeKafkaSourceCredentialsModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"username":          types.StringType,
-			"password":          types.StringType,
-			"access_key_id":     types.StringType,
-			"secret_key":        types.StringType,
-			"connection_string": types.StringType,
-			"certificate":       types.StringType,
-			"private_key":       types.StringType,
+			"username":            types.StringType,
+			"password":            types.StringType,
+			"password_wo":         types.StringType,
+			"password_wo_version": types.Int64Type,
+			"access_key_id":       types.StringType,
+			"secret_key":          types.StringType,
+			"connection_string":   types.StringType,
+			"certificate":         types.StringType,
+			"private_key":         types.StringType,
 		},
 	}
 }
 
 func (m ClickPipeKafkaSourceCredentialsModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"username":          m.Username,
-		"password":          m.Password,
-		"access_key_id":     m.AccessKeyID,
-		"secret_key":        m.SecretKey,
-		"connection_string": m.ConnectionString,
-		"certificate":       m.Certificate,
-		"private_key":       m.PrivateKey,
+		"username":            m.Username,
+		"password":            m.Password,
+		"password_wo":         m.PasswordWO,
+		"password_wo_version": m.PasswordWOVersion,
+		"access_key_id":       m.AccessKeyID,
+		"secret_key":          m.SecretKey,
+		"connection_string":   m.ConnectionString,
+		"certificate":         m.Certificate,
+		"private_key":         m.PrivateKey,
 	})
 }
 
@@ -263,7 +273,6 @@ type ClickPipePubSubSourceModel struct {
 	Authentication    types.String `tfsdk:"authentication"`
 	SeekType          types.String `tfsdk:"seek_type"`
 	SeekTimestamp     types.String `tfsdk:"seek_timestamp"`
-	SeekSnapshot      types.String `tfsdk:"seek_snapshot"`
 	Filter            types.String `tfsdk:"filter"`
 	EnableOrdering    types.Bool   `tfsdk:"enable_ordering"`
 	AckDeadline       types.Int64  `tfsdk:"ack_deadline"`
@@ -279,7 +288,6 @@ func (m ClickPipePubSubSourceModel) ObjectType() types.ObjectType {
 			"authentication":      types.StringType,
 			"seek_type":           types.StringType,
 			"seek_timestamp":      types.StringType,
-			"seek_snapshot":       types.StringType,
 			"filter":              types.StringType,
 			"enable_ordering":     types.BoolType,
 			"ack_deadline":        types.Int64Type,
@@ -296,7 +304,6 @@ func (m ClickPipePubSubSourceModel) ObjectValue() types.Object {
 		"authentication":      m.Authentication,
 		"seek_type":           m.SeekType,
 		"seek_timestamp":      m.SeekTimestamp,
-		"seek_snapshot":       m.SeekSnapshot,
 		"filter":              m.Filter,
 		"enable_ordering":     m.EnableOrdering,
 		"ack_deadline":        m.AckDeadline,

@@ -23,8 +23,20 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
+      # tfplugindocs shells out to the terraform binary on PATH to export the
+      # provider schema. Write-only attributes (e.g. password_wo) only appear in
+      # `terraform providers schema -json` on Terraform >= 1.11, so the docs only
+      # render the [Write-only] annotation when a >= 1.11 binary is used. Pin one
+      # here so CI matches local generation. terraform_wrapper must be false so
+      # tfplugindocs can read the schema JSON from stdout.
+      - name: Setup terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
       - name: Generate docs
-        run: make docs
+        run: make docs-alpha
 
       - name: Check for changes
         run: git diff --exit-code
