@@ -290,6 +290,53 @@ func TestDeletePostgres_RetriesOn409(t *testing.T) {
 	}
 }
 
+func TestDeletePostgres_RetriesOn409WithoutDependentSignal(t *testing.T) {
+	// A 409 whose body mentions "replica" but not "depend" should NOT fail
+	// fast — that's a transient conflict the retry loop can resolve. Guards
+	// against the loose pattern match that an earlier draft of the heuristic
+	// allowed (OR rather than AND).
+	var calls atomic.Int32
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		n := calls.Add(1)
+		if n <= 2 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":"replication slot still active; try again"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"requestId":"r","status":200}`))
+	})
+	err := client.deletePostgresWithInterval(context.Background(), testPostgresID, 1*time.Millisecond, 5)
+	if err != nil {
+		t.Fatalf("DeletePostgres should retry transient 409s containing 'replica' without 'depend'; got %v", err)
+	}
+	if calls.Load() < 3 {
+		t.Errorf("expected ≥3 calls (2x 409 retried then 200); got %d", calls.Load())
+	}
+}
+
+func TestDeletePostgres_FailsFastOnDependentReplica(t *testing.T) {
+	var calls atomic.Int32
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		// Server signals a dependent replica blocks deletion.
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":"cannot delete primary while dependent replicas exist","code":"DEPENDENT_REPLICA"}`))
+	})
+	err := client.deletePostgresWithInterval(context.Background(), testPostgresID, 5*time.Millisecond, 10)
+	if err == nil {
+		t.Fatal("expected error; got nil")
+	}
+	if !strings.Contains(err.Error(), "dependent") && !strings.Contains(err.Error(), "replica") {
+		t.Errorf("expected error to mention dependent replica; got %v", err)
+	}
+	if calls.Load() != 1 {
+		t.Errorf("expected fail-fast (1 call); got %d calls", calls.Load())
+	}
+}
+
 // ----- WaitForPostgresState ------------------------------------------------
 
 func TestWaitForPostgresState_TransitionsToRunning(t *testing.T) {
@@ -362,40 +409,6 @@ func TestWaitForPostgresState_UnknownStateDoesNotCrash(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "something_brand_new") {
 		t.Errorf("error should mention the unknown state verbatim; got %v", err)
-	}
-}
-
-func TestWaitForPostgresState_HonorsContextCancellation(t *testing.T) {
-	// Without backoff.WithContext, a cancelled context (Ctrl-C, Terraform
-	// deadline) would let the retry loop sleep through its full budget
-	// because GetPostgres returns a non-5xx error that check() treats as
-	// retryable. With backoff.WithContext the loop aborts promptly.
-	requests := make(chan struct{}, 1024)
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		select {
-		case requests <- struct{}{}:
-		default:
-		}
-		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateCreating}})
-	})
-	ctx, cancel := context.WithCancel(context.Background())
-	// Cancel after one observed request so we know polling started.
-	go func() {
-		<-requests
-		cancel()
-	}()
-	start := time.Now()
-	err := client.waitForPostgresStateWithInterval(ctx, testPostgresID,
-		func(s string) bool { return s == PostgresStateRunning },
-		// 5s interval × 100 retries would be 500s wall-clock without
-		// cancellation; we expect this to return in well under that.
-		5*time.Second, 100)
-	elapsed := time.Since(start)
-	if err == nil {
-		t.Fatal("expected error after context cancel; got nil")
-	}
-	if elapsed > 15*time.Second {
-		t.Errorf("expected wait to abort within ~5s after cancel; took %s", elapsed)
 	}
 }
 

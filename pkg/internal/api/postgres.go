@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -119,18 +120,7 @@ func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body
 }
 
 // DeletePostgres deletes an instance. 404 → nil (idempotent). 409 retries
-// for ~15 min (some 409s are transient: instance in 'creating'/'restarting'
-// state, replication slot draining, concurrent operation locks — retry
-// resolves all of these).
-//
-// Note: an earlier alpha shipped a speculative dependent-replica fail-fast
-// heuristic that text-matched the 409 body for "depend" + "replica". Removed
-// because we could not trigger the scenario from Phase 2 (read replicas
-// arrive in Phase 5) and never confirmed what Ubicloud actually returns —
-// the status code (409 vs 422 vs 400) and the response shape were all
-// guesses. If Phase 5's dependent-replica integration test surfaces a
-// real, non-retryable 4xx with a stable distinguishing field, reintroduce
-// the fail-fast there with the captured data as the anchor.
+// for ~15 min UNLESS the body indicates a dependent replica blocks deletion.
 func (c *ClientImpl) DeletePostgres(ctx context.Context, postgresId string) error {
 	return c.deletePostgresWithInterval(ctx, postgresId, postgresDeleteRetryInterval, postgresDeleteRetryAttempts)
 }
@@ -150,6 +140,9 @@ func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId 
 			return nil
 		}
 		if IsConflict(err) {
+			if errIndicatesDependentReplica(err) {
+				return backoff.Permanent(err)
+			}
 			return err
 		}
 		return backoff.Permanent(err)
@@ -157,10 +150,27 @@ func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId 
 	if interval <= 0 {
 		interval = postgresDeleteRetryInterval
 	}
-	// backoff.WithContext makes a cancelled ctx (Ctrl-C, Terraform deadline)
-	// abort the retry loop promptly instead of sleeping out the full budget.
-	b := backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries), ctx)
-	return backoff.Retry(deleteOnce, b)
+	return backoff.Retry(deleteOnce, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
+}
+
+// errIndicatesDependentReplica fails fast on 409s caused by a read replica
+// blocking primary deletion. AND-conjunction (not OR) avoids false-positives
+// on transient conflicts like "replication slot exists" that retry resolves.
+//
+// FIXME: the keyword list is speculative — no real dev-cluster response has
+// been captured yet. Once an integration test provisions a primary + replica
+// and triggers a real 409, anchor this to a structured errorCode/reason field
+// or the exact wording with a regression test. Until then, a real dependent-
+// replica delete burns the full 15-min retry budget instead of failing fast.
+func errIndicatesDependentReplica(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if !strings.Contains(msg, "409") {
+		return false
+	}
+	return strings.Contains(msg, "depend") && strings.Contains(msg, "replica")
 }
 
 // ---------------------------------------------------------------------------
@@ -204,8 +214,7 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 	if maxRetries < 1 {
 		maxRetries = 1
 	}
-	b := backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries), ctx)
-	err := backoff.Retry(check, b)
+	err := backoff.Retry(check, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
 	if err == nil {
 		return nil
 	}
@@ -256,11 +265,7 @@ func (c *ClientImpl) waitForPostgresStateTransitionAndReturnWithInterval(ctx con
 		maxRetries = 2
 	}
 	halfBudget := maxRetries / 2
-	if halfBudget < 1 {
-		halfBudget = 1
-	}
-	b := backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), halfBudget), ctx)
-	err := backoff.Retry(leftCheck, b)
+	err := backoff.Retry(leftCheck, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), halfBudget))
 	if err != nil && !left {
 		// Only sentinel-caused exhaustion is a no-op success; everything else
 		// propagates so the caller doesn't mistake polling failure for success.

@@ -241,15 +241,11 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 	// This is a fake exponential backoff, because multiplier is only 1.
 	// We need to do this because there is no way to set a MaxElapsedTime using ConstantBackOff()
 	// Real waiting times happen in the makeRequest function depending on the server's response.
-	// backoff.WithContext makes a cancelled ctx (Ctrl-C, Terraform deadline)
-	// abort the inner retry loop instead of waiting out the 61s MaxElapsedTime
-	// — so cancellation propagation from outer wait helpers is prompt.
-	innerBackoff := backoff.NewExponentialBackOff(
+	backoffSettings := backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(1*time.Second),
 		backoff.WithMaxElapsedTime(61*time.Second),
 		backoff.WithMultiplier(1),
 	)
-	backoffSettings := backoff.WithContext(innerBackoff, ctx)
 
 	body, err := backoff.RetryWithData[[]byte](makeRequest, backoffSettings)
 
