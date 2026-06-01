@@ -367,7 +367,7 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 									"source_schema_name":     types.StringValue("public"),
 									"source_table":           types.StringValue("users"),
 									"target_table":           types.StringValue("users"),
-									"excluded_columns":       types.ListNull(types.StringType),
+									"excluded_columns":       types.SetNull(types.StringType),
 									"use_custom_sorting_key": types.BoolNull(),
 									"sorting_keys":           types.ListNull(types.StringType),
 									"table_engine":           types.StringNull(),

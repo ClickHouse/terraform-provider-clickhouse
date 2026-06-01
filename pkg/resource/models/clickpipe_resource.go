@@ -363,7 +363,7 @@ type ClickPipePostgresTableMappingModel struct {
 	SourceSchemaName    types.String `tfsdk:"source_schema_name"`
 	SourceTable         types.String `tfsdk:"source_table"`
 	TargetTable         types.String `tfsdk:"target_table"`
-	ExcludedColumns     types.List   `tfsdk:"excluded_columns"`
+	ExcludedColumns     types.Set    `tfsdk:"excluded_columns"`
 	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
 	SortingKeys         types.List   `tfsdk:"sorting_keys"`
 	TableEngine         types.String `tfsdk:"table_engine"`
@@ -376,7 +376,7 @@ func (m ClickPipePostgresTableMappingModel) ObjectType() types.ObjectType {
 			"source_schema_name":     types.StringType,
 			"source_table":           types.StringType,
 			"target_table":           types.StringType,
-			"excluded_columns":       types.ListType{ElemType: types.StringType},
+			"excluded_columns":       types.SetType{ElemType: types.StringType},
 			"use_custom_sorting_key": types.BoolType,
 			"sorting_keys":           types.ListType{ElemType: types.StringType},
 			"table_engine":           types.StringType,
@@ -559,7 +559,7 @@ type ClickPipeBigQueryTableMappingModel struct {
 	SourceDatasetName   types.String `tfsdk:"source_dataset_name"`
 	SourceTable         types.String `tfsdk:"source_table"`
 	TargetTable         types.String `tfsdk:"target_table"`
-	ExcludedColumns     types.List   `tfsdk:"excluded_columns"`
+	ExcludedColumns     types.Set    `tfsdk:"excluded_columns"`
 	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
 	SortingKeys         types.List   `tfsdk:"sorting_keys"`
 	TableEngine         types.String `tfsdk:"table_engine"`
@@ -571,7 +571,7 @@ func (m ClickPipeBigQueryTableMappingModel) ObjectType() types.ObjectType {
 			"source_dataset_name":    types.StringType,
 			"source_table":           types.StringType,
 			"target_table":           types.StringType,
-			"excluded_columns":       types.ListType{ElemType: types.StringType},
+			"excluded_columns":       types.SetType{ElemType: types.StringType},
 			"use_custom_sorting_key": types.BoolType,
 			"sorting_keys":           types.ListType{ElemType: types.StringType},
 			"table_engine":           types.StringType,
@@ -667,7 +667,7 @@ type ClickPipeMySQLTableMappingModel struct {
 	SourceSchemaName    types.String `tfsdk:"source_schema_name"`
 	SourceTable         types.String `tfsdk:"source_table"`
 	TargetTable         types.String `tfsdk:"target_table"`
-	ExcludedColumns     types.List   `tfsdk:"excluded_columns"`
+	ExcludedColumns     types.Set    `tfsdk:"excluded_columns"`
 	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
 	SortingKeys         types.List   `tfsdk:"sorting_keys"`
 	TableEngine         types.String `tfsdk:"table_engine"`
@@ -680,7 +680,7 @@ func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
 			"source_schema_name":     types.StringType,
 			"source_table":           types.StringType,
 			"target_table":           types.StringType,
-			"excluded_columns":       types.ListType{ElemType: types.StringType},
+			"excluded_columns":       types.SetType{ElemType: types.StringType},
 			"use_custom_sorting_key": types.BoolType,
 			"sorting_keys":           types.ListType{ElemType: types.StringType},
 			"table_engine":           types.StringType,

@@ -209,7 +209,7 @@ Required:
 
 Optional:
 
-- `excluded_columns` (List of String) Columns to exclude from replication.
+- `excluded_columns` (Set of String) Columns to exclude from replication.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
@@ -447,7 +447,7 @@ Required:
 
 Optional:
 
-- `excluded_columns` (List of String) Columns to exclude from replication.
+- `excluded_columns` (Set of String) Columns to exclude from replication.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Must be an indexed column of integer, date, datetime, or timestamp type.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
@@ -554,7 +554,7 @@ Required:
 
 Optional:
 
-- `excluded_columns` (List of String) Columns to exclude from replication.
+- `excluded_columns` (Set of String) Columns to exclude from replication.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Only beneficial for PostgreSQL 13 (no benefit for PG14+, which supports indexed ctid scans). Must be an indexed column of type: `smallint`, `integer`, `bigint`, `timestamp without time zone`, or `timestamp with time zone`. Unrelated to ClickHouse partitioning.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)

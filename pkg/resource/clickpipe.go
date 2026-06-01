@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -1041,7 +1042,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Description: "Target table name in ClickHouse.",
 											Required:    true,
 										},
-										"excluded_columns": schema.ListAttribute{
+										"excluded_columns": schema.SetAttribute{
 											Description: "Columns to exclude from replication.",
 											Optional:    true,
 											ElementType: types.StringType,
@@ -1321,7 +1322,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Description: "Target table name in ClickHouse.",
 											Required:    true,
 										},
-										"excluded_columns": schema.ListAttribute{
+										"excluded_columns": schema.SetAttribute{
 											Description: "Columns to exclude from replication.",
 											Optional:    true,
 											ElementType: types.StringType,
@@ -1460,11 +1461,11 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Description: "Target table name in ClickHouse.",
 											Required:    true,
 										},
-										"excluded_columns": schema.ListAttribute{
+										"excluded_columns": schema.SetAttribute{
 											Description: "Columns to exclude from replication.",
 											Optional:    true,
 											Computed:    true,
-											Default:     listdefault.StaticValue(types.ListNull(types.StringType)),
+											Default:     setdefault.StaticValue(types.SetNull(types.StringType)),
 											ElementType: types.StringType,
 										},
 										"use_custom_sorting_key": schema.BoolAttribute{
@@ -4153,16 +4154,16 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			}
 
 			if len(mapping.ExcludedColumns) > 0 {
-				excludedColsList := make([]attr.Value, len(mapping.ExcludedColumns))
+				excludedCols := make([]attr.Value, len(mapping.ExcludedColumns))
 				for j, col := range mapping.ExcludedColumns {
-					excludedColsList[j] = types.StringValue(col)
+					excludedCols[j] = types.StringValue(col)
 				}
-				tableMappingModel.ExcludedColumns, _ = types.ListValue(types.StringType, excludedColsList)
+				tableMappingModel.ExcludedColumns, _ = types.SetValue(types.StringType, excludedCols)
 			} else if hasStateMapping && !stateMapping.ExcludedColumns.IsNull() {
-				// Preserve empty list from state (vs null) to avoid plan diff
-				tableMappingModel.ExcludedColumns, _ = types.ListValue(types.StringType, []attr.Value{})
+				// Preserve empty set from state (vs null) to avoid plan diff
+				tableMappingModel.ExcludedColumns, _ = types.SetValue(types.StringType, []attr.Value{})
 			} else {
-				tableMappingModel.ExcludedColumns = types.ListNull(types.StringType)
+				tableMappingModel.ExcludedColumns = types.SetNull(types.StringType)
 			}
 
 			if mapping.UseCustomSortingKey != nil {
@@ -4377,15 +4378,15 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			}
 
 			if len(mapping.ExcludedColumns) > 0 {
-				excludedColsList := make([]attr.Value, len(mapping.ExcludedColumns))
+				excludedCols := make([]attr.Value, len(mapping.ExcludedColumns))
 				for j, col := range mapping.ExcludedColumns {
-					excludedColsList[j] = types.StringValue(col)
+					excludedCols[j] = types.StringValue(col)
 				}
-				tableMappingModel.ExcludedColumns, _ = types.ListValue(types.StringType, excludedColsList)
+				tableMappingModel.ExcludedColumns, _ = types.SetValue(types.StringType, excludedCols)
 			} else if hasStateMapping && !stateMapping.ExcludedColumns.IsNull() {
-				tableMappingModel.ExcludedColumns, _ = types.ListValue(types.StringType, []attr.Value{})
+				tableMappingModel.ExcludedColumns, _ = types.SetValue(types.StringType, []attr.Value{})
 			} else {
-				tableMappingModel.ExcludedColumns = types.ListNull(types.StringType)
+				tableMappingModel.ExcludedColumns = types.SetNull(types.StringType)
 			}
 
 			if mapping.UseCustomSortingKey != nil {
@@ -4713,13 +4714,13 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			}
 
 			if len(mapping.ExcludedColumns) > 0 {
-				excludedColsList := make([]attr.Value, len(mapping.ExcludedColumns))
+				excludedCols := make([]attr.Value, len(mapping.ExcludedColumns))
 				for j, col := range mapping.ExcludedColumns {
-					excludedColsList[j] = types.StringValue(col)
+					excludedCols[j] = types.StringValue(col)
 				}
-				tableMappingModel.ExcludedColumns, _ = types.ListValue(types.StringType, excludedColsList)
+				tableMappingModel.ExcludedColumns, _ = types.SetValue(types.StringType, excludedCols)
 			} else {
-				tableMappingModel.ExcludedColumns = types.ListNull(types.StringType)
+				tableMappingModel.ExcludedColumns = types.SetNull(types.StringType)
 			}
 
 			if mapping.UseCustomSortingKey != nil {
