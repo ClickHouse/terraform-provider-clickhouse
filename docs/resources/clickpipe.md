@@ -158,7 +158,7 @@ Optional:
 
 - `bigquery` (Attributes) The BigQuery source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--bigquery))
 - `kafka` (Attributes) The Kafka source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--kafka))
-- `kinesis` (Attributes) The Kinesis source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--kinesis))
+- `kinesis` (Attributes) The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field forces resource replacement (destroy and recreate). (see [below for nested schema](#nestedatt--source--kinesis))
 - `mongodb` (Attributes) The MongoDB CDC source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--mongodb))
 - `mysql` (Attributes) The MySQL CDC source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--mysql))
 - `object_storage` (Attributes) The compatible object storage source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--object_storage))
@@ -303,7 +303,7 @@ Required:
 
 Optional:
 
-- `access_key` (Attributes) The access key for the Kinesis source. Use with `IAM_USER` authentication. (see [below for nested schema](#nestedatt--source--kinesis--access_key))
+- `access_key` (Attributes) The access key for the Kinesis source. Use with `IAM_USER` authentication. Can be rotated in place via an update. (see [below for nested schema](#nestedatt--source--kinesis--access_key))
 - `iam_role` (String) The IAM role for the Kinesis source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kinesis.
 - `timestamp` (String) The timestamp for the Kinesis source. Use with `AT_TIMESTAMP` iterator type. (format `2021-01-01T00:00`)
 - `use_enhanced_fan_out` (Boolean) Whether to use enhanced fan-out consumer.
