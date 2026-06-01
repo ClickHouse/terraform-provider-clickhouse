@@ -4719,6 +4719,9 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 					excludedCols[j] = types.StringValue(col)
 				}
 				tableMappingModel.ExcludedColumns, _ = types.SetValue(types.StringType, excludedCols)
+			} else if stateMapping != nil && !stateMapping.ExcludedColumns.IsNull() {
+				// Preserve empty set from state (vs null) to avoid plan diff
+				tableMappingModel.ExcludedColumns, _ = types.SetValue(types.StringType, []attr.Value{})
 			} else {
 				tableMappingModel.ExcludedColumns = types.SetNull(types.StringType)
 			}
