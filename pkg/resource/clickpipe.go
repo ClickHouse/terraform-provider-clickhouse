@@ -584,7 +584,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						},
 					},
 					"kinesis": schema.SingleNestedAttribute{
-						MarkdownDescription: "The Kinesis source configuration for the ClickPipe.",
+						MarkdownDescription: "The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field forces resource replacement (destroy and recreate).",
 						Optional:            true,
 						PlanModifiers: []planmodifier.Object{
 							requiresReplaceIfSourceTypeChanges{},
@@ -658,12 +658,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeKinesisAuthenticationMethods...),
 								},
-								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.RequiresReplace(),
-								},
+								// Updatable in place: the control plane permits changing the
+								// authentication method on PATCH (it is not in the Kinesis
+								// patch-excluded field set), so no RequiresReplace here.
 							},
 							"access_key": schema.SingleNestedAttribute{
-								MarkdownDescription: "The access key for the Kinesis source. Use with `IAM_USER` authentication.",
+								MarkdownDescription: "The access key for the Kinesis source. Use with `IAM_USER` authentication. Can be rotated in place via an update.",
 								Optional:            true,
 								Attributes: map[string]schema.Attribute{
 									"access_key_id": schema.StringAttribute{
@@ -677,16 +677,14 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Sensitive:   true,
 									},
 								},
-								PlanModifiers: []planmodifier.Object{
-									objectplanmodifier.RequiresReplace(),
-								},
+								// Updatable in place: Kinesis credentials can be rotated via PATCH
+								// (not in the Kinesis patch-excluded field set), so no RequiresReplace.
 							},
 							"iam_role": schema.StringAttribute{
 								MarkdownDescription: "The IAM role for the Kinesis source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kinesis.",
 								Optional:            true,
-								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.RequiresReplace(),
-								},
+								// Updatable in place: the IAM role can be changed via PATCH
+								// (not in the Kinesis patch-excluded field set), so no RequiresReplace.
 							},
 						},
 					},
@@ -5212,10 +5210,27 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				}
 			}
 
+			// For Kinesis, omit the unchanged access_key from the PATCH so we do not
+			// re-encrypt credentials that have not rotated (mirrors the Kafka path).
+			// Only authentication, iam_role and access_key are patchable for Kinesis;
+			// every other field carries RequiresReplace and never reaches Update.
+			if source.Kinesis != nil && !planSourceModel.Kinesis.IsNull() && !stateSourceModel.Kinesis.IsNull() {
+				planKinesisModel := models.ClickPipeKinesisSourceModel{}
+				response.Diagnostics.Append(planSourceModel.Kinesis.As(ctx, &planKinesisModel, basetypes.ObjectAsOptions{})...)
+				stateKinesisModel := models.ClickPipeKinesisSourceModel{}
+				response.Diagnostics.Append(stateSourceModel.Kinesis.As(ctx, &stateKinesisModel, basetypes.ObjectAsOptions{})...)
+				if !credentialsObjectChanged(planKinesisModel.AccessKey, stateKinesisModel.AccessKey) {
+					source.Kinesis.AccessKey = nil
+				}
+			}
+
 			if source.Kafka != nil {
 				pipeChanged = true
 				clickPipeUpdate.Source = source
 			} else if source.ObjectStorage != nil {
+				pipeChanged = true
+				clickPipeUpdate.Source = source
+			} else if source.Kinesis != nil {
 				pipeChanged = true
 				clickPipeUpdate.Source = source
 			} else if source.PubSub != nil {
