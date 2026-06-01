@@ -3,12 +3,6 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "vpc_endpoint_service"
   description               = "VPC_ENDPOINT_SERVICE reverse private endpoint for ClickPipes"
   type                      = "VPC_ENDPOINT_SERVICE"
   vpc_endpoint_service_name = "com.amazonaws.vpce.eu-west-1.vpce-svc-080826a65b5b27d4e"
-
-  custom_private_dns_mappings = [
-    {
-      private_dns_name = "my-service.example.com"
-    }
-  ]
 }
 
 resource "clickhouse_clickpipes_reverse_private_endpoint" "vpc_resource" {

@@ -29,3 +29,8 @@ type CreateReversePrivateEndpoint struct {
 	GCPServiceAttachment       *string                   `json:"gcpServiceAttachment,omitempty"`
 	CustomPrivateDNSMappings   []CustomPrivateDNSMapping `json:"customPrivateDnsMappings,omitempty"`
 }
+
+// UpdateReversePrivateEndpoint is the request payload for updating mutable reverse private endpoint fields.
+type UpdateReversePrivateEndpoint struct {
+	CustomPrivateDNSMappings *[]CustomPrivateDNSMapping `json:"customPrivateDnsMappings,omitempty"`
+}

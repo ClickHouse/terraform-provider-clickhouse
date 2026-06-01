@@ -38,7 +38,7 @@ resource "clickhouse_clickpipe" "postgres_cdc" {
 
   source = {
     postgres = {
-      host     = clickhouse_clickpipes_reverse_private_endpoint.cloud_sql.custom_private_dns_mappings[0].private_dns_name
+      host     = clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns.cloud_sql.mapping[0].private_dns_name
       port     = 5432
       database = var.postgres_database
 
@@ -78,7 +78,7 @@ resource "clickhouse_clickpipe" "mysql_cdc" {
 
   source = {
     mysql = {
-      host = clickhouse_clickpipes_reverse_private_endpoint.cloud_sql.custom_private_dns_mappings[0].private_dns_name
+      host = clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns.cloud_sql.mapping[0].private_dns_name
       port = 3306
 
       credentials = {

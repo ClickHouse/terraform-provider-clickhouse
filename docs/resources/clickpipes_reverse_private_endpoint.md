@@ -6,6 +6,7 @@ description: |-
   You can use the clickhouse_clickpipes_reverse_private_endpoint resource to create and manage reverse private endpoints for secure ClickPipes data source connections in ClickHouse Cloud.
   Supported endpoint types: VPC_ENDPOINT_SERVICE, VPC_RESOURCE, MSK_MULTI_VPC, and GCP_PSC_SERVICE_ATTACHMENT.
   ~> Note: All fields on this resource are immutable after creation. Any change will force replacement (destroy and recreate).
+  Use clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns to manage custom private DNS mappings for a reverse private endpoint.
 ---
 
 # clickhouse_clickpipes_reverse_private_endpoint (Resource)
@@ -16,6 +17,8 @@ Supported endpoint types: `VPC_ENDPOINT_SERVICE`, `VPC_RESOURCE`, `MSK_MULTI_VPC
 
 ~> **Note:** All fields on this resource are immutable after creation. Any change will force replacement (destroy and recreate).
 
+Use *clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns* to manage custom private DNS mappings for a reverse private endpoint.
+
 ## Example Usage
 
 ```terraform
@@ -24,12 +27,6 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "vpc_endpoint_service"
   description               = "VPC_ENDPOINT_SERVICE reverse private endpoint for ClickPipes"
   type                      = "VPC_ENDPOINT_SERVICE"
   vpc_endpoint_service_name = "com.amazonaws.vpce.eu-west-1.vpce-svc-080826a65b5b27d4e"
-
-  custom_private_dns_mappings = [
-    {
-      private_dns_name = "my-service.example.com"
-    }
-  ]
 }
 
 resource "clickhouse_clickpipes_reverse_private_endpoint" "vpc_resource" {
@@ -67,7 +64,6 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "gcp_psc_service_attac
 
 ### Optional
 
-- `custom_private_dns_mappings` (Attributes List) Optional list of custom private DNS mappings. Each mapping points a private DNS name at this endpoint without creating a Route53 hosted zone. (see [below for nested schema](#nestedatt--custom_private_dns_mappings))
 - `gcp_service_attachment` (String) GCP PSC service attachment URI, required for GCP_PSC_SERVICE_ATTACHMENT type. Format: projects/{project}/regions/{region}/serviceAttachments/{name}
 - `msk_authentication` (String) MSK cluster authentication type (SASL_IAM or SASL_SCRAM), required for MSK_MULTI_VPC type
 - `msk_cluster_arn` (String) MSK cluster ARN, required for MSK_MULTI_VPC type
@@ -82,13 +78,6 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "gcp_psc_service_attac
 - `id` (String) Unique identifier for the reverse private endpoint
 - `private_dns_names` (List of String) Reverse private endpoint private DNS names
 - `status` (String) Status of the reverse private endpoint
-
-<a id="nestedatt--custom_private_dns_mappings"></a>
-### Nested Schema for `custom_private_dns_mappings`
-
-Required:
-
-- `private_dns_name` (String) Custom private DNS name managed by the DNS controller.
 
 ## Import
 

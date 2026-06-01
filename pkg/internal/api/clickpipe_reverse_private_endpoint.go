@@ -131,6 +131,30 @@ func (c *ClientImpl) CreateReversePrivateEndpoint(ctx context.Context, serviceId
 	return &response.Result, nil
 }
 
+func (c *ClientImpl) UpdateReversePrivateEndpoint(ctx context.Context, serviceId, reversePrivateEndpointId string, request UpdateReversePrivateEndpoint) (*ReversePrivateEndpoint, error) {
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(request); err != nil {
+		return nil, fmt.Errorf("failed to encode ReversePrivateEndpoint update: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.GetReversePrivateEndpointPath(serviceId, reversePrivateEndpointId), &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	response := ResponseWithResult[ReversePrivateEndpoint]{}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ReversePrivateEndpoint: %w", err)
+	}
+
+	return &response.Result, nil
+}
+
 func (c *ClientImpl) DeleteReversePrivateEndpoint(ctx context.Context, serviceId, reversePrivateEndpointId string) error {
 	req, err := http.NewRequest(http.MethodDelete, c.GetReversePrivateEndpointPath(serviceId, reversePrivateEndpointId), nil)
 	if err != nil {
