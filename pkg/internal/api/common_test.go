@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -99,6 +100,21 @@ func TestRedactSensitiveBody(t *testing.T) {
 			want:  `{"password":"REDACTED"}`,
 		},
 		{
+			name:  "non-sensitive bool passes through",
+			input: `{"enabled":true,"disabled":false}`,
+			want:  `{"enabled":true,"disabled":false}`,
+		},
+		{
+			name:  "non-sensitive number passes through",
+			input: `{"count":42,"ratio":1.5}`,
+			want:  `{"count":42,"ratio":1.5}`,
+		},
+		{
+			name:  "non-sensitive null passes through",
+			input: `{"optional":null}`,
+			want:  `{"optional":null}`,
+		},
+		{
 			name:  "malformed JSON returns placeholder",
 			input: `{"password":`,
 			want:  `"<unparseable, redacted>"`,
@@ -154,7 +170,7 @@ func TestFormatLogBody(t *testing.T) {
 		if !jsonContainsPath(t, got, "password", "REDACTED") {
 			t.Errorf("expected redacted password in formatted output; got: %s", got)
 		}
-		if jsonContainsValueAnywhere(t, got, "super-secret") {
+		if strings.Contains(got, "super-secret") {
 			t.Errorf("plaintext password leaked into log output: %s", got)
 		}
 	})
@@ -165,7 +181,7 @@ func TestFormatLogBody(t *testing.T) {
 		if got == "" {
 			t.Fatal("expected non-empty output for malformed JSON")
 		}
-		if jsonContainsValueAnywhere(t, got, "super-secret") {
+		if strings.Contains(got, "super-secret") {
 			t.Errorf("plaintext password leaked through malformed-JSON path: %s", got)
 		}
 	})
@@ -173,7 +189,7 @@ func TestFormatLogBody(t *testing.T) {
 	t.Run("nested response envelope is redacted and pretty-printed", func(t *testing.T) {
 		input := `{"result":{"id":"abc","password":"plain"}}`
 		got := formatLogBody([]byte(input))
-		if jsonContainsValueAnywhere(t, got, "plain") {
+		if strings.Contains(got, "plain") {
 			t.Errorf("plaintext password leaked: %s", got)
 		}
 		// Pretty-printing inserts newlines and indentation.
@@ -189,13 +205,13 @@ func TestFormatLogBody(t *testing.T) {
 		secret := "Hunter2-Aa1!"
 		input := `{"result":{"id":"pg-1","password":"` + secret + `","connectionString":"postgresql://default:` + secret + `@host:5432/db?channel_binding=require"}}` //nolint:gosec // synthetic test fixture
 		got := formatLogBody([]byte(input))
-		if jsonContainsValueAnywhere(t, got, secret) {
+		if strings.Contains(got, secret) {
 			t.Errorf("plaintext secret leaked through connectionString: %s", got)
 		}
 	})
 }
 
-// jsonContainsPath returns true iff the JSON document contains the (key, value)
+// jsonContainsPath returns true if the JSON document contains the (key, value)
 // pair anywhere in its tree.
 func jsonContainsPath(t *testing.T, doc string, key, value string) bool {
 	t.Helper()
@@ -207,23 +223,6 @@ func jsonContainsPath(t *testing.T, doc string, key, value string) bool {
 		s, ok := val.(string)
 		return ok && k == key && s == value
 	})
-}
-
-// jsonContainsValueAnywhere returns true iff the substring appears in the
-// serialized form of the document. Useful for sanity checks ("did the secret
-// leak through any path").
-func jsonContainsValueAnywhere(t *testing.T, doc string, needle string) bool {
-	t.Helper()
-	return jsonStringContains(doc, needle)
-}
-
-func jsonStringContains(haystack, needle string) bool {
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
 }
 
 func walkFind(v interface{}, predicate func(k string, val interface{}) bool) bool {

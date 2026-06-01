@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 )
@@ -25,25 +26,24 @@ const (
 type PgConfigMap map[string]string
 
 func (m *PgConfigMap) UnmarshalJSON(data []byte) error {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	var raw map[string]any
+	if err := dec.Decode(&raw); err != nil {
 		return err
 	}
 	if *m == nil {
 		*m = make(PgConfigMap, len(raw))
 	}
 	for k, v := range raw {
-		var s string
-		if err := json.Unmarshal(v, &s); err == nil {
-			(*m)[k] = s
-			continue
+		switch val := v.(type) {
+		case string:
+			(*m)[k] = val
+		case json.Number:
+			(*m)[k] = val.String()
+		default:
+			return fmt.Errorf("pgConfig key %q: unsupported value type %T", k, v)
 		}
-		var n json.Number
-		if err := json.Unmarshal(v, &n); err == nil {
-			(*m)[k] = n.String()
-			continue
-		}
-		return fmt.Errorf("pgConfig key %q: unsupported value type %s", k, string(v))
 	}
 	return nil
 }
@@ -63,8 +63,8 @@ type Postgres struct {
 	IsPrimary        *bool   `json:"isPrimary,omitempty"`
 	Hostname         *string `json:"hostname,omitempty"`
 	ConnectionString *string `json:"connectionString,omitempty"`
-	Username         *string `json:"username,omitempty"`
-	Password         *string `json:"password,omitempty"`
+	Username         string  `json:"username,omitempty"`
+	Password         string  `json:"password,omitempty"`
 	Tags             []Tag   `json:"tags,omitempty"`
 }
 
@@ -129,10 +129,10 @@ type PostgresReadReplicaRequest struct {
 }
 
 // PostgresPassword is the PATCH /postgres/{id}/password body and response.
-// Request: nil → server generates; set → server adopts. Response: nil means
+// Request: "" → server generates one; set → server adopts. Response: "" means
 // the client supplied a value; populated means server-generated.
 type PostgresPassword struct {
-	Password *string `json:"password,omitempty"`
+	Password string `json:"password,omitempty"`
 }
 
 // PostgresConfig is the GET /postgres/{id}/config response and POST body.

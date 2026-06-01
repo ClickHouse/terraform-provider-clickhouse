@@ -64,12 +64,33 @@ func TestPgConfigMap_UnmarshalsEmptyObject(t *testing.T) {
 }
 
 func TestPgConfigMap_RejectsBoolValue(t *testing.T) {
-	// Bools / nulls would surprise downstream code that expects string. Surface
-	// it as an error instead of silently swallowing.
+	// Bools / nulls / objects / arrays would surprise downstream code that
+	// expects string. Surface as an error instead of silently swallowing.
 	var got PgConfigMap
 	err := json.Unmarshal([]byte(`{"foo":true}`), &got)
 	if err == nil {
 		t.Errorf("expected error for bool value; got nil (map=%v)", got)
+	}
+}
+
+func TestPgConfigMap_RejectsNullValue(t *testing.T) {
+	var got PgConfigMap
+	if err := json.Unmarshal([]byte(`{"foo":null}`), &got); err == nil {
+		t.Errorf("expected error for null value; got nil (map=%v)", got)
+	}
+}
+
+func TestPgConfigMap_RejectsObjectValue(t *testing.T) {
+	var got PgConfigMap
+	if err := json.Unmarshal([]byte(`{"foo":{"nested":"x"}}`), &got); err == nil {
+		t.Errorf("expected error for object value; got nil (map=%v)", got)
+	}
+}
+
+func TestPgConfigMap_RejectsArrayValue(t *testing.T) {
+	var got PgConfigMap
+	if err := json.Unmarshal([]byte(`{"foo":[1,2]}`), &got); err == nil {
+		t.Errorf("expected error for array value; got nil (map=%v)", got)
 	}
 }
 
@@ -95,21 +116,6 @@ func TestPgConfigMap_MarshalsEmptyMapAsEmptyObject(t *testing.T) {
 	}
 }
 
-func TestPostgresUpdate_DoesNotIncludeNameField(t *testing.T) {
-	// Server's PostgresInstancePatchRequestV1 has no `name` field; sending
-	// one would silently no-op. Guard against accidental addition.
-	body, err := json.Marshal(PostgresUpdate{Size: "r6gd.large"})
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	if strings.Contains(string(body), "name") {
-		t.Errorf("PostgresUpdate must not marshal name; got %s", body)
-	}
-	if !strings.Contains(string(body), `"size":"r6gd.large"`) {
-		t.Errorf("PostgresUpdate must include size; got %s", body)
-	}
-}
-
 func TestPostgresUpdate_OmitsUnsetFields(t *testing.T) {
 	body, err := json.Marshal(PostgresUpdate{HaType: "async"})
 	if err != nil {
@@ -126,17 +132,7 @@ func TestPostgresUpdate_OmitsUnsetFields(t *testing.T) {
 	}
 }
 
-func TestPostgresUpdate_NilTagsOmitsField(t *testing.T) {
-	body, err := json.Marshal(PostgresUpdate{Size: "r6gd.large"})
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	if strings.Contains(string(body), "tags") {
-		t.Errorf("nil Tags must omit the field; got %s", body)
-	}
-}
-
-func TestPostgresUpdate_EmptyTagsListClearsTags(t *testing.T) {
+func TestPostgresUpdate_ExplicitEmptyTagsMarshalsAsEmptyArray(t *testing.T) {
 	// The whole point of using *[]Tag: an explicit empty list must produce
 	// `"tags":[]` on the wire so the server replaces the tag list with
 	// nothing instead of leaving existing tags alone.
@@ -159,7 +155,7 @@ func TestPostgresUpdate_PopulatedTagsList(t *testing.T) {
 	}
 }
 
-func TestPostgres_OmitsAbsentableFields(t *testing.T) {
+func TestPostgres_OmitsNilPointerFields(t *testing.T) {
 	// Hostname, ConnectionString, Username, Password are *string so a nil
 	// value gets omitted from outgoing JSON.
 	body, err := json.Marshal(Postgres{Id: "x", Name: "n", Provider: "aws", Region: "us-east-1"})
@@ -191,7 +187,7 @@ func TestPostgresCreate_OmitsEmptyConfigMaps(t *testing.T) {
 	}
 }
 
-func TestPostgresConfig_RoundTripsMixedValueTypes(t *testing.T) {
+func TestPostgresConfig_UnmarshalsMixedValueTypes(t *testing.T) {
 	// Verify the full PostgresConfig response can be unmarshaled from a wire
 	// payload with mixed string and numeric values.
 	input := []byte(`{"pgConfig":{"max_connections":200,"work_mem":"64MB"},"pgBouncerConfig":{"default_pool_size":10}}`)

@@ -33,7 +33,7 @@ type ClientMock struct {
 	beforeCreateClickPipeCounter uint64
 	CreateClickPipeMock          mClientMockCreateClickPipe
 
-	funcCreatePostgres          func(ctx context.Context, body PostgresCreate) (pp1 *Postgres, sp1 *string, err error)
+	funcCreatePostgres          func(ctx context.Context, body PostgresCreate) (pp1 *Postgres, s1 string, err error)
 	funcCreatePostgresOrigin    string
 	inspectFuncCreatePostgres   func(ctx context.Context, body PostgresCreate)
 	afterCreatePostgresCounter  uint64
@@ -1481,7 +1481,7 @@ type ClientMockCreatePostgresParamPtrs struct {
 // ClientMockCreatePostgresResults contains results of the Client.CreatePostgres
 type ClientMockCreatePostgresResults struct {
 	pp1 *Postgres
-	sp1 *string
+	s1  string
 	err error
 }
 
@@ -1585,7 +1585,7 @@ func (mmCreatePostgres *mClientMockCreatePostgres) Inspect(f func(ctx context.Co
 }
 
 // Return sets up results that will be returned by Client.CreatePostgres
-func (mmCreatePostgres *mClientMockCreatePostgres) Return(pp1 *Postgres, sp1 *string, err error) *ClientMock {
+func (mmCreatePostgres *mClientMockCreatePostgres) Return(pp1 *Postgres, s1 string, err error) *ClientMock {
 	if mmCreatePostgres.mock.funcCreatePostgres != nil {
 		mmCreatePostgres.mock.t.Fatalf("ClientMock.CreatePostgres mock is already set by Set")
 	}
@@ -1593,13 +1593,13 @@ func (mmCreatePostgres *mClientMockCreatePostgres) Return(pp1 *Postgres, sp1 *st
 	if mmCreatePostgres.defaultExpectation == nil {
 		mmCreatePostgres.defaultExpectation = &ClientMockCreatePostgresExpectation{mock: mmCreatePostgres.mock}
 	}
-	mmCreatePostgres.defaultExpectation.results = &ClientMockCreatePostgresResults{pp1, sp1, err}
+	mmCreatePostgres.defaultExpectation.results = &ClientMockCreatePostgresResults{pp1, s1, err}
 	mmCreatePostgres.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
 	return mmCreatePostgres.mock
 }
 
 // Set uses given function f to mock the Client.CreatePostgres method
-func (mmCreatePostgres *mClientMockCreatePostgres) Set(f func(ctx context.Context, body PostgresCreate) (pp1 *Postgres, sp1 *string, err error)) *ClientMock {
+func (mmCreatePostgres *mClientMockCreatePostgres) Set(f func(ctx context.Context, body PostgresCreate) (pp1 *Postgres, s1 string, err error)) *ClientMock {
 	if mmCreatePostgres.defaultExpectation != nil {
 		mmCreatePostgres.mock.t.Fatalf("Default expectation is already set for the Client.CreatePostgres method")
 	}
@@ -1630,8 +1630,8 @@ func (mmCreatePostgres *mClientMockCreatePostgres) When(ctx context.Context, bod
 }
 
 // Then sets up Client.CreatePostgres return parameters for the expectation previously defined by the When method
-func (e *ClientMockCreatePostgresExpectation) Then(pp1 *Postgres, sp1 *string, err error) *ClientMock {
-	e.results = &ClientMockCreatePostgresResults{pp1, sp1, err}
+func (e *ClientMockCreatePostgresExpectation) Then(pp1 *Postgres, s1 string, err error) *ClientMock {
+	e.results = &ClientMockCreatePostgresResults{pp1, s1, err}
 	return e.mock
 }
 
@@ -1657,7 +1657,7 @@ func (mmCreatePostgres *mClientMockCreatePostgres) invocationsDone() bool {
 }
 
 // CreatePostgres implements Client
-func (mmCreatePostgres *ClientMock) CreatePostgres(ctx context.Context, body PostgresCreate) (pp1 *Postgres, sp1 *string, err error) {
+func (mmCreatePostgres *ClientMock) CreatePostgres(ctx context.Context, body PostgresCreate) (pp1 *Postgres, s1 string, err error) {
 	mm_atomic.AddUint64(&mmCreatePostgres.beforeCreatePostgresCounter, 1)
 	defer mm_atomic.AddUint64(&mmCreatePostgres.afterCreatePostgresCounter, 1)
 
@@ -1677,7 +1677,7 @@ func (mmCreatePostgres *ClientMock) CreatePostgres(ctx context.Context, body Pos
 	for _, e := range mmCreatePostgres.CreatePostgresMock.expectations {
 		if minimock.Equal(*e.params, mm_params) {
 			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.pp1, e.results.sp1, e.results.err
+			return e.results.pp1, e.results.s1, e.results.err
 		}
 	}
 
@@ -1709,7 +1709,7 @@ func (mmCreatePostgres *ClientMock) CreatePostgres(ctx context.Context, body Pos
 		if mm_results == nil {
 			mmCreatePostgres.t.Fatal("No results are set for the ClientMock.CreatePostgres")
 		}
-		return (*mm_results).pp1, (*mm_results).sp1, (*mm_results).err
+		return (*mm_results).pp1, (*mm_results).s1, (*mm_results).err
 	}
 	if mmCreatePostgres.funcCreatePostgres != nil {
 		return mmCreatePostgres.funcCreatePostgres(ctx, body)

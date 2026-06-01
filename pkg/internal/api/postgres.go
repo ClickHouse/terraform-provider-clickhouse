@@ -29,13 +29,6 @@ var (
 	postgresStatePollInterval     = 5 * time.Second
 )
 
-func nonNegU64(n int) uint64 {
-	if n <= 0 {
-		return 0
-	}
-	return uint64(n)
-}
-
 // ---------------------------------------------------------------------------
 // GET / LIST
 // ---------------------------------------------------------------------------
@@ -53,7 +46,7 @@ func (c *ClientImpl) GetPostgres(ctx context.Context, postgresId string) (*Postg
 	}
 	resp := ResponseWithResult[Postgres]{}
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal Postgres: %w", err)
 	}
 	return &resp.Result, nil
 }
@@ -71,7 +64,7 @@ func (c *ClientImpl) ListPostgres(ctx context.Context) ([]PostgresListItem, erro
 	}
 	resp := ResponseWithResult[[]PostgresListItem]{}
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal Postgres list: %w", err)
 	}
 	return resp.Result, nil
 }
@@ -81,34 +74,27 @@ func (c *ClientImpl) ListPostgres(ctx context.Context) ([]PostgresListItem, erro
 // ---------------------------------------------------------------------------
 
 // CreatePostgres provisions a new instance. Returns the instance plus the
-// server-generated password as a separate return value (non-nil only when
-// the request body had no password set). The GET endpoint never echoes
-// the password, so callers MUST persist it before any subsequent op that
-// could fail.
-func (c *ClientImpl) CreatePostgres(ctx context.Context, body PostgresCreate) (*Postgres, *string, error) {
+// server-generated password as a separate return value (non-empty only when
+// the request body had no password set). Callers MUST persist the password
+// from this response — subsequent GETs are not guaranteed to echo it back.
+func (c *ClientImpl) CreatePostgres(ctx context.Context, body PostgresCreate) (*Postgres, string, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", fmt.Errorf("failed to encode PostgresCreate: %w", err)
 	}
 	req, err := http.NewRequest(http.MethodPost, c.getPostgresPath("", ""), bytes.NewReader(rb))
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 	respBody, err := c.doRequest(ctx, req)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 	resp := ResponseWithResult[Postgres]{}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, nil, err
+		return nil, "", fmt.Errorf("failed to unmarshal Postgres: %w", err)
 	}
-	var generatedPassword *string
-	if resp.Result.Password != nil {
-		// Copy so the caller holds a stable pointer independent of resp.
-		copyVal := *resp.Result.Password
-		generatedPassword = &copyVal
-	}
-	return &resp.Result, generatedPassword, nil
+	return &resp.Result, resp.Result.Password, nil
 }
 
 // UpdatePostgres PATCHes size / haType / tags. Other fields would be rejected
@@ -116,7 +102,7 @@ func (c *ClientImpl) CreatePostgres(ctx context.Context, body PostgresCreate) (*
 func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (*Postgres, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode PostgresUpdate: %w", err)
 	}
 	req, err := http.NewRequest(http.MethodPatch, c.getPostgresPath(postgresId, ""), bytes.NewReader(rb))
 	if err != nil {
@@ -128,7 +114,7 @@ func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body
 	}
 	resp := ResponseWithResult[Postgres]{}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal Postgres: %w", err)
 	}
 	return &resp.Result, nil
 }
@@ -137,7 +123,7 @@ func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body
 // for ~15 min UNLESS the body indicates a dependent replica blocks deletion.
 func (c *ClientImpl) DeletePostgres(ctx context.Context, postgresId string) error {
 	return c.deletePostgresWithBudget(ctx, postgresId, postgresDeleteRetryInterval,
-		nonNegU64(postgresDeleteRetryBudgetSecs)/nonNegU64(int(postgresDeleteRetryInterval/time.Second)))
+		uint64(postgresDeleteRetryBudgetSecs)/uint64(postgresDeleteRetryInterval/time.Second)) //nolint:gosec
 }
 
 // deletePostgresWithBudget is the test seam for DeletePostgres.
@@ -168,15 +154,15 @@ func (c *ClientImpl) deletePostgresWithBudget(ctx context.Context, postgresId st
 	return backoff.Retry(deleteOnce, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
 }
 
-// errIndicatesDependentReplica fail-fasts on 409s caused by a read replica
+// errIndicatesDependentReplica fails fast on 409s caused by a read replica
 // blocking primary deletion. AND-conjunction (not OR) avoids false-positives
 // on transient conflicts like "replication slot exists" that retry resolves.
 //
-// FIXME(phase-6): keyword list is speculative. Phase 6's tests/postgres/drift/
-// should capture the verbatim 409 response and either anchor to a structured
-// errorCode/reason or the exact wording with a regression test. Until then,
-// a real dependent-replica delete burns the full 15-min budget instead of
-// failing fast.
+// FIXME: the keyword list is speculative — no real dev-cluster response has
+// been captured yet. Once an integration test provisions a primary + replica
+// and triggers a real 409, anchor this to a structured errorCode/reason field
+// or the exact wording with a regression test. Until then, a real dependent-
+// replica delete burns the full 15-min retry budget instead of failing fast.
 func errIndicatesDependentReplica(err error) bool {
 	if err == nil {
 		return false
@@ -200,7 +186,7 @@ func errIndicatesDependentReplica(err error) bool {
 // deadline — slow API responses push real elapsed time beyond the nominal
 // limit. Size the resource `timeouts {}` block accordingly.
 func (c *ClientImpl) WaitForPostgresState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) error {
-	return c.waitForPostgresStateWithInterval(ctx, postgresId, stateChecker, postgresStatePollInterval, nonNegU64(maxWaitSeconds/int(postgresStatePollInterval/time.Second)))
+	return c.waitForPostgresStateWithInterval(ctx, postgresId, stateChecker, postgresStatePollInterval, uint64(maxWaitSeconds/int(postgresStatePollInterval/time.Second))) //nolint:gosec
 }
 
 // waitForPostgresStateWithInterval is the test seam for WaitForPostgresState.
@@ -249,14 +235,14 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 // change that hot-reloaded) — invoking after a silently-failed mutation
 // will report success even though nothing happened.
 //
-// FIXME(phase-2): the "never left = success" fallback can also miss the
-// race it's supposed to prevent — if the server hasn't started transitioning
-// by the time leave-detection exhausts its budget, we return success
-// prematurely. Phase 2's resource Update will exercise this against the dev
-// cluster. If observable, add a minimum-observation window via the
-// *WithInterval seam.
+// FIXME: the "never left = success" fallback can also miss the race it's
+// supposed to prevent — if the server hasn't started transitioning by the
+// time leave-detection exhausts its budget, we return success prematurely.
+// Once a real resource Update exercises this against the dev cluster, add
+// a minimum-observation window via the *WithInterval seam if the race
+// turns out to be observable.
 func (c *ClientImpl) WaitForPostgresLeaveAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) error {
-	return c.waitForPostgresLeaveAndReturnWithInterval(ctx, postgresId, terminalState, postgresStatePollInterval, nonNegU64(maxWaitSeconds/int(postgresStatePollInterval/time.Second)))
+	return c.waitForPostgresLeaveAndReturnWithInterval(ctx, postgresId, terminalState, postgresStatePollInterval, uint64(maxWaitSeconds/int(postgresStatePollInterval/time.Second))) //nolint:gosec
 }
 
 func (c *ClientImpl) waitForPostgresLeaveAndReturnWithInterval(ctx context.Context, postgresId string, terminalState string, interval time.Duration, maxRetries uint64) error {
@@ -300,7 +286,7 @@ func (c *ClientImpl) waitForPostgresLeaveAndReturnWithInterval(ctx context.Conte
 // PASSWORD
 // ---------------------------------------------------------------------------
 
-// SetPostgresPassword sets or rotates the superuser password. body.Password
+// SetPostgresPassword sets the superuser password. body.Password
 // nil → server generates and returns one. body.Password set → server adopts
 // it and returns empty.
 //
@@ -310,7 +296,7 @@ func (c *ClientImpl) waitForPostgresLeaveAndReturnWithInterval(ctx context.Conte
 func (c *ClientImpl) SetPostgresPassword(ctx context.Context, postgresId string, body PostgresPassword) (*PostgresPassword, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode PostgresPassword: %w", err)
 	}
 	req, err := http.NewRequest(http.MethodPatch, c.getPostgresPath(postgresId, "/password"), bytes.NewReader(rb))
 	if err != nil {
@@ -322,7 +308,7 @@ func (c *ClientImpl) SetPostgresPassword(ctx context.Context, postgresId string,
 	}
 	resp := ResponseWithResult[PostgresPassword]{}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal PostgresPassword: %w", err)
 	}
 	return &resp.Result, nil
 }
@@ -344,7 +330,7 @@ func (c *ClientImpl) GetPostgresConfig(ctx context.Context, postgresId string) (
 	}
 	resp := ResponseWithResult[PostgresConfig]{}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal PostgresConfig: %w", err)
 	}
 	return &resp.Result, nil
 }
@@ -362,7 +348,7 @@ func (c *ClientImpl) ReplacePostgresConfig(ctx context.Context, postgresId strin
 	}
 	rb, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode PostgresConfig: %w", err)
 	}
 	req, err := http.NewRequest(http.MethodPost, c.getPostgresPath(postgresId, "/config"), bytes.NewReader(rb))
 	if err != nil {
@@ -374,7 +360,7 @@ func (c *ClientImpl) ReplacePostgresConfig(ctx context.Context, postgresId strin
 	}
 	resp := ResponseWithResult[PostgresConfigUpdateResponse]{}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal PostgresConfigUpdateResponse: %w", err)
 	}
 	return &resp.Result, nil
 }
@@ -388,7 +374,7 @@ func (c *ClientImpl) ReplacePostgresConfig(ctx context.Context, postgresId strin
 func (c *ClientImpl) RestorePostgres(ctx context.Context, sourceId string, body PostgresRestoreRequest) (*Postgres, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode PostgresRestoreRequest: %w", err)
 	}
 	req, err := http.NewRequest(http.MethodPost, c.getPostgresPath(sourceId, "/restoredService"), bytes.NewReader(rb))
 	if err != nil {
@@ -400,7 +386,7 @@ func (c *ClientImpl) RestorePostgres(ctx context.Context, sourceId string, body 
 	}
 	resp := ResponseWithResult[Postgres]{}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal Postgres: %w", err)
 	}
 	return &resp.Result, nil
 }
@@ -409,7 +395,7 @@ func (c *ClientImpl) RestorePostgres(ctx context.Context, sourceId string, body 
 func (c *ClientImpl) CreatePostgresReadReplica(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (*Postgres, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode PostgresReadReplicaRequest: %w", err)
 	}
 	req, err := http.NewRequest(http.MethodPost, c.getPostgresPath(sourceId, "/readReplica"), bytes.NewReader(rb))
 	if err != nil {
@@ -421,7 +407,7 @@ func (c *ClientImpl) CreatePostgresReadReplica(ctx context.Context, sourceId str
 	}
 	resp := ResponseWithResult[Postgres]{}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal Postgres: %w", err)
 	}
 	return &resp.Result, nil
 }
@@ -437,10 +423,9 @@ func (c *ClientImpl) CreatePostgresReadReplica(ctx context.Context, sourceId str
 // Trade-offs vs other client methods: no User-Agent header, no 429/5xx
 // retry, no tflog logging, manual basic-auth setup.
 //
-// FIXME(phase-5): when the data.clickhouse_postgres_service_ca_certificates
-// data source lands, add a doRawRequest sibling in common.go that mirrors
-// doRequest's retry/logging/auth machinery but returns bytes directly, and
-// route this method through it. Public signature is stable.
+// FIXME: when the matching data source lands, add a doRawRequest sibling in
+// common.go that mirrors doRequest's retry/logging/auth machinery but returns
+// bytes directly, and route this method through it. Public signature is stable.
 func (c *ClientImpl) GetPostgresCaCertificates(ctx context.Context, postgresId string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.getPostgresPath(postgresId, "/caCertificates"), nil)
 	if err != nil {

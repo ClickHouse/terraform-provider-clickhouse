@@ -145,7 +145,7 @@ func TestCreatePostgres_HappyPath_PersistsServerGeneratedPassword(t *testing.T) 
 		State:            PostgresStateCreating,
 		CreatedAt:        "2026-05-20T00:00:00Z",
 		IsPrimary:        ptrBool(true),
-		Password:         ptrStr("server-generated-Aa1!secret"),
+		Password:         "server-generated-Aa1!secret",
 		ConnectionString: ptrStr("postgresql://user:server-generated-Aa1!secret@host/db"),
 	}
 
@@ -173,18 +173,22 @@ func TestCreatePostgres_HappyPath_PersistsServerGeneratedPassword(t *testing.T) 
 	if diff := cmp.Diff(&pgServerSide, got); diff != "" {
 		t.Errorf("CreatePostgres returned instance mismatch (-want +got):\n%s", diff)
 	}
-	if password == nil {
-		t.Fatal("expected server-generated password to be returned separately; got nil")
+	if password == "" {
+		t.Fatal("expected server-generated password to be returned separately; got empty")
 	}
-	if *password != "server-generated-Aa1!secret" {
-		t.Errorf("password = %q; want server-generated", *password)
+	if password != "server-generated-Aa1!secret" {
+		t.Errorf("password = %q; want server-generated", password)
 	}
 	if capturedBody.Name != "my-pg" || capturedBody.Provider != "aws" {
 		t.Errorf("captured body wrong: %+v", capturedBody)
 	}
 }
 
-func TestCreatePostgres_NoPasswordInResponse_ReturnsNilPasswordOut(t *testing.T) {
+func TestCreatePostgres_NoPasswordInResponse_ReturnsEmptyPasswordOut(t *testing.T) {
+	// When the user supplied their own password in the create body, the server
+	// doesn't echo a password back. The client method's second return must
+	// be empty so callers can tell "server generated one for us" apart from
+	// "we already have the password the user supplied."
 	pgServerSide := Postgres{
 		Id: "pg-new", Name: "my-pg", Provider: "aws", Region: "us-east-1",
 		Size: "r6gd.large", State: PostgresStateCreating,
@@ -198,8 +202,8 @@ func TestCreatePostgres_NoPasswordInResponse_ReturnsNilPasswordOut(t *testing.T)
 	if err != nil {
 		t.Fatalf("CreatePostgres: %v", err)
 	}
-	if password != nil {
-		t.Errorf("password = %v; want nil (no password in server response)", *password)
+	if password != "" {
+		t.Errorf("password = %q; want empty (no password in server response)", password)
 	}
 }
 
@@ -215,8 +219,13 @@ func TestUpdatePostgres_PatchesOnlyChangedFields(t *testing.T) {
 		if r.URL.Path != expectedPath {
 			t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
 		}
-		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &capturedBody)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+		if err := json.Unmarshal(body, &capturedBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", Size: "r6gd.xlarge"}})
 	})
 	_, err := client.UpdatePostgres(context.Background(), testPostgresID, PostgresUpdate{Size: "r6gd.xlarge"})
@@ -462,7 +471,7 @@ func TestWaitForPostgresLeaveAndReturn_NoOpSuccessOnlyWhenObservedStable(t *test
 
 // ----- SetPostgresPassword -------------------------------------------------
 
-func TestSetPostgresPassword_UserSuppliedReturnsNil(t *testing.T) {
+func TestSetPostgresPassword_UserSuppliedReturnsEmpty(t *testing.T) {
 	expectedPath := "/organizations/org-1/postgres/pg-1/password"
 	var capturedBody PostgresPassword
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -472,41 +481,45 @@ func TestSetPostgresPassword_UserSuppliedReturnsNil(t *testing.T) {
 		if r.URL.Path != expectedPath {
 			t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
 		}
-		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &capturedBody)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+		if err := json.Unmarshal(body, &capturedBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
 		// Server returns empty password (user supplied it).
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[PostgresPassword]{Result: PostgresPassword{}})
 	})
 	supplied := "User-Supplied-Aa1!password"
-	got, err := client.SetPostgresPassword(context.Background(), testPostgresID, PostgresPassword{Password: &supplied})
+	got, err := client.SetPostgresPassword(context.Background(), testPostgresID, PostgresPassword{Password: supplied})
 	if err != nil {
 		t.Fatalf("SetPostgresPassword: %v", err)
 	}
 	if got == nil {
 		t.Fatal("expected non-nil response struct")
 	}
-	if got.Password != nil {
-		t.Errorf("expected nil password in response (user supplied); got %q", *got.Password)
+	if got.Password != "" {
+		t.Errorf("expected empty password in response (user supplied); got %q", got.Password)
 	}
-	if capturedBody.Password == nil || *capturedBody.Password != supplied {
+	if capturedBody.Password != supplied {
 		t.Errorf("server got body %+v; want password=%q", capturedBody, supplied)
 	}
 }
 
 func TestSetPostgresPassword_ServerGeneratedReturnsValue(t *testing.T) {
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		gen := "ServerGen-Aa1!password"
-		_ = json.NewEncoder(w).Encode(ResponseWithResult[PostgresPassword]{Result: PostgresPassword{Password: &gen}})
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[PostgresPassword]{Result: PostgresPassword{Password: "ServerGen-Aa1!password"}})
 	})
 	got, err := client.SetPostgresPassword(context.Background(), testPostgresID, PostgresPassword{})
 	if err != nil {
 		t.Fatalf("SetPostgresPassword: %v", err)
 	}
-	if got.Password == nil {
-		t.Fatal("expected server-generated password; got nil")
+	if got.Password == "" {
+		t.Fatal("expected server-generated password; got empty")
 	}
-	if !strings.HasPrefix(*got.Password, "ServerGen") {
-		t.Errorf("password = %q; want server-generated value", *got.Password)
+	if !strings.HasPrefix(got.Password, "ServerGen") {
+		t.Errorf("password = %q; want server-generated value", got.Password)
 	}
 }
 
@@ -517,16 +530,16 @@ func TestSetPostgresPassword_IdempotencyForUserSuppliedValue(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[PostgresPassword]{Result: PostgresPassword{}})
 	})
 	supplied := "User-Supplied-Aa1!password"
-	got1, err := client.SetPostgresPassword(context.Background(), testPostgresID, PostgresPassword{Password: &supplied})
+	got1, err := client.SetPostgresPassword(context.Background(), testPostgresID, PostgresPassword{Password: supplied})
 	if err != nil {
 		t.Fatalf("first SetPostgresPassword: %v", err)
 	}
-	got2, err := client.SetPostgresPassword(context.Background(), testPostgresID, PostgresPassword{Password: &supplied})
+	got2, err := client.SetPostgresPassword(context.Background(), testPostgresID, PostgresPassword{Password: supplied})
 	if err != nil {
 		t.Fatalf("second SetPostgresPassword: %v", err)
 	}
-	if got1.Password != nil || got2.Password != nil {
-		t.Errorf("user-supplied PATCHes should both return nil Password; got %+v %+v", got1, got2)
+	if got1.Password != "" || got2.Password != "" {
+		t.Errorf("user-supplied PATCHes should both return empty Password; got %+v %+v", got1, got2)
 	}
 }
 
@@ -565,8 +578,13 @@ func TestReplacePostgresConfig_PostsBothMaps(t *testing.T) {
 		if r.URL.Path != expectedPath {
 			t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
 		}
-		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &captured)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+		if err := json.Unmarshal(body, &captured); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
 		_, _ = w.Write([]byte(`{"result":{"pgConfig":{"max_connections":"200"},"pgBouncerConfig":{},"message":"restart required"}}`))
 	})
 	resp, err := client.ReplacePostgresConfig(context.Background(), testPostgresID, PostgresConfig{
@@ -589,8 +607,13 @@ func TestReplacePostgresConfig_AcceptsEmptyMaps(t *testing.T) {
 	// The client should send {} (not omitempty) so users can clear all parameters.
 	var captured map[string]any
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &captured)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+		if err := json.Unmarshal(body, &captured); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
 		_, _ = w.Write([]byte(`{"result":{"pgConfig":{},"pgBouncerConfig":{}}}`))
 	})
 	_, err := client.ReplacePostgresConfig(context.Background(), testPostgresID, PostgresConfig{

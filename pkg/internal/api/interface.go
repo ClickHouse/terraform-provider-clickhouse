@@ -65,7 +65,7 @@ type Client interface {
 
 	GetPostgres(ctx context.Context, postgresId string) (*Postgres, error)
 	ListPostgres(ctx context.Context) ([]PostgresListItem, error)
-	CreatePostgres(ctx context.Context, body PostgresCreate) (*Postgres, *string, error)
+	CreatePostgres(ctx context.Context, body PostgresCreate) (*Postgres, string, error)
 	UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (*Postgres, error)
 	DeletePostgres(ctx context.Context, postgresId string) error
 	WaitForPostgresState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) error

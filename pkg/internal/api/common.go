@@ -55,7 +55,7 @@ func redactSensitiveBody(body []byte) []byte {
 	if len(body) == 0 {
 		return body
 	}
-	var v interface{}
+	var v any
 	if err := json.Unmarshal(body, &v); err != nil {
 		return []byte(unparseableRedactedPlaceholder)
 	}
@@ -86,9 +86,9 @@ func formatLogBody(body []byte) string {
 	return buf.String()
 }
 
-func redactJSONValue(v interface{}) interface{} {
+func redactJSONValue(v any) any {
 	switch t := v.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		for k, child := range t {
 			if _, ok := sensitiveBodyKeys[k]; ok {
 				t[k] = redactedPlaceholder
@@ -101,7 +101,7 @@ func redactJSONValue(v interface{}) interface{} {
 			t[k] = redactJSONValue(child)
 		}
 		return t
-	case []interface{}:
+	case []any:
 		for i, child := range t {
 			t[i] = redactJSONValue(child)
 		}
