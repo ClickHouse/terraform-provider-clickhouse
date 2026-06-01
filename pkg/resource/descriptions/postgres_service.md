@@ -83,7 +83,7 @@ terraform import clickhouse_postgres_service.example <postgres-instance-id>
 Post-import, every attribute except `password` is hydrated from the
 server.
 
-> **⚠ Password is unrecoverable after import.**
+> **Password is unrecoverable after import.**
 > The server does not echo the superuser password on `GET`, so
 > `terraform import` cannot retrieve the value the instance was created
 > with. After import:
