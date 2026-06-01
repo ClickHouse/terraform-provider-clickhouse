@@ -2,7 +2,7 @@ You can use the *clickhouse_service_upgrade_window* resource to pin the weekly u
 
 When configured, the data plane only attempts service upgrades during the declared window. The window is a single weekly recurrence: a `weekday` plus a `start_hour_utc`. The window currently lasts 6 hours from `start_hour_utc`; `duration` is returned by the API and exposed as a read-only attribute.
 
-~> **Note:** This resource is in beta. Setting or updating an upgrade window requires the `canUseScheduledUpgrades` entitlement — reach out to ClickHouse support if the API returns `403 FORBIDDEN`. Deleting an upgrade window is allowed even after the entitlement is lost, so existing windows can always be cleared.
+~> **Note:** This resource is in alpha. Setting or updating an upgrade window requires the `canUseScheduledUpgrades` entitlement — reach out to ClickHouse support if the API returns `403 FORBIDDEN`. Deleting an upgrade window is allowed even after the entitlement is lost, so existing windows can always be cleared.
 
 ## Primary services only
 

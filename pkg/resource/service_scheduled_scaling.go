@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
@@ -259,6 +260,7 @@ func (r *ServiceScheduledScalingResource) Create(ctx context.Context, req resour
 }
 
 func (r *ServiceScheduledScalingResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	utils.AlphaWarning("clickhouse_service_scheduled_scaling", &resp.Diagnostics)
 	var state models.ServiceScheduledScalingResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -341,6 +343,7 @@ func (r *ServiceScheduledScalingResource) ImportState(ctx context.Context, req r
 }
 
 func (r *ServiceScheduledScalingResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	utils.AlphaWarning("clickhouse_service_scheduled_scaling", &resp.Diagnostics)
 	var config models.ServiceScheduledScalingResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
