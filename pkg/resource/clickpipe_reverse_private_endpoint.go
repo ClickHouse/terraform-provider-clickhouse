@@ -9,9 +9,12 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -73,7 +76,7 @@ func (r *ClickPipeReversePrivateEndpointResource) Schema(ctx context.Context, re
 			},
 			"type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Type of the reverse private endpoint (VPC_ENDPOINT_SERVICE, VPC_RESOURCE, or MSK_MULTI_VPC)",
+				MarkdownDescription: "Type of the reverse private endpoint (VPC_ENDPOINT_SERVICE, VPC_RESOURCE, MSK_MULTI_VPC, or GCP_PSC_SERVICE_ATTACHMENT)",
 				Validators: []validator.String{
 					stringvalidator.OneOf(api.ReversePrivateEndpointTypes...),
 				},
@@ -119,6 +122,31 @@ func (r *ClickPipeReversePrivateEndpointResource) Schema(ctx context.Context, re
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
+			"gcp_service_attachment": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "GCP PSC service attachment URI, required for GCP_PSC_SERVICE_ATTACHMENT type. Format: projects/{project}/regions/{region}/serviceAttachments/{name}",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"custom_private_dns_mappings": schema.ListNestedAttribute{
+				Optional:            true,
+				MarkdownDescription: "Optional list of custom private DNS mappings. Each mapping points a private DNS name at this endpoint without creating a Route53 hosted zone.",
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.RequiresReplace(),
+				},
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"private_dns_name": schema.StringAttribute{
+							Required:            true,
+							MarkdownDescription: "Custom private DNS name managed by the DNS controller.",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+							},
+						},
+					},
+				},
+			},
 			"endpoint_id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Reverse private endpoint endpoint ID",
@@ -159,6 +187,110 @@ func (r *ClickPipeReversePrivateEndpointResource) Configure(ctx context.Context,
 	r.client = client
 }
 
+func customPrivateDNSMappingsFromPlan(ctx context.Context, mappings types.List) ([]api.CustomPrivateDNSMapping, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if mappings.IsNull() || mappings.IsUnknown() {
+		return nil, diags
+	}
+
+	var mappingModels []models.CustomPrivateDNSMappingModel
+	diags.Append(mappings.ElementsAs(ctx, &mappingModels, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	result := make([]api.CustomPrivateDNSMapping, len(mappingModels))
+	for i, mapping := range mappingModels {
+		result[i] = api.CustomPrivateDNSMapping{
+			PrivateDNSName: mapping.PrivateDNSName.ValueString(),
+		}
+	}
+
+	return result, diags
+}
+
+func customPrivateDNSMappingsToModel(mappings []api.CustomPrivateDNSMapping) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if mappings == nil {
+		return types.ListNull(models.CustomPrivateDNSMappingModel{}.ObjectType()), diags
+	}
+
+	mappingValues := make([]attr.Value, len(mappings))
+	for i, mapping := range mappings {
+		mappingValues[i] = models.CustomPrivateDNSMappingModel{
+			PrivateDNSName: types.StringValue(mapping.PrivateDNSName),
+		}.ObjectValue()
+	}
+
+	mappingList, d := types.ListValue(models.CustomPrivateDNSMappingModel{}.ObjectType(), mappingValues)
+	diags.Append(d...)
+
+	return mappingList, diags
+}
+
+func applyReversePrivateEndpointToModel(ctx context.Context, serviceID string, endpoint *api.ReversePrivateEndpoint, data *models.ClickPipeReversePrivateEndpointResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	data.ID = types.StringValue(endpoint.ID)
+	data.ServiceID = types.StringValue(serviceID)
+	data.Description = types.StringValue(endpoint.Description)
+	data.Type = types.StringValue(endpoint.Type)
+	data.EndpointID = types.StringValue(endpoint.EndpointID)
+	data.Status = types.StringValue(endpoint.Status)
+
+	if endpoint.VPCEndpointServiceName != nil {
+		data.VPCEndpointServiceName = types.StringValue(*endpoint.VPCEndpointServiceName)
+	} else {
+		data.VPCEndpointServiceName = types.StringNull()
+	}
+
+	if endpoint.VPCResourceConfigurationID != nil {
+		data.VPCResourceConfigurationID = types.StringValue(*endpoint.VPCResourceConfigurationID)
+	} else {
+		data.VPCResourceConfigurationID = types.StringNull()
+	}
+
+	if endpoint.VPCResourceShareArn != nil {
+		data.VPCResourceShareArn = types.StringValue(*endpoint.VPCResourceShareArn)
+	} else {
+		data.VPCResourceShareArn = types.StringNull()
+	}
+
+	if endpoint.MSKClusterArn != nil {
+		data.MSKClusterArn = types.StringValue(*endpoint.MSKClusterArn)
+	} else {
+		data.MSKClusterArn = types.StringNull()
+	}
+
+	if endpoint.MSKAuthentication != nil {
+		data.MSKAuthentication = types.StringValue(*endpoint.MSKAuthentication)
+	} else {
+		data.MSKAuthentication = types.StringNull()
+	}
+
+	if endpoint.GCPServiceAttachment != nil {
+		data.GCPServiceAttachment = types.StringValue(*endpoint.GCPServiceAttachment)
+	} else {
+		data.GCPServiceAttachment = types.StringNull()
+	}
+
+	customPrivateDNSMappings, d := customPrivateDNSMappingsToModel(endpoint.CustomPrivateDNSMappings)
+	diags.Append(d...)
+	data.CustomPrivateDNSMappings = customPrivateDNSMappings
+
+	dnsNames, d := types.ListValueFrom(ctx, types.StringType, endpoint.DNSNames)
+	diags.Append(d...)
+	data.DNSNames = dnsNames
+
+	privateDNSNames, d := types.ListValueFrom(ctx, types.StringType, endpoint.PrivateDNSNames)
+	diags.Append(d...)
+	data.PrivateDNSNames = privateDNSNames
+
+	return diags
+}
+
 func (r *ClickPipeReversePrivateEndpointResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data models.ClickPipeReversePrivateEndpointResourceModel
 
@@ -196,6 +328,14 @@ func (r *ClickPipeReversePrivateEndpointResource) Create(ctx context.Context, re
 			)
 			return
 		}
+	case api.ReversePrivateEndpointTypeGCPPSCServiceAttachment:
+		if data.GCPServiceAttachment.IsNull() {
+			resp.Diagnostics.AddError(
+				"Missing required field",
+				"gcp_service_attachment is required when type is GCP_PSC_SERVICE_ATTACHMENT",
+			)
+			return
+		}
 	}
 
 	createReq := api.CreateReversePrivateEndpoint{
@@ -224,6 +364,19 @@ func (r *ClickPipeReversePrivateEndpointResource) Create(ctx context.Context, re
 		value := data.MSKAuthentication.ValueString()
 		createReq.MSKAuthentication = &value
 	}
+	if !data.GCPServiceAttachment.IsNull() {
+		value := data.GCPServiceAttachment.ValueString()
+		createReq.GCPServiceAttachment = &value
+	}
+
+	customPrivateDNSMappings, diags := customPrivateDNSMappingsFromPlan(ctx, data.CustomPrivateDNSMappings)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if customPrivateDNSMappings != nil {
+		createReq.CustomPrivateDNSMappings = customPrivateDNSMappings
+	}
 
 	// Create new reverse private endpoint
 	tflog.Debug(ctx, "Creating ClickPipe reverse private endpoint", map[string]interface{}{
@@ -247,52 +400,10 @@ func (r *ClickPipeReversePrivateEndpointResource) Create(ctx context.Context, re
 		return
 	}
 
-	// Map response body to model
-	data.ID = types.StringValue(endpoint.ID)
-	data.ServiceID = types.StringValue(serviceID) // Ensure we set the service ID
-	data.Description = types.StringValue(endpoint.Description)
-	data.Type = types.StringValue(endpoint.Type)
-	data.EndpointID = types.StringValue(endpoint.EndpointID)
-	data.Status = types.StringValue(endpoint.Status)
-
-	if endpoint.VPCEndpointServiceName != nil {
-		data.VPCEndpointServiceName = types.StringValue(*endpoint.VPCEndpointServiceName)
-	} else {
-		data.VPCEndpointServiceName = types.StringNull()
+	resp.Diagnostics.Append(applyReversePrivateEndpointToModel(ctx, serviceID, endpoint, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-
-	if endpoint.VPCResourceConfigurationID != nil {
-		data.VPCResourceConfigurationID = types.StringValue(*endpoint.VPCResourceConfigurationID)
-	} else {
-		data.VPCResourceConfigurationID = types.StringNull()
-	}
-
-	if endpoint.VPCResourceShareArn != nil {
-		data.VPCResourceShareArn = types.StringValue(*endpoint.VPCResourceShareArn)
-	} else {
-		data.VPCResourceShareArn = types.StringNull()
-	}
-
-	if endpoint.MSKClusterArn != nil {
-		data.MSKClusterArn = types.StringValue(*endpoint.MSKClusterArn)
-	} else {
-		data.MSKClusterArn = types.StringNull()
-	}
-
-	if endpoint.MSKAuthentication != nil {
-		data.MSKAuthentication = types.StringValue(*endpoint.MSKAuthentication)
-	} else {
-		data.MSKAuthentication = types.StringNull()
-	}
-
-	// Convert string slices to Terraform list values
-	dnsNames, diags := types.ListValueFrom(ctx, types.StringType, endpoint.DNSNames)
-	resp.Diagnostics.Append(diags...)
-	data.DNSNames = dnsNames
-
-	privateDNSNames, diags := types.ListValueFrom(ctx, types.StringType, endpoint.PrivateDNSNames)
-	resp.Diagnostics.Append(diags...)
-	data.PrivateDNSNames = privateDNSNames
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -326,52 +437,10 @@ func (r *ClickPipeReversePrivateEndpointResource) Read(ctx context.Context, req 
 		return
 	}
 
-	// Map response body to model
-	data.ID = types.StringValue(endpoint.ID)
-	data.ServiceID = types.StringValue(serviceID) // Ensure we keep the service ID
-	data.Description = types.StringValue(endpoint.Description)
-	data.Type = types.StringValue(endpoint.Type)
-	data.EndpointID = types.StringValue(endpoint.EndpointID)
-	data.Status = types.StringValue(endpoint.Status)
-
-	if endpoint.VPCEndpointServiceName != nil {
-		data.VPCEndpointServiceName = types.StringValue(*endpoint.VPCEndpointServiceName)
-	} else {
-		data.VPCEndpointServiceName = types.StringNull()
+	resp.Diagnostics.Append(applyReversePrivateEndpointToModel(ctx, serviceID, endpoint, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-
-	if endpoint.VPCResourceConfigurationID != nil {
-		data.VPCResourceConfigurationID = types.StringValue(*endpoint.VPCResourceConfigurationID)
-	} else {
-		data.VPCResourceConfigurationID = types.StringNull()
-	}
-
-	if endpoint.VPCResourceShareArn != nil {
-		data.VPCResourceShareArn = types.StringValue(*endpoint.VPCResourceShareArn)
-	} else {
-		data.VPCResourceShareArn = types.StringNull()
-	}
-
-	if endpoint.MSKClusterArn != nil {
-		data.MSKClusterArn = types.StringValue(*endpoint.MSKClusterArn)
-	} else {
-		data.MSKClusterArn = types.StringNull()
-	}
-
-	if endpoint.MSKAuthentication != nil {
-		data.MSKAuthentication = types.StringValue(*endpoint.MSKAuthentication)
-	} else {
-		data.MSKAuthentication = types.StringNull()
-	}
-
-	// Convert string slices to Terraform list values
-	dnsNames, diags := types.ListValueFrom(ctx, types.StringType, endpoint.DNSNames)
-	resp.Diagnostics.Append(diags...)
-	data.DNSNames = dnsNames
-
-	privateDNSNames, diags := types.ListValueFrom(ctx, types.StringType, endpoint.PrivateDNSNames)
-	resp.Diagnostics.Append(diags...)
-	data.PrivateDNSNames = privateDNSNames
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
