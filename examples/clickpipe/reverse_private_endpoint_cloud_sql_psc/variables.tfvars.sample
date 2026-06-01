@@ -1,0 +1,8 @@
+# These keys are for example only and won't work when pointed to a deployed ClickHouse OpenAPI server.
+organization_id = "aee076c1-3f83-4637-95b1-ad5a0a825b71"
+token_key       = ""
+token_secret    = ""
+service_id      = "aee076c1-3f83-4637-95b1-ad5a0a825b71"
+
+cloud_sql_service_attachment = "projects/my-project/regions/us-central1/serviceAttachments/cloud-sql-psc-attachment"
+cloud_sql_private_dns_name   = "cloudsql-postgres.internal.example.com"

@@ -84,6 +84,7 @@ const (
 	ClickPipeKafkaMSKSourceType           = "msk"
 	ClickPipeKafkaWarpStreamSourceType    = "warpstream"
 	ClickPipeKafkaAzureEventHubSourceType = "azureeventhub"
+	ClickPipeKafkaGCMKSourceType          = "gcmk"
 )
 
 var ClickPipeKafkaSourceTypes = []string{
@@ -93,6 +94,7 @@ var ClickPipeKafkaSourceTypes = []string{
 	ClickPipeKafkaMSKSourceType,
 	ClickPipeKafkaWarpStreamSourceType,
 	ClickPipeKafkaAzureEventHubSourceType,
+	ClickPipeKafkaGCMKSourceType,
 }
 
 const (

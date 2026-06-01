@@ -1,0 +1,515 @@
+package resource
+
+import (
+	"context"
+	"testing"
+
+	"github.com/gojuno/minimock/v3"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
+)
+
+func int64Ptr(i int64) *int64 { return &i }
+
+// ============================================================================
+// Issue #528 — Postgres/MySQL credentials become "undefined" when
+// lifecycle.ignore_changes hides them during update.
+//
+// Fix: extractSourceFromPlan now treats a null/unknown credentials block as
+// "omit credentials from the PATCH" instead of serializing empty strings that
+// the API rejects as the literal text "undefined".
+// ============================================================================
+
+// buildPostgresPlanWithCredentials returns a minimal Postgres-source plan model.
+// Pass any credentials Object (null, unknown, or populated) to exercise the
+// extractSourceFromPlan branches that the issue-#528 fix introduced.
+func buildPostgresPlanWithCredentials(credentials types.Object) models.ClickPipeResourceModel {
+	settingsAttrs := map[string]attr.Value{
+		"replication_mode":                   types.StringValue("cdc"),
+		"sync_interval_seconds":              types.Int64Null(),
+		"pull_batch_size":                    types.Int64Null(),
+		"publication_name":                   types.StringNull(),
+		"replication_slot_name":              types.StringNull(),
+		"allow_nullable_columns":             types.BoolNull(),
+		"initial_load_parallelism":           types.Int64Null(),
+		"snapshot_num_rows_per_partition":    types.Int64Null(),
+		"snapshot_number_of_parallel_tables": types.Int64Null(),
+		"enable_failover_slots":              types.BoolNull(),
+		"delete_on_merge":                    types.BoolNull(),
+	}
+	tableMappingAttrs := map[string]attr.Value{
+		"source_schema_name":     types.StringValue("public"),
+		"source_table":           types.StringValue("users"),
+		"target_table":           types.StringValue("users"),
+		"excluded_columns":       types.ListNull(types.StringType),
+		"use_custom_sorting_key": types.BoolNull(),
+		"sorting_keys":           types.ListNull(types.StringType),
+		"table_engine":           types.StringNull(),
+		"partition_key":          types.StringNull(),
+	}
+	pgAttrs := map[string]attr.Value{
+		"type":           types.StringValue("postgres"),
+		"host":           types.StringValue("postgres.example.com"),
+		"port":           types.Int64Value(5432),
+		"database":       types.StringValue("mydb"),
+		"authentication": types.StringNull(),
+		"iam_role":       types.StringNull(),
+		"tls_host":       types.StringNull(),
+		"ca_certificate": types.StringNull(),
+		"credentials":    credentials,
+		"settings":       types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+		"table_mappings": types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{
+			types.ObjectValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType().AttrTypes, tableMappingAttrs),
+		}),
+	}
+	sourceModel := models.ClickPipeSourceModel{
+		Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+		ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+		PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+		Postgres:      types.ObjectValueMust(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes, pgAttrs),
+		MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+		MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+	}
+	return models.ClickPipeResourceModel{
+		ID:        types.StringValue("test-pipe-id"),
+		ServiceID: types.StringValue("service-123"),
+		Name:      types.StringValue("test-pg-pipe"),
+		Source:    sourceModel.ObjectValue(),
+	}
+}
+
+func TestExtractSourceFromPlan_PostgresIgnoreChangesCredentials(t *testing.T) {
+	// Regression scenarios for issue #528 — when ignore_changes = [credentials]
+	// is in play, an update to an unrelated field (e.g. table_mappings) must NOT
+	// send credentials in the PATCH body. The pre-fix provider serialized
+	// credentials.username/password as "undefined", which the API rejects with 400.
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+	credentialsType := models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes
+
+	t.Run("null credentials block omits credentials from API source", func(t *testing.T) {
+		plan := buildPostgresPlanWithCredentials(types.ObjectNull(credentialsType))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
+
+		assert.False(t, diagnostics.HasError(), "credential-shape validation must be skipped when block is null: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Postgres)
+		assert.Nil(t, source.Postgres.Credentials, "credentials must be nil so JSON serialization omits the field entirely (issue #528)")
+	})
+
+	t.Run("unknown credentials block omits credentials from API source", func(t *testing.T) {
+		plan := buildPostgresPlanWithCredentials(types.ObjectUnknown(credentialsType))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
+
+		assert.False(t, diagnostics.HasError(), "validation must be skipped when credentials are unknown: %v", diagnostics.Errors())
+		assert.NotNil(t, source.Postgres)
+		assert.Nil(t, source.Postgres.Credentials, "credentials must be nil when block is unknown")
+	})
+
+	t.Run("empty username inside credentials block omits credentials from API source", func(t *testing.T) {
+		// Defensive: a state corruption could leave the block populated but with
+		// blank values. The fix guards against `Username == ""` so we never send
+		// the literal "undefined" to the API.
+		emptyCreds := types.ObjectValueMust(credentialsType, map[string]attr.Value{
+			"username":            types.StringValue(""),
+			"password":            types.StringNull(),
+			"password_wo":         types.StringNull(),
+			"password_wo_version": types.Int64Null(),
+		})
+		plan := buildPostgresPlanWithCredentials(emptyCreds)
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
+
+		assert.NotNil(t, source.Postgres)
+		assert.Nil(t, source.Postgres.Credentials, "credentials must be omitted when username is the empty string")
+	})
+
+	t.Run("populated credentials forwarded normally (control)", func(t *testing.T) {
+		validCreds := types.ObjectValueMust(credentialsType, map[string]attr.Value{
+			"username":            types.StringValue("alice"),
+			"password":            types.StringValue("secret"),
+			"password_wo":         types.StringNull(),
+			"password_wo_version": types.Int64Null(),
+		})
+		plan := buildPostgresPlanWithCredentials(validCreds)
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
+
+		assert.False(t, diagnostics.HasError())
+		assert.NotNil(t, source.Postgres.Credentials)
+		assert.Equal(t, "alice", source.Postgres.Credentials.Username)
+		assert.Equal(t, "secret", source.Postgres.Credentials.Password)
+	})
+}
+
+// buildMySQLPlanWithCredentials returns a minimal MySQL-source plan model.
+func buildMySQLPlanWithCredentials(credentials types.Object) models.ClickPipeResourceModel {
+	settingsAttrs := map[string]attr.Value{
+		"replication_mode":                   types.StringValue("cdc"),
+		"sync_interval_seconds":              types.Int64Null(),
+		"pull_batch_size":                    types.Int64Null(),
+		"replication_mechanism":              types.StringNull(),
+		"use_compression":                    types.BoolNull(),
+		"allow_nullable_columns":             types.BoolNull(),
+		"initial_load_parallelism":           types.Int64Null(),
+		"snapshot_num_rows_per_partition":    types.Int64Null(),
+		"snapshot_number_of_parallel_tables": types.Int64Null(),
+		"delete_on_merge":                    types.BoolNull(),
+	}
+	tableMappingAttrs := map[string]attr.Value{
+		"source_schema_name":     types.StringValue("public"),
+		"source_table":           types.StringValue("users"),
+		"target_table":           types.StringValue("users"),
+		"excluded_columns":       types.ListNull(types.StringType),
+		"use_custom_sorting_key": types.BoolNull(),
+		"sorting_keys":           types.ListNull(types.StringType),
+		"table_engine":           types.StringNull(),
+		"partition_key":          types.StringNull(),
+	}
+	mysqlAttrs := map[string]attr.Value{
+		"type":                   types.StringValue("mysql"),
+		"host":                   types.StringValue("mysql.example.com"),
+		"port":                   types.Int64Value(3306),
+		"authentication":         types.StringNull(),
+		"iam_role":               types.StringNull(),
+		"tls_host":               types.StringNull(),
+		"ca_certificate":         types.StringNull(),
+		"disable_tls":            types.BoolNull(),
+		"skip_cert_verification": types.BoolNull(),
+		"credentials":            credentials,
+		"settings":               types.ObjectValueMust(models.ClickPipeMySQLSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+		"table_mappings": types.SetValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType(), []attr.Value{
+			types.ObjectValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType().AttrTypes, tableMappingAttrs),
+		}),
+	}
+	sourceModel := models.ClickPipeSourceModel{
+		Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+		ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+		PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+		Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+		MySQL:         types.ObjectValueMust(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes, mysqlAttrs),
+		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+		MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+	}
+	return models.ClickPipeResourceModel{
+		ID:        types.StringValue("test-pipe-id"),
+		ServiceID: types.StringValue("service-123"),
+		Name:      types.StringValue("test-mysql-pipe"),
+		Source:    sourceModel.ObjectValue(),
+	}
+}
+
+func TestExtractSourceFromPlan_MySQLIgnoreChangesCredentials(t *testing.T) {
+	// Mirror of the Postgres scenarios above. The MySQL extractSourceFromPlan
+	// branch received the same #528 fix.
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+	credentialsType := models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes
+
+	t.Run("null credentials block omits credentials from API source", func(t *testing.T) {
+		plan := buildMySQLPlanWithCredentials(types.ObjectNull(credentialsType))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
+
+		assert.False(t, diagnostics.HasError(), "validation must be skipped when block is null: %v", diagnostics.Errors())
+		assert.NotNil(t, source.MySQL)
+		assert.Nil(t, source.MySQL.Credentials, "credentials must be nil so JSON serialization omits the field (issue #528)")
+	})
+
+	t.Run("unknown credentials block omits credentials from API source", func(t *testing.T) {
+		plan := buildMySQLPlanWithCredentials(types.ObjectUnknown(credentialsType))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
+
+		assert.False(t, diagnostics.HasError())
+		assert.Nil(t, source.MySQL.Credentials)
+	})
+
+	t.Run("populated credentials forwarded normally (control)", func(t *testing.T) {
+		validCreds := types.ObjectValueMust(credentialsType, map[string]attr.Value{
+			"username":            types.StringValue("bob"),
+			"password":            types.StringValue("hunter2"),
+			"password_wo":         types.StringNull(),
+			"password_wo_version": types.Int64Null(),
+		})
+		plan := buildMySQLPlanWithCredentials(validCreds)
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
+
+		assert.False(t, diagnostics.HasError())
+		assert.NotNil(t, source.MySQL.Credentials)
+		assert.Equal(t, "bob", source.MySQL.Credentials.Username)
+		assert.Equal(t, "hunter2", source.MySQL.Credentials.Password)
+	})
+}
+
+// ============================================================================
+// Issue #513 — Provider produces inconsistent result after apply when
+// scaling.replica_cpu_millicores / replica_memory_gb come back as 0 from the
+// API immediately after a create or scaling PATCH (transient propagation
+// delay before the API surfaces the real values).
+//
+// Fix: syncClickPipeState rejects sub-threshold API values (cpu < 125, mem <
+// 0.5) and falls back to the prior planned values in state.
+// ============================================================================
+
+// getPostgresStateWithScaling extends the Postgres initial state helper with a
+// `scaling` block. Scaling logic in syncClickPipeState is source-agnostic, so
+// reusing the Postgres fixture keeps the test compact.
+func getPostgresStateWithScaling(replicas int64, cpu int64, mem float64) models.ClickPipeResourceModel {
+	state := getPostgresInitialState()
+	state.Scaling = types.ObjectValueMust(models.ClickPipeScalingModel{}.ObjectType().AttrTypes, map[string]attr.Value{
+		"replicas":               types.Int64Value(replicas),
+		"replica_cpu_millicores": types.Int64Value(cpu),
+		"replica_memory_gb":      types.Float64Value(mem),
+	})
+	return state
+}
+
+func TestClickPipeResource_syncClickPipeState_ScalingPropagation(t *testing.T) {
+	// Regression scenarios for issue #513. Building blocks:
+	//   - prior state always carries cpu=125, mem=0.5 (the user's valid plan values)
+	//   - response.Scaling varies (0 = transient/un-propagated, 125/0.5 = settled)
+	//   - assertion: the state after sync reflects the user's planned values whenever
+	//     the API value is sub-threshold; the API value is used only when valid.
+	ctx := context.Background()
+
+	tests := []struct {
+		name          string
+		state         models.ClickPipeResourceModel
+		responseCpu   interface{} // value to put into ClickPipeScaling.ReplicaCpuMillicores
+		responseMem   interface{} // value to put into ClickPipeScaling.ReplicaMemoryGb
+		expectedCpu   int64
+		expectedMem   float64
+		preservedNote string
+	}{
+		{
+			name:          "valid scaling from API is used as-is (control)",
+			state:         getPostgresStateWithScaling(2, 125, 0.5),
+			responseCpu:   float64(250),
+			responseMem:   float64(1.0),
+			expectedCpu:   250,
+			expectedMem:   1.0,
+			preservedNote: "API supplied valid values; sync should adopt them",
+		},
+		{
+			name:          "transient zero CPU falls back to prior planned value",
+			state:         getPostgresStateWithScaling(2, 125, 0.5),
+			responseCpu:   float64(0),
+			responseMem:   float64(0.5),
+			expectedCpu:   125,
+			expectedMem:   0.5,
+			preservedNote: "CPU < 125 threshold → preserve prior; memory at threshold → adopt",
+		},
+		{
+			name:          "transient zero memory falls back to prior planned value",
+			state:         getPostgresStateWithScaling(2, 125, 0.5),
+			responseCpu:   float64(125),
+			responseMem:   float64(0),
+			expectedCpu:   125,
+			expectedMem:   0.5,
+			preservedNote: "CPU at threshold → adopt; memory < 0.5 threshold → preserve prior",
+		},
+		{
+			name:          "both transient zeros fall back to prior values (#513 main repro)",
+			state:         getPostgresStateWithScaling(2, 125, 0.5),
+			responseCpu:   float64(0),
+			responseMem:   float64(0),
+			expectedCpu:   125,
+			expectedMem:   0.5,
+			preservedNote: "matches the exact symptom in issue #513",
+		},
+		{
+			name:          "below-threshold non-zero values still fall back",
+			state:         getPostgresStateWithScaling(2, 125, 0.5),
+			responseCpu:   float64(124),
+			responseMem:   float64(0.4),
+			expectedCpu:   125,
+			expectedMem:   0.5,
+			preservedNote: "guard is strictly ≥125 / ≥0.5; just-under should still preserve",
+		},
+		{
+			name:          "boundary threshold values are adopted (not preserved)",
+			state:         getPostgresStateWithScaling(2, 200, 0.7),
+			responseCpu:   float64(125),
+			responseMem:   float64(0.5),
+			expectedCpu:   125,
+			expectedMem:   0.5,
+			preservedNote: "values exactly at threshold are valid; prior should NOT win",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+			apiClientMock := api.NewClientMock(mc).
+				GetClickPipeMock.
+				Expect(context.Background(), tt.state.ServiceID.ValueString(), tt.state.ID.ValueString()).
+				Return(&api.ClickPipe{
+					ID:    "test-pipe-id",
+					Name:  "test-pipe",
+					State: "running",
+					Source: api.ClickPipeSource{
+						Postgres: &api.ClickPipePostgresSource{
+							Host:     "postgres.example.com",
+							Port:     5432,
+							Database: "mydb",
+							Settings: &api.ClickPipePostgresSettings{ReplicationMode: "cdc"},
+							Mappings: []api.ClickPipePostgresTableMapping{{
+								SourceSchemaName: "public",
+								SourceTable:      "users",
+								TargetTable:      "users",
+							}},
+						},
+					},
+					Destination: api.ClickPipeDestination{Database: "default"},
+					Scaling: &api.ClickPipeScaling{
+						Replicas:             int64Ptr(2),
+						ReplicaCpuMillicores: tt.responseCpu,
+						ReplicaMemoryGb:      tt.responseMem,
+					},
+				}, nil)
+
+			resource := &ClickPipeResource{client: apiClientMock}
+
+			err := resource.syncClickPipeState(ctx, &tt.state)
+			assert.NoError(t, err)
+
+			var scalingModel models.ClickPipeScalingModel
+			tt.state.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})
+
+			assert.Equal(t, tt.expectedCpu, scalingModel.ReplicaCpuMillicores.ValueInt64(),
+				"CPU millicores expectation — %s", tt.preservedNote)
+			assert.Equal(t, tt.expectedMem, scalingModel.ReplicaMemoryGb.ValueFloat64(),
+				"Memory GB expectation — %s", tt.preservedNote)
+		})
+	}
+}
+
+// TestClickPipeResource_syncClickPipeState_ReplicasPropagation covers the same
+// transient-propagation guard as the CPU/memory cases above, applied to
+// `replicas`. Issue #513 only surfaced cpu/memory going to 0, but a nil or 0
+// replicas reading from the API would trip the identical consistency check, so
+// the fallback is mirrored defensively.
+func TestClickPipeResource_syncClickPipeState_ReplicasPropagation(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name             string
+		responseReplicas *int64
+		expectedReplicas int64
+		note             string
+	}{
+		{
+			name:             "valid replicas from API is used as-is (control)",
+			responseReplicas: int64Ptr(3),
+			expectedReplicas: 3,
+			note:             "API supplied a valid replica count; sync should adopt it",
+		},
+		{
+			name:             "transient zero replicas falls back to prior planned value",
+			responseReplicas: int64Ptr(0),
+			expectedReplicas: 2,
+			note:             "replicas < 1 → not propagated yet → preserve prior",
+		},
+		{
+			name:             "nil replicas falls back to prior planned value",
+			responseReplicas: nil,
+			expectedReplicas: 2,
+			note:             "missing replicas in response → preserve prior",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := getPostgresStateWithScaling(2, 125, 0.5)
+
+			mc := minimock.NewController(t)
+			apiClientMock := api.NewClientMock(mc).
+				GetClickPipeMock.
+				Expect(context.Background(), state.ServiceID.ValueString(), state.ID.ValueString()).
+				Return(&api.ClickPipe{
+					ID:    "test-pipe-id",
+					Name:  "test-pipe",
+					State: "running",
+					Source: api.ClickPipeSource{
+						Postgres: &api.ClickPipePostgresSource{
+							Host:     "postgres.example.com",
+							Port:     5432,
+							Database: "mydb",
+							Settings: &api.ClickPipePostgresSettings{ReplicationMode: "cdc"},
+							Mappings: []api.ClickPipePostgresTableMapping{{
+								SourceSchemaName: "public",
+								SourceTable:      "users",
+								TargetTable:      "users",
+							}},
+						},
+					},
+					Destination: api.ClickPipeDestination{Database: "default"},
+					Scaling: &api.ClickPipeScaling{
+						Replicas:             tt.responseReplicas,
+						ReplicaCpuMillicores: float64(125),
+						ReplicaMemoryGb:      float64(0.5),
+					},
+				}, nil)
+
+			resource := &ClickPipeResource{client: apiClientMock}
+
+			err := resource.syncClickPipeState(ctx, &state)
+			assert.NoError(t, err)
+
+			var scalingModel models.ClickPipeScalingModel
+			state.Scaling.As(ctx, &scalingModel, basetypes.ObjectAsOptions{})
+
+			assert.Equal(t, tt.expectedReplicas, scalingModel.Replicas.ValueInt64(), tt.note)
+		})
+	}
+}
+
+// ============================================================================
+// Pause/Paused state recognition — supporting the issue #529 fix.
+//
+// CDC pipes (Postgres / MySQL / MongoDB) settle in `Paused`, not `Stopped`,
+// when paused via the API. getStateCheckFunc must accept both terminal states
+// when stopped=true, otherwise the Update flow's wait loop times out and
+// surfaces a spurious "didn't reach desired state" warning.
+// ============================================================================
+
+func TestGetStateCheckFunc_AcceptsPausedAndStopped(t *testing.T) {
+	resource := &ClickPipeResource{}
+
+	// Minimal plan: only `stopped` matters for the early-return branch of
+	// getStateCheckFunc. Source can be entirely null.
+	plan := models.ClickPipeResourceModel{
+		Stopped: types.BoolValue(true),
+		Source: models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}.ObjectValue(),
+	}
+
+	checker := resource.getStateCheckFunc(context.Background(), plan)
+
+	assert.True(t, checker(api.ClickPipeStoppedState), "streaming pipes settle in Stopped — must be accepted")
+	assert.True(t, checker(api.ClickPipePausedState), "CDC pipes settle in Paused — must be accepted")
+	assert.False(t, checker(api.ClickPipeRunningState), "Running must NOT match when stopped=true")
+	assert.False(t, checker(api.ClickPipeSnapShotState), "Snapshot is transient, not terminal")
+	assert.False(t, checker(api.ClickPipeProvisioningState), "Provisioning is transient, not terminal")
+}

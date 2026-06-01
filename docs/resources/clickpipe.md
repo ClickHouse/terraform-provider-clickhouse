@@ -235,7 +235,7 @@ Optional:
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
 - `schema_registry` (Attributes) The schema registry for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
-- `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`). Default is `kafka`.
+- `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.
 
 <a id="nestedatt--source--kafka--credentials"></a>
 ### Nested Schema for `source.kafka.credentials`
@@ -246,7 +246,7 @@ Optional:
 - `certificate` (String, Sensitive) PEM encoded client certificate for mTLS authentication. Use with `MUTUAL_TLS` authentication.
 - `connection_string` (String, Sensitive) The connection string for the Kafka source. Use with `azureeventhub` Kafka source type. Use with `PLAIN` authentication.
 - `password` (String, Sensitive) The password for the Kafka source. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive) Write-only password for the Kafka source. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Kafka source. Not persisted to state. Pair with `password_wo_version` to trigger updates.
 - `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 - `private_key` (String, Sensitive) PEM encoded client private key for mTLS authentication. Use with `MUTUAL_TLS` authentication.
 - `secret_key` (String, Sensitive) The secret key for the Kafka source. Use with `IAM_USER` authentication.
@@ -284,7 +284,7 @@ Required:
 Optional:
 
 - `password` (String, Sensitive) The password for the Schema Registry. Either `password` or `password_wo` must be provided.
-- `password_wo` (String, Sensitive) Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version` to trigger updates.
 - `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
@@ -376,7 +376,7 @@ Required:
 Optional:
 
 - `password` (String, Sensitive) The password for the MongoDB instance. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive) Write-only password for the MongoDB instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the MongoDB instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
 - `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
@@ -412,7 +412,7 @@ Required:
 Optional:
 
 - `password` (String, Sensitive) The password for the MySQL instance. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive) Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
 - `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
@@ -518,7 +518,7 @@ Required:
 Optional:
 
 - `password` (String, Sensitive) The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
 - `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
