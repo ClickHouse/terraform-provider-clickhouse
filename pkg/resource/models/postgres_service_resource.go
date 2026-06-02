@@ -19,6 +19,14 @@ type PostgresServiceResourceModel struct {
 	HaType types.String `tfsdk:"ha_type"`
 	Tags   types.Map    `tfsdk:"tags"`
 
+	// Runtime configuration. Terraform-owned, full-replacement: whatever is
+	// declared is the desired state; omitting a key removes it server-side;
+	// omitting the attribute clears all parameters. Modeled as string maps to
+	// match the tags convention (the server's pgConfig is a flat key/value
+	// object, so a map is the natural shape).
+	PgConfig        types.Map `tfsdk:"pg_config"`
+	PgBouncerConfig types.Map `tfsdk:"pgbouncer_config"`
+
 	// Computed.
 	State            types.String `tfsdk:"state"`
 	CreatedAt        types.String `tfsdk:"created_at"`
@@ -29,6 +37,26 @@ type PostgresServiceResourceModel struct {
 	ConnectionString types.String `tfsdk:"connection_string"`
 
 	// Sensitive / write-only.
-	// Currently Computed-only (server always generates).
-	Password types.String `tfsdk:"password"`
+	// Password is Optional+Computed: user-supplied, or server-generated when
+	// omitted. PasswordWO is write-only (never persisted to state); its
+	// rotation is triggered by bumping PasswordWOVersion. Password and
+	// PasswordWO are mutually exclusive.
+	Password          types.String `tfsdk:"password"`
+	PasswordWO        types.String `tfsdk:"password_wo"`
+	PasswordWOVersion types.Int64  `tfsdk:"password_wo_version"`
+
+	// Provenance — both immutable (RequiresReplace), mutually exclusive.
+	// ReadReplicaOf holds the parent primary's ID when this instance is a read
+	// replica. RestoreToPointInTime records that this instance was created by
+	// restoring another instance's backup to a timestamp.
+	ReadReplicaOf        types.String `tfsdk:"read_replica_of"`
+	RestoreToPointInTime types.Object `tfsdk:"restore_to_point_in_time"`
+}
+
+// PostgresRestoreModel is the nested restore_to_point_in_time object. The new
+// instance's name comes from the resource's top-level `name`; this block only
+// carries the restore source and target.
+type PostgresRestoreModel struct {
+	SourceID      types.String `tfsdk:"source_id"`
+	RestoreTarget types.String `tfsdk:"restore_target"`
 }

@@ -1,11 +1,11 @@
-//go:build alpha
-
 package resource
 
 import (
 	"context"
 	_ "embed"
+	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -16,34 +16,49 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
 var (
-	_ resource.Resource                = &PostgresServiceResource{}
-	_ resource.ResourceWithConfigure   = &PostgresServiceResource{}
-	_ resource.ResourceWithImportState = &PostgresServiceResource{}
+	_ resource.Resource                   = &PostgresServiceResource{}
+	_ resource.ResourceWithConfigure      = &PostgresServiceResource{}
+	_ resource.ResourceWithImportState    = &PostgresServiceResource{}
+	_ resource.ResourceWithModifyPlan     = &PostgresServiceResource{}
+	_ resource.ResourceWithValidateConfig = &PostgresServiceResource{}
 )
 
 //go:embed descriptions/postgres_service.md
 var postgresServiceResourceDescription string
 
+// NewPostgresServiceResource constructs the Postgres resource.
 func NewPostgresServiceResource() resource.Resource {
 	return &PostgresServiceResource{}
 }
 
+// PostgresServiceResource manages a ClickHouse Cloud Managed Postgres
+// instance via the api.Client interface. See the embedded description for
+// scope and limitations.
 type PostgresServiceResource struct {
 	client api.Client
 }
 
 func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_postgres_service"
+}
+
+// ValidateConfig surfaces the alpha warning at plan time, matching the other
+// alpha resources (clickhouse_role, clickhouse_service_upgrade_window, …).
+func (r *PostgresServiceResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	utils.AlphaWarning("clickhouse_postgres_service", &resp.Diagnostics)
 }
 
 func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -110,8 +125,6 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Description: "High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = \"none\"' explicitly.",
 				Optional:    true,
 				Computed:    true,
-				// No Default("none"): would silently downgrade HA when the
-				// user later deletes the line on an existing resource.
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -125,12 +138,43 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Computed:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.Map{
-					// Without USFU, Update would PATCH "tags": [] on every
-					// apply that touches any other attribute → silent loss.
 					mapplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.Map{
 					mapvalidator.SizeAtMost(50), // server MAX_TAGS_PER_RESOURCE
+					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
+					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+				},
+			},
+
+			// --- Runtime configuration ---------------------------------------
+			"pg_config": schema.MapAttribute{
+				Description: "Postgres server parameters (pgConfig) as a key-value map. Declared parameters are the desired state — every apply sends the full map via POST /config (full replacement), so removing a key from the map removes it server-side. Set `pg_config = {}` to clear all parameters; omit the attribute to preserve the prior state (read replicas inherit the primary's parameters, and the server may surface values the configuration never declared — so it is Optional+Computed like tags). Out-of-band changes are reverted on the next apply. Some parameters require a database restart; the provider surfaces the server's restart-required hint as a warning (restart out-of-band).",
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
+				PlanModifiers: []planmodifier.Map{
+					// Optional+Computed (like tags): a read replica inherits the
+					// primary's config, and GET /config can return parameters the
+					// user never declared — those must be allowed into state
+					// without an inconsistent-result error. USFU pins the prior
+					// value on omission; `pg_config = {}` clears all parameters.
+					mapplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
+					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+				},
+			},
+			"pgbouncer_config": schema.MapAttribute{
+				Description: "PgBouncer connection-pooler parameters (pgBouncerConfig) as a key-value map. Same Optional+Computed semantics as pg_config; set `pgbouncer_config = {}` to clear.",
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
+				PlanModifiers: []planmodifier.Map{
+					mapplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Map{
 					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
 					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
 				},
@@ -141,8 +185,6 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Description: "Server-reported state. Examples: 'creating', 'running', 'restarting', 'unavailable', 'deleting'. Forward-compatible: unknown values from the server are surfaced verbatim.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					// Without USFU, planner marks state as known-after-apply
-					// on no-op applies, framework rejects the round-trip.
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -182,21 +224,77 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"connection_string": schema.StringAttribute{
-				Description: "Full connection URI embedding the username and the server-generated password. Marked sensitive; the secret-redaction layer also covers it in TF_LOG=DEBUG output.",
+				Description: "Full connection URI embedding the username and the password. Marked sensitive; the secret-redaction layer also covers it in TF_LOG=DEBUG output. Plan stability is managed in ModifyPlan: pinned to the prior value on unrelated updates, marked unknown when a password rotation is planned (it embeds the password).",
 				Computed:    true,
 				Sensitive:   true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+			},
+
+			// --- Sensitive / write-only --------------------------------------
+			"password": schema.StringAttribute{
+				Description: "Superuser password. Optional: set it to manage the password in Terraform, or omit it and the server generates one. Captured from the create/rotation response and refreshed from each GET (the server echoes it), so an out-of-band rotation is reconciled on the next refresh. Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Conflicts with password_wo. Stored in (sensitive) state — prefer password_wo to keep it out of state.",
+				Optional:    true,
+				Computed:    true,
+				Sensitive:   true,
+				Validators: append(
+					postgresPasswordValidators(),
+					stringvalidator.ConflictsWith(path.MatchRoot("password_wo")),
+				),
+				// No UseStateForUnknown plan modifier: it cannot distinguish
+				// "unknown because unconfigured" (server-generated → pin to
+				// state) from "unknown because the configured value is an
+				// unresolved interpolation" (random_password.result → a
+				// rotation that must NOT be suppressed). ModifyPlan makes that
+				// config-aware distinction.
+			},
+			"password_wo": schema.StringAttribute{
+				Description: "Superuser password, write-only: never persisted to Terraform state. Use this instead of password to keep the credential out of state. Because write-only values aren't tracked, rotation is triggered by incrementing password_wo_version (not by changing this value). Same complexity rules as password. Requires password_wo_version; conflicts with password.",
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
+				Validators: append(
+					postgresPasswordValidators(),
+					stringvalidator.AlsoRequires(path.MatchRoot("password_wo_version")),
+					stringvalidator.ConflictsWith(path.MatchRoot("password")),
+				),
+			},
+			"password_wo_version": schema.Int64Attribute{
+				Description: "Version counter for password_wo. Increment this to trigger a password rotation when using password_wo. Required whenever password_wo is set.",
+				Optional:    true,
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("password_wo")),
 				},
 			},
 
-			// --- Sensitive / write-only -------------------------------------
-			"password": schema.StringAttribute{
-				Description: "Server-generated superuser password. Captured from the create response and refreshed from each GET (the server echoes it).",
-				Computed:    true,
-				Sensitive:   true,
+			// --- Provenance / immutable --------------------------------------
+			"read_replica_of": schema.StringAttribute{
+				Description: "ID of the primary instance to replicate. When set, this instance is created as a read replica (streaming replication) of that primary. Immutable — changing it forces destroy-and-recreate. Mutually exclusive with restore_to_point_in_time and with password / password_wo (a replica inherits the primary's superuser). Out-of-band promotion caveat: if you promote a replica via the API, removing read_replica_of here triggers RequiresReplace (destroying the promoted instance); use `terraform state rm` + re-import instead.",
+				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(
+						path.MatchRoot("restore_to_point_in_time"),
+						path.MatchRoot("password"),
+						path.MatchRoot("password_wo"),
+					),
+				},
+			},
+			"restore_to_point_in_time": schema.SingleNestedAttribute{
+				Description: "Create this instance by restoring another Postgres instance's backup to a point in time. Immutable — the whole block is RequiresReplace (restore is a create-time-only operation). The restored instance's name is this resource's top-level `name`. Mutually exclusive with read_replica_of. The restored instance is independent of its source.",
+				Optional:    true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.RequiresReplace(),
+				},
+				Attributes: map[string]schema.Attribute{
+					"source_id": schema.StringAttribute{
+						Description: "ID of the source instance whose backup to restore from.",
+						Required:    true,
+					},
+					"restore_target": schema.StringAttribute{
+						Description: "RFC3339 timestamp to restore to (e.g. '2026-06-01T12:00:00Z'). The server restores to the closest available recovery point at or before this time.",
+						Required:    true,
+					},
 				},
 			},
 		},
@@ -218,34 +316,85 @@ func (r *PostgresServiceResource) Configure(_ context.Context, req resource.Conf
 	r.client = client
 }
 
+// Create provisions a new instance via one of three mutually-exclusive paths:
+// standard, read replica (read_replica_of), or point-in-time restore.
 func (r *PostgresServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan models.PostgresServiceResourceModel
+	var plan, config models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	// Config carries the write-only password_wo value (write-only attributes
+	// are absent from Plan and State — only Config has them).
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	createBody, d := planToPostgresCreate(ctx, plan)
-	resp.Diagnostics.Append(d...)
-	if resp.Diagnostics.HasError() {
-		return
+	// Three mutually-exclusive create paths (enforced by ConflictsWith). Only
+	// the standard path returns a server-generated password; restore and
+	// replica inherit credentials from their source/primary.
+	var pg *api.Postgres
+	var generatedPassword string
+	switch {
+	case !plan.ReadReplicaOf.IsNull() && !plan.ReadReplicaOf.IsUnknown():
+		body, d := planToReadReplicaRequest(ctx, plan)
+		resp.Diagnostics.Append(d...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		p, err := r.client.CreatePostgresReadReplica(ctx, plan.ReadReplicaOf.ValueString(), body)
+		if err != nil {
+			resp.Diagnostics.AddError("Error creating Postgres read replica", "Could not create a read replica of "+plan.ReadReplicaOf.ValueString()+": "+err.Error())
+			return
+		}
+		pg = p
+	case !plan.RestoreToPointInTime.IsNull() && !plan.RestoreToPointInTime.IsUnknown():
+		sourceID, body, d := planToRestoreRequest(ctx, plan)
+		resp.Diagnostics.Append(d...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		p, err := r.client.RestorePostgres(ctx, sourceID, body)
+		if err != nil {
+			resp.Diagnostics.AddError("Error restoring Postgres service", "Could not restore a Postgres service from source "+sourceID+": "+err.Error())
+			return
+		}
+		pg = p
+	default:
+		createBody, d := planToPostgresCreate(ctx, plan)
+		resp.Diagnostics.Append(d...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		p, gen, err := r.client.CreatePostgres(ctx, createBody)
+		if err != nil {
+			resp.Diagnostics.AddError("Error creating Postgres service", "Could not create Postgres service: "+err.Error())
+			return
+		}
+		pg, generatedPassword = p, gen
 	}
 
-	pg, generatedPassword, err := r.client.CreatePostgres(ctx, createBody)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating Postgres service",
-			"Could not create Postgres service: "+err.Error(),
-		)
-		return
-	}
-
+	// Restore and replica creates also transition through non-running states;
+	// the running-state checker treats every non-running value as "still
+	// transitioning", so the same wait covers all three paths.
 	if err := r.client.WaitForPostgresState(ctx, pg.Id, isPostgresStateRunning, postgresDefaultCreateTimeoutSeconds); err != nil {
 		resp.Diagnostics.AddError(
 			"Error waiting for Postgres service to reach 'running'",
 			"Could not finish provisioning Postgres service "+pg.Id+": "+err.Error(),
 		)
 		return
+	}
+
+	// If the user supplied a password (regular or write-only), rotate to it now
+	// via PATCH /password (CreatePostgres always has the server generate one).
+	pwIntent := decidePasswordOnCreate(plan, config, generatedPassword)
+	if pwIntent.Set {
+		value := pwIntent.Value
+		if _, err := r.client.SetPostgresPassword(ctx, pg.Id, api.PostgresPassword{Password: value}); err != nil {
+			resp.Diagnostics.AddError(
+				"Error setting Postgres password",
+				"Provisioned Postgres service "+pg.Id+" but could not set the supplied password: "+err.Error(),
+			)
+			return
+		}
 	}
 
 	// Re-read to pick up hostname / connection_string / created_at / final state.
@@ -258,16 +407,37 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	// Capture the Create-response password as a fallback; syncPostgresState
-	// will overwrite if the post-Create GET also echoes it.
 	model := plan
 	model.ID = types.StringValue(final.Id)
-	if generatedPassword != "" {
-		model.Password = types.StringValue(generatedPassword)
-	} else {
-		model.Password = types.StringNull()
-	}
 	resp.Diagnostics.Append(syncPostgresState(ctx, final, &model)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	// syncPostgresState hydrates Password from the GET response (the server
+	// echoes it). Reconcile that against the create-time decision:
+	//   - write-only (password_wo): scrub to null — never persist it;
+	//   - regular / server-generated: use the value we captured;
+	//   - replica / restore (no password declared): keep the hydrated value,
+	//     matching Read, so an inherited/restored password isn't null until the
+	//     first refresh.
+	writeOnly := !config.PasswordWO.IsNull() && !config.PasswordWO.IsUnknown() && config.PasswordWO.ValueString() != ""
+	switch {
+	case writeOnly:
+		model.Password = types.StringNull()
+	case pwIntent.StateValue != nil:
+		model.Password = types.StringValue(*pwIntent.StateValue)
+	}
+	model.PasswordWO = types.StringNull() // write-only: never persisted
+
+	cfg, err := r.client.GetPostgresConfig(ctx, final.Id)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading Postgres configuration after create",
+			"Could not read pg_config / pgbouncer_config for Postgres service "+final.Id+": "+err.Error(),
+		)
+		return
+	}
+	resp.Diagnostics.Append(syncPostgresConfig(ctx, cfg, &model)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -276,6 +446,8 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 }
 
 func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	utils.AlphaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+
 	var state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -299,45 +471,119 @@ func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// syncPostgresState hydrates Password from the GET (the server echoes it),
+	// which lets import recover the credential and Read reconcile out-of-band
+	// rotations. But in write-only mode (password_wo + password_wo_version) the
+	// password must never be persisted, so drop it back to null. A freshly
+	// imported instance has no password_wo_version, so import still recovers it.
+	if !state.PasswordWOVersion.IsNull() {
+		state.Password = types.StringNull()
+	}
+
+	cfg, err := r.client.GetPostgresConfig(ctx, state.ID.ValueString())
+	if err != nil {
+		// Mirror the GetPostgres 404 handling above: if the instance vanished
+		// between the two GETs, drop it from state so the next apply recreates
+		// it rather than failing with a confusing config error.
+		if api.IsNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError(
+			"Error reading Postgres configuration",
+			"Could not read pg_config / pgbouncer_config for Postgres service "+state.ID.ValueString()+": "+err.Error(),
+		)
+		return
+	}
+	resp.Diagnostics.Append(syncPostgresConfig(ctx, cfg, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Update applies in-place mutations for size, ha_type, and tags. Everything
-// else is RequiresReplace; password isn't mutable here.
+// Update applies in-place mutations: size / ha_type / tags (PATCH /postgres),
+// pg_config / pgbouncer_config (POST /config), and password rotation
+// (PATCH /password). name / cloud_provider / region / postgres_version /
+// read_replica_of / restore_to_point_in_time are all RequiresReplace.
 func (r *PostgresServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state models.PostgresServiceResourceModel
+	var plan, state, config models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	updatePlan, d := buildPostgresUpdate(ctx, plan, state)
 	resp.Diagnostics.Append(d...)
+	configUpdate, cd := buildConfigUpdate(ctx, plan, state)
+	resp.Diagnostics.Append(cd...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	rotateValue, rotate := decidePasswordRotationOnUpdate(plan, state, config)
 
-	if updatePlan.Body == nil {
-		// No diff — write plan back so Computed-from-Optional attrs propagate.
+	if updatePlan.Body == nil && !configUpdate.Changed && !rotate {
 		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 		return
 	}
 
-	if _, err := r.client.UpdatePostgres(ctx, state.ID.ValueString(), *updatePlan.Body); err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating Postgres service",
-			"Could not update Postgres service "+state.ID.ValueString()+": "+err.Error(),
-		)
-		return
+	// Instance-level PATCH (size / ha_type / tags).
+	if updatePlan.Body != nil {
+		if _, err := r.client.UpdatePostgres(ctx, state.ID.ValueString(), *updatePlan.Body); err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating Postgres service",
+				"Could not update Postgres service "+state.ID.ValueString()+": "+err.Error(),
+			)
+			return
+		}
+		if updatePlan.TransitionExpected {
+			// Field-aware wait: poll until the server reflects the PATCHed
+			// values (size / ha_type / tags) AND is running, held for a settle
+			// window. A state-only wait would race the Ubicloud queue.
+			predicate := buildPostgresMatchPredicate(updatePlan.Body)
+			if err := r.client.WaitForPostgresMatch(ctx, state.ID.ValueString(), predicate, postgresDefaultUpdateTimeoutSeconds); err != nil {
+				resp.Diagnostics.AddError(
+					"Error waiting for Postgres service to apply the requested update",
+					"Could not confirm Postgres service "+state.ID.ValueString()+" reflects the PATCH values: "+err.Error(),
+				)
+				return
+			}
+		}
 	}
 
-	if updatePlan.TransitionExpected {
-		predicate := buildPostgresMatchPredicate(updatePlan.Body)
-		if err := r.client.WaitForPostgresMatch(ctx, state.ID.ValueString(), predicate, postgresDefaultUpdateTimeoutSeconds); err != nil {
+	// Config replacement (pg_config / pgbouncer_config) via POST /config.
+	// Message-driven, NOT state-polled: config changes do not auto-transition
+	// instance state; the server's response `message` field is the
+	// restart-required contract. Full replacement of BOTH maps from the plan.
+	if configUpdate.Changed {
+		cfgResp, err := r.client.ReplacePostgresConfig(ctx, state.ID.ValueString(), configUpdate.Body)
+		if err != nil {
 			resp.Diagnostics.AddError(
-				"Error waiting for Postgres service to apply the requested update",
-				"Could not confirm Postgres service "+state.ID.ValueString()+" reflects the PATCH values: "+err.Error(),
+				"Error updating Postgres configuration",
+				"Could not replace pg_config / pgbouncer_config for Postgres service "+state.ID.ValueString()+": "+err.Error(),
+			)
+			return
+		}
+		if cfgResp.Message != "" {
+			resp.Diagnostics.AddWarning(
+				"Postgres configuration change requires a restart",
+				cfgResp.Message+" Restart out-of-band via the ClickHouse Cloud UI or API; this resource does not expose restart.",
+			)
+		}
+	}
+
+	// Password rotation (PATCH /password): a password_wo_version bump (using the
+	// write-only value from config) or a change to the regular password. Never
+	// part of the instance PATCH body.
+	if rotate {
+		value := rotateValue
+		if _, err := r.client.SetPostgresPassword(ctx, state.ID.ValueString(), api.PostgresPassword{Password: value}); err != nil {
+			resp.Diagnostics.AddError(
+				"Error rotating Postgres password",
+				"Could not rotate the password for Postgres service "+state.ID.ValueString()+": "+err.Error(),
 			)
 			return
 		}
@@ -351,15 +597,35 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		)
 		return
 	}
-
 	resp.Diagnostics.Append(syncPostgresState(ctx, pg, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// syncPostgresState hydrates Password from the GET (the server echoes it).
+	// In write-only mode (password_wo + password_wo_version) the password must
+	// never be persisted, so drop it back to null.
+	if !plan.PasswordWOVersion.IsNull() {
+		plan.Password = types.StringNull()
+	}
+
+	cfg, err := r.client.GetPostgresConfig(ctx, state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading Postgres configuration after update",
+			"Could not refresh config for Postgres service "+state.ID.ValueString()+": "+err.Error(),
+		)
+		return
+	}
+	resp.Diagnostics.Append(syncPostgresConfig(ctx, cfg, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-// Delete wraps DeletePostgres (which owns 404-idempotent / 409-retry behavior).
+// Delete is a thin wrapper around DeletePostgres, which owns the
+// 404-idempotent / 409-retry machinery.
 func (r *PostgresServiceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -383,14 +649,63 @@ func (r *PostgresServiceResource) ImportState(ctx context.Context, req resource.
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+// ModifyPlan manages the plan values of the two password-coupled attributes,
+// `password` and `connection_string`, config-aware (replacing USFU on both —
+// USFU can't tell "unknown because unconfigured" from "unknown because the
+// configured value is an unresolved interpolation").
+//
+// password: pin to prior state ONLY when the user didn't configure one
+// (server-generated / write-only — password is Computed without USFU, so it
+// would otherwise replan as unknown each plan). When configured (literal or
+// interpolated), leave the planned value so a real change isn't suppressed.
+//
+// connection_string: embeds the password, so it changes iff the password
+// rotates. Pin to prior state on unrelated updates; mark unknown when a
+// rotation is planned so the post-apply value stays consistent.
+func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return // destroy (no plan) or create (no prior state)
+	}
+
+	var config, plan, state models.PostgresServiceResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if config.Password.IsNull() {
+		// Pin password so an unconfigured value doesn't replan as unknown. In
+		// write-only mode (password_wo_version set) the Update path nulls
+		// password, so pin to null here too — otherwise migrating an existing
+		// regular password to password_wo would plan the old value and apply
+		// null, tripping an inconsistent-result error. ConflictsWith/AlsoRequires
+		// guarantee config.Password is null whenever the version is set.
+		if !plan.PasswordWOVersion.IsNull() {
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("password"), types.StringNull())...)
+		} else {
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("password"), state.Password)...)
+		}
+	}
+
+	if passwordRotationPlanned(config, plan, state) {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("connection_string"), types.StringUnknown())...)
+	} else {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("connection_string"), state.ConnectionString)...)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-// isPostgresStateRunning treats any non-running value as still-transitioning
-// (forward-compatible with new server states).
+// isPostgresStateRunning is the state-checker passed to WaitForPostgresState.
+// Forward-compatible: anything other than 'running' is treated as still
+// transitioning, including server states the provider hasn't learned yet.
 func isPostgresStateRunning(s string) bool { return s == api.PostgresStateRunning }
 
+// planToPostgresCreate maps a fully-resolved plan into the POST /postgres body.
 func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResourceModel) (api.PostgresCreate, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -409,25 +724,93 @@ func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResour
 
 	tags, d := planTagsToAPI(ctx, plan.Tags)
 	diags.Append(d...)
-	if diags.HasError() {
-		return api.PostgresCreate{}, diags
-	}
 	if tags != nil {
 		body.Tags = *tags
 	}
 
+	pgConfig, d := planConfigToMap(ctx, plan.PgConfig)
+	diags.Append(d...)
+	pbConfig, d := planConfigToMap(ctx, plan.PgBouncerConfig)
+	diags.Append(d...)
+	if diags.HasError() {
+		return api.PostgresCreate{}, diags
+	}
+	body.PgConfig = pgConfig
+	body.PgBouncerConfig = pbConfig
+
 	return body, diags
 }
 
-// postgresUpdatePlan: Body nil = no diff; TransitionExpected = caller must
-// follow PATCH with WaitForPostgresMatch.
+// planToReadReplicaRequest builds the POST /readReplica body. The replica's
+// name is the resource's top-level name; tags / config carry over the same as
+// a standard create. No password (a replica inherits the primary's superuser).
+func planToReadReplicaRequest(ctx context.Context, plan models.PostgresServiceResourceModel) (api.PostgresReadReplicaRequest, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	body := api.PostgresReadReplicaRequest{Name: plan.Name.ValueString()}
+
+	tags, d := planTagsToAPI(ctx, plan.Tags)
+	diags.Append(d...)
+	if tags != nil {
+		body.Tags = *tags
+	}
+	pgConfig, d := planConfigToMap(ctx, plan.PgConfig)
+	diags.Append(d...)
+	pbConfig, d := planConfigToMap(ctx, plan.PgBouncerConfig)
+	diags.Append(d...)
+	if diags.HasError() {
+		return api.PostgresReadReplicaRequest{}, diags
+	}
+	body.PgConfig = pgConfig
+	body.PgBouncerConfig = pbConfig
+	return body, diags
+}
+
+// planToRestoreRequest builds the POST /restoredService body and returns the
+// source instance ID. The restored instance's name is the top-level `name`.
+func planToRestoreRequest(ctx context.Context, plan models.PostgresServiceResourceModel) (string, api.PostgresRestoreRequest, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var rm models.PostgresRestoreModel
+	diags.Append(plan.RestoreToPointInTime.As(ctx, &rm, basetypes.ObjectAsOptions{})...)
+	if diags.HasError() {
+		return "", api.PostgresRestoreRequest{}, diags
+	}
+
+	body := api.PostgresRestoreRequest{
+		Name:          plan.Name.ValueString(),
+		RestoreTarget: rm.RestoreTarget.ValueString(),
+	}
+	tags, d := planTagsToAPI(ctx, plan.Tags)
+	diags.Append(d...)
+	if tags != nil {
+		body.Tags = *tags
+	}
+	pgConfig, d := planConfigToMap(ctx, plan.PgConfig)
+	diags.Append(d...)
+	pbConfig, d := planConfigToMap(ctx, plan.PgBouncerConfig)
+	diags.Append(d...)
+	if diags.HasError() {
+		return "", api.PostgresRestoreRequest{}, diags
+	}
+	body.PgConfig = pgConfig
+	body.PgBouncerConfig = pbConfig
+	return rm.SourceID.ValueString(), body, diags
+}
+
+// postgresUpdatePlan bundles the two artifacts buildPostgresUpdate produces.
+//
+//   - Body == nil           → no diff; caller skips the PATCH entirely.
+//   - Body != nil           → sparse PATCH body (size, ha_type, tags).
+//   - TransitionExpected    → server processes the mutation as a state
+//     transition (size, ha_type); caller follows up with WaitForPostgresMatch
+//     using buildPostgresMatchPredicate(Body).
 type postgresUpdatePlan struct {
 	Body               *api.PostgresUpdate
 	TransitionExpected bool
 }
 
-// buildPostgresUpdate diffs plan vs state. Tags use the *[]Tag contract:
-// nil = leave alone; &[]{} = clear; &[]{...} = replace.
+// buildPostgresUpdate diffs plan vs state and produces a sparse PATCH body,
+// or Body=nil when nothing changed. See diffTags for the tag contract; the
+// server's PUT-like tag semantics mean we re-assert state tags on any PATCH.
 func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresServiceResourceModel) (postgresUpdatePlan, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	update := api.PostgresUpdate{}
@@ -444,9 +827,7 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		changed = true
 		transitionExpected = true
 	}
-	// PATCH has PUT-like semantics for tags: omitting `tags` from the body
-	// clears them server-side. So whenever size/ha_type change, re-assert
-	// the current tags or they'll be wiped.
+
 	tagsChanged, mappedFromPlan, d := diffTags(ctx, plan, state)
 	diags.Append(d...)
 	if diags.HasError() {
@@ -456,6 +837,8 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		update.Tags = mappedFromPlan
 		changed = true
 	} else if changed {
+		// Tags unchanged but size/ha_type changing — re-assert state tags so
+		// the server's PUT-like tag semantics don't wipe them.
 		preserved, d := planTagsToAPI(ctx, state.Tags)
 		diags.Append(d...)
 		if diags.HasError() {
@@ -474,9 +857,10 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 	return postgresUpdatePlan{Body: &update, TransitionExpected: transitionExpected}, diags
 }
 
-// buildPostgresMatchPredicate returns a predicate that succeeds when
-// state==running AND every PATCHed field reflects the requested value.
-// State-only checks would race Ubicloud's async queue.
+// buildPostgresMatchPredicate returns a predicate for WaitForPostgresMatch that
+// succeeds once the instance is running AND the server reflects the values we
+// PATCHed (size / ha_type / tags). This is field-aware so the wait doesn't
+// settle on a stale 'running' before Ubicloud commits the queued change.
 func buildPostgresMatchPredicate(body *api.PostgresUpdate) func(*api.Postgres) bool {
 	expectSize := body.Size
 	expectHaType := body.HaType
@@ -512,8 +896,9 @@ func buildPostgresMatchPredicate(body *api.PostgresUpdate) func(*api.Postgres) b
 	}
 }
 
-// diffTags returns (changed, body, diags). body is nil for "leave alone"
-// (Unknown or equal); &[]Tag{} for clear-all; &mapped for replace.
+// diffTags compares plan vs state tags. Returns (changed, body): nil body when
+// plan is Unknown (defense against a missing UseStateForUnknown) or equal;
+// &[]Tag{} to clear; &mapped to replace.
 func diffTags(ctx context.Context, plan, state models.PostgresServiceResourceModel) (bool, *[]api.Tag, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if plan.Tags.IsUnknown() {
@@ -534,8 +919,9 @@ func diffTags(ctx context.Context, plan, state models.PostgresServiceResourceMod
 	return true, mapped, diags
 }
 
-// planTagsToAPI returns nil for null/unknown maps (so callers can tell
-// "leave alone" from "explicit empty"); pointer to slice otherwise.
+// planTagsToAPI extracts an *[]api.Tag from a Terraform map(string,string).
+// Returns nil for null/unknown so the caller can distinguish "leave alone"
+// from "explicit empty".
 func planTagsToAPI(ctx context.Context, tagsMap types.Map) (*[]api.Tag, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if tagsMap.IsNull() || tagsMap.IsUnknown() {
@@ -556,6 +942,8 @@ func planTagsToAPI(ctx context.Context, tagsMap types.Map) (*[]api.Tag, diag.Dia
 // syncPostgresState writes a GetPostgres response into the resource model.
 // Builds into a local copy and assigns only on success — a fallible step
 // (apiTagsToMapValue) can return diagnostics without leaving *state half-mutated.
+// Does not touch pg_config / pgbouncer_config; those are synced separately by
+// syncPostgresConfig.
 func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.PostgresServiceResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	out := *state
@@ -629,4 +1017,168 @@ func apiTagsToMapValue(apiTags []api.Tag) (types.Map, diag.Diagnostics) {
 	m, d := types.MapValue(types.StringType, filtered)
 	diags.Append(d...)
 	return m, diags
+}
+
+// ---------------------------------------------------------------------------
+// Config helpers (pg_config / pgbouncer_config)
+// ---------------------------------------------------------------------------
+
+// planConfigToMap extracts an api.PgConfigMap from a pg_config / pgbouncer_config
+// map attribute. Returns nil for null/unknown so the caller can express "no
+// parameters" — ReplacePostgresConfig defaults a nil map to {} on the wire
+// (full replacement / clear).
+func planConfigToMap(ctx context.Context, configMap types.Map) (api.PgConfigMap, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if configMap.IsNull() || configMap.IsUnknown() {
+		return nil, diags
+	}
+	raw := make(map[string]string, len(configMap.Elements()))
+	diags.Append(configMap.ElementsAs(ctx, &raw, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	return api.PgConfigMap(raw), diags
+}
+
+// apiConfigToMapValue converts an api.PgConfigMap into a Terraform string map.
+// An empty/nil map becomes a known empty map (not null), mirroring
+// apiTagsToMapValue, so an Optional+Computed `pg_config = {}` round-trips.
+func apiConfigToMapValue(config api.PgConfigMap) (types.Map, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	// Empty → a known empty map (not null), mirroring apiTagsToMapValue: the
+	// attribute is Optional+Computed, so `pg_config = {}` (clear all params)
+	// must round-trip to an empty map without an inconsistent-result error.
+	elems := make(map[string]attr.Value, len(config))
+	for k, v := range config {
+		elems[k] = types.StringValue(v)
+	}
+	m, d := types.MapValue(types.StringType, elems)
+	diags.Append(d...)
+	return m, diags
+}
+
+// syncPostgresConfig writes a GET/POST /config response into the model's
+// pg_config / pgbouncer_config attributes.
+func syncPostgresConfig(_ context.Context, config *api.PostgresConfig, model *models.PostgresServiceResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	pgMap, d := apiConfigToMapValue(config.PgConfig)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+	pbMap, d := apiConfigToMapValue(config.PgBouncerConfig)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+	model.PgConfig = pgMap
+	model.PgBouncerConfig = pbMap
+	return diags
+}
+
+// postgresConfigUpdate bundles what buildConfigUpdate produces.
+type postgresConfigUpdate struct {
+	Changed bool
+	Body    api.PostgresConfig
+}
+
+// buildConfigUpdate diffs pg_config / pgbouncer_config between plan and state.
+// When EITHER differs, Changed=true with Body carrying BOTH maps from the plan
+// (full replacement). When neither differs, Changed=false.
+func buildConfigUpdate(ctx context.Context, plan, state models.PostgresServiceResourceModel) (postgresConfigUpdate, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if plan.PgConfig.Equal(state.PgConfig) && plan.PgBouncerConfig.Equal(state.PgBouncerConfig) {
+		return postgresConfigUpdate{Changed: false}, diags
+	}
+	pgConfig, d := planConfigToMap(ctx, plan.PgConfig)
+	diags.Append(d...)
+	pbConfig, d := planConfigToMap(ctx, plan.PgBouncerConfig)
+	diags.Append(d...)
+	if diags.HasError() {
+		return postgresConfigUpdate{}, diags
+	}
+	return postgresConfigUpdate{
+		Changed: true,
+		Body:    api.PostgresConfig{PgConfig: pgConfig, PgBouncerConfig: pbConfig},
+	}, diags
+}
+
+// ---------------------------------------------------------------------------
+// Password helpers
+// ---------------------------------------------------------------------------
+
+// postgresPasswordValidators enforces the server's (Ubicloud) complexity
+// rules: ≥12 chars, ≥1 lowercase, ≥1 uppercase, ≥1 digit. Validators fire only
+// on config values, so the server-generated password is never checked.
+func postgresPasswordValidators() []validator.String {
+	return []validator.String{
+		stringvalidator.LengthAtLeast(12),
+		stringvalidator.RegexMatches(regexp.MustCompile(`[a-z]`), "must contain at least one lowercase letter"),
+		stringvalidator.RegexMatches(regexp.MustCompile(`[A-Z]`), "must contain at least one uppercase letter"),
+		stringvalidator.RegexMatches(regexp.MustCompile(`[0-9]`), "must contain at least one digit"),
+	}
+}
+
+// passwordCreateIntent captures what Create should do about the password.
+type passwordCreateIntent struct {
+	Set        bool    // call SetPostgresPassword?
+	Value      string  // value to PATCH (when Set)
+	StateValue *string // value to persist to state.password; nil → store null
+}
+
+// decidePasswordOnCreate resolves the post-create password action. password_wo
+// (write-only, from config) takes precedence over the regular password; if
+// neither is supplied the server-generated value is kept in state.
+func decidePasswordOnCreate(plan, config models.PostgresServiceResourceModel, generated string) passwordCreateIntent {
+	if !config.PasswordWO.IsNull() && !config.PasswordWO.IsUnknown() {
+		if wo := config.PasswordWO.ValueString(); wo != "" {
+			return passwordCreateIntent{Set: true, Value: wo, StateValue: nil}
+		}
+	}
+	if !plan.Password.IsNull() && !plan.Password.IsUnknown() {
+		if pw := plan.Password.ValueString(); pw != "" {
+			v := pw
+			return passwordCreateIntent{Set: true, Value: pw, StateValue: &v}
+		}
+	}
+	if generated != "" {
+		g := generated
+		return passwordCreateIntent{Set: false, StateValue: &g}
+	}
+	return passwordCreateIntent{Set: false, StateValue: nil}
+}
+
+// decidePasswordRotationOnUpdate returns the new password and whether to rotate.
+// A password_wo_version bump rotates to the write-only value; otherwise a
+// change to the regular password rotates to it. The write-only branch wins.
+func decidePasswordRotationOnUpdate(plan, state, config models.PostgresServiceResourceModel) (value string, rotate bool) {
+	if !plan.PasswordWOVersion.IsNull() && !plan.PasswordWOVersion.Equal(state.PasswordWOVersion) {
+		if wo := config.PasswordWO.ValueString(); wo != "" {
+			return wo, true
+		}
+		return "", false
+	}
+	if !plan.Password.IsNull() && !plan.Password.IsUnknown() && !plan.Password.Equal(state.Password) {
+		if pw := plan.Password.ValueString(); pw != "" {
+			return pw, true
+		}
+	}
+	return "", false
+}
+
+// passwordRotationPlanned reports whether a password rotation is planned, used
+// by ModifyPlan to decide whether connection_string must be marked unknown.
+func passwordRotationPlanned(config, plan, state models.PostgresServiceResourceModel) bool {
+	if config.Password.IsUnknown() {
+		return true
+	}
+	if !config.Password.IsNull() && !config.Password.Equal(state.Password) {
+		return true
+	}
+	// Mirror decidePasswordRotationOnUpdate's guard: only a non-null version
+	// bump is a rotation. Without the IsNull check, removing password_wo +
+	// password_wo_version (plan version null, state version set) would mark
+	// connection_string unknown here while decidePasswordRotationOnUpdate does
+	// NOT rotate — a plan/apply inconsistency.
+	return !plan.PasswordWOVersion.IsNull() && !plan.PasswordWOVersion.Equal(state.PasswordWOVersion)
 }

@@ -1,5 +1,3 @@
-//go:build alpha
-
 package resource
 
 // Snapshot of cp-common validator values. Bump in a patch release when the
@@ -32,5 +30,4 @@ const postgresDefaultPort int64 = 5432
 const (
 	postgresDefaultCreateTimeoutSeconds = 30 * 60 // 30m
 	postgresDefaultUpdateTimeoutSeconds = 30 * 60 // 30m
-	postgresDefaultDeleteTimeoutSeconds = 10 * 60 // 10m
 )
