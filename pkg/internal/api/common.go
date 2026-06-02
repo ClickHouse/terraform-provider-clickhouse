@@ -246,8 +246,11 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		backoff.WithMaxElapsedTime(61*time.Second),
 		backoff.WithMultiplier(1),
 	)
+	// Wrap with ctx so cancellation bails the retry loop immediately;
+	// without this the loop runs the full MaxElapsedTime after Ctrl-C.
+	withCtx := backoff.WithContext(backoffSettings, ctx)
 
-	body, err := backoff.RetryWithData[[]byte](makeRequest, backoffSettings)
+	body, err := backoff.RetryWithData[[]byte](makeRequest, withCtx)
 
 	return body, err
 }
