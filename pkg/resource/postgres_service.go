@@ -565,24 +565,19 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	out.CloudProvider = types.StringValue(pg.Provider)
 	out.Region = types.StringValue(pg.Region)
 
-	// Server marks these `omitempty`; preserve prior values on absent fields
-	// rather than overwriting with "" (which breaks `formatdate`/`timeadd`).
+	out.Size = types.StringValue(pg.Size)
+	out.State = types.StringValue(pg.State)
+	out.CreatedAt = types.StringValue(pg.CreatedAt)
+	// postgresVersion / haType / hostname / username / connectionString /
+	// password are schema-optional on PostgresInstanceV1 — preserve prior
+	// values when the server omits them rather than writing empty strings.
 	if pg.PostgresVersion != "" {
 		out.PostgresVersion = types.StringValue(pg.PostgresVersion)
-	}
-	if pg.Size != "" {
-		out.Size = types.StringValue(pg.Size)
 	}
 	if pg.HaType != "" {
 		out.HaType = types.StringValue(pg.HaType)
 	} else {
 		out.HaType = types.StringValue("none")
-	}
-	if pg.State != "" {
-		out.State = types.StringValue(pg.State)
-	}
-	if pg.CreatedAt != "" {
-		out.CreatedAt = types.StringValue(pg.CreatedAt)
 	}
 	out.IsPrimary = types.BoolValue(pg.IsPrimary)
 	if pg.Hostname != "" {

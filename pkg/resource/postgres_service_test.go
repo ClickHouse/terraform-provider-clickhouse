@@ -85,10 +85,11 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 			},
 		},
 		{
-			name: "ha_type empty in server response defaults to 'none'; empty state/created_at leave fields untouched",
+			name: "ha_type empty in server response defaults to 'none'",
 			pg: &api.Postgres{
 				Id: "pg-2", Name: "n", Provider: "aws", Region: "us-east-1",
 				Size: "c6gd.large", HaType: "",
+				State: api.PostgresStateRunning, CreatedAt: "2026-05-27T00:00:00Z",
 				IsPrimary: true,
 			},
 			want: models.PostgresServiceResourceModel{
@@ -98,6 +99,8 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				Region:           types.StringValue("us-east-1"),
 				Size:             types.StringValue("c6gd.large"),
 				HaType:           types.StringValue("none"),
+				State:            types.StringValue(api.PostgresStateRunning),
+				CreatedAt:        types.StringValue("2026-05-27T00:00:00Z"),
 				IsPrimary:        types.BoolValue(true),
 				Hostname:         types.StringNull(),
 				Port:             types.Int64Value(postgresDefaultPort),
@@ -110,7 +113,9 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 			name: "is_primary=false (replica) propagates as false",
 			pg: &api.Postgres{
 				Id: "pg-3", Name: "n", Provider: "aws", Region: "us-east-1",
-				Size: "c6gd.large", IsPrimary: false,
+				Size: "c6gd.large",
+				State: api.PostgresStateRunning, CreatedAt: "2026-05-27T00:00:00Z",
+				IsPrimary: false,
 			},
 			want: models.PostgresServiceResourceModel{
 				ID:               types.StringValue("pg-3"),
@@ -119,6 +124,8 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				Region:           types.StringValue("us-east-1"),
 				Size:             types.StringValue("c6gd.large"),
 				HaType:           types.StringValue("none"),
+				State:            types.StringValue(api.PostgresStateRunning),
+				CreatedAt:        types.StringValue("2026-05-27T00:00:00Z"),
 				IsPrimary:        types.BoolValue(false),
 				Hostname:         types.StringNull(),
 				Port:             types.Int64Value(postgresDefaultPort),
