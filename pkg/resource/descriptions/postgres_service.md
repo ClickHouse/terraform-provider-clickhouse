@@ -24,7 +24,8 @@ The following are intentionally absent from the schema:
   `pgbouncer_config`).
 - User-supplied passwords (`password`, `password_wo`). The server
   generates the password; the resource exposes it as a sensitive
-  computed attribute and persists it in state from the create response.
+  computed attribute, hydrated from the create response and refreshed
+  from each GET.
 - Point-in-time restore (`restore_to_point_in_time`).
 - Read replicas (`read_replica_of`).
 - CA certificate data source.
@@ -58,9 +59,8 @@ bodies — you'll see tags repeated on non-tag mutations.
 
 ## Out-of-band changes
 
-- **Password rotated externally**: the server does not echo the password
-  on `GET`, so a rotation done outside Terraform cannot be detected.
-  Terraform will continue to hold the old value in state.
+- **Password rotated externally**: the next `terraform refresh` syncs
+  the new value into state from the GET response.
 - **Replica promoted externally**: the resource will detect the change
   (`is_primary` flips), but recovery requires `terraform state rm` and
   re-importing as a fresh primary.
@@ -84,26 +84,8 @@ infrastructure shape; operational state changes are API calls.
 terraform import clickhouse_postgres_service.example <postgres-instance-id>
 ```
 
-Post-import, every attribute except `password` is hydrated from the
-server.
-
-> **Password is unrecoverable after import.**
-> The server does not echo the superuser password on `GET`, so
-> `terraform import` cannot retrieve the value the instance was created
-> with. After import:
->
-> - `password` will be null in state.
-> - `connection_string` will contain the password embedded in the URI
->   (the server includes it in the GET response), so the credential is
->   not lost — but Terraform cannot manage it as a standalone attribute
->   without user-supplied password support. Imported instances are
->   effectively read-only via Terraform with respect to the password:
->   any apply that needs to surface the password as the standalone
->   `password` attribute will show drift that cannot be reconciled.
-> - Workaround: parse the password out of `connection_string` externally
->   and store it where your CI/automation needs it. Don't try to set it
->   back into Terraform state by hand — there is no
->   `terraform import`-time hook to do this safely.
+Every attribute including `password` and `connection_string` is
+hydrated from the GET response.
 
 ## Known limitations
 

@@ -143,28 +143,42 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 	}
 }
 
-// syncPostgresState must never clobber state.Password — the server doesn't
-// echo it on GET, so the framework value (written at Create time) is the only
-// source of truth. A regression that overwrites it with empty/null would
-// silently lose the credential.
-func TestPostgresResource_syncPostgresState_preservesPassword(t *testing.T) {
+func TestPostgresResource_syncPostgresState_password(t *testing.T) {
 	ctx := context.Background()
-	const secret = "s3cret-do-not-clobber"
 
-	pre := models.PostgresServiceResourceModel{
-		Password: types.StringValue(secret),
-	}
-	pg := &api.Postgres{
-		Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
-		Size: "c6gd.large", State: api.PostgresStateRunning,
-		IsPrimary: true,
-	}
-	if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
-		t.Fatalf("unexpected diagnostics: %v", diags)
-	}
-	if pre.Password.ValueString() != secret {
-		t.Errorf("Password clobbered: got %q want %q", pre.Password.ValueString(), secret)
-	}
+	t.Run("server echoes password: hydrate from response", func(t *testing.T) {
+		// Import case: state has no password yet; GET returns the credential
+		// so the resource can recover it without re-running Create.
+		var pre models.PostgresServiceResourceModel
+		pg := &api.Postgres{
+			Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
+			Size: "c6gd.large", State: api.PostgresStateRunning, IsPrimary: true,
+			Password: "server-echoed-secret",
+		}
+		if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if pre.Password.ValueString() != "server-echoed-secret" {
+			t.Errorf("Password not hydrated from response: got %q", pre.Password.ValueString())
+		}
+	})
+
+	t.Run("server omits password: preserve prior state", func(t *testing.T) {
+		// If the server ever stops echoing on GET, the Create-time captured
+		// value must survive. Skip-when-empty guards this path.
+		const prior = "prior-state-secret"
+		pre := models.PostgresServiceResourceModel{Password: types.StringValue(prior)}
+		pg := &api.Postgres{
+			Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
+			Size: "c6gd.large", State: api.PostgresStateRunning, IsPrimary: true,
+		}
+		if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if pre.Password.ValueString() != prior {
+			t.Errorf("Password clobbered when server omitted it: got %q want %q", pre.Password.ValueString(), prior)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

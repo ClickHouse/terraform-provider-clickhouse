@@ -192,7 +192,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 
 			// --- Sensitive / write-only -------------------------------------
 			"password": schema.StringAttribute{
-				Description: "Server-generated superuser password. The GET endpoint may not echo it, so the resource captures it from the create response and pins state via UseStateForUnknown so subsequent refreshes don't unset it.",
+				Description: "Server-generated superuser password. Captured from the create response and refreshed from each GET (the server echoes it).",
 				Computed:    true,
 				Sensitive:   true,
 				PlanModifiers: []planmodifier.String{
@@ -270,7 +270,8 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	// GetPostgres may not echo the password; capture it from Create response.
+	// Capture the Create-response password as a fallback; syncPostgresState
+	// will overwrite if the post-Create GET also echoes it.
 	model := plan
 	model.ID = types.StringValue(final.Id)
 	if generatedPassword != "" {
@@ -363,7 +364,6 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	// syncPostgresState intentionally doesn't touch Password; USFU carries it through.
 	resp.Diagnostics.Append(syncPostgresState(ctx, pg, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -646,6 +646,12 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 		out.ConnectionString = types.StringValue(pg.ConnectionString)
 	} else {
 		out.ConnectionString = types.StringNull()
+	}
+	// Password is returned on GET. Hydrate it when present so terraform
+	// import recovers the credential and Read reconciles out-of-band
+	// rotations. Skip when empty so the Create-time capture survives.
+	if pg.Password != "" {
+		out.Password = types.StringValue(pg.Password)
 	}
 
 	tagsValue, d := apiTagsToMapValue(pg.Tags)
