@@ -175,43 +175,8 @@ func TestPostgresResource_syncPostgresState_preservesPassword(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// apiTagsToMapValue — filters chc_ prefix and empty values
+// apiTagsToMapValue — drops empty-value tags
 // ---------------------------------------------------------------------------
-
-func TestApiTagsToMapValue_FiltersSystemTags(t *testing.T) {
-	tags := []api.Tag{
-		{Key: "team", Value: "billing"},
-		{Key: "chc_internal", Value: "system"},
-		{Key: "chc_other", Value: ""},
-		{Key: "env", Value: "prod"},
-	}
-
-	got, diags := apiTagsToMapValue(tags)
-	if diags.HasError() {
-		t.Fatalf("unexpected diagnostics: %v", diags)
-	}
-	if got.IsNull() {
-		t.Fatal("expected non-null map when at least one non-system tag present")
-	}
-
-	elems := got.Elements()
-	if len(elems) != 2 {
-		t.Fatalf("expected 2 user-visible tags after filtering chc_, got %d (%v)", len(elems), elems)
-	}
-
-	if v := elems["team"].(types.String).ValueString(); v != "billing" {
-		t.Errorf("team tag missing or wrong: got %q want %q", v, "billing")
-	}
-	if v := elems["env"].(types.String).ValueString(); v != "prod" {
-		t.Errorf("env tag missing or wrong: got %q want %q", v, "prod")
-	}
-	if _, leaked := elems["chc_internal"]; leaked {
-		t.Errorf("chc_internal leaked into resource state")
-	}
-	if _, leaked := elems["chc_other"]; leaked {
-		t.Errorf("chc_other leaked into resource state")
-	}
-}
 
 func TestApiTagsToMapValue_EmptyServerListReturnsNull(t *testing.T) {
 	got, diags := apiTagsToMapValue(nil)
@@ -220,16 +185,6 @@ func TestApiTagsToMapValue_EmptyServerListReturnsNull(t *testing.T) {
 	}
 	if !got.IsNull() {
 		t.Errorf("expected null map for empty input; got %v", got)
-	}
-}
-
-func TestApiTagsToMapValue_OnlySystemTagsReturnsNull(t *testing.T) {
-	got, diags := apiTagsToMapValue([]api.Tag{{Key: "chc_a", Value: "x"}, {Key: "chc_b", Value: "y"}})
-	if diags.HasError() {
-		t.Fatalf("unexpected diagnostics: %v", diags)
-	}
-	if !got.IsNull() {
-		t.Errorf("expected null map when every server tag is filtered; got %v", got)
 	}
 }
 
@@ -665,62 +620,6 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// notReservedTagPrefixValidator
-// ---------------------------------------------------------------------------
-
-func TestNotReservedTagPrefixValidator(t *testing.T) {
-	ctx := context.Background()
-	v := notReservedTagPrefixValidator{}
-
-	mapKeyPath := func(key string) path.Path {
-		return path.Root("tags").AtMapKey(key)
-	}
-
-	t.Run("accepts non-prefixed key", func(t *testing.T) {
-		resp := &validator.StringResponse{}
-		v.ValidateString(ctx, validator.StringRequest{
-			Path:        mapKeyPath("team"),
-			ConfigValue: types.StringValue("team"),
-		}, resp)
-		if resp.Diagnostics.HasError() {
-			t.Errorf("unexpected error: %v", resp.Diagnostics)
-		}
-	})
-
-	t.Run("rejects chc_ prefixed key", func(t *testing.T) {
-		resp := &validator.StringResponse{}
-		v.ValidateString(ctx, validator.StringRequest{
-			Path:        mapKeyPath("chc_internal"),
-			ConfigValue: types.StringValue("chc_internal"),
-		}, resp)
-		if !resp.Diagnostics.HasError() {
-			t.Errorf("expected diagnostic for chc_-prefixed key")
-		}
-	})
-
-	t.Run("ignores null / unknown values", func(t *testing.T) {
-		resp := &validator.StringResponse{}
-		v.ValidateString(ctx, validator.StringRequest{
-			Path:        mapKeyPath("k"),
-			ConfigValue: types.StringNull(),
-		}, resp)
-		if resp.Diagnostics.HasError() {
-			t.Errorf("null value should not produce diagnostic; got %v", resp.Diagnostics)
-		}
-	})
-
-	t.Run("accepts key whose name is shorter than the prefix", func(t *testing.T) {
-		resp := &validator.StringResponse{}
-		v.ValidateString(ctx, validator.StringRequest{
-			Path:        mapKeyPath("ab"),
-			ConfigValue: types.StringValue("ab"),
-		}, resp)
-		if resp.Diagnostics.HasError() {
-			t.Errorf("short key must not be flagged: %v", resp.Diagnostics)
-		}
-	})
-}
 
 // ---------------------------------------------------------------------------
 // isPostgresStateRunning

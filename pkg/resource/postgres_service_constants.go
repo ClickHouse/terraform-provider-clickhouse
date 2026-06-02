@@ -36,12 +36,6 @@ const (
 	postgresInstanceNameMax = 50
 )
 
-// postgresReservedTagPrefix is the chc_ prefix the server reserves for
-// system-managed tags (ManagedPostgresV1.ts:222). User-supplied tags whose
-// key starts with this prefix are rejected at plan time; tags returned
-// from the server with this prefix are filtered out during Read.
-const postgresReservedTagPrefix = "chc_"
-
 // postgresDefaultPort is the listening port the server uses today.
 // Hardcoded into computed state because the server does not expose a
 // per-instance port in PostgresInstanceV1. Reassess when/if the server

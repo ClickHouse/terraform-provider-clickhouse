@@ -5,8 +5,6 @@ package resource
 import (
 	"context"
 	_ "embed"
-	"fmt"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -131,7 +129,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"tags": schema.MapAttribute{
-				Description: "Resource tags as a key-value map. Keys starting with 'chc_' are reserved by the server and rejected at plan time. Values must be non-empty (the server's PATCH endpoint returns 400 when a tag value is omitted; we mirror that constraint at plan time).",
+				Description: "Resource tags as a key-value map. Values must be non-empty (the server's PATCH endpoint returns 400 when a tag value is omitted; we mirror that constraint at plan time).",
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
@@ -145,17 +143,15 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 				Validators: []validator.Map{
 					// SizeAtLeast(1) rejects explicit `tags = {}` in .tf. The
-					// server → state round-trip collapses empty maps to
-					// MapNull (chc_-filtering can produce an empty filtered
-					// map), so an explicit empty map in config would diff
-					// perpetually against null state. Users wanting no tags
-					// omit the attribute entirely.
+					// server → state round-trip collapses empty server lists
+					// to MapNull, so an explicit empty map in config would
+					// diff perpetually against null state. Users wanting no
+					// tags omit the attribute entirely.
 					mapvalidator.SizeAtLeast(1),
 					// Matches the server's MAX_TAGS_PER_RESOURCE = 50.
 					mapvalidator.SizeAtMost(50),
 					mapvalidator.KeysAre(
 						stringvalidator.LengthAtLeast(1),
-						notReservedTagPrefixValidator{},
 					),
 					mapvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
@@ -669,8 +665,7 @@ func planTagsToAPI(ctx context.Context, tagsMap types.Map) (*[]api.Tag, diag.Dia
 }
 
 // syncPostgresState writes an api.Postgres response into the Terraform
-// state model. Tags returned from the server are filtered to drop the
-// chc_-prefixed ones (server-reserved); the user only ever sees their own.
+// state model.
 func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.PostgresServiceResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -739,17 +734,13 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 }
 
 // apiTagsToMapValue converts an api.Tag slice into the Terraform map of
-// string→string. Drops any tag whose key starts with chc_ (server-reserved)
-// so it never surfaces as drift to the user. Tags with empty values are
-// dropped — the schema requires non-empty values, so a server-side empty
-// value would diff against any user-supplied non-empty value forever.
+// string→string. Tags with empty values are dropped — the schema requires
+// non-empty values, so a server-side empty value would diff against any
+// user-supplied non-empty value forever.
 func apiTagsToMapValue(apiTags []api.Tag) (types.Map, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	filtered := make(map[string]attr.Value, len(apiTags))
 	for _, t := range apiTags {
-		if strings.HasPrefix(t.Key, postgresReservedTagPrefix) {
-			continue
-		}
 		if t.Value == "" {
 			continue
 		}
@@ -761,35 +752,4 @@ func apiTagsToMapValue(apiTags []api.Tag) (types.Map, diag.Diagnostics) {
 	m, d := types.MapValue(types.StringType, filtered)
 	diags.Append(d...)
 	return m, diags
-}
-
-// ---------------------------------------------------------------------------
-// Validators
-// ---------------------------------------------------------------------------
-
-// notReservedTagPrefixValidator rejects tag keys that start with chc_.
-// Implemented as a struct rather than the generic regex-based validators so
-// the error message can name the specific reserved prefix.
-type notReservedTagPrefixValidator struct{}
-
-func (v notReservedTagPrefixValidator) Description(_ context.Context) string {
-	return fmt.Sprintf("Tag key must not start with the reserved prefix %q", postgresReservedTagPrefix)
-}
-
-func (v notReservedTagPrefixValidator) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (v notReservedTagPrefixValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-	key := req.ConfigValue.ValueString()
-	if strings.HasPrefix(key, postgresReservedTagPrefix) {
-		resp.Diagnostics.AddAttributeError(
-			req.Path,
-			"Reserved tag prefix",
-			fmt.Sprintf("Tag key %q starts with the reserved prefix %q. The server rejects tags with this prefix.", key, postgresReservedTagPrefix),
-		)
-	}
 }
