@@ -377,10 +377,11 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 	}
 
 	if updatePlan.TransitionExpected {
-		if err := r.client.WaitForPostgresStateTransitionAndReturn(ctx, state.ID.ValueString(), api.PostgresStateRunning, postgresDefaultUpdateTimeoutSeconds); err != nil {
+		predicate := buildPostgresMatchPredicate(updatePlan.Body)
+		if err := r.client.WaitForPostgresMatch(ctx, state.ID.ValueString(), predicate, postgresDefaultUpdateTimeoutSeconds); err != nil {
 			resp.Diagnostics.AddError(
-				"Error waiting for Postgres service to settle after update",
-				"Could not confirm Postgres service "+state.ID.ValueString()+" returned to 'running': "+err.Error(),
+				"Error waiting for Postgres service to apply the requested update",
+				"Could not confirm Postgres service "+state.ID.ValueString()+" reflects the PATCH values: "+err.Error(),
 			)
 			return
 		}
@@ -525,7 +526,8 @@ func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResour
 //     fields (size, ha_type, tags).
 //   - TransitionExpected    → the server processes the mutation as a state
 //     transition (size, ha_type); caller should
-//     follow up with WaitForPostgresStateTransitionAndReturn.
+//     follow up with WaitForPostgresMatch using
+//     buildPostgresMatchPredicate(Body).
 type postgresUpdatePlan struct {
 	Body               *api.PostgresUpdate
 	TransitionExpected bool
@@ -609,6 +611,52 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		return postgresUpdatePlan{}, diags
 	}
 	return postgresUpdatePlan{Body: &update, TransitionExpected: transitionExpected}, diags
+}
+
+// buildPostgresMatchPredicate produces the *Postgres predicate that
+// WaitForPostgresMatch polls against. The predicate succeeds when the server
+// reports state=running AND every field we PATCHed reflects what we sent.
+//
+// Pairing the state check with field-value checks is what closes the
+// post-PATCH race: the server returns 200 and keeps state=running while
+// Ubicloud queues the work, so a state-only wait would race the actual
+// commit. Field checks fail until the queued work lands.
+//
+// For tags: order-insensitive comparison via map equality. An empty
+// PATCH-tags slice (clear-all) matches when server reports zero tags.
+func buildPostgresMatchPredicate(body *api.PostgresUpdate) func(*api.Postgres) bool {
+	expectSize := body.Size
+	expectHaType := body.HaType
+	var expectTags map[string]string
+	tagsRequested := body.Tags != nil
+	if tagsRequested {
+		expectTags = make(map[string]string, len(*body.Tags))
+		for _, t := range *body.Tags {
+			expectTags[t.Key] = t.Value
+		}
+	}
+	return func(pg *api.Postgres) bool {
+		if pg.State != api.PostgresStateRunning {
+			return false
+		}
+		if expectSize != "" && pg.Size != expectSize {
+			return false
+		}
+		if expectHaType != "" && pg.HaType != expectHaType {
+			return false
+		}
+		if tagsRequested {
+			if len(pg.Tags) != len(expectTags) {
+				return false
+			}
+			for _, t := range pg.Tags {
+				if want, ok := expectTags[t.Key]; !ok || want != t.Value {
+					return false
+				}
+			}
+		}
+		return true
+	}
 }
 
 // diffTags compares the plan's tags attribute against the state's, returning:

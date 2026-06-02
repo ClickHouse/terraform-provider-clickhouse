@@ -615,6 +615,84 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 }
 
+// ---------------------------------------------------------------------------
+// buildPostgresMatchPredicate
+// ---------------------------------------------------------------------------
+
+func TestBuildPostgresMatchPredicate(t *testing.T) {
+	t.Run("size-only PATCH: predicate matches when size and state are correct", func(t *testing.T) {
+		body := &api.PostgresUpdate{Size: "r6gd.xlarge"}
+		predicate := buildPostgresMatchPredicate(body)
+		if !predicate(&api.Postgres{State: api.PostgresStateRunning, Size: "r6gd.xlarge"}) {
+			t.Error("should match when size+state align")
+		}
+		if predicate(&api.Postgres{State: api.PostgresStateRunning, Size: "r6gd.large"}) {
+			t.Error("must NOT match while size is still pre-PATCH value (queued-work race case)")
+		}
+		if predicate(&api.Postgres{State: api.PostgresStateRestarting, Size: "r6gd.xlarge"}) {
+			t.Error("must NOT match while state is non-terminal")
+		}
+	})
+
+	t.Run("ha_type-only PATCH: only ha_type is gated", func(t *testing.T) {
+		body := &api.PostgresUpdate{HaType: "async"}
+		predicate := buildPostgresMatchPredicate(body)
+		if !predicate(&api.Postgres{State: api.PostgresStateRunning, HaType: "async", Size: "r6gd.large"}) {
+			t.Error("should match regardless of size when only ha_type was PATCHed")
+		}
+		if predicate(&api.Postgres{State: api.PostgresStateRunning, HaType: "none"}) {
+			t.Error("must NOT match while ha_type is still pre-PATCH value")
+		}
+	})
+
+	t.Run("tags-only PATCH: exact tag set must be present", func(t *testing.T) {
+		body := &api.PostgresUpdate{Tags: &[]api.Tag{{Key: "team", Value: "billing"}, {Key: "env", Value: "dev"}}}
+		predicate := buildPostgresMatchPredicate(body)
+		if !predicate(&api.Postgres{State: api.PostgresStateRunning, Tags: []api.Tag{{Key: "team", Value: "billing"}, {Key: "env", Value: "dev"}}}) {
+			t.Error("should match when tags are equal (order-insensitive)")
+		}
+		if !predicate(&api.Postgres{State: api.PostgresStateRunning, Tags: []api.Tag{{Key: "env", Value: "dev"}, {Key: "team", Value: "billing"}}}) {
+			t.Error("should match when tags are equal but in different order")
+		}
+		if predicate(&api.Postgres{State: api.PostgresStateRunning, Tags: []api.Tag{{Key: "team", Value: "billing"}}}) {
+			t.Error("must NOT match when a tag is missing")
+		}
+		if predicate(&api.Postgres{State: api.PostgresStateRunning, Tags: []api.Tag{{Key: "team", Value: "ops"}, {Key: "env", Value: "dev"}}}) {
+			t.Error("must NOT match when a tag value differs")
+		}
+	})
+
+	t.Run("clear-all tags: matches only when server reports zero tags", func(t *testing.T) {
+		empty := []api.Tag{}
+		body := &api.PostgresUpdate{Tags: &empty}
+		predicate := buildPostgresMatchPredicate(body)
+		if !predicate(&api.Postgres{State: api.PostgresStateRunning}) {
+			t.Error("should match when server has no tags")
+		}
+		if predicate(&api.Postgres{State: api.PostgresStateRunning, Tags: []api.Tag{{Key: "team", Value: "billing"}}}) {
+			t.Error("must NOT match while server still reports the cleared tags")
+		}
+	})
+
+	t.Run("combined PATCH: all fields must match simultaneously", func(t *testing.T) {
+		body := &api.PostgresUpdate{
+			Size:   "r6gd.xlarge",
+			HaType: "async",
+			Tags:   &[]api.Tag{{Key: "team", Value: "billing"}},
+		}
+		predicate := buildPostgresMatchPredicate(body)
+		if !predicate(&api.Postgres{State: api.PostgresStateRunning, Size: "r6gd.xlarge", HaType: "async", Tags: []api.Tag{{Key: "team", Value: "billing"}}}) {
+			t.Error("should match when every PATCHed field reflects the request")
+		}
+		// Each partial commit must keep the predicate false (the race-trigger case).
+		if predicate(&api.Postgres{State: api.PostgresStateRunning, Size: "r6gd.xlarge", HaType: "none", Tags: []api.Tag{{Key: "team", Value: "billing"}}}) {
+			t.Error("must NOT match while ha_type still pending")
+		}
+		if predicate(&api.Postgres{State: api.PostgresStateRunning, Size: "r6gd.large", HaType: "async", Tags: []api.Tag{{Key: "team", Value: "billing"}}}) {
+			t.Error("must NOT match while size still pending")
+		}
+	})
+}
 
 // ---------------------------------------------------------------------------
 // isPostgresStateRunning
