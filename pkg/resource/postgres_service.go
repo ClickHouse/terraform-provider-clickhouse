@@ -679,12 +679,12 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	state.CloudProvider = types.StringValue(pg.Provider)
 	state.Region = types.StringValue(pg.Region)
 
-	// Preserve prior state on empty-string responses for postgres_version
-	// and size. Both are RequiresReplace; overwriting with "" would silently
-	// corrupt the tracking value if the server ever omits them mid-
-	// transition. The trade-off is detectable drift only via integration
-	// testing — debuggers chasing "state lies about its actual server-side
-	// value" should look here first.
+	// Preserve prior state on empty-string responses. The server marks these
+	// fields `omitempty`; mid-transition GETs can omit them. Overwriting with
+	// "" would silently corrupt tracked values — `state = ""` confuses
+	// debuggers, and `created_at = ""` breaks downstream `formatdate` /
+	// `timeadd` in user configs. Debuggers chasing "state lies about its
+	// actual server-side value" should look here first.
 	if pg.PostgresVersion != "" {
 		state.PostgresVersion = types.StringValue(pg.PostgresVersion)
 	}
@@ -696,8 +696,12 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	} else {
 		state.HaType = types.StringValue("none")
 	}
-	state.State = types.StringValue(pg.State)
-	state.CreatedAt = types.StringValue(pg.CreatedAt)
+	if pg.State != "" {
+		state.State = types.StringValue(pg.State)
+	}
+	if pg.CreatedAt != "" {
+		state.CreatedAt = types.StringValue(pg.CreatedAt)
+	}
 	// IsPrimary fallback: this resource only ever provisions primaries, so
 	// defaulting nil to true is safe today. Once read replicas exist as a
 	// resource attribute, this fallback must change — a replica whose

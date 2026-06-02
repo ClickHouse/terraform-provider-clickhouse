@@ -92,7 +92,7 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 			},
 		},
 		{
-			name: "ha_type empty in server response defaults to 'none'",
+			name: "ha_type empty in server response defaults to 'none'; empty state/created_at leave fields untouched",
 			pg: &api.Postgres{
 				Id: "pg-2", Name: "n", Provider: "aws", Region: "us-east-1",
 				Size: "c6gd.large", HaType: "",
@@ -105,8 +105,6 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				Region:           types.StringValue("us-east-1"),
 				Size:             types.StringValue("c6gd.large"),
 				HaType:           types.StringValue("none"),
-				State:            types.StringValue(""),
-				CreatedAt:        types.StringValue(""),
 				IsPrimary:        types.BoolValue(true),
 				Hostname:         types.StringNull(),
 				Port:             types.Int64Value(postgresDefaultPort),
@@ -128,8 +126,6 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				Region:           types.StringValue("us-east-1"),
 				Size:             types.StringValue("c6gd.large"),
 				HaType:           types.StringValue("none"),
-				State:            types.StringValue(""),
-				CreatedAt:        types.StringValue(""),
 				IsPrimary:        types.BoolValue(true),
 				Hostname:         types.StringNull(),
 				Port:             types.Int64Value(postgresDefaultPort),
@@ -151,6 +147,30 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				t.Errorf("syncPostgresState mismatch\n got = %#v\nwant = %#v", got, tt.want)
 			}
 		})
+	}
+}
+
+// syncPostgresState must never clobber state.Password — the server doesn't
+// echo it on GET, so the framework value (written at Create time) is the only
+// source of truth. A regression that overwrites it with empty/null would
+// silently lose the credential.
+func TestPostgresResource_syncPostgresState_preservesPassword(t *testing.T) {
+	ctx := context.Background()
+	const secret = "s3cret-do-not-clobber"
+
+	pre := models.PostgresServiceResourceModel{
+		Password: types.StringValue(secret),
+	}
+	pg := &api.Postgres{
+		Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
+		Size: "c6gd.large", State: api.PostgresStateRunning,
+		IsPrimary: boolPtrPG(true),
+	}
+	if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if pre.Password.ValueString() != secret {
+		t.Errorf("Password clobbered: got %q want %q", pre.Password.ValueString(), secret)
 	}
 }
 
@@ -749,6 +769,7 @@ func modelsEqual(t *testing.T, got, want models.PostgresServiceResourceModel) bo
 		{"Username", got.Username, want.Username},
 		{"ConnectionString", got.ConnectionString, want.ConnectionString},
 		{"Tags", got.Tags, want.Tags},
+		{"Password", got.Password, want.Password},
 	}
 	ok := true
 	for _, p := range pairs {
