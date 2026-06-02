@@ -34,15 +34,10 @@ var (
 //go:embed descriptions/postgres_service.md
 var postgresServiceResourceDescription string
 
-// NewPostgresServiceResource constructs the alpha-tagged Postgres resource.
-// Registered in pkg/resource/register_debug.go.
 func NewPostgresServiceResource() resource.Resource {
 	return &PostgresServiceResource{}
 }
 
-// PostgresServiceResource manages a ClickHouse Cloud Managed Postgres
-// instance via the api.Client interface. See the embedded description for
-// scope and limitations.
 type PostgresServiceResource struct {
 	client api.Client
 }
@@ -115,12 +110,8 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Description: "High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = \"none\"' explicitly.",
 				Optional:    true,
 				Computed:    true,
-				// No schema-level Default("none"): the server applies "none"
-				// by default on Create when omitted, AND a Default would also
-				// fire when the user later deletes the line on an existing
-				// resource — silently downgrading HA from "async"/"sync" to
-				// "none". UseStateForUnknown preserves the prior state on
-				// omission; explicit "none" still downgrades.
+				// No Default("none"): would silently downgrade HA when the
+				// user later deletes the line on an existing resource.
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -129,33 +120,21 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"tags": schema.MapAttribute{
-				Description: "Resource tags as a key-value map. Values must be non-empty (the server's PATCH endpoint returns 400 when a tag value is omitted; we mirror that constraint at plan time).",
+				Description: "Resource tags as a key-value map. Values must be non-empty (server's PATCH returns 400 on omitted value).",
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.Map{
-					// Without UseStateForUnknown, framework marks tags as
-					// Unknown in every plan (Optional+Computed semantics)
-					// and Update would PATCH "tags": [] on every apply that
-					// touches any other attribute — silent data loss for any
-					// user with tags set.
+					// Without USFU, Update would PATCH "tags": [] on every
+					// apply that touches any other attribute → silent loss.
 					mapplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.Map{
-					// SizeAtLeast(1) rejects explicit `tags = {}` in .tf. The
-					// server → state round-trip collapses empty server lists
-					// to MapNull, so an explicit empty map in config would
-					// diff perpetually against null state. Users wanting no
-					// tags omit the attribute entirely.
+					// Rejects `tags = {}` in .tf; null state would diff against it forever.
 					mapvalidator.SizeAtLeast(1),
-					// Matches the server's MAX_TAGS_PER_RESOURCE = 50.
-					mapvalidator.SizeAtMost(50),
-					mapvalidator.KeysAre(
-						stringvalidator.LengthAtLeast(1),
-					),
-					mapvalidator.ValueStringsAre(
-						stringvalidator.LengthAtLeast(1),
-					),
+					mapvalidator.SizeAtMost(50), // server MAX_TAGS_PER_RESOURCE
+					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
+					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
 				},
 			},
 
@@ -164,13 +143,8 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Description: "Server-reported state. Examples: 'creating', 'running', 'restarting', 'unavailable', 'deleting'. Forward-compatible: unknown values from the server are surfaced verbatim.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					// Without UseStateForUnknown, every plan would mark state
-					// as (known after apply), forcing an Update on every apply
-					// — and the no-op Update branch would write the Unknown
-					// straight back to state, which the framework rejects as
-					// "Provider produced inconsistent result after apply."
-					// Drift is still detected on Read/refresh; USFU only
-					// affects planning.
+					// Without USFU, planner marks state as known-after-apply
+					// on no-op applies, framework rejects the round-trip.
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
@@ -246,12 +220,9 @@ func (r *PostgresServiceResource) Configure(_ context.Context, req resource.Conf
 	r.client = client
 }
 
-// Create provisions a new Postgres instance.
-//
-// Between the POST and the wait-for-running poll, the resource writes a
-// partial state containing just id + server-generated password. That way
-// a failure mid-wait leaves a state Terraform can reconcile against,
-// rather than orphaning the server resource.
+// Create writes a partial state (id + password) before the wait poll so a
+// mid-wait failure leaves a reconcilable state rather than orphaning the
+// server resource.
 func (r *PostgresServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -301,8 +272,7 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	// GetPostgres may not echo the password, so the create-time response is
-	// the only place to capture it.
+	// GetPostgres may not echo the password; capture it from Create response.
 	model := plan
 	model.ID = types.StringValue(final.Id)
 	if generatedPassword != "" {
@@ -345,9 +315,8 @@ func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Update applies in-place mutations for size, ha_type, and tags. All other
-// attributes that can change at all are RequiresReplace; password is not
-// mutable by this resource.
+// Update applies in-place mutations for size, ha_type, and tags. Everything
+// else is RequiresReplace; password isn't mutable here.
 func (r *PostgresServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan, state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -396,10 +365,7 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	// password is Computed with UseStateForUnknown — the framework already
-	// carries the prior state value through to plan. syncPostgresState
-	// intentionally does not touch model.Password, so the prior value
-	// survives this final state write unchanged.
+	// syncPostgresState intentionally doesn't touch Password; USFU carries it through.
 	resp.Diagnostics.Append(syncPostgresState(ctx, pg, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -407,8 +373,7 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-// Delete is a thin wrapper around DeletePostgres, which owns the
-// 404-idempotent / 409-retry machinery.
+// Delete wraps DeletePostgres (which owns 404-idempotent / 409-retry behavior).
 func (r *PostgresServiceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -436,20 +401,13 @@ func (r *PostgresServiceResource) ImportState(ctx context.Context, req resource.
 // Helpers
 // ---------------------------------------------------------------------------
 
-// isPostgresStateRunning is the state-checker passed to WaitForPostgresState.
-// Forward-compatible: anything other than 'running' is treated as still
-// transitioning, including server states the provider hasn't learned yet.
+// isPostgresStateRunning treats any non-running value as still-transitioning
+// (forward-compatible with new server states).
 func isPostgresStateRunning(s string) bool { return s == api.PostgresStateRunning }
 
-// buildPartialCreateState produces the intermediate model written to state
-// between the CreatePostgres response and the post-wait re-read. It captures
-// the two values that can't be recovered later (id + server-generated
-// password) and explicitly nulls every other computed attribute so the
-// plugin-framework state-write validator accepts the mid-Create write.
-//
-// Extracted into its own helper rather than inlined in Create so the
-// state-shape contract is unit-testable without constructing synthetic
-// tfsdk.Plan / tfsdk.State values.
+// buildPartialCreateState builds the mid-Create state write (id + password
+// + nulls for every other computed field). The framework rejects the write
+// if any computed field is left as zero-value.
 func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.Postgres, generatedPassword string) models.PostgresServiceResourceModel {
 	partial := plan
 	partial.ID = types.StringValue(pg.Id)
@@ -458,8 +416,6 @@ func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.P
 	} else {
 		partial.Password = types.StringNull()
 	}
-	// Every other computed attribute must be explicitly null (not zero-value),
-	// or the framework rejects the state write mid-Create.
 	partial.State = types.StringNull()
 	partial.CreatedAt = types.StringNull()
 	partial.IsPrimary = types.BoolNull()
@@ -467,9 +423,6 @@ func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.P
 	partial.Port = types.Int64Null()
 	partial.Username = types.StringNull()
 	partial.ConnectionString = types.StringNull()
-	// HaType / PostgresVersion came in from the plan; the computed-side may
-	// still be Unknown if the user didn't set them. Pin to the value the
-	// server returned in the create response (typically "none" for HaType).
 	if partial.HaType.IsUnknown() {
 		if pg.HaType != "" {
 			partial.HaType = types.StringValue(pg.HaType)
@@ -480,16 +433,12 @@ func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.P
 	if partial.PostgresVersion.IsUnknown() {
 		partial.PostgresVersion = types.StringValue(pg.PostgresVersion)
 	}
-	// Tags is Optional+Computed — if the user didn't set any, hold null until
-	// the post-wait re-read populates it. If the user set tags, keep them.
 	if partial.Tags.IsUnknown() {
 		partial.Tags = types.MapNull(types.StringType)
 	}
 	return partial
 }
 
-// planToPostgresCreate maps a fully-resolved plan into the wire shape.
-// Tags use a value-by-value walk so the cmp.Diff in tests sees a stable order.
 func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResourceModel) (api.PostgresCreate, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -518,33 +467,15 @@ func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResour
 	return body, diags
 }
 
-// postgresUpdatePlan bundles the two artifacts buildPostgresUpdate produces
-// so the call site doesn't have to remember positional bool semantics.
-//
-//   - Body == nil           → no diff; caller skips the API call entirely.
-//   - Body != nil           → sparse PATCH body containing only the changed
-//     fields (size, ha_type, tags).
-//   - TransitionExpected    → the server processes the mutation as a state
-//     transition (size, ha_type); caller should
-//     follow up with WaitForPostgresMatch using
-//     buildPostgresMatchPredicate(Body).
+// postgresUpdatePlan: Body nil = no diff; TransitionExpected = caller must
+// follow PATCH with WaitForPostgresMatch.
 type postgresUpdatePlan struct {
 	Body               *api.PostgresUpdate
 	TransitionExpected bool
 }
 
-// buildPostgresUpdate diffs plan vs state and produces a sparse PATCH body,
-// or returns Body=nil when nothing actually changed.
-//
-// Tags use the api.PostgresUpdate.Tags *[]Tag contract: nil means "leave
-// server-side tags alone"; pointer to empty slice means "clear all tags";
-// pointer to non-empty slice means "replace". A zero-value *[]Tag must
-// NEVER be sent — it would marshal as an omitted field and silently fail
-// to clear tags.
-//
-// Plan.Tags == Unknown is handled specially (see inline comment) so a
-// regression in the schema's UseStateForUnknown plan modifier cannot
-// cause silent server-side tag loss.
+// buildPostgresUpdate diffs plan vs state. Tags use the *[]Tag contract:
+// nil = leave alone; &[]{} = clear; &[]{...} = replace.
 func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresServiceResourceModel) (postgresUpdatePlan, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	update := api.PostgresUpdate{}
@@ -561,48 +492,24 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		changed = true
 		transitionExpected = true
 	}
-	// Tags handling.
-	//
-	// The Postgres PATCH endpoint has PUT-like semantics for the tags field:
-	// if the request body omits `tags`, the server clears them server-side.
-	// This is asymmetric with size/ha_type, which the server preserves when
-	// omitted. Implication: whenever we PATCH any field, we must also
-	// include the current tags in the body, or they'll be silently wiped.
-	//
-	// Plan-state combinations:
-	//   - Unknown plan tags + populated state -> include state.Tags (defense
-	//     against UseStateForUnknown regression).
-	//   - plan == state (no diff) + other field changes -> include state.Tags.
-	//   - plan null + state populated -> send tags: [] (clear).
-	//   - plan populated + plan != state -> send mapped slice.
-	//   - plan null + state null -> leave update.Tags nil.
-	//
-	// Funnelled through diffTags + a state-reassert branch below. Tags only
-	// gets set on update when the PATCH is actually going to be sent
-	// (`changed == true`); a no-op return leaves Tags nil.
+	// PATCH has PUT-like semantics for tags: omitting `tags` from the body
+	// clears them server-side. So whenever size/ha_type change, re-assert
+	// the current tags or they'll be wiped.
 	tagsChanged, mappedFromPlan, d := diffTags(ctx, plan, state)
 	diags.Append(d...)
 	if diags.HasError() {
 		return postgresUpdatePlan{}, diags
 	}
 	if tagsChanged {
-		// Plan vs. state differs — adopt the plan's tag intent verbatim
-		// (whether that's clear-all or replace).
 		update.Tags = mappedFromPlan
 		changed = true
 	} else if changed {
-		// Tags are unchanged but size or ha_type IS changing. Defend
-		// against server-side PUT-like tag semantics by re-asserting the
-		// current state tags in the PATCH body.
 		preserved, d := planTagsToAPI(ctx, state.Tags)
 		diags.Append(d...)
 		if diags.HasError() {
 			return postgresUpdatePlan{}, diags
 		}
-		if preserved == nil {
-			// No tags in state — nothing to preserve. Leave update.Tags
-			// nil; server has no tags to clear, so omitting is safe.
-		} else {
+		if preserved != nil {
 			update.Tags = preserved
 		}
 	}
@@ -613,17 +520,9 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 	return postgresUpdatePlan{Body: &update, TransitionExpected: transitionExpected}, diags
 }
 
-// buildPostgresMatchPredicate produces the *Postgres predicate that
-// WaitForPostgresMatch polls against. The predicate succeeds when the server
-// reports state=running AND every field we PATCHed reflects what we sent.
-//
-// Pairing the state check with field-value checks is what closes the
-// post-PATCH race: the server returns 200 and keeps state=running while
-// Ubicloud queues the work, so a state-only wait would race the actual
-// commit. Field checks fail until the queued work lands.
-//
-// For tags: order-insensitive comparison via map equality. An empty
-// PATCH-tags slice (clear-all) matches when server reports zero tags.
+// buildPostgresMatchPredicate returns a predicate that succeeds when
+// state==running AND every PATCHed field reflects the requested value.
+// State-only checks would race Ubicloud's async queue.
 func buildPostgresMatchPredicate(body *api.PostgresUpdate) func(*api.Postgres) bool {
 	expectSize := body.Size
 	expectHaType := body.HaType
@@ -659,18 +558,8 @@ func buildPostgresMatchPredicate(body *api.PostgresUpdate) func(*api.Postgres) b
 	}
 }
 
-// diffTags compares the plan's tags attribute against the state's, returning:
-//   - changed: true if the plan represents a different tag intent than state.
-//   - body:    the *[]api.Tag to put in the PATCH body when the caller chooses
-//     to send the diff. nil if plan.Tags is Unknown (treat as
-//     "no diff" — defense-in-depth against missing UseStateForUnknown).
-//
-// Cases:
-//   - Plan Unknown -> changed=false, body=nil. Caller should NOT touch tags
-//     (covered by the UseStateForUnknown plan modifier in normal operation).
-//   - Plan == state -> changed=false, body=nil.
-//   - Plan null, state populated -> changed=true, body=&[]Tag{} (clear).
-//   - Plan populated, plan != state -> changed=true, body=&mapped.
+// diffTags returns (changed, body, diags). body is nil for "leave alone"
+// (Unknown or equal); &[]Tag{} for clear-all; &mapped for replace.
 func diffTags(ctx context.Context, plan, state models.PostgresServiceResourceModel) (bool, *[]api.Tag, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if plan.Tags.IsUnknown() {
@@ -691,10 +580,8 @@ func diffTags(ctx context.Context, plan, state models.PostgresServiceResourceMod
 	return true, mapped, diags
 }
 
-// planTagsToAPI extracts an *[]api.Tag from a Terraform map(string,string)
-// attribute. Returns nil when the attribute is null/unknown (caller can
-// distinguish "leave alone" from "explicit empty"); returns a pointer to
-// the materialized slice otherwise.
+// planTagsToAPI returns nil for null/unknown maps (so callers can tell
+// "leave alone" from "explicit empty"); pointer to slice otherwise.
 func planTagsToAPI(ctx context.Context, tagsMap types.Map) (*[]api.Tag, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if tagsMap.IsNull() || tagsMap.IsUnknown() {
@@ -712,8 +599,7 @@ func planTagsToAPI(ctx context.Context, tagsMap types.Map) (*[]api.Tag, diag.Dia
 	return &out, diags
 }
 
-// syncPostgresState writes an api.Postgres response into the Terraform
-// state model.
+// syncPostgresState writes a GetPostgres response into the resource model.
 func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.PostgresServiceResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -722,12 +608,8 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	state.CloudProvider = types.StringValue(pg.Provider)
 	state.Region = types.StringValue(pg.Region)
 
-	// Preserve prior state on empty-string responses. The server marks these
-	// fields `omitempty`; mid-transition GETs can omit them. Overwriting with
-	// "" would silently corrupt tracked values — `state = ""` confuses
-	// debuggers, and `created_at = ""` breaks downstream `formatdate` /
-	// `timeadd` in user configs. Debuggers chasing "state lies about its
-	// actual server-side value" should look here first.
+	// Server marks these `omitempty`; preserve prior values on absent fields
+	// rather than overwriting with "" (which breaks `formatdate`/`timeadd`).
 	if pg.PostgresVersion != "" {
 		state.PostgresVersion = types.StringValue(pg.PostgresVersion)
 	}
@@ -773,10 +655,8 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	return diags
 }
 
-// apiTagsToMapValue converts an api.Tag slice into the Terraform map of
-// string→string. Tags with empty values are dropped — the schema requires
-// non-empty values, so a server-side empty value would diff against any
-// user-supplied non-empty value forever.
+// apiTagsToMapValue maps []api.Tag → types.Map. Drops empty-value tags
+// (schema requires non-empty values).
 func apiTagsToMapValue(apiTags []api.Tag) (types.Map, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	filtered := make(map[string]attr.Value, len(apiTags))

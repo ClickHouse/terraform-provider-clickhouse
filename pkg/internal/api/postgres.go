@@ -14,24 +14,19 @@ import (
 	"github.com/cenkalti/backoff/v4"
 )
 
-// Sentinel errors distinguishing "poll succeeded but target not yet met"
-// (legitimate retry/timeout) from real GetPostgres errors (must propagate).
+// Sentinel errors for retry-vs-propagate disambiguation.
 var (
 	errPostgresStateUnchanged    = errors.New("postgres state unchanged from terminal")
 	errPostgresStateNotYetTarget = errors.New("postgres state checker not yet true")
 )
 
-// Retry budgets. Overridable per-call via the *WithBudget / *WithInterval
-// helpers so unit tests can run in milliseconds.
+// Retry budgets. Overridable via *WithInterval helpers for tests.
 var (
 	postgresDeleteRetryInterval        = 10 * time.Second
-	postgresDeleteRetryAttempts uint64 = 90 // 90 × 10s = 15 minutes
+	postgresDeleteRetryAttempts uint64 = 90 // 90 × 10s = 15m
 	postgresStatePollInterval          = 5 * time.Second
-	// postgresStateSettleDuration is how long the predicate must continuously
-	// hold before WaitForPostgresMatch declares success. Bounds transient
-	// false-positives (server briefly reports target state during a multi-step
-	// transition) by requiring the match to persist across multiple polls.
-	// 15s = 3 × postgresStatePollInterval.
+	// Predicate must hold this long before WaitForPostgresMatch succeeds —
+	// rejects transient matches during multi-step transitions. 15s = 3 polls.
 	postgresStateSettleDuration = 15 * time.Second
 )
 
@@ -39,8 +34,7 @@ var (
 // GET / LIST
 // ---------------------------------------------------------------------------
 
-// GetPostgres fetches a single Postgres instance by ID. A 404 response yields
-// an error for which IsNotFound returns true.
+// GetPostgres fetches an instance by ID. 404 → IsNotFound(err) == true.
 func (c *ClientImpl) GetPostgres(ctx context.Context, postgresId string) (*Postgres, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getPostgresPath(postgresId, ""), nil)
 	if err != nil {
@@ -159,15 +153,12 @@ func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId 
 	return backoff.Retry(deleteOnce, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
 }
 
-// errIndicatesDependentReplica fails fast on 409s caused by a read replica
-// blocking primary deletion. AND-conjunction (not OR) avoids false-positives
-// on transient conflicts like "replication slot exists" that retry resolves.
+// errIndicatesDependentReplica: fail-fast on 409s where a replica blocks
+// the primary delete. AND of "depend" + "replica" avoids false-positives
+// on retriable 409s like "replication slot exists".
 //
-// FIXME: the keyword list is speculative — no real dev-cluster response has
-// been captured yet. Once an integration test provisions a primary + replica
-// and triggers a real 409, anchor this to a structured errorCode/reason field
-// or the exact wording with a regression test. Until then, a real dependent-
-// replica delete burns the full 15-min retry budget instead of failing fast.
+// FIXME: keyword list is speculative; no real 409 captured yet. Anchor to
+// a structured errorCode once integration tests cover it.
 func errIndicatesDependentReplica(err error) bool {
 	if err == nil {
 		return false
@@ -183,25 +174,13 @@ func errIndicatesDependentReplica(err error) bool {
 // WAIT helpers
 // ---------------------------------------------------------------------------
 
-// WaitForPostgresState polls GetPostgres every 5s until stateChecker returns
-// true. 5xx bails permanently; other GetPostgres errors propagate verbatim;
-// budget exhaustion surfaces the last seen state.
-//
-// maxWaitSeconds is a retry-count × poll-interval budget, NOT a wall-clock
-// deadline — slow API responses push real elapsed time beyond the nominal
-// limit. Size the resource `timeouts {}` block accordingly.
+// WaitForPostgresState polls GetPostgres until stateChecker matches. 5xx
+// bails permanently; budget is retry-count × poll, not wall-clock.
 func (c *ClientImpl) WaitForPostgresState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) error {
 	return c.waitForPostgresStateWithInterval(ctx, postgresId, stateChecker, postgresStatePollInterval, uint64(maxWaitSeconds/int(postgresStatePollInterval/time.Second))) //nolint:gosec
 }
 
 // waitForPostgresStateWithInterval is the test seam for WaitForPostgresState.
-//
-// check return values:
-//
-//	nil                          -> stateChecker matched; success
-//	errPostgresStateNotYetTarget -> polled OK, target not yet hit; retry
-//	backoff.Permanent(realErr)   -> 5xx; bail immediately
-//	any other err                -> 4xx/transport/cancel; retry then bail
 func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postgresId string, stateChecker func(string) bool, interval time.Duration, maxRetries uint64) error {
 	var lastSeenState string
 	check := func() error {
@@ -227,28 +206,13 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 	if errors.Is(err, errPostgresStateNotYetTarget) {
 		return fmt.Errorf("postgres %s did not reach the expected state in the allocated time (last seen state: %s)", postgresId, lastSeenState)
 	}
-	// Real GetPostgres error — propagate so callers can react via IsNotFound etc.
 	return err
 }
 
 // WaitForPostgresMatch polls until predicate returns true for settleRetries
-// consecutive polls. Pairs the state-machine check with a content check so
-// callers can confirm post-PATCH that the server has actually applied the
-// requested values, not just transitioned through some state.
-//
-// Background: the Postgres PATCH endpoint acks before Ubicloud begins the
-// work. State stays at the prior terminal value while work is queued. A
-// state-only "is state running?" check returns true immediately and races
-// the actual commit. The predicate must validate the FIELDS we care about
-// (size / haType / tags) so success means "server has the values we
-// requested," not "server has finished transitioning."
-//
-// Caller precondition: the mutating request MUST have returned 2xx first.
-// Continuous-predicate-match-for-settle covers both:
-//   - Hot reload: server immediately reflects the change, predicate true
-//     for settle window → success in settleDuration.
-//   - Queued work: predicate stays false until Ubicloud commits the change,
-//     then true for the settle window → success after real work completes.
+// consecutive polls. Caller precondition: mutating request MUST have
+// returned 2xx. State-only checks race the Ubicloud queue; the predicate
+// closes that race by gating on the requested field values.
 func (c *ClientImpl) WaitForPostgresMatch(ctx context.Context, postgresId string, predicate func(*Postgres) bool, maxWaitSeconds int) error {
 	maxRetries := uint64(maxWaitSeconds / int(postgresStatePollInterval/time.Second)) //nolint:gosec
 	settleRetries := uint64(postgresStateSettleDuration / postgresStatePollInterval)  //nolint:gosec
@@ -296,13 +260,8 @@ func (c *ClientImpl) waitForPostgresMatchWithInterval(ctx context.Context, postg
 // PASSWORD
 // ---------------------------------------------------------------------------
 
-// SetPostgresPassword sets the superuser password. body.Password
-// nil → server generates and returns one. body.Password set → server adopts
-// it and returns empty.
-//
-// Idempotency caveat: re-PATCHing an empty body generates a NEW random
-// password each time. Callers needing retry safety must persist the
-// first-returned password before retrying.
+// SetPostgresPassword sets the superuser password. nil body → server
+// generates one (NOT idempotent: re-PATCH generates a new password).
 func (c *ClientImpl) SetPostgresPassword(ctx context.Context, postgresId string, body PostgresPassword) (*PostgresPassword, error) {
 	rb, err := json.Marshal(body) //nolint:gosec // Password is an intended request field, not a leak
 	if err != nil {
@@ -345,10 +304,9 @@ func (c *ClientImpl) GetPostgresConfig(ctx context.Context, postgresId string) (
 	return &resp.Result, nil
 }
 
-// ReplacePostgresConfig POSTs the full pgConfig + pgBouncerConfig. Keys
-// absent from body are removed server-side; empty maps clear all parameters.
-// Both fields are always sent as objects (defaulted to {} when nil) per the
-// server's runtime validator at ManagedPostgresV1Handler.ts:643-646.
+// ReplacePostgresConfig POSTs the full pgConfig + pgBouncerConfig. Absent
+// keys are removed; empty maps clear all parameters. Both fields must be
+// non-nil objects (server validator requires it).
 func (c *ClientImpl) ReplacePostgresConfig(ctx context.Context, postgresId string, body PostgresConfig) (*PostgresConfigUpdateResponse, error) {
 	if body.PgConfig == nil {
 		body.PgConfig = PgConfigMap{}
@@ -427,15 +385,8 @@ func (c *ClientImpl) CreatePostgresReadReplica(ctx context.Context, sourceId str
 // ---------------------------------------------------------------------------
 
 // GetPostgresCaCertificates returns the PEM-encoded CA chain. Bypasses
-// doRequest because the server emits raw PEM (not JSON) and we don't want
-// it flowing through the JSON pretty-printer.
-//
-// Trade-offs vs other client methods: no User-Agent header, no 429/5xx
-// retry, no tflog logging, manual basic-auth setup.
-//
-// FIXME: when the matching data source lands, add a doRawRequest sibling in
-// common.go that mirrors doRequest's retry/logging/auth machinery but returns
-// bytes directly, and route this method through it. Public signature is stable.
+// doRequest (raw PEM, no JSON). FIXME: route through a doRawRequest sibling
+// once the matching data source lands.
 func (c *ClientImpl) GetPostgresCaCertificates(ctx context.Context, postgresId string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.getPostgresPath(postgresId, "/caCertificates"), nil)
 	if err != nil {
