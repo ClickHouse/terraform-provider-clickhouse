@@ -113,7 +113,7 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 			name: "is_primary=false (replica) propagates as false",
 			pg: &api.Postgres{
 				Id: "pg-3", Name: "n", Provider: "aws", Region: "us-east-1",
-				Size: "c6gd.large",
+				Size:  "c6gd.large",
 				State: api.PostgresStateRunning, CreatedAt: "2026-05-27T00:00:00Z",
 				IsPrimary: false,
 			},
