@@ -155,9 +155,9 @@ func TestPostgresUpdate_PopulatedTagsList(t *testing.T) {
 	}
 }
 
-func TestPostgres_OmitsNilPointerFields(t *testing.T) {
-	// Hostname, ConnectionString, Username, Password are *string so a nil
-	// value gets omitted from outgoing JSON.
+func TestPostgres_OmitsEmptyOptionalFields(t *testing.T) {
+	// Hostname, ConnectionString, Username, Password have omitempty so a
+	// zero-value string gets omitted from outgoing JSON.
 	body, err := json.Marshal(Postgres{Id: "x", Name: "n", Provider: "aws", Region: "us-east-1"})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -212,8 +212,8 @@ func TestPostgresConfigUpdateResponse_OptionalMessage(t *testing.T) {
 	if err := json.Unmarshal(withMsg, &gotWith); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if gotWith.Message == nil || *gotWith.Message != "restart required" {
-		t.Errorf("Message = %v; want pointer to 'restart required'", gotWith.Message)
+	if gotWith.Message != "restart required" {
+		t.Errorf("Message = %q; want 'restart required'", gotWith.Message)
 	}
 
 	withoutMsg := []byte(`{"pgConfig":{},"pgBouncerConfig":{}}`)
@@ -221,7 +221,7 @@ func TestPostgresConfigUpdateResponse_OptionalMessage(t *testing.T) {
 	if err := json.Unmarshal(withoutMsg, &gotWithout); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if gotWithout.Message != nil {
-		t.Errorf("Message = %v; want nil when absent from server", *gotWithout.Message)
+	if gotWithout.Message != "" {
+		t.Errorf("Message = %q; want empty when absent from server", gotWithout.Message)
 	}
 }

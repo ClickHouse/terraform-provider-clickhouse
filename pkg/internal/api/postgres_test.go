@@ -51,9 +51,6 @@ func assertBasicAuth(t *testing.T, r *http.Request) {
 	}
 }
 
-func ptrStr(s string) *string { return &s }
-func ptrBool(b bool) *bool    { return &b }
-
 // ----- GetPostgres ---------------------------------------------------------
 
 func TestGetPostgres_HappyPath(t *testing.T) {
@@ -66,8 +63,8 @@ func TestGetPostgres_HappyPath(t *testing.T) {
 		Size:      "r6gd.large",
 		State:     PostgresStateRunning,
 		CreatedAt: "2026-05-20T00:00:00Z",
-		IsPrimary: ptrBool(true),
-		Hostname:  ptrStr("my-pg.example.com"),
+		IsPrimary: true,
+		Hostname:  "my-pg.example.com",
 	}
 
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -144,9 +141,9 @@ func TestCreatePostgres_HappyPath_PersistsServerGeneratedPassword(t *testing.T) 
 		Size:             "r6gd.large",
 		State:            PostgresStateCreating,
 		CreatedAt:        "2026-05-20T00:00:00Z",
-		IsPrimary:        ptrBool(true),
+		IsPrimary:        true,
 		Password:         "server-generated-Aa1!secret",
-		ConnectionString: ptrStr("postgresql://user:server-generated-Aa1!secret@host/db"),
+		ConnectionString: "postgresql://user:server-generated-Aa1!secret@host/db",
 	}
 
 	var capturedBody PostgresCreate
@@ -594,8 +591,8 @@ func TestReplacePostgresConfig_PostsBothMaps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReplacePostgresConfig: %v", err)
 	}
-	if resp.Message == nil || *resp.Message != "restart required" {
-		t.Errorf("Message should surface restart hint; got %v", resp.Message)
+	if resp.Message != "restart required" {
+		t.Errorf("Message should surface restart hint; got %q", resp.Message)
 	}
 	if captured.PgConfig["max_connections"] != "200" {
 		t.Errorf("server got %+v; want max_connections=200", captured)
@@ -672,13 +669,13 @@ func TestCreatePostgresReadReplica_HappyPath(t *testing.T) {
 		if r.URL.Path != expectedPath {
 			t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
 		}
-		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-replica", IsPrimary: ptrBool(false)}})
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-replica", IsPrimary: false}})
 	})
 	got, err := client.CreatePostgresReadReplica(context.Background(), "primary-id", PostgresReadReplicaRequest{Name: "replica"})
 	if err != nil {
 		t.Fatalf("CreatePostgresReadReplica: %v", err)
 	}
-	if got.IsPrimary == nil || *got.IsPrimary {
+	if got.IsPrimary {
 		t.Errorf("replica should have IsPrimary=false; got %v", got.IsPrimary)
 	}
 }

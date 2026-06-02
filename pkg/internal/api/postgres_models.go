@@ -50,21 +50,21 @@ func (m *PgConfigMap) UnmarshalJSON(data []byte) error {
 // Postgres mirrors PostgresInstanceV1 (ManagedPostgresV1.ts:60-70).
 // storageSize is omitted intentionally — DEPRECATED server-side.
 type Postgres struct {
-	Id               string  `json:"id,omitempty"`
-	Name             string  `json:"name"`
-	Provider         string  `json:"provider"`
-	Region           string  `json:"region"`
-	PostgresVersion  string  `json:"postgresVersion,omitempty"`
-	Size             string  `json:"size,omitempty"`
-	HaType           string  `json:"haType,omitempty"`
-	State            string  `json:"state,omitempty"`
-	CreatedAt        string  `json:"createdAt,omitempty"`
-	IsPrimary        *bool   `json:"isPrimary,omitempty"`
-	Hostname         *string `json:"hostname,omitempty"`
-	ConnectionString *string `json:"connectionString,omitempty"`
-	Username         string  `json:"username,omitempty"`
-	Password         string  `json:"password,omitempty"`
-	Tags             []Tag   `json:"tags,omitempty"`
+	Id               string `json:"id,omitempty"`
+	Name             string `json:"name"`
+	Provider         string `json:"provider"`
+	Region           string `json:"region"`
+	PostgresVersion  string `json:"postgresVersion,omitempty"`
+	Size             string `json:"size,omitempty"`
+	HaType           string `json:"haType,omitempty"`
+	State            string `json:"state,omitempty"`
+	CreatedAt        string `json:"createdAt,omitempty"`
+	IsPrimary        bool   `json:"isPrimary"`
+	Hostname         string `json:"hostname,omitempty"`
+	ConnectionString string `json:"connectionString,omitempty"`
+	Username         string `json:"username,omitempty"`
+	Password         string `json:"password,omitempty"`
+	Tags             []Tag  `json:"tags,omitempty"`
 }
 
 // PostgresListItem is the abbreviated GET /postgres response item. Modeled
@@ -145,5 +145,5 @@ type PostgresConfig struct {
 type PostgresConfigUpdateResponse struct {
 	PgConfig        PgConfigMap `json:"pgConfig"`
 	PgBouncerConfig PgConfigMap `json:"pgBouncerConfig"`
-	Message         *string     `json:"message,omitempty"`
+	Message         string      `json:"message,omitempty"`
 }
