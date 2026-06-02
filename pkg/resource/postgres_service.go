@@ -697,17 +697,9 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	if pg.CreatedAt != "" {
 		state.CreatedAt = types.StringValue(pg.CreatedAt)
 	}
-	// IsPrimary fallback: this resource only ever provisions primaries, so
-	// defaulting nil to true is safe today. Once read replicas exist as a
-	// resource attribute, this fallback must change — a replica whose
-	// IsPrimary the server omitted would silently be marked as a primary.
-	if pg.IsPrimary != nil {
-		state.IsPrimary = types.BoolValue(*pg.IsPrimary)
-	} else {
-		state.IsPrimary = types.BoolValue(true)
-	}
-	if pg.Hostname != nil {
-		state.Hostname = types.StringValue(*pg.Hostname)
+	state.IsPrimary = types.BoolValue(pg.IsPrimary)
+	if pg.Hostname != "" {
+		state.Hostname = types.StringValue(pg.Hostname)
 	} else {
 		state.Hostname = types.StringNull()
 	}
@@ -717,8 +709,8 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	} else {
 		state.Username = types.StringNull()
 	}
-	if pg.ConnectionString != nil {
-		state.ConnectionString = types.StringValue(*pg.ConnectionString)
+	if pg.ConnectionString != "" {
+		state.ConnectionString = types.StringValue(pg.ConnectionString)
 	} else {
 		state.ConnectionString = types.StringNull()
 	}

@@ -18,11 +18,6 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
-// boolPtrPG / strPtrPG — local readability sugar for *bool / *string
-// fixtures. Suffixed to avoid duplicate declarations with clickpipe_test.go.
-func boolPtrPG(b bool) *bool    { return &b }
-func strPtrPG(s string) *string { return &s }
-
 // mapTags is a convenience builder for the tags map fixture used across
 // every tag-related test. Returns types.MapNull when called with no args.
 func mapTags(kv ...string) types.Map {
@@ -67,9 +62,9 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				HaType:           "async",
 				State:            api.PostgresStateRunning,
 				CreatedAt:        "2026-05-27T00:00:00Z",
-				IsPrimary:        boolPtrPG(true),
-				Hostname:         strPtrPG("primary-1.example.com"),
-				ConnectionString: strPtrPG("postgresql://default:secret@primary-1.example.com:5432/postgres"),
+				IsPrimary:        true,
+				Hostname:         "primary-1.example.com",
+				ConnectionString: "postgresql://default:secret@primary-1.example.com:5432/postgres",
 				Username:         "default",
 				Tags:             []api.Tag{{Key: "team", Value: "billing"}},
 			},
@@ -96,7 +91,7 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 			pg: &api.Postgres{
 				Id: "pg-2", Name: "n", Provider: "aws", Region: "us-east-1",
 				Size: "c6gd.large", HaType: "",
-				IsPrimary: boolPtrPG(true),
+				IsPrimary: true,
 			},
 			want: models.PostgresServiceResourceModel{
 				ID:               types.StringValue("pg-2"),
@@ -114,10 +109,10 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 			},
 		},
 		{
-			name: "missing IsPrimary defaults to true",
+			name: "is_primary=false (replica) propagates as false",
 			pg: &api.Postgres{
 				Id: "pg-3", Name: "n", Provider: "aws", Region: "us-east-1",
-				Size: "c6gd.large",
+				Size: "c6gd.large", IsPrimary: false,
 			},
 			want: models.PostgresServiceResourceModel{
 				ID:               types.StringValue("pg-3"),
@@ -126,7 +121,7 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				Region:           types.StringValue("us-east-1"),
 				Size:             types.StringValue("c6gd.large"),
 				HaType:           types.StringValue("none"),
-				IsPrimary:        types.BoolValue(true),
+				IsPrimary:        types.BoolValue(false),
 				Hostname:         types.StringNull(),
 				Port:             types.Int64Value(postgresDefaultPort),
 				Username:         types.StringNull(),
@@ -164,7 +159,7 @@ func TestPostgresResource_syncPostgresState_preservesPassword(t *testing.T) {
 	pg := &api.Postgres{
 		Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
 		Size: "c6gd.large", State: api.PostgresStateRunning,
-		IsPrimary: boolPtrPG(true),
+		IsPrimary: true,
 	}
 	if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
