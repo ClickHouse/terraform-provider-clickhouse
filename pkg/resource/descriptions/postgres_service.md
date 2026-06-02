@@ -8,27 +8,32 @@ Manages a [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postg
 service. A Managed Postgres service is a fully-managed Postgres instance
 provisioned in the ClickHouse Cloud control plane.
 
-## Current scope
+## Supported lifecycle
 
-This release ships the minimum useful surface: create, read, update
-(`size`, `ha_type`, `tags`), delete, and import. The following are not
-yet supported:
+- Create
+- Read
+- Update — `size`, `ha_type`, `tags`
+- Delete
+- Import
+
+## Unsupported attributes
+
+The following are intentionally absent from the schema:
 
 - Postgres / PgBouncer runtime parameters (`pg_config` /
   `pgbouncer_config`).
-- User-supplied passwords (`password`, `password_wo`). Today the server
-  always generates the password; it is exposed as a sensitive computed
-  attribute and persisted in state from the create response.
+- User-supplied passwords (`password`, `password_wo`). The server
+  generates the password; the resource exposes it as a sensitive
+  computed attribute and persists it in state from the create response.
 - Point-in-time restore (`restore_to_point_in_time`).
 - Read replicas (`read_replica_of`).
 - CA certificate data source.
-- Operational commands (restart / promote / switchover) are
-  deliberately out of scope. Use the ClickHouse Cloud UI or API
-  directly. See "Operational commands" below for the rationale.
+- Operational commands (restart / promote / switchover). See
+  "Operational commands" below for the rationale.
 - Configurable lifecycle timeouts (`timeouts {}` block). Create / update
-  / delete budgets are currently hardcoded to 30m / 30m / 10m.
+  / delete budgets are hardcoded to 30m / 30m / 10m.
 - IP allowlist, private endpoints, backup configuration, maintenance
-  windows, customer-managed encryption keys, BYOC. All blocked on
+  windows, customer-managed encryption keys, BYOC. These depend on
   server-side endpoint additions.
 
 ## Tag semantics
@@ -92,17 +97,16 @@ server.
 > - `connection_string` will contain the password embedded in the URI
 >   (the server includes it in the GET response), so the credential is
 >   not lost — but Terraform cannot manage it as a standalone attribute
->   without user-supplied password support, which this release does not
->   ship. Imported instances are effectively read-only via Terraform:
->   any future apply that needs to surface the password as the
->   standalone `password` attribute will show drift that cannot be
->   reconciled.
+>   without user-supplied password support. Imported instances are
+>   effectively read-only via Terraform with respect to the password:
+>   any apply that needs to surface the password as the standalone
+>   `password` attribute will show drift that cannot be reconciled.
 > - Workaround: parse the password out of `connection_string` externally
 >   and store it where your CI/automation needs it. Don't try to set it
 >   back into Terraform state by hand — there is no
 >   `terraform import`-time hook to do this safely.
 
-## Known limitations (alpha)
+## Known limitations
 
 - The `size` attribute is not validated client-side beyond non-empty.
   Invalid sizes surface as an HTTP 400 at apply time rather than a
@@ -112,7 +116,7 @@ server.
   attribute, so the trade-off goes the other way here. The
   `cloud_provider`, `ha_type`, and `postgres_version` attributes
   remain client-side validated because they churn rarely.
-- Lifecycle timeouts are not user-configurable in this release.
+- Lifecycle timeouts are not user-configurable.
 - `name` is immutable post-create. The server's PATCH body has no
   `name` field, so changing it forces destroy-and-recreate via
   `RequiresReplace`.
@@ -121,4 +125,3 @@ server.
   `Sensitive` attributes as `(sensitive value)` in human-readable
   output but the underlying state file is plaintext — ensure your
   state backend is configured for at-rest encryption.
-
