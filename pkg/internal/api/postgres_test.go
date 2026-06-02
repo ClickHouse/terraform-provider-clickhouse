@@ -527,6 +527,47 @@ func TestWaitForPostgresMatch_NeverMatchesTimesOut(t *testing.T) {
 	}
 }
 
+func TestWaitForPostgresMatch_HonorsContextCancellation(t *testing.T) {
+	// Predicate never matches → without ctx-aware backoff, the helper would
+	// burn the full budget. With backoff.WithContext, cancellation bails fast.
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning, Size: "r6gd.large"}})
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	err := client.waitForPostgresMatchWithInterval(ctx, testPostgresID,
+		matchSize(testPostgresSizeXLarge), 50*time.Millisecond, 600, 3)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("expected error from context timeout; got nil")
+	}
+	// Budget if cancellation were ignored: 600 × 50ms = 30s. Honoring ctx
+	// should bail within a couple of poll intervals after the deadline.
+	if elapsed > 1*time.Second {
+		t.Errorf("cancellation should bail well before budget; took %v", elapsed)
+	}
+}
+
+func TestWaitForPostgresState_HonorsContextCancellation(t *testing.T) {
+	// Same guarantee for the simpler state-only helper.
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateCreating}})
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	err := client.waitForPostgresStateWithInterval(ctx, testPostgresID,
+		func(s string) bool { return s == PostgresStateRunning }, 50*time.Millisecond, 600)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("expected error from context timeout; got nil")
+	}
+	if elapsed > 1*time.Second {
+		t.Errorf("cancellation should bail well before budget; took %v", elapsed)
+	}
+}
+
 // ----- SetPostgresPassword -------------------------------------------------
 
 func TestSetPostgresPassword_UserSuppliedReturnsEmpty(t *testing.T) {

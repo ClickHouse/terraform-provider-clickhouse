@@ -120,7 +120,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"tags": schema.MapAttribute{
-				Description: "Resource tags as a key-value map. Values must be non-empty (server's PATCH returns 400 on omitted value).",
+				Description: "Resource tags as a key-value map. Values must be non-empty (server's PATCH returns 400 on omitted value). Set `tags = {}` to clear all tags; omit the attribute to preserve the prior value.",
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
@@ -130,8 +130,6 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					mapplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.Map{
-					// Rejects `tags = {}` in .tf; null state would diff against it forever.
-					mapvalidator.SizeAtLeast(1),
 					mapvalidator.SizeAtMost(50), // server MAX_TAGS_PER_RESOURCE
 					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
 					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
@@ -509,7 +507,9 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		if diags.HasError() {
 			return postgresUpdatePlan{}, diags
 		}
-		if preserved != nil {
+		// Only re-assert when there's something to defend; sending `"tags": []`
+		// on a server that has no tags is wasted bytes.
+		if preserved != nil && len(*preserved) > 0 {
 			update.Tags = preserved
 		}
 	}
@@ -660,7 +660,8 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 }
 
 // apiTagsToMapValue maps []api.Tag → types.Map. Drops empty-value tags
-// (schema requires non-empty values).
+// (schema requires non-empty values). Empty server input maps to an empty
+// map (not null) so config `tags = {}` round-trips cleanly.
 func apiTagsToMapValue(apiTags []api.Tag) (types.Map, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	filtered := make(map[string]attr.Value, len(apiTags))
@@ -669,9 +670,6 @@ func apiTagsToMapValue(apiTags []api.Tag) (types.Map, diag.Diagnostics) {
 			continue
 		}
 		filtered[t.Key] = types.StringValue(t.Value)
-	}
-	if len(filtered) == 0 {
-		return types.MapNull(types.StringType), diags
 	}
 	m, d := types.MapValue(types.StringType, filtered)
 	diags.Append(d...)

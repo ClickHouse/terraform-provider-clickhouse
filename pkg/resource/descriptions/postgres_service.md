@@ -44,9 +44,9 @@ regex `^[a-zA-Z0-9._-]+$`); the server's PATCH endpoint returns `400
 BAD_REQUEST` on omitted values, so the schema rejects empty values at
 plan time.
 
-Writing `tags = {}` is rejected at plan time. To express "no tags,"
-omit the attribute entirely — `Optional + Computed + UseStateForUnknown`
-then carries the prior state forward without spurious diffs.
+Setting `tags = {}` clears all server-side tags. Omitting the attribute
+entirely preserves the prior state value (`Optional + Computed +
+UseStateForUnknown`).
 
 The Postgres PATCH endpoint has PUT-like semantics specifically for the
 `tags` field: omitting it from the request body clears all tags

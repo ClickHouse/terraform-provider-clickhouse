@@ -19,11 +19,9 @@ import (
 )
 
 // mapTags is a convenience builder for the tags map fixture used across
-// every tag-related test. Returns types.MapNull when called with no args.
+// every tag-related test. Returns an empty map when called with no args
+// (matching the contract apiTagsToMapValue produces for empty server input).
 func mapTags(kv ...string) types.Map {
-	if len(kv) == 0 {
-		return types.MapNull(types.StringType)
-	}
 	if len(kv)%2 != 0 {
 		panic("mapTags requires an even number of args (key, value, ...)")
 	}
@@ -173,13 +171,19 @@ func TestPostgresResource_syncPostgresState_preservesPassword(t *testing.T) {
 // apiTagsToMapValue — drops empty-value tags
 // ---------------------------------------------------------------------------
 
-func TestApiTagsToMapValue_EmptyServerListReturnsNull(t *testing.T) {
+func TestApiTagsToMapValue_EmptyServerListReturnsEmptyMap(t *testing.T) {
+	// Empty server list maps to empty map (not null) so that config
+	// `tags = {}` round-trips cleanly. Returning null would diff forever
+	// against an explicit empty map in config.
 	got, diags := apiTagsToMapValue(nil)
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
-	if !got.IsNull() {
-		t.Errorf("expected null map for empty input; got %v", got)
+	if got.IsNull() {
+		t.Errorf("expected empty (non-null) map for empty input; got %v", got)
+	}
+	if len(got.Elements()) != 0 {
+		t.Errorf("expected zero elements; got %d", len(got.Elements()))
 	}
 }
 
@@ -470,10 +474,10 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("tags cleared: plan has null tags, state had tags", func(t *testing.T) {
-		// Removing all tags must send "tags": [] (empty array), not omit
-		// the field entirely. Validates that the pointer-to-slice in
-		// PostgresUpdate.Tags is being used correctly.
+	t.Run("tags cleared: plan is empty map, state had tags", func(t *testing.T) {
+		// User config `tags = {}` clears all tags. Must send "tags": []
+		// (empty array), not omit the field entirely. Validates that the
+		// pointer-to-slice in PostgresUpdate.Tags is being used correctly.
 		plan := baseModel("c6gd.large", "none", mapTags())
 		state := baseModel("c6gd.large", "none", mapTags("team", "billing"))
 		result, diags := buildPostgresUpdate(ctx, plan, state)

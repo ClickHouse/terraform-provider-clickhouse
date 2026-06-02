@@ -199,7 +199,8 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 	if maxRetries < 1 {
 		maxRetries = 1
 	}
-	err := backoff.Retry(check, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
+	b := backoff.WithContext(backoff.NewConstantBackOff(interval), ctx)
+	err := backoff.Retry(check, backoff.WithMaxRetries(b, maxRetries))
 	if err == nil {
 		return nil
 	}
@@ -246,7 +247,8 @@ func (c *ClientImpl) waitForPostgresMatchWithInterval(ctx context.Context, postg
 		stableMatches = 0
 		return errPostgresStateNotYetTarget
 	}
-	err := backoff.Retry(check, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
+	b := backoff.WithContext(backoff.NewConstantBackOff(interval), ctx)
+	err := backoff.Retry(check, backoff.WithMaxRetries(b, maxRetries))
 	if err == nil {
 		return nil
 	}
