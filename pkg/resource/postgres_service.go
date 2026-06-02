@@ -154,7 +154,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"is_primary": schema.BoolAttribute{
-				Description: "True when this instance is a primary; false when it's a read replica. This resource currently only provisions primaries. If the server response omits the field, true is assumed.",
+				Description: "True when this instance is a writeable primary cluster; false only for separately-provisioned read replicas. HA standby servers (`ha_type = async`/`sync`) live inside the same primary instance and don't affect this value.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
