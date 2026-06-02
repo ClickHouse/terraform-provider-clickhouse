@@ -600,49 +600,52 @@ func planTagsToAPI(ctx context.Context, tagsMap types.Map) (*[]api.Tag, diag.Dia
 }
 
 // syncPostgresState writes a GetPostgres response into the resource model.
+// Builds into a local copy and assigns only on success — a fallible step
+// (apiTagsToMapValue) can return diagnostics without leaving *state half-mutated.
 func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.PostgresServiceResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
+	out := *state
 
-	state.ID = types.StringValue(pg.Id)
-	state.Name = types.StringValue(pg.Name)
-	state.CloudProvider = types.StringValue(pg.Provider)
-	state.Region = types.StringValue(pg.Region)
+	out.ID = types.StringValue(pg.Id)
+	out.Name = types.StringValue(pg.Name)
+	out.CloudProvider = types.StringValue(pg.Provider)
+	out.Region = types.StringValue(pg.Region)
 
 	// Server marks these `omitempty`; preserve prior values on absent fields
 	// rather than overwriting with "" (which breaks `formatdate`/`timeadd`).
 	if pg.PostgresVersion != "" {
-		state.PostgresVersion = types.StringValue(pg.PostgresVersion)
+		out.PostgresVersion = types.StringValue(pg.PostgresVersion)
 	}
 	if pg.Size != "" {
-		state.Size = types.StringValue(pg.Size)
+		out.Size = types.StringValue(pg.Size)
 	}
 	if pg.HaType != "" {
-		state.HaType = types.StringValue(pg.HaType)
+		out.HaType = types.StringValue(pg.HaType)
 	} else {
-		state.HaType = types.StringValue("none")
+		out.HaType = types.StringValue("none")
 	}
 	if pg.State != "" {
-		state.State = types.StringValue(pg.State)
+		out.State = types.StringValue(pg.State)
 	}
 	if pg.CreatedAt != "" {
-		state.CreatedAt = types.StringValue(pg.CreatedAt)
+		out.CreatedAt = types.StringValue(pg.CreatedAt)
 	}
-	state.IsPrimary = types.BoolValue(pg.IsPrimary)
+	out.IsPrimary = types.BoolValue(pg.IsPrimary)
 	if pg.Hostname != "" {
-		state.Hostname = types.StringValue(pg.Hostname)
+		out.Hostname = types.StringValue(pg.Hostname)
 	} else {
-		state.Hostname = types.StringNull()
+		out.Hostname = types.StringNull()
 	}
-	state.Port = types.Int64Value(postgresDefaultPort)
+	out.Port = types.Int64Value(postgresDefaultPort)
 	if pg.Username != "" {
-		state.Username = types.StringValue(pg.Username)
+		out.Username = types.StringValue(pg.Username)
 	} else {
-		state.Username = types.StringNull()
+		out.Username = types.StringNull()
 	}
 	if pg.ConnectionString != "" {
-		state.ConnectionString = types.StringValue(pg.ConnectionString)
+		out.ConnectionString = types.StringValue(pg.ConnectionString)
 	} else {
-		state.ConnectionString = types.StringNull()
+		out.ConnectionString = types.StringNull()
 	}
 
 	tagsValue, d := apiTagsToMapValue(pg.Tags)
@@ -650,8 +653,9 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	if diags.HasError() {
 		return diags
 	}
-	state.Tags = tagsValue
+	out.Tags = tagsValue
 
+	*state = out
 	return diags
 }
 

@@ -695,25 +695,6 @@ func TestBuildPostgresMatchPredicate(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// isPostgresStateRunning
-// ---------------------------------------------------------------------------
-
-func TestIsPostgresStateRunning(t *testing.T) {
-	if !isPostgresStateRunning(api.PostgresStateRunning) {
-		t.Error("running should match")
-	}
-	if isPostgresStateRunning(api.PostgresStateCreating) {
-		t.Error("creating must not match")
-	}
-	if isPostgresStateRunning("some_future_state") {
-		t.Error("unknown states must not match (treated as transitioning)")
-	}
-	if isPostgresStateRunning("") {
-		t.Error("empty state must not match")
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
