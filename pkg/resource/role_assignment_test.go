@@ -1,5 +1,3 @@
-//go:build alpha
-
 package resource
 
 import (
@@ -8,10 +6,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 )
 
 func TestRoleAssignmentResource_syncAssignmentState(t *testing.T) {
