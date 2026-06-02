@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -17,8 +17,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -130,47 +130,36 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					stringvalidator.OneOf(postgresHaTypes...),
 				},
 			},
-			"tags": schema.SetNestedAttribute{
-				Description: "Resource tags. Set of {key, value} objects where both fields are required (value of null or '' is rejected at plan time). Keys starting with 'chc_' are reserved by the server and rejected at plan time.",
+			"tags": schema.MapAttribute{
+				Description: "Resource tags as a key-value map. Keys starting with 'chc_' are reserved by the server and rejected at plan time. Values must be non-empty (the server's PATCH endpoint returns 400 when a tag value is omitted; we mirror that constraint at plan time).",
 				Optional:    true,
 				Computed:    true,
-				PlanModifiers: []planmodifier.Set{
+				ElementType: types.StringType,
+				PlanModifiers: []planmodifier.Map{
 					// Without UseStateForUnknown, framework marks tags as
 					// Unknown in every plan (Optional+Computed semantics)
 					// and Update would PATCH "tags": [] on every apply that
 					// touches any other attribute — silent data loss for any
 					// user with tags set.
-					setplanmodifier.UseStateForUnknown(),
+					mapplanmodifier.UseStateForUnknown(),
 				},
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"key": schema.StringAttribute{
-							Description: "Tag key. Cannot start with 'chc_' (reserved).",
-							Required:    true,
-							Validators: []validator.String{
-								stringvalidator.LengthAtLeast(1),
-								notReservedTagPrefixValidator{},
-							},
-						},
-						"value": schema.StringAttribute{
-							Description: "Tag value. Must be a non-empty alphanumeric/'.'/'-'/'_' string. The server rejects PATCHes containing tags whose value field is omitted, so we require it at the schema layer to keep CREATE and UPDATE behavior symmetric. (Empty strings are also rejected because the server normalizes them to no-value, which would cause perpetual plan/state drift.)",
-							Required:    true,
-							Validators: []validator.String{
-								stringvalidator.LengthAtLeast(1),
-							},
-						},
-					},
-				},
-				Validators: []validator.Set{
-					// SizeAtLeast(1) rejects explicit `tags = []` in .tf. The
-					// server → state round-trip collapses empty arrays to
-					// SetNull (chc_-filtering produces an empty filtered
-					// list), so an explicit empty set in config would diff
+				Validators: []validator.Map{
+					// SizeAtLeast(1) rejects explicit `tags = {}` in .tf. The
+					// server → state round-trip collapses empty maps to
+					// MapNull (chc_-filtering can produce an empty filtered
+					// map), so an explicit empty map in config would diff
 					// perpetually against null state. Users wanting no tags
 					// omit the attribute entirely.
-					setvalidator.SizeAtLeast(1),
+					mapvalidator.SizeAtLeast(1),
 					// Matches the server's MAX_TAGS_PER_RESOURCE = 50.
-					setvalidator.SizeAtMost(50),
+					mapvalidator.SizeAtMost(50),
+					mapvalidator.KeysAre(
+						stringvalidator.LengthAtLeast(1),
+						notReservedTagPrefixValidator{},
+					),
+					mapvalidator.ValueStringsAre(
+						stringvalidator.LengthAtLeast(1),
+					),
 				},
 			},
 
@@ -497,7 +486,7 @@ func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.P
 	// Tags is Optional+Computed — if the user didn't set any, hold null until
 	// the post-wait re-read populates it. If the user set tags, keep them.
 	if partial.Tags.IsUnknown() {
-		partial.Tags = types.SetNull(models.PostgresServiceTagObjectType())
+		partial.Tags = types.MapNull(types.StringType)
 	}
 	return partial
 }
@@ -658,27 +647,23 @@ func diffTags(ctx context.Context, plan, state models.PostgresServiceResourceMod
 	return true, mapped, diags
 }
 
-// planTagsToAPI extracts an *[]api.Tag from a Terraform set-of-objects
+// planTagsToAPI extracts an *[]api.Tag from a Terraform map(string,string)
 // attribute. Returns nil when the attribute is null/unknown (caller can
 // distinguish "leave alone" from "explicit empty"); returns a pointer to
 // the materialized slice otherwise.
-func planTagsToAPI(ctx context.Context, tagsSet types.Set) (*[]api.Tag, diag.Diagnostics) {
+func planTagsToAPI(ctx context.Context, tagsMap types.Map) (*[]api.Tag, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if tagsSet.IsNull() || tagsSet.IsUnknown() {
+	if tagsMap.IsNull() || tagsMap.IsUnknown() {
 		return nil, diags
 	}
-	var tagModels []models.PostgresServiceTagModel
-	diags.Append(tagsSet.ElementsAs(ctx, &tagModels, false)...)
+	raw := make(map[string]string, len(tagsMap.Elements()))
+	diags.Append(tagsMap.ElementsAs(ctx, &raw, false)...)
 	if diags.HasError() {
 		return nil, diags
 	}
-	out := make([]api.Tag, 0, len(tagModels))
-	for _, tm := range tagModels {
-		t := api.Tag{Key: tm.Key.ValueString()}
-		if !tm.Value.IsNull() && !tm.Value.IsUnknown() {
-			t.Value = tm.Value.ValueString()
-		}
-		out = append(out, t)
+	out := make([]api.Tag, 0, len(raw))
+	for k, v := range raw {
+		out = append(out, api.Tag{Key: k, Value: v})
 	}
 	return &out, diags
 }
@@ -739,7 +724,7 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 		state.ConnectionString = types.StringNull()
 	}
 
-	tagsValue, d := apiTagsToSetValue(pg.Tags)
+	tagsValue, d := apiTagsToMapValue(pg.Tags)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
@@ -749,53 +734,29 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 	return diags
 }
 
-// apiTagsToSetValue converts an api.Tag slice into the Terraform set of
-// {key, value} objects. Drops any tag whose key starts with chc_ (server
-// reserved) so it never surfaces as drift to the user.
-func apiTagsToSetValue(apiTags []api.Tag) (types.Set, diag.Diagnostics) {
+// apiTagsToMapValue converts an api.Tag slice into the Terraform map of
+// string→string. Drops any tag whose key starts with chc_ (server-reserved)
+// so it never surfaces as drift to the user. Tags with empty values are
+// dropped — the schema requires non-empty values, so a server-side empty
+// value would diff against any user-supplied non-empty value forever.
+func apiTagsToMapValue(apiTags []api.Tag) (types.Map, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	objType, ok := models.PostgresServiceTagObjectType().(attr.TypeWithAttributeTypes)
-	if !ok {
-		// Unreachable unless models.PostgresServiceTagObjectType is changed
-		// to return a non-Object type (e.g., a switch to types.MapType during
-		// a future refactor). Surface the concrete type so the future
-		// debugger doesn't need to grep for the assertion.
-		diags.AddError(
-			"Postgres tag schema definition is corrupt",
-			fmt.Sprintf("models.PostgresServiceTagObjectType() returned %T, which does not implement attr.TypeWithAttributeTypes. The tag attribute requires an Object type. Report this to the provider developers.", models.PostgresServiceTagObjectType()),
-		)
-		return types.SetNull(models.PostgresServiceTagObjectType()), diags
-	}
-	attrTypes := objType.AttributeTypes()
-
-	filtered := make([]attr.Value, 0, len(apiTags))
+	filtered := make(map[string]attr.Value, len(apiTags))
 	for _, t := range apiTags {
 		if strings.HasPrefix(t.Key, postgresReservedTagPrefix) {
 			continue
 		}
-		var value attr.Value
 		if t.Value == "" {
-			value = types.StringNull()
-		} else {
-			value = types.StringValue(t.Value)
+			continue
 		}
-		obj, d := types.ObjectValue(attrTypes, map[string]attr.Value{
-			"key":   types.StringValue(t.Key),
-			"value": value,
-		})
-		diags.Append(d...)
-		if diags.HasError() {
-			return types.SetNull(models.PostgresServiceTagObjectType()), diags
-		}
-		filtered = append(filtered, obj)
+		filtered[t.Key] = types.StringValue(t.Value)
 	}
-
 	if len(filtered) == 0 {
-		return types.SetNull(models.PostgresServiceTagObjectType()), diags
+		return types.MapNull(types.StringType), diags
 	}
-	set, d := types.SetValue(models.PostgresServiceTagObjectType(), filtered)
+	m, d := types.MapValue(types.StringType, filtered)
 	diags.Append(d...)
-	return set, diags
+	return m, diags
 }
 
 // ---------------------------------------------------------------------------

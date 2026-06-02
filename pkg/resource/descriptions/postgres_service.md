@@ -33,15 +33,15 @@ yet supported:
 
 ## Tag semantics
 
-Tags are a set of nested `{ key, value }` objects (not a flat map). Both
-fields are required: `value` must be a non-empty alphanumeric / `.` /
-`-` / `_` string (server regex `^[a-zA-Z0-9._-]+$`). The server-side
-PATCH endpoint returns `400 BAD_REQUEST` if any tag omits `value`, so
-the schema rejects null / empty values at plan time. Tag keys starting
-with `chc_` are reserved by the server and also rejected at plan time.
+Tags are a `map(string → string)` — same shape as `clickhouse_service`.
+Values must be non-empty alphanumeric / `.` / `-` / `_` strings (server
+regex `^[a-zA-Z0-9._-]+$`); the server's PATCH endpoint returns `400
+BAD_REQUEST` on omitted values, so the schema rejects empty values at
+plan time. Tag keys starting with `chc_` are reserved by the server
+and also rejected at plan time.
 
-Writing `tags = []` is rejected at plan time. To express "no tags," omit
-the attribute entirely — `Optional + Computed + UseStateForUnknown`
+Writing `tags = {}` is rejected at plan time. To express "no tags,"
+omit the attribute entirely — `Optional + Computed + UseStateForUnknown`
 then carries the prior state forward without spurious diffs.
 
 The Postgres PATCH endpoint has PUT-like semantics specifically for the

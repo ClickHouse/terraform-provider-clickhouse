@@ -23,6 +23,26 @@ import (
 func boolPtrPG(b bool) *bool    { return &b }
 func strPtrPG(s string) *string { return &s }
 
+// mapTags is a convenience builder for the tags map fixture used across
+// every tag-related test. Returns types.MapNull when called with no args.
+func mapTags(kv ...string) types.Map {
+	if len(kv) == 0 {
+		return types.MapNull(types.StringType)
+	}
+	if len(kv)%2 != 0 {
+		panic("mapTags requires an even number of args (key, value, ...)")
+	}
+	elems := make(map[string]attr.Value, len(kv)/2)
+	for i := 0; i < len(kv); i += 2 {
+		elems[kv[i]] = types.StringValue(kv[i+1])
+	}
+	m, diags := types.MapValue(types.StringType, elems)
+	if diags.HasError() {
+		panic(diags)
+	}
+	return m
+}
+
 // ---------------------------------------------------------------------------
 // syncPostgresState — field round-trip from api.Postgres → resource model.
 // ---------------------------------------------------------------------------
@@ -33,7 +53,7 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 	tests := []struct {
 		name string
 		pg   *api.Postgres
-		want func() models.PostgresServiceResourceModel
+		want models.PostgresServiceResourceModel
 	}{
 		{
 			name: "primary with all fields populated",
@@ -53,29 +73,22 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				Username:         "default",
 				Tags:             []api.Tag{{Key: "team", Value: "billing"}},
 			},
-			want: func() models.PostgresServiceResourceModel {
-				tagObj, _ := types.ObjectValue(
-					tagAttrTypes(),
-					map[string]attr.Value{"key": types.StringValue("team"), "value": types.StringValue("billing")},
-				)
-				tagSet, _ := types.SetValue(models.PostgresServiceTagObjectType(), []attr.Value{tagObj})
-				return models.PostgresServiceResourceModel{
-					ID:               types.StringValue("pg-1"),
-					Name:             types.StringValue("primary-1"),
-					CloudProvider:    types.StringValue("aws"),
-					Region:           types.StringValue("us-east-1"),
-					PostgresVersion:  types.StringValue("18"),
-					Size:             types.StringValue("r6gd.large"),
-					HaType:           types.StringValue("async"),
-					State:            types.StringValue(api.PostgresStateRunning),
-					CreatedAt:        types.StringValue("2026-05-27T00:00:00Z"),
-					IsPrimary:        types.BoolValue(true),
-					Hostname:         types.StringValue("primary-1.example.com"),
-					Port:             types.Int64Value(postgresDefaultPort),
-					Username:         types.StringValue("default"),
-					ConnectionString: types.StringValue("postgresql://default:secret@primary-1.example.com:5432/postgres"),
-					Tags:             tagSet,
-				}
+			want: models.PostgresServiceResourceModel{
+				ID:               types.StringValue("pg-1"),
+				Name:             types.StringValue("primary-1"),
+				CloudProvider:    types.StringValue("aws"),
+				Region:           types.StringValue("us-east-1"),
+				PostgresVersion:  types.StringValue("18"),
+				Size:             types.StringValue("r6gd.large"),
+				HaType:           types.StringValue("async"),
+				State:            types.StringValue(api.PostgresStateRunning),
+				CreatedAt:        types.StringValue("2026-05-27T00:00:00Z"),
+				IsPrimary:        types.BoolValue(true),
+				Hostname:         types.StringValue("primary-1.example.com"),
+				Port:             types.Int64Value(postgresDefaultPort),
+				Username:         types.StringValue("default"),
+				ConnectionString: types.StringValue("postgresql://default:secret@primary-1.example.com:5432/postgres"),
+				Tags:             mapTags("team", "billing"),
 			},
 		},
 		{
@@ -85,23 +98,21 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				Size: "c6gd.large", HaType: "",
 				IsPrimary: boolPtrPG(true),
 			},
-			want: func() models.PostgresServiceResourceModel {
-				return models.PostgresServiceResourceModel{
-					ID:               types.StringValue("pg-2"),
-					Name:             types.StringValue("n"),
-					CloudProvider:    types.StringValue("aws"),
-					Region:           types.StringValue("us-east-1"),
-					Size:             types.StringValue("c6gd.large"),
-					HaType:           types.StringValue("none"),
-					State:            types.StringValue(""),
-					CreatedAt:        types.StringValue(""),
-					IsPrimary:        types.BoolValue(true),
-					Hostname:         types.StringNull(),
-					Port:             types.Int64Value(postgresDefaultPort),
-					Username:         types.StringNull(),
-					ConnectionString: types.StringNull(),
-					Tags:             types.SetNull(models.PostgresServiceTagObjectType()),
-				}
+			want: models.PostgresServiceResourceModel{
+				ID:               types.StringValue("pg-2"),
+				Name:             types.StringValue("n"),
+				CloudProvider:    types.StringValue("aws"),
+				Region:           types.StringValue("us-east-1"),
+				Size:             types.StringValue("c6gd.large"),
+				HaType:           types.StringValue("none"),
+				State:            types.StringValue(""),
+				CreatedAt:        types.StringValue(""),
+				IsPrimary:        types.BoolValue(true),
+				Hostname:         types.StringNull(),
+				Port:             types.Int64Value(postgresDefaultPort),
+				Username:         types.StringNull(),
+				ConnectionString: types.StringNull(),
+				Tags:             mapTags(),
 			},
 		},
 		{
@@ -109,25 +120,22 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 			pg: &api.Postgres{
 				Id: "pg-3", Name: "n", Provider: "aws", Region: "us-east-1",
 				Size: "c6gd.large",
-				// IsPrimary intentionally nil
 			},
-			want: func() models.PostgresServiceResourceModel {
-				return models.PostgresServiceResourceModel{
-					ID:               types.StringValue("pg-3"),
-					Name:             types.StringValue("n"),
-					CloudProvider:    types.StringValue("aws"),
-					Region:           types.StringValue("us-east-1"),
-					Size:             types.StringValue("c6gd.large"),
-					HaType:           types.StringValue("none"),
-					State:            types.StringValue(""),
-					CreatedAt:        types.StringValue(""),
-					IsPrimary:        types.BoolValue(true),
-					Hostname:         types.StringNull(),
-					Port:             types.Int64Value(postgresDefaultPort),
-					Username:         types.StringNull(),
-					ConnectionString: types.StringNull(),
-					Tags:             types.SetNull(models.PostgresServiceTagObjectType()),
-				}
+			want: models.PostgresServiceResourceModel{
+				ID:               types.StringValue("pg-3"),
+				Name:             types.StringValue("n"),
+				CloudProvider:    types.StringValue("aws"),
+				Region:           types.StringValue("us-east-1"),
+				Size:             types.StringValue("c6gd.large"),
+				HaType:           types.StringValue("none"),
+				State:            types.StringValue(""),
+				CreatedAt:        types.StringValue(""),
+				IsPrimary:        types.BoolValue(true),
+				Hostname:         types.StringNull(),
+				Port:             types.Int64Value(postgresDefaultPort),
+				Username:         types.StringNull(),
+				ConnectionString: types.StringNull(),
+				Tags:             mapTags(),
 			},
 		},
 	}
@@ -139,19 +147,18 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 			if diags.HasError() {
 				t.Fatalf("unexpected diagnostics: %v", diags)
 			}
-			want := tt.want()
-			if !modelsEqual(t, got, want) {
-				t.Errorf("syncPostgresState mismatch\n got = %#v\nwant = %#v", got, want)
+			if !modelsEqual(t, got, tt.want) {
+				t.Errorf("syncPostgresState mismatch\n got = %#v\nwant = %#v", got, tt.want)
 			}
 		})
 	}
 }
 
 // ---------------------------------------------------------------------------
-// apiTagsToSetValue — filters chc_ prefix, handles empty / explicit-null
+// apiTagsToMapValue — filters chc_ prefix and empty values
 // ---------------------------------------------------------------------------
 
-func TestApiTagsToSetValue_FiltersSystemTags(t *testing.T) {
+func TestApiTagsToMapValue_FiltersSystemTags(t *testing.T) {
 	tags := []api.Tag{
 		{Key: "team", Value: "billing"},
 		{Key: "chc_internal", Value: "system"},
@@ -159,12 +166,12 @@ func TestApiTagsToSetValue_FiltersSystemTags(t *testing.T) {
 		{Key: "env", Value: "prod"},
 	}
 
-	got, diags := apiTagsToSetValue(tags)
+	got, diags := apiTagsToMapValue(tags)
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	if got.IsNull() {
-		t.Fatal("expected non-null set when at least one non-system tag present")
+		t.Fatal("expected non-null map when at least one non-system tag present")
 	}
 
 	elems := got.Elements()
@@ -172,65 +179,69 @@ func TestApiTagsToSetValue_FiltersSystemTags(t *testing.T) {
 		t.Fatalf("expected 2 user-visible tags after filtering chc_, got %d (%v)", len(elems), elems)
 	}
 
-	seen := map[string]string{}
-	for _, e := range elems {
-		obj := e.(types.Object)
-		key := obj.Attributes()["key"].(types.String).ValueString()
-		val := obj.Attributes()["value"].(types.String)
-		if val.IsNull() {
-			seen[key] = ""
-		} else {
-			seen[key] = val.ValueString()
-		}
+	if v := elems["team"].(types.String).ValueString(); v != "billing" {
+		t.Errorf("team tag missing or wrong: got %q want %q", v, "billing")
 	}
-	if seen["team"] != "billing" {
-		t.Errorf("team tag missing or wrong: got %q want %q", seen["team"], "billing")
+	if v := elems["env"].(types.String).ValueString(); v != "prod" {
+		t.Errorf("env tag missing or wrong: got %q want %q", v, "prod")
 	}
-	if seen["env"] != "prod" {
-		t.Errorf("env tag missing or wrong: got %q want %q", seen["env"], "prod")
-	}
-	if _, leaked := seen["chc_internal"]; leaked {
+	if _, leaked := elems["chc_internal"]; leaked {
 		t.Errorf("chc_internal leaked into resource state")
 	}
-	if _, leaked := seen["chc_other"]; leaked {
+	if _, leaked := elems["chc_other"]; leaked {
 		t.Errorf("chc_other leaked into resource state")
 	}
 }
 
-func TestApiTagsToSetValue_EmptyServerListReturnsNull(t *testing.T) {
-	got, diags := apiTagsToSetValue(nil)
+func TestApiTagsToMapValue_EmptyServerListReturnsNull(t *testing.T) {
+	got, diags := apiTagsToMapValue(nil)
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	if !got.IsNull() {
-		t.Errorf("expected null set for empty input; got %v", got)
+		t.Errorf("expected null map for empty input; got %v", got)
 	}
 }
 
-func TestApiTagsToSetValue_OnlySystemTagsReturnsNull(t *testing.T) {
-	got, diags := apiTagsToSetValue([]api.Tag{{Key: "chc_a"}, {Key: "chc_b"}})
+func TestApiTagsToMapValue_OnlySystemTagsReturnsNull(t *testing.T) {
+	got, diags := apiTagsToMapValue([]api.Tag{{Key: "chc_a", Value: "x"}, {Key: "chc_b", Value: "y"}})
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %v", diags)
 	}
 	if !got.IsNull() {
-		t.Errorf("expected null set when every server tag is filtered; got %v", got)
+		t.Errorf("expected null map when every server tag is filtered; got %v", got)
 	}
 }
 
-// TagValueLengthRejectsEmptyString is a documentation-style test rather
-// than a functional one — the actual rejection lives in the upstream
-// stringvalidator.LengthAtLeast(1) attached to the tags.value attribute
-// in the resource schema. We exercise the validator directly here so the
-// rationale (avoid perpetual plan/state drift when the server normalizes
-// "" to no-value) stays anchored to a test that fails loudly if someone
-// drops the validator in a future refactor.
+func TestApiTagsToMapValue_DropsEmptyValueTags(t *testing.T) {
+	// Schema requires non-empty values. A server-side empty value would
+	// diff forever against any user-supplied non-empty value, so the read
+	// path drops them entirely.
+	got, diags := apiTagsToMapValue([]api.Tag{
+		{Key: "team", Value: "billing"},
+		{Key: "blank", Value: ""},
+	})
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+	if got.IsNull() {
+		t.Fatalf("expected non-null map")
+	}
+	if _, present := got.Elements()["blank"]; present {
+		t.Errorf("empty-value tag must not be retained; got %v", got)
+	}
+}
+
+// TestTagValueValidator_RejectsEmptyString exercises the upstream
+// stringvalidator.LengthAtLeast(1) the schema attaches to map values.
+// Locks in the contract so a future refactor that drops the validator
+// fails this test.
 func TestTagValueValidator_RejectsEmptyString(t *testing.T) {
 	ctx := context.Background()
-	// Build the same validator the schema uses.
 	v := stringvalidator.LengthAtLeast(1)
 	resp := &validator.StringResponse{}
 	v.ValidateString(ctx, validator.StringRequest{
-		Path:        path.Root("tags").AtName("value"),
+		Path:        path.Root("tags").AtMapKey("team"),
 		ConfigValue: types.StringValue(""),
 	}, resp)
 	if !resp.Diagnostics.HasError() {
@@ -238,58 +249,35 @@ func TestTagValueValidator_RejectsEmptyString(t *testing.T) {
 	}
 }
 
-func TestApiTagsToSetValue_EmptyValueMaterializesAsNull(t *testing.T) {
-	// Server's ResourceTagV1.value is optional (string | null). We treat
-	// an api.Tag{Value: ""} the same as "no value" and surface it as
-	// types.StringNull() so the round-trip is stable.
-	got, diags := apiTagsToSetValue([]api.Tag{{Key: "team", Value: ""}})
-	if diags.HasError() {
-		t.Fatalf("unexpected diagnostics: %v", diags)
-	}
-	if got.IsNull() {
-		t.Fatalf("expected non-null set")
-	}
-	elem := got.Elements()[0].(types.Object)
-	val := elem.Attributes()["value"].(types.String)
-	if !val.IsNull() {
-		t.Errorf("expected null value attribute when server tag had empty value; got %v", val)
-	}
-}
-
 // ---------------------------------------------------------------------------
-// planTagsToAPI — null/unknown/explicit-empty/populated round-trip
+// planTagsToAPI — null/unknown/populated round-trip
 // ---------------------------------------------------------------------------
 
 func TestPlanTagsToAPI(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("null set returns nil (leave server tags alone)", func(t *testing.T) {
-		got, diags := planTagsToAPI(ctx, types.SetNull(models.PostgresServiceTagObjectType()))
+	t.Run("null map returns nil (leave server tags alone)", func(t *testing.T) {
+		got, diags := planTagsToAPI(ctx, types.MapNull(types.StringType))
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
 		if got != nil {
-			t.Errorf("expected nil for null set, got %#v", got)
+			t.Errorf("expected nil for null map, got %#v", got)
 		}
 	})
 
-	t.Run("unknown set returns nil", func(t *testing.T) {
-		got, diags := planTagsToAPI(ctx, types.SetUnknown(models.PostgresServiceTagObjectType()))
+	t.Run("unknown map returns nil", func(t *testing.T) {
+		got, diags := planTagsToAPI(ctx, types.MapUnknown(types.StringType))
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
 		if got != nil {
-			t.Errorf("expected nil for unknown set, got %#v", got)
+			t.Errorf("expected nil for unknown map, got %#v", got)
 		}
 	})
 
-	t.Run("populated set returns mapped api.Tag slice", func(t *testing.T) {
-		tagObj, _ := types.ObjectValue(
-			tagAttrTypes(),
-			map[string]attr.Value{"key": types.StringValue("team"), "value": types.StringValue("billing")},
-		)
-		set, _ := types.SetValue(models.PostgresServiceTagObjectType(), []attr.Value{tagObj})
-		got, diags := planTagsToAPI(ctx, set)
+	t.Run("populated map returns mapped api.Tag slice", func(t *testing.T) {
+		got, diags := planTagsToAPI(ctx, mapTags("team", "billing"))
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
@@ -298,21 +286,6 @@ func TestPlanTagsToAPI(t *testing.T) {
 		}
 		if (*got)[0].Key != "team" || (*got)[0].Value != "billing" {
 			t.Errorf("unexpected mapped tag: %#v", (*got)[0])
-		}
-	})
-
-	t.Run("null value attribute becomes empty string in api.Tag", func(t *testing.T) {
-		tagObj, _ := types.ObjectValue(
-			tagAttrTypes(),
-			map[string]attr.Value{"key": types.StringValue("team"), "value": types.StringNull()},
-		)
-		set, _ := types.SetValue(models.PostgresServiceTagObjectType(), []attr.Value{tagObj})
-		got, diags := planTagsToAPI(ctx, set)
-		if diags.HasError() {
-			t.Fatalf("unexpected diagnostics: %v", diags)
-		}
-		if got == nil || (*got)[0].Value != "" {
-			t.Errorf("expected empty-string value, got %#v", got)
 		}
 	})
 }
@@ -329,18 +302,15 @@ func TestPlanTagsToAPI(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBuildPartialCreateState(t *testing.T) {
-	// Minimal plan resembling what req.Plan.Get would return for a fresh
-	// resource: required attrs set, computed attrs Unknown (the framework's
-	// default before any state exists).
 	planFresh := func() models.PostgresServiceResourceModel {
 		return models.PostgresServiceResourceModel{
 			Name:             types.StringValue("primary-1"),
 			CloudProvider:    types.StringValue("aws"),
 			Region:           types.StringValue("us-east-1"),
 			Size:             types.StringValue("c6gd.large"),
-			PostgresVersion:  types.StringUnknown(), // Optional+Computed, not set in .tf
+			PostgresVersion:  types.StringUnknown(),
 			HaType:           types.StringUnknown(),
-			Tags:             types.SetUnknown(models.PostgresServiceTagObjectType()),
+			Tags:             types.MapUnknown(types.StringType),
 			ID:               types.StringUnknown(),
 			Password:         types.StringUnknown(),
 			State:            types.StringUnknown(),
@@ -367,7 +337,6 @@ func TestBuildPartialCreateState(t *testing.T) {
 		password := "ServerGen123XYZ"
 		partial := buildPartialCreateState(planFresh(), pg, password)
 
-		// Must carry id + password; otherwise the recovery contract breaks.
 		if partial.ID.ValueString() != "pg-mid-create" {
 			t.Errorf("id missing or wrong; got %v", partial.ID)
 		}
@@ -375,9 +344,6 @@ func TestBuildPartialCreateState(t *testing.T) {
 			t.Errorf("password not persisted; got %v", partial.Password)
 		}
 
-		// Every other Computed attr must be explicitly Null, never Unknown —
-		// the framework rejects mid-Create state writes containing Unknown
-		// computed values. The whole point of this helper.
 		mustBeNull := []struct {
 			name string
 			v    attr.Value
@@ -400,9 +366,6 @@ func TestBuildPartialCreateState(t *testing.T) {
 			}
 		}
 
-		// HaType / PostgresVersion: came in as Unknown from a fresh plan;
-		// helper must pin them to concrete values so the state write
-		// validator accepts them.
 		if partial.HaType.IsUnknown() || partial.HaType.ValueString() != "none" {
 			t.Errorf("HaType must default to 'none'; got %v", partial.HaType)
 		}
@@ -438,12 +401,7 @@ func TestBuildPartialCreateState(t *testing.T) {
 
 	t.Run("preserves user-set tags from plan", func(t *testing.T) {
 		plan := planFresh()
-		tagObj, _ := types.ObjectValue(
-			tagAttrTypes(),
-			map[string]attr.Value{"key": types.StringValue("team"), "value": types.StringValue("billing")},
-		)
-		set, _ := types.SetValue(models.PostgresServiceTagObjectType(), []attr.Value{tagObj})
-		plan.Tags = set
+		plan.Tags = mapTags("team", "billing")
 		partial := buildPartialCreateState(plan, pg, "")
 		if partial.Tags.IsNull() || partial.Tags.IsUnknown() {
 			t.Errorf("user-set tags must survive mid-Create; got %v", partial.Tags)
@@ -458,7 +416,7 @@ func TestBuildPartialCreateState(t *testing.T) {
 func TestBuildPostgresUpdate(t *testing.T) {
 	ctx := context.Background()
 
-	baseModel := func(size, ha string, tags types.Set) models.PostgresServiceResourceModel {
+	baseModel := func(size, ha string, tags types.Map) models.PostgresServiceResourceModel {
 		return models.PostgresServiceResourceModel{
 			ID:            types.StringValue("pg-1"),
 			Name:          types.StringValue("primary-1"),
@@ -470,19 +428,9 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		}
 	}
 
-	emptyTags := func() types.Set { return types.SetNull(models.PostgresServiceTagObjectType()) }
-	tagSet := func(key, val string) types.Set {
-		tagObj, _ := types.ObjectValue(
-			tagAttrTypes(),
-			map[string]attr.Value{"key": types.StringValue(key), "value": types.StringValue(val)},
-		)
-		set, _ := types.SetValue(models.PostgresServiceTagObjectType(), []attr.Value{tagObj})
-		return set
-	}
-
 	t.Run("no diff returns nil update and no transition", func(t *testing.T) {
-		plan := baseModel("c6gd.large", "none", emptyTags())
-		state := baseModel("c6gd.large", "none", emptyTags())
+		plan := baseModel("c6gd.large", "none", mapTags())
+		state := baseModel("c6gd.large", "none", mapTags())
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -496,8 +444,8 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("size-only diff produces size-only body with TransitionExpected", func(t *testing.T) {
-		plan := baseModel("c6gd.xlarge", "none", emptyTags())
-		state := baseModel("c6gd.large", "none", emptyTags())
+		plan := baseModel("c6gd.xlarge", "none", mapTags())
+		state := baseModel("c6gd.large", "none", mapTags())
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -520,8 +468,8 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("ha_type-only diff signals TransitionExpected", func(t *testing.T) {
-		plan := baseModel("c6gd.large", "async", emptyTags())
-		state := baseModel("c6gd.large", "none", emptyTags())
+		plan := baseModel("c6gd.large", "async", mapTags())
+		state := baseModel("c6gd.large", "none", mapTags())
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -535,8 +483,8 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("tags-only change does NOT signal TransitionExpected", func(t *testing.T) {
-		plan := baseModel("c6gd.large", "none", tagSet("team", "billing"))
-		state := baseModel("c6gd.large", "none", emptyTags())
+		plan := baseModel("c6gd.large", "none", mapTags("team", "billing"))
+		state := baseModel("c6gd.large", "none", mapTags())
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -556,8 +504,8 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		// Removing all tags must send "tags": [] (empty array), not omit
 		// the field entirely. Validates that the pointer-to-slice in
 		// PostgresUpdate.Tags is being used correctly.
-		plan := baseModel("c6gd.large", "none", emptyTags())
-		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
+		plan := baseModel("c6gd.large", "none", mapTags())
+		state := baseModel("c6gd.large", "none", mapTags("team", "billing"))
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -584,12 +532,8 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("tag value mutation: same key, different value", func(t *testing.T) {
-		// Review feedback: the existing matrix never exercised changing a
-		// value on an existing key. This is the exact path that would have
-		// caught the (now-fixed) "tag value omitted" issue if the value
-		// transitioned to null.
-		plan := baseModel("c6gd.large", "none", tagSet("team", "engineering"))
-		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
+		plan := baseModel("c6gd.large", "none", mapTags("team", "engineering"))
+		state := baseModel("c6gd.large", "none", mapTags("team", "billing"))
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -607,8 +551,7 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		if result.TransitionExpected {
 			t.Errorf("tag value mutation must NOT signal TransitionExpected")
 		}
-		// Wire-shape assertion: value must be present on the wire (not
-		// omitted via the api.Tag.Value omitempty tag).
+		// Wire-shape assertion: value must be present on the wire.
 		marshaled, err := json.Marshal(*result.Body)
 		if err != nil {
 			t.Fatalf("marshal failed: %v", err)
@@ -626,12 +569,8 @@ func TestBuildPostgresUpdate(t *testing.T) {
 		//   2) The server's PATCH endpoint has PUT-like semantics for the
 		//      tags field, so a body of just {"size":...} (no tags) also
 		//      clears server-side tags.
-		//
-		// Combined defence: whenever Unknown plan tags meet non-empty
-		// state tags AND we're patching something else, force the state's
-		// tags into the PATCH body so the server can't drop them.
-		plan := baseModel("c6gd.xlarge", "none", types.SetUnknown(models.PostgresServiceTagObjectType()))
-		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
+		plan := baseModel("c6gd.xlarge", "none", types.MapUnknown(types.StringType))
+		state := baseModel("c6gd.large", "none", mapTags("team", "billing"))
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -650,12 +589,8 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("size-only diff with non-empty state tags: server-clear defense", func(t *testing.T) {
-		// Server PATCH endpoint clears tags when the request body omits
-		// them. When the user changes size and state has tags, we MUST
-		// include those tags in the PATCH body even though the user
-		// didn't ask us to.
-		plan := baseModel("c6gd.xlarge", "none", tagSet("team", "billing"))
-		state := baseModel("c6gd.large", "none", tagSet("team", "billing"))
+		plan := baseModel("c6gd.xlarge", "none", mapTags("team", "billing"))
+		state := baseModel("c6gd.large", "none", mapTags("team", "billing"))
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -674,11 +609,8 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("size-only diff with no state tags: tags stays nil (nothing to defend)", func(t *testing.T) {
-		// Inverse case: no tags in state means no risk of server-clear.
-		// Body.Tags should stay nil so we don't send an empty array
-		// unnecessarily.
-		plan := baseModel("c6gd.xlarge", "none", emptyTags())
-		state := baseModel("c6gd.large", "none", emptyTags())
+		plan := baseModel("c6gd.xlarge", "none", mapTags())
+		state := baseModel("c6gd.large", "none", mapTags())
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -692,8 +624,8 @@ func TestBuildPostgresUpdate(t *testing.T) {
 	})
 
 	t.Run("combined size + tags change signals transition once", func(t *testing.T) {
-		plan := baseModel("c6gd.xlarge", "none", tagSet("env", "prod"))
-		state := baseModel("c6gd.large", "none", emptyTags())
+		plan := baseModel("c6gd.xlarge", "none", mapTags("env", "prod"))
+		state := baseModel("c6gd.large", "none", mapTags())
 		result, diags := buildPostgresUpdate(ctx, plan, state)
 		if diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
@@ -721,22 +653,14 @@ func TestNotReservedTagPrefixValidator(t *testing.T) {
 	ctx := context.Background()
 	v := notReservedTagPrefixValidator{}
 
-	// Build a syntactically correct path into a SetNestedAttribute. The set
-	// element type is the {key, value} object, so AtSetValue must take an
-	// ObjectValue (NOT a StringValue — earlier tests passed because the
-	// validator never inspects Path, but the path was technically malformed).
-	tagPath := func(key, value string) path.Path {
-		obj, _ := types.ObjectValue(
-			tagAttrTypes(),
-			map[string]attr.Value{"key": types.StringValue(key), "value": types.StringValue(value)},
-		)
-		return path.Root("tags").AtSetValue(obj).AtName("key")
+	mapKeyPath := func(key string) path.Path {
+		return path.Root("tags").AtMapKey(key)
 	}
 
 	t.Run("accepts non-prefixed key", func(t *testing.T) {
 		resp := &validator.StringResponse{}
 		v.ValidateString(ctx, validator.StringRequest{
-			Path:        tagPath("team", "billing"),
+			Path:        mapKeyPath("team"),
 			ConfigValue: types.StringValue("team"),
 		}, resp)
 		if resp.Diagnostics.HasError() {
@@ -747,7 +671,7 @@ func TestNotReservedTagPrefixValidator(t *testing.T) {
 	t.Run("rejects chc_ prefixed key", func(t *testing.T) {
 		resp := &validator.StringResponse{}
 		v.ValidateString(ctx, validator.StringRequest{
-			Path:        tagPath("chc_internal", ""),
+			Path:        mapKeyPath("chc_internal"),
 			ConfigValue: types.StringValue("chc_internal"),
 		}, resp)
 		if !resp.Diagnostics.HasError() {
@@ -758,7 +682,7 @@ func TestNotReservedTagPrefixValidator(t *testing.T) {
 	t.Run("ignores null / unknown values", func(t *testing.T) {
 		resp := &validator.StringResponse{}
 		v.ValidateString(ctx, validator.StringRequest{
-			Path:        tagPath("k", "v"),
+			Path:        mapKeyPath("k"),
 			ConfigValue: types.StringNull(),
 		}, resp)
 		if resp.Diagnostics.HasError() {
@@ -767,14 +691,9 @@ func TestNotReservedTagPrefixValidator(t *testing.T) {
 	})
 
 	t.Run("accepts key whose name is shorter than the prefix", func(t *testing.T) {
-		// Defends against a regression on the prefix-check bounds. The
-		// original implementation hand-rolled `len(key) >= len(prefix) &&
-		// key[:len(prefix)] == prefix` (a classic off-by-one trap); after
-		// the switch to strings.HasPrefix the bound is implicit but we
-		// keep the test for documentation value.
 		resp := &validator.StringResponse{}
 		v.ValidateString(ctx, validator.StringRequest{
-			Path:        tagPath("ab", ""),
+			Path:        mapKeyPath("ab"),
 			ConfigValue: types.StringValue("ab"),
 		}, resp)
 		if resp.Diagnostics.HasError() {
@@ -806,17 +725,8 @@ func TestIsPostgresStateRunning(t *testing.T) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// tagAttrTypes is the attr.Type map for a single tag object. Centralized
-// here so test fixtures stay in sync with models.PostgresServiceTagObjectType.
-func tagAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"key":   types.StringType,
-		"value": types.StringType,
-	}
-}
-
 // modelsEqual compares two PostgresServiceResourceModel values for the
-// fields the resource syncs. Uses Equal() on each types.* field so types.Set
+// fields the resource syncs. Uses Equal() on each types.* field so types.Map
 // element ordering doesn't make the comparison flaky.
 func modelsEqual(t *testing.T, got, want models.PostgresServiceResourceModel) bool {
 	t.Helper()
