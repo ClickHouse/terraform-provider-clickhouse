@@ -8,18 +8,18 @@ import (
 
 func GetResourceFactories() []func() upstreamresource.Resource {
 	return []func() upstreamresource.Resource{
-		NewServiceResource,
+		NewClickPipeCdcInfrastructureResource,
+		NewClickPipeResource,
+		NewClickPipeReversePrivateEndpointCustomPrivateDNSResource,
+		NewClickPipeReversePrivateEndpointResource,
 		NewOrganizationSettingsResource,
 		NewPrivateEndpointRegistrationResource,
-		NewServicePrivateEndpointsAttachmentResource,
-		NewServiceTransparentDataEncryptionKeyAssociationResource,
-		NewServiceScheduledScalingResource,
-		NewServiceUpgradeWindowResource,
-		NewClickPipeResource,
-		NewClickPipeReversePrivateEndpointResource,
-		NewClickPipeReversePrivateEndpointCustomPrivateDNSResource,
-		NewClickPipeCdcInfrastructureResource,
-		NewRoleResource,
 		NewRoleAssignmentResource,
+		NewRoleResource,
+		NewServicePrivateEndpointsAttachmentResource,
+		NewServiceResource,
+		NewServiceScheduledScalingResource,
+		NewServiceTransparentDataEncryptionKeyAssociationResource,
+		NewServiceUpgradeWindowResource,
 	}
 }
