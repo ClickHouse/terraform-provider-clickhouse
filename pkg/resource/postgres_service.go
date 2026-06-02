@@ -218,9 +218,6 @@ func (r *PostgresServiceResource) Configure(_ context.Context, req resource.Conf
 	r.client = client
 }
 
-// Create writes a partial state (id + password) before the wait poll so a
-// mid-wait failure leaves a reconcilable state rather than orphaning the
-// server resource.
 func (r *PostgresServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -240,15 +237,6 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 			"Error creating Postgres service",
 			"Could not create Postgres service: "+err.Error(),
 		)
-		return
-	}
-
-	// Step 3: mid-Create partial state write. Persists id + password so a
-	// later step-4/5 failure leaves a state Terraform can reconcile against
-	// the real server resource.
-	partial := buildPartialCreateState(plan, pg, generatedPassword)
-	resp.Diagnostics.Append(resp.State.Set(ctx, partial)...)
-	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -402,40 +390,6 @@ func (r *PostgresServiceResource) ImportState(ctx context.Context, req resource.
 // isPostgresStateRunning treats any non-running value as still-transitioning
 // (forward-compatible with new server states).
 func isPostgresStateRunning(s string) bool { return s == api.PostgresStateRunning }
-
-// buildPartialCreateState builds the mid-Create state write (id + password
-// + nulls for every other computed field). The framework rejects the write
-// if any computed field is left as zero-value.
-func buildPartialCreateState(plan models.PostgresServiceResourceModel, pg *api.Postgres, generatedPassword string) models.PostgresServiceResourceModel {
-	partial := plan
-	partial.ID = types.StringValue(pg.Id)
-	if generatedPassword != "" {
-		partial.Password = types.StringValue(generatedPassword)
-	} else {
-		partial.Password = types.StringNull()
-	}
-	partial.State = types.StringNull()
-	partial.CreatedAt = types.StringNull()
-	partial.IsPrimary = types.BoolNull()
-	partial.Hostname = types.StringNull()
-	partial.Port = types.Int64Null()
-	partial.Username = types.StringNull()
-	partial.ConnectionString = types.StringNull()
-	if partial.HaType.IsUnknown() {
-		if pg.HaType != "" {
-			partial.HaType = types.StringValue(pg.HaType)
-		} else {
-			partial.HaType = types.StringValue("none")
-		}
-	}
-	if partial.PostgresVersion.IsUnknown() {
-		partial.PostgresVersion = types.StringValue(pg.PostgresVersion)
-	}
-	if partial.Tags.IsUnknown() {
-		partial.Tags = types.MapNull(types.StringType)
-	}
-	return partial
-}
 
 func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResourceModel) (api.PostgresCreate, diag.Diagnostics) {
 	var diags diag.Diagnostics
