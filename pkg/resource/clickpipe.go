@@ -2145,22 +2145,13 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// For Postgres sources, managed_table should always be false (tables managed via table_mappings)
-	// Override the default value to prevent inconsistency errors
-	var sourceModel models.ClickPipeSourceModel
-	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-		sourceType := getSourceType(sourceModel)
-		isDBPipe := sourceType == SourceTypePostgres || sourceType == SourceTypeMySQL || sourceType == SourceTypeBigQuery || sourceType == SourceTypeMongoDB
-
-		if isDBPipe {
-			var destinationModel models.ClickPipeDestinationModel
-			if diags := plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-				destinationModel.ManagedTable = types.BoolValue(false)
-				plan.Destination = destinationModel.ObjectValue()
-				response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
-			}
-		}
-	}
+	// NOTE: managed_table is intentionally left untouched here. For DB pipes (Postgres/MySQL/
+	// BigQuery/MongoDB) the field is not applicable — tables are managed per-mapping via
+	// table_mappings and the value is never sent to or returned by the API. Overriding it to a
+	// fixed value (as a previous revision did) breaks Terraform's plan-consistency check whenever
+	// the user explicitly configures it (e.g. managed_table = true), producing a "planned value
+	// does not match config value" error. syncClickPipeState preserves the configured value from
+	// state instead, keeping plan, create, and read consistent. See issue #543.
 
 	// Handle trigger_resync auto-reset behavior
 	// If config has trigger_resync = true, set the plan to false to match the final state
@@ -4797,11 +4788,17 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		Database: types.StringValue(clickPipe.Destination.Database),
 	}
 
-	// For DB pipes, table/columns/tableDefinition are always null (managed via table_mappings)
-	// But managed_table should be preserved from state since user can configure it
+	// For DB pipes, table/columns/tableDefinition are always null (managed via table_mappings).
+	// managed_table is not sent to or returned by the API for these sources, so preserve the
+	// user-configured value from state to keep plan, create, and read consistent (issue #543).
+	// Fall back to the schema default (true) when there is no prior state, e.g. on import.
 	if isDBPipe {
 		destinationModel.Table = types.StringNull()
-		destinationModel.ManagedTable = types.BoolValue(false) // Always false for DB pipes
+		if stateDestinationModel.ManagedTable.IsNull() {
+			destinationModel.ManagedTable = types.BoolValue(true)
+		} else {
+			destinationModel.ManagedTable = stateDestinationModel.ManagedTable
+		}
 		destinationModel.Columns = types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType())
 		destinationModel.TableDefinition = types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
 	} else {

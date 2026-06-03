@@ -294,7 +294,7 @@ func TestClickPipeResource_syncClickPipeState_Postgres(t *testing.T) {
 				var destModel models.ClickPipeDestinationModel
 				tt.state.Destination.As(ctx, &destModel, basetypes.ObjectAsOptions{})
 				assert.True(t, destModel.Table.IsNull(), "table should remain null for Postgres CDC")
-				assert.Equal(t, types.BoolValue(false), destModel.ManagedTable, "managed_table should be false for Postgres CDC")
+				assert.Equal(t, types.BoolValue(true), destModel.ManagedTable, "managed_table should default to true for Postgres CDC when unset in state (issue #543)")
 
 				// Validate credentials are preserved from state (not returned by API)
 				var sourceModel models.ClickPipeSourceModel
@@ -303,6 +303,85 @@ func TestClickPipeResource_syncClickPipeState_Postgres(t *testing.T) {
 				sourceModel.Postgres.As(ctx, &postgresModel, basetypes.ObjectAsOptions{})
 				assert.False(t, postgresModel.Credentials.IsNull(), "credentials should be preserved from state")
 			}
+		})
+	}
+}
+
+// TestClickPipeResource_syncClickPipeState_PreservesManagedTable is a regression test for issue
+// #543. managed_table is not applicable to DB pipes: it is never sent to or returned by the API
+// (tables are managed per-mapping via table_mappings). syncClickPipeState must therefore preserve
+// whatever value the user configured in state rather than forcing it to a fixed value. Forcing it
+// to false (a previous revision) broke Terraform's plan-consistency check whenever a user
+// explicitly set managed_table = true on a Postgres CDC pipe.
+func TestClickPipeResource_syncClickPipeState_PreservesManagedTable(t *testing.T) {
+	ctx := context.Background()
+
+	// The API never returns managedTable for DB pipes, so the synced value must come from state.
+	postgresResponse := func() *api.ClickPipe {
+		return &api.ClickPipe{
+			ID:    "test-pipe-id",
+			Name:  "test-pipe",
+			State: "running",
+			Source: api.ClickPipeSource{
+				Postgres: &api.ClickPipePostgresSource{
+					Host:     "postgres.example.com",
+					Port:     5432,
+					Database: "mydb",
+					Settings: &api.ClickPipePostgresSettings{ReplicationMode: "cdc"},
+					Mappings: []api.ClickPipePostgresTableMapping{
+						{SourceSchemaName: "public", SourceTable: "users", TargetTable: "users"},
+					},
+				},
+			},
+			Destination: api.ClickPipeDestination{Database: "default", ManagedTable: nil},
+		}
+	}
+
+	stateWithManagedTable := func(v attr.Value) models.ClickPipeResourceModel {
+		state := getPostgresInitialState()
+		state.Destination = types.ObjectValueMust(
+			models.ClickPipeDestinationModel{}.ObjectType().AttrTypes,
+			map[string]attr.Value{
+				"database":         types.StringValue("default"),
+				"table":            types.StringNull(),
+				"managed_table":    v,
+				"table_definition": types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes),
+				"columns":          types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType()),
+				"roles":            types.ListNull(types.StringType),
+			},
+		)
+		return state
+	}
+
+	tests := []struct {
+		name     string
+		input    attr.Value
+		expected types.Bool
+	}{
+		{name: "explicit true is preserved", input: types.BoolValue(true), expected: types.BoolValue(true)},
+		{name: "explicit false is preserved", input: types.BoolValue(false), expected: types.BoolValue(false)},
+		{name: "null defaults to true on import", input: types.BoolNull(), expected: types.BoolValue(true)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+			state := stateWithManagedTable(tt.input)
+
+			apiClientMock := api.NewClientMock(mc).
+				GetClickPipeMock.
+				Expect(context.Background(), state.ServiceID.ValueString(), state.ID.ValueString()).
+				Return(postgresResponse(), nil)
+
+			resource := &ClickPipeResource{client: apiClientMock}
+
+			err := resource.syncClickPipeState(ctx, &state)
+			assert.NoError(t, err)
+
+			var destModel models.ClickPipeDestinationModel
+			state.Destination.As(ctx, &destModel, basetypes.ObjectAsOptions{})
+			assert.Equal(t, tt.expected, destModel.ManagedTable,
+				"managed_table must be preserved from state for DB pipes (issue #543)")
 		})
 	}
 }
@@ -1185,7 +1264,7 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 				var destModel models.ClickPipeDestinationModel
 				tt.state.Destination.As(ctx, &destModel, basetypes.ObjectAsOptions{})
 				assert.True(t, destModel.Table.IsNull(), "table should remain null for MongoDB CDC")
-				assert.Equal(t, types.BoolValue(false), destModel.ManagedTable, "managed_table should be false for MongoDB CDC")
+				assert.Equal(t, types.BoolValue(true), destModel.ManagedTable, "managed_table should default to true for MongoDB CDC when unset in state (issue #543)")
 
 				// Validate credentials are preserved from state
 				var sourceModel models.ClickPipeSourceModel
