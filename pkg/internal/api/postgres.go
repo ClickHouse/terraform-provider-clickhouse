@@ -290,7 +290,7 @@ func (c *ClientImpl) waitForPostgresStateTransitionAndReturnWithInterval(ctx con
 // password each time. Callers needing retry safety must persist the
 // first-returned password before retrying.
 func (c *ClientImpl) SetPostgresPassword(ctx context.Context, postgresId string, body PostgresPassword) (*PostgresPassword, error) {
-	rb, err := json.Marshal(body)
+	rb, err := json.Marshal(body) //nolint:gosec // Password is an intended request field, not a leak
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode PostgresPassword: %w", err)
 	}

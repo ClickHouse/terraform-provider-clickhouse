@@ -60,8 +60,9 @@ GOLANGCILINT = $(shell go env GOPATH)/bin/golangci-lint
 ifneq ($(shell test -f $(GOLANGCILINT) && echo -n yes),yes)
 GOLANGCILINT = /tmp/golangci-lint
 endif
+ensure-golangci-lint: export GOTOOLCHAIN := go1.26.0
 ensure-golangci-lint: ## Download golangci-lint locally if necessary.
-	$(call go-get-tool,$(GOLANGCILINT),github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8)
+	$(call go-get-tool,$(GOLANGCILINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2)
 
 # go-get-tool will 'go get' any package $2 and install it to $1.
 define go-get-tool
