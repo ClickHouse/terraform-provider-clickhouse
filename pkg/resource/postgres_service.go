@@ -100,7 +100,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 
 			// --- Mutable -----------------------------------------------------
 			"size": schema.StringAttribute{
-				Description: "Instance size (VM SKU). See ClickHouse Cloud docs for the supported set. No client-side enum; the server rejects unsupported sizes with HTTP 400 at apply time. Resizable in place.",
+				Description: "Instance size (VM SKU). See https://clickhouse.com/docs/cloud/managed-postgres/scaling for the supported instance families. No client-side enum; the server rejects unsupported sizes with HTTP 400 at apply time. Resizable in place.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),

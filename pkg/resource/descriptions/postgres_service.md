@@ -72,15 +72,6 @@ attributes. Terraform describes infrastructure shape; operational
 state changes (restart, promote, switchover) go through the API,
 UI, or CLI directly.
 
-## Import
-
-```
-terraform import clickhouse_postgres_service.example <postgres-instance-id>
-```
-
-Every attribute including `password` and `connection_string` is
-hydrated from the GET response.
-
 ## Known limitations
 
 - The `size` attribute is not validated client-side beyond non-empty.
