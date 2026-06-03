@@ -433,7 +433,7 @@ jobs:
           make docs-alpha
 
       - name: Commit
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -469,7 +469,7 @@ jobs:
       with:
         ref: "main"
     - name: Create tag
-      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60
+      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
       with:
         timeout_minutes: 3
         max_attempts: 3
@@ -535,7 +535,7 @@ jobs:
           install-only: true
 
       - name: Run GoReleaser
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -576,7 +576,7 @@ jobs:
           make docs
 
       - name: Commit
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
         with:
           timeout_minutes: 5
           max_attempts: 3
