@@ -45,9 +45,9 @@ regex `^[a-zA-Z0-9._-]+$`); the server's PATCH endpoint returns `400
 BAD_REQUEST` on omitted values, so the schema rejects empty values at
 plan time.
 
-Setting `tags = {}` clears all server-side tags. Omitting the attribute
-entirely preserves the prior state value (`Optional + Computed +
-UseStateForUnknown`).
+Setting `tags = {}` clears all user-controlled tags. Omitting the
+attribute entirely preserves the prior state value (`Optional +
+Computed + UseStateForUnknown`).
 
 The Postgres PATCH endpoint has PUT-like semantics specifically for the
 `tags` field: omitting it from the request body clears all tags
@@ -67,16 +67,10 @@ bodies — you'll see tags repeated on non-tag mutations.
 
 ## Operational commands
 
-Restart, promote, and switchover are deliberately not exposed as
-Terraform attributes. They are state transitions that don't map to a
-declarative resource. Use the API, UI, or CLI directly.
-
-Rationale: industry survey across AWS RDS (silent attribute removal),
-GCP Cloud SQL (coordinated attribute flip), Azure Postgres Flexible
-(explicit `replication_role`), Aiven (explicitly excluded), and
-DigitalOcean (also excluded) showed real disagreement and real
-footguns. ClickHouse Cloud follows the Aiven model: Terraform describes
-infrastructure shape; operational state changes are API calls.
+Restart, promote, and switchover are not exposed as Terraform
+attributes. Terraform describes infrastructure shape; operational
+state changes (restart, promote, switchover) go through the API,
+UI, or CLI directly.
 
 ## Import
 

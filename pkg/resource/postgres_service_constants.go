@@ -12,7 +12,6 @@ var postgresCloudProviders = []string{
 var postgresVersions = []string{
 	"18",
 	"17",
-	"16",
 }
 
 var postgresHaTypes = []string{

@@ -272,7 +272,7 @@ func (c *ClientImpl) waitForPostgresMatchWithInterval(ctx context.Context, postg
 		return nil
 	}
 	if errors.Is(err, errPostgresStateUnchanged) || errors.Is(err, errPostgresStateNotYetTarget) {
-		return fmt.Errorf("postgres %s did not match the expected predicate within budget (last seen state: %s)", postgresId, lastSeenState)
+		return fmt.Errorf("postgres %s did not match the expected predicate within %s (last seen state: %s)", postgresId, time.Duration(maxRetries)*interval, lastSeenState)
 	}
 	return err
 }
