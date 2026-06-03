@@ -14,6 +14,12 @@ type Client interface {
 	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error
 	UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error)
 	UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (*Service, error)
+	GetScheduledScaling(ctx context.Context, serviceId string) (*AutoScalingSchedule, error)
+	UpdateScheduledScaling(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (*AutoScalingSchedule, error)
+	DeleteScheduledScaling(ctx context.Context, serviceId string) error
+	GetUpgradeWindow(ctx context.Context, serviceId string) (*UpgradeWindow, error)
+	UpdateUpgradeWindow(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (*UpgradeWindow, error)
+	DeleteUpgradeWindow(ctx context.Context, serviceId string) error
 	UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error)
 	DeleteService(ctx context.Context, serviceId string) (*Service, error)
 	GetOrganization(ctx context.Context) (*OrgResult, error)
@@ -56,4 +62,18 @@ type Client interface {
 	CreateRole(ctx context.Context, req RoleCreateRequest) (*RBACRole, error)
 	UpdateRole(ctx context.Context, roleId string, req RoleUpdateRequest) (*RBACRole, error)
 	DeleteRole(ctx context.Context, roleId string) error
+
+	GetPostgres(ctx context.Context, postgresId string) (*Postgres, error)
+	ListPostgres(ctx context.Context) ([]PostgresListItem, error)
+	CreatePostgres(ctx context.Context, body PostgresCreate) (*Postgres, string, error)
+	UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (*Postgres, error)
+	DeletePostgres(ctx context.Context, postgresId string) error
+	WaitForPostgresState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) error
+	WaitForPostgresStateTransitionAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) error
+	RestorePostgres(ctx context.Context, sourceId string, body PostgresRestoreRequest) (*Postgres, error)
+	SetPostgresPassword(ctx context.Context, postgresId string, body PostgresPassword) (*PostgresPassword, error)
+	CreatePostgresReadReplica(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (*Postgres, error)
+	GetPostgresConfig(ctx context.Context, postgresId string) (*PostgresConfig, error)
+	ReplacePostgresConfig(ctx context.Context, postgresId string, body PostgresConfig) (*PostgresConfigUpdateResponse, error)
+	GetPostgresCaCertificates(ctx context.Context, postgresId string) ([]byte, error)
 }

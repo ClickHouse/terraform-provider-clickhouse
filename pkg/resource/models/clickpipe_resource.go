@@ -76,23 +76,29 @@ func (m ClickPipeKafkaSchemaRegistryModel) ObjectValue() types.Object {
 }
 
 type ClickPipeSourceCredentialsModel struct {
-	Username types.String `tfsdk:"username"`
-	Password types.String `tfsdk:"password"`
+	Username          types.String `tfsdk:"username"`
+	Password          types.String `tfsdk:"password"`
+	PasswordWO        types.String `tfsdk:"password_wo"`
+	PasswordWOVersion types.Int64  `tfsdk:"password_wo_version"`
 }
 
 func (m ClickPipeSourceCredentialsModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"username": types.StringType,
-			"password": types.StringType,
+			"username":            types.StringType,
+			"password":            types.StringType,
+			"password_wo":         types.StringType,
+			"password_wo_version": types.Int64Type,
 		},
 	}
 }
 
 func (m ClickPipeSourceCredentialsModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"username": m.Username,
-		"password": m.Password,
+		"username":            m.Username,
+		"password":            m.Password,
+		"password_wo":         m.PasswordWO,
+		"password_wo_version": m.PasswordWOVersion,
 	})
 }
 
@@ -135,26 +141,30 @@ type ClickPipeKafkaSourceCredentialsModel struct {
 func (m ClickPipeKafkaSourceCredentialsModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"username":          types.StringType,
-			"password":          types.StringType,
-			"access_key_id":     types.StringType,
-			"secret_key":        types.StringType,
-			"connection_string": types.StringType,
-			"certificate":       types.StringType,
-			"private_key":       types.StringType,
+			"username":            types.StringType,
+			"password":            types.StringType,
+			"password_wo":         types.StringType,
+			"password_wo_version": types.Int64Type,
+			"access_key_id":       types.StringType,
+			"secret_key":          types.StringType,
+			"connection_string":   types.StringType,
+			"certificate":         types.StringType,
+			"private_key":         types.StringType,
 		},
 	}
 }
 
 func (m ClickPipeKafkaSourceCredentialsModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"username":          m.Username,
-		"password":          m.Password,
-		"access_key_id":     m.AccessKeyID,
-		"secret_key":        m.SecretKey,
-		"connection_string": m.ConnectionString,
-		"certificate":       m.Certificate,
-		"private_key":       m.PrivateKey,
+		"username":            m.Username,
+		"password":            m.Password,
+		"password_wo":         m.PasswordWO,
+		"password_wo_version": m.PasswordWOVersion,
+		"access_key_id":       m.AccessKeyID,
+		"secret_key":          m.SecretKey,
+		"connection_string":   m.ConnectionString,
+		"certificate":         m.Certificate,
+		"private_key":         m.PrivateKey,
 	})
 }
 
@@ -253,6 +263,51 @@ func (m ClickPipeKinesisSourceModel) ObjectValue() types.Object {
 		"authentication":       m.Authentication,
 		"access_key":           m.AccessKey,
 		"iam_role":             m.IAMRole,
+	})
+}
+
+type ClickPipePubSubSourceModel struct {
+	Format            types.String `tfsdk:"format"`
+	ProjectID         types.String `tfsdk:"project_id"`
+	Topic             types.String `tfsdk:"topic"`
+	Authentication    types.String `tfsdk:"authentication"`
+	SeekType          types.String `tfsdk:"seek_type"`
+	SeekTimestamp     types.String `tfsdk:"seek_timestamp"`
+	Filter            types.String `tfsdk:"filter"`
+	EnableOrdering    types.Bool   `tfsdk:"enable_ordering"`
+	AckDeadline       types.Int64  `tfsdk:"ack_deadline"`
+	ServiceAccountKey types.Object `tfsdk:"service_account_key"`
+}
+
+func (m ClickPipePubSubSourceModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"format":              types.StringType,
+			"project_id":          types.StringType,
+			"topic":               types.StringType,
+			"authentication":      types.StringType,
+			"seek_type":           types.StringType,
+			"seek_timestamp":      types.StringType,
+			"filter":              types.StringType,
+			"enable_ordering":     types.BoolType,
+			"ack_deadline":        types.Int64Type,
+			"service_account_key": ClickPipeServiceAccountModel{}.ObjectType(),
+		},
+	}
+}
+
+func (m ClickPipePubSubSourceModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"format":              m.Format,
+		"project_id":          m.ProjectID,
+		"topic":               m.Topic,
+		"authentication":      m.Authentication,
+		"seek_type":           m.SeekType,
+		"seek_timestamp":      m.SeekTimestamp,
+		"filter":              m.Filter,
+		"enable_ordering":     m.EnableOrdering,
+		"ack_deadline":        m.AckDeadline,
+		"service_account_key": m.ServiceAccountKey,
 	})
 }
 
@@ -804,6 +859,7 @@ type ClickPipeSourceModel struct {
 	Kafka         types.Object `tfsdk:"kafka"`
 	ObjectStorage types.Object `tfsdk:"object_storage"`
 	Kinesis       types.Object `tfsdk:"kinesis"`
+	PubSub        types.Object `tfsdk:"pubsub"`
 	Postgres      types.Object `tfsdk:"postgres"`
 	MySQL         types.Object `tfsdk:"mysql"`
 	BigQuery      types.Object `tfsdk:"bigquery"`
@@ -816,6 +872,7 @@ func (m ClickPipeSourceModel) ObjectType() types.ObjectType {
 			"kafka":          ClickPipeKafkaSourceModel{}.ObjectType(),
 			"object_storage": ClickPipeObjectStorageSourceModel{}.ObjectType(),
 			"kinesis":        ClickPipeKinesisSourceModel{}.ObjectType(),
+			"pubsub":         ClickPipePubSubSourceModel{}.ObjectType(),
 			"postgres":       ClickPipePostgresSourceModel{}.ObjectType(),
 			"mysql":          ClickPipeMySQLSourceModel{}.ObjectType(),
 			"bigquery":       ClickPipeBigQuerySourceModel{}.ObjectType(),
@@ -829,6 +886,7 @@ func (m ClickPipeSourceModel) ObjectValue() types.Object {
 		"kafka":          m.Kafka,
 		"object_storage": m.ObjectStorage,
 		"kinesis":        m.Kinesis,
+		"pubsub":         m.PubSub,
 		"postgres":       m.Postgres,
 		"mysql":          m.MySQL,
 		"bigquery":       m.BigQuery,

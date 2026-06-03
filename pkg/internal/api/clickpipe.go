@@ -17,6 +17,8 @@ const (
 	ClickPipeRunningState       = "Running"
 	ClickPipeStoppingState      = "Stopping"
 	ClickPipeStoppedState       = "Stopped"
+	ClickPipePausingState       = "Pausing"
+	ClickPipePausedState        = "Paused"
 	ClickPipeFailedState        = "Failed"
 	ClickPipeCompletedState     = "Completed"
 	ClickPipeSnapShotState      = "Snapshot"
@@ -82,6 +84,7 @@ const (
 	ClickPipeKafkaMSKSourceType           = "msk"
 	ClickPipeKafkaWarpStreamSourceType    = "warpstream"
 	ClickPipeKafkaAzureEventHubSourceType = "azureeventhub"
+	ClickPipeKafkaGCMKSourceType          = "gcmk"
 )
 
 var ClickPipeKafkaSourceTypes = []string{
@@ -91,6 +94,7 @@ var ClickPipeKafkaSourceTypes = []string{
 	ClickPipeKafkaMSKSourceType,
 	ClickPipeKafkaWarpStreamSourceType,
 	ClickPipeKafkaAzureEventHubSourceType,
+	ClickPipeKafkaGCMKSourceType,
 }
 
 const (
@@ -143,6 +147,32 @@ var ClickPipeKinesisIteratorTypes = []string{
 	ClickPipeKinesisTrimHorizonIteratorType,
 	ClickPipeKinesisLatestIteratorType,
 	ClickPipeKinesisAtTimestampIteratorType,
+}
+
+const (
+	ClickPipePubSubSourceType = "pubsub"
+)
+
+var ClickPipePubSubFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeProtobufFormat,
+}
+
+const (
+	ClickPipePubSubSeekTypeLatest    = "latest"
+	ClickPipePubSubSeekTypeEarliest  = "earliest"
+	ClickPipePubSubSeekTypeTimestamp = "timestamp"
+)
+
+var ClickPipePubSubSeekTypes = []string{
+	ClickPipePubSubSeekTypeLatest,
+	ClickPipePubSubSeekTypeEarliest,
+	ClickPipePubSubSeekTypeTimestamp,
+}
+
+var ClickPipePubSubAuthenticationMethods = []string{
+	ClickPipeAuthenticationServiceAccount,
 }
 
 var ClickPipeObjectStorageFormats = []string{

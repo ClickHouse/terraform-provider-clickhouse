@@ -1,8 +1,29 @@
 package models
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
+
+// CustomPrivateDNSMappingModel describes a custom private DNS mapping.
+type CustomPrivateDNSMappingModel struct {
+	PrivateDNSName types.String `tfsdk:"private_dns_name"`
+}
+
+func (m CustomPrivateDNSMappingModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"private_dns_name": types.StringType,
+		},
+	}
+}
+
+func (m CustomPrivateDNSMappingModel) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"private_dns_name": m.PrivateDNSName,
+	})
+}
 
 // ClickPipeReversePrivateEndpointResourceModel describes the resource data model.
 type ClickPipeReversePrivateEndpointResourceModel struct {
@@ -15,8 +36,17 @@ type ClickPipeReversePrivateEndpointResourceModel struct {
 	VPCResourceShareArn        types.String `tfsdk:"vpc_resource_share_arn"`
 	MSKClusterArn              types.String `tfsdk:"msk_cluster_arn"`
 	MSKAuthentication          types.String `tfsdk:"msk_authentication"`
+	GCPServiceAttachment       types.String `tfsdk:"gcp_service_attachment"`
 	EndpointID                 types.String `tfsdk:"endpoint_id"`
 	DNSNames                   types.List   `tfsdk:"dns_names"`
 	PrivateDNSNames            types.List   `tfsdk:"private_dns_names"`
 	Status                     types.String `tfsdk:"status"`
+}
+
+// ClickPipeReversePrivateEndpointCustomPrivateDNSResourceModel describes custom private DNS mappings for a reverse private endpoint.
+type ClickPipeReversePrivateEndpointCustomPrivateDNSResourceModel struct {
+	ID                       types.String `tfsdk:"id"`
+	ServiceID                types.String `tfsdk:"service_id"`
+	ReversePrivateEndpointID types.String `tfsdk:"reverse_private_endpoint_id"`
+	Mapping                  types.List   `tfsdk:"mapping"`
 }

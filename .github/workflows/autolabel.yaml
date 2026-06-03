@@ -29,6 +29,14 @@ jobs:
           TITLE: ${{ github.event.issue.title }}
           BODY: ${{ github.event.issue.body }}
           LABELS: clickpipes
+      - run: echo "$TITLE $BODY" | grep -qiE 'clickgres|postgres' && gh issue edit "$NUMBER" --add-label "$LABELS" || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+          BODY: ${{ github.event.issue.body }}
+          LABELS: clickgres
   label_prs:
     if: github.event_name == 'pull_request'
     runs-on: k8s-nano
@@ -43,3 +51,11 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
           BODY: ${{ github.event.pull_request.body }}
           LABELS: clickpipes
+      - run: echo "$TITLE $BODY" | grep -qiE 'clickgres|postgres' && gh pr edit "$NUMBER" --add-label "$LABELS" || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          LABELS: clickgres

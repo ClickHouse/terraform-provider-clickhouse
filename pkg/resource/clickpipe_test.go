@@ -23,11 +23,13 @@ func TestGetSourceType(t *testing.T) {
 	mysqlTypes := models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes
 	bigqueryTypes := models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes
 	mongodbTypes := models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes
+	pubsubTypes := models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes
 
 	nullSource := models.ClickPipeSourceModel{
 		Kafka:         types.ObjectNull(kafkaTypes),
 		ObjectStorage: types.ObjectNull(objectStorageTypes),
 		Kinesis:       types.ObjectNull(kinesisTypes),
+		PubSub:        types.ObjectNull(pubsubTypes),
 		Postgres:      types.ObjectNull(postgresTypes),
 		MySQL:         types.ObjectNull(mysqlTypes),
 		BigQuery:      types.ObjectNull(bigqueryTypes),
@@ -65,6 +67,15 @@ func TestGetSourceType(t *testing.T) {
 				return s
 			}(),
 			expectedType: SourceTypeKinesis,
+		},
+		{
+			name: "PubSub source",
+			sourceModel: func() models.ClickPipeSourceModel {
+				s := nullSource
+				s.PubSub = types.ObjectUnknown(pubsubTypes)
+				return s
+			}(),
+			expectedType: SourceTypePubSub,
 		},
 		{
 			name: "Postgres source",
@@ -307,6 +318,7 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
 			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
 			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
 			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
 			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
 			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
@@ -324,8 +336,10 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 					"credentials": types.ObjectValueMust(
 						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
 						map[string]attr.Value{
-							"username": types.StringValue("user"),
-							"password": types.StringValue("pass"),
+							"username":            types.StringValue("user"),
+							"password":            types.StringValue("pass"),
+							"password_wo":         types.StringNull(),
+							"password_wo_version": types.Int64Null(),
 						},
 					),
 					"settings": types.ObjectValueMust(
@@ -402,13 +416,15 @@ func boolPtr(b bool) *bool {
 
 func buildKafkaMutualTLSPlan(certificate, privateKey types.String) models.ClickPipeResourceModel {
 	credAttrs := map[string]attr.Value{
-		"username":          types.StringNull(),
-		"password":          types.StringNull(),
-		"access_key_id":     types.StringNull(),
-		"secret_key":        types.StringNull(),
-		"connection_string": types.StringNull(),
-		"certificate":       certificate,
-		"private_key":       privateKey,
+		"username":            types.StringNull(),
+		"password":            types.StringNull(),
+		"password_wo":         types.StringNull(),
+		"password_wo_version": types.Int64Null(),
+		"access_key_id":       types.StringNull(),
+		"secret_key":          types.StringNull(),
+		"connection_string":   types.StringNull(),
+		"certificate":         certificate,
+		"private_key":         privateKey,
 	}
 
 	kafkaAttrs := map[string]attr.Value{
@@ -430,6 +446,7 @@ func buildKafkaMutualTLSPlan(certificate, privateKey types.String) models.ClickP
 		Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
 		ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
 		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+		PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
 		Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
 		MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
 		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
@@ -455,7 +472,7 @@ func TestExtractSourceFromPlan_KafkaMutualTLS(t *testing.T) {
 		)
 
 		diagnostics := diag.Diagnostics{}
-		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
 		assert.NotNil(t, source)
@@ -475,7 +492,7 @@ func TestExtractSourceFromPlan_KafkaMutualTLS(t *testing.T) {
 		)
 
 		diagnostics := diag.Diagnostics{}
-		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 		assert.True(t, diagnostics.HasError(), "expected error when private_key is missing")
 		assert.Nil(t, source)
@@ -488,10 +505,576 @@ func TestExtractSourceFromPlan_KafkaMutualTLS(t *testing.T) {
 		)
 
 		diagnostics := diag.Diagnostics{}
-		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, false)
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
 
 		assert.True(t, diagnostics.HasError(), "expected error when certificate is missing")
 		assert.Nil(t, source)
+	})
+}
+
+// buildPostgresCredentialsPlan returns plan/config models for Postgres; password_wo is stripped from plan, password_wo_version is preserved (it's not write-only).
+func buildPostgresCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		credAttrs := map[string]attr.Value{
+			"username":            types.StringValue("user"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+		}
+		settingsAttrs := map[string]attr.Value{
+			"replication_mode":                   types.StringValue("cdc"),
+			"sync_interval_seconds":              types.Int64Null(),
+			"pull_batch_size":                    types.Int64Null(),
+			"publication_name":                   types.StringNull(),
+			"replication_slot_name":              types.StringNull(),
+			"allow_nullable_columns":             types.BoolNull(),
+			"initial_load_parallelism":           types.Int64Null(),
+			"snapshot_num_rows_per_partition":    types.Int64Null(),
+			"snapshot_number_of_parallel_tables": types.Int64Null(),
+			"enable_failover_slots":              types.BoolNull(),
+			"delete_on_merge":                    types.BoolNull(),
+		}
+		pgAttrs := map[string]attr.Value{
+			"type":           types.StringValue("postgres"),
+			"host":           types.StringValue("postgres.example.com"),
+			"port":           types.Int64Value(5432),
+			"database":       types.StringValue("mydb"),
+			"authentication": types.StringNull(),
+			"iam_role":       types.StringNull(),
+			"tls_host":       types.StringNull(),
+			"ca_certificate": types.StringNull(),
+			"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":       types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings": types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{}),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectValueMust(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes, pgAttrs),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-pg-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	// Plan never sees password_wo — the framework strips it before the provider receives plan.
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_PostgresWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildPostgresCredentialsPlan(types.StringNull(), types.StringValue("wo-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Postgres)
+		assert.NotNil(t, source.Postgres.Credentials)
+		assert.Equal(t, "wo-secret", source.Postgres.Credentials.Password)
+	})
+
+	t.Run("legacy password used when no write-only set", func(t *testing.T) {
+		plan, config := buildPostgresCredentialsPlan(types.StringValue("legacy-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-pass", source.Postgres.Credentials.Password)
+	})
+
+	t.Run("nil config falls back to plan password", func(t *testing.T) {
+		plan, _ := buildPostgresCredentialsPlan(types.StringValue("plan-only-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "plan-only-pass", source.Postgres.Credentials.Password)
+	})
+
+	t.Run("missing password and password_wo errors for basic auth", func(t *testing.T) {
+		plan, config := buildPostgresCredentialsPlan(types.StringNull(), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when no password supplied for basic auth")
+		_ = source
+	})
+}
+
+// buildKafkaCredentialsPlan returns plan/config models for PLAIN-authenticated Kafka; see buildPostgresCredentialsPlan for the plan-vs-config asymmetry.
+func buildKafkaCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		credAttrs := map[string]attr.Value{
+			"username":            types.StringValue("kuser"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+			"access_key_id":       types.StringNull(),
+			"secret_key":          types.StringNull(),
+			"connection_string":   types.StringNull(),
+			"certificate":         types.StringNull(),
+			"private_key":         types.StringNull(),
+		}
+		kafkaAttrs := map[string]attr.Value{
+			"type":                         types.StringValue("kafka"),
+			"format":                       types.StringValue("JSONEachRow"),
+			"brokers":                      types.StringValue("broker:9092"),
+			"topics":                       types.StringValue("test-topic"),
+			"consumer_group":               types.StringNull(),
+			"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
+			"schema_registry":              types.ObjectNull(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes),
+			"authentication":               types.StringValue("PLAIN"),
+			"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"iam_role":                     types.StringNull(),
+			"ca_certificate":               types.StringNull(),
+			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-kafka-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_KafkaWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildKafkaCredentialsPlan(types.StringNull(), types.StringValue("wo-kafka-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Kafka)
+		assert.NotNil(t, source.Kafka.Credentials)
+		assert.NotNil(t, source.Kafka.Credentials.ClickPipeSourceCredentials)
+		assert.Equal(t, "wo-kafka-secret", source.Kafka.Credentials.Password)
+	})
+
+	t.Run("legacy password used when no write-only set", func(t *testing.T) {
+		plan, config := buildKafkaCredentialsPlan(types.StringValue("legacy-kafka-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-kafka-pass", source.Kafka.Credentials.Password)
+	})
+
+	t.Run("nil config falls back to plan password", func(t *testing.T) {
+		plan, _ := buildKafkaCredentialsPlan(types.StringValue("plan-only-kafka"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "plan-only-kafka", source.Kafka.Credentials.Password)
+	})
+}
+
+// buildKafkaSchemaRegistryCredentialsPlan returns plan/config models exercising the Schema Registry overlay path; main Kafka creds use a fixed legacy password.
+func buildKafkaSchemaRegistryCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		mainCredAttrs := map[string]attr.Value{
+			"username":            types.StringValue("kuser"),
+			"password":            types.StringValue("main-pass"),
+			"password_wo":         types.StringNull(),
+			"password_wo_version": types.Int64Null(),
+			"access_key_id":       types.StringNull(),
+			"secret_key":          types.StringNull(),
+			"connection_string":   types.StringNull(),
+			"certificate":         types.StringNull(),
+			"private_key":         types.StringNull(),
+		}
+		srCredAttrs := map[string]attr.Value{
+			"username":            types.StringValue("sruser"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+		}
+		srAttrs := map[string]attr.Value{
+			"url":            types.StringValue("https://schema-registry.example.com"),
+			"authentication": types.StringValue("PLAIN"),
+			"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, srCredAttrs),
+		}
+		kafkaAttrs := map[string]attr.Value{
+			"type":                         types.StringValue("kafka"),
+			"format":                       types.StringValue("AvroConfluent"),
+			"brokers":                      types.StringValue("broker:9092"),
+			"topics":                       types.StringValue("test-topic"),
+			"consumer_group":               types.StringNull(),
+			"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
+			"schema_registry":              types.ObjectValueMust(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes, srAttrs),
+			"authentication":               types.StringValue("PLAIN"),
+			"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, mainCredAttrs),
+			"iam_role":                     types.StringNull(),
+			"ca_certificate":               types.StringNull(),
+			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-kafka-sr-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_KafkaSchemaRegistryWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only schema registry password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildKafkaSchemaRegistryCredentialsPlan(types.StringNull(), types.StringValue("wo-sr-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Kafka)
+		assert.NotNil(t, source.Kafka.SchemaRegistry)
+		assert.NotNil(t, source.Kafka.SchemaRegistry.Credentials)
+		assert.Equal(t, "wo-sr-secret", source.Kafka.SchemaRegistry.Credentials.Password)
+		// Main Kafka credentials should not be affected by SR overlay.
+		assert.Equal(t, "main-pass", source.Kafka.Credentials.Password)
+	})
+
+	t.Run("legacy schema registry password used when no write-only set", func(t *testing.T) {
+		plan, config := buildKafkaSchemaRegistryCredentialsPlan(types.StringValue("legacy-sr-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-sr-pass", source.Kafka.SchemaRegistry.Credentials.Password)
+	})
+
+	t.Run("nil config falls back to plan schema registry password", func(t *testing.T) {
+		plan, _ := buildKafkaSchemaRegistryCredentialsPlan(types.StringValue("plan-only-sr"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "plan-only-sr", source.Kafka.SchemaRegistry.Credentials.Password)
+	})
+}
+
+// buildMySQLCredentialsPlan returns plan/config models for a basic-auth MySQL source.
+func buildMySQLCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		credAttrs := map[string]attr.Value{
+			"username":            types.StringValue("user"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+		}
+		settingsAttrs := map[string]attr.Value{
+			"replication_mode":                   types.StringValue("cdc"),
+			"sync_interval_seconds":              types.Int64Null(),
+			"pull_batch_size":                    types.Int64Null(),
+			"replication_mechanism":              types.StringNull(),
+			"use_compression":                    types.BoolNull(),
+			"allow_nullable_columns":             types.BoolNull(),
+			"initial_load_parallelism":           types.Int64Null(),
+			"snapshot_num_rows_per_partition":    types.Int64Null(),
+			"snapshot_number_of_parallel_tables": types.Int64Null(),
+			"delete_on_merge":                    types.BoolNull(),
+		}
+		mysqlAttrs := map[string]attr.Value{
+			"type":                   types.StringValue("mysql"),
+			"host":                   types.StringValue("mysql.example.com"),
+			"port":                   types.Int64Value(3306),
+			"authentication":         types.StringNull(),
+			"iam_role":               types.StringNull(),
+			"tls_host":               types.StringNull(),
+			"ca_certificate":         types.StringNull(),
+			"disable_tls":            types.BoolNull(),
+			"skip_cert_verification": types.BoolNull(),
+			"credentials":            types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":               types.ObjectValueMust(models.ClickPipeMySQLSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings":         types.SetValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType(), []attr.Value{}),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectValueMust(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes, mysqlAttrs),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-mysql-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_MySQLWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildMySQLCredentialsPlan(types.StringNull(), types.StringValue("wo-mysql-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.MySQL)
+		assert.NotNil(t, source.MySQL.Credentials)
+		assert.Equal(t, "wo-mysql-secret", source.MySQL.Credentials.Password)
+	})
+
+	t.Run("legacy password used when no write-only set", func(t *testing.T) {
+		plan, config := buildMySQLCredentialsPlan(types.StringValue("legacy-mysql-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-mysql-pass", source.MySQL.Credentials.Password)
+	})
+
+	t.Run("missing password and password_wo errors for basic auth", func(t *testing.T) {
+		plan, config := buildMySQLCredentialsPlan(types.StringNull(), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when no password supplied for basic auth")
+		_ = source
+	})
+}
+
+// buildMongoDBCredentialsPlan returns plan/config models for a MongoDB source.
+func buildMongoDBCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		credAttrs := map[string]attr.Value{
+			"username":            types.StringValue("user"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+		}
+		settingsAttrs := map[string]attr.Value{
+			"replication_mode":                   types.StringValue("cdc"),
+			"sync_interval_seconds":              types.Int64Null(),
+			"pull_batch_size":                    types.Int64Null(),
+			"snapshot_num_rows_per_partition":    types.Int64Null(),
+			"snapshot_number_of_parallel_tables": types.Int64Null(),
+			"delete_on_merge":                    types.BoolNull(),
+			"use_json_native_format":             types.BoolNull(),
+		}
+		mongoAttrs := map[string]attr.Value{
+			"uri":             types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
+			"read_preference": types.StringValue("secondaryPreferred"),
+			"tls_host":        types.StringNull(),
+			"ca_certificate":  types.StringNull(),
+			"disable_tls":     types.BoolNull(),
+			"credentials":     types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":        types.ObjectValueMust(models.ClickPipeMongoDBSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings":  types.SetValueMust(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), []attr.Value{}),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectValueMust(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes, mongoAttrs),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-mongodb-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_MongoDBWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildMongoDBCredentialsPlan(types.StringNull(), types.StringValue("wo-mongo-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.MongoDB)
+		assert.NotNil(t, source.MongoDB.Credentials)
+		assert.Equal(t, "wo-mongo-secret", source.MongoDB.Credentials.Password)
+	})
+
+	t.Run("legacy password used when no write-only set", func(t *testing.T) {
+		plan, config := buildMongoDBCredentialsPlan(types.StringValue("legacy-mongo-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-mongo-pass", source.MongoDB.Credentials.Password)
+	})
+
+	t.Run("nil config falls back to plan password", func(t *testing.T) {
+		plan, _ := buildMongoDBCredentialsPlan(types.StringValue("plan-only-mongo"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "plan-only-mongo", source.MongoDB.Credentials.Password)
+	})
+}
+
+// buildCredentialsObject constructs a credentials object for credential-change detection tests.
+func buildCredentialsObject(username, password, passwordWO types.String, passwordWOVersion types.Int64) types.Object {
+	return types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, map[string]attr.Value{
+		"username":            username,
+		"password":            password,
+		"password_wo":         passwordWO,
+		"password_wo_version": passwordWOVersion,
+	})
+}
+
+func TestCredentialsObjectChanged(t *testing.T) {
+	// Verifies the Update flow's PATCH-prune decision, especially that `password_wo_version` bumps register as changes.
+	t.Run("unchanged credentials are not flagged as changed", func(t *testing.T) {
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		assert.False(t, credentialsObjectChanged(plan, state), "identical plan and state should not be detected as changed")
+	})
+
+	t.Run("password change is detected", func(t *testing.T) {
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("new-pass"), types.StringNull(), types.Int64Null())
+		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("old-pass"), types.StringNull(), types.Int64Null())
+		assert.True(t, credentialsObjectChanged(plan, state), "password change should be detected so PATCH re-sends credentials")
+	})
+
+	t.Run("username change is detected", func(t *testing.T) {
+		plan := buildCredentialsObject(types.StringValue("new-user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		state := buildCredentialsObject(types.StringValue("old-user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		assert.True(t, credentialsObjectChanged(plan, state), "username change should be detected")
+	})
+
+	t.Run("password_wo_version bump is detected (rotation trigger)", func(t *testing.T) {
+		// Write-only rotation: only the version field changes; password_wo is stripped in plan.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(2))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.True(t, credentialsObjectChanged(plan, state), "version bump should be detected so the rotated password is sent in PATCH")
+	})
+
+	t.Run("password_wo_version unchanged on write-only path is not flagged", func(t *testing.T) {
+		// Same version, both passwords null in plan/state (write-only path with no rotation).
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.False(t, credentialsObjectChanged(plan, state), "no-op apply with stable version should omit credentials from PATCH")
+	})
+
+	t.Run("password_wo populated in plan but null in state at same version is not flagged", func(t *testing.T) {
+		// Real framework behavior: write-only attrs ride along in req.Plan from config but are nulled in req.State.
+		// Without excluding password_wo, every plan after the first apply spuriously detects a credentials change.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringValue("secret"), types.Int64Value(1))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.False(t, credentialsObjectChanged(plan, state), "plan-side password_wo with stable version must not trigger PATCH")
+	})
+
+	t.Run("password_wo populated in plan with version bump is flagged", func(t *testing.T) {
+		// Rotation path: user bumps version AND the framework still surfaces password_wo in plan.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringValue("new-secret"), types.Int64Value(2))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.True(t, credentialsObjectChanged(plan, state), "version bump must trigger PATCH even with password_wo present in plan")
+	})
+
+	t.Run("migration from legacy password to write-only is detected", func(t *testing.T) {
+		// State was created with legacy `password`; user is now switching to password_wo.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("legacy-pass"), types.StringNull(), types.Int64Null())
+		assert.True(t, credentialsObjectChanged(plan, state), "switching from legacy password to password_wo should re-send credentials")
+	})
+
+	// Robustness guards (PR #532 review comment): Unknown objects and older-schema
+	// state must not panic and must err on the side of "changed".
+	t.Run("unknown plan credentials are treated as changed", func(t *testing.T) {
+		plan := types.ObjectUnknown(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		assert.True(t, credentialsObjectChanged(plan, state), "unknown plan credentials cannot be proven equal — treat as changed")
+	})
+
+	t.Run("unknown state credentials are treated as changed", func(t *testing.T) {
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		state := types.ObjectUnknown(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		assert.True(t, credentialsObjectChanged(plan, state), "unknown state credentials cannot be proven equal — treat as changed")
+	})
+
+	t.Run("older-schema state missing password_wo_version does not panic and is treated as changed", func(t *testing.T) {
+		// Simulate state produced before password_wo_version existed: a credentials object
+		// whose attribute set lacks the newer key. A direct stateAttrs[name] index would
+		// previously yield a nil value and panic on .Equal().
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		legacyState := types.ObjectValueMust(
+			map[string]attr.Type{
+				"username": types.StringType,
+				"password": types.StringType,
+				// password_wo and password_wo_version intentionally absent (older schema)
+			},
+			map[string]attr.Value{
+				"username": types.StringValue("user"),
+				"password": types.StringValue("pass"),
+			},
+		)
+		assert.NotPanics(t, func() {
+			assert.True(t, credentialsObjectChanged(plan, legacyState), "missing newer attribute means schema changed — treat as changed")
+		})
 	})
 }
 
@@ -625,6 +1208,7 @@ func getMongoDBInitialState() models.ClickPipeResourceModel {
 			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
 			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
 			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
 			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
 			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
 			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
@@ -639,8 +1223,10 @@ func getMongoDBInitialState() models.ClickPipeResourceModel {
 					"credentials": types.ObjectValueMust(
 						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
 						map[string]attr.Value{
-							"username": types.StringValue("user"),
-							"password": types.StringValue("pass"),
+							"username":            types.StringValue("user"),
+							"password":            types.StringValue("pass"),
+							"password_wo":         types.StringNull(),
+							"password_wo_version": types.Int64Null(),
 						},
 					),
 					"settings": types.ObjectValueMust(

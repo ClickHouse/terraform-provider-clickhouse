@@ -33,6 +33,20 @@ type ClientMock struct {
 	beforeCreateClickPipeCounter uint64
 	CreateClickPipeMock          mClientMockCreateClickPipe
 
+	funcCreatePostgres          func(ctx context.Context, body PostgresCreate) (pp1 *Postgres, s1 string, err error)
+	funcCreatePostgresOrigin    string
+	inspectFuncCreatePostgres   func(ctx context.Context, body PostgresCreate)
+	afterCreatePostgresCounter  uint64
+	beforeCreatePostgresCounter uint64
+	CreatePostgresMock          mClientMockCreatePostgres
+
+	funcCreatePostgresReadReplica          func(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (pp1 *Postgres, err error)
+	funcCreatePostgresReadReplicaOrigin    string
+	inspectFuncCreatePostgresReadReplica   func(ctx context.Context, sourceId string, body PostgresReadReplicaRequest)
+	afterCreatePostgresReadReplicaCounter  uint64
+	beforeCreatePostgresReadReplicaCounter uint64
+	CreatePostgresReadReplicaMock          mClientMockCreatePostgresReadReplica
+
 	funcCreateQueryEndpoint          func(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint) (sp1 *ServiceQueryEndpoint, err error)
 	funcCreateQueryEndpointOrigin    string
 	inspectFuncCreateQueryEndpoint   func(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint)
@@ -68,6 +82,13 @@ type ClientMock struct {
 	beforeDeleteClickPipeCounter uint64
 	DeleteClickPipeMock          mClientMockDeleteClickPipe
 
+	funcDeletePostgres          func(ctx context.Context, postgresId string) (err error)
+	funcDeletePostgresOrigin    string
+	inspectFuncDeletePostgres   func(ctx context.Context, postgresId string)
+	afterDeletePostgresCounter  uint64
+	beforeDeletePostgresCounter uint64
+	DeletePostgresMock          mClientMockDeletePostgres
+
 	funcDeleteQueryEndpoint          func(ctx context.Context, serviceID string) (err error)
 	funcDeleteQueryEndpointOrigin    string
 	inspectFuncDeleteQueryEndpoint   func(ctx context.Context, serviceID string)
@@ -89,12 +110,26 @@ type ClientMock struct {
 	beforeDeleteRoleCounter uint64
 	DeleteRoleMock          mClientMockDeleteRole
 
+	funcDeleteScheduledScaling          func(ctx context.Context, serviceId string) (err error)
+	funcDeleteScheduledScalingOrigin    string
+	inspectFuncDeleteScheduledScaling   func(ctx context.Context, serviceId string)
+	afterDeleteScheduledScalingCounter  uint64
+	beforeDeleteScheduledScalingCounter uint64
+	DeleteScheduledScalingMock          mClientMockDeleteScheduledScaling
+
 	funcDeleteService          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
 	funcDeleteServiceOrigin    string
 	inspectFuncDeleteService   func(ctx context.Context, serviceId string)
 	afterDeleteServiceCounter  uint64
 	beforeDeleteServiceCounter uint64
 	DeleteServiceMock          mClientMockDeleteService
+
+	funcDeleteUpgradeWindow          func(ctx context.Context, serviceId string) (err error)
+	funcDeleteUpgradeWindowOrigin    string
+	inspectFuncDeleteUpgradeWindow   func(ctx context.Context, serviceId string)
+	afterDeleteUpgradeWindowCounter  uint64
+	beforeDeleteUpgradeWindowCounter uint64
+	DeleteUpgradeWindowMock          mClientMockDeleteUpgradeWindow
 
 	funcGetApiKeyID          func(ctx context.Context, name *string) (ap1 *ApiKey, err error)
 	funcGetApiKeyIDOrigin    string
@@ -159,6 +194,27 @@ type ClientMock struct {
 	beforeGetOrganizationPrivateEndpointsCounter uint64
 	GetOrganizationPrivateEndpointsMock          mClientMockGetOrganizationPrivateEndpoints
 
+	funcGetPostgres          func(ctx context.Context, postgresId string) (pp1 *Postgres, err error)
+	funcGetPostgresOrigin    string
+	inspectFuncGetPostgres   func(ctx context.Context, postgresId string)
+	afterGetPostgresCounter  uint64
+	beforeGetPostgresCounter uint64
+	GetPostgresMock          mClientMockGetPostgres
+
+	funcGetPostgresCaCertificates          func(ctx context.Context, postgresId string) (ba1 []byte, err error)
+	funcGetPostgresCaCertificatesOrigin    string
+	inspectFuncGetPostgresCaCertificates   func(ctx context.Context, postgresId string)
+	afterGetPostgresCaCertificatesCounter  uint64
+	beforeGetPostgresCaCertificatesCounter uint64
+	GetPostgresCaCertificatesMock          mClientMockGetPostgresCaCertificates
+
+	funcGetPostgresConfig          func(ctx context.Context, postgresId string) (pp1 *PostgresConfig, err error)
+	funcGetPostgresConfigOrigin    string
+	inspectFuncGetPostgresConfig   func(ctx context.Context, postgresId string)
+	afterGetPostgresConfigCounter  uint64
+	beforeGetPostgresConfigCounter uint64
+	GetPostgresConfigMock          mClientMockGetPostgresConfig
+
 	funcGetQueryEndpoint          func(ctx context.Context, serviceID string) (sp1 *ServiceQueryEndpoint, err error)
 	funcGetQueryEndpointOrigin    string
 	inspectFuncGetQueryEndpoint   func(ctx context.Context, serviceID string)
@@ -187,6 +243,13 @@ type ClientMock struct {
 	beforeGetRoleCounter uint64
 	GetRoleMock          mClientMockGetRole
 
+	funcGetScheduledScaling          func(ctx context.Context, serviceId string) (ap1 *AutoScalingSchedule, err error)
+	funcGetScheduledScalingOrigin    string
+	inspectFuncGetScheduledScaling   func(ctx context.Context, serviceId string)
+	afterGetScheduledScalingCounter  uint64
+	beforeGetScheduledScalingCounter uint64
+	GetScheduledScalingMock          mClientMockGetScheduledScaling
+
 	funcGetService          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
 	funcGetServiceOrigin    string
 	inspectFuncGetService   func(ctx context.Context, serviceId string)
@@ -194,12 +257,26 @@ type ClientMock struct {
 	beforeGetServiceCounter uint64
 	GetServiceMock          mClientMockGetService
 
+	funcGetUpgradeWindow          func(ctx context.Context, serviceId string) (up1 *UpgradeWindow, err error)
+	funcGetUpgradeWindowOrigin    string
+	inspectFuncGetUpgradeWindow   func(ctx context.Context, serviceId string)
+	afterGetUpgradeWindowCounter  uint64
+	beforeGetUpgradeWindowCounter uint64
+	GetUpgradeWindowMock          mClientMockGetUpgradeWindow
+
 	funcListMembers          func(ctx context.Context) (ma1 []Member, err error)
 	funcListMembersOrigin    string
 	inspectFuncListMembers   func(ctx context.Context)
 	afterListMembersCounter  uint64
 	beforeListMembersCounter uint64
 	ListMembersMock          mClientMockListMembers
+
+	funcListPostgres          func(ctx context.Context) (pa1 []PostgresListItem, err error)
+	funcListPostgresOrigin    string
+	inspectFuncListPostgres   func(ctx context.Context)
+	afterListPostgresCounter  uint64
+	beforeListPostgresCounter uint64
+	ListPostgresMock          mClientMockListPostgres
 
 	funcListReversePrivateEndpoints          func(ctx context.Context, serviceId string) (rpa1 []*ReversePrivateEndpoint, err error)
 	funcListReversePrivateEndpointsOrigin    string
@@ -215,6 +292,20 @@ type ClientMock struct {
 	beforeListRolesCounter uint64
 	ListRolesMock          mClientMockListRoles
 
+	funcReplacePostgresConfig          func(ctx context.Context, postgresId string, body PostgresConfig) (pp1 *PostgresConfigUpdateResponse, err error)
+	funcReplacePostgresConfigOrigin    string
+	inspectFuncReplacePostgresConfig   func(ctx context.Context, postgresId string, body PostgresConfig)
+	afterReplacePostgresConfigCounter  uint64
+	beforeReplacePostgresConfigCounter uint64
+	ReplacePostgresConfigMock          mClientMockReplacePostgresConfig
+
+	funcRestorePostgres          func(ctx context.Context, sourceId string, body PostgresRestoreRequest) (pp1 *Postgres, err error)
+	funcRestorePostgresOrigin    string
+	inspectFuncRestorePostgres   func(ctx context.Context, sourceId string, body PostgresRestoreRequest)
+	afterRestorePostgresCounter  uint64
+	beforeRestorePostgresCounter uint64
+	RestorePostgresMock          mClientMockRestorePostgres
+
 	funcRotateTDEKey          func(ctx context.Context, serviceId string, keyId string) (err error)
 	funcRotateTDEKeyOrigin    string
 	inspectFuncRotateTDEKey   func(ctx context.Context, serviceId string, keyId string)
@@ -228,6 +319,13 @@ type ClientMock struct {
 	afterScalingClickPipeCounter  uint64
 	beforeScalingClickPipeCounter uint64
 	ScalingClickPipeMock          mClientMockScalingClickPipe
+
+	funcSetPostgresPassword          func(ctx context.Context, postgresId string, body PostgresPassword) (pp1 *PostgresPassword, err error)
+	funcSetPostgresPasswordOrigin    string
+	inspectFuncSetPostgresPassword   func(ctx context.Context, postgresId string, body PostgresPassword)
+	afterSetPostgresPasswordCounter  uint64
+	beforeSetPostgresPasswordCounter uint64
+	SetPostgresPasswordMock          mClientMockSetPostgresPassword
 
 	funcUpdateBackupConfiguration          func(ctx context.Context, serviceId string, b BackupConfiguration) (bp1 *BackupConfiguration, err error)
 	funcUpdateBackupConfigurationOrigin    string
@@ -271,6 +369,13 @@ type ClientMock struct {
 	beforeUpdateOrganizationPrivateEndpointsCounter uint64
 	UpdateOrganizationPrivateEndpointsMock          mClientMockUpdateOrganizationPrivateEndpoints
 
+	funcUpdatePostgres          func(ctx context.Context, postgresId string, body PostgresUpdate) (pp1 *Postgres, err error)
+	funcUpdatePostgresOrigin    string
+	inspectFuncUpdatePostgres   func(ctx context.Context, postgresId string, body PostgresUpdate)
+	afterUpdatePostgresCounter  uint64
+	beforeUpdatePostgresCounter uint64
+	UpdatePostgresMock          mClientMockUpdatePostgres
+
 	funcUpdateReplicaScaling          func(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (sp1 *Service, err error)
 	funcUpdateReplicaScalingOrigin    string
 	inspectFuncUpdateReplicaScaling   func(ctx context.Context, serviceId string, s ReplicaScalingUpdate)
@@ -284,6 +389,13 @@ type ClientMock struct {
 	afterUpdateRoleCounter  uint64
 	beforeUpdateRoleCounter uint64
 	UpdateRoleMock          mClientMockUpdateRole
+
+	funcUpdateScheduledScaling          func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (ap1 *AutoScalingSchedule, err error)
+	funcUpdateScheduledScalingOrigin    string
+	inspectFuncUpdateScheduledScaling   func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate)
+	afterUpdateScheduledScalingCounter  uint64
+	beforeUpdateScheduledScalingCounter uint64
+	UpdateScheduledScalingMock          mClientMockUpdateScheduledScaling
 
 	funcUpdateService          func(ctx context.Context, serviceId string, s ServiceUpdate) (sp1 *Service, err error)
 	funcUpdateServiceOrigin    string
@@ -299,6 +411,13 @@ type ClientMock struct {
 	beforeUpdateServicePasswordCounter uint64
 	UpdateServicePasswordMock          mClientMockUpdateServicePassword
 
+	funcUpdateUpgradeWindow          func(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (up1 *UpgradeWindow, err error)
+	funcUpdateUpgradeWindowOrigin    string
+	inspectFuncUpdateUpgradeWindow   func(ctx context.Context, serviceId string, u UpgradeWindowUpdate)
+	afterUpdateUpgradeWindowCounter  uint64
+	beforeUpdateUpgradeWindowCounter uint64
+	UpdateUpgradeWindowMock          mClientMockUpdateUpgradeWindow
+
 	funcWaitForClickPipeCdcScaling          func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (cp1 *ClickPipeCdcScaling, err error)
 	funcWaitForClickPipeCdcScalingOrigin    string
 	inspectFuncWaitForClickPipeCdcScaling   func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration)
@@ -312,6 +431,20 @@ type ClientMock struct {
 	afterWaitForClickPipeStateCounter  uint64
 	beforeWaitForClickPipeStateCounter uint64
 	WaitForClickPipeStateMock          mClientMockWaitForClickPipeState
+
+	funcWaitForPostgresState          func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
+	funcWaitForPostgresStateOrigin    string
+	inspectFuncWaitForPostgresState   func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int)
+	afterWaitForPostgresStateCounter  uint64
+	beforeWaitForPostgresStateCounter uint64
+	WaitForPostgresStateMock          mClientMockWaitForPostgresState
+
+	funcWaitForPostgresStateTransitionAndReturn          func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) (err error)
+	funcWaitForPostgresStateTransitionAndReturnOrigin    string
+	inspectFuncWaitForPostgresStateTransitionAndReturn   func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int)
+	afterWaitForPostgresStateTransitionAndReturnCounter  uint64
+	beforeWaitForPostgresStateTransitionAndReturnCounter uint64
+	WaitForPostgresStateTransitionAndReturnMock          mClientMockWaitForPostgresStateTransitionAndReturn
 
 	funcWaitForReversePrivateEndpointState          func(ctx context.Context, serviceId string, reversePrivateEndpointId string, stateChecker func(string) bool, maxWaitSeconds uint64) (rp1 *ReversePrivateEndpoint, err error)
 	funcWaitForReversePrivateEndpointStateOrigin    string
@@ -342,6 +475,12 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateClickPipeMock = mClientMockCreateClickPipe{mock: m}
 	m.CreateClickPipeMock.callArgs = []*ClientMockCreateClickPipeParams{}
 
+	m.CreatePostgresMock = mClientMockCreatePostgres{mock: m}
+	m.CreatePostgresMock.callArgs = []*ClientMockCreatePostgresParams{}
+
+	m.CreatePostgresReadReplicaMock = mClientMockCreatePostgresReadReplica{mock: m}
+	m.CreatePostgresReadReplicaMock.callArgs = []*ClientMockCreatePostgresReadReplicaParams{}
+
 	m.CreateQueryEndpointMock = mClientMockCreateQueryEndpoint{mock: m}
 	m.CreateQueryEndpointMock.callArgs = []*ClientMockCreateQueryEndpointParams{}
 
@@ -357,6 +496,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.DeleteClickPipeMock = mClientMockDeleteClickPipe{mock: m}
 	m.DeleteClickPipeMock.callArgs = []*ClientMockDeleteClickPipeParams{}
 
+	m.DeletePostgresMock = mClientMockDeletePostgres{mock: m}
+	m.DeletePostgresMock.callArgs = []*ClientMockDeletePostgresParams{}
+
 	m.DeleteQueryEndpointMock = mClientMockDeleteQueryEndpoint{mock: m}
 	m.DeleteQueryEndpointMock.callArgs = []*ClientMockDeleteQueryEndpointParams{}
 
@@ -366,8 +508,14 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.DeleteRoleMock = mClientMockDeleteRole{mock: m}
 	m.DeleteRoleMock.callArgs = []*ClientMockDeleteRoleParams{}
 
+	m.DeleteScheduledScalingMock = mClientMockDeleteScheduledScaling{mock: m}
+	m.DeleteScheduledScalingMock.callArgs = []*ClientMockDeleteScheduledScalingParams{}
+
 	m.DeleteServiceMock = mClientMockDeleteService{mock: m}
 	m.DeleteServiceMock.callArgs = []*ClientMockDeleteServiceParams{}
+
+	m.DeleteUpgradeWindowMock = mClientMockDeleteUpgradeWindow{mock: m}
+	m.DeleteUpgradeWindowMock.callArgs = []*ClientMockDeleteUpgradeWindowParams{}
 
 	m.GetApiKeyIDMock = mClientMockGetApiKeyID{mock: m}
 	m.GetApiKeyIDMock.callArgs = []*ClientMockGetApiKeyIDParams{}
@@ -396,6 +544,15 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetOrganizationPrivateEndpointsMock = mClientMockGetOrganizationPrivateEndpoints{mock: m}
 	m.GetOrganizationPrivateEndpointsMock.callArgs = []*ClientMockGetOrganizationPrivateEndpointsParams{}
 
+	m.GetPostgresMock = mClientMockGetPostgres{mock: m}
+	m.GetPostgresMock.callArgs = []*ClientMockGetPostgresParams{}
+
+	m.GetPostgresCaCertificatesMock = mClientMockGetPostgresCaCertificates{mock: m}
+	m.GetPostgresCaCertificatesMock.callArgs = []*ClientMockGetPostgresCaCertificatesParams{}
+
+	m.GetPostgresConfigMock = mClientMockGetPostgresConfig{mock: m}
+	m.GetPostgresConfigMock.callArgs = []*ClientMockGetPostgresConfigParams{}
+
 	m.GetQueryEndpointMock = mClientMockGetQueryEndpoint{mock: m}
 	m.GetQueryEndpointMock.callArgs = []*ClientMockGetQueryEndpointParams{}
 
@@ -408,11 +565,20 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetRoleMock = mClientMockGetRole{mock: m}
 	m.GetRoleMock.callArgs = []*ClientMockGetRoleParams{}
 
+	m.GetScheduledScalingMock = mClientMockGetScheduledScaling{mock: m}
+	m.GetScheduledScalingMock.callArgs = []*ClientMockGetScheduledScalingParams{}
+
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
 
+	m.GetUpgradeWindowMock = mClientMockGetUpgradeWindow{mock: m}
+	m.GetUpgradeWindowMock.callArgs = []*ClientMockGetUpgradeWindowParams{}
+
 	m.ListMembersMock = mClientMockListMembers{mock: m}
 	m.ListMembersMock.callArgs = []*ClientMockListMembersParams{}
+
+	m.ListPostgresMock = mClientMockListPostgres{mock: m}
+	m.ListPostgresMock.callArgs = []*ClientMockListPostgresParams{}
 
 	m.ListReversePrivateEndpointsMock = mClientMockListReversePrivateEndpoints{mock: m}
 	m.ListReversePrivateEndpointsMock.callArgs = []*ClientMockListReversePrivateEndpointsParams{}
@@ -420,11 +586,20 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.ListRolesMock = mClientMockListRoles{mock: m}
 	m.ListRolesMock.callArgs = []*ClientMockListRolesParams{}
 
+	m.ReplacePostgresConfigMock = mClientMockReplacePostgresConfig{mock: m}
+	m.ReplacePostgresConfigMock.callArgs = []*ClientMockReplacePostgresConfigParams{}
+
+	m.RestorePostgresMock = mClientMockRestorePostgres{mock: m}
+	m.RestorePostgresMock.callArgs = []*ClientMockRestorePostgresParams{}
+
 	m.RotateTDEKeyMock = mClientMockRotateTDEKey{mock: m}
 	m.RotateTDEKeyMock.callArgs = []*ClientMockRotateTDEKeyParams{}
 
 	m.ScalingClickPipeMock = mClientMockScalingClickPipe{mock: m}
 	m.ScalingClickPipeMock.callArgs = []*ClientMockScalingClickPipeParams{}
+
+	m.SetPostgresPasswordMock = mClientMockSetPostgresPassword{mock: m}
+	m.SetPostgresPasswordMock.callArgs = []*ClientMockSetPostgresPasswordParams{}
 
 	m.UpdateBackupConfigurationMock = mClientMockUpdateBackupConfiguration{mock: m}
 	m.UpdateBackupConfigurationMock.callArgs = []*ClientMockUpdateBackupConfigurationParams{}
@@ -444,11 +619,17 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.UpdateOrganizationPrivateEndpointsMock = mClientMockUpdateOrganizationPrivateEndpoints{mock: m}
 	m.UpdateOrganizationPrivateEndpointsMock.callArgs = []*ClientMockUpdateOrganizationPrivateEndpointsParams{}
 
+	m.UpdatePostgresMock = mClientMockUpdatePostgres{mock: m}
+	m.UpdatePostgresMock.callArgs = []*ClientMockUpdatePostgresParams{}
+
 	m.UpdateReplicaScalingMock = mClientMockUpdateReplicaScaling{mock: m}
 	m.UpdateReplicaScalingMock.callArgs = []*ClientMockUpdateReplicaScalingParams{}
 
 	m.UpdateRoleMock = mClientMockUpdateRole{mock: m}
 	m.UpdateRoleMock.callArgs = []*ClientMockUpdateRoleParams{}
+
+	m.UpdateScheduledScalingMock = mClientMockUpdateScheduledScaling{mock: m}
+	m.UpdateScheduledScalingMock.callArgs = []*ClientMockUpdateScheduledScalingParams{}
 
 	m.UpdateServiceMock = mClientMockUpdateService{mock: m}
 	m.UpdateServiceMock.callArgs = []*ClientMockUpdateServiceParams{}
@@ -456,11 +637,20 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.UpdateServicePasswordMock = mClientMockUpdateServicePassword{mock: m}
 	m.UpdateServicePasswordMock.callArgs = []*ClientMockUpdateServicePasswordParams{}
 
+	m.UpdateUpgradeWindowMock = mClientMockUpdateUpgradeWindow{mock: m}
+	m.UpdateUpgradeWindowMock.callArgs = []*ClientMockUpdateUpgradeWindowParams{}
+
 	m.WaitForClickPipeCdcScalingMock = mClientMockWaitForClickPipeCdcScaling{mock: m}
 	m.WaitForClickPipeCdcScalingMock.callArgs = []*ClientMockWaitForClickPipeCdcScalingParams{}
 
 	m.WaitForClickPipeStateMock = mClientMockWaitForClickPipeState{mock: m}
 	m.WaitForClickPipeStateMock.callArgs = []*ClientMockWaitForClickPipeStateParams{}
+
+	m.WaitForPostgresStateMock = mClientMockWaitForPostgresState{mock: m}
+	m.WaitForPostgresStateMock.callArgs = []*ClientMockWaitForPostgresStateParams{}
+
+	m.WaitForPostgresStateTransitionAndReturnMock = mClientMockWaitForPostgresStateTransitionAndReturn{mock: m}
+	m.WaitForPostgresStateTransitionAndReturnMock.callArgs = []*ClientMockWaitForPostgresStateTransitionAndReturnParams{}
 
 	m.WaitForReversePrivateEndpointStateMock = mClientMockWaitForReversePrivateEndpointState{mock: m}
 	m.WaitForReversePrivateEndpointStateMock.callArgs = []*ClientMockWaitForReversePrivateEndpointStateParams{}
@@ -1249,6 +1439,724 @@ func (m *ClientMock) MinimockCreateClickPipeInspect() {
 	if !m.CreateClickPipeMock.invocationsDone() && afterCreateClickPipeCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateClickPipe at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateClickPipeMock.expectedInvocations), m.CreateClickPipeMock.expectedInvocationsOrigin, afterCreateClickPipeCounter)
+	}
+}
+
+type mClientMockCreatePostgres struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreatePostgresExpectation
+	expectations       []*ClientMockCreatePostgresExpectation
+
+	callArgs []*ClientMockCreatePostgresParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreatePostgresExpectation specifies expectation struct of the Client.CreatePostgres
+type ClientMockCreatePostgresExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreatePostgresParams
+	paramPtrs          *ClientMockCreatePostgresParamPtrs
+	expectationOrigins ClientMockCreatePostgresExpectationOrigins
+	results            *ClientMockCreatePostgresResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreatePostgresParams contains parameters of the Client.CreatePostgres
+type ClientMockCreatePostgresParams struct {
+	ctx  context.Context
+	body PostgresCreate
+}
+
+// ClientMockCreatePostgresParamPtrs contains pointers to parameters of the Client.CreatePostgres
+type ClientMockCreatePostgresParamPtrs struct {
+	ctx  *context.Context
+	body *PostgresCreate
+}
+
+// ClientMockCreatePostgresResults contains results of the Client.CreatePostgres
+type ClientMockCreatePostgresResults struct {
+	pp1 *Postgres
+	s1  string
+	err error
+}
+
+// ClientMockCreatePostgresOrigins contains origins of expectations of the Client.CreatePostgres
+type ClientMockCreatePostgresExpectationOrigins struct {
+	origin     string
+	originCtx  string
+	originBody string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreatePostgres *mClientMockCreatePostgres) Optional() *mClientMockCreatePostgres {
+	mmCreatePostgres.optional = true
+	return mmCreatePostgres
+}
+
+// Expect sets up expected params for Client.CreatePostgres
+func (mmCreatePostgres *mClientMockCreatePostgres) Expect(ctx context.Context, body PostgresCreate) *mClientMockCreatePostgres {
+	if mmCreatePostgres.mock.funcCreatePostgres != nil {
+		mmCreatePostgres.mock.t.Fatalf("ClientMock.CreatePostgres mock is already set by Set")
+	}
+
+	if mmCreatePostgres.defaultExpectation == nil {
+		mmCreatePostgres.defaultExpectation = &ClientMockCreatePostgresExpectation{}
+	}
+
+	if mmCreatePostgres.defaultExpectation.paramPtrs != nil {
+		mmCreatePostgres.mock.t.Fatalf("ClientMock.CreatePostgres mock is already set by ExpectParams functions")
+	}
+
+	mmCreatePostgres.defaultExpectation.params = &ClientMockCreatePostgresParams{ctx, body}
+	mmCreatePostgres.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreatePostgres.expectations {
+		if minimock.Equal(e.params, mmCreatePostgres.defaultExpectation.params) {
+			mmCreatePostgres.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreatePostgres.defaultExpectation.params)
+		}
+	}
+
+	return mmCreatePostgres
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreatePostgres
+func (mmCreatePostgres *mClientMockCreatePostgres) ExpectCtxParam1(ctx context.Context) *mClientMockCreatePostgres {
+	if mmCreatePostgres.mock.funcCreatePostgres != nil {
+		mmCreatePostgres.mock.t.Fatalf("ClientMock.CreatePostgres mock is already set by Set")
+	}
+
+	if mmCreatePostgres.defaultExpectation == nil {
+		mmCreatePostgres.defaultExpectation = &ClientMockCreatePostgresExpectation{}
+	}
+
+	if mmCreatePostgres.defaultExpectation.params != nil {
+		mmCreatePostgres.mock.t.Fatalf("ClientMock.CreatePostgres mock is already set by Expect")
+	}
+
+	if mmCreatePostgres.defaultExpectation.paramPtrs == nil {
+		mmCreatePostgres.defaultExpectation.paramPtrs = &ClientMockCreatePostgresParamPtrs{}
+	}
+	mmCreatePostgres.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreatePostgres.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreatePostgres
+}
+
+// ExpectBodyParam2 sets up expected param body for Client.CreatePostgres
+func (mmCreatePostgres *mClientMockCreatePostgres) ExpectBodyParam2(body PostgresCreate) *mClientMockCreatePostgres {
+	if mmCreatePostgres.mock.funcCreatePostgres != nil {
+		mmCreatePostgres.mock.t.Fatalf("ClientMock.CreatePostgres mock is already set by Set")
+	}
+
+	if mmCreatePostgres.defaultExpectation == nil {
+		mmCreatePostgres.defaultExpectation = &ClientMockCreatePostgresExpectation{}
+	}
+
+	if mmCreatePostgres.defaultExpectation.params != nil {
+		mmCreatePostgres.mock.t.Fatalf("ClientMock.CreatePostgres mock is already set by Expect")
+	}
+
+	if mmCreatePostgres.defaultExpectation.paramPtrs == nil {
+		mmCreatePostgres.defaultExpectation.paramPtrs = &ClientMockCreatePostgresParamPtrs{}
+	}
+	mmCreatePostgres.defaultExpectation.paramPtrs.body = &body
+	mmCreatePostgres.defaultExpectation.expectationOrigins.originBody = minimock.CallerInfo(1)
+
+	return mmCreatePostgres
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreatePostgres
+func (mmCreatePostgres *mClientMockCreatePostgres) Inspect(f func(ctx context.Context, body PostgresCreate)) *mClientMockCreatePostgres {
+	if mmCreatePostgres.mock.inspectFuncCreatePostgres != nil {
+		mmCreatePostgres.mock.t.Fatalf("Inspect function is already set for ClientMock.CreatePostgres")
+	}
+
+	mmCreatePostgres.mock.inspectFuncCreatePostgres = f
+
+	return mmCreatePostgres
+}
+
+// Return sets up results that will be returned by Client.CreatePostgres
+func (mmCreatePostgres *mClientMockCreatePostgres) Return(pp1 *Postgres, s1 string, err error) *ClientMock {
+	if mmCreatePostgres.mock.funcCreatePostgres != nil {
+		mmCreatePostgres.mock.t.Fatalf("ClientMock.CreatePostgres mock is already set by Set")
+	}
+
+	if mmCreatePostgres.defaultExpectation == nil {
+		mmCreatePostgres.defaultExpectation = &ClientMockCreatePostgresExpectation{mock: mmCreatePostgres.mock}
+	}
+	mmCreatePostgres.defaultExpectation.results = &ClientMockCreatePostgresResults{pp1, s1, err}
+	mmCreatePostgres.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreatePostgres.mock
+}
+
+// Set uses given function f to mock the Client.CreatePostgres method
+func (mmCreatePostgres *mClientMockCreatePostgres) Set(f func(ctx context.Context, body PostgresCreate) (pp1 *Postgres, s1 string, err error)) *ClientMock {
+	if mmCreatePostgres.defaultExpectation != nil {
+		mmCreatePostgres.mock.t.Fatalf("Default expectation is already set for the Client.CreatePostgres method")
+	}
+
+	if len(mmCreatePostgres.expectations) > 0 {
+		mmCreatePostgres.mock.t.Fatalf("Some expectations are already set for the Client.CreatePostgres method")
+	}
+
+	mmCreatePostgres.mock.funcCreatePostgres = f
+	mmCreatePostgres.mock.funcCreatePostgresOrigin = minimock.CallerInfo(1)
+	return mmCreatePostgres.mock
+}
+
+// When sets expectation for the Client.CreatePostgres which will trigger the result defined by the following
+// Then helper
+func (mmCreatePostgres *mClientMockCreatePostgres) When(ctx context.Context, body PostgresCreate) *ClientMockCreatePostgresExpectation {
+	if mmCreatePostgres.mock.funcCreatePostgres != nil {
+		mmCreatePostgres.mock.t.Fatalf("ClientMock.CreatePostgres mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreatePostgresExpectation{
+		mock:               mmCreatePostgres.mock,
+		params:             &ClientMockCreatePostgresParams{ctx, body},
+		expectationOrigins: ClientMockCreatePostgresExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreatePostgres.expectations = append(mmCreatePostgres.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreatePostgres return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreatePostgresExpectation) Then(pp1 *Postgres, s1 string, err error) *ClientMock {
+	e.results = &ClientMockCreatePostgresResults{pp1, s1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreatePostgres should be invoked
+func (mmCreatePostgres *mClientMockCreatePostgres) Times(n uint64) *mClientMockCreatePostgres {
+	if n == 0 {
+		mmCreatePostgres.mock.t.Fatalf("Times of ClientMock.CreatePostgres mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreatePostgres.expectedInvocations, n)
+	mmCreatePostgres.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreatePostgres
+}
+
+func (mmCreatePostgres *mClientMockCreatePostgres) invocationsDone() bool {
+	if len(mmCreatePostgres.expectations) == 0 && mmCreatePostgres.defaultExpectation == nil && mmCreatePostgres.mock.funcCreatePostgres == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreatePostgres.mock.afterCreatePostgresCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreatePostgres.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreatePostgres implements Client
+func (mmCreatePostgres *ClientMock) CreatePostgres(ctx context.Context, body PostgresCreate) (pp1 *Postgres, s1 string, err error) {
+	mm_atomic.AddUint64(&mmCreatePostgres.beforeCreatePostgresCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreatePostgres.afterCreatePostgresCounter, 1)
+
+	mmCreatePostgres.t.Helper()
+
+	if mmCreatePostgres.inspectFuncCreatePostgres != nil {
+		mmCreatePostgres.inspectFuncCreatePostgres(ctx, body)
+	}
+
+	mm_params := ClientMockCreatePostgresParams{ctx, body}
+
+	// Record call args
+	mmCreatePostgres.CreatePostgresMock.mutex.Lock()
+	mmCreatePostgres.CreatePostgresMock.callArgs = append(mmCreatePostgres.CreatePostgresMock.callArgs, &mm_params)
+	mmCreatePostgres.CreatePostgresMock.mutex.Unlock()
+
+	for _, e := range mmCreatePostgres.CreatePostgresMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.s1, e.results.err
+		}
+	}
+
+	if mmCreatePostgres.CreatePostgresMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreatePostgres.CreatePostgresMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreatePostgres.CreatePostgresMock.defaultExpectation.params
+		mm_want_ptrs := mmCreatePostgres.CreatePostgresMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreatePostgresParams{ctx, body}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreatePostgres.t.Errorf("ClientMock.CreatePostgres got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreatePostgres.CreatePostgresMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.body != nil && !minimock.Equal(*mm_want_ptrs.body, mm_got.body) {
+				mmCreatePostgres.t.Errorf("ClientMock.CreatePostgres got unexpected parameter body, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreatePostgres.CreatePostgresMock.defaultExpectation.expectationOrigins.originBody, *mm_want_ptrs.body, mm_got.body, minimock.Diff(*mm_want_ptrs.body, mm_got.body))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreatePostgres.t.Errorf("ClientMock.CreatePostgres got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreatePostgres.CreatePostgresMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreatePostgres.CreatePostgresMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreatePostgres.t.Fatal("No results are set for the ClientMock.CreatePostgres")
+		}
+		return (*mm_results).pp1, (*mm_results).s1, (*mm_results).err
+	}
+	if mmCreatePostgres.funcCreatePostgres != nil {
+		return mmCreatePostgres.funcCreatePostgres(ctx, body)
+	}
+	mmCreatePostgres.t.Fatalf("Unexpected call to ClientMock.CreatePostgres. %v %v", ctx, body)
+	return
+}
+
+// CreatePostgresAfterCounter returns a count of finished ClientMock.CreatePostgres invocations
+func (mmCreatePostgres *ClientMock) CreatePostgresAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreatePostgres.afterCreatePostgresCounter)
+}
+
+// CreatePostgresBeforeCounter returns a count of ClientMock.CreatePostgres invocations
+func (mmCreatePostgres *ClientMock) CreatePostgresBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreatePostgres.beforeCreatePostgresCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreatePostgres.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreatePostgres *mClientMockCreatePostgres) Calls() []*ClientMockCreatePostgresParams {
+	mmCreatePostgres.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreatePostgresParams, len(mmCreatePostgres.callArgs))
+	copy(argCopy, mmCreatePostgres.callArgs)
+
+	mmCreatePostgres.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreatePostgresDone returns true if the count of the CreatePostgres invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreatePostgresDone() bool {
+	if m.CreatePostgresMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreatePostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreatePostgresMock.invocationsDone()
+}
+
+// MinimockCreatePostgresInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreatePostgresInspect() {
+	for _, e := range m.CreatePostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreatePostgres at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreatePostgresCounter := mm_atomic.LoadUint64(&m.afterCreatePostgresCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreatePostgresMock.defaultExpectation != nil && afterCreatePostgresCounter < 1 {
+		if m.CreatePostgresMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreatePostgres at\n%s", m.CreatePostgresMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreatePostgres at\n%s with params: %#v", m.CreatePostgresMock.defaultExpectation.expectationOrigins.origin, *m.CreatePostgresMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreatePostgres != nil && afterCreatePostgresCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreatePostgres at\n%s", m.funcCreatePostgresOrigin)
+	}
+
+	if !m.CreatePostgresMock.invocationsDone() && afterCreatePostgresCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreatePostgres at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreatePostgresMock.expectedInvocations), m.CreatePostgresMock.expectedInvocationsOrigin, afterCreatePostgresCounter)
+	}
+}
+
+type mClientMockCreatePostgresReadReplica struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreatePostgresReadReplicaExpectation
+	expectations       []*ClientMockCreatePostgresReadReplicaExpectation
+
+	callArgs []*ClientMockCreatePostgresReadReplicaParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreatePostgresReadReplicaExpectation specifies expectation struct of the Client.CreatePostgresReadReplica
+type ClientMockCreatePostgresReadReplicaExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreatePostgresReadReplicaParams
+	paramPtrs          *ClientMockCreatePostgresReadReplicaParamPtrs
+	expectationOrigins ClientMockCreatePostgresReadReplicaExpectationOrigins
+	results            *ClientMockCreatePostgresReadReplicaResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreatePostgresReadReplicaParams contains parameters of the Client.CreatePostgresReadReplica
+type ClientMockCreatePostgresReadReplicaParams struct {
+	ctx      context.Context
+	sourceId string
+	body     PostgresReadReplicaRequest
+}
+
+// ClientMockCreatePostgresReadReplicaParamPtrs contains pointers to parameters of the Client.CreatePostgresReadReplica
+type ClientMockCreatePostgresReadReplicaParamPtrs struct {
+	ctx      *context.Context
+	sourceId *string
+	body     *PostgresReadReplicaRequest
+}
+
+// ClientMockCreatePostgresReadReplicaResults contains results of the Client.CreatePostgresReadReplica
+type ClientMockCreatePostgresReadReplicaResults struct {
+	pp1 *Postgres
+	err error
+}
+
+// ClientMockCreatePostgresReadReplicaOrigins contains origins of expectations of the Client.CreatePostgresReadReplica
+type ClientMockCreatePostgresReadReplicaExpectationOrigins struct {
+	origin         string
+	originCtx      string
+	originSourceId string
+	originBody     string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) Optional() *mClientMockCreatePostgresReadReplica {
+	mmCreatePostgresReadReplica.optional = true
+	return mmCreatePostgresReadReplica
+}
+
+// Expect sets up expected params for Client.CreatePostgresReadReplica
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) Expect(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) *mClientMockCreatePostgresReadReplica {
+	if mmCreatePostgresReadReplica.mock.funcCreatePostgresReadReplica != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by Set")
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation == nil {
+		mmCreatePostgresReadReplica.defaultExpectation = &ClientMockCreatePostgresReadReplicaExpectation{}
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation.paramPtrs != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by ExpectParams functions")
+	}
+
+	mmCreatePostgresReadReplica.defaultExpectation.params = &ClientMockCreatePostgresReadReplicaParams{ctx, sourceId, body}
+	mmCreatePostgresReadReplica.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreatePostgresReadReplica.expectations {
+		if minimock.Equal(e.params, mmCreatePostgresReadReplica.defaultExpectation.params) {
+			mmCreatePostgresReadReplica.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreatePostgresReadReplica.defaultExpectation.params)
+		}
+	}
+
+	return mmCreatePostgresReadReplica
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreatePostgresReadReplica
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) ExpectCtxParam1(ctx context.Context) *mClientMockCreatePostgresReadReplica {
+	if mmCreatePostgresReadReplica.mock.funcCreatePostgresReadReplica != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by Set")
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation == nil {
+		mmCreatePostgresReadReplica.defaultExpectation = &ClientMockCreatePostgresReadReplicaExpectation{}
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation.params != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by Expect")
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation.paramPtrs == nil {
+		mmCreatePostgresReadReplica.defaultExpectation.paramPtrs = &ClientMockCreatePostgresReadReplicaParamPtrs{}
+	}
+	mmCreatePostgresReadReplica.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreatePostgresReadReplica.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreatePostgresReadReplica
+}
+
+// ExpectSourceIdParam2 sets up expected param sourceId for Client.CreatePostgresReadReplica
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) ExpectSourceIdParam2(sourceId string) *mClientMockCreatePostgresReadReplica {
+	if mmCreatePostgresReadReplica.mock.funcCreatePostgresReadReplica != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by Set")
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation == nil {
+		mmCreatePostgresReadReplica.defaultExpectation = &ClientMockCreatePostgresReadReplicaExpectation{}
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation.params != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by Expect")
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation.paramPtrs == nil {
+		mmCreatePostgresReadReplica.defaultExpectation.paramPtrs = &ClientMockCreatePostgresReadReplicaParamPtrs{}
+	}
+	mmCreatePostgresReadReplica.defaultExpectation.paramPtrs.sourceId = &sourceId
+	mmCreatePostgresReadReplica.defaultExpectation.expectationOrigins.originSourceId = minimock.CallerInfo(1)
+
+	return mmCreatePostgresReadReplica
+}
+
+// ExpectBodyParam3 sets up expected param body for Client.CreatePostgresReadReplica
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) ExpectBodyParam3(body PostgresReadReplicaRequest) *mClientMockCreatePostgresReadReplica {
+	if mmCreatePostgresReadReplica.mock.funcCreatePostgresReadReplica != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by Set")
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation == nil {
+		mmCreatePostgresReadReplica.defaultExpectation = &ClientMockCreatePostgresReadReplicaExpectation{}
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation.params != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by Expect")
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation.paramPtrs == nil {
+		mmCreatePostgresReadReplica.defaultExpectation.paramPtrs = &ClientMockCreatePostgresReadReplicaParamPtrs{}
+	}
+	mmCreatePostgresReadReplica.defaultExpectation.paramPtrs.body = &body
+	mmCreatePostgresReadReplica.defaultExpectation.expectationOrigins.originBody = minimock.CallerInfo(1)
+
+	return mmCreatePostgresReadReplica
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreatePostgresReadReplica
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) Inspect(f func(ctx context.Context, sourceId string, body PostgresReadReplicaRequest)) *mClientMockCreatePostgresReadReplica {
+	if mmCreatePostgresReadReplica.mock.inspectFuncCreatePostgresReadReplica != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("Inspect function is already set for ClientMock.CreatePostgresReadReplica")
+	}
+
+	mmCreatePostgresReadReplica.mock.inspectFuncCreatePostgresReadReplica = f
+
+	return mmCreatePostgresReadReplica
+}
+
+// Return sets up results that will be returned by Client.CreatePostgresReadReplica
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) Return(pp1 *Postgres, err error) *ClientMock {
+	if mmCreatePostgresReadReplica.mock.funcCreatePostgresReadReplica != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by Set")
+	}
+
+	if mmCreatePostgresReadReplica.defaultExpectation == nil {
+		mmCreatePostgresReadReplica.defaultExpectation = &ClientMockCreatePostgresReadReplicaExpectation{mock: mmCreatePostgresReadReplica.mock}
+	}
+	mmCreatePostgresReadReplica.defaultExpectation.results = &ClientMockCreatePostgresReadReplicaResults{pp1, err}
+	mmCreatePostgresReadReplica.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreatePostgresReadReplica.mock
+}
+
+// Set uses given function f to mock the Client.CreatePostgresReadReplica method
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) Set(f func(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (pp1 *Postgres, err error)) *ClientMock {
+	if mmCreatePostgresReadReplica.defaultExpectation != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("Default expectation is already set for the Client.CreatePostgresReadReplica method")
+	}
+
+	if len(mmCreatePostgresReadReplica.expectations) > 0 {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("Some expectations are already set for the Client.CreatePostgresReadReplica method")
+	}
+
+	mmCreatePostgresReadReplica.mock.funcCreatePostgresReadReplica = f
+	mmCreatePostgresReadReplica.mock.funcCreatePostgresReadReplicaOrigin = minimock.CallerInfo(1)
+	return mmCreatePostgresReadReplica.mock
+}
+
+// When sets expectation for the Client.CreatePostgresReadReplica which will trigger the result defined by the following
+// Then helper
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) When(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) *ClientMockCreatePostgresReadReplicaExpectation {
+	if mmCreatePostgresReadReplica.mock.funcCreatePostgresReadReplica != nil {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("ClientMock.CreatePostgresReadReplica mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreatePostgresReadReplicaExpectation{
+		mock:               mmCreatePostgresReadReplica.mock,
+		params:             &ClientMockCreatePostgresReadReplicaParams{ctx, sourceId, body},
+		expectationOrigins: ClientMockCreatePostgresReadReplicaExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreatePostgresReadReplica.expectations = append(mmCreatePostgresReadReplica.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreatePostgresReadReplica return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreatePostgresReadReplicaExpectation) Then(pp1 *Postgres, err error) *ClientMock {
+	e.results = &ClientMockCreatePostgresReadReplicaResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreatePostgresReadReplica should be invoked
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) Times(n uint64) *mClientMockCreatePostgresReadReplica {
+	if n == 0 {
+		mmCreatePostgresReadReplica.mock.t.Fatalf("Times of ClientMock.CreatePostgresReadReplica mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreatePostgresReadReplica.expectedInvocations, n)
+	mmCreatePostgresReadReplica.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreatePostgresReadReplica
+}
+
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) invocationsDone() bool {
+	if len(mmCreatePostgresReadReplica.expectations) == 0 && mmCreatePostgresReadReplica.defaultExpectation == nil && mmCreatePostgresReadReplica.mock.funcCreatePostgresReadReplica == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreatePostgresReadReplica.mock.afterCreatePostgresReadReplicaCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreatePostgresReadReplica.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreatePostgresReadReplica implements Client
+func (mmCreatePostgresReadReplica *ClientMock) CreatePostgresReadReplica(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (pp1 *Postgres, err error) {
+	mm_atomic.AddUint64(&mmCreatePostgresReadReplica.beforeCreatePostgresReadReplicaCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreatePostgresReadReplica.afterCreatePostgresReadReplicaCounter, 1)
+
+	mmCreatePostgresReadReplica.t.Helper()
+
+	if mmCreatePostgresReadReplica.inspectFuncCreatePostgresReadReplica != nil {
+		mmCreatePostgresReadReplica.inspectFuncCreatePostgresReadReplica(ctx, sourceId, body)
+	}
+
+	mm_params := ClientMockCreatePostgresReadReplicaParams{ctx, sourceId, body}
+
+	// Record call args
+	mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.mutex.Lock()
+	mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.callArgs = append(mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.callArgs, &mm_params)
+	mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.mutex.Unlock()
+
+	for _, e := range mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.defaultExpectation.params
+		mm_want_ptrs := mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreatePostgresReadReplicaParams{ctx, sourceId, body}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreatePostgresReadReplica.t.Errorf("ClientMock.CreatePostgresReadReplica got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.sourceId != nil && !minimock.Equal(*mm_want_ptrs.sourceId, mm_got.sourceId) {
+				mmCreatePostgresReadReplica.t.Errorf("ClientMock.CreatePostgresReadReplica got unexpected parameter sourceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.defaultExpectation.expectationOrigins.originSourceId, *mm_want_ptrs.sourceId, mm_got.sourceId, minimock.Diff(*mm_want_ptrs.sourceId, mm_got.sourceId))
+			}
+
+			if mm_want_ptrs.body != nil && !minimock.Equal(*mm_want_ptrs.body, mm_got.body) {
+				mmCreatePostgresReadReplica.t.Errorf("ClientMock.CreatePostgresReadReplica got unexpected parameter body, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.defaultExpectation.expectationOrigins.originBody, *mm_want_ptrs.body, mm_got.body, minimock.Diff(*mm_want_ptrs.body, mm_got.body))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreatePostgresReadReplica.t.Errorf("ClientMock.CreatePostgresReadReplica got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreatePostgresReadReplica.CreatePostgresReadReplicaMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreatePostgresReadReplica.t.Fatal("No results are set for the ClientMock.CreatePostgresReadReplica")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmCreatePostgresReadReplica.funcCreatePostgresReadReplica != nil {
+		return mmCreatePostgresReadReplica.funcCreatePostgresReadReplica(ctx, sourceId, body)
+	}
+	mmCreatePostgresReadReplica.t.Fatalf("Unexpected call to ClientMock.CreatePostgresReadReplica. %v %v %v", ctx, sourceId, body)
+	return
+}
+
+// CreatePostgresReadReplicaAfterCounter returns a count of finished ClientMock.CreatePostgresReadReplica invocations
+func (mmCreatePostgresReadReplica *ClientMock) CreatePostgresReadReplicaAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreatePostgresReadReplica.afterCreatePostgresReadReplicaCounter)
+}
+
+// CreatePostgresReadReplicaBeforeCounter returns a count of ClientMock.CreatePostgresReadReplica invocations
+func (mmCreatePostgresReadReplica *ClientMock) CreatePostgresReadReplicaBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreatePostgresReadReplica.beforeCreatePostgresReadReplicaCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreatePostgresReadReplica.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreatePostgresReadReplica *mClientMockCreatePostgresReadReplica) Calls() []*ClientMockCreatePostgresReadReplicaParams {
+	mmCreatePostgresReadReplica.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreatePostgresReadReplicaParams, len(mmCreatePostgresReadReplica.callArgs))
+	copy(argCopy, mmCreatePostgresReadReplica.callArgs)
+
+	mmCreatePostgresReadReplica.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreatePostgresReadReplicaDone returns true if the count of the CreatePostgresReadReplica invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreatePostgresReadReplicaDone() bool {
+	if m.CreatePostgresReadReplicaMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreatePostgresReadReplicaMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreatePostgresReadReplicaMock.invocationsDone()
+}
+
+// MinimockCreatePostgresReadReplicaInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreatePostgresReadReplicaInspect() {
+	for _, e := range m.CreatePostgresReadReplicaMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreatePostgresReadReplica at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreatePostgresReadReplicaCounter := mm_atomic.LoadUint64(&m.afterCreatePostgresReadReplicaCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreatePostgresReadReplicaMock.defaultExpectation != nil && afterCreatePostgresReadReplicaCounter < 1 {
+		if m.CreatePostgresReadReplicaMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreatePostgresReadReplica at\n%s", m.CreatePostgresReadReplicaMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreatePostgresReadReplica at\n%s with params: %#v", m.CreatePostgresReadReplicaMock.defaultExpectation.expectationOrigins.origin, *m.CreatePostgresReadReplicaMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreatePostgresReadReplica != nil && afterCreatePostgresReadReplicaCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreatePostgresReadReplica at\n%s", m.funcCreatePostgresReadReplicaOrigin)
+	}
+
+	if !m.CreatePostgresReadReplicaMock.invocationsDone() && afterCreatePostgresReadReplicaCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreatePostgresReadReplica at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreatePostgresReadReplicaMock.expectedInvocations), m.CreatePostgresReadReplicaMock.expectedInvocationsOrigin, afterCreatePostgresReadReplicaCounter)
 	}
 }
 
@@ -3060,6 +3968,348 @@ func (m *ClientMock) MinimockDeleteClickPipeInspect() {
 	}
 }
 
+type mClientMockDeletePostgres struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeletePostgresExpectation
+	expectations       []*ClientMockDeletePostgresExpectation
+
+	callArgs []*ClientMockDeletePostgresParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeletePostgresExpectation specifies expectation struct of the Client.DeletePostgres
+type ClientMockDeletePostgresExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeletePostgresParams
+	paramPtrs          *ClientMockDeletePostgresParamPtrs
+	expectationOrigins ClientMockDeletePostgresExpectationOrigins
+	results            *ClientMockDeletePostgresResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeletePostgresParams contains parameters of the Client.DeletePostgres
+type ClientMockDeletePostgresParams struct {
+	ctx        context.Context
+	postgresId string
+}
+
+// ClientMockDeletePostgresParamPtrs contains pointers to parameters of the Client.DeletePostgres
+type ClientMockDeletePostgresParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+}
+
+// ClientMockDeletePostgresResults contains results of the Client.DeletePostgres
+type ClientMockDeletePostgresResults struct {
+	err error
+}
+
+// ClientMockDeletePostgresOrigins contains origins of expectations of the Client.DeletePostgres
+type ClientMockDeletePostgresExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeletePostgres *mClientMockDeletePostgres) Optional() *mClientMockDeletePostgres {
+	mmDeletePostgres.optional = true
+	return mmDeletePostgres
+}
+
+// Expect sets up expected params for Client.DeletePostgres
+func (mmDeletePostgres *mClientMockDeletePostgres) Expect(ctx context.Context, postgresId string) *mClientMockDeletePostgres {
+	if mmDeletePostgres.mock.funcDeletePostgres != nil {
+		mmDeletePostgres.mock.t.Fatalf("ClientMock.DeletePostgres mock is already set by Set")
+	}
+
+	if mmDeletePostgres.defaultExpectation == nil {
+		mmDeletePostgres.defaultExpectation = &ClientMockDeletePostgresExpectation{}
+	}
+
+	if mmDeletePostgres.defaultExpectation.paramPtrs != nil {
+		mmDeletePostgres.mock.t.Fatalf("ClientMock.DeletePostgres mock is already set by ExpectParams functions")
+	}
+
+	mmDeletePostgres.defaultExpectation.params = &ClientMockDeletePostgresParams{ctx, postgresId}
+	mmDeletePostgres.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeletePostgres.expectations {
+		if minimock.Equal(e.params, mmDeletePostgres.defaultExpectation.params) {
+			mmDeletePostgres.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeletePostgres.defaultExpectation.params)
+		}
+	}
+
+	return mmDeletePostgres
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeletePostgres
+func (mmDeletePostgres *mClientMockDeletePostgres) ExpectCtxParam1(ctx context.Context) *mClientMockDeletePostgres {
+	if mmDeletePostgres.mock.funcDeletePostgres != nil {
+		mmDeletePostgres.mock.t.Fatalf("ClientMock.DeletePostgres mock is already set by Set")
+	}
+
+	if mmDeletePostgres.defaultExpectation == nil {
+		mmDeletePostgres.defaultExpectation = &ClientMockDeletePostgresExpectation{}
+	}
+
+	if mmDeletePostgres.defaultExpectation.params != nil {
+		mmDeletePostgres.mock.t.Fatalf("ClientMock.DeletePostgres mock is already set by Expect")
+	}
+
+	if mmDeletePostgres.defaultExpectation.paramPtrs == nil {
+		mmDeletePostgres.defaultExpectation.paramPtrs = &ClientMockDeletePostgresParamPtrs{}
+	}
+	mmDeletePostgres.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeletePostgres.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeletePostgres
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.DeletePostgres
+func (mmDeletePostgres *mClientMockDeletePostgres) ExpectPostgresIdParam2(postgresId string) *mClientMockDeletePostgres {
+	if mmDeletePostgres.mock.funcDeletePostgres != nil {
+		mmDeletePostgres.mock.t.Fatalf("ClientMock.DeletePostgres mock is already set by Set")
+	}
+
+	if mmDeletePostgres.defaultExpectation == nil {
+		mmDeletePostgres.defaultExpectation = &ClientMockDeletePostgresExpectation{}
+	}
+
+	if mmDeletePostgres.defaultExpectation.params != nil {
+		mmDeletePostgres.mock.t.Fatalf("ClientMock.DeletePostgres mock is already set by Expect")
+	}
+
+	if mmDeletePostgres.defaultExpectation.paramPtrs == nil {
+		mmDeletePostgres.defaultExpectation.paramPtrs = &ClientMockDeletePostgresParamPtrs{}
+	}
+	mmDeletePostgres.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmDeletePostgres.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmDeletePostgres
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeletePostgres
+func (mmDeletePostgres *mClientMockDeletePostgres) Inspect(f func(ctx context.Context, postgresId string)) *mClientMockDeletePostgres {
+	if mmDeletePostgres.mock.inspectFuncDeletePostgres != nil {
+		mmDeletePostgres.mock.t.Fatalf("Inspect function is already set for ClientMock.DeletePostgres")
+	}
+
+	mmDeletePostgres.mock.inspectFuncDeletePostgres = f
+
+	return mmDeletePostgres
+}
+
+// Return sets up results that will be returned by Client.DeletePostgres
+func (mmDeletePostgres *mClientMockDeletePostgres) Return(err error) *ClientMock {
+	if mmDeletePostgres.mock.funcDeletePostgres != nil {
+		mmDeletePostgres.mock.t.Fatalf("ClientMock.DeletePostgres mock is already set by Set")
+	}
+
+	if mmDeletePostgres.defaultExpectation == nil {
+		mmDeletePostgres.defaultExpectation = &ClientMockDeletePostgresExpectation{mock: mmDeletePostgres.mock}
+	}
+	mmDeletePostgres.defaultExpectation.results = &ClientMockDeletePostgresResults{err}
+	mmDeletePostgres.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeletePostgres.mock
+}
+
+// Set uses given function f to mock the Client.DeletePostgres method
+func (mmDeletePostgres *mClientMockDeletePostgres) Set(f func(ctx context.Context, postgresId string) (err error)) *ClientMock {
+	if mmDeletePostgres.defaultExpectation != nil {
+		mmDeletePostgres.mock.t.Fatalf("Default expectation is already set for the Client.DeletePostgres method")
+	}
+
+	if len(mmDeletePostgres.expectations) > 0 {
+		mmDeletePostgres.mock.t.Fatalf("Some expectations are already set for the Client.DeletePostgres method")
+	}
+
+	mmDeletePostgres.mock.funcDeletePostgres = f
+	mmDeletePostgres.mock.funcDeletePostgresOrigin = minimock.CallerInfo(1)
+	return mmDeletePostgres.mock
+}
+
+// When sets expectation for the Client.DeletePostgres which will trigger the result defined by the following
+// Then helper
+func (mmDeletePostgres *mClientMockDeletePostgres) When(ctx context.Context, postgresId string) *ClientMockDeletePostgresExpectation {
+	if mmDeletePostgres.mock.funcDeletePostgres != nil {
+		mmDeletePostgres.mock.t.Fatalf("ClientMock.DeletePostgres mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeletePostgresExpectation{
+		mock:               mmDeletePostgres.mock,
+		params:             &ClientMockDeletePostgresParams{ctx, postgresId},
+		expectationOrigins: ClientMockDeletePostgresExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeletePostgres.expectations = append(mmDeletePostgres.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeletePostgres return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeletePostgresExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeletePostgresResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeletePostgres should be invoked
+func (mmDeletePostgres *mClientMockDeletePostgres) Times(n uint64) *mClientMockDeletePostgres {
+	if n == 0 {
+		mmDeletePostgres.mock.t.Fatalf("Times of ClientMock.DeletePostgres mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeletePostgres.expectedInvocations, n)
+	mmDeletePostgres.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeletePostgres
+}
+
+func (mmDeletePostgres *mClientMockDeletePostgres) invocationsDone() bool {
+	if len(mmDeletePostgres.expectations) == 0 && mmDeletePostgres.defaultExpectation == nil && mmDeletePostgres.mock.funcDeletePostgres == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeletePostgres.mock.afterDeletePostgresCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeletePostgres.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeletePostgres implements Client
+func (mmDeletePostgres *ClientMock) DeletePostgres(ctx context.Context, postgresId string) (err error) {
+	mm_atomic.AddUint64(&mmDeletePostgres.beforeDeletePostgresCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeletePostgres.afterDeletePostgresCounter, 1)
+
+	mmDeletePostgres.t.Helper()
+
+	if mmDeletePostgres.inspectFuncDeletePostgres != nil {
+		mmDeletePostgres.inspectFuncDeletePostgres(ctx, postgresId)
+	}
+
+	mm_params := ClientMockDeletePostgresParams{ctx, postgresId}
+
+	// Record call args
+	mmDeletePostgres.DeletePostgresMock.mutex.Lock()
+	mmDeletePostgres.DeletePostgresMock.callArgs = append(mmDeletePostgres.DeletePostgresMock.callArgs, &mm_params)
+	mmDeletePostgres.DeletePostgresMock.mutex.Unlock()
+
+	for _, e := range mmDeletePostgres.DeletePostgresMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeletePostgres.DeletePostgresMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeletePostgres.DeletePostgresMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeletePostgres.DeletePostgresMock.defaultExpectation.params
+		mm_want_ptrs := mmDeletePostgres.DeletePostgresMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeletePostgresParams{ctx, postgresId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeletePostgres.t.Errorf("ClientMock.DeletePostgres got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeletePostgres.DeletePostgresMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmDeletePostgres.t.Errorf("ClientMock.DeletePostgres got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeletePostgres.DeletePostgresMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeletePostgres.t.Errorf("ClientMock.DeletePostgres got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeletePostgres.DeletePostgresMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeletePostgres.DeletePostgresMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeletePostgres.t.Fatal("No results are set for the ClientMock.DeletePostgres")
+		}
+		return (*mm_results).err
+	}
+	if mmDeletePostgres.funcDeletePostgres != nil {
+		return mmDeletePostgres.funcDeletePostgres(ctx, postgresId)
+	}
+	mmDeletePostgres.t.Fatalf("Unexpected call to ClientMock.DeletePostgres. %v %v", ctx, postgresId)
+	return
+}
+
+// DeletePostgresAfterCounter returns a count of finished ClientMock.DeletePostgres invocations
+func (mmDeletePostgres *ClientMock) DeletePostgresAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeletePostgres.afterDeletePostgresCounter)
+}
+
+// DeletePostgresBeforeCounter returns a count of ClientMock.DeletePostgres invocations
+func (mmDeletePostgres *ClientMock) DeletePostgresBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeletePostgres.beforeDeletePostgresCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeletePostgres.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeletePostgres *mClientMockDeletePostgres) Calls() []*ClientMockDeletePostgresParams {
+	mmDeletePostgres.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeletePostgresParams, len(mmDeletePostgres.callArgs))
+	copy(argCopy, mmDeletePostgres.callArgs)
+
+	mmDeletePostgres.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeletePostgresDone returns true if the count of the DeletePostgres invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeletePostgresDone() bool {
+	if m.DeletePostgresMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeletePostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeletePostgresMock.invocationsDone()
+}
+
+// MinimockDeletePostgresInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeletePostgresInspect() {
+	for _, e := range m.DeletePostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeletePostgres at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeletePostgresCounter := mm_atomic.LoadUint64(&m.afterDeletePostgresCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeletePostgresMock.defaultExpectation != nil && afterDeletePostgresCounter < 1 {
+		if m.DeletePostgresMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeletePostgres at\n%s", m.DeletePostgresMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeletePostgres at\n%s with params: %#v", m.DeletePostgresMock.defaultExpectation.expectationOrigins.origin, *m.DeletePostgresMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeletePostgres != nil && afterDeletePostgresCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeletePostgres at\n%s", m.funcDeletePostgresOrigin)
+	}
+
+	if !m.DeletePostgresMock.invocationsDone() && afterDeletePostgresCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeletePostgres at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeletePostgresMock.expectedInvocations), m.DeletePostgresMock.expectedInvocationsOrigin, afterDeletePostgresCounter)
+	}
+}
+
 type mClientMockDeleteQueryEndpoint struct {
 	optional           bool
 	mock               *ClientMock
@@ -4117,6 +5367,348 @@ func (m *ClientMock) MinimockDeleteRoleInspect() {
 	}
 }
 
+type mClientMockDeleteScheduledScaling struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteScheduledScalingExpectation
+	expectations       []*ClientMockDeleteScheduledScalingExpectation
+
+	callArgs []*ClientMockDeleteScheduledScalingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteScheduledScalingExpectation specifies expectation struct of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteScheduledScalingParams
+	paramPtrs          *ClientMockDeleteScheduledScalingParamPtrs
+	expectationOrigins ClientMockDeleteScheduledScalingExpectationOrigins
+	results            *ClientMockDeleteScheduledScalingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteScheduledScalingParams contains parameters of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockDeleteScheduledScalingParamPtrs contains pointers to parameters of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockDeleteScheduledScalingResults contains results of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingResults struct {
+	err error
+}
+
+// ClientMockDeleteScheduledScalingOrigins contains origins of expectations of the Client.DeleteScheduledScaling
+type ClientMockDeleteScheduledScalingExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Optional() *mClientMockDeleteScheduledScaling {
+	mmDeleteScheduledScaling.optional = true
+	return mmDeleteScheduledScaling
+}
+
+// Expect sets up expected params for Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Expect(ctx context.Context, serviceId string) *mClientMockDeleteScheduledScaling {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation == nil {
+		mmDeleteScheduledScaling.defaultExpectation = &ClientMockDeleteScheduledScalingExpectation{}
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.paramPtrs != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteScheduledScaling.defaultExpectation.params = &ClientMockDeleteScheduledScalingParams{ctx, serviceId}
+	mmDeleteScheduledScaling.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteScheduledScaling.expectations {
+		if minimock.Equal(e.params, mmDeleteScheduledScaling.defaultExpectation.params) {
+			mmDeleteScheduledScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteScheduledScaling.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteScheduledScaling
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteScheduledScaling {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation == nil {
+		mmDeleteScheduledScaling.defaultExpectation = &ClientMockDeleteScheduledScalingExpectation{}
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.params != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Expect")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmDeleteScheduledScaling.defaultExpectation.paramPtrs = &ClientMockDeleteScheduledScalingParamPtrs{}
+	}
+	mmDeleteScheduledScaling.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteScheduledScaling.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteScheduledScaling
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) ExpectServiceIdParam2(serviceId string) *mClientMockDeleteScheduledScaling {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation == nil {
+		mmDeleteScheduledScaling.defaultExpectation = &ClientMockDeleteScheduledScalingExpectation{}
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.params != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Expect")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmDeleteScheduledScaling.defaultExpectation.paramPtrs = &ClientMockDeleteScheduledScalingParamPtrs{}
+	}
+	mmDeleteScheduledScaling.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmDeleteScheduledScaling.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmDeleteScheduledScaling
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockDeleteScheduledScaling {
+	if mmDeleteScheduledScaling.mock.inspectFuncDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteScheduledScaling")
+	}
+
+	mmDeleteScheduledScaling.mock.inspectFuncDeleteScheduledScaling = f
+
+	return mmDeleteScheduledScaling
+}
+
+// Return sets up results that will be returned by Client.DeleteScheduledScaling
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Return(err error) *ClientMock {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	if mmDeleteScheduledScaling.defaultExpectation == nil {
+		mmDeleteScheduledScaling.defaultExpectation = &ClientMockDeleteScheduledScalingExpectation{mock: mmDeleteScheduledScaling.mock}
+	}
+	mmDeleteScheduledScaling.defaultExpectation.results = &ClientMockDeleteScheduledScalingResults{err}
+	mmDeleteScheduledScaling.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteScheduledScaling.mock
+}
+
+// Set uses given function f to mock the Client.DeleteScheduledScaling method
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Set(f func(ctx context.Context, serviceId string) (err error)) *ClientMock {
+	if mmDeleteScheduledScaling.defaultExpectation != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("Default expectation is already set for the Client.DeleteScheduledScaling method")
+	}
+
+	if len(mmDeleteScheduledScaling.expectations) > 0 {
+		mmDeleteScheduledScaling.mock.t.Fatalf("Some expectations are already set for the Client.DeleteScheduledScaling method")
+	}
+
+	mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling = f
+	mmDeleteScheduledScaling.mock.funcDeleteScheduledScalingOrigin = minimock.CallerInfo(1)
+	return mmDeleteScheduledScaling.mock
+}
+
+// When sets expectation for the Client.DeleteScheduledScaling which will trigger the result defined by the following
+// Then helper
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) When(ctx context.Context, serviceId string) *ClientMockDeleteScheduledScalingExpectation {
+	if mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.mock.t.Fatalf("ClientMock.DeleteScheduledScaling mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteScheduledScalingExpectation{
+		mock:               mmDeleteScheduledScaling.mock,
+		params:             &ClientMockDeleteScheduledScalingParams{ctx, serviceId},
+		expectationOrigins: ClientMockDeleteScheduledScalingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteScheduledScaling.expectations = append(mmDeleteScheduledScaling.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteScheduledScaling return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteScheduledScalingExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteScheduledScalingResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteScheduledScaling should be invoked
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Times(n uint64) *mClientMockDeleteScheduledScaling {
+	if n == 0 {
+		mmDeleteScheduledScaling.mock.t.Fatalf("Times of ClientMock.DeleteScheduledScaling mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteScheduledScaling.expectedInvocations, n)
+	mmDeleteScheduledScaling.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteScheduledScaling
+}
+
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) invocationsDone() bool {
+	if len(mmDeleteScheduledScaling.expectations) == 0 && mmDeleteScheduledScaling.defaultExpectation == nil && mmDeleteScheduledScaling.mock.funcDeleteScheduledScaling == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteScheduledScaling.mock.afterDeleteScheduledScalingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteScheduledScaling.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteScheduledScaling implements Client
+func (mmDeleteScheduledScaling *ClientMock) DeleteScheduledScaling(ctx context.Context, serviceId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteScheduledScaling.beforeDeleteScheduledScalingCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteScheduledScaling.afterDeleteScheduledScalingCounter, 1)
+
+	mmDeleteScheduledScaling.t.Helper()
+
+	if mmDeleteScheduledScaling.inspectFuncDeleteScheduledScaling != nil {
+		mmDeleteScheduledScaling.inspectFuncDeleteScheduledScaling(ctx, serviceId)
+	}
+
+	mm_params := ClientMockDeleteScheduledScalingParams{ctx, serviceId}
+
+	// Record call args
+	mmDeleteScheduledScaling.DeleteScheduledScalingMock.mutex.Lock()
+	mmDeleteScheduledScaling.DeleteScheduledScalingMock.callArgs = append(mmDeleteScheduledScaling.DeleteScheduledScalingMock.callArgs, &mm_params)
+	mmDeleteScheduledScaling.DeleteScheduledScalingMock.mutex.Unlock()
+
+	for _, e := range mmDeleteScheduledScaling.DeleteScheduledScalingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteScheduledScalingParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteScheduledScaling.t.Errorf("ClientMock.DeleteScheduledScaling got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmDeleteScheduledScaling.t.Errorf("ClientMock.DeleteScheduledScaling got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteScheduledScaling.t.Errorf("ClientMock.DeleteScheduledScaling got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteScheduledScaling.DeleteScheduledScalingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteScheduledScaling.t.Fatal("No results are set for the ClientMock.DeleteScheduledScaling")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteScheduledScaling.funcDeleteScheduledScaling != nil {
+		return mmDeleteScheduledScaling.funcDeleteScheduledScaling(ctx, serviceId)
+	}
+	mmDeleteScheduledScaling.t.Fatalf("Unexpected call to ClientMock.DeleteScheduledScaling. %v %v", ctx, serviceId)
+	return
+}
+
+// DeleteScheduledScalingAfterCounter returns a count of finished ClientMock.DeleteScheduledScaling invocations
+func (mmDeleteScheduledScaling *ClientMock) DeleteScheduledScalingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteScheduledScaling.afterDeleteScheduledScalingCounter)
+}
+
+// DeleteScheduledScalingBeforeCounter returns a count of ClientMock.DeleteScheduledScaling invocations
+func (mmDeleteScheduledScaling *ClientMock) DeleteScheduledScalingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteScheduledScaling.beforeDeleteScheduledScalingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteScheduledScaling.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteScheduledScaling *mClientMockDeleteScheduledScaling) Calls() []*ClientMockDeleteScheduledScalingParams {
+	mmDeleteScheduledScaling.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteScheduledScalingParams, len(mmDeleteScheduledScaling.callArgs))
+	copy(argCopy, mmDeleteScheduledScaling.callArgs)
+
+	mmDeleteScheduledScaling.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteScheduledScalingDone returns true if the count of the DeleteScheduledScaling invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteScheduledScalingDone() bool {
+	if m.DeleteScheduledScalingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteScheduledScalingMock.invocationsDone()
+}
+
+// MinimockDeleteScheduledScalingInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteScheduledScalingInspect() {
+	for _, e := range m.DeleteScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteScheduledScaling at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteScheduledScalingCounter := mm_atomic.LoadUint64(&m.afterDeleteScheduledScalingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteScheduledScalingMock.defaultExpectation != nil && afterDeleteScheduledScalingCounter < 1 {
+		if m.DeleteScheduledScalingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteScheduledScaling at\n%s", m.DeleteScheduledScalingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteScheduledScaling at\n%s with params: %#v", m.DeleteScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *m.DeleteScheduledScalingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteScheduledScaling != nil && afterDeleteScheduledScalingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteScheduledScaling at\n%s", m.funcDeleteScheduledScalingOrigin)
+	}
+
+	if !m.DeleteScheduledScalingMock.invocationsDone() && afterDeleteScheduledScalingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteScheduledScaling at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteScheduledScalingMock.expectedInvocations), m.DeleteScheduledScalingMock.expectedInvocationsOrigin, afterDeleteScheduledScalingCounter)
+	}
+}
+
 type mClientMockDeleteService struct {
 	optional           bool
 	mock               *ClientMock
@@ -4457,6 +6049,348 @@ func (m *ClientMock) MinimockDeleteServiceInspect() {
 	if !m.DeleteServiceMock.invocationsDone() && afterDeleteServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteService at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteServiceMock.expectedInvocations), m.DeleteServiceMock.expectedInvocationsOrigin, afterDeleteServiceCounter)
+	}
+}
+
+type mClientMockDeleteUpgradeWindow struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteUpgradeWindowExpectation
+	expectations       []*ClientMockDeleteUpgradeWindowExpectation
+
+	callArgs []*ClientMockDeleteUpgradeWindowParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteUpgradeWindowExpectation specifies expectation struct of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteUpgradeWindowParams
+	paramPtrs          *ClientMockDeleteUpgradeWindowParamPtrs
+	expectationOrigins ClientMockDeleteUpgradeWindowExpectationOrigins
+	results            *ClientMockDeleteUpgradeWindowResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteUpgradeWindowParams contains parameters of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockDeleteUpgradeWindowParamPtrs contains pointers to parameters of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockDeleteUpgradeWindowResults contains results of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowResults struct {
+	err error
+}
+
+// ClientMockDeleteUpgradeWindowOrigins contains origins of expectations of the Client.DeleteUpgradeWindow
+type ClientMockDeleteUpgradeWindowExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Optional() *mClientMockDeleteUpgradeWindow {
+	mmDeleteUpgradeWindow.optional = true
+	return mmDeleteUpgradeWindow
+}
+
+// Expect sets up expected params for Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Expect(ctx context.Context, serviceId string) *mClientMockDeleteUpgradeWindow {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation == nil {
+		mmDeleteUpgradeWindow.defaultExpectation = &ClientMockDeleteUpgradeWindowExpectation{}
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.paramPtrs != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteUpgradeWindow.defaultExpectation.params = &ClientMockDeleteUpgradeWindowParams{ctx, serviceId}
+	mmDeleteUpgradeWindow.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteUpgradeWindow.expectations {
+		if minimock.Equal(e.params, mmDeleteUpgradeWindow.defaultExpectation.params) {
+			mmDeleteUpgradeWindow.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteUpgradeWindow.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteUpgradeWindow
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteUpgradeWindow {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation == nil {
+		mmDeleteUpgradeWindow.defaultExpectation = &ClientMockDeleteUpgradeWindowExpectation{}
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.params != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmDeleteUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockDeleteUpgradeWindowParamPtrs{}
+	}
+	mmDeleteUpgradeWindow.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteUpgradeWindow.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteUpgradeWindow
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) ExpectServiceIdParam2(serviceId string) *mClientMockDeleteUpgradeWindow {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation == nil {
+		mmDeleteUpgradeWindow.defaultExpectation = &ClientMockDeleteUpgradeWindowExpectation{}
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.params != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmDeleteUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockDeleteUpgradeWindowParamPtrs{}
+	}
+	mmDeleteUpgradeWindow.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmDeleteUpgradeWindow.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmDeleteUpgradeWindow
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockDeleteUpgradeWindow {
+	if mmDeleteUpgradeWindow.mock.inspectFuncDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteUpgradeWindow")
+	}
+
+	mmDeleteUpgradeWindow.mock.inspectFuncDeleteUpgradeWindow = f
+
+	return mmDeleteUpgradeWindow
+}
+
+// Return sets up results that will be returned by Client.DeleteUpgradeWindow
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Return(err error) *ClientMock {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	if mmDeleteUpgradeWindow.defaultExpectation == nil {
+		mmDeleteUpgradeWindow.defaultExpectation = &ClientMockDeleteUpgradeWindowExpectation{mock: mmDeleteUpgradeWindow.mock}
+	}
+	mmDeleteUpgradeWindow.defaultExpectation.results = &ClientMockDeleteUpgradeWindowResults{err}
+	mmDeleteUpgradeWindow.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteUpgradeWindow.mock
+}
+
+// Set uses given function f to mock the Client.DeleteUpgradeWindow method
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Set(f func(ctx context.Context, serviceId string) (err error)) *ClientMock {
+	if mmDeleteUpgradeWindow.defaultExpectation != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("Default expectation is already set for the Client.DeleteUpgradeWindow method")
+	}
+
+	if len(mmDeleteUpgradeWindow.expectations) > 0 {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("Some expectations are already set for the Client.DeleteUpgradeWindow method")
+	}
+
+	mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow = f
+	mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindowOrigin = minimock.CallerInfo(1)
+	return mmDeleteUpgradeWindow.mock
+}
+
+// When sets expectation for the Client.DeleteUpgradeWindow which will trigger the result defined by the following
+// Then helper
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) When(ctx context.Context, serviceId string) *ClientMockDeleteUpgradeWindowExpectation {
+	if mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("ClientMock.DeleteUpgradeWindow mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteUpgradeWindowExpectation{
+		mock:               mmDeleteUpgradeWindow.mock,
+		params:             &ClientMockDeleteUpgradeWindowParams{ctx, serviceId},
+		expectationOrigins: ClientMockDeleteUpgradeWindowExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteUpgradeWindow.expectations = append(mmDeleteUpgradeWindow.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteUpgradeWindow return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteUpgradeWindowExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteUpgradeWindowResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteUpgradeWindow should be invoked
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Times(n uint64) *mClientMockDeleteUpgradeWindow {
+	if n == 0 {
+		mmDeleteUpgradeWindow.mock.t.Fatalf("Times of ClientMock.DeleteUpgradeWindow mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteUpgradeWindow.expectedInvocations, n)
+	mmDeleteUpgradeWindow.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteUpgradeWindow
+}
+
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) invocationsDone() bool {
+	if len(mmDeleteUpgradeWindow.expectations) == 0 && mmDeleteUpgradeWindow.defaultExpectation == nil && mmDeleteUpgradeWindow.mock.funcDeleteUpgradeWindow == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteUpgradeWindow.mock.afterDeleteUpgradeWindowCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteUpgradeWindow.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteUpgradeWindow implements Client
+func (mmDeleteUpgradeWindow *ClientMock) DeleteUpgradeWindow(ctx context.Context, serviceId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteUpgradeWindow.beforeDeleteUpgradeWindowCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteUpgradeWindow.afterDeleteUpgradeWindowCounter, 1)
+
+	mmDeleteUpgradeWindow.t.Helper()
+
+	if mmDeleteUpgradeWindow.inspectFuncDeleteUpgradeWindow != nil {
+		mmDeleteUpgradeWindow.inspectFuncDeleteUpgradeWindow(ctx, serviceId)
+	}
+
+	mm_params := ClientMockDeleteUpgradeWindowParams{ctx, serviceId}
+
+	// Record call args
+	mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.mutex.Lock()
+	mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.callArgs = append(mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.callArgs, &mm_params)
+	mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.mutex.Unlock()
+
+	for _, e := range mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteUpgradeWindowParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteUpgradeWindow.t.Errorf("ClientMock.DeleteUpgradeWindow got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmDeleteUpgradeWindow.t.Errorf("ClientMock.DeleteUpgradeWindow got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteUpgradeWindow.t.Errorf("ClientMock.DeleteUpgradeWindow got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteUpgradeWindow.DeleteUpgradeWindowMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteUpgradeWindow.t.Fatal("No results are set for the ClientMock.DeleteUpgradeWindow")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteUpgradeWindow.funcDeleteUpgradeWindow != nil {
+		return mmDeleteUpgradeWindow.funcDeleteUpgradeWindow(ctx, serviceId)
+	}
+	mmDeleteUpgradeWindow.t.Fatalf("Unexpected call to ClientMock.DeleteUpgradeWindow. %v %v", ctx, serviceId)
+	return
+}
+
+// DeleteUpgradeWindowAfterCounter returns a count of finished ClientMock.DeleteUpgradeWindow invocations
+func (mmDeleteUpgradeWindow *ClientMock) DeleteUpgradeWindowAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteUpgradeWindow.afterDeleteUpgradeWindowCounter)
+}
+
+// DeleteUpgradeWindowBeforeCounter returns a count of ClientMock.DeleteUpgradeWindow invocations
+func (mmDeleteUpgradeWindow *ClientMock) DeleteUpgradeWindowBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteUpgradeWindow.beforeDeleteUpgradeWindowCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteUpgradeWindow.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteUpgradeWindow *mClientMockDeleteUpgradeWindow) Calls() []*ClientMockDeleteUpgradeWindowParams {
+	mmDeleteUpgradeWindow.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteUpgradeWindowParams, len(mmDeleteUpgradeWindow.callArgs))
+	copy(argCopy, mmDeleteUpgradeWindow.callArgs)
+
+	mmDeleteUpgradeWindow.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteUpgradeWindowDone returns true if the count of the DeleteUpgradeWindow invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteUpgradeWindowDone() bool {
+	if m.DeleteUpgradeWindowMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteUpgradeWindowMock.invocationsDone()
+}
+
+// MinimockDeleteUpgradeWindowInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteUpgradeWindowInspect() {
+	for _, e := range m.DeleteUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteUpgradeWindow at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteUpgradeWindowCounter := mm_atomic.LoadUint64(&m.afterDeleteUpgradeWindowCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteUpgradeWindowMock.defaultExpectation != nil && afterDeleteUpgradeWindowCounter < 1 {
+		if m.DeleteUpgradeWindowMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteUpgradeWindow at\n%s", m.DeleteUpgradeWindowMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteUpgradeWindow at\n%s with params: %#v", m.DeleteUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *m.DeleteUpgradeWindowMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteUpgradeWindow != nil && afterDeleteUpgradeWindowCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteUpgradeWindow at\n%s", m.funcDeleteUpgradeWindowOrigin)
+	}
+
+	if !m.DeleteUpgradeWindowMock.invocationsDone() && afterDeleteUpgradeWindowCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteUpgradeWindow at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteUpgradeWindowMock.expectedInvocations), m.DeleteUpgradeWindowMock.expectedInvocationsOrigin, afterDeleteUpgradeWindowCounter)
 	}
 }
 
@@ -7578,6 +9512,1035 @@ func (m *ClientMock) MinimockGetOrganizationPrivateEndpointsInspect() {
 	}
 }
 
+type mClientMockGetPostgres struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetPostgresExpectation
+	expectations       []*ClientMockGetPostgresExpectation
+
+	callArgs []*ClientMockGetPostgresParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetPostgresExpectation specifies expectation struct of the Client.GetPostgres
+type ClientMockGetPostgresExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetPostgresParams
+	paramPtrs          *ClientMockGetPostgresParamPtrs
+	expectationOrigins ClientMockGetPostgresExpectationOrigins
+	results            *ClientMockGetPostgresResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetPostgresParams contains parameters of the Client.GetPostgres
+type ClientMockGetPostgresParams struct {
+	ctx        context.Context
+	postgresId string
+}
+
+// ClientMockGetPostgresParamPtrs contains pointers to parameters of the Client.GetPostgres
+type ClientMockGetPostgresParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+}
+
+// ClientMockGetPostgresResults contains results of the Client.GetPostgres
+type ClientMockGetPostgresResults struct {
+	pp1 *Postgres
+	err error
+}
+
+// ClientMockGetPostgresOrigins contains origins of expectations of the Client.GetPostgres
+type ClientMockGetPostgresExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetPostgres *mClientMockGetPostgres) Optional() *mClientMockGetPostgres {
+	mmGetPostgres.optional = true
+	return mmGetPostgres
+}
+
+// Expect sets up expected params for Client.GetPostgres
+func (mmGetPostgres *mClientMockGetPostgres) Expect(ctx context.Context, postgresId string) *mClientMockGetPostgres {
+	if mmGetPostgres.mock.funcGetPostgres != nil {
+		mmGetPostgres.mock.t.Fatalf("ClientMock.GetPostgres mock is already set by Set")
+	}
+
+	if mmGetPostgres.defaultExpectation == nil {
+		mmGetPostgres.defaultExpectation = &ClientMockGetPostgresExpectation{}
+	}
+
+	if mmGetPostgres.defaultExpectation.paramPtrs != nil {
+		mmGetPostgres.mock.t.Fatalf("ClientMock.GetPostgres mock is already set by ExpectParams functions")
+	}
+
+	mmGetPostgres.defaultExpectation.params = &ClientMockGetPostgresParams{ctx, postgresId}
+	mmGetPostgres.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetPostgres.expectations {
+		if minimock.Equal(e.params, mmGetPostgres.defaultExpectation.params) {
+			mmGetPostgres.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetPostgres.defaultExpectation.params)
+		}
+	}
+
+	return mmGetPostgres
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetPostgres
+func (mmGetPostgres *mClientMockGetPostgres) ExpectCtxParam1(ctx context.Context) *mClientMockGetPostgres {
+	if mmGetPostgres.mock.funcGetPostgres != nil {
+		mmGetPostgres.mock.t.Fatalf("ClientMock.GetPostgres mock is already set by Set")
+	}
+
+	if mmGetPostgres.defaultExpectation == nil {
+		mmGetPostgres.defaultExpectation = &ClientMockGetPostgresExpectation{}
+	}
+
+	if mmGetPostgres.defaultExpectation.params != nil {
+		mmGetPostgres.mock.t.Fatalf("ClientMock.GetPostgres mock is already set by Expect")
+	}
+
+	if mmGetPostgres.defaultExpectation.paramPtrs == nil {
+		mmGetPostgres.defaultExpectation.paramPtrs = &ClientMockGetPostgresParamPtrs{}
+	}
+	mmGetPostgres.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetPostgres.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetPostgres
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.GetPostgres
+func (mmGetPostgres *mClientMockGetPostgres) ExpectPostgresIdParam2(postgresId string) *mClientMockGetPostgres {
+	if mmGetPostgres.mock.funcGetPostgres != nil {
+		mmGetPostgres.mock.t.Fatalf("ClientMock.GetPostgres mock is already set by Set")
+	}
+
+	if mmGetPostgres.defaultExpectation == nil {
+		mmGetPostgres.defaultExpectation = &ClientMockGetPostgresExpectation{}
+	}
+
+	if mmGetPostgres.defaultExpectation.params != nil {
+		mmGetPostgres.mock.t.Fatalf("ClientMock.GetPostgres mock is already set by Expect")
+	}
+
+	if mmGetPostgres.defaultExpectation.paramPtrs == nil {
+		mmGetPostgres.defaultExpectation.paramPtrs = &ClientMockGetPostgresParamPtrs{}
+	}
+	mmGetPostgres.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmGetPostgres.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmGetPostgres
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetPostgres
+func (mmGetPostgres *mClientMockGetPostgres) Inspect(f func(ctx context.Context, postgresId string)) *mClientMockGetPostgres {
+	if mmGetPostgres.mock.inspectFuncGetPostgres != nil {
+		mmGetPostgres.mock.t.Fatalf("Inspect function is already set for ClientMock.GetPostgres")
+	}
+
+	mmGetPostgres.mock.inspectFuncGetPostgres = f
+
+	return mmGetPostgres
+}
+
+// Return sets up results that will be returned by Client.GetPostgres
+func (mmGetPostgres *mClientMockGetPostgres) Return(pp1 *Postgres, err error) *ClientMock {
+	if mmGetPostgres.mock.funcGetPostgres != nil {
+		mmGetPostgres.mock.t.Fatalf("ClientMock.GetPostgres mock is already set by Set")
+	}
+
+	if mmGetPostgres.defaultExpectation == nil {
+		mmGetPostgres.defaultExpectation = &ClientMockGetPostgresExpectation{mock: mmGetPostgres.mock}
+	}
+	mmGetPostgres.defaultExpectation.results = &ClientMockGetPostgresResults{pp1, err}
+	mmGetPostgres.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetPostgres.mock
+}
+
+// Set uses given function f to mock the Client.GetPostgres method
+func (mmGetPostgres *mClientMockGetPostgres) Set(f func(ctx context.Context, postgresId string) (pp1 *Postgres, err error)) *ClientMock {
+	if mmGetPostgres.defaultExpectation != nil {
+		mmGetPostgres.mock.t.Fatalf("Default expectation is already set for the Client.GetPostgres method")
+	}
+
+	if len(mmGetPostgres.expectations) > 0 {
+		mmGetPostgres.mock.t.Fatalf("Some expectations are already set for the Client.GetPostgres method")
+	}
+
+	mmGetPostgres.mock.funcGetPostgres = f
+	mmGetPostgres.mock.funcGetPostgresOrigin = minimock.CallerInfo(1)
+	return mmGetPostgres.mock
+}
+
+// When sets expectation for the Client.GetPostgres which will trigger the result defined by the following
+// Then helper
+func (mmGetPostgres *mClientMockGetPostgres) When(ctx context.Context, postgresId string) *ClientMockGetPostgresExpectation {
+	if mmGetPostgres.mock.funcGetPostgres != nil {
+		mmGetPostgres.mock.t.Fatalf("ClientMock.GetPostgres mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetPostgresExpectation{
+		mock:               mmGetPostgres.mock,
+		params:             &ClientMockGetPostgresParams{ctx, postgresId},
+		expectationOrigins: ClientMockGetPostgresExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetPostgres.expectations = append(mmGetPostgres.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetPostgres return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetPostgresExpectation) Then(pp1 *Postgres, err error) *ClientMock {
+	e.results = &ClientMockGetPostgresResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetPostgres should be invoked
+func (mmGetPostgres *mClientMockGetPostgres) Times(n uint64) *mClientMockGetPostgres {
+	if n == 0 {
+		mmGetPostgres.mock.t.Fatalf("Times of ClientMock.GetPostgres mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetPostgres.expectedInvocations, n)
+	mmGetPostgres.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetPostgres
+}
+
+func (mmGetPostgres *mClientMockGetPostgres) invocationsDone() bool {
+	if len(mmGetPostgres.expectations) == 0 && mmGetPostgres.defaultExpectation == nil && mmGetPostgres.mock.funcGetPostgres == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetPostgres.mock.afterGetPostgresCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetPostgres.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetPostgres implements Client
+func (mmGetPostgres *ClientMock) GetPostgres(ctx context.Context, postgresId string) (pp1 *Postgres, err error) {
+	mm_atomic.AddUint64(&mmGetPostgres.beforeGetPostgresCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetPostgres.afterGetPostgresCounter, 1)
+
+	mmGetPostgres.t.Helper()
+
+	if mmGetPostgres.inspectFuncGetPostgres != nil {
+		mmGetPostgres.inspectFuncGetPostgres(ctx, postgresId)
+	}
+
+	mm_params := ClientMockGetPostgresParams{ctx, postgresId}
+
+	// Record call args
+	mmGetPostgres.GetPostgresMock.mutex.Lock()
+	mmGetPostgres.GetPostgresMock.callArgs = append(mmGetPostgres.GetPostgresMock.callArgs, &mm_params)
+	mmGetPostgres.GetPostgresMock.mutex.Unlock()
+
+	for _, e := range mmGetPostgres.GetPostgresMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmGetPostgres.GetPostgresMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetPostgres.GetPostgresMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetPostgres.GetPostgresMock.defaultExpectation.params
+		mm_want_ptrs := mmGetPostgres.GetPostgresMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetPostgresParams{ctx, postgresId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetPostgres.t.Errorf("ClientMock.GetPostgres got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetPostgres.GetPostgresMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmGetPostgres.t.Errorf("ClientMock.GetPostgres got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetPostgres.GetPostgresMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetPostgres.t.Errorf("ClientMock.GetPostgres got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetPostgres.GetPostgresMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetPostgres.GetPostgresMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetPostgres.t.Fatal("No results are set for the ClientMock.GetPostgres")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmGetPostgres.funcGetPostgres != nil {
+		return mmGetPostgres.funcGetPostgres(ctx, postgresId)
+	}
+	mmGetPostgres.t.Fatalf("Unexpected call to ClientMock.GetPostgres. %v %v", ctx, postgresId)
+	return
+}
+
+// GetPostgresAfterCounter returns a count of finished ClientMock.GetPostgres invocations
+func (mmGetPostgres *ClientMock) GetPostgresAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetPostgres.afterGetPostgresCounter)
+}
+
+// GetPostgresBeforeCounter returns a count of ClientMock.GetPostgres invocations
+func (mmGetPostgres *ClientMock) GetPostgresBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetPostgres.beforeGetPostgresCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetPostgres.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetPostgres *mClientMockGetPostgres) Calls() []*ClientMockGetPostgresParams {
+	mmGetPostgres.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetPostgresParams, len(mmGetPostgres.callArgs))
+	copy(argCopy, mmGetPostgres.callArgs)
+
+	mmGetPostgres.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetPostgresDone returns true if the count of the GetPostgres invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetPostgresDone() bool {
+	if m.GetPostgresMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetPostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetPostgresMock.invocationsDone()
+}
+
+// MinimockGetPostgresInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetPostgresInspect() {
+	for _, e := range m.GetPostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetPostgres at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetPostgresCounter := mm_atomic.LoadUint64(&m.afterGetPostgresCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetPostgresMock.defaultExpectation != nil && afterGetPostgresCounter < 1 {
+		if m.GetPostgresMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetPostgres at\n%s", m.GetPostgresMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetPostgres at\n%s with params: %#v", m.GetPostgresMock.defaultExpectation.expectationOrigins.origin, *m.GetPostgresMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetPostgres != nil && afterGetPostgresCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetPostgres at\n%s", m.funcGetPostgresOrigin)
+	}
+
+	if !m.GetPostgresMock.invocationsDone() && afterGetPostgresCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetPostgres at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetPostgresMock.expectedInvocations), m.GetPostgresMock.expectedInvocationsOrigin, afterGetPostgresCounter)
+	}
+}
+
+type mClientMockGetPostgresCaCertificates struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetPostgresCaCertificatesExpectation
+	expectations       []*ClientMockGetPostgresCaCertificatesExpectation
+
+	callArgs []*ClientMockGetPostgresCaCertificatesParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetPostgresCaCertificatesExpectation specifies expectation struct of the Client.GetPostgresCaCertificates
+type ClientMockGetPostgresCaCertificatesExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetPostgresCaCertificatesParams
+	paramPtrs          *ClientMockGetPostgresCaCertificatesParamPtrs
+	expectationOrigins ClientMockGetPostgresCaCertificatesExpectationOrigins
+	results            *ClientMockGetPostgresCaCertificatesResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetPostgresCaCertificatesParams contains parameters of the Client.GetPostgresCaCertificates
+type ClientMockGetPostgresCaCertificatesParams struct {
+	ctx        context.Context
+	postgresId string
+}
+
+// ClientMockGetPostgresCaCertificatesParamPtrs contains pointers to parameters of the Client.GetPostgresCaCertificates
+type ClientMockGetPostgresCaCertificatesParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+}
+
+// ClientMockGetPostgresCaCertificatesResults contains results of the Client.GetPostgresCaCertificates
+type ClientMockGetPostgresCaCertificatesResults struct {
+	ba1 []byte
+	err error
+}
+
+// ClientMockGetPostgresCaCertificatesOrigins contains origins of expectations of the Client.GetPostgresCaCertificates
+type ClientMockGetPostgresCaCertificatesExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) Optional() *mClientMockGetPostgresCaCertificates {
+	mmGetPostgresCaCertificates.optional = true
+	return mmGetPostgresCaCertificates
+}
+
+// Expect sets up expected params for Client.GetPostgresCaCertificates
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) Expect(ctx context.Context, postgresId string) *mClientMockGetPostgresCaCertificates {
+	if mmGetPostgresCaCertificates.mock.funcGetPostgresCaCertificates != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("ClientMock.GetPostgresCaCertificates mock is already set by Set")
+	}
+
+	if mmGetPostgresCaCertificates.defaultExpectation == nil {
+		mmGetPostgresCaCertificates.defaultExpectation = &ClientMockGetPostgresCaCertificatesExpectation{}
+	}
+
+	if mmGetPostgresCaCertificates.defaultExpectation.paramPtrs != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("ClientMock.GetPostgresCaCertificates mock is already set by ExpectParams functions")
+	}
+
+	mmGetPostgresCaCertificates.defaultExpectation.params = &ClientMockGetPostgresCaCertificatesParams{ctx, postgresId}
+	mmGetPostgresCaCertificates.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetPostgresCaCertificates.expectations {
+		if minimock.Equal(e.params, mmGetPostgresCaCertificates.defaultExpectation.params) {
+			mmGetPostgresCaCertificates.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetPostgresCaCertificates.defaultExpectation.params)
+		}
+	}
+
+	return mmGetPostgresCaCertificates
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetPostgresCaCertificates
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) ExpectCtxParam1(ctx context.Context) *mClientMockGetPostgresCaCertificates {
+	if mmGetPostgresCaCertificates.mock.funcGetPostgresCaCertificates != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("ClientMock.GetPostgresCaCertificates mock is already set by Set")
+	}
+
+	if mmGetPostgresCaCertificates.defaultExpectation == nil {
+		mmGetPostgresCaCertificates.defaultExpectation = &ClientMockGetPostgresCaCertificatesExpectation{}
+	}
+
+	if mmGetPostgresCaCertificates.defaultExpectation.params != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("ClientMock.GetPostgresCaCertificates mock is already set by Expect")
+	}
+
+	if mmGetPostgresCaCertificates.defaultExpectation.paramPtrs == nil {
+		mmGetPostgresCaCertificates.defaultExpectation.paramPtrs = &ClientMockGetPostgresCaCertificatesParamPtrs{}
+	}
+	mmGetPostgresCaCertificates.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetPostgresCaCertificates.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetPostgresCaCertificates
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.GetPostgresCaCertificates
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) ExpectPostgresIdParam2(postgresId string) *mClientMockGetPostgresCaCertificates {
+	if mmGetPostgresCaCertificates.mock.funcGetPostgresCaCertificates != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("ClientMock.GetPostgresCaCertificates mock is already set by Set")
+	}
+
+	if mmGetPostgresCaCertificates.defaultExpectation == nil {
+		mmGetPostgresCaCertificates.defaultExpectation = &ClientMockGetPostgresCaCertificatesExpectation{}
+	}
+
+	if mmGetPostgresCaCertificates.defaultExpectation.params != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("ClientMock.GetPostgresCaCertificates mock is already set by Expect")
+	}
+
+	if mmGetPostgresCaCertificates.defaultExpectation.paramPtrs == nil {
+		mmGetPostgresCaCertificates.defaultExpectation.paramPtrs = &ClientMockGetPostgresCaCertificatesParamPtrs{}
+	}
+	mmGetPostgresCaCertificates.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmGetPostgresCaCertificates.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmGetPostgresCaCertificates
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetPostgresCaCertificates
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) Inspect(f func(ctx context.Context, postgresId string)) *mClientMockGetPostgresCaCertificates {
+	if mmGetPostgresCaCertificates.mock.inspectFuncGetPostgresCaCertificates != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("Inspect function is already set for ClientMock.GetPostgresCaCertificates")
+	}
+
+	mmGetPostgresCaCertificates.mock.inspectFuncGetPostgresCaCertificates = f
+
+	return mmGetPostgresCaCertificates
+}
+
+// Return sets up results that will be returned by Client.GetPostgresCaCertificates
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) Return(ba1 []byte, err error) *ClientMock {
+	if mmGetPostgresCaCertificates.mock.funcGetPostgresCaCertificates != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("ClientMock.GetPostgresCaCertificates mock is already set by Set")
+	}
+
+	if mmGetPostgresCaCertificates.defaultExpectation == nil {
+		mmGetPostgresCaCertificates.defaultExpectation = &ClientMockGetPostgresCaCertificatesExpectation{mock: mmGetPostgresCaCertificates.mock}
+	}
+	mmGetPostgresCaCertificates.defaultExpectation.results = &ClientMockGetPostgresCaCertificatesResults{ba1, err}
+	mmGetPostgresCaCertificates.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetPostgresCaCertificates.mock
+}
+
+// Set uses given function f to mock the Client.GetPostgresCaCertificates method
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) Set(f func(ctx context.Context, postgresId string) (ba1 []byte, err error)) *ClientMock {
+	if mmGetPostgresCaCertificates.defaultExpectation != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("Default expectation is already set for the Client.GetPostgresCaCertificates method")
+	}
+
+	if len(mmGetPostgresCaCertificates.expectations) > 0 {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("Some expectations are already set for the Client.GetPostgresCaCertificates method")
+	}
+
+	mmGetPostgresCaCertificates.mock.funcGetPostgresCaCertificates = f
+	mmGetPostgresCaCertificates.mock.funcGetPostgresCaCertificatesOrigin = minimock.CallerInfo(1)
+	return mmGetPostgresCaCertificates.mock
+}
+
+// When sets expectation for the Client.GetPostgresCaCertificates which will trigger the result defined by the following
+// Then helper
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) When(ctx context.Context, postgresId string) *ClientMockGetPostgresCaCertificatesExpectation {
+	if mmGetPostgresCaCertificates.mock.funcGetPostgresCaCertificates != nil {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("ClientMock.GetPostgresCaCertificates mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetPostgresCaCertificatesExpectation{
+		mock:               mmGetPostgresCaCertificates.mock,
+		params:             &ClientMockGetPostgresCaCertificatesParams{ctx, postgresId},
+		expectationOrigins: ClientMockGetPostgresCaCertificatesExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetPostgresCaCertificates.expectations = append(mmGetPostgresCaCertificates.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetPostgresCaCertificates return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetPostgresCaCertificatesExpectation) Then(ba1 []byte, err error) *ClientMock {
+	e.results = &ClientMockGetPostgresCaCertificatesResults{ba1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetPostgresCaCertificates should be invoked
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) Times(n uint64) *mClientMockGetPostgresCaCertificates {
+	if n == 0 {
+		mmGetPostgresCaCertificates.mock.t.Fatalf("Times of ClientMock.GetPostgresCaCertificates mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetPostgresCaCertificates.expectedInvocations, n)
+	mmGetPostgresCaCertificates.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetPostgresCaCertificates
+}
+
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) invocationsDone() bool {
+	if len(mmGetPostgresCaCertificates.expectations) == 0 && mmGetPostgresCaCertificates.defaultExpectation == nil && mmGetPostgresCaCertificates.mock.funcGetPostgresCaCertificates == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetPostgresCaCertificates.mock.afterGetPostgresCaCertificatesCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetPostgresCaCertificates.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetPostgresCaCertificates implements Client
+func (mmGetPostgresCaCertificates *ClientMock) GetPostgresCaCertificates(ctx context.Context, postgresId string) (ba1 []byte, err error) {
+	mm_atomic.AddUint64(&mmGetPostgresCaCertificates.beforeGetPostgresCaCertificatesCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetPostgresCaCertificates.afterGetPostgresCaCertificatesCounter, 1)
+
+	mmGetPostgresCaCertificates.t.Helper()
+
+	if mmGetPostgresCaCertificates.inspectFuncGetPostgresCaCertificates != nil {
+		mmGetPostgresCaCertificates.inspectFuncGetPostgresCaCertificates(ctx, postgresId)
+	}
+
+	mm_params := ClientMockGetPostgresCaCertificatesParams{ctx, postgresId}
+
+	// Record call args
+	mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.mutex.Lock()
+	mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.callArgs = append(mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.callArgs, &mm_params)
+	mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.mutex.Unlock()
+
+	for _, e := range mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ba1, e.results.err
+		}
+	}
+
+	if mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.defaultExpectation.params
+		mm_want_ptrs := mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetPostgresCaCertificatesParams{ctx, postgresId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetPostgresCaCertificates.t.Errorf("ClientMock.GetPostgresCaCertificates got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmGetPostgresCaCertificates.t.Errorf("ClientMock.GetPostgresCaCertificates got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetPostgresCaCertificates.t.Errorf("ClientMock.GetPostgresCaCertificates got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetPostgresCaCertificates.GetPostgresCaCertificatesMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetPostgresCaCertificates.t.Fatal("No results are set for the ClientMock.GetPostgresCaCertificates")
+		}
+		return (*mm_results).ba1, (*mm_results).err
+	}
+	if mmGetPostgresCaCertificates.funcGetPostgresCaCertificates != nil {
+		return mmGetPostgresCaCertificates.funcGetPostgresCaCertificates(ctx, postgresId)
+	}
+	mmGetPostgresCaCertificates.t.Fatalf("Unexpected call to ClientMock.GetPostgresCaCertificates. %v %v", ctx, postgresId)
+	return
+}
+
+// GetPostgresCaCertificatesAfterCounter returns a count of finished ClientMock.GetPostgresCaCertificates invocations
+func (mmGetPostgresCaCertificates *ClientMock) GetPostgresCaCertificatesAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetPostgresCaCertificates.afterGetPostgresCaCertificatesCounter)
+}
+
+// GetPostgresCaCertificatesBeforeCounter returns a count of ClientMock.GetPostgresCaCertificates invocations
+func (mmGetPostgresCaCertificates *ClientMock) GetPostgresCaCertificatesBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetPostgresCaCertificates.beforeGetPostgresCaCertificatesCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetPostgresCaCertificates.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetPostgresCaCertificates *mClientMockGetPostgresCaCertificates) Calls() []*ClientMockGetPostgresCaCertificatesParams {
+	mmGetPostgresCaCertificates.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetPostgresCaCertificatesParams, len(mmGetPostgresCaCertificates.callArgs))
+	copy(argCopy, mmGetPostgresCaCertificates.callArgs)
+
+	mmGetPostgresCaCertificates.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetPostgresCaCertificatesDone returns true if the count of the GetPostgresCaCertificates invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetPostgresCaCertificatesDone() bool {
+	if m.GetPostgresCaCertificatesMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetPostgresCaCertificatesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetPostgresCaCertificatesMock.invocationsDone()
+}
+
+// MinimockGetPostgresCaCertificatesInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetPostgresCaCertificatesInspect() {
+	for _, e := range m.GetPostgresCaCertificatesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetPostgresCaCertificates at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetPostgresCaCertificatesCounter := mm_atomic.LoadUint64(&m.afterGetPostgresCaCertificatesCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetPostgresCaCertificatesMock.defaultExpectation != nil && afterGetPostgresCaCertificatesCounter < 1 {
+		if m.GetPostgresCaCertificatesMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetPostgresCaCertificates at\n%s", m.GetPostgresCaCertificatesMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetPostgresCaCertificates at\n%s with params: %#v", m.GetPostgresCaCertificatesMock.defaultExpectation.expectationOrigins.origin, *m.GetPostgresCaCertificatesMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetPostgresCaCertificates != nil && afterGetPostgresCaCertificatesCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetPostgresCaCertificates at\n%s", m.funcGetPostgresCaCertificatesOrigin)
+	}
+
+	if !m.GetPostgresCaCertificatesMock.invocationsDone() && afterGetPostgresCaCertificatesCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetPostgresCaCertificates at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetPostgresCaCertificatesMock.expectedInvocations), m.GetPostgresCaCertificatesMock.expectedInvocationsOrigin, afterGetPostgresCaCertificatesCounter)
+	}
+}
+
+type mClientMockGetPostgresConfig struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetPostgresConfigExpectation
+	expectations       []*ClientMockGetPostgresConfigExpectation
+
+	callArgs []*ClientMockGetPostgresConfigParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetPostgresConfigExpectation specifies expectation struct of the Client.GetPostgresConfig
+type ClientMockGetPostgresConfigExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetPostgresConfigParams
+	paramPtrs          *ClientMockGetPostgresConfigParamPtrs
+	expectationOrigins ClientMockGetPostgresConfigExpectationOrigins
+	results            *ClientMockGetPostgresConfigResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetPostgresConfigParams contains parameters of the Client.GetPostgresConfig
+type ClientMockGetPostgresConfigParams struct {
+	ctx        context.Context
+	postgresId string
+}
+
+// ClientMockGetPostgresConfigParamPtrs contains pointers to parameters of the Client.GetPostgresConfig
+type ClientMockGetPostgresConfigParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+}
+
+// ClientMockGetPostgresConfigResults contains results of the Client.GetPostgresConfig
+type ClientMockGetPostgresConfigResults struct {
+	pp1 *PostgresConfig
+	err error
+}
+
+// ClientMockGetPostgresConfigOrigins contains origins of expectations of the Client.GetPostgresConfig
+type ClientMockGetPostgresConfigExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) Optional() *mClientMockGetPostgresConfig {
+	mmGetPostgresConfig.optional = true
+	return mmGetPostgresConfig
+}
+
+// Expect sets up expected params for Client.GetPostgresConfig
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) Expect(ctx context.Context, postgresId string) *mClientMockGetPostgresConfig {
+	if mmGetPostgresConfig.mock.funcGetPostgresConfig != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("ClientMock.GetPostgresConfig mock is already set by Set")
+	}
+
+	if mmGetPostgresConfig.defaultExpectation == nil {
+		mmGetPostgresConfig.defaultExpectation = &ClientMockGetPostgresConfigExpectation{}
+	}
+
+	if mmGetPostgresConfig.defaultExpectation.paramPtrs != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("ClientMock.GetPostgresConfig mock is already set by ExpectParams functions")
+	}
+
+	mmGetPostgresConfig.defaultExpectation.params = &ClientMockGetPostgresConfigParams{ctx, postgresId}
+	mmGetPostgresConfig.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetPostgresConfig.expectations {
+		if minimock.Equal(e.params, mmGetPostgresConfig.defaultExpectation.params) {
+			mmGetPostgresConfig.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetPostgresConfig.defaultExpectation.params)
+		}
+	}
+
+	return mmGetPostgresConfig
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetPostgresConfig
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) ExpectCtxParam1(ctx context.Context) *mClientMockGetPostgresConfig {
+	if mmGetPostgresConfig.mock.funcGetPostgresConfig != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("ClientMock.GetPostgresConfig mock is already set by Set")
+	}
+
+	if mmGetPostgresConfig.defaultExpectation == nil {
+		mmGetPostgresConfig.defaultExpectation = &ClientMockGetPostgresConfigExpectation{}
+	}
+
+	if mmGetPostgresConfig.defaultExpectation.params != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("ClientMock.GetPostgresConfig mock is already set by Expect")
+	}
+
+	if mmGetPostgresConfig.defaultExpectation.paramPtrs == nil {
+		mmGetPostgresConfig.defaultExpectation.paramPtrs = &ClientMockGetPostgresConfigParamPtrs{}
+	}
+	mmGetPostgresConfig.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetPostgresConfig.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetPostgresConfig
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.GetPostgresConfig
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) ExpectPostgresIdParam2(postgresId string) *mClientMockGetPostgresConfig {
+	if mmGetPostgresConfig.mock.funcGetPostgresConfig != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("ClientMock.GetPostgresConfig mock is already set by Set")
+	}
+
+	if mmGetPostgresConfig.defaultExpectation == nil {
+		mmGetPostgresConfig.defaultExpectation = &ClientMockGetPostgresConfigExpectation{}
+	}
+
+	if mmGetPostgresConfig.defaultExpectation.params != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("ClientMock.GetPostgresConfig mock is already set by Expect")
+	}
+
+	if mmGetPostgresConfig.defaultExpectation.paramPtrs == nil {
+		mmGetPostgresConfig.defaultExpectation.paramPtrs = &ClientMockGetPostgresConfigParamPtrs{}
+	}
+	mmGetPostgresConfig.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmGetPostgresConfig.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmGetPostgresConfig
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetPostgresConfig
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) Inspect(f func(ctx context.Context, postgresId string)) *mClientMockGetPostgresConfig {
+	if mmGetPostgresConfig.mock.inspectFuncGetPostgresConfig != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("Inspect function is already set for ClientMock.GetPostgresConfig")
+	}
+
+	mmGetPostgresConfig.mock.inspectFuncGetPostgresConfig = f
+
+	return mmGetPostgresConfig
+}
+
+// Return sets up results that will be returned by Client.GetPostgresConfig
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) Return(pp1 *PostgresConfig, err error) *ClientMock {
+	if mmGetPostgresConfig.mock.funcGetPostgresConfig != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("ClientMock.GetPostgresConfig mock is already set by Set")
+	}
+
+	if mmGetPostgresConfig.defaultExpectation == nil {
+		mmGetPostgresConfig.defaultExpectation = &ClientMockGetPostgresConfigExpectation{mock: mmGetPostgresConfig.mock}
+	}
+	mmGetPostgresConfig.defaultExpectation.results = &ClientMockGetPostgresConfigResults{pp1, err}
+	mmGetPostgresConfig.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetPostgresConfig.mock
+}
+
+// Set uses given function f to mock the Client.GetPostgresConfig method
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) Set(f func(ctx context.Context, postgresId string) (pp1 *PostgresConfig, err error)) *ClientMock {
+	if mmGetPostgresConfig.defaultExpectation != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("Default expectation is already set for the Client.GetPostgresConfig method")
+	}
+
+	if len(mmGetPostgresConfig.expectations) > 0 {
+		mmGetPostgresConfig.mock.t.Fatalf("Some expectations are already set for the Client.GetPostgresConfig method")
+	}
+
+	mmGetPostgresConfig.mock.funcGetPostgresConfig = f
+	mmGetPostgresConfig.mock.funcGetPostgresConfigOrigin = minimock.CallerInfo(1)
+	return mmGetPostgresConfig.mock
+}
+
+// When sets expectation for the Client.GetPostgresConfig which will trigger the result defined by the following
+// Then helper
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) When(ctx context.Context, postgresId string) *ClientMockGetPostgresConfigExpectation {
+	if mmGetPostgresConfig.mock.funcGetPostgresConfig != nil {
+		mmGetPostgresConfig.mock.t.Fatalf("ClientMock.GetPostgresConfig mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetPostgresConfigExpectation{
+		mock:               mmGetPostgresConfig.mock,
+		params:             &ClientMockGetPostgresConfigParams{ctx, postgresId},
+		expectationOrigins: ClientMockGetPostgresConfigExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetPostgresConfig.expectations = append(mmGetPostgresConfig.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetPostgresConfig return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetPostgresConfigExpectation) Then(pp1 *PostgresConfig, err error) *ClientMock {
+	e.results = &ClientMockGetPostgresConfigResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetPostgresConfig should be invoked
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) Times(n uint64) *mClientMockGetPostgresConfig {
+	if n == 0 {
+		mmGetPostgresConfig.mock.t.Fatalf("Times of ClientMock.GetPostgresConfig mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetPostgresConfig.expectedInvocations, n)
+	mmGetPostgresConfig.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetPostgresConfig
+}
+
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) invocationsDone() bool {
+	if len(mmGetPostgresConfig.expectations) == 0 && mmGetPostgresConfig.defaultExpectation == nil && mmGetPostgresConfig.mock.funcGetPostgresConfig == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetPostgresConfig.mock.afterGetPostgresConfigCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetPostgresConfig.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetPostgresConfig implements Client
+func (mmGetPostgresConfig *ClientMock) GetPostgresConfig(ctx context.Context, postgresId string) (pp1 *PostgresConfig, err error) {
+	mm_atomic.AddUint64(&mmGetPostgresConfig.beforeGetPostgresConfigCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetPostgresConfig.afterGetPostgresConfigCounter, 1)
+
+	mmGetPostgresConfig.t.Helper()
+
+	if mmGetPostgresConfig.inspectFuncGetPostgresConfig != nil {
+		mmGetPostgresConfig.inspectFuncGetPostgresConfig(ctx, postgresId)
+	}
+
+	mm_params := ClientMockGetPostgresConfigParams{ctx, postgresId}
+
+	// Record call args
+	mmGetPostgresConfig.GetPostgresConfigMock.mutex.Lock()
+	mmGetPostgresConfig.GetPostgresConfigMock.callArgs = append(mmGetPostgresConfig.GetPostgresConfigMock.callArgs, &mm_params)
+	mmGetPostgresConfig.GetPostgresConfigMock.mutex.Unlock()
+
+	for _, e := range mmGetPostgresConfig.GetPostgresConfigMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmGetPostgresConfig.GetPostgresConfigMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetPostgresConfig.GetPostgresConfigMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetPostgresConfig.GetPostgresConfigMock.defaultExpectation.params
+		mm_want_ptrs := mmGetPostgresConfig.GetPostgresConfigMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetPostgresConfigParams{ctx, postgresId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetPostgresConfig.t.Errorf("ClientMock.GetPostgresConfig got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetPostgresConfig.GetPostgresConfigMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmGetPostgresConfig.t.Errorf("ClientMock.GetPostgresConfig got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetPostgresConfig.GetPostgresConfigMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetPostgresConfig.t.Errorf("ClientMock.GetPostgresConfig got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetPostgresConfig.GetPostgresConfigMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetPostgresConfig.GetPostgresConfigMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetPostgresConfig.t.Fatal("No results are set for the ClientMock.GetPostgresConfig")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmGetPostgresConfig.funcGetPostgresConfig != nil {
+		return mmGetPostgresConfig.funcGetPostgresConfig(ctx, postgresId)
+	}
+	mmGetPostgresConfig.t.Fatalf("Unexpected call to ClientMock.GetPostgresConfig. %v %v", ctx, postgresId)
+	return
+}
+
+// GetPostgresConfigAfterCounter returns a count of finished ClientMock.GetPostgresConfig invocations
+func (mmGetPostgresConfig *ClientMock) GetPostgresConfigAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetPostgresConfig.afterGetPostgresConfigCounter)
+}
+
+// GetPostgresConfigBeforeCounter returns a count of ClientMock.GetPostgresConfig invocations
+func (mmGetPostgresConfig *ClientMock) GetPostgresConfigBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetPostgresConfig.beforeGetPostgresConfigCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetPostgresConfig.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetPostgresConfig *mClientMockGetPostgresConfig) Calls() []*ClientMockGetPostgresConfigParams {
+	mmGetPostgresConfig.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetPostgresConfigParams, len(mmGetPostgresConfig.callArgs))
+	copy(argCopy, mmGetPostgresConfig.callArgs)
+
+	mmGetPostgresConfig.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetPostgresConfigDone returns true if the count of the GetPostgresConfig invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetPostgresConfigDone() bool {
+	if m.GetPostgresConfigMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetPostgresConfigMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetPostgresConfigMock.invocationsDone()
+}
+
+// MinimockGetPostgresConfigInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetPostgresConfigInspect() {
+	for _, e := range m.GetPostgresConfigMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetPostgresConfig at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetPostgresConfigCounter := mm_atomic.LoadUint64(&m.afterGetPostgresConfigCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetPostgresConfigMock.defaultExpectation != nil && afterGetPostgresConfigCounter < 1 {
+		if m.GetPostgresConfigMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetPostgresConfig at\n%s", m.GetPostgresConfigMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetPostgresConfig at\n%s with params: %#v", m.GetPostgresConfigMock.defaultExpectation.expectationOrigins.origin, *m.GetPostgresConfigMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetPostgresConfig != nil && afterGetPostgresConfigCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetPostgresConfig at\n%s", m.funcGetPostgresConfigOrigin)
+	}
+
+	if !m.GetPostgresConfigMock.invocationsDone() && afterGetPostgresConfigCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetPostgresConfig at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetPostgresConfigMock.expectedInvocations), m.GetPostgresConfigMock.expectedInvocationsOrigin, afterGetPostgresConfigCounter)
+	}
+}
+
 type mClientMockGetQueryEndpoint struct {
 	optional           bool
 	mock               *ClientMock
@@ -8980,6 +11943,349 @@ func (m *ClientMock) MinimockGetRoleInspect() {
 	}
 }
 
+type mClientMockGetScheduledScaling struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetScheduledScalingExpectation
+	expectations       []*ClientMockGetScheduledScalingExpectation
+
+	callArgs []*ClientMockGetScheduledScalingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetScheduledScalingExpectation specifies expectation struct of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetScheduledScalingParams
+	paramPtrs          *ClientMockGetScheduledScalingParamPtrs
+	expectationOrigins ClientMockGetScheduledScalingExpectationOrigins
+	results            *ClientMockGetScheduledScalingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetScheduledScalingParams contains parameters of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetScheduledScalingParamPtrs contains pointers to parameters of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetScheduledScalingResults contains results of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingResults struct {
+	ap1 *AutoScalingSchedule
+	err error
+}
+
+// ClientMockGetScheduledScalingOrigins contains origins of expectations of the Client.GetScheduledScaling
+type ClientMockGetScheduledScalingExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Optional() *mClientMockGetScheduledScaling {
+	mmGetScheduledScaling.optional = true
+	return mmGetScheduledScaling
+}
+
+// Expect sets up expected params for Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Expect(ctx context.Context, serviceId string) *mClientMockGetScheduledScaling {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation == nil {
+		mmGetScheduledScaling.defaultExpectation = &ClientMockGetScheduledScalingExpectation{}
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.paramPtrs != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by ExpectParams functions")
+	}
+
+	mmGetScheduledScaling.defaultExpectation.params = &ClientMockGetScheduledScalingParams{ctx, serviceId}
+	mmGetScheduledScaling.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetScheduledScaling.expectations {
+		if minimock.Equal(e.params, mmGetScheduledScaling.defaultExpectation.params) {
+			mmGetScheduledScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetScheduledScaling.defaultExpectation.params)
+		}
+	}
+
+	return mmGetScheduledScaling
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) ExpectCtxParam1(ctx context.Context) *mClientMockGetScheduledScaling {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation == nil {
+		mmGetScheduledScaling.defaultExpectation = &ClientMockGetScheduledScalingExpectation{}
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.params != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Expect")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmGetScheduledScaling.defaultExpectation.paramPtrs = &ClientMockGetScheduledScalingParamPtrs{}
+	}
+	mmGetScheduledScaling.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetScheduledScaling.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetScheduledScaling
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) ExpectServiceIdParam2(serviceId string) *mClientMockGetScheduledScaling {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation == nil {
+		mmGetScheduledScaling.defaultExpectation = &ClientMockGetScheduledScalingExpectation{}
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.params != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Expect")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmGetScheduledScaling.defaultExpectation.paramPtrs = &ClientMockGetScheduledScalingParamPtrs{}
+	}
+	mmGetScheduledScaling.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetScheduledScaling.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetScheduledScaling
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetScheduledScaling {
+	if mmGetScheduledScaling.mock.inspectFuncGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.GetScheduledScaling")
+	}
+
+	mmGetScheduledScaling.mock.inspectFuncGetScheduledScaling = f
+
+	return mmGetScheduledScaling
+}
+
+// Return sets up results that will be returned by Client.GetScheduledScaling
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Return(ap1 *AutoScalingSchedule, err error) *ClientMock {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	if mmGetScheduledScaling.defaultExpectation == nil {
+		mmGetScheduledScaling.defaultExpectation = &ClientMockGetScheduledScalingExpectation{mock: mmGetScheduledScaling.mock}
+	}
+	mmGetScheduledScaling.defaultExpectation.results = &ClientMockGetScheduledScalingResults{ap1, err}
+	mmGetScheduledScaling.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetScheduledScaling.mock
+}
+
+// Set uses given function f to mock the Client.GetScheduledScaling method
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Set(f func(ctx context.Context, serviceId string) (ap1 *AutoScalingSchedule, err error)) *ClientMock {
+	if mmGetScheduledScaling.defaultExpectation != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("Default expectation is already set for the Client.GetScheduledScaling method")
+	}
+
+	if len(mmGetScheduledScaling.expectations) > 0 {
+		mmGetScheduledScaling.mock.t.Fatalf("Some expectations are already set for the Client.GetScheduledScaling method")
+	}
+
+	mmGetScheduledScaling.mock.funcGetScheduledScaling = f
+	mmGetScheduledScaling.mock.funcGetScheduledScalingOrigin = minimock.CallerInfo(1)
+	return mmGetScheduledScaling.mock
+}
+
+// When sets expectation for the Client.GetScheduledScaling which will trigger the result defined by the following
+// Then helper
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) When(ctx context.Context, serviceId string) *ClientMockGetScheduledScalingExpectation {
+	if mmGetScheduledScaling.mock.funcGetScheduledScaling != nil {
+		mmGetScheduledScaling.mock.t.Fatalf("ClientMock.GetScheduledScaling mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetScheduledScalingExpectation{
+		mock:               mmGetScheduledScaling.mock,
+		params:             &ClientMockGetScheduledScalingParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetScheduledScalingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetScheduledScaling.expectations = append(mmGetScheduledScaling.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetScheduledScaling return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetScheduledScalingExpectation) Then(ap1 *AutoScalingSchedule, err error) *ClientMock {
+	e.results = &ClientMockGetScheduledScalingResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetScheduledScaling should be invoked
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Times(n uint64) *mClientMockGetScheduledScaling {
+	if n == 0 {
+		mmGetScheduledScaling.mock.t.Fatalf("Times of ClientMock.GetScheduledScaling mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetScheduledScaling.expectedInvocations, n)
+	mmGetScheduledScaling.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetScheduledScaling
+}
+
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) invocationsDone() bool {
+	if len(mmGetScheduledScaling.expectations) == 0 && mmGetScheduledScaling.defaultExpectation == nil && mmGetScheduledScaling.mock.funcGetScheduledScaling == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetScheduledScaling.mock.afterGetScheduledScalingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetScheduledScaling.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetScheduledScaling implements Client
+func (mmGetScheduledScaling *ClientMock) GetScheduledScaling(ctx context.Context, serviceId string) (ap1 *AutoScalingSchedule, err error) {
+	mm_atomic.AddUint64(&mmGetScheduledScaling.beforeGetScheduledScalingCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetScheduledScaling.afterGetScheduledScalingCounter, 1)
+
+	mmGetScheduledScaling.t.Helper()
+
+	if mmGetScheduledScaling.inspectFuncGetScheduledScaling != nil {
+		mmGetScheduledScaling.inspectFuncGetScheduledScaling(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetScheduledScalingParams{ctx, serviceId}
+
+	// Record call args
+	mmGetScheduledScaling.GetScheduledScalingMock.mutex.Lock()
+	mmGetScheduledScaling.GetScheduledScalingMock.callArgs = append(mmGetScheduledScaling.GetScheduledScalingMock.callArgs, &mm_params)
+	mmGetScheduledScaling.GetScheduledScalingMock.mutex.Unlock()
+
+	for _, e := range mmGetScheduledScaling.GetScheduledScalingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.params
+		mm_want_ptrs := mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetScheduledScalingParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetScheduledScaling.t.Errorf("ClientMock.GetScheduledScaling got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetScheduledScaling.t.Errorf("ClientMock.GetScheduledScaling got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetScheduledScaling.t.Errorf("ClientMock.GetScheduledScaling got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetScheduledScaling.GetScheduledScalingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetScheduledScaling.t.Fatal("No results are set for the ClientMock.GetScheduledScaling")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmGetScheduledScaling.funcGetScheduledScaling != nil {
+		return mmGetScheduledScaling.funcGetScheduledScaling(ctx, serviceId)
+	}
+	mmGetScheduledScaling.t.Fatalf("Unexpected call to ClientMock.GetScheduledScaling. %v %v", ctx, serviceId)
+	return
+}
+
+// GetScheduledScalingAfterCounter returns a count of finished ClientMock.GetScheduledScaling invocations
+func (mmGetScheduledScaling *ClientMock) GetScheduledScalingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetScheduledScaling.afterGetScheduledScalingCounter)
+}
+
+// GetScheduledScalingBeforeCounter returns a count of ClientMock.GetScheduledScaling invocations
+func (mmGetScheduledScaling *ClientMock) GetScheduledScalingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetScheduledScaling.beforeGetScheduledScalingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetScheduledScaling.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetScheduledScaling *mClientMockGetScheduledScaling) Calls() []*ClientMockGetScheduledScalingParams {
+	mmGetScheduledScaling.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetScheduledScalingParams, len(mmGetScheduledScaling.callArgs))
+	copy(argCopy, mmGetScheduledScaling.callArgs)
+
+	mmGetScheduledScaling.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetScheduledScalingDone returns true if the count of the GetScheduledScaling invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetScheduledScalingDone() bool {
+	if m.GetScheduledScalingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetScheduledScalingMock.invocationsDone()
+}
+
+// MinimockGetScheduledScalingInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetScheduledScalingInspect() {
+	for _, e := range m.GetScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetScheduledScaling at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetScheduledScalingCounter := mm_atomic.LoadUint64(&m.afterGetScheduledScalingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetScheduledScalingMock.defaultExpectation != nil && afterGetScheduledScalingCounter < 1 {
+		if m.GetScheduledScalingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetScheduledScaling at\n%s", m.GetScheduledScalingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetScheduledScaling at\n%s with params: %#v", m.GetScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *m.GetScheduledScalingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetScheduledScaling != nil && afterGetScheduledScalingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetScheduledScaling at\n%s", m.funcGetScheduledScalingOrigin)
+	}
+
+	if !m.GetScheduledScalingMock.invocationsDone() && afterGetScheduledScalingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetScheduledScaling at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetScheduledScalingMock.expectedInvocations), m.GetScheduledScalingMock.expectedInvocationsOrigin, afterGetScheduledScalingCounter)
+	}
+}
+
 type mClientMockGetService struct {
 	optional           bool
 	mock               *ClientMock
@@ -9323,6 +12629,349 @@ func (m *ClientMock) MinimockGetServiceInspect() {
 	}
 }
 
+type mClientMockGetUpgradeWindow struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetUpgradeWindowExpectation
+	expectations       []*ClientMockGetUpgradeWindowExpectation
+
+	callArgs []*ClientMockGetUpgradeWindowParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetUpgradeWindowExpectation specifies expectation struct of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetUpgradeWindowParams
+	paramPtrs          *ClientMockGetUpgradeWindowParamPtrs
+	expectationOrigins ClientMockGetUpgradeWindowExpectationOrigins
+	results            *ClientMockGetUpgradeWindowResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetUpgradeWindowParams contains parameters of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetUpgradeWindowParamPtrs contains pointers to parameters of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetUpgradeWindowResults contains results of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowResults struct {
+	up1 *UpgradeWindow
+	err error
+}
+
+// ClientMockGetUpgradeWindowOrigins contains origins of expectations of the Client.GetUpgradeWindow
+type ClientMockGetUpgradeWindowExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Optional() *mClientMockGetUpgradeWindow {
+	mmGetUpgradeWindow.optional = true
+	return mmGetUpgradeWindow
+}
+
+// Expect sets up expected params for Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Expect(ctx context.Context, serviceId string) *mClientMockGetUpgradeWindow {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation == nil {
+		mmGetUpgradeWindow.defaultExpectation = &ClientMockGetUpgradeWindowExpectation{}
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.paramPtrs != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by ExpectParams functions")
+	}
+
+	mmGetUpgradeWindow.defaultExpectation.params = &ClientMockGetUpgradeWindowParams{ctx, serviceId}
+	mmGetUpgradeWindow.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetUpgradeWindow.expectations {
+		if minimock.Equal(e.params, mmGetUpgradeWindow.defaultExpectation.params) {
+			mmGetUpgradeWindow.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetUpgradeWindow.defaultExpectation.params)
+		}
+	}
+
+	return mmGetUpgradeWindow
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) ExpectCtxParam1(ctx context.Context) *mClientMockGetUpgradeWindow {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation == nil {
+		mmGetUpgradeWindow.defaultExpectation = &ClientMockGetUpgradeWindowExpectation{}
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.params != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmGetUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockGetUpgradeWindowParamPtrs{}
+	}
+	mmGetUpgradeWindow.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetUpgradeWindow.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetUpgradeWindow
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) ExpectServiceIdParam2(serviceId string) *mClientMockGetUpgradeWindow {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation == nil {
+		mmGetUpgradeWindow.defaultExpectation = &ClientMockGetUpgradeWindowExpectation{}
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.params != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmGetUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockGetUpgradeWindowParamPtrs{}
+	}
+	mmGetUpgradeWindow.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetUpgradeWindow.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetUpgradeWindow
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetUpgradeWindow {
+	if mmGetUpgradeWindow.mock.inspectFuncGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("Inspect function is already set for ClientMock.GetUpgradeWindow")
+	}
+
+	mmGetUpgradeWindow.mock.inspectFuncGetUpgradeWindow = f
+
+	return mmGetUpgradeWindow
+}
+
+// Return sets up results that will be returned by Client.GetUpgradeWindow
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Return(up1 *UpgradeWindow, err error) *ClientMock {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	if mmGetUpgradeWindow.defaultExpectation == nil {
+		mmGetUpgradeWindow.defaultExpectation = &ClientMockGetUpgradeWindowExpectation{mock: mmGetUpgradeWindow.mock}
+	}
+	mmGetUpgradeWindow.defaultExpectation.results = &ClientMockGetUpgradeWindowResults{up1, err}
+	mmGetUpgradeWindow.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetUpgradeWindow.mock
+}
+
+// Set uses given function f to mock the Client.GetUpgradeWindow method
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Set(f func(ctx context.Context, serviceId string) (up1 *UpgradeWindow, err error)) *ClientMock {
+	if mmGetUpgradeWindow.defaultExpectation != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("Default expectation is already set for the Client.GetUpgradeWindow method")
+	}
+
+	if len(mmGetUpgradeWindow.expectations) > 0 {
+		mmGetUpgradeWindow.mock.t.Fatalf("Some expectations are already set for the Client.GetUpgradeWindow method")
+	}
+
+	mmGetUpgradeWindow.mock.funcGetUpgradeWindow = f
+	mmGetUpgradeWindow.mock.funcGetUpgradeWindowOrigin = minimock.CallerInfo(1)
+	return mmGetUpgradeWindow.mock
+}
+
+// When sets expectation for the Client.GetUpgradeWindow which will trigger the result defined by the following
+// Then helper
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) When(ctx context.Context, serviceId string) *ClientMockGetUpgradeWindowExpectation {
+	if mmGetUpgradeWindow.mock.funcGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.mock.t.Fatalf("ClientMock.GetUpgradeWindow mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetUpgradeWindowExpectation{
+		mock:               mmGetUpgradeWindow.mock,
+		params:             &ClientMockGetUpgradeWindowParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetUpgradeWindowExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetUpgradeWindow.expectations = append(mmGetUpgradeWindow.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetUpgradeWindow return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetUpgradeWindowExpectation) Then(up1 *UpgradeWindow, err error) *ClientMock {
+	e.results = &ClientMockGetUpgradeWindowResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetUpgradeWindow should be invoked
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Times(n uint64) *mClientMockGetUpgradeWindow {
+	if n == 0 {
+		mmGetUpgradeWindow.mock.t.Fatalf("Times of ClientMock.GetUpgradeWindow mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetUpgradeWindow.expectedInvocations, n)
+	mmGetUpgradeWindow.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetUpgradeWindow
+}
+
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) invocationsDone() bool {
+	if len(mmGetUpgradeWindow.expectations) == 0 && mmGetUpgradeWindow.defaultExpectation == nil && mmGetUpgradeWindow.mock.funcGetUpgradeWindow == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetUpgradeWindow.mock.afterGetUpgradeWindowCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetUpgradeWindow.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetUpgradeWindow implements Client
+func (mmGetUpgradeWindow *ClientMock) GetUpgradeWindow(ctx context.Context, serviceId string) (up1 *UpgradeWindow, err error) {
+	mm_atomic.AddUint64(&mmGetUpgradeWindow.beforeGetUpgradeWindowCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetUpgradeWindow.afterGetUpgradeWindowCounter, 1)
+
+	mmGetUpgradeWindow.t.Helper()
+
+	if mmGetUpgradeWindow.inspectFuncGetUpgradeWindow != nil {
+		mmGetUpgradeWindow.inspectFuncGetUpgradeWindow(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetUpgradeWindowParams{ctx, serviceId}
+
+	// Record call args
+	mmGetUpgradeWindow.GetUpgradeWindowMock.mutex.Lock()
+	mmGetUpgradeWindow.GetUpgradeWindowMock.callArgs = append(mmGetUpgradeWindow.GetUpgradeWindowMock.callArgs, &mm_params)
+	mmGetUpgradeWindow.GetUpgradeWindowMock.mutex.Unlock()
+
+	for _, e := range mmGetUpgradeWindow.GetUpgradeWindowMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.params
+		mm_want_ptrs := mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetUpgradeWindowParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetUpgradeWindow.t.Errorf("ClientMock.GetUpgradeWindow got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetUpgradeWindow.t.Errorf("ClientMock.GetUpgradeWindow got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetUpgradeWindow.t.Errorf("ClientMock.GetUpgradeWindow got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetUpgradeWindow.GetUpgradeWindowMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetUpgradeWindow.t.Fatal("No results are set for the ClientMock.GetUpgradeWindow")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmGetUpgradeWindow.funcGetUpgradeWindow != nil {
+		return mmGetUpgradeWindow.funcGetUpgradeWindow(ctx, serviceId)
+	}
+	mmGetUpgradeWindow.t.Fatalf("Unexpected call to ClientMock.GetUpgradeWindow. %v %v", ctx, serviceId)
+	return
+}
+
+// GetUpgradeWindowAfterCounter returns a count of finished ClientMock.GetUpgradeWindow invocations
+func (mmGetUpgradeWindow *ClientMock) GetUpgradeWindowAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUpgradeWindow.afterGetUpgradeWindowCounter)
+}
+
+// GetUpgradeWindowBeforeCounter returns a count of ClientMock.GetUpgradeWindow invocations
+func (mmGetUpgradeWindow *ClientMock) GetUpgradeWindowBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUpgradeWindow.beforeGetUpgradeWindowCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetUpgradeWindow.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetUpgradeWindow *mClientMockGetUpgradeWindow) Calls() []*ClientMockGetUpgradeWindowParams {
+	mmGetUpgradeWindow.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetUpgradeWindowParams, len(mmGetUpgradeWindow.callArgs))
+	copy(argCopy, mmGetUpgradeWindow.callArgs)
+
+	mmGetUpgradeWindow.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetUpgradeWindowDone returns true if the count of the GetUpgradeWindow invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetUpgradeWindowDone() bool {
+	if m.GetUpgradeWindowMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetUpgradeWindowMock.invocationsDone()
+}
+
+// MinimockGetUpgradeWindowInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetUpgradeWindowInspect() {
+	for _, e := range m.GetUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetUpgradeWindow at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetUpgradeWindowCounter := mm_atomic.LoadUint64(&m.afterGetUpgradeWindowCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetUpgradeWindowMock.defaultExpectation != nil && afterGetUpgradeWindowCounter < 1 {
+		if m.GetUpgradeWindowMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetUpgradeWindow at\n%s", m.GetUpgradeWindowMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetUpgradeWindow at\n%s with params: %#v", m.GetUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *m.GetUpgradeWindowMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetUpgradeWindow != nil && afterGetUpgradeWindowCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetUpgradeWindow at\n%s", m.funcGetUpgradeWindowOrigin)
+	}
+
+	if !m.GetUpgradeWindowMock.invocationsDone() && afterGetUpgradeWindowCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetUpgradeWindow at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetUpgradeWindowMock.expectedInvocations), m.GetUpgradeWindowMock.expectedInvocationsOrigin, afterGetUpgradeWindowCounter)
+	}
+}
+
 type mClientMockListMembers struct {
 	optional           bool
 	mock               *ClientMock
@@ -9632,6 +13281,318 @@ func (m *ClientMock) MinimockListMembersInspect() {
 	if !m.ListMembersMock.invocationsDone() && afterListMembersCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ListMembers at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ListMembersMock.expectedInvocations), m.ListMembersMock.expectedInvocationsOrigin, afterListMembersCounter)
+	}
+}
+
+type mClientMockListPostgres struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListPostgresExpectation
+	expectations       []*ClientMockListPostgresExpectation
+
+	callArgs []*ClientMockListPostgresParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListPostgresExpectation specifies expectation struct of the Client.ListPostgres
+type ClientMockListPostgresExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListPostgresParams
+	paramPtrs          *ClientMockListPostgresParamPtrs
+	expectationOrigins ClientMockListPostgresExpectationOrigins
+	results            *ClientMockListPostgresResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListPostgresParams contains parameters of the Client.ListPostgres
+type ClientMockListPostgresParams struct {
+	ctx context.Context
+}
+
+// ClientMockListPostgresParamPtrs contains pointers to parameters of the Client.ListPostgres
+type ClientMockListPostgresParamPtrs struct {
+	ctx *context.Context
+}
+
+// ClientMockListPostgresResults contains results of the Client.ListPostgres
+type ClientMockListPostgresResults struct {
+	pa1 []PostgresListItem
+	err error
+}
+
+// ClientMockListPostgresOrigins contains origins of expectations of the Client.ListPostgres
+type ClientMockListPostgresExpectationOrigins struct {
+	origin    string
+	originCtx string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListPostgres *mClientMockListPostgres) Optional() *mClientMockListPostgres {
+	mmListPostgres.optional = true
+	return mmListPostgres
+}
+
+// Expect sets up expected params for Client.ListPostgres
+func (mmListPostgres *mClientMockListPostgres) Expect(ctx context.Context) *mClientMockListPostgres {
+	if mmListPostgres.mock.funcListPostgres != nil {
+		mmListPostgres.mock.t.Fatalf("ClientMock.ListPostgres mock is already set by Set")
+	}
+
+	if mmListPostgres.defaultExpectation == nil {
+		mmListPostgres.defaultExpectation = &ClientMockListPostgresExpectation{}
+	}
+
+	if mmListPostgres.defaultExpectation.paramPtrs != nil {
+		mmListPostgres.mock.t.Fatalf("ClientMock.ListPostgres mock is already set by ExpectParams functions")
+	}
+
+	mmListPostgres.defaultExpectation.params = &ClientMockListPostgresParams{ctx}
+	mmListPostgres.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListPostgres.expectations {
+		if minimock.Equal(e.params, mmListPostgres.defaultExpectation.params) {
+			mmListPostgres.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListPostgres.defaultExpectation.params)
+		}
+	}
+
+	return mmListPostgres
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListPostgres
+func (mmListPostgres *mClientMockListPostgres) ExpectCtxParam1(ctx context.Context) *mClientMockListPostgres {
+	if mmListPostgres.mock.funcListPostgres != nil {
+		mmListPostgres.mock.t.Fatalf("ClientMock.ListPostgres mock is already set by Set")
+	}
+
+	if mmListPostgres.defaultExpectation == nil {
+		mmListPostgres.defaultExpectation = &ClientMockListPostgresExpectation{}
+	}
+
+	if mmListPostgres.defaultExpectation.params != nil {
+		mmListPostgres.mock.t.Fatalf("ClientMock.ListPostgres mock is already set by Expect")
+	}
+
+	if mmListPostgres.defaultExpectation.paramPtrs == nil {
+		mmListPostgres.defaultExpectation.paramPtrs = &ClientMockListPostgresParamPtrs{}
+	}
+	mmListPostgres.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListPostgres.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListPostgres
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListPostgres
+func (mmListPostgres *mClientMockListPostgres) Inspect(f func(ctx context.Context)) *mClientMockListPostgres {
+	if mmListPostgres.mock.inspectFuncListPostgres != nil {
+		mmListPostgres.mock.t.Fatalf("Inspect function is already set for ClientMock.ListPostgres")
+	}
+
+	mmListPostgres.mock.inspectFuncListPostgres = f
+
+	return mmListPostgres
+}
+
+// Return sets up results that will be returned by Client.ListPostgres
+func (mmListPostgres *mClientMockListPostgres) Return(pa1 []PostgresListItem, err error) *ClientMock {
+	if mmListPostgres.mock.funcListPostgres != nil {
+		mmListPostgres.mock.t.Fatalf("ClientMock.ListPostgres mock is already set by Set")
+	}
+
+	if mmListPostgres.defaultExpectation == nil {
+		mmListPostgres.defaultExpectation = &ClientMockListPostgresExpectation{mock: mmListPostgres.mock}
+	}
+	mmListPostgres.defaultExpectation.results = &ClientMockListPostgresResults{pa1, err}
+	mmListPostgres.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListPostgres.mock
+}
+
+// Set uses given function f to mock the Client.ListPostgres method
+func (mmListPostgres *mClientMockListPostgres) Set(f func(ctx context.Context) (pa1 []PostgresListItem, err error)) *ClientMock {
+	if mmListPostgres.defaultExpectation != nil {
+		mmListPostgres.mock.t.Fatalf("Default expectation is already set for the Client.ListPostgres method")
+	}
+
+	if len(mmListPostgres.expectations) > 0 {
+		mmListPostgres.mock.t.Fatalf("Some expectations are already set for the Client.ListPostgres method")
+	}
+
+	mmListPostgres.mock.funcListPostgres = f
+	mmListPostgres.mock.funcListPostgresOrigin = minimock.CallerInfo(1)
+	return mmListPostgres.mock
+}
+
+// When sets expectation for the Client.ListPostgres which will trigger the result defined by the following
+// Then helper
+func (mmListPostgres *mClientMockListPostgres) When(ctx context.Context) *ClientMockListPostgresExpectation {
+	if mmListPostgres.mock.funcListPostgres != nil {
+		mmListPostgres.mock.t.Fatalf("ClientMock.ListPostgres mock is already set by Set")
+	}
+
+	expectation := &ClientMockListPostgresExpectation{
+		mock:               mmListPostgres.mock,
+		params:             &ClientMockListPostgresParams{ctx},
+		expectationOrigins: ClientMockListPostgresExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListPostgres.expectations = append(mmListPostgres.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListPostgres return parameters for the expectation previously defined by the When method
+func (e *ClientMockListPostgresExpectation) Then(pa1 []PostgresListItem, err error) *ClientMock {
+	e.results = &ClientMockListPostgresResults{pa1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListPostgres should be invoked
+func (mmListPostgres *mClientMockListPostgres) Times(n uint64) *mClientMockListPostgres {
+	if n == 0 {
+		mmListPostgres.mock.t.Fatalf("Times of ClientMock.ListPostgres mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListPostgres.expectedInvocations, n)
+	mmListPostgres.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListPostgres
+}
+
+func (mmListPostgres *mClientMockListPostgres) invocationsDone() bool {
+	if len(mmListPostgres.expectations) == 0 && mmListPostgres.defaultExpectation == nil && mmListPostgres.mock.funcListPostgres == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListPostgres.mock.afterListPostgresCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListPostgres.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListPostgres implements Client
+func (mmListPostgres *ClientMock) ListPostgres(ctx context.Context) (pa1 []PostgresListItem, err error) {
+	mm_atomic.AddUint64(&mmListPostgres.beforeListPostgresCounter, 1)
+	defer mm_atomic.AddUint64(&mmListPostgres.afterListPostgresCounter, 1)
+
+	mmListPostgres.t.Helper()
+
+	if mmListPostgres.inspectFuncListPostgres != nil {
+		mmListPostgres.inspectFuncListPostgres(ctx)
+	}
+
+	mm_params := ClientMockListPostgresParams{ctx}
+
+	// Record call args
+	mmListPostgres.ListPostgresMock.mutex.Lock()
+	mmListPostgres.ListPostgresMock.callArgs = append(mmListPostgres.ListPostgresMock.callArgs, &mm_params)
+	mmListPostgres.ListPostgresMock.mutex.Unlock()
+
+	for _, e := range mmListPostgres.ListPostgresMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pa1, e.results.err
+		}
+	}
+
+	if mmListPostgres.ListPostgresMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListPostgres.ListPostgresMock.defaultExpectation.Counter, 1)
+		mm_want := mmListPostgres.ListPostgresMock.defaultExpectation.params
+		mm_want_ptrs := mmListPostgres.ListPostgresMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListPostgresParams{ctx}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListPostgres.t.Errorf("ClientMock.ListPostgres got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListPostgres.ListPostgresMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListPostgres.t.Errorf("ClientMock.ListPostgres got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListPostgres.ListPostgresMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListPostgres.ListPostgresMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListPostgres.t.Fatal("No results are set for the ClientMock.ListPostgres")
+		}
+		return (*mm_results).pa1, (*mm_results).err
+	}
+	if mmListPostgres.funcListPostgres != nil {
+		return mmListPostgres.funcListPostgres(ctx)
+	}
+	mmListPostgres.t.Fatalf("Unexpected call to ClientMock.ListPostgres. %v", ctx)
+	return
+}
+
+// ListPostgresAfterCounter returns a count of finished ClientMock.ListPostgres invocations
+func (mmListPostgres *ClientMock) ListPostgresAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListPostgres.afterListPostgresCounter)
+}
+
+// ListPostgresBeforeCounter returns a count of ClientMock.ListPostgres invocations
+func (mmListPostgres *ClientMock) ListPostgresBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListPostgres.beforeListPostgresCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListPostgres.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListPostgres *mClientMockListPostgres) Calls() []*ClientMockListPostgresParams {
+	mmListPostgres.mutex.RLock()
+
+	argCopy := make([]*ClientMockListPostgresParams, len(mmListPostgres.callArgs))
+	copy(argCopy, mmListPostgres.callArgs)
+
+	mmListPostgres.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListPostgresDone returns true if the count of the ListPostgres invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListPostgresDone() bool {
+	if m.ListPostgresMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListPostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListPostgresMock.invocationsDone()
+}
+
+// MinimockListPostgresInspect logs each unmet expectation
+func (m *ClientMock) MinimockListPostgresInspect() {
+	for _, e := range m.ListPostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListPostgres at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListPostgresCounter := mm_atomic.LoadUint64(&m.afterListPostgresCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListPostgresMock.defaultExpectation != nil && afterListPostgresCounter < 1 {
+		if m.ListPostgresMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListPostgres at\n%s", m.ListPostgresMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListPostgres at\n%s with params: %#v", m.ListPostgresMock.defaultExpectation.expectationOrigins.origin, *m.ListPostgresMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListPostgres != nil && afterListPostgresCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListPostgres at\n%s", m.funcListPostgresOrigin)
+	}
+
+	if !m.ListPostgresMock.invocationsDone() && afterListPostgresCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListPostgres at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListPostgresMock.expectedInvocations), m.ListPostgresMock.expectedInvocationsOrigin, afterListPostgresCounter)
 	}
 }
 
@@ -10287,6 +14248,754 @@ func (m *ClientMock) MinimockListRolesInspect() {
 	if !m.ListRolesMock.invocationsDone() && afterListRolesCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ListRoles at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ListRolesMock.expectedInvocations), m.ListRolesMock.expectedInvocationsOrigin, afterListRolesCounter)
+	}
+}
+
+type mClientMockReplacePostgresConfig struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockReplacePostgresConfigExpectation
+	expectations       []*ClientMockReplacePostgresConfigExpectation
+
+	callArgs []*ClientMockReplacePostgresConfigParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockReplacePostgresConfigExpectation specifies expectation struct of the Client.ReplacePostgresConfig
+type ClientMockReplacePostgresConfigExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockReplacePostgresConfigParams
+	paramPtrs          *ClientMockReplacePostgresConfigParamPtrs
+	expectationOrigins ClientMockReplacePostgresConfigExpectationOrigins
+	results            *ClientMockReplacePostgresConfigResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockReplacePostgresConfigParams contains parameters of the Client.ReplacePostgresConfig
+type ClientMockReplacePostgresConfigParams struct {
+	ctx        context.Context
+	postgresId string
+	body       PostgresConfig
+}
+
+// ClientMockReplacePostgresConfigParamPtrs contains pointers to parameters of the Client.ReplacePostgresConfig
+type ClientMockReplacePostgresConfigParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+	body       *PostgresConfig
+}
+
+// ClientMockReplacePostgresConfigResults contains results of the Client.ReplacePostgresConfig
+type ClientMockReplacePostgresConfigResults struct {
+	pp1 *PostgresConfigUpdateResponse
+	err error
+}
+
+// ClientMockReplacePostgresConfigOrigins contains origins of expectations of the Client.ReplacePostgresConfig
+type ClientMockReplacePostgresConfigExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+	originBody       string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) Optional() *mClientMockReplacePostgresConfig {
+	mmReplacePostgresConfig.optional = true
+	return mmReplacePostgresConfig
+}
+
+// Expect sets up expected params for Client.ReplacePostgresConfig
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) Expect(ctx context.Context, postgresId string, body PostgresConfig) *mClientMockReplacePostgresConfig {
+	if mmReplacePostgresConfig.mock.funcReplacePostgresConfig != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by Set")
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation == nil {
+		mmReplacePostgresConfig.defaultExpectation = &ClientMockReplacePostgresConfigExpectation{}
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation.paramPtrs != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by ExpectParams functions")
+	}
+
+	mmReplacePostgresConfig.defaultExpectation.params = &ClientMockReplacePostgresConfigParams{ctx, postgresId, body}
+	mmReplacePostgresConfig.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmReplacePostgresConfig.expectations {
+		if minimock.Equal(e.params, mmReplacePostgresConfig.defaultExpectation.params) {
+			mmReplacePostgresConfig.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmReplacePostgresConfig.defaultExpectation.params)
+		}
+	}
+
+	return mmReplacePostgresConfig
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ReplacePostgresConfig
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) ExpectCtxParam1(ctx context.Context) *mClientMockReplacePostgresConfig {
+	if mmReplacePostgresConfig.mock.funcReplacePostgresConfig != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by Set")
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation == nil {
+		mmReplacePostgresConfig.defaultExpectation = &ClientMockReplacePostgresConfigExpectation{}
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation.params != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by Expect")
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation.paramPtrs == nil {
+		mmReplacePostgresConfig.defaultExpectation.paramPtrs = &ClientMockReplacePostgresConfigParamPtrs{}
+	}
+	mmReplacePostgresConfig.defaultExpectation.paramPtrs.ctx = &ctx
+	mmReplacePostgresConfig.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmReplacePostgresConfig
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.ReplacePostgresConfig
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) ExpectPostgresIdParam2(postgresId string) *mClientMockReplacePostgresConfig {
+	if mmReplacePostgresConfig.mock.funcReplacePostgresConfig != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by Set")
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation == nil {
+		mmReplacePostgresConfig.defaultExpectation = &ClientMockReplacePostgresConfigExpectation{}
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation.params != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by Expect")
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation.paramPtrs == nil {
+		mmReplacePostgresConfig.defaultExpectation.paramPtrs = &ClientMockReplacePostgresConfigParamPtrs{}
+	}
+	mmReplacePostgresConfig.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmReplacePostgresConfig.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmReplacePostgresConfig
+}
+
+// ExpectBodyParam3 sets up expected param body for Client.ReplacePostgresConfig
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) ExpectBodyParam3(body PostgresConfig) *mClientMockReplacePostgresConfig {
+	if mmReplacePostgresConfig.mock.funcReplacePostgresConfig != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by Set")
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation == nil {
+		mmReplacePostgresConfig.defaultExpectation = &ClientMockReplacePostgresConfigExpectation{}
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation.params != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by Expect")
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation.paramPtrs == nil {
+		mmReplacePostgresConfig.defaultExpectation.paramPtrs = &ClientMockReplacePostgresConfigParamPtrs{}
+	}
+	mmReplacePostgresConfig.defaultExpectation.paramPtrs.body = &body
+	mmReplacePostgresConfig.defaultExpectation.expectationOrigins.originBody = minimock.CallerInfo(1)
+
+	return mmReplacePostgresConfig
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ReplacePostgresConfig
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) Inspect(f func(ctx context.Context, postgresId string, body PostgresConfig)) *mClientMockReplacePostgresConfig {
+	if mmReplacePostgresConfig.mock.inspectFuncReplacePostgresConfig != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("Inspect function is already set for ClientMock.ReplacePostgresConfig")
+	}
+
+	mmReplacePostgresConfig.mock.inspectFuncReplacePostgresConfig = f
+
+	return mmReplacePostgresConfig
+}
+
+// Return sets up results that will be returned by Client.ReplacePostgresConfig
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) Return(pp1 *PostgresConfigUpdateResponse, err error) *ClientMock {
+	if mmReplacePostgresConfig.mock.funcReplacePostgresConfig != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by Set")
+	}
+
+	if mmReplacePostgresConfig.defaultExpectation == nil {
+		mmReplacePostgresConfig.defaultExpectation = &ClientMockReplacePostgresConfigExpectation{mock: mmReplacePostgresConfig.mock}
+	}
+	mmReplacePostgresConfig.defaultExpectation.results = &ClientMockReplacePostgresConfigResults{pp1, err}
+	mmReplacePostgresConfig.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmReplacePostgresConfig.mock
+}
+
+// Set uses given function f to mock the Client.ReplacePostgresConfig method
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) Set(f func(ctx context.Context, postgresId string, body PostgresConfig) (pp1 *PostgresConfigUpdateResponse, err error)) *ClientMock {
+	if mmReplacePostgresConfig.defaultExpectation != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("Default expectation is already set for the Client.ReplacePostgresConfig method")
+	}
+
+	if len(mmReplacePostgresConfig.expectations) > 0 {
+		mmReplacePostgresConfig.mock.t.Fatalf("Some expectations are already set for the Client.ReplacePostgresConfig method")
+	}
+
+	mmReplacePostgresConfig.mock.funcReplacePostgresConfig = f
+	mmReplacePostgresConfig.mock.funcReplacePostgresConfigOrigin = minimock.CallerInfo(1)
+	return mmReplacePostgresConfig.mock
+}
+
+// When sets expectation for the Client.ReplacePostgresConfig which will trigger the result defined by the following
+// Then helper
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) When(ctx context.Context, postgresId string, body PostgresConfig) *ClientMockReplacePostgresConfigExpectation {
+	if mmReplacePostgresConfig.mock.funcReplacePostgresConfig != nil {
+		mmReplacePostgresConfig.mock.t.Fatalf("ClientMock.ReplacePostgresConfig mock is already set by Set")
+	}
+
+	expectation := &ClientMockReplacePostgresConfigExpectation{
+		mock:               mmReplacePostgresConfig.mock,
+		params:             &ClientMockReplacePostgresConfigParams{ctx, postgresId, body},
+		expectationOrigins: ClientMockReplacePostgresConfigExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmReplacePostgresConfig.expectations = append(mmReplacePostgresConfig.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ReplacePostgresConfig return parameters for the expectation previously defined by the When method
+func (e *ClientMockReplacePostgresConfigExpectation) Then(pp1 *PostgresConfigUpdateResponse, err error) *ClientMock {
+	e.results = &ClientMockReplacePostgresConfigResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ReplacePostgresConfig should be invoked
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) Times(n uint64) *mClientMockReplacePostgresConfig {
+	if n == 0 {
+		mmReplacePostgresConfig.mock.t.Fatalf("Times of ClientMock.ReplacePostgresConfig mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmReplacePostgresConfig.expectedInvocations, n)
+	mmReplacePostgresConfig.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmReplacePostgresConfig
+}
+
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) invocationsDone() bool {
+	if len(mmReplacePostgresConfig.expectations) == 0 && mmReplacePostgresConfig.defaultExpectation == nil && mmReplacePostgresConfig.mock.funcReplacePostgresConfig == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmReplacePostgresConfig.mock.afterReplacePostgresConfigCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmReplacePostgresConfig.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ReplacePostgresConfig implements Client
+func (mmReplacePostgresConfig *ClientMock) ReplacePostgresConfig(ctx context.Context, postgresId string, body PostgresConfig) (pp1 *PostgresConfigUpdateResponse, err error) {
+	mm_atomic.AddUint64(&mmReplacePostgresConfig.beforeReplacePostgresConfigCounter, 1)
+	defer mm_atomic.AddUint64(&mmReplacePostgresConfig.afterReplacePostgresConfigCounter, 1)
+
+	mmReplacePostgresConfig.t.Helper()
+
+	if mmReplacePostgresConfig.inspectFuncReplacePostgresConfig != nil {
+		mmReplacePostgresConfig.inspectFuncReplacePostgresConfig(ctx, postgresId, body)
+	}
+
+	mm_params := ClientMockReplacePostgresConfigParams{ctx, postgresId, body}
+
+	// Record call args
+	mmReplacePostgresConfig.ReplacePostgresConfigMock.mutex.Lock()
+	mmReplacePostgresConfig.ReplacePostgresConfigMock.callArgs = append(mmReplacePostgresConfig.ReplacePostgresConfigMock.callArgs, &mm_params)
+	mmReplacePostgresConfig.ReplacePostgresConfigMock.mutex.Unlock()
+
+	for _, e := range mmReplacePostgresConfig.ReplacePostgresConfigMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmReplacePostgresConfig.ReplacePostgresConfigMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmReplacePostgresConfig.ReplacePostgresConfigMock.defaultExpectation.Counter, 1)
+		mm_want := mmReplacePostgresConfig.ReplacePostgresConfigMock.defaultExpectation.params
+		mm_want_ptrs := mmReplacePostgresConfig.ReplacePostgresConfigMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockReplacePostgresConfigParams{ctx, postgresId, body}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmReplacePostgresConfig.t.Errorf("ClientMock.ReplacePostgresConfig got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmReplacePostgresConfig.ReplacePostgresConfigMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmReplacePostgresConfig.t.Errorf("ClientMock.ReplacePostgresConfig got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmReplacePostgresConfig.ReplacePostgresConfigMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.body != nil && !minimock.Equal(*mm_want_ptrs.body, mm_got.body) {
+				mmReplacePostgresConfig.t.Errorf("ClientMock.ReplacePostgresConfig got unexpected parameter body, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmReplacePostgresConfig.ReplacePostgresConfigMock.defaultExpectation.expectationOrigins.originBody, *mm_want_ptrs.body, mm_got.body, minimock.Diff(*mm_want_ptrs.body, mm_got.body))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmReplacePostgresConfig.t.Errorf("ClientMock.ReplacePostgresConfig got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmReplacePostgresConfig.ReplacePostgresConfigMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmReplacePostgresConfig.ReplacePostgresConfigMock.defaultExpectation.results
+		if mm_results == nil {
+			mmReplacePostgresConfig.t.Fatal("No results are set for the ClientMock.ReplacePostgresConfig")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmReplacePostgresConfig.funcReplacePostgresConfig != nil {
+		return mmReplacePostgresConfig.funcReplacePostgresConfig(ctx, postgresId, body)
+	}
+	mmReplacePostgresConfig.t.Fatalf("Unexpected call to ClientMock.ReplacePostgresConfig. %v %v %v", ctx, postgresId, body)
+	return
+}
+
+// ReplacePostgresConfigAfterCounter returns a count of finished ClientMock.ReplacePostgresConfig invocations
+func (mmReplacePostgresConfig *ClientMock) ReplacePostgresConfigAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmReplacePostgresConfig.afterReplacePostgresConfigCounter)
+}
+
+// ReplacePostgresConfigBeforeCounter returns a count of ClientMock.ReplacePostgresConfig invocations
+func (mmReplacePostgresConfig *ClientMock) ReplacePostgresConfigBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmReplacePostgresConfig.beforeReplacePostgresConfigCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ReplacePostgresConfig.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmReplacePostgresConfig *mClientMockReplacePostgresConfig) Calls() []*ClientMockReplacePostgresConfigParams {
+	mmReplacePostgresConfig.mutex.RLock()
+
+	argCopy := make([]*ClientMockReplacePostgresConfigParams, len(mmReplacePostgresConfig.callArgs))
+	copy(argCopy, mmReplacePostgresConfig.callArgs)
+
+	mmReplacePostgresConfig.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockReplacePostgresConfigDone returns true if the count of the ReplacePostgresConfig invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockReplacePostgresConfigDone() bool {
+	if m.ReplacePostgresConfigMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ReplacePostgresConfigMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ReplacePostgresConfigMock.invocationsDone()
+}
+
+// MinimockReplacePostgresConfigInspect logs each unmet expectation
+func (m *ClientMock) MinimockReplacePostgresConfigInspect() {
+	for _, e := range m.ReplacePostgresConfigMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ReplacePostgresConfig at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterReplacePostgresConfigCounter := mm_atomic.LoadUint64(&m.afterReplacePostgresConfigCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ReplacePostgresConfigMock.defaultExpectation != nil && afterReplacePostgresConfigCounter < 1 {
+		if m.ReplacePostgresConfigMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ReplacePostgresConfig at\n%s", m.ReplacePostgresConfigMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ReplacePostgresConfig at\n%s with params: %#v", m.ReplacePostgresConfigMock.defaultExpectation.expectationOrigins.origin, *m.ReplacePostgresConfigMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcReplacePostgresConfig != nil && afterReplacePostgresConfigCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ReplacePostgresConfig at\n%s", m.funcReplacePostgresConfigOrigin)
+	}
+
+	if !m.ReplacePostgresConfigMock.invocationsDone() && afterReplacePostgresConfigCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ReplacePostgresConfig at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ReplacePostgresConfigMock.expectedInvocations), m.ReplacePostgresConfigMock.expectedInvocationsOrigin, afterReplacePostgresConfigCounter)
+	}
+}
+
+type mClientMockRestorePostgres struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockRestorePostgresExpectation
+	expectations       []*ClientMockRestorePostgresExpectation
+
+	callArgs []*ClientMockRestorePostgresParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockRestorePostgresExpectation specifies expectation struct of the Client.RestorePostgres
+type ClientMockRestorePostgresExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockRestorePostgresParams
+	paramPtrs          *ClientMockRestorePostgresParamPtrs
+	expectationOrigins ClientMockRestorePostgresExpectationOrigins
+	results            *ClientMockRestorePostgresResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockRestorePostgresParams contains parameters of the Client.RestorePostgres
+type ClientMockRestorePostgresParams struct {
+	ctx      context.Context
+	sourceId string
+	body     PostgresRestoreRequest
+}
+
+// ClientMockRestorePostgresParamPtrs contains pointers to parameters of the Client.RestorePostgres
+type ClientMockRestorePostgresParamPtrs struct {
+	ctx      *context.Context
+	sourceId *string
+	body     *PostgresRestoreRequest
+}
+
+// ClientMockRestorePostgresResults contains results of the Client.RestorePostgres
+type ClientMockRestorePostgresResults struct {
+	pp1 *Postgres
+	err error
+}
+
+// ClientMockRestorePostgresOrigins contains origins of expectations of the Client.RestorePostgres
+type ClientMockRestorePostgresExpectationOrigins struct {
+	origin         string
+	originCtx      string
+	originSourceId string
+	originBody     string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmRestorePostgres *mClientMockRestorePostgres) Optional() *mClientMockRestorePostgres {
+	mmRestorePostgres.optional = true
+	return mmRestorePostgres
+}
+
+// Expect sets up expected params for Client.RestorePostgres
+func (mmRestorePostgres *mClientMockRestorePostgres) Expect(ctx context.Context, sourceId string, body PostgresRestoreRequest) *mClientMockRestorePostgres {
+	if mmRestorePostgres.mock.funcRestorePostgres != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by Set")
+	}
+
+	if mmRestorePostgres.defaultExpectation == nil {
+		mmRestorePostgres.defaultExpectation = &ClientMockRestorePostgresExpectation{}
+	}
+
+	if mmRestorePostgres.defaultExpectation.paramPtrs != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by ExpectParams functions")
+	}
+
+	mmRestorePostgres.defaultExpectation.params = &ClientMockRestorePostgresParams{ctx, sourceId, body}
+	mmRestorePostgres.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmRestorePostgres.expectations {
+		if minimock.Equal(e.params, mmRestorePostgres.defaultExpectation.params) {
+			mmRestorePostgres.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmRestorePostgres.defaultExpectation.params)
+		}
+	}
+
+	return mmRestorePostgres
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.RestorePostgres
+func (mmRestorePostgres *mClientMockRestorePostgres) ExpectCtxParam1(ctx context.Context) *mClientMockRestorePostgres {
+	if mmRestorePostgres.mock.funcRestorePostgres != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by Set")
+	}
+
+	if mmRestorePostgres.defaultExpectation == nil {
+		mmRestorePostgres.defaultExpectation = &ClientMockRestorePostgresExpectation{}
+	}
+
+	if mmRestorePostgres.defaultExpectation.params != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by Expect")
+	}
+
+	if mmRestorePostgres.defaultExpectation.paramPtrs == nil {
+		mmRestorePostgres.defaultExpectation.paramPtrs = &ClientMockRestorePostgresParamPtrs{}
+	}
+	mmRestorePostgres.defaultExpectation.paramPtrs.ctx = &ctx
+	mmRestorePostgres.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmRestorePostgres
+}
+
+// ExpectSourceIdParam2 sets up expected param sourceId for Client.RestorePostgres
+func (mmRestorePostgres *mClientMockRestorePostgres) ExpectSourceIdParam2(sourceId string) *mClientMockRestorePostgres {
+	if mmRestorePostgres.mock.funcRestorePostgres != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by Set")
+	}
+
+	if mmRestorePostgres.defaultExpectation == nil {
+		mmRestorePostgres.defaultExpectation = &ClientMockRestorePostgresExpectation{}
+	}
+
+	if mmRestorePostgres.defaultExpectation.params != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by Expect")
+	}
+
+	if mmRestorePostgres.defaultExpectation.paramPtrs == nil {
+		mmRestorePostgres.defaultExpectation.paramPtrs = &ClientMockRestorePostgresParamPtrs{}
+	}
+	mmRestorePostgres.defaultExpectation.paramPtrs.sourceId = &sourceId
+	mmRestorePostgres.defaultExpectation.expectationOrigins.originSourceId = minimock.CallerInfo(1)
+
+	return mmRestorePostgres
+}
+
+// ExpectBodyParam3 sets up expected param body for Client.RestorePostgres
+func (mmRestorePostgres *mClientMockRestorePostgres) ExpectBodyParam3(body PostgresRestoreRequest) *mClientMockRestorePostgres {
+	if mmRestorePostgres.mock.funcRestorePostgres != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by Set")
+	}
+
+	if mmRestorePostgres.defaultExpectation == nil {
+		mmRestorePostgres.defaultExpectation = &ClientMockRestorePostgresExpectation{}
+	}
+
+	if mmRestorePostgres.defaultExpectation.params != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by Expect")
+	}
+
+	if mmRestorePostgres.defaultExpectation.paramPtrs == nil {
+		mmRestorePostgres.defaultExpectation.paramPtrs = &ClientMockRestorePostgresParamPtrs{}
+	}
+	mmRestorePostgres.defaultExpectation.paramPtrs.body = &body
+	mmRestorePostgres.defaultExpectation.expectationOrigins.originBody = minimock.CallerInfo(1)
+
+	return mmRestorePostgres
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.RestorePostgres
+func (mmRestorePostgres *mClientMockRestorePostgres) Inspect(f func(ctx context.Context, sourceId string, body PostgresRestoreRequest)) *mClientMockRestorePostgres {
+	if mmRestorePostgres.mock.inspectFuncRestorePostgres != nil {
+		mmRestorePostgres.mock.t.Fatalf("Inspect function is already set for ClientMock.RestorePostgres")
+	}
+
+	mmRestorePostgres.mock.inspectFuncRestorePostgres = f
+
+	return mmRestorePostgres
+}
+
+// Return sets up results that will be returned by Client.RestorePostgres
+func (mmRestorePostgres *mClientMockRestorePostgres) Return(pp1 *Postgres, err error) *ClientMock {
+	if mmRestorePostgres.mock.funcRestorePostgres != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by Set")
+	}
+
+	if mmRestorePostgres.defaultExpectation == nil {
+		mmRestorePostgres.defaultExpectation = &ClientMockRestorePostgresExpectation{mock: mmRestorePostgres.mock}
+	}
+	mmRestorePostgres.defaultExpectation.results = &ClientMockRestorePostgresResults{pp1, err}
+	mmRestorePostgres.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmRestorePostgres.mock
+}
+
+// Set uses given function f to mock the Client.RestorePostgres method
+func (mmRestorePostgres *mClientMockRestorePostgres) Set(f func(ctx context.Context, sourceId string, body PostgresRestoreRequest) (pp1 *Postgres, err error)) *ClientMock {
+	if mmRestorePostgres.defaultExpectation != nil {
+		mmRestorePostgres.mock.t.Fatalf("Default expectation is already set for the Client.RestorePostgres method")
+	}
+
+	if len(mmRestorePostgres.expectations) > 0 {
+		mmRestorePostgres.mock.t.Fatalf("Some expectations are already set for the Client.RestorePostgres method")
+	}
+
+	mmRestorePostgres.mock.funcRestorePostgres = f
+	mmRestorePostgres.mock.funcRestorePostgresOrigin = minimock.CallerInfo(1)
+	return mmRestorePostgres.mock
+}
+
+// When sets expectation for the Client.RestorePostgres which will trigger the result defined by the following
+// Then helper
+func (mmRestorePostgres *mClientMockRestorePostgres) When(ctx context.Context, sourceId string, body PostgresRestoreRequest) *ClientMockRestorePostgresExpectation {
+	if mmRestorePostgres.mock.funcRestorePostgres != nil {
+		mmRestorePostgres.mock.t.Fatalf("ClientMock.RestorePostgres mock is already set by Set")
+	}
+
+	expectation := &ClientMockRestorePostgresExpectation{
+		mock:               mmRestorePostgres.mock,
+		params:             &ClientMockRestorePostgresParams{ctx, sourceId, body},
+		expectationOrigins: ClientMockRestorePostgresExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmRestorePostgres.expectations = append(mmRestorePostgres.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.RestorePostgres return parameters for the expectation previously defined by the When method
+func (e *ClientMockRestorePostgresExpectation) Then(pp1 *Postgres, err error) *ClientMock {
+	e.results = &ClientMockRestorePostgresResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.RestorePostgres should be invoked
+func (mmRestorePostgres *mClientMockRestorePostgres) Times(n uint64) *mClientMockRestorePostgres {
+	if n == 0 {
+		mmRestorePostgres.mock.t.Fatalf("Times of ClientMock.RestorePostgres mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmRestorePostgres.expectedInvocations, n)
+	mmRestorePostgres.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmRestorePostgres
+}
+
+func (mmRestorePostgres *mClientMockRestorePostgres) invocationsDone() bool {
+	if len(mmRestorePostgres.expectations) == 0 && mmRestorePostgres.defaultExpectation == nil && mmRestorePostgres.mock.funcRestorePostgres == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmRestorePostgres.mock.afterRestorePostgresCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmRestorePostgres.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// RestorePostgres implements Client
+func (mmRestorePostgres *ClientMock) RestorePostgres(ctx context.Context, sourceId string, body PostgresRestoreRequest) (pp1 *Postgres, err error) {
+	mm_atomic.AddUint64(&mmRestorePostgres.beforeRestorePostgresCounter, 1)
+	defer mm_atomic.AddUint64(&mmRestorePostgres.afterRestorePostgresCounter, 1)
+
+	mmRestorePostgres.t.Helper()
+
+	if mmRestorePostgres.inspectFuncRestorePostgres != nil {
+		mmRestorePostgres.inspectFuncRestorePostgres(ctx, sourceId, body)
+	}
+
+	mm_params := ClientMockRestorePostgresParams{ctx, sourceId, body}
+
+	// Record call args
+	mmRestorePostgres.RestorePostgresMock.mutex.Lock()
+	mmRestorePostgres.RestorePostgresMock.callArgs = append(mmRestorePostgres.RestorePostgresMock.callArgs, &mm_params)
+	mmRestorePostgres.RestorePostgresMock.mutex.Unlock()
+
+	for _, e := range mmRestorePostgres.RestorePostgresMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmRestorePostgres.RestorePostgresMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmRestorePostgres.RestorePostgresMock.defaultExpectation.Counter, 1)
+		mm_want := mmRestorePostgres.RestorePostgresMock.defaultExpectation.params
+		mm_want_ptrs := mmRestorePostgres.RestorePostgresMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockRestorePostgresParams{ctx, sourceId, body}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmRestorePostgres.t.Errorf("ClientMock.RestorePostgres got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmRestorePostgres.RestorePostgresMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.sourceId != nil && !minimock.Equal(*mm_want_ptrs.sourceId, mm_got.sourceId) {
+				mmRestorePostgres.t.Errorf("ClientMock.RestorePostgres got unexpected parameter sourceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmRestorePostgres.RestorePostgresMock.defaultExpectation.expectationOrigins.originSourceId, *mm_want_ptrs.sourceId, mm_got.sourceId, minimock.Diff(*mm_want_ptrs.sourceId, mm_got.sourceId))
+			}
+
+			if mm_want_ptrs.body != nil && !minimock.Equal(*mm_want_ptrs.body, mm_got.body) {
+				mmRestorePostgres.t.Errorf("ClientMock.RestorePostgres got unexpected parameter body, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmRestorePostgres.RestorePostgresMock.defaultExpectation.expectationOrigins.originBody, *mm_want_ptrs.body, mm_got.body, minimock.Diff(*mm_want_ptrs.body, mm_got.body))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmRestorePostgres.t.Errorf("ClientMock.RestorePostgres got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmRestorePostgres.RestorePostgresMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmRestorePostgres.RestorePostgresMock.defaultExpectation.results
+		if mm_results == nil {
+			mmRestorePostgres.t.Fatal("No results are set for the ClientMock.RestorePostgres")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmRestorePostgres.funcRestorePostgres != nil {
+		return mmRestorePostgres.funcRestorePostgres(ctx, sourceId, body)
+	}
+	mmRestorePostgres.t.Fatalf("Unexpected call to ClientMock.RestorePostgres. %v %v %v", ctx, sourceId, body)
+	return
+}
+
+// RestorePostgresAfterCounter returns a count of finished ClientMock.RestorePostgres invocations
+func (mmRestorePostgres *ClientMock) RestorePostgresAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmRestorePostgres.afterRestorePostgresCounter)
+}
+
+// RestorePostgresBeforeCounter returns a count of ClientMock.RestorePostgres invocations
+func (mmRestorePostgres *ClientMock) RestorePostgresBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmRestorePostgres.beforeRestorePostgresCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.RestorePostgres.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmRestorePostgres *mClientMockRestorePostgres) Calls() []*ClientMockRestorePostgresParams {
+	mmRestorePostgres.mutex.RLock()
+
+	argCopy := make([]*ClientMockRestorePostgresParams, len(mmRestorePostgres.callArgs))
+	copy(argCopy, mmRestorePostgres.callArgs)
+
+	mmRestorePostgres.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockRestorePostgresDone returns true if the count of the RestorePostgres invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockRestorePostgresDone() bool {
+	if m.RestorePostgresMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.RestorePostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.RestorePostgresMock.invocationsDone()
+}
+
+// MinimockRestorePostgresInspect logs each unmet expectation
+func (m *ClientMock) MinimockRestorePostgresInspect() {
+	for _, e := range m.RestorePostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.RestorePostgres at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterRestorePostgresCounter := mm_atomic.LoadUint64(&m.afterRestorePostgresCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.RestorePostgresMock.defaultExpectation != nil && afterRestorePostgresCounter < 1 {
+		if m.RestorePostgresMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.RestorePostgres at\n%s", m.RestorePostgresMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.RestorePostgres at\n%s with params: %#v", m.RestorePostgresMock.defaultExpectation.expectationOrigins.origin, *m.RestorePostgresMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcRestorePostgres != nil && afterRestorePostgresCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.RestorePostgres at\n%s", m.funcRestorePostgresOrigin)
+	}
+
+	if !m.RestorePostgresMock.invocationsDone() && afterRestorePostgresCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.RestorePostgres at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.RestorePostgresMock.expectedInvocations), m.RestorePostgresMock.expectedInvocationsOrigin, afterRestorePostgresCounter)
 	}
 }
 
@@ -11065,6 +15774,380 @@ func (m *ClientMock) MinimockScalingClickPipeInspect() {
 	if !m.ScalingClickPipeMock.invocationsDone() && afterScalingClickPipeCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ScalingClickPipe at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ScalingClickPipeMock.expectedInvocations), m.ScalingClickPipeMock.expectedInvocationsOrigin, afterScalingClickPipeCounter)
+	}
+}
+
+type mClientMockSetPostgresPassword struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockSetPostgresPasswordExpectation
+	expectations       []*ClientMockSetPostgresPasswordExpectation
+
+	callArgs []*ClientMockSetPostgresPasswordParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockSetPostgresPasswordExpectation specifies expectation struct of the Client.SetPostgresPassword
+type ClientMockSetPostgresPasswordExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockSetPostgresPasswordParams
+	paramPtrs          *ClientMockSetPostgresPasswordParamPtrs
+	expectationOrigins ClientMockSetPostgresPasswordExpectationOrigins
+	results            *ClientMockSetPostgresPasswordResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockSetPostgresPasswordParams contains parameters of the Client.SetPostgresPassword
+type ClientMockSetPostgresPasswordParams struct {
+	ctx        context.Context
+	postgresId string
+	body       PostgresPassword
+}
+
+// ClientMockSetPostgresPasswordParamPtrs contains pointers to parameters of the Client.SetPostgresPassword
+type ClientMockSetPostgresPasswordParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+	body       *PostgresPassword
+}
+
+// ClientMockSetPostgresPasswordResults contains results of the Client.SetPostgresPassword
+type ClientMockSetPostgresPasswordResults struct {
+	pp1 *PostgresPassword
+	err error
+}
+
+// ClientMockSetPostgresPasswordOrigins contains origins of expectations of the Client.SetPostgresPassword
+type ClientMockSetPostgresPasswordExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+	originBody       string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) Optional() *mClientMockSetPostgresPassword {
+	mmSetPostgresPassword.optional = true
+	return mmSetPostgresPassword
+}
+
+// Expect sets up expected params for Client.SetPostgresPassword
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) Expect(ctx context.Context, postgresId string, body PostgresPassword) *mClientMockSetPostgresPassword {
+	if mmSetPostgresPassword.mock.funcSetPostgresPassword != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by Set")
+	}
+
+	if mmSetPostgresPassword.defaultExpectation == nil {
+		mmSetPostgresPassword.defaultExpectation = &ClientMockSetPostgresPasswordExpectation{}
+	}
+
+	if mmSetPostgresPassword.defaultExpectation.paramPtrs != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by ExpectParams functions")
+	}
+
+	mmSetPostgresPassword.defaultExpectation.params = &ClientMockSetPostgresPasswordParams{ctx, postgresId, body}
+	mmSetPostgresPassword.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmSetPostgresPassword.expectations {
+		if minimock.Equal(e.params, mmSetPostgresPassword.defaultExpectation.params) {
+			mmSetPostgresPassword.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmSetPostgresPassword.defaultExpectation.params)
+		}
+	}
+
+	return mmSetPostgresPassword
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.SetPostgresPassword
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) ExpectCtxParam1(ctx context.Context) *mClientMockSetPostgresPassword {
+	if mmSetPostgresPassword.mock.funcSetPostgresPassword != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by Set")
+	}
+
+	if mmSetPostgresPassword.defaultExpectation == nil {
+		mmSetPostgresPassword.defaultExpectation = &ClientMockSetPostgresPasswordExpectation{}
+	}
+
+	if mmSetPostgresPassword.defaultExpectation.params != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by Expect")
+	}
+
+	if mmSetPostgresPassword.defaultExpectation.paramPtrs == nil {
+		mmSetPostgresPassword.defaultExpectation.paramPtrs = &ClientMockSetPostgresPasswordParamPtrs{}
+	}
+	mmSetPostgresPassword.defaultExpectation.paramPtrs.ctx = &ctx
+	mmSetPostgresPassword.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmSetPostgresPassword
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.SetPostgresPassword
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) ExpectPostgresIdParam2(postgresId string) *mClientMockSetPostgresPassword {
+	if mmSetPostgresPassword.mock.funcSetPostgresPassword != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by Set")
+	}
+
+	if mmSetPostgresPassword.defaultExpectation == nil {
+		mmSetPostgresPassword.defaultExpectation = &ClientMockSetPostgresPasswordExpectation{}
+	}
+
+	if mmSetPostgresPassword.defaultExpectation.params != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by Expect")
+	}
+
+	if mmSetPostgresPassword.defaultExpectation.paramPtrs == nil {
+		mmSetPostgresPassword.defaultExpectation.paramPtrs = &ClientMockSetPostgresPasswordParamPtrs{}
+	}
+	mmSetPostgresPassword.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmSetPostgresPassword.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmSetPostgresPassword
+}
+
+// ExpectBodyParam3 sets up expected param body for Client.SetPostgresPassword
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) ExpectBodyParam3(body PostgresPassword) *mClientMockSetPostgresPassword {
+	if mmSetPostgresPassword.mock.funcSetPostgresPassword != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by Set")
+	}
+
+	if mmSetPostgresPassword.defaultExpectation == nil {
+		mmSetPostgresPassword.defaultExpectation = &ClientMockSetPostgresPasswordExpectation{}
+	}
+
+	if mmSetPostgresPassword.defaultExpectation.params != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by Expect")
+	}
+
+	if mmSetPostgresPassword.defaultExpectation.paramPtrs == nil {
+		mmSetPostgresPassword.defaultExpectation.paramPtrs = &ClientMockSetPostgresPasswordParamPtrs{}
+	}
+	mmSetPostgresPassword.defaultExpectation.paramPtrs.body = &body
+	mmSetPostgresPassword.defaultExpectation.expectationOrigins.originBody = minimock.CallerInfo(1)
+
+	return mmSetPostgresPassword
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.SetPostgresPassword
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) Inspect(f func(ctx context.Context, postgresId string, body PostgresPassword)) *mClientMockSetPostgresPassword {
+	if mmSetPostgresPassword.mock.inspectFuncSetPostgresPassword != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("Inspect function is already set for ClientMock.SetPostgresPassword")
+	}
+
+	mmSetPostgresPassword.mock.inspectFuncSetPostgresPassword = f
+
+	return mmSetPostgresPassword
+}
+
+// Return sets up results that will be returned by Client.SetPostgresPassword
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) Return(pp1 *PostgresPassword, err error) *ClientMock {
+	if mmSetPostgresPassword.mock.funcSetPostgresPassword != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by Set")
+	}
+
+	if mmSetPostgresPassword.defaultExpectation == nil {
+		mmSetPostgresPassword.defaultExpectation = &ClientMockSetPostgresPasswordExpectation{mock: mmSetPostgresPassword.mock}
+	}
+	mmSetPostgresPassword.defaultExpectation.results = &ClientMockSetPostgresPasswordResults{pp1, err}
+	mmSetPostgresPassword.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmSetPostgresPassword.mock
+}
+
+// Set uses given function f to mock the Client.SetPostgresPassword method
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) Set(f func(ctx context.Context, postgresId string, body PostgresPassword) (pp1 *PostgresPassword, err error)) *ClientMock {
+	if mmSetPostgresPassword.defaultExpectation != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("Default expectation is already set for the Client.SetPostgresPassword method")
+	}
+
+	if len(mmSetPostgresPassword.expectations) > 0 {
+		mmSetPostgresPassword.mock.t.Fatalf("Some expectations are already set for the Client.SetPostgresPassword method")
+	}
+
+	mmSetPostgresPassword.mock.funcSetPostgresPassword = f
+	mmSetPostgresPassword.mock.funcSetPostgresPasswordOrigin = minimock.CallerInfo(1)
+	return mmSetPostgresPassword.mock
+}
+
+// When sets expectation for the Client.SetPostgresPassword which will trigger the result defined by the following
+// Then helper
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) When(ctx context.Context, postgresId string, body PostgresPassword) *ClientMockSetPostgresPasswordExpectation {
+	if mmSetPostgresPassword.mock.funcSetPostgresPassword != nil {
+		mmSetPostgresPassword.mock.t.Fatalf("ClientMock.SetPostgresPassword mock is already set by Set")
+	}
+
+	expectation := &ClientMockSetPostgresPasswordExpectation{
+		mock:               mmSetPostgresPassword.mock,
+		params:             &ClientMockSetPostgresPasswordParams{ctx, postgresId, body},
+		expectationOrigins: ClientMockSetPostgresPasswordExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmSetPostgresPassword.expectations = append(mmSetPostgresPassword.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.SetPostgresPassword return parameters for the expectation previously defined by the When method
+func (e *ClientMockSetPostgresPasswordExpectation) Then(pp1 *PostgresPassword, err error) *ClientMock {
+	e.results = &ClientMockSetPostgresPasswordResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.SetPostgresPassword should be invoked
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) Times(n uint64) *mClientMockSetPostgresPassword {
+	if n == 0 {
+		mmSetPostgresPassword.mock.t.Fatalf("Times of ClientMock.SetPostgresPassword mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmSetPostgresPassword.expectedInvocations, n)
+	mmSetPostgresPassword.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmSetPostgresPassword
+}
+
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) invocationsDone() bool {
+	if len(mmSetPostgresPassword.expectations) == 0 && mmSetPostgresPassword.defaultExpectation == nil && mmSetPostgresPassword.mock.funcSetPostgresPassword == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmSetPostgresPassword.mock.afterSetPostgresPasswordCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmSetPostgresPassword.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// SetPostgresPassword implements Client
+func (mmSetPostgresPassword *ClientMock) SetPostgresPassword(ctx context.Context, postgresId string, body PostgresPassword) (pp1 *PostgresPassword, err error) {
+	mm_atomic.AddUint64(&mmSetPostgresPassword.beforeSetPostgresPasswordCounter, 1)
+	defer mm_atomic.AddUint64(&mmSetPostgresPassword.afterSetPostgresPasswordCounter, 1)
+
+	mmSetPostgresPassword.t.Helper()
+
+	if mmSetPostgresPassword.inspectFuncSetPostgresPassword != nil {
+		mmSetPostgresPassword.inspectFuncSetPostgresPassword(ctx, postgresId, body)
+	}
+
+	mm_params := ClientMockSetPostgresPasswordParams{ctx, postgresId, body}
+
+	// Record call args
+	mmSetPostgresPassword.SetPostgresPasswordMock.mutex.Lock()
+	mmSetPostgresPassword.SetPostgresPasswordMock.callArgs = append(mmSetPostgresPassword.SetPostgresPasswordMock.callArgs, &mm_params)
+	mmSetPostgresPassword.SetPostgresPasswordMock.mutex.Unlock()
+
+	for _, e := range mmSetPostgresPassword.SetPostgresPasswordMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmSetPostgresPassword.SetPostgresPasswordMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmSetPostgresPassword.SetPostgresPasswordMock.defaultExpectation.Counter, 1)
+		mm_want := mmSetPostgresPassword.SetPostgresPasswordMock.defaultExpectation.params
+		mm_want_ptrs := mmSetPostgresPassword.SetPostgresPasswordMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockSetPostgresPasswordParams{ctx, postgresId, body}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmSetPostgresPassword.t.Errorf("ClientMock.SetPostgresPassword got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmSetPostgresPassword.SetPostgresPasswordMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmSetPostgresPassword.t.Errorf("ClientMock.SetPostgresPassword got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmSetPostgresPassword.SetPostgresPasswordMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.body != nil && !minimock.Equal(*mm_want_ptrs.body, mm_got.body) {
+				mmSetPostgresPassword.t.Errorf("ClientMock.SetPostgresPassword got unexpected parameter body, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmSetPostgresPassword.SetPostgresPasswordMock.defaultExpectation.expectationOrigins.originBody, *mm_want_ptrs.body, mm_got.body, minimock.Diff(*mm_want_ptrs.body, mm_got.body))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmSetPostgresPassword.t.Errorf("ClientMock.SetPostgresPassword got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmSetPostgresPassword.SetPostgresPasswordMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmSetPostgresPassword.SetPostgresPasswordMock.defaultExpectation.results
+		if mm_results == nil {
+			mmSetPostgresPassword.t.Fatal("No results are set for the ClientMock.SetPostgresPassword")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmSetPostgresPassword.funcSetPostgresPassword != nil {
+		return mmSetPostgresPassword.funcSetPostgresPassword(ctx, postgresId, body)
+	}
+	mmSetPostgresPassword.t.Fatalf("Unexpected call to ClientMock.SetPostgresPassword. %v %v %v", ctx, postgresId, body)
+	return
+}
+
+// SetPostgresPasswordAfterCounter returns a count of finished ClientMock.SetPostgresPassword invocations
+func (mmSetPostgresPassword *ClientMock) SetPostgresPasswordAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmSetPostgresPassword.afterSetPostgresPasswordCounter)
+}
+
+// SetPostgresPasswordBeforeCounter returns a count of ClientMock.SetPostgresPassword invocations
+func (mmSetPostgresPassword *ClientMock) SetPostgresPasswordBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmSetPostgresPassword.beforeSetPostgresPasswordCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.SetPostgresPassword.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmSetPostgresPassword *mClientMockSetPostgresPassword) Calls() []*ClientMockSetPostgresPasswordParams {
+	mmSetPostgresPassword.mutex.RLock()
+
+	argCopy := make([]*ClientMockSetPostgresPasswordParams, len(mmSetPostgresPassword.callArgs))
+	copy(argCopy, mmSetPostgresPassword.callArgs)
+
+	mmSetPostgresPassword.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockSetPostgresPasswordDone returns true if the count of the SetPostgresPassword invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockSetPostgresPasswordDone() bool {
+	if m.SetPostgresPasswordMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.SetPostgresPasswordMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.SetPostgresPasswordMock.invocationsDone()
+}
+
+// MinimockSetPostgresPasswordInspect logs each unmet expectation
+func (m *ClientMock) MinimockSetPostgresPasswordInspect() {
+	for _, e := range m.SetPostgresPasswordMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.SetPostgresPassword at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterSetPostgresPasswordCounter := mm_atomic.LoadUint64(&m.afterSetPostgresPasswordCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.SetPostgresPasswordMock.defaultExpectation != nil && afterSetPostgresPasswordCounter < 1 {
+		if m.SetPostgresPasswordMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.SetPostgresPassword at\n%s", m.SetPostgresPasswordMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.SetPostgresPassword at\n%s with params: %#v", m.SetPostgresPasswordMock.defaultExpectation.expectationOrigins.origin, *m.SetPostgresPasswordMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcSetPostgresPassword != nil && afterSetPostgresPasswordCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.SetPostgresPassword at\n%s", m.funcSetPostgresPasswordOrigin)
+	}
+
+	if !m.SetPostgresPasswordMock.invocationsDone() && afterSetPostgresPasswordCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.SetPostgresPassword at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.SetPostgresPasswordMock.expectedInvocations), m.SetPostgresPasswordMock.expectedInvocationsOrigin, afterSetPostgresPasswordCounter)
 	}
 }
 
@@ -13312,6 +18395,380 @@ func (m *ClientMock) MinimockUpdateOrganizationPrivateEndpointsInspect() {
 	}
 }
 
+type mClientMockUpdatePostgres struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdatePostgresExpectation
+	expectations       []*ClientMockUpdatePostgresExpectation
+
+	callArgs []*ClientMockUpdatePostgresParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdatePostgresExpectation specifies expectation struct of the Client.UpdatePostgres
+type ClientMockUpdatePostgresExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdatePostgresParams
+	paramPtrs          *ClientMockUpdatePostgresParamPtrs
+	expectationOrigins ClientMockUpdatePostgresExpectationOrigins
+	results            *ClientMockUpdatePostgresResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdatePostgresParams contains parameters of the Client.UpdatePostgres
+type ClientMockUpdatePostgresParams struct {
+	ctx        context.Context
+	postgresId string
+	body       PostgresUpdate
+}
+
+// ClientMockUpdatePostgresParamPtrs contains pointers to parameters of the Client.UpdatePostgres
+type ClientMockUpdatePostgresParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+	body       *PostgresUpdate
+}
+
+// ClientMockUpdatePostgresResults contains results of the Client.UpdatePostgres
+type ClientMockUpdatePostgresResults struct {
+	pp1 *Postgres
+	err error
+}
+
+// ClientMockUpdatePostgresOrigins contains origins of expectations of the Client.UpdatePostgres
+type ClientMockUpdatePostgresExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+	originBody       string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdatePostgres *mClientMockUpdatePostgres) Optional() *mClientMockUpdatePostgres {
+	mmUpdatePostgres.optional = true
+	return mmUpdatePostgres
+}
+
+// Expect sets up expected params for Client.UpdatePostgres
+func (mmUpdatePostgres *mClientMockUpdatePostgres) Expect(ctx context.Context, postgresId string, body PostgresUpdate) *mClientMockUpdatePostgres {
+	if mmUpdatePostgres.mock.funcUpdatePostgres != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by Set")
+	}
+
+	if mmUpdatePostgres.defaultExpectation == nil {
+		mmUpdatePostgres.defaultExpectation = &ClientMockUpdatePostgresExpectation{}
+	}
+
+	if mmUpdatePostgres.defaultExpectation.paramPtrs != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by ExpectParams functions")
+	}
+
+	mmUpdatePostgres.defaultExpectation.params = &ClientMockUpdatePostgresParams{ctx, postgresId, body}
+	mmUpdatePostgres.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdatePostgres.expectations {
+		if minimock.Equal(e.params, mmUpdatePostgres.defaultExpectation.params) {
+			mmUpdatePostgres.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdatePostgres.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdatePostgres
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdatePostgres
+func (mmUpdatePostgres *mClientMockUpdatePostgres) ExpectCtxParam1(ctx context.Context) *mClientMockUpdatePostgres {
+	if mmUpdatePostgres.mock.funcUpdatePostgres != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by Set")
+	}
+
+	if mmUpdatePostgres.defaultExpectation == nil {
+		mmUpdatePostgres.defaultExpectation = &ClientMockUpdatePostgresExpectation{}
+	}
+
+	if mmUpdatePostgres.defaultExpectation.params != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by Expect")
+	}
+
+	if mmUpdatePostgres.defaultExpectation.paramPtrs == nil {
+		mmUpdatePostgres.defaultExpectation.paramPtrs = &ClientMockUpdatePostgresParamPtrs{}
+	}
+	mmUpdatePostgres.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdatePostgres.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdatePostgres
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.UpdatePostgres
+func (mmUpdatePostgres *mClientMockUpdatePostgres) ExpectPostgresIdParam2(postgresId string) *mClientMockUpdatePostgres {
+	if mmUpdatePostgres.mock.funcUpdatePostgres != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by Set")
+	}
+
+	if mmUpdatePostgres.defaultExpectation == nil {
+		mmUpdatePostgres.defaultExpectation = &ClientMockUpdatePostgresExpectation{}
+	}
+
+	if mmUpdatePostgres.defaultExpectation.params != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by Expect")
+	}
+
+	if mmUpdatePostgres.defaultExpectation.paramPtrs == nil {
+		mmUpdatePostgres.defaultExpectation.paramPtrs = &ClientMockUpdatePostgresParamPtrs{}
+	}
+	mmUpdatePostgres.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmUpdatePostgres.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmUpdatePostgres
+}
+
+// ExpectBodyParam3 sets up expected param body for Client.UpdatePostgres
+func (mmUpdatePostgres *mClientMockUpdatePostgres) ExpectBodyParam3(body PostgresUpdate) *mClientMockUpdatePostgres {
+	if mmUpdatePostgres.mock.funcUpdatePostgres != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by Set")
+	}
+
+	if mmUpdatePostgres.defaultExpectation == nil {
+		mmUpdatePostgres.defaultExpectation = &ClientMockUpdatePostgresExpectation{}
+	}
+
+	if mmUpdatePostgres.defaultExpectation.params != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by Expect")
+	}
+
+	if mmUpdatePostgres.defaultExpectation.paramPtrs == nil {
+		mmUpdatePostgres.defaultExpectation.paramPtrs = &ClientMockUpdatePostgresParamPtrs{}
+	}
+	mmUpdatePostgres.defaultExpectation.paramPtrs.body = &body
+	mmUpdatePostgres.defaultExpectation.expectationOrigins.originBody = minimock.CallerInfo(1)
+
+	return mmUpdatePostgres
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdatePostgres
+func (mmUpdatePostgres *mClientMockUpdatePostgres) Inspect(f func(ctx context.Context, postgresId string, body PostgresUpdate)) *mClientMockUpdatePostgres {
+	if mmUpdatePostgres.mock.inspectFuncUpdatePostgres != nil {
+		mmUpdatePostgres.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdatePostgres")
+	}
+
+	mmUpdatePostgres.mock.inspectFuncUpdatePostgres = f
+
+	return mmUpdatePostgres
+}
+
+// Return sets up results that will be returned by Client.UpdatePostgres
+func (mmUpdatePostgres *mClientMockUpdatePostgres) Return(pp1 *Postgres, err error) *ClientMock {
+	if mmUpdatePostgres.mock.funcUpdatePostgres != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by Set")
+	}
+
+	if mmUpdatePostgres.defaultExpectation == nil {
+		mmUpdatePostgres.defaultExpectation = &ClientMockUpdatePostgresExpectation{mock: mmUpdatePostgres.mock}
+	}
+	mmUpdatePostgres.defaultExpectation.results = &ClientMockUpdatePostgresResults{pp1, err}
+	mmUpdatePostgres.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdatePostgres.mock
+}
+
+// Set uses given function f to mock the Client.UpdatePostgres method
+func (mmUpdatePostgres *mClientMockUpdatePostgres) Set(f func(ctx context.Context, postgresId string, body PostgresUpdate) (pp1 *Postgres, err error)) *ClientMock {
+	if mmUpdatePostgres.defaultExpectation != nil {
+		mmUpdatePostgres.mock.t.Fatalf("Default expectation is already set for the Client.UpdatePostgres method")
+	}
+
+	if len(mmUpdatePostgres.expectations) > 0 {
+		mmUpdatePostgres.mock.t.Fatalf("Some expectations are already set for the Client.UpdatePostgres method")
+	}
+
+	mmUpdatePostgres.mock.funcUpdatePostgres = f
+	mmUpdatePostgres.mock.funcUpdatePostgresOrigin = minimock.CallerInfo(1)
+	return mmUpdatePostgres.mock
+}
+
+// When sets expectation for the Client.UpdatePostgres which will trigger the result defined by the following
+// Then helper
+func (mmUpdatePostgres *mClientMockUpdatePostgres) When(ctx context.Context, postgresId string, body PostgresUpdate) *ClientMockUpdatePostgresExpectation {
+	if mmUpdatePostgres.mock.funcUpdatePostgres != nil {
+		mmUpdatePostgres.mock.t.Fatalf("ClientMock.UpdatePostgres mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdatePostgresExpectation{
+		mock:               mmUpdatePostgres.mock,
+		params:             &ClientMockUpdatePostgresParams{ctx, postgresId, body},
+		expectationOrigins: ClientMockUpdatePostgresExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdatePostgres.expectations = append(mmUpdatePostgres.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdatePostgres return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdatePostgresExpectation) Then(pp1 *Postgres, err error) *ClientMock {
+	e.results = &ClientMockUpdatePostgresResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdatePostgres should be invoked
+func (mmUpdatePostgres *mClientMockUpdatePostgres) Times(n uint64) *mClientMockUpdatePostgres {
+	if n == 0 {
+		mmUpdatePostgres.mock.t.Fatalf("Times of ClientMock.UpdatePostgres mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdatePostgres.expectedInvocations, n)
+	mmUpdatePostgres.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdatePostgres
+}
+
+func (mmUpdatePostgres *mClientMockUpdatePostgres) invocationsDone() bool {
+	if len(mmUpdatePostgres.expectations) == 0 && mmUpdatePostgres.defaultExpectation == nil && mmUpdatePostgres.mock.funcUpdatePostgres == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdatePostgres.mock.afterUpdatePostgresCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdatePostgres.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdatePostgres implements Client
+func (mmUpdatePostgres *ClientMock) UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (pp1 *Postgres, err error) {
+	mm_atomic.AddUint64(&mmUpdatePostgres.beforeUpdatePostgresCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdatePostgres.afterUpdatePostgresCounter, 1)
+
+	mmUpdatePostgres.t.Helper()
+
+	if mmUpdatePostgres.inspectFuncUpdatePostgres != nil {
+		mmUpdatePostgres.inspectFuncUpdatePostgres(ctx, postgresId, body)
+	}
+
+	mm_params := ClientMockUpdatePostgresParams{ctx, postgresId, body}
+
+	// Record call args
+	mmUpdatePostgres.UpdatePostgresMock.mutex.Lock()
+	mmUpdatePostgres.UpdatePostgresMock.callArgs = append(mmUpdatePostgres.UpdatePostgresMock.callArgs, &mm_params)
+	mmUpdatePostgres.UpdatePostgresMock.mutex.Unlock()
+
+	for _, e := range mmUpdatePostgres.UpdatePostgresMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmUpdatePostgres.UpdatePostgresMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdatePostgres.UpdatePostgresMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdatePostgres.UpdatePostgresMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdatePostgres.UpdatePostgresMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdatePostgresParams{ctx, postgresId, body}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdatePostgres.t.Errorf("ClientMock.UpdatePostgres got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdatePostgres.UpdatePostgresMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmUpdatePostgres.t.Errorf("ClientMock.UpdatePostgres got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdatePostgres.UpdatePostgresMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.body != nil && !minimock.Equal(*mm_want_ptrs.body, mm_got.body) {
+				mmUpdatePostgres.t.Errorf("ClientMock.UpdatePostgres got unexpected parameter body, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdatePostgres.UpdatePostgresMock.defaultExpectation.expectationOrigins.originBody, *mm_want_ptrs.body, mm_got.body, minimock.Diff(*mm_want_ptrs.body, mm_got.body))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdatePostgres.t.Errorf("ClientMock.UpdatePostgres got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdatePostgres.UpdatePostgresMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdatePostgres.UpdatePostgresMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdatePostgres.t.Fatal("No results are set for the ClientMock.UpdatePostgres")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmUpdatePostgres.funcUpdatePostgres != nil {
+		return mmUpdatePostgres.funcUpdatePostgres(ctx, postgresId, body)
+	}
+	mmUpdatePostgres.t.Fatalf("Unexpected call to ClientMock.UpdatePostgres. %v %v %v", ctx, postgresId, body)
+	return
+}
+
+// UpdatePostgresAfterCounter returns a count of finished ClientMock.UpdatePostgres invocations
+func (mmUpdatePostgres *ClientMock) UpdatePostgresAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdatePostgres.afterUpdatePostgresCounter)
+}
+
+// UpdatePostgresBeforeCounter returns a count of ClientMock.UpdatePostgres invocations
+func (mmUpdatePostgres *ClientMock) UpdatePostgresBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdatePostgres.beforeUpdatePostgresCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdatePostgres.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdatePostgres *mClientMockUpdatePostgres) Calls() []*ClientMockUpdatePostgresParams {
+	mmUpdatePostgres.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdatePostgresParams, len(mmUpdatePostgres.callArgs))
+	copy(argCopy, mmUpdatePostgres.callArgs)
+
+	mmUpdatePostgres.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdatePostgresDone returns true if the count of the UpdatePostgres invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdatePostgresDone() bool {
+	if m.UpdatePostgresMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdatePostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdatePostgresMock.invocationsDone()
+}
+
+// MinimockUpdatePostgresInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdatePostgresInspect() {
+	for _, e := range m.UpdatePostgresMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdatePostgres at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdatePostgresCounter := mm_atomic.LoadUint64(&m.afterUpdatePostgresCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdatePostgresMock.defaultExpectation != nil && afterUpdatePostgresCounter < 1 {
+		if m.UpdatePostgresMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdatePostgres at\n%s", m.UpdatePostgresMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdatePostgres at\n%s with params: %#v", m.UpdatePostgresMock.defaultExpectation.expectationOrigins.origin, *m.UpdatePostgresMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdatePostgres != nil && afterUpdatePostgresCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdatePostgres at\n%s", m.funcUpdatePostgresOrigin)
+	}
+
+	if !m.UpdatePostgresMock.invocationsDone() && afterUpdatePostgresCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdatePostgres at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdatePostgresMock.expectedInvocations), m.UpdatePostgresMock.expectedInvocationsOrigin, afterUpdatePostgresCounter)
+	}
+}
+
 type mClientMockUpdateReplicaScaling struct {
 	optional           bool
 	mock               *ClientMock
@@ -14060,6 +19517,380 @@ func (m *ClientMock) MinimockUpdateRoleInspect() {
 	}
 }
 
+type mClientMockUpdateScheduledScaling struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateScheduledScalingExpectation
+	expectations       []*ClientMockUpdateScheduledScalingExpectation
+
+	callArgs []*ClientMockUpdateScheduledScalingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateScheduledScalingExpectation specifies expectation struct of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateScheduledScalingParams
+	paramPtrs          *ClientMockUpdateScheduledScalingParamPtrs
+	expectationOrigins ClientMockUpdateScheduledScalingExpectationOrigins
+	results            *ClientMockUpdateScheduledScalingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateScheduledScalingParams contains parameters of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingParams struct {
+	ctx       context.Context
+	serviceId string
+	s         AutoScalingScheduleUpdate
+}
+
+// ClientMockUpdateScheduledScalingParamPtrs contains pointers to parameters of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	s         *AutoScalingScheduleUpdate
+}
+
+// ClientMockUpdateScheduledScalingResults contains results of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingResults struct {
+	ap1 *AutoScalingSchedule
+	err error
+}
+
+// ClientMockUpdateScheduledScalingOrigins contains origins of expectations of the Client.UpdateScheduledScaling
+type ClientMockUpdateScheduledScalingExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originS         string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Optional() *mClientMockUpdateScheduledScaling {
+	mmUpdateScheduledScaling.optional = true
+	return mmUpdateScheduledScaling
+}
+
+// Expect sets up expected params for Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Expect(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{}
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.paramPtrs != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateScheduledScaling.defaultExpectation.params = &ClientMockUpdateScheduledScalingParams{ctx, serviceId, s}
+	mmUpdateScheduledScaling.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateScheduledScaling.expectations {
+		if minimock.Equal(e.params, mmUpdateScheduledScaling.defaultExpectation.params) {
+			mmUpdateScheduledScaling.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateScheduledScaling.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateScheduledScaling
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{}
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.params != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Expect")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateScheduledScaling.defaultExpectation.paramPtrs = &ClientMockUpdateScheduledScalingParamPtrs{}
+	}
+	mmUpdateScheduledScaling.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateScheduledScaling.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateScheduledScaling
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{}
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.params != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Expect")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateScheduledScaling.defaultExpectation.paramPtrs = &ClientMockUpdateScheduledScalingParamPtrs{}
+	}
+	mmUpdateScheduledScaling.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmUpdateScheduledScaling.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmUpdateScheduledScaling
+}
+
+// ExpectSParam3 sets up expected param s for Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) ExpectSParam3(s AutoScalingScheduleUpdate) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{}
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.params != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Expect")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation.paramPtrs == nil {
+		mmUpdateScheduledScaling.defaultExpectation.paramPtrs = &ClientMockUpdateScheduledScalingParamPtrs{}
+	}
+	mmUpdateScheduledScaling.defaultExpectation.paramPtrs.s = &s
+	mmUpdateScheduledScaling.defaultExpectation.expectationOrigins.originS = minimock.CallerInfo(1)
+
+	return mmUpdateScheduledScaling
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Inspect(f func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate)) *mClientMockUpdateScheduledScaling {
+	if mmUpdateScheduledScaling.mock.inspectFuncUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateScheduledScaling")
+	}
+
+	mmUpdateScheduledScaling.mock.inspectFuncUpdateScheduledScaling = f
+
+	return mmUpdateScheduledScaling
+}
+
+// Return sets up results that will be returned by Client.UpdateScheduledScaling
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Return(ap1 *AutoScalingSchedule, err error) *ClientMock {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	if mmUpdateScheduledScaling.defaultExpectation == nil {
+		mmUpdateScheduledScaling.defaultExpectation = &ClientMockUpdateScheduledScalingExpectation{mock: mmUpdateScheduledScaling.mock}
+	}
+	mmUpdateScheduledScaling.defaultExpectation.results = &ClientMockUpdateScheduledScalingResults{ap1, err}
+	mmUpdateScheduledScaling.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateScheduledScaling.mock
+}
+
+// Set uses given function f to mock the Client.UpdateScheduledScaling method
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Set(f func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (ap1 *AutoScalingSchedule, err error)) *ClientMock {
+	if mmUpdateScheduledScaling.defaultExpectation != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("Default expectation is already set for the Client.UpdateScheduledScaling method")
+	}
+
+	if len(mmUpdateScheduledScaling.expectations) > 0 {
+		mmUpdateScheduledScaling.mock.t.Fatalf("Some expectations are already set for the Client.UpdateScheduledScaling method")
+	}
+
+	mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling = f
+	mmUpdateScheduledScaling.mock.funcUpdateScheduledScalingOrigin = minimock.CallerInfo(1)
+	return mmUpdateScheduledScaling.mock
+}
+
+// When sets expectation for the Client.UpdateScheduledScaling which will trigger the result defined by the following
+// Then helper
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) When(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) *ClientMockUpdateScheduledScalingExpectation {
+	if mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.mock.t.Fatalf("ClientMock.UpdateScheduledScaling mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateScheduledScalingExpectation{
+		mock:               mmUpdateScheduledScaling.mock,
+		params:             &ClientMockUpdateScheduledScalingParams{ctx, serviceId, s},
+		expectationOrigins: ClientMockUpdateScheduledScalingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateScheduledScaling.expectations = append(mmUpdateScheduledScaling.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateScheduledScaling return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateScheduledScalingExpectation) Then(ap1 *AutoScalingSchedule, err error) *ClientMock {
+	e.results = &ClientMockUpdateScheduledScalingResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateScheduledScaling should be invoked
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Times(n uint64) *mClientMockUpdateScheduledScaling {
+	if n == 0 {
+		mmUpdateScheduledScaling.mock.t.Fatalf("Times of ClientMock.UpdateScheduledScaling mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateScheduledScaling.expectedInvocations, n)
+	mmUpdateScheduledScaling.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateScheduledScaling
+}
+
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) invocationsDone() bool {
+	if len(mmUpdateScheduledScaling.expectations) == 0 && mmUpdateScheduledScaling.defaultExpectation == nil && mmUpdateScheduledScaling.mock.funcUpdateScheduledScaling == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateScheduledScaling.mock.afterUpdateScheduledScalingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateScheduledScaling.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateScheduledScaling implements Client
+func (mmUpdateScheduledScaling *ClientMock) UpdateScheduledScaling(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (ap1 *AutoScalingSchedule, err error) {
+	mm_atomic.AddUint64(&mmUpdateScheduledScaling.beforeUpdateScheduledScalingCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateScheduledScaling.afterUpdateScheduledScalingCounter, 1)
+
+	mmUpdateScheduledScaling.t.Helper()
+
+	if mmUpdateScheduledScaling.inspectFuncUpdateScheduledScaling != nil {
+		mmUpdateScheduledScaling.inspectFuncUpdateScheduledScaling(ctx, serviceId, s)
+	}
+
+	mm_params := ClientMockUpdateScheduledScalingParams{ctx, serviceId, s}
+
+	// Record call args
+	mmUpdateScheduledScaling.UpdateScheduledScalingMock.mutex.Lock()
+	mmUpdateScheduledScaling.UpdateScheduledScalingMock.callArgs = append(mmUpdateScheduledScaling.UpdateScheduledScalingMock.callArgs, &mm_params)
+	mmUpdateScheduledScaling.UpdateScheduledScalingMock.mutex.Unlock()
+
+	for _, e := range mmUpdateScheduledScaling.UpdateScheduledScalingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateScheduledScalingParams{ctx, serviceId, s}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateScheduledScaling.t.Errorf("ClientMock.UpdateScheduledScaling got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateScheduledScaling.t.Errorf("ClientMock.UpdateScheduledScaling got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.s != nil && !minimock.Equal(*mm_want_ptrs.s, mm_got.s) {
+				mmUpdateScheduledScaling.t.Errorf("ClientMock.UpdateScheduledScaling got unexpected parameter s, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.originS, *mm_want_ptrs.s, mm_got.s, minimock.Diff(*mm_want_ptrs.s, mm_got.s))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateScheduledScaling.t.Errorf("ClientMock.UpdateScheduledScaling got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateScheduledScaling.UpdateScheduledScalingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateScheduledScaling.t.Fatal("No results are set for the ClientMock.UpdateScheduledScaling")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmUpdateScheduledScaling.funcUpdateScheduledScaling != nil {
+		return mmUpdateScheduledScaling.funcUpdateScheduledScaling(ctx, serviceId, s)
+	}
+	mmUpdateScheduledScaling.t.Fatalf("Unexpected call to ClientMock.UpdateScheduledScaling. %v %v %v", ctx, serviceId, s)
+	return
+}
+
+// UpdateScheduledScalingAfterCounter returns a count of finished ClientMock.UpdateScheduledScaling invocations
+func (mmUpdateScheduledScaling *ClientMock) UpdateScheduledScalingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateScheduledScaling.afterUpdateScheduledScalingCounter)
+}
+
+// UpdateScheduledScalingBeforeCounter returns a count of ClientMock.UpdateScheduledScaling invocations
+func (mmUpdateScheduledScaling *ClientMock) UpdateScheduledScalingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateScheduledScaling.beforeUpdateScheduledScalingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateScheduledScaling.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateScheduledScaling *mClientMockUpdateScheduledScaling) Calls() []*ClientMockUpdateScheduledScalingParams {
+	mmUpdateScheduledScaling.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateScheduledScalingParams, len(mmUpdateScheduledScaling.callArgs))
+	copy(argCopy, mmUpdateScheduledScaling.callArgs)
+
+	mmUpdateScheduledScaling.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateScheduledScalingDone returns true if the count of the UpdateScheduledScaling invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateScheduledScalingDone() bool {
+	if m.UpdateScheduledScalingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateScheduledScalingMock.invocationsDone()
+}
+
+// MinimockUpdateScheduledScalingInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateScheduledScalingInspect() {
+	for _, e := range m.UpdateScheduledScalingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateScheduledScaling at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateScheduledScalingCounter := mm_atomic.LoadUint64(&m.afterUpdateScheduledScalingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateScheduledScalingMock.defaultExpectation != nil && afterUpdateScheduledScalingCounter < 1 {
+		if m.UpdateScheduledScalingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateScheduledScaling at\n%s", m.UpdateScheduledScalingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateScheduledScaling at\n%s with params: %#v", m.UpdateScheduledScalingMock.defaultExpectation.expectationOrigins.origin, *m.UpdateScheduledScalingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateScheduledScaling != nil && afterUpdateScheduledScalingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateScheduledScaling at\n%s", m.funcUpdateScheduledScalingOrigin)
+	}
+
+	if !m.UpdateScheduledScalingMock.invocationsDone() && afterUpdateScheduledScalingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateScheduledScaling at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateScheduledScalingMock.expectedInvocations), m.UpdateScheduledScalingMock.expectedInvocationsOrigin, afterUpdateScheduledScalingCounter)
+	}
+}
+
 type mClientMockUpdateService struct {
 	optional           bool
 	mock               *ClientMock
@@ -14805,6 +20636,380 @@ func (m *ClientMock) MinimockUpdateServicePasswordInspect() {
 	if !m.UpdateServicePasswordMock.invocationsDone() && afterUpdateServicePasswordCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.UpdateServicePassword at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.UpdateServicePasswordMock.expectedInvocations), m.UpdateServicePasswordMock.expectedInvocationsOrigin, afterUpdateServicePasswordCounter)
+	}
+}
+
+type mClientMockUpdateUpgradeWindow struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateUpgradeWindowExpectation
+	expectations       []*ClientMockUpdateUpgradeWindowExpectation
+
+	callArgs []*ClientMockUpdateUpgradeWindowParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateUpgradeWindowExpectation specifies expectation struct of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateUpgradeWindowParams
+	paramPtrs          *ClientMockUpdateUpgradeWindowParamPtrs
+	expectationOrigins ClientMockUpdateUpgradeWindowExpectationOrigins
+	results            *ClientMockUpdateUpgradeWindowResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateUpgradeWindowParams contains parameters of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowParams struct {
+	ctx       context.Context
+	serviceId string
+	u         UpgradeWindowUpdate
+}
+
+// ClientMockUpdateUpgradeWindowParamPtrs contains pointers to parameters of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	u         *UpgradeWindowUpdate
+}
+
+// ClientMockUpdateUpgradeWindowResults contains results of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowResults struct {
+	up1 *UpgradeWindow
+	err error
+}
+
+// ClientMockUpdateUpgradeWindowOrigins contains origins of expectations of the Client.UpdateUpgradeWindow
+type ClientMockUpdateUpgradeWindowExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originU         string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Optional() *mClientMockUpdateUpgradeWindow {
+	mmUpdateUpgradeWindow.optional = true
+	return mmUpdateUpgradeWindow
+}
+
+// Expect sets up expected params for Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Expect(ctx context.Context, serviceId string, u UpgradeWindowUpdate) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{}
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.paramPtrs != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateUpgradeWindow.defaultExpectation.params = &ClientMockUpdateUpgradeWindowParams{ctx, serviceId, u}
+	mmUpdateUpgradeWindow.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateUpgradeWindow.expectations {
+		if minimock.Equal(e.params, mmUpdateUpgradeWindow.defaultExpectation.params) {
+			mmUpdateUpgradeWindow.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateUpgradeWindow.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateUpgradeWindow
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{}
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.params != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmUpdateUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockUpdateUpgradeWindowParamPtrs{}
+	}
+	mmUpdateUpgradeWindow.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateUpgradeWindow.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateUpgradeWindow
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{}
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.params != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmUpdateUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockUpdateUpgradeWindowParamPtrs{}
+	}
+	mmUpdateUpgradeWindow.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmUpdateUpgradeWindow.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmUpdateUpgradeWindow
+}
+
+// ExpectUParam3 sets up expected param u for Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) ExpectUParam3(u UpgradeWindowUpdate) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{}
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.params != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Expect")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation.paramPtrs == nil {
+		mmUpdateUpgradeWindow.defaultExpectation.paramPtrs = &ClientMockUpdateUpgradeWindowParamPtrs{}
+	}
+	mmUpdateUpgradeWindow.defaultExpectation.paramPtrs.u = &u
+	mmUpdateUpgradeWindow.defaultExpectation.expectationOrigins.originU = minimock.CallerInfo(1)
+
+	return mmUpdateUpgradeWindow
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Inspect(f func(ctx context.Context, serviceId string, u UpgradeWindowUpdate)) *mClientMockUpdateUpgradeWindow {
+	if mmUpdateUpgradeWindow.mock.inspectFuncUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateUpgradeWindow")
+	}
+
+	mmUpdateUpgradeWindow.mock.inspectFuncUpdateUpgradeWindow = f
+
+	return mmUpdateUpgradeWindow
+}
+
+// Return sets up results that will be returned by Client.UpdateUpgradeWindow
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Return(up1 *UpgradeWindow, err error) *ClientMock {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	if mmUpdateUpgradeWindow.defaultExpectation == nil {
+		mmUpdateUpgradeWindow.defaultExpectation = &ClientMockUpdateUpgradeWindowExpectation{mock: mmUpdateUpgradeWindow.mock}
+	}
+	mmUpdateUpgradeWindow.defaultExpectation.results = &ClientMockUpdateUpgradeWindowResults{up1, err}
+	mmUpdateUpgradeWindow.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateUpgradeWindow.mock
+}
+
+// Set uses given function f to mock the Client.UpdateUpgradeWindow method
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Set(f func(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (up1 *UpgradeWindow, err error)) *ClientMock {
+	if mmUpdateUpgradeWindow.defaultExpectation != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("Default expectation is already set for the Client.UpdateUpgradeWindow method")
+	}
+
+	if len(mmUpdateUpgradeWindow.expectations) > 0 {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("Some expectations are already set for the Client.UpdateUpgradeWindow method")
+	}
+
+	mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow = f
+	mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindowOrigin = minimock.CallerInfo(1)
+	return mmUpdateUpgradeWindow.mock
+}
+
+// When sets expectation for the Client.UpdateUpgradeWindow which will trigger the result defined by the following
+// Then helper
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) When(ctx context.Context, serviceId string, u UpgradeWindowUpdate) *ClientMockUpdateUpgradeWindowExpectation {
+	if mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("ClientMock.UpdateUpgradeWindow mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateUpgradeWindowExpectation{
+		mock:               mmUpdateUpgradeWindow.mock,
+		params:             &ClientMockUpdateUpgradeWindowParams{ctx, serviceId, u},
+		expectationOrigins: ClientMockUpdateUpgradeWindowExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateUpgradeWindow.expectations = append(mmUpdateUpgradeWindow.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateUpgradeWindow return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateUpgradeWindowExpectation) Then(up1 *UpgradeWindow, err error) *ClientMock {
+	e.results = &ClientMockUpdateUpgradeWindowResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateUpgradeWindow should be invoked
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Times(n uint64) *mClientMockUpdateUpgradeWindow {
+	if n == 0 {
+		mmUpdateUpgradeWindow.mock.t.Fatalf("Times of ClientMock.UpdateUpgradeWindow mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateUpgradeWindow.expectedInvocations, n)
+	mmUpdateUpgradeWindow.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateUpgradeWindow
+}
+
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) invocationsDone() bool {
+	if len(mmUpdateUpgradeWindow.expectations) == 0 && mmUpdateUpgradeWindow.defaultExpectation == nil && mmUpdateUpgradeWindow.mock.funcUpdateUpgradeWindow == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateUpgradeWindow.mock.afterUpdateUpgradeWindowCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateUpgradeWindow.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateUpgradeWindow implements Client
+func (mmUpdateUpgradeWindow *ClientMock) UpdateUpgradeWindow(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (up1 *UpgradeWindow, err error) {
+	mm_atomic.AddUint64(&mmUpdateUpgradeWindow.beforeUpdateUpgradeWindowCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateUpgradeWindow.afterUpdateUpgradeWindowCounter, 1)
+
+	mmUpdateUpgradeWindow.t.Helper()
+
+	if mmUpdateUpgradeWindow.inspectFuncUpdateUpgradeWindow != nil {
+		mmUpdateUpgradeWindow.inspectFuncUpdateUpgradeWindow(ctx, serviceId, u)
+	}
+
+	mm_params := ClientMockUpdateUpgradeWindowParams{ctx, serviceId, u}
+
+	// Record call args
+	mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.mutex.Lock()
+	mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.callArgs = append(mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.callArgs, &mm_params)
+	mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.mutex.Unlock()
+
+	for _, e := range mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateUpgradeWindowParams{ctx, serviceId, u}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateUpgradeWindow.t.Errorf("ClientMock.UpdateUpgradeWindow got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateUpgradeWindow.t.Errorf("ClientMock.UpdateUpgradeWindow got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.u != nil && !minimock.Equal(*mm_want_ptrs.u, mm_got.u) {
+				mmUpdateUpgradeWindow.t.Errorf("ClientMock.UpdateUpgradeWindow got unexpected parameter u, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.originU, *mm_want_ptrs.u, mm_got.u, minimock.Diff(*mm_want_ptrs.u, mm_got.u))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateUpgradeWindow.t.Errorf("ClientMock.UpdateUpgradeWindow got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateUpgradeWindow.UpdateUpgradeWindowMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateUpgradeWindow.t.Fatal("No results are set for the ClientMock.UpdateUpgradeWindow")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmUpdateUpgradeWindow.funcUpdateUpgradeWindow != nil {
+		return mmUpdateUpgradeWindow.funcUpdateUpgradeWindow(ctx, serviceId, u)
+	}
+	mmUpdateUpgradeWindow.t.Fatalf("Unexpected call to ClientMock.UpdateUpgradeWindow. %v %v %v", ctx, serviceId, u)
+	return
+}
+
+// UpdateUpgradeWindowAfterCounter returns a count of finished ClientMock.UpdateUpgradeWindow invocations
+func (mmUpdateUpgradeWindow *ClientMock) UpdateUpgradeWindowAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateUpgradeWindow.afterUpdateUpgradeWindowCounter)
+}
+
+// UpdateUpgradeWindowBeforeCounter returns a count of ClientMock.UpdateUpgradeWindow invocations
+func (mmUpdateUpgradeWindow *ClientMock) UpdateUpgradeWindowBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateUpgradeWindow.beforeUpdateUpgradeWindowCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateUpgradeWindow.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateUpgradeWindow *mClientMockUpdateUpgradeWindow) Calls() []*ClientMockUpdateUpgradeWindowParams {
+	mmUpdateUpgradeWindow.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateUpgradeWindowParams, len(mmUpdateUpgradeWindow.callArgs))
+	copy(argCopy, mmUpdateUpgradeWindow.callArgs)
+
+	mmUpdateUpgradeWindow.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateUpgradeWindowDone returns true if the count of the UpdateUpgradeWindow invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateUpgradeWindowDone() bool {
+	if m.UpdateUpgradeWindowMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateUpgradeWindowMock.invocationsDone()
+}
+
+// MinimockUpdateUpgradeWindowInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateUpgradeWindowInspect() {
+	for _, e := range m.UpdateUpgradeWindowMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateUpgradeWindow at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateUpgradeWindowCounter := mm_atomic.LoadUint64(&m.afterUpdateUpgradeWindowCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateUpgradeWindowMock.defaultExpectation != nil && afterUpdateUpgradeWindowCounter < 1 {
+		if m.UpdateUpgradeWindowMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateUpgradeWindow at\n%s", m.UpdateUpgradeWindowMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateUpgradeWindow at\n%s with params: %#v", m.UpdateUpgradeWindowMock.defaultExpectation.expectationOrigins.origin, *m.UpdateUpgradeWindowMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateUpgradeWindow != nil && afterUpdateUpgradeWindowCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateUpgradeWindow at\n%s", m.funcUpdateUpgradeWindowOrigin)
+	}
+
+	if !m.UpdateUpgradeWindowMock.invocationsDone() && afterUpdateUpgradeWindowCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateUpgradeWindow at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateUpgradeWindowMock.expectedInvocations), m.UpdateUpgradeWindowMock.expectedInvocationsOrigin, afterUpdateUpgradeWindowCounter)
 	}
 }
 
@@ -15680,6 +21885,814 @@ func (m *ClientMock) MinimockWaitForClickPipeStateInspect() {
 	}
 }
 
+type mClientMockWaitForPostgresState struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForPostgresStateExpectation
+	expectations       []*ClientMockWaitForPostgresStateExpectation
+
+	callArgs []*ClientMockWaitForPostgresStateParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWaitForPostgresStateExpectation specifies expectation struct of the Client.WaitForPostgresState
+type ClientMockWaitForPostgresStateExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWaitForPostgresStateParams
+	paramPtrs          *ClientMockWaitForPostgresStateParamPtrs
+	expectationOrigins ClientMockWaitForPostgresStateExpectationOrigins
+	results            *ClientMockWaitForPostgresStateResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWaitForPostgresStateParams contains parameters of the Client.WaitForPostgresState
+type ClientMockWaitForPostgresStateParams struct {
+	ctx            context.Context
+	postgresId     string
+	stateChecker   func(string) bool
+	maxWaitSeconds int
+}
+
+// ClientMockWaitForPostgresStateParamPtrs contains pointers to parameters of the Client.WaitForPostgresState
+type ClientMockWaitForPostgresStateParamPtrs struct {
+	ctx            *context.Context
+	postgresId     *string
+	stateChecker   *func(string) bool
+	maxWaitSeconds *int
+}
+
+// ClientMockWaitForPostgresStateResults contains results of the Client.WaitForPostgresState
+type ClientMockWaitForPostgresStateResults struct {
+	err error
+}
+
+// ClientMockWaitForPostgresStateOrigins contains origins of expectations of the Client.WaitForPostgresState
+type ClientMockWaitForPostgresStateExpectationOrigins struct {
+	origin               string
+	originCtx            string
+	originPostgresId     string
+	originStateChecker   string
+	originMaxWaitSeconds string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) Optional() *mClientMockWaitForPostgresState {
+	mmWaitForPostgresState.optional = true
+	return mmWaitForPostgresState
+}
+
+// Expect sets up expected params for Client.WaitForPostgresState
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) Expect(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) *mClientMockWaitForPostgresState {
+	if mmWaitForPostgresState.mock.funcWaitForPostgresState != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Set")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation == nil {
+		mmWaitForPostgresState.defaultExpectation = &ClientMockWaitForPostgresStateExpectation{}
+	}
+
+	if mmWaitForPostgresState.defaultExpectation.paramPtrs != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForPostgresState.defaultExpectation.params = &ClientMockWaitForPostgresStateParams{ctx, postgresId, stateChecker, maxWaitSeconds}
+	mmWaitForPostgresState.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWaitForPostgresState.expectations {
+		if minimock.Equal(e.params, mmWaitForPostgresState.defaultExpectation.params) {
+			mmWaitForPostgresState.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForPostgresState.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForPostgresState
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForPostgresState
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForPostgresState {
+	if mmWaitForPostgresState.mock.funcWaitForPostgresState != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Set")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation == nil {
+		mmWaitForPostgresState.defaultExpectation = &ClientMockWaitForPostgresStateExpectation{}
+	}
+
+	if mmWaitForPostgresState.defaultExpectation.params != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresState.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateParamPtrs{}
+	}
+	mmWaitForPostgresState.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWaitForPostgresState.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresState
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.WaitForPostgresState
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) ExpectPostgresIdParam2(postgresId string) *mClientMockWaitForPostgresState {
+	if mmWaitForPostgresState.mock.funcWaitForPostgresState != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Set")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation == nil {
+		mmWaitForPostgresState.defaultExpectation = &ClientMockWaitForPostgresStateExpectation{}
+	}
+
+	if mmWaitForPostgresState.defaultExpectation.params != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresState.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateParamPtrs{}
+	}
+	mmWaitForPostgresState.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmWaitForPostgresState.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresState
+}
+
+// ExpectStateCheckerParam3 sets up expected param stateChecker for Client.WaitForPostgresState
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) ExpectStateCheckerParam3(stateChecker func(string) bool) *mClientMockWaitForPostgresState {
+	if mmWaitForPostgresState.mock.funcWaitForPostgresState != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Set")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation == nil {
+		mmWaitForPostgresState.defaultExpectation = &ClientMockWaitForPostgresStateExpectation{}
+	}
+
+	if mmWaitForPostgresState.defaultExpectation.params != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresState.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateParamPtrs{}
+	}
+	mmWaitForPostgresState.defaultExpectation.paramPtrs.stateChecker = &stateChecker
+	mmWaitForPostgresState.defaultExpectation.expectationOrigins.originStateChecker = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresState
+}
+
+// ExpectMaxWaitSecondsParam4 sets up expected param maxWaitSeconds for Client.WaitForPostgresState
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) ExpectMaxWaitSecondsParam4(maxWaitSeconds int) *mClientMockWaitForPostgresState {
+	if mmWaitForPostgresState.mock.funcWaitForPostgresState != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Set")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation == nil {
+		mmWaitForPostgresState.defaultExpectation = &ClientMockWaitForPostgresStateExpectation{}
+	}
+
+	if mmWaitForPostgresState.defaultExpectation.params != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresState.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateParamPtrs{}
+	}
+	mmWaitForPostgresState.defaultExpectation.paramPtrs.maxWaitSeconds = &maxWaitSeconds
+	mmWaitForPostgresState.defaultExpectation.expectationOrigins.originMaxWaitSeconds = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresState
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForPostgresState
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) Inspect(f func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int)) *mClientMockWaitForPostgresState {
+	if mmWaitForPostgresState.mock.inspectFuncWaitForPostgresState != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForPostgresState")
+	}
+
+	mmWaitForPostgresState.mock.inspectFuncWaitForPostgresState = f
+
+	return mmWaitForPostgresState
+}
+
+// Return sets up results that will be returned by Client.WaitForPostgresState
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) Return(err error) *ClientMock {
+	if mmWaitForPostgresState.mock.funcWaitForPostgresState != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Set")
+	}
+
+	if mmWaitForPostgresState.defaultExpectation == nil {
+		mmWaitForPostgresState.defaultExpectation = &ClientMockWaitForPostgresStateExpectation{mock: mmWaitForPostgresState.mock}
+	}
+	mmWaitForPostgresState.defaultExpectation.results = &ClientMockWaitForPostgresStateResults{err}
+	mmWaitForPostgresState.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresState.mock
+}
+
+// Set uses given function f to mock the Client.WaitForPostgresState method
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) Set(f func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)) *ClientMock {
+	if mmWaitForPostgresState.defaultExpectation != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("Default expectation is already set for the Client.WaitForPostgresState method")
+	}
+
+	if len(mmWaitForPostgresState.expectations) > 0 {
+		mmWaitForPostgresState.mock.t.Fatalf("Some expectations are already set for the Client.WaitForPostgresState method")
+	}
+
+	mmWaitForPostgresState.mock.funcWaitForPostgresState = f
+	mmWaitForPostgresState.mock.funcWaitForPostgresStateOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresState.mock
+}
+
+// When sets expectation for the Client.WaitForPostgresState which will trigger the result defined by the following
+// Then helper
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) When(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) *ClientMockWaitForPostgresStateExpectation {
+	if mmWaitForPostgresState.mock.funcWaitForPostgresState != nil {
+		mmWaitForPostgresState.mock.t.Fatalf("ClientMock.WaitForPostgresState mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForPostgresStateExpectation{
+		mock:               mmWaitForPostgresState.mock,
+		params:             &ClientMockWaitForPostgresStateParams{ctx, postgresId, stateChecker, maxWaitSeconds},
+		expectationOrigins: ClientMockWaitForPostgresStateExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWaitForPostgresState.expectations = append(mmWaitForPostgresState.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForPostgresState return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForPostgresStateExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockWaitForPostgresStateResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForPostgresState should be invoked
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) Times(n uint64) *mClientMockWaitForPostgresState {
+	if n == 0 {
+		mmWaitForPostgresState.mock.t.Fatalf("Times of ClientMock.WaitForPostgresState mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForPostgresState.expectedInvocations, n)
+	mmWaitForPostgresState.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresState
+}
+
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) invocationsDone() bool {
+	if len(mmWaitForPostgresState.expectations) == 0 && mmWaitForPostgresState.defaultExpectation == nil && mmWaitForPostgresState.mock.funcWaitForPostgresState == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresState.mock.afterWaitForPostgresStateCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresState.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForPostgresState implements Client
+func (mmWaitForPostgresState *ClientMock) WaitForPostgresState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) (err error) {
+	mm_atomic.AddUint64(&mmWaitForPostgresState.beforeWaitForPostgresStateCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForPostgresState.afterWaitForPostgresStateCounter, 1)
+
+	mmWaitForPostgresState.t.Helper()
+
+	if mmWaitForPostgresState.inspectFuncWaitForPostgresState != nil {
+		mmWaitForPostgresState.inspectFuncWaitForPostgresState(ctx, postgresId, stateChecker, maxWaitSeconds)
+	}
+
+	mm_params := ClientMockWaitForPostgresStateParams{ctx, postgresId, stateChecker, maxWaitSeconds}
+
+	// Record call args
+	mmWaitForPostgresState.WaitForPostgresStateMock.mutex.Lock()
+	mmWaitForPostgresState.WaitForPostgresStateMock.callArgs = append(mmWaitForPostgresState.WaitForPostgresStateMock.callArgs, &mm_params)
+	mmWaitForPostgresState.WaitForPostgresStateMock.mutex.Unlock()
+
+	for _, e := range mmWaitForPostgresState.WaitForPostgresStateMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForPostgresStateParams{ctx, postgresId, stateChecker, maxWaitSeconds}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForPostgresState.t.Errorf("ClientMock.WaitForPostgresState got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmWaitForPostgresState.t.Errorf("ClientMock.WaitForPostgresState got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.stateChecker != nil && !minimock.Equal(*mm_want_ptrs.stateChecker, mm_got.stateChecker) {
+				mmWaitForPostgresState.t.Errorf("ClientMock.WaitForPostgresState got unexpected parameter stateChecker, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation.expectationOrigins.originStateChecker, *mm_want_ptrs.stateChecker, mm_got.stateChecker, minimock.Diff(*mm_want_ptrs.stateChecker, mm_got.stateChecker))
+			}
+
+			if mm_want_ptrs.maxWaitSeconds != nil && !minimock.Equal(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds) {
+				mmWaitForPostgresState.t.Errorf("ClientMock.WaitForPostgresState got unexpected parameter maxWaitSeconds, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation.expectationOrigins.originMaxWaitSeconds, *mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds, minimock.Diff(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForPostgresState.t.Errorf("ClientMock.WaitForPostgresState got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForPostgresState.WaitForPostgresStateMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForPostgresState.t.Fatal("No results are set for the ClientMock.WaitForPostgresState")
+		}
+		return (*mm_results).err
+	}
+	if mmWaitForPostgresState.funcWaitForPostgresState != nil {
+		return mmWaitForPostgresState.funcWaitForPostgresState(ctx, postgresId, stateChecker, maxWaitSeconds)
+	}
+	mmWaitForPostgresState.t.Fatalf("Unexpected call to ClientMock.WaitForPostgresState. %v %v %v %v", ctx, postgresId, stateChecker, maxWaitSeconds)
+	return
+}
+
+// WaitForPostgresStateAfterCounter returns a count of finished ClientMock.WaitForPostgresState invocations
+func (mmWaitForPostgresState *ClientMock) WaitForPostgresStateAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresState.afterWaitForPostgresStateCounter)
+}
+
+// WaitForPostgresStateBeforeCounter returns a count of ClientMock.WaitForPostgresState invocations
+func (mmWaitForPostgresState *ClientMock) WaitForPostgresStateBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresState.beforeWaitForPostgresStateCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForPostgresState.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForPostgresState *mClientMockWaitForPostgresState) Calls() []*ClientMockWaitForPostgresStateParams {
+	mmWaitForPostgresState.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForPostgresStateParams, len(mmWaitForPostgresState.callArgs))
+	copy(argCopy, mmWaitForPostgresState.callArgs)
+
+	mmWaitForPostgresState.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForPostgresStateDone returns true if the count of the WaitForPostgresState invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForPostgresStateDone() bool {
+	if m.WaitForPostgresStateMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForPostgresStateMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForPostgresStateMock.invocationsDone()
+}
+
+// MinimockWaitForPostgresStateInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForPostgresStateInspect() {
+	for _, e := range m.WaitForPostgresStateMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresState at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWaitForPostgresStateCounter := mm_atomic.LoadUint64(&m.afterWaitForPostgresStateCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForPostgresStateMock.defaultExpectation != nil && afterWaitForPostgresStateCounter < 1 {
+		if m.WaitForPostgresStateMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresState at\n%s", m.WaitForPostgresStateMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresState at\n%s with params: %#v", m.WaitForPostgresStateMock.defaultExpectation.expectationOrigins.origin, *m.WaitForPostgresStateMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForPostgresState != nil && afterWaitForPostgresStateCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WaitForPostgresState at\n%s", m.funcWaitForPostgresStateOrigin)
+	}
+
+	if !m.WaitForPostgresStateMock.invocationsDone() && afterWaitForPostgresStateCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForPostgresState at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForPostgresStateMock.expectedInvocations), m.WaitForPostgresStateMock.expectedInvocationsOrigin, afterWaitForPostgresStateCounter)
+	}
+}
+
+type mClientMockWaitForPostgresStateTransitionAndReturn struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForPostgresStateTransitionAndReturnExpectation
+	expectations       []*ClientMockWaitForPostgresStateTransitionAndReturnExpectation
+
+	callArgs []*ClientMockWaitForPostgresStateTransitionAndReturnParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnExpectation specifies expectation struct of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWaitForPostgresStateTransitionAndReturnParams
+	paramPtrs          *ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs
+	expectationOrigins ClientMockWaitForPostgresStateTransitionAndReturnExpectationOrigins
+	results            *ClientMockWaitForPostgresStateTransitionAndReturnResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnParams contains parameters of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnParams struct {
+	ctx            context.Context
+	postgresId     string
+	terminalState  string
+	maxWaitSeconds int
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs contains pointers to parameters of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs struct {
+	ctx            *context.Context
+	postgresId     *string
+	terminalState  *string
+	maxWaitSeconds *int
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnResults contains results of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnResults struct {
+	err error
+}
+
+// ClientMockWaitForPostgresStateTransitionAndReturnOrigins contains origins of expectations of the Client.WaitForPostgresStateTransitionAndReturn
+type ClientMockWaitForPostgresStateTransitionAndReturnExpectationOrigins struct {
+	origin               string
+	originCtx            string
+	originPostgresId     string
+	originTerminalState  string
+	originMaxWaitSeconds string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Optional() *mClientMockWaitForPostgresStateTransitionAndReturn {
+	mmWaitForPostgresStateTransitionAndReturn.optional = true
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// Expect sets up expected params for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Expect(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params = &ClientMockWaitForPostgresStateTransitionAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWaitForPostgresStateTransitionAndReturn.expectations {
+		if minimock.Equal(e.params, mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params) {
+			mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs{}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) ExpectPostgresIdParam2(postgresId string) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs{}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// ExpectTerminalStateParam3 sets up expected param terminalState for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) ExpectTerminalStateParam3(terminalState string) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs{}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs.terminalState = &terminalState
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.originTerminalState = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// ExpectMaxWaitSecondsParam4 sets up expected param maxWaitSeconds for Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) ExpectMaxWaitSecondsParam4(maxWaitSeconds int) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.params != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresStateTransitionAndReturnParamPtrs{}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.paramPtrs.maxWaitSeconds = &maxWaitSeconds
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.expectationOrigins.originMaxWaitSeconds = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Inspect(f func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int)) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.inspectFuncWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForPostgresStateTransitionAndReturn")
+	}
+
+	mmWaitForPostgresStateTransitionAndReturn.mock.inspectFuncWaitForPostgresStateTransitionAndReturn = f
+
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+// Return sets up results that will be returned by Client.WaitForPostgresStateTransitionAndReturn
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Return(err error) *ClientMock {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil {
+		mmWaitForPostgresStateTransitionAndReturn.defaultExpectation = &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{mock: mmWaitForPostgresStateTransitionAndReturn.mock}
+	}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.results = &ClientMockWaitForPostgresStateTransitionAndReturnResults{err}
+	mmWaitForPostgresStateTransitionAndReturn.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresStateTransitionAndReturn.mock
+}
+
+// Set uses given function f to mock the Client.WaitForPostgresStateTransitionAndReturn method
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Set(f func(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) (err error)) *ClientMock {
+	if mmWaitForPostgresStateTransitionAndReturn.defaultExpectation != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Default expectation is already set for the Client.WaitForPostgresStateTransitionAndReturn method")
+	}
+
+	if len(mmWaitForPostgresStateTransitionAndReturn.expectations) > 0 {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Some expectations are already set for the Client.WaitForPostgresStateTransitionAndReturn method")
+	}
+
+	mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn = f
+	mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturnOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresStateTransitionAndReturn.mock
+}
+
+// When sets expectation for the Client.WaitForPostgresStateTransitionAndReturn which will trigger the result defined by the following
+// Then helper
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) When(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) *ClientMockWaitForPostgresStateTransitionAndReturnExpectation {
+	if mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("ClientMock.WaitForPostgresStateTransitionAndReturn mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForPostgresStateTransitionAndReturnExpectation{
+		mock:               mmWaitForPostgresStateTransitionAndReturn.mock,
+		params:             &ClientMockWaitForPostgresStateTransitionAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds},
+		expectationOrigins: ClientMockWaitForPostgresStateTransitionAndReturnExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWaitForPostgresStateTransitionAndReturn.expectations = append(mmWaitForPostgresStateTransitionAndReturn.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForPostgresStateTransitionAndReturn return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForPostgresStateTransitionAndReturnExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockWaitForPostgresStateTransitionAndReturnResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForPostgresStateTransitionAndReturn should be invoked
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Times(n uint64) *mClientMockWaitForPostgresStateTransitionAndReturn {
+	if n == 0 {
+		mmWaitForPostgresStateTransitionAndReturn.mock.t.Fatalf("Times of ClientMock.WaitForPostgresStateTransitionAndReturn mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForPostgresStateTransitionAndReturn.expectedInvocations, n)
+	mmWaitForPostgresStateTransitionAndReturn.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresStateTransitionAndReturn
+}
+
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) invocationsDone() bool {
+	if len(mmWaitForPostgresStateTransitionAndReturn.expectations) == 0 && mmWaitForPostgresStateTransitionAndReturn.defaultExpectation == nil && mmWaitForPostgresStateTransitionAndReturn.mock.funcWaitForPostgresStateTransitionAndReturn == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresStateTransitionAndReturn.mock.afterWaitForPostgresStateTransitionAndReturnCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresStateTransitionAndReturn.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForPostgresStateTransitionAndReturn implements Client
+func (mmWaitForPostgresStateTransitionAndReturn *ClientMock) WaitForPostgresStateTransitionAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) (err error) {
+	mm_atomic.AddUint64(&mmWaitForPostgresStateTransitionAndReturn.beforeWaitForPostgresStateTransitionAndReturnCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForPostgresStateTransitionAndReturn.afterWaitForPostgresStateTransitionAndReturnCounter, 1)
+
+	mmWaitForPostgresStateTransitionAndReturn.t.Helper()
+
+	if mmWaitForPostgresStateTransitionAndReturn.inspectFuncWaitForPostgresStateTransitionAndReturn != nil {
+		mmWaitForPostgresStateTransitionAndReturn.inspectFuncWaitForPostgresStateTransitionAndReturn(ctx, postgresId, terminalState, maxWaitSeconds)
+	}
+
+	mm_params := ClientMockWaitForPostgresStateTransitionAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds}
+
+	// Record call args
+	mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.mutex.Lock()
+	mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.callArgs = append(mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.callArgs, &mm_params)
+	mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.mutex.Unlock()
+
+	for _, e := range mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForPostgresStateTransitionAndReturnParams{ctx, postgresId, terminalState, maxWaitSeconds}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.terminalState != nil && !minimock.Equal(*mm_want_ptrs.terminalState, mm_got.terminalState) {
+				mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameter terminalState, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.originTerminalState, *mm_want_ptrs.terminalState, mm_got.terminalState, minimock.Diff(*mm_want_ptrs.terminalState, mm_got.terminalState))
+			}
+
+			if mm_want_ptrs.maxWaitSeconds != nil && !minimock.Equal(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds) {
+				mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameter maxWaitSeconds, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.originMaxWaitSeconds, *mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds, minimock.Diff(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForPostgresStateTransitionAndReturn.t.Errorf("ClientMock.WaitForPostgresStateTransitionAndReturn got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForPostgresStateTransitionAndReturn.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForPostgresStateTransitionAndReturn.t.Fatal("No results are set for the ClientMock.WaitForPostgresStateTransitionAndReturn")
+		}
+		return (*mm_results).err
+	}
+	if mmWaitForPostgresStateTransitionAndReturn.funcWaitForPostgresStateTransitionAndReturn != nil {
+		return mmWaitForPostgresStateTransitionAndReturn.funcWaitForPostgresStateTransitionAndReturn(ctx, postgresId, terminalState, maxWaitSeconds)
+	}
+	mmWaitForPostgresStateTransitionAndReturn.t.Fatalf("Unexpected call to ClientMock.WaitForPostgresStateTransitionAndReturn. %v %v %v %v", ctx, postgresId, terminalState, maxWaitSeconds)
+	return
+}
+
+// WaitForPostgresStateTransitionAndReturnAfterCounter returns a count of finished ClientMock.WaitForPostgresStateTransitionAndReturn invocations
+func (mmWaitForPostgresStateTransitionAndReturn *ClientMock) WaitForPostgresStateTransitionAndReturnAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresStateTransitionAndReturn.afterWaitForPostgresStateTransitionAndReturnCounter)
+}
+
+// WaitForPostgresStateTransitionAndReturnBeforeCounter returns a count of ClientMock.WaitForPostgresStateTransitionAndReturn invocations
+func (mmWaitForPostgresStateTransitionAndReturn *ClientMock) WaitForPostgresStateTransitionAndReturnBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresStateTransitionAndReturn.beforeWaitForPostgresStateTransitionAndReturnCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForPostgresStateTransitionAndReturn.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForPostgresStateTransitionAndReturn *mClientMockWaitForPostgresStateTransitionAndReturn) Calls() []*ClientMockWaitForPostgresStateTransitionAndReturnParams {
+	mmWaitForPostgresStateTransitionAndReturn.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForPostgresStateTransitionAndReturnParams, len(mmWaitForPostgresStateTransitionAndReturn.callArgs))
+	copy(argCopy, mmWaitForPostgresStateTransitionAndReturn.callArgs)
+
+	mmWaitForPostgresStateTransitionAndReturn.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForPostgresStateTransitionAndReturnDone returns true if the count of the WaitForPostgresStateTransitionAndReturn invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForPostgresStateTransitionAndReturnDone() bool {
+	if m.WaitForPostgresStateTransitionAndReturnMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForPostgresStateTransitionAndReturnMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForPostgresStateTransitionAndReturnMock.invocationsDone()
+}
+
+// MinimockWaitForPostgresStateTransitionAndReturnInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForPostgresStateTransitionAndReturnInspect() {
+	for _, e := range m.WaitForPostgresStateTransitionAndReturnMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWaitForPostgresStateTransitionAndReturnCounter := mm_atomic.LoadUint64(&m.afterWaitForPostgresStateTransitionAndReturnCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation != nil && afterWaitForPostgresStateTransitionAndReturnCounter < 1 {
+		if m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s", m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s with params: %#v", m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.expectationOrigins.origin, *m.WaitForPostgresStateTransitionAndReturnMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForPostgresStateTransitionAndReturn != nil && afterWaitForPostgresStateTransitionAndReturnCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s", m.funcWaitForPostgresStateTransitionAndReturnOrigin)
+	}
+
+	if !m.WaitForPostgresStateTransitionAndReturnMock.invocationsDone() && afterWaitForPostgresStateTransitionAndReturnCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForPostgresStateTransitionAndReturn at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForPostgresStateTransitionAndReturnMock.expectedInvocations), m.WaitForPostgresStateTransitionAndReturnMock.expectedInvocationsOrigin, afterWaitForPostgresStateTransitionAndReturnCounter)
+	}
+}
+
 type mClientMockWaitForReversePrivateEndpointState struct {
 	optional           bool
 	mock               *ClientMock
@@ -16528,6 +23541,10 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateClickPipeInspect()
 
+			m.MinimockCreatePostgresInspect()
+
+			m.MinimockCreatePostgresReadReplicaInspect()
+
 			m.MinimockCreateQueryEndpointInspect()
 
 			m.MinimockCreateReversePrivateEndpointInspect()
@@ -16538,13 +23555,19 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockDeleteClickPipeInspect()
 
+			m.MinimockDeletePostgresInspect()
+
 			m.MinimockDeleteQueryEndpointInspect()
 
 			m.MinimockDeleteReversePrivateEndpointInspect()
 
 			m.MinimockDeleteRoleInspect()
 
+			m.MinimockDeleteScheduledScalingInspect()
+
 			m.MinimockDeleteServiceInspect()
+
+			m.MinimockDeleteUpgradeWindowInspect()
 
 			m.MinimockGetApiKeyIDInspect()
 
@@ -16564,6 +23587,12 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetOrganizationPrivateEndpointsInspect()
 
+			m.MinimockGetPostgresInspect()
+
+			m.MinimockGetPostgresCaCertificatesInspect()
+
+			m.MinimockGetPostgresConfigInspect()
+
 			m.MinimockGetQueryEndpointInspect()
 
 			m.MinimockGetReversePrivateEndpointInspect()
@@ -16572,17 +23601,29 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetRoleInspect()
 
+			m.MinimockGetScheduledScalingInspect()
+
 			m.MinimockGetServiceInspect()
 
+			m.MinimockGetUpgradeWindowInspect()
+
 			m.MinimockListMembersInspect()
+
+			m.MinimockListPostgresInspect()
 
 			m.MinimockListReversePrivateEndpointsInspect()
 
 			m.MinimockListRolesInspect()
 
+			m.MinimockReplacePostgresConfigInspect()
+
+			m.MinimockRestorePostgresInspect()
+
 			m.MinimockRotateTDEKeyInspect()
 
 			m.MinimockScalingClickPipeInspect()
+
+			m.MinimockSetPostgresPasswordInspect()
 
 			m.MinimockUpdateBackupConfigurationInspect()
 
@@ -16596,17 +23637,27 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockUpdateOrganizationPrivateEndpointsInspect()
 
+			m.MinimockUpdatePostgresInspect()
+
 			m.MinimockUpdateReplicaScalingInspect()
 
 			m.MinimockUpdateRoleInspect()
+
+			m.MinimockUpdateScheduledScalingInspect()
 
 			m.MinimockUpdateServiceInspect()
 
 			m.MinimockUpdateServicePasswordInspect()
 
+			m.MinimockUpdateUpgradeWindowInspect()
+
 			m.MinimockWaitForClickPipeCdcScalingInspect()
 
 			m.MinimockWaitForClickPipeStateInspect()
+
+			m.MinimockWaitForPostgresStateInspect()
+
+			m.MinimockWaitForPostgresStateTransitionAndReturnInspect()
 
 			m.MinimockWaitForReversePrivateEndpointStateInspect()
 
@@ -16636,15 +23687,20 @@ func (m *ClientMock) minimockDone() bool {
 	return done &&
 		m.MinimockChangeClickPipeStateDone() &&
 		m.MinimockCreateClickPipeDone() &&
+		m.MinimockCreatePostgresDone() &&
+		m.MinimockCreatePostgresReadReplicaDone() &&
 		m.MinimockCreateQueryEndpointDone() &&
 		m.MinimockCreateReversePrivateEndpointDone() &&
 		m.MinimockCreateRoleDone() &&
 		m.MinimockCreateServiceDone() &&
 		m.MinimockDeleteClickPipeDone() &&
+		m.MinimockDeletePostgresDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
 		m.MinimockDeleteReversePrivateEndpointDone() &&
 		m.MinimockDeleteRoleDone() &&
+		m.MinimockDeleteScheduledScalingDone() &&
 		m.MinimockDeleteServiceDone() &&
+		m.MinimockDeleteUpgradeWindowDone() &&
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetClickPipeDone() &&
@@ -16654,28 +23710,42 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationDone() &&
 		m.MinimockGetOrganizationPrivateEndpointsDone() &&
+		m.MinimockGetPostgresDone() &&
+		m.MinimockGetPostgresCaCertificatesDone() &&
+		m.MinimockGetPostgresConfigDone() &&
 		m.MinimockGetQueryEndpointDone() &&
 		m.MinimockGetReversePrivateEndpointDone() &&
 		m.MinimockGetReversePrivateEndpointPathDone() &&
 		m.MinimockGetRoleDone() &&
+		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
+		m.MinimockGetUpgradeWindowDone() &&
 		m.MinimockListMembersDone() &&
+		m.MinimockListPostgresDone() &&
 		m.MinimockListReversePrivateEndpointsDone() &&
 		m.MinimockListRolesDone() &&
+		m.MinimockReplacePostgresConfigDone() &&
+		m.MinimockRestorePostgresDone() &&
 		m.MinimockRotateTDEKeyDone() &&
 		m.MinimockScalingClickPipeDone() &&
+		m.MinimockSetPostgresPasswordDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
 		m.MinimockUpdateClickPipeDone() &&
 		m.MinimockUpdateClickPipeCdcScalingDone() &&
 		m.MinimockUpdateClickPipeSettingsDone() &&
 		m.MinimockUpdateOrganizationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
+		m.MinimockUpdatePostgresDone() &&
 		m.MinimockUpdateReplicaScalingDone() &&
 		m.MinimockUpdateRoleDone() &&
+		m.MinimockUpdateScheduledScalingDone() &&
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
+		m.MinimockUpdateUpgradeWindowDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
 		m.MinimockWaitForClickPipeStateDone() &&
+		m.MinimockWaitForPostgresStateDone() &&
+		m.MinimockWaitForPostgresStateTransitionAndReturnDone() &&
 		m.MinimockWaitForReversePrivateEndpointStateDone() &&
 		m.MinimockWaitForServiceStateDone()
 }

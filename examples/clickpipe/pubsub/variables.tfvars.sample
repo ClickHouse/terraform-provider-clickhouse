@@ -1,0 +1,9 @@
+token_key       = "<YOUR_CLICKHOUSE_CLOUD_API_KEY_ID>"
+token_secret    = "<YOUR_CLICKHOUSE_CLOUD_API_KEY_SECRET>"
+organization_id = "<YOUR_CLICKHOUSE_CLOUD_ORGANIZATION_ID>"
+
+service_id = "<YOUR_CLICKHOUSE_CLOUD_SERVICE_ID>"
+
+gcp_project_id          = "<YOUR_GCP_PROJECT_ID>"
+pubsub_topic            = "<YOUR_PUBSUB_TOPIC_NAME>"
+gcp_service_account_b64 = "<BASE64_ENCODED_GCP_SERVICE_ACCOUNT_JSON>"
