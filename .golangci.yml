@@ -1,4 +1,4 @@
-version: 2
+version: "2"
 
 linters:
   enable:
@@ -11,26 +11,53 @@ linters:
     - dupl
     - goconst
     - copyloopvar
-    - staticcheck
-
-linters-settings:
-  dupl:
-    # TODO: Lower back to default (150) once the ClickPipe resource Postgres/MySQL
-    # CDC duplication has been refactored.
-    threshold: 500
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    # Former issues.exclude-dirs-use-default: true
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+    # Test fixtures legitimately repeat literals and embed fake credentials.
+    rules:
+      - path: _test\.go
+        linters:
+          - goconst
+          - gosec
+          - dupl
+      # goconst flags Terraform schema attribute keys (idiomatic string literals)
+      # throughout the schema-definition packages. Keep goconst active only on the
+      # client/logic code (pkg/internal/...), where magic-string detection has value.
+      - path: (pkg/resource|pkg/datasource)
+        linters:
+          - goconst
+      # Postgres and MySQL ClickPipe sources are intentionally implemented as parallel
+      # code paths (distinct model/API types). The resulting duplication is accepted.
+      - path: pkg/resource/clickpipe\.go
+        linters:
+          - dupl
 
 formatters:
   enable:
     - goimports
     - gofumpt
+  exclusions:
+    # Former issues.exclude-dirs-use-default: true
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
   settings:
     goimports:
       # Put imports beginning with prefix after 3rd-party packages.
       # It's a comma-separated list of prefixes.
-      local-prefixes: github.com/ClickHouse/terraform-provider-clickhouse
+      local-prefixes:
+        - github.com/ClickHouse/terraform-provider-clickhouse
 
 run:
   timeout: 10m
-
-issues:
-  exclude-dirs-use-default: true
