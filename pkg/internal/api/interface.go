@@ -69,7 +69,7 @@ type Client interface {
 	UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (*Postgres, error)
 	DeletePostgres(ctx context.Context, postgresId string) error
 	WaitForPostgresState(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) error
-	WaitForPostgresStateTransitionAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) error
+	WaitForPostgresMatch(ctx context.Context, postgresId string, predicate func(*Postgres) bool, maxWaitSeconds int) error
 	RestorePostgres(ctx context.Context, sourceId string, body PostgresRestoreRequest) (*Postgres, error)
 	SetPostgresPassword(ctx context.Context, postgresId string, body PostgresPassword) (*PostgresPassword, error)
 	CreatePostgresReadReplica(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (*Postgres, error)

@@ -63,7 +63,7 @@ const (
 )
 
 const (
-	clickPipeStateChangeMaxWaitSeconds = time.Second * 60 * 2
+	clickPipeStateChangeMaxWait = time.Second * 60 * 2
 
 	// ClickPipe destination table engine types
 	ClickPipeEngineMergeTree          = "MergeTree"
@@ -1983,14 +1983,15 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				}
 
 				// Validate queue_url requires compatible authentication per storage type
-				if storageType == api.ClickPipeObjectStorageS3Type {
+				switch storageType {
+				case api.ClickPipeObjectStorageS3Type:
 					if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationIAMRole {
 						response.Diagnostics.AddError(
 							"Invalid Configuration",
 							"queue_url with S3 requires authentication type to be either IAM_USER or IAM_ROLE",
 						)
 					}
-				} else if storageType == api.ClickPipeObjectStorageGCSType {
+				case api.ClickPipeObjectStorageGCSType:
 					if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationServiceAccount {
 						response.Diagnostics.AddError(
 							"Invalid Configuration",
@@ -2686,7 +2687,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	// Determine expected state(s) based on configuration
 	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
 
-	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, stateCheckFunc, clickPipeStateChangeMaxWaitSeconds)
+	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, serviceID, createdClickPipe.ID, stateCheckFunc, clickPipeStateChangeMaxWait)
 	if err != nil {
 		// Only warn if the final state is not acceptable
 		if finalClickPipe == nil || !stateCheckFunc(finalClickPipe.State) {
@@ -2976,14 +2977,15 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
 		}
 
-		if storageType == api.ClickPipeObjectStorageAzureBlobType {
+		switch storageType {
+		case api.ClickPipeObjectStorageAzureBlobType:
 			objectStorage.ConnectionString = objectStorageModel.ConnectionString.ValueStringPointer()
 			objectStorage.Path = objectStorageModel.Path.ValueStringPointer()
 			objectStorage.AzureContainerName = objectStorageModel.AzureContainerName.ValueStringPointer()
-		} else if storageType == api.ClickPipeObjectStorageGCSType {
+		case api.ClickPipeObjectStorageGCSType:
 			objectStorage.URL = objectStorageModel.URL.ValueString()
 			objectStorage.ServiceAccountKey = objectStorageModel.ServiceAccountKey.ValueStringPointer()
-		} else {
+		default:
 			objectStorage.URL = objectStorageModel.URL.ValueString()
 		}
 
@@ -3944,17 +3946,18 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		}
 
 		// Set storage-type-specific fields
-		if clickPipe.Source.ObjectStorage.Type == api.ClickPipeObjectStorageAzureBlobType {
+		switch clickPipe.Source.ObjectStorage.Type {
+		case api.ClickPipeObjectStorageAzureBlobType:
 			// For Azure Blob Storage, preserve all fields from state as API doesn't return them
 			objectStorageModel.Authentication = stateObjectStorageModel.Authentication
 			objectStorageModel.ConnectionString = stateObjectStorageModel.ConnectionString
 			objectStorageModel.Path = stateObjectStorageModel.Path
 			objectStorageModel.AzureContainerName = stateObjectStorageModel.AzureContainerName
-		} else if clickPipe.Source.ObjectStorage.Type == api.ClickPipeObjectStorageGCSType {
+		case api.ClickPipeObjectStorageGCSType:
 			objectStorageModel.Authentication = types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication)
 			objectStorageModel.URL = types.StringValue(clickPipe.Source.ObjectStorage.URL)
 			objectStorageModel.ServiceAccountKey = stateObjectStorageModel.ServiceAccountKey // preserve sensitive field from state
-		} else {
+		default:
 			// For S3-compatible storage, use API response values
 			objectStorageModel.Authentication = types.StringPointerValue(clickPipe.Source.ObjectStorage.Authentication)
 			objectStorageModel.URL = types.StringValue(clickPipe.Source.ObjectStorage.URL)
@@ -5498,7 +5501,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	// Determine expected state(s) based on configuration
 	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
 
-	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), stateCheckFunc, clickPipeStateChangeMaxWaitSeconds)
+	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), stateCheckFunc, clickPipeStateChangeMaxWait)
 	if err != nil {
 		// Only warn if the final state is not acceptable
 		if finalClickPipe == nil || !stateCheckFunc(finalClickPipe.State) {

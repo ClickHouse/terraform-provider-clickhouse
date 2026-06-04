@@ -433,7 +433,7 @@ jobs:
           make docs-alpha
 
       - name: Commit
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -469,7 +469,7 @@ jobs:
       with:
         ref: "main"
     - name: Create tag
-      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
       with:
         timeout_minutes: 3
         max_attempts: 3
@@ -530,12 +530,12 @@ jobs:
           passphrase: ${{ secrets.PASSPHRASE }}
 
       - name: Install GoReleaser
-        uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8 # v7.2.1
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
         with:
           install-only: true
 
       - name: Run GoReleaser
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -576,7 +576,7 @@ jobs:
           make docs
 
       - name: Commit
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
         with:
           timeout_minutes: 5
           max_attempts: 3

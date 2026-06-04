@@ -27,6 +27,9 @@ var (
 	postgresDeleteRetryInterval        = 10 * time.Second
 	postgresDeleteRetryAttempts uint64 = 90 // 90 × 10s = 15 minutes
 	postgresStatePollInterval          = 5 * time.Second
+	// Predicate must hold this long before WaitForPostgresMatch succeeds —
+	// rejects transient matches during multi-step transitions. 15s = 3 polls.
+	postgresStateSettleDuration = 15 * time.Second
 )
 
 // ---------------------------------------------------------------------------
@@ -214,7 +217,8 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 	if maxRetries < 1 {
 		maxRetries = 1
 	}
-	err := backoff.Retry(check, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
+	b := backoff.WithContext(backoff.NewConstantBackOff(interval), ctx)
+	err := backoff.Retry(check, backoff.WithMaxRetries(b, maxRetries))
 	if err == nil {
 		return nil
 	}
@@ -225,57 +229,52 @@ func (c *ClientImpl) waitForPostgresStateWithInterval(ctx context.Context, postg
 	return err
 }
 
-// WaitForPostgresStateTransitionAndReturn waits for state to leave terminalState and
-// then come back. Mitigates the post-PATCH race where the API returns 200
-// before the transition begins server-side.
-//
-// Caller precondition: the mutating request MUST have returned 2xx first.
-// "State never left terminal" is treated as no-op success (e.g., a config
-// change that hot-reloaded) — invoking after a silently-failed mutation
-// will report success even though nothing happened.
-//
-// FIXME: the "never left = success" fallback can also miss the race it's
-// supposed to prevent — if the server hasn't started transitioning by the
-// time leave-detection exhausts its budget, we return success prematurely.
-// Once a real resource Update exercises this against the dev cluster, add
-// a minimum-observation window via the *WithInterval seam if the race
-// turns out to be observable.
-func (c *ClientImpl) WaitForPostgresStateTransitionAndReturn(ctx context.Context, postgresId string, terminalState string, maxWaitSeconds int) error {
-	return c.waitForPostgresStateTransitionAndReturnWithInterval(ctx, postgresId, terminalState, postgresStatePollInterval, uint64(maxWaitSeconds/int(postgresStatePollInterval/time.Second))) //nolint:gosec
+// WaitForPostgresMatch polls until predicate returns true for settleRetries
+// consecutive polls. Caller precondition: mutating request MUST have
+// returned 2xx. State-only checks race the Ubicloud queue; the predicate
+// closes that race by gating on the requested field values.
+func (c *ClientImpl) WaitForPostgresMatch(ctx context.Context, postgresId string, predicate func(*Postgres) bool, maxWaitSeconds int) error {
+	maxRetries := uint64(maxWaitSeconds / int(postgresStatePollInterval/time.Second)) //nolint:gosec
+	settleRetries := uint64(postgresStateSettleDuration / postgresStatePollInterval)  //nolint:gosec
+	return c.waitForPostgresMatchWithInterval(ctx, postgresId, predicate, postgresStatePollInterval, maxRetries, settleRetries)
 }
 
-func (c *ClientImpl) waitForPostgresStateTransitionAndReturnWithInterval(ctx context.Context, postgresId string, terminalState string, interval time.Duration, maxRetries uint64) error {
-	// Phase 1: wait until state differs from terminalState.
-	// Return values follow the same convention as waitForPostgresStateWithInterval.
-	left := false
-	leftCheck := func() error {
+func (c *ClientImpl) waitForPostgresMatchWithInterval(ctx context.Context, postgresId string, predicate func(*Postgres) bool, interval time.Duration, maxRetries, settleRetries uint64) error {
+	if settleRetries < 1 {
+		settleRetries = 1
+	}
+	if maxRetries < settleRetries {
+		maxRetries = settleRetries
+	}
+	var lastSeenState string
+	var stableMatches uint64
+	check := func() error {
 		pg, err := c.GetPostgres(ctx, postgresId)
 		if is5xx(err) {
 			return backoff.Permanent(err)
 		} else if err != nil {
 			return err
 		}
-		if pg.State != terminalState {
-			left = true
-			return nil
+		lastSeenState = pg.State
+		if predicate(pg) {
+			stableMatches++
+			if stableMatches >= settleRetries {
+				return nil
+			}
+			return errPostgresStateUnchanged
 		}
-		return errPostgresStateUnchanged
+		stableMatches = 0
+		return errPostgresStateNotYetTarget
 	}
-	if maxRetries < 2 {
-		maxRetries = 2
+	b := backoff.WithContext(backoff.NewConstantBackOff(interval), ctx)
+	err := backoff.Retry(check, backoff.WithMaxRetries(b, maxRetries))
+	if err == nil {
+		return nil
 	}
-	halfBudget := maxRetries / 2
-	err := backoff.Retry(leftCheck, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), halfBudget))
-	if err != nil && !left {
-		// Only sentinel-caused exhaustion is a no-op success; everything else
-		// propagates so the caller doesn't mistake polling failure for success.
-		if errors.Is(err, errPostgresStateUnchanged) {
-			return nil
-		}
-		return err
+	if errors.Is(err, errPostgresStateUnchanged) || errors.Is(err, errPostgresStateNotYetTarget) {
+		return fmt.Errorf("postgres %s did not match the expected predicate within %s (last seen state: %s)", postgresId, time.Duration(maxRetries)*interval, lastSeenState) //nolint:gosec
 	}
-	// Phase 2: wait until state returns to terminalState.
-	return c.waitForPostgresStateWithInterval(ctx, postgresId, func(s string) bool { return s == terminalState }, interval, maxRetries-halfBudget)
+	return err
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +289,7 @@ func (c *ClientImpl) waitForPostgresStateTransitionAndReturnWithInterval(ctx con
 // password each time. Callers needing retry safety must persist the
 // first-returned password before retrying.
 func (c *ClientImpl) SetPostgresPassword(ctx context.Context, postgresId string, body PostgresPassword) (*PostgresPassword, error) {
-	rb, err := json.Marshal(body)
+	rb, err := json.Marshal(body) //nolint:gosec // Password is an intended request field, not a leak
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode PostgresPassword: %w", err)
 	}
