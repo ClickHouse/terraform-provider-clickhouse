@@ -38,17 +38,21 @@ type PostgresServiceResourceModel struct {
 
 	// Sensitive / write-only.
 	// Password is Optional+Computed: user-supplied, or server-generated when
-	// omitted. PasswordWO is write-only (never persisted to state); its
-	// rotation is triggered by bumping PasswordWOVersion. Password and
+	// omitted; always hydrated from the GET so it holds the live password.
+	// PasswordWO is the write-only input attribute (never stored in state — but
+	// the password it sets is still visible via Password / connection_string);
+	// its rotation is triggered by bumping PasswordWOVersion. Password and
 	// PasswordWO are mutually exclusive.
 	Password          types.String `tfsdk:"password"`
 	PasswordWO        types.String `tfsdk:"password_wo"`
 	PasswordWOVersion types.Int64  `tfsdk:"password_wo_version"`
 
-	// Provenance — both immutable (RequiresReplace), mutually exclusive.
-	// ReadReplicaOf holds the parent primary's ID when this instance is a read
-	// replica. RestoreToPointInTime records that this instance was created by
-	// restoring another instance's backup to a timestamp.
+	// Provenance — create-time only, mutually exclusive. ReadReplicaOf holds the
+	// parent primary's ID for a read replica; changing/removing it replaces the
+	// instance, EXCEPT once it has been promoted out-of-band (is_primary true),
+	// where it's adopted in place (RequiresReplaceIf). RestoreToPointInTime
+	// records a point-in-time restore; any change to it, or removing it, replaces
+	// the instance (RequiresReplace).
 	ReadReplicaOf        types.String `tfsdk:"read_replica_of"`
 	RestoreToPointInTime types.Object `tfsdk:"restore_to_point_in_time"`
 }

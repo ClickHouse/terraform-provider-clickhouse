@@ -143,32 +143,31 @@ func TestPostgresPasswordValidators(t *testing.T) {
 }
 
 func TestDecidePasswordOnCreate(t *testing.T) {
-	t.Run("neither → keep server-generated", func(t *testing.T) {
+	t.Run("neither → no rotation (server-generated stands)", func(t *testing.T) {
 		got := decidePasswordOnCreate(
 			models.PostgresServiceResourceModel{Password: types.StringNull()},
 			models.PostgresServiceResourceModel{PasswordWO: types.StringNull()},
-			"GenPass12345",
 		)
-		if got.Set || got.StateValue == nil || *got.StateValue != "GenPass12345" {
+		if got.Set {
 			t.Errorf("got %#v", got)
 		}
 	})
-	t.Run("regular password → set + persist", func(t *testing.T) {
+	t.Run("regular password → set", func(t *testing.T) {
 		got := decidePasswordOnCreate(
 			models.PostgresServiceResourceModel{Password: types.StringValue("UserPass1234")},
-			models.PostgresServiceResourceModel{PasswordWO: types.StringNull()}, "Gen12345abcd",
+			models.PostgresServiceResourceModel{PasswordWO: types.StringNull()},
 		)
-		if !got.Set || got.Value != "UserPass1234" || got.StateValue == nil || *got.StateValue != "UserPass1234" {
+		if !got.Set || got.Value != "UserPass1234" {
 			t.Errorf("got %#v", got)
 		}
 	})
-	t.Run("write-only → set + state null + precedence", func(t *testing.T) {
+	t.Run("write-only → set + precedence over regular", func(t *testing.T) {
 		got := decidePasswordOnCreate(
 			models.PostgresServiceResourceModel{Password: types.StringValue("UserPass1234")},
-			models.PostgresServiceResourceModel{PasswordWO: types.StringValue("WriteOnly1234")}, "Gen12345abcd",
+			models.PostgresServiceResourceModel{PasswordWO: types.StringValue("WriteOnly1234")},
 		)
-		if !got.Set || got.Value != "WriteOnly1234" || got.StateValue != nil {
-			t.Errorf("write-only must win + not persist; got %#v", got)
+		if !got.Set || got.Value != "WriteOnly1234" {
+			t.Errorf("write-only must win; got %#v", got)
 		}
 	})
 }
@@ -245,6 +244,108 @@ func TestPasswordRotationPlanned(t *testing.T) {
 	// else connection_string would be marked unknown with no actual rotation.
 	if passwordRotationPlanned(cfg(types.StringNull()), pl(types.Int64Null()), st(types.StringNull(), types.Int64Value(1))) {
 		t.Error("removing password_wo_version (plan null, state set) must not rotate")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// create-time attribute validation: required for a standard create; for a
+// replica/restore validated against the source (match/omit → ok, conflict →
+// error; size-on-restore and ha_type must be omitted)
+// ---------------------------------------------------------------------------
+
+func TestRequireStandardCreateAttributes(t *testing.T) {
+	restoreType := map[string]attr.Type{"source_id": types.StringType, "restore_target": types.StringType}
+	nullRestore := types.ObjectNull(restoreType)
+	setRestore := types.ObjectValueMust(restoreType, map[string]attr.Value{
+		"source_id":      types.StringValue("src-1"),
+		"restore_target": types.StringValue("2026-06-01T00:00:00Z"),
+	})
+	std := func() models.PostgresServiceResourceModel {
+		return models.PostgresServiceResourceModel{
+			CloudProvider:        types.StringValue("aws"),
+			Region:               types.StringValue("us-east-1"),
+			Size:                 types.StringValue("4x16"),
+			PostgresVersion:      types.StringNull(),
+			HaType:               types.StringNull(),
+			ReadReplicaOf:        types.StringNull(),
+			RestoreToPointInTime: nullRestore,
+		}
+	}
+	cases := []struct {
+		name    string
+		mutate  func(*models.PostgresServiceResourceModel)
+		wantErr int
+	}{
+		{"standard complete", func(m *models.PostgresServiceResourceModel) {}, 0},
+		{"standard missing region", func(m *models.PostgresServiceResourceModel) { m.Region = types.StringNull() }, 1},
+		{"standard missing all three", func(m *models.PostgresServiceResourceModel) {
+			m.CloudProvider, m.Region, m.Size = types.StringNull(), types.StringNull(), types.StringNull()
+		}, 3},
+		{"replica: not required (inherited)", func(m *models.PostgresServiceResourceModel) {
+			m.CloudProvider, m.Region, m.Size = types.StringNull(), types.StringNull(), types.StringNull()
+			m.ReadReplicaOf = types.StringValue("primary-1")
+		}, 0},
+		{"restore: not required (inherited)", func(m *models.PostgresServiceResourceModel) {
+			m.CloudProvider, m.Region, m.Size = types.StringNull(), types.StringNull(), types.StringNull()
+			m.RestoreToPointInTime = setRestore
+		}, 0},
+		{"origin signal unknown → deferred", func(m *models.PostgresServiceResourceModel) {
+			m.CloudProvider, m.Region, m.Size = types.StringNull(), types.StringNull(), types.StringNull()
+			m.ReadReplicaOf = types.StringUnknown()
+		}, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := std()
+			c.mutate(&m)
+			if diags := requireStandardCreateAttributes(m); diags.ErrorsCount() != c.wantErr {
+				t.Errorf("want %d errors; got %d: %v", c.wantErr, diags.ErrorsCount(), diags)
+			}
+		})
+	}
+}
+
+func TestSourceAttributeConflicts(t *testing.T) {
+	src := &api.Postgres{Provider: "aws", Region: "us-west-2", Size: "r6gd.large", PostgresVersion: "18"}
+	full := func(cp, region, size, version, ha string) models.PostgresServiceResourceModel {
+		s := func(v string) types.String {
+			if v == "" {
+				return types.StringNull()
+			}
+			return types.StringValue(v)
+		}
+		return models.PostgresServiceResourceModel{
+			CloudProvider:   s(cp),
+			Region:          s(region),
+			Size:            s(size),
+			PostgresVersion: s(version),
+			HaType:          s(ha),
+		}
+	}
+	cases := []struct {
+		name      string
+		config    models.PostgresServiceResourceModel
+		isReplica bool
+		wantErr   int
+	}{
+		{"all omitted → inherited", full("", "", "", "", ""), true, 0},
+		{"replica matching → ok", full("aws", "us-west-2", "r6gd.large", "18", ""), true, 0},
+		{"replica region collides", full("", "us-east-1", "", "", ""), true, 1},
+		{"replica size collides", full("", "", "r6gd.xlarge", "", ""), true, 1},
+		{"replica region+version collide", full("", "eu-west-1", "", "17", ""), true, 2},
+		{"replica ha_type forbidden", full("", "", "", "", "async"), true, 1},
+		{"restore region matches, size+version omitted → ok", full("", "us-west-2", "", "", ""), false, 0},
+		{"restore size forbidden (backup-era size)", full("", "", "r6gd.xlarge", "", ""), false, 1},
+		{"restore region collides", full("", "us-east-1", "", "", ""), false, 1},
+		{"restore ha_type forbidden", full("", "", "", "", "sync"), false, 1},
+		{"restore size+ha_type both forbidden", full("", "", "r6gd.large", "", "async"), false, 2},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if diags := sourceAttributeConflicts(c.config, src, c.isReplica); diags.ErrorsCount() != c.wantErr {
+				t.Errorf("want %d errors; got %d: %v", c.wantErr, diags.ErrorsCount(), diags)
+			}
+		})
 	}
 }
 

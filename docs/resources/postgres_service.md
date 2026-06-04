@@ -65,30 +65,50 @@ description: |-
   The superuser password can be managed three ways:
   Omit both password and password_wo — the server generates one,
   captured into (sensitive) state as password.password — a value you supply; changing it rotates the password.
-  Stored in (sensitive) state.password_wo + password_wo_version — a write-only password. The
-  password attribute is kept null in state even though the server echoes
-  the password on GET. Rotation is triggered by incrementing
-  password_wo_version (write-only values can't be diffed). Bumping the
+  Stored in (sensitive) state.password_wo + password_wo_version — a write-only password: the
+  password_wo value is never stored in state, keeping the literal out of
+  your configuration and plan diffs. Rotation is triggered by incrementing
+  password_wo_version (write-only values can't be diffed); bumping the
   version without supplying a password_wo value is a no-op.
-  **`connection_string` still embeds the active password.** Write-only keeps
-  the value out of the dedicated `password` attribute, but the server returns a
-  `connection_string` with the credential in the URI. It is marked `Sensitive`,
-  but the state file stores it in plaintext — there is no way to suppress it.
+  The password attribute is always hydrated from the server (which echoes
+  it on every GET), so it holds the live password in all three modes — including
+  write-only. In other words, password_wo keeps the secret out of your
+  configuration, not out of state.
+  **The password is in state regardless of which mode you use.** Both the
+  `password` attribute and the `connection_string` (which embeds the credential
+  in the URI) are stored in the state file in plaintext. They're marked
+  `Sensitive`, but there is no way to suppress them — ensure your state backend
+  is encrypted at rest.
   Rules: password and password_wo are mutually exclusive; both require
   ≥12 chars with at least one lowercase, one uppercase, and one digit
   (enforced at plan time). Rotation is a PATCH /password — it does not resize
   or restart the instance, and there is a brief (~1–2s) server-side propagation
   window before a new password becomes active.
   Read replicas and point-in-time restore
+  Both create the instance from a source, so the create-time attributes that
+  define where it runs and how big it is are inherited from the source — omit
+  them. The provider reads the source at plan time and fills them in:
+  cloud_provider, region, postgres_version (and, for a replica,
+  size) are reproduced verbatim. Omit them, or set them to match the
+  source — a mismatch is a plan-time error ("conflicts with the source
+  instance"). The provider pins these into the plan so it shows real values.size on a restore (the restored instance comes up at the backup's
+  size) and ha_type (server-assigned for a new replica/restore) are not
+  taken from the source — they must be omitted; setting them is a plan-time
+  error. They show as "(known after apply)".
+  If the source ID doesn't exist, the plan errors. (Once the instance exists you
+  can resize it or change ha_type in place — those are normal in-place updates.)
   read_replica_of — set to a primary's ID to create a streaming read
-  replica. Immutable (RequiresReplace); mutually exclusive with
-  restore_to_point_in_time and with password / password_wo (a replica
-  inherits the primary's superuser).restore_to_point_in_time = { source_id, restore_target } — create
+  replica. Mutually exclusive with restore_to_point_in_time and with
+  password / password_wo (a replica inherits the primary's superuser).
+  Changing or removing it destroys and recreates the instance as a
+  standalone primary — a live replica can't be converted in place (see
+  "Out-of-band changes" for the promotion exception).restore_to_point_in_time = { source_id, restore_target } — create
   this instance by restoring another instance's backup to an RFC3339
-  timestamp. Immutable (RequiresReplace); the restored instance's name is
-  this resource's top-level name. A backup must exist at or before
+  timestamp. The restored instance's name is this resource's top-level name
+  and it is independent of its source. A backup must exist at or before
   restore_target (the first automatic backup is taken ~10 minutes after the
-  source is created).
+  source is created). The block is create-time only: changing source_id /
+  restore_target or removing it destroys and recreates the instance.
   
   restore_to_point_in_time = {
     source_id      = clickhouse_postgres_service.primary.id
@@ -97,9 +117,13 @@ description: |-
   
   Out-of-band changes
   Password rotated externally: the next terraform refresh syncs
-  the new value into state from the GET response.Replica promoted externally: the resource will detect the change
-  (is_primary flips), but recovery requires terraform state rm and
-  re-importing as a fresh primary.
+  the new value into state from the GET response.Replica promoted externally: the next refresh surfaces is_primary
+  flipping true, and the plan then errors ("read replica has been promoted
+  to a primary"), directing you to remove read_replica_of from the
+  configuration. Doing so reconciles the instance in place (no destroy),
+  adopting it as a standalone primary — precisely because is_primary is true.
+  (Removing read_replica_of from a non-promoted replica instead destroys and
+  recreates it as a standalone primary.)
   Operational commands
   Restart, promote, and switchover are not exposed as Terraform
   attributes. Terraform describes infrastructure shape; operational
@@ -215,16 +239,22 @@ The superuser password can be managed three ways:
   captured into (sensitive) state as `password`.
 - **`password`** — a value you supply; changing it rotates the password.
   Stored in (sensitive) state.
-- **`password_wo` + `password_wo_version`** — a write-only password. The
-  `password` attribute is **kept null in state** even though the server echoes
-  the password on `GET`. Rotation is triggered by **incrementing
-  `password_wo_version`** (write-only values can't be diffed). Bumping the
+- **`password_wo` + `password_wo_version`** — a write-only password: the
+  `password_wo` *value* is never stored in state, keeping the literal out of
+  your configuration and plan diffs. Rotation is triggered by **incrementing
+  `password_wo_version`** (write-only values can't be diffed); bumping the
   version without supplying a `password_wo` value is a no-op.
 
-> **`connection_string` still embeds the active password.** Write-only keeps
-> the value out of the dedicated `password` attribute, but the server returns a
-> `connection_string` with the credential in the URI. It is marked `Sensitive`,
-> but the state file stores it in plaintext — there is no way to suppress it.
+The `password` attribute is **always hydrated from the server** (which echoes
+it on every `GET`), so it holds the live password in all three modes — including
+write-only. In other words, `password_wo` keeps the secret out of your
+*configuration*, not out of *state*.
+
+> **The password is in state regardless of which mode you use.** Both the
+> `password` attribute and the `connection_string` (which embeds the credential
+> in the URI) are stored in the state file in plaintext. They're marked
+> `Sensitive`, but there is no way to suppress them — ensure your state backend
+> is encrypted at rest.
 
 Rules: `password` and `password_wo` are mutually exclusive; both require
 **≥12 chars with at least one lowercase, one uppercase, and one digit**
@@ -234,16 +264,35 @@ window before a new password becomes active.
 
 ## Read replicas and point-in-time restore
 
+Both create the instance from a **source**, so the create-time attributes that
+define where it runs and how big it is are **inherited from the source** — omit
+them. The provider reads the source at plan time and fills them in:
+
+- `cloud_provider`, `region`, `postgres_version` (and, for a **replica**,
+  `size`) are reproduced verbatim. Omit them, or set them to **match** the
+  source — a mismatch is a plan-time error ("conflicts with the source
+  instance"). The provider pins these into the plan so it shows real values.
+- `size` on a **restore** (the restored instance comes up at the **backup's**
+  size) and `ha_type` (server-assigned for a new replica/restore) are **not**
+  taken from the source — they must be **omitted**; setting them is a plan-time
+  error. They show as "(known after apply)".
+
+If the source ID doesn't exist, the plan errors. (Once the instance exists you
+can resize it or change `ha_type` in place — those are normal in-place updates.)
+
 - **`read_replica_of`** — set to a primary's ID to create a streaming read
-  replica. Immutable (`RequiresReplace`); mutually exclusive with
-  `restore_to_point_in_time` and with `password` / `password_wo` (a replica
-  inherits the primary's superuser).
+  replica. Mutually exclusive with `restore_to_point_in_time` and with
+  `password` / `password_wo` (a replica inherits the primary's superuser).
+  Changing or removing it **destroys and recreates** the instance as a
+  standalone primary — a live replica can't be converted in place (see
+  "Out-of-band changes" for the promotion exception).
 - **`restore_to_point_in_time = { source_id, restore_target }`** — create
   this instance by restoring another instance's backup to an RFC3339
-  timestamp. Immutable (`RequiresReplace`); the restored instance's name is
-  this resource's top-level `name`. A backup must exist at or before
+  timestamp. The restored instance's name is this resource's top-level `name`
+  and it is independent of its source. A backup must exist at or before
   `restore_target` (the first automatic backup is taken ~10 minutes after the
-  source is created).
+  source is created). The block is create-time only: changing `source_id` /
+  `restore_target` **or removing** it **destroys and recreates** the instance.
 
 ```hcl
 restore_to_point_in_time = {
@@ -256,9 +305,13 @@ restore_to_point_in_time = {
 
 - **Password rotated externally**: the next `terraform refresh` syncs
   the new value into state from the GET response.
-- **Replica promoted externally**: the resource will detect the change
-  (`is_primary` flips), but recovery requires `terraform state rm` and
-  re-importing as a fresh primary.
+- **Replica promoted externally**: the next refresh surfaces `is_primary`
+  flipping true, and the plan then **errors** ("read replica has been promoted
+  to a primary"), directing you to remove `read_replica_of` from the
+  configuration. Doing so reconciles the instance **in place** (no destroy),
+  adopting it as a standalone primary — precisely because `is_primary` is true.
+  (Removing `read_replica_of` from a *non-promoted* replica instead destroys and
+  recreates it as a standalone primary.)
 
 ## Operational commands
 
@@ -293,24 +346,24 @@ UI, or CLI directly.
 
 ### Required
 
-- `cloud_provider` (String) Cloud provider hosting the instance. Currently only 'aws' is supported.
 - `name` (String) Human-readable name. Immutable post-create; changes force destroy-and-recreate. Differs from clickhouse_service, which allows in-place rename.
-- `region` (String) Cloud region (e.g. 'us-east-1'). No client-side validation; the server rejects unsupported regions.
-- `size` (String) Instance size (VM SKU). See https://clickhouse.com/docs/cloud/managed-postgres/scaling for the supported instance families. No client-side enum; the server rejects unsupported sizes with HTTP 400 at apply time. Resizable in place.
 
 ### Optional
 
 > **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
 
-- `ha_type` (String) High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = "none"' explicitly.
-- `password` (String, Sensitive) Superuser password. Optional: set it to manage the password in Terraform, or omit it and the server generates one. Captured from the create/rotation response and refreshed from each GET (the server echoes it), so an out-of-band rotation is reconciled on the next refresh. Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Conflicts with password_wo. Stored in (sensitive) state — prefer password_wo to keep it out of state.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Superuser password, write-only: never persisted to Terraform state. Use this instead of password to keep the credential out of state. Because write-only values aren't tracked, rotation is triggered by incrementing password_wo_version (not by changing this value). Same complexity rules as password. Requires password_wo_version; conflicts with password.
+- `cloud_provider` (String) Cloud provider hosting the instance. Currently only 'aws' is supported. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
+- `ha_type` (String) High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = "none"' explicitly. Omit for a read replica or point-in-time restore (inherited from the source).
+- `password` (String, Sensitive) Superuser password. Optional: set it to manage the password in Terraform, or omit it and the server generates one. Computed and refreshed from each GET (the server echoes it), so it always reflects the live password and an out-of-band rotation is reconciled on the next refresh. Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Conflicts with password_wo. Stored in (sensitive) state.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Superuser password supplied as a write-only value: this attribute is never stored in state, keeping the literal out of your configuration and plan diffs. Note the resulting password is still readable in state via the `password` attribute and `connection_string` (the server echoes it) — write-only keeps it out of the config, not out of state. Because write-only values aren't tracked, rotation is triggered by incrementing password_wo_version (not by changing this value). Same complexity rules as password. Requires password_wo_version; conflicts with password.
 - `password_wo_version` (Number) Version counter for password_wo. Increment this to trigger a password rotation when using password_wo. Required whenever password_wo is set.
 - `pg_config` (Map of String) Postgres server parameters (pgConfig) as a key-value map. Declared parameters are the desired state — every apply sends the full map via POST /config (full replacement), so removing a key from the map removes it server-side. Set `pg_config = {}` to clear all parameters; omit the attribute to preserve the prior state (read replicas inherit the primary's parameters, and the server may surface values the configuration never declared — so it is Optional+Computed like tags). Out-of-band changes are reverted on the next apply. Some parameters require a database restart; the provider surfaces the server's restart-required hint as a warning (restart out-of-band).
 - `pgbouncer_config` (Map of String) PgBouncer connection-pooler parameters (pgBouncerConfig) as a key-value map. Same Optional+Computed semantics as pg_config; set `pgbouncer_config = {}` to clear.
-- `postgres_version` (String) Major Postgres version (e.g. '18'). The server picks the patch release within that major. Changing the major triggers destroy-and-recreate.
-- `read_replica_of` (String) ID of the primary instance to replicate. When set, this instance is created as a read replica (streaming replication) of that primary. Immutable — changing it forces destroy-and-recreate. Mutually exclusive with restore_to_point_in_time and with password / password_wo (a replica inherits the primary's superuser). Out-of-band promotion caveat: if you promote a replica via the API, removing read_replica_of here triggers RequiresReplace (destroying the promoted instance); use `terraform state rm` + re-import instead.
-- `restore_to_point_in_time` (Attributes) Create this instance by restoring another Postgres instance's backup to a point in time. Immutable — the whole block is RequiresReplace (restore is a create-time-only operation). The restored instance's name is this resource's top-level `name`. Mutually exclusive with read_replica_of. The restored instance is independent of its source. (see [below for nested schema](#nestedatt--restore_to_point_in_time))
+- `postgres_version` (String) Major Postgres version (e.g. '18'). The server picks the patch release within that major. Changing the major triggers destroy-and-recreate. Omit for a read replica or point-in-time restore (inherited from the source).
+- `read_replica_of` (String) ID of the primary instance to replicate. When set, this instance is created as a read replica (streaming replication) of that primary. Immutable for a live replica: changing or removing it destroys and recreates the instance as a standalone primary. The one exception is an out-of-band promotion — if you promote the replica via the API/UI (is_primary becomes true), changing or removing read_replica_of then reconciles state in place without destroying the promoted primary. Mutually exclusive with restore_to_point_in_time and with password / password_wo (a replica inherits the primary's superuser).
+- `region` (String) Cloud region (e.g. 'us-east-1'). No client-side validation; the server rejects unsupported regions. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
+- `restore_to_point_in_time` (Attributes) Create this instance by restoring another Postgres instance's backup to a point in time. The whole block is create-time only: changing source_id / restore_target (re-restore to a new point) OR removing it both destroy and recreate the instance. The restored instance's name is this resource's top-level `name` and it is independent of its source. cloud_provider / region / postgres_version are inherited from the source — omit them, or set them to match (a mismatch is a plan-time error); size and ha_type must be omitted (the restored instance comes up at the backup's size and a server-assigned HA mode). Mutually exclusive with read_replica_of. (see [below for nested schema](#nestedatt--restore_to_point_in_time))
+- `size` (String) Instance size (VM SKU). See https://clickhouse.com/docs/cloud/managed-postgres/scaling for the supported instance families. No client-side enum; the server rejects unsupported sizes with HTTP 400 at apply time. Resizable in place. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
 - `tags` (Map of String) Resource tags as a key-value map. Values must be non-empty (server's PATCH returns 400 on omitted value). Set `tags = {}` to clear all tags; omit the attribute to preserve the prior value.
 
 ### Read-Only

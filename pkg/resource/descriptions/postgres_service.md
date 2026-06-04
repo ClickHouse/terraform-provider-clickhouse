@@ -89,16 +89,22 @@ The superuser password can be managed three ways:
   captured into (sensitive) state as `password`.
 - **`password`** — a value you supply; changing it rotates the password.
   Stored in (sensitive) state.
-- **`password_wo` + `password_wo_version`** — a write-only password. The
-  `password` attribute is **kept null in state** even though the server echoes
-  the password on `GET`. Rotation is triggered by **incrementing
-  `password_wo_version`** (write-only values can't be diffed). Bumping the
+- **`password_wo` + `password_wo_version`** — a write-only password: the
+  `password_wo` *value* is never stored in state, keeping the literal out of
+  your configuration and plan diffs. Rotation is triggered by **incrementing
+  `password_wo_version`** (write-only values can't be diffed); bumping the
   version without supplying a `password_wo` value is a no-op.
 
-> **`connection_string` still embeds the active password.** Write-only keeps
-> the value out of the dedicated `password` attribute, but the server returns a
-> `connection_string` with the credential in the URI. It is marked `Sensitive`,
-> but the state file stores it in plaintext — there is no way to suppress it.
+The `password` attribute is **always hydrated from the server** (which echoes
+it on every `GET`), so it holds the live password in all three modes — including
+write-only. In other words, `password_wo` keeps the secret out of your
+*configuration*, not out of *state*.
+
+> **The password is in state regardless of which mode you use.** Both the
+> `password` attribute and the `connection_string` (which embeds the credential
+> in the URI) are stored in the state file in plaintext. They're marked
+> `Sensitive`, but there is no way to suppress them — ensure your state backend
+> is encrypted at rest.
 
 Rules: `password` and `password_wo` are mutually exclusive; both require
 **≥12 chars with at least one lowercase, one uppercase, and one digit**
@@ -108,16 +114,35 @@ window before a new password becomes active.
 
 ## Read replicas and point-in-time restore
 
+Both create the instance from a **source**, so the create-time attributes that
+define where it runs and how big it is are **inherited from the source** — omit
+them. The provider reads the source at plan time and fills them in:
+
+- `cloud_provider`, `region`, `postgres_version` (and, for a **replica**,
+  `size`) are reproduced verbatim. Omit them, or set them to **match** the
+  source — a mismatch is a plan-time error ("conflicts with the source
+  instance"). The provider pins these into the plan so it shows real values.
+- `size` on a **restore** (the restored instance comes up at the **backup's**
+  size) and `ha_type` (server-assigned for a new replica/restore) are **not**
+  taken from the source — they must be **omitted**; setting them is a plan-time
+  error. They show as "(known after apply)".
+
+If the source ID doesn't exist, the plan errors. (Once the instance exists you
+can resize it or change `ha_type` in place — those are normal in-place updates.)
+
 - **`read_replica_of`** — set to a primary's ID to create a streaming read
-  replica. Immutable (`RequiresReplace`); mutually exclusive with
-  `restore_to_point_in_time` and with `password` / `password_wo` (a replica
-  inherits the primary's superuser).
+  replica. Mutually exclusive with `restore_to_point_in_time` and with
+  `password` / `password_wo` (a replica inherits the primary's superuser).
+  Changing or removing it **destroys and recreates** the instance as a
+  standalone primary — a live replica can't be converted in place (see
+  "Out-of-band changes" for the promotion exception).
 - **`restore_to_point_in_time = { source_id, restore_target }`** — create
   this instance by restoring another instance's backup to an RFC3339
-  timestamp. Immutable (`RequiresReplace`); the restored instance's name is
-  this resource's top-level `name`. A backup must exist at or before
+  timestamp. The restored instance's name is this resource's top-level `name`
+  and it is independent of its source. A backup must exist at or before
   `restore_target` (the first automatic backup is taken ~10 minutes after the
-  source is created).
+  source is created). The block is create-time only: changing `source_id` /
+  `restore_target` **or removing** it **destroys and recreates** the instance.
 
 ```hcl
 restore_to_point_in_time = {
@@ -130,9 +155,13 @@ restore_to_point_in_time = {
 
 - **Password rotated externally**: the next `terraform refresh` syncs
   the new value into state from the GET response.
-- **Replica promoted externally**: the resource will detect the change
-  (`is_primary` flips), but recovery requires `terraform state rm` and
-  re-importing as a fresh primary.
+- **Replica promoted externally**: the next refresh surfaces `is_primary`
+  flipping true, and the plan then **errors** ("read replica has been promoted
+  to a primary"), directing you to remove `read_replica_of` from the
+  configuration. Doing so reconciles the instance **in place** (no destroy),
+  adopting it as a standalone primary — precisely because `is_primary` is true.
+  (Removing `read_replica_of` from a *non-promoted* replica instead destroys and
+  recreates it as a standalone primary.)
 
 ## Operational commands
 
