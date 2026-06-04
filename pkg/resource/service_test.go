@@ -510,6 +510,58 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			updateTimestamp: false,
 			wantErr:         false,
 		},
+		{
+			name:  "Maps stopped state to stop=true",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.State = api.StateStopped
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.Stop = types.BoolValue(true)
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			name:  "Maps stopping state to stop=true",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.State = api.StateStopping
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.Stop = types.BoolValue(true)
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			name:  "Maps running state to stop=false",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.State = api.StateRunning
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.Stop = types.BoolValue(false)
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			name:  "Maps idle state to stop=false",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.State = api.StateIdle
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.Stop = types.BoolValue(false)
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -591,6 +643,7 @@ func getInitialState() models.ServiceResourceModel {
 		MaxTotalMemoryGb:                types.Int64{},
 		NumReplicas:                     types.Int64{},
 		IdleTimeoutMinutes:              types.Int64{},
+		Stop:                            types.BoolValue(false),
 		IAMRole:                         types.StringValue(""),
 		PrivateEndpointConfig:           privateEndpointConfig,
 		EncryptionKey:                   types.StringNull(),
@@ -747,4 +800,75 @@ func tagsEqual(a, b []api.Tag) bool {
 	}
 
 	return true
+}
+
+func TestAnySecondaryInWarehouse(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+	strPtr := func(s string) *string { return &s }
+
+	tests := []struct {
+		name        string
+		services    []api.Service
+		warehouseID string
+		selfID      string
+		want        bool
+	}{
+		{
+			name: "Secondary present in same warehouse returns true",
+			services: []api.Service{
+				{Id: "primary", IsPrimary: boolPtr(true), DataWarehouseId: strPtr("wh-1")},
+				{Id: "secondary", IsPrimary: boolPtr(false), DataWarehouseId: strPtr("wh-1")},
+			},
+			warehouseID: "wh-1",
+			selfID:      "primary",
+			want:        true,
+		},
+		{
+			name: "Only the primary itself in the list returns false",
+			services: []api.Service{
+				{Id: "primary", IsPrimary: boolPtr(true), DataWarehouseId: strPtr("wh-1")},
+			},
+			warehouseID: "wh-1",
+			selfID:      "primary",
+			want:        false,
+		},
+		{
+			name: "Another primary in a different warehouse returns false",
+			services: []api.Service{
+				{Id: "primary", IsPrimary: boolPtr(true), DataWarehouseId: strPtr("wh-1")},
+				{Id: "other-primary", IsPrimary: boolPtr(true), DataWarehouseId: strPtr("wh-2")},
+			},
+			warehouseID: "wh-1",
+			selfID:      "primary",
+			want:        false,
+		},
+		{
+			name: "Empty warehouseID returns false",
+			services: []api.Service{
+				{Id: "secondary", IsPrimary: boolPtr(false), DataWarehouseId: strPtr("wh-1")},
+			},
+			warehouseID: "",
+			selfID:      "primary",
+			want:        false,
+		},
+		{
+			name: "Service with nil IsPrimary in same warehouse is treated as secondary",
+			services: []api.Service{
+				{Id: "primary", IsPrimary: boolPtr(true), DataWarehouseId: strPtr("wh-1")},
+				{Id: "unknown", IsPrimary: nil, DataWarehouseId: strPtr("wh-1")},
+			},
+			warehouseID: "wh-1",
+			selfID:      "primary",
+			want:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := anySecondaryInWarehouse(tt.services, tt.warehouseID, tt.selfID)
+			if got != tt.want {
+				t.Errorf("'%s' anySecondaryInWarehouse = %v, want %v", tt.name, got, tt.want)
+			}
+		})
+	}
 }
