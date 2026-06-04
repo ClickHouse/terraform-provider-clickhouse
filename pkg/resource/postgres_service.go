@@ -78,6 +78,46 @@ func configIsOrigin(config models.PostgresServiceResourceModel) bool {
 	return !config.ReadReplicaOf.IsNull() || !config.RestoreToPointInTime.IsNull()
 }
 
+// originSourceChanged reports whether an update recreates the instance from a
+// (different) source, so its inherited attributes must be re-derived from that
+// source rather than left pinned to the old one. That is: changing
+// restore_to_point_in_time (any change recreates), or re-pointing read_replica_of
+// on a still-live replica (a promoted primary, is_primary=true, is adopted in
+// place — not recreated). Unknown signals defer (handled once resolved).
+func originSourceChanged(config, state models.PostgresServiceResourceModel) bool {
+	if !config.RestoreToPointInTime.IsNull() && !config.RestoreToPointInTime.IsUnknown() &&
+		!config.RestoreToPointInTime.Equal(state.RestoreToPointInTime) {
+		return true
+	}
+	if !config.ReadReplicaOf.IsNull() && !config.ReadReplicaOf.IsUnknown() &&
+		!config.ReadReplicaOf.Equal(state.ReadReplicaOf) && !state.IsPrimary.ValueBool() {
+		return true
+	}
+	return false
+}
+
+// forbidEmptyConfigOnCreate rejects an explicit empty pg_config / pgbouncer_config
+// on a create (or a source-change replace). The server's create endpoints
+// validate these as undefinedOr(isPopulatedObject), so an empty {} is a 400 —
+// omit the attribute to use the default (or inherit from the source for a read
+// replica / restore), or set at least one parameter. (An empty map IS valid on
+// a plain update, where it clears all parameters via POST /config.)
+func forbidEmptyConfigOnCreate(config models.PostgresServiceResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	check := func(name string, m types.Map) {
+		if !m.IsNull() && !m.IsUnknown() && len(m.Elements()) == 0 {
+			diags.AddAttributeError(
+				path.Root(name),
+				"Empty "+name+" not allowed on create",
+				"`"+name+" = {}` is rejected by the server on create — omit it to use the default (or inherit from the source for a read replica / restore), or set at least one parameter. An empty map is only valid on an update, where it clears all parameters.",
+			)
+		}
+	}
+	check("pg_config", config.PgConfig)
+	check("pgbouncer_config", config.PgBouncerConfig)
+	return diags
+}
+
 // sourceAttributeConflicts validates the create-time attributes a read replica /
 // restore takes from its source. cloud_provider / region / postgres_version
 // (and, for a replica, size) are reproduced verbatim on the new instance, so a
@@ -812,6 +852,7 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 		// (create-scoped: ModifyPlan has prior state, so a later resize /
 		// origin-block edit isn't flagged).
 		resp.Diagnostics.Append(requireStandardCreateAttributes(config)...)
+		resp.Diagnostics.Append(forbidEmptyConfigOnCreate(config)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -825,6 +866,21 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 	// --- update --------------------------------------------------------------
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// A replace that recreates the instance from a (different) source — changing
+	// read_replica_of on a live replica, or changing restore_to_point_in_time —
+	// re-derives the inherited attributes from the new source, exactly like a
+	// create. Without this the geometry stays pinned to the OLD source (via
+	// UseStateForUnknown) while the apply provisions from the new source, which
+	// Terraform reports as an inconsistent result.
+	if originSourceChanged(config, state) {
+		resp.Diagnostics.Append(forbidEmptyConfigOnCreate(config)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		r.planInheritedAttributes(ctx, config, resp)
 		return
 	}
 
@@ -919,14 +975,30 @@ func (r *PostgresServiceResource) planInheritedAttributes(ctx context.Context, c
 		return
 	}
 
+	// Pin or reset EVERY inherited attribute so none can survive as a stale
+	// prior-state value (UseStateForUnknown) when this runs on a source-change
+	// replace: pin the ones reproduced verbatim from the source; mark the
+	// server-/backup-determined ones unknown so apply fills them.
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("cloud_provider"), types.StringValue(src.Provider))...)
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("region"), types.StringValue(src.Region))...)
-	if src.PostgresVersion != "" {
-		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("postgres_version"), types.StringValue(src.PostgresVersion))...)
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("postgres_version"), stringOrUnknown(src.PostgresVersion))...)
+	if isReplica {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("size"), stringOrUnknown(src.Size))...)
+	} else {
+		// restore: the new instance comes up at the backup's size, not the source's.
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("size"), types.StringUnknown())...)
 	}
-	if isReplica && src.Size != "" {
-		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("size"), types.StringValue(src.Size))...)
+	// ha_type is server-assigned for a new replica/restore.
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("ha_type"), types.StringUnknown())...)
+}
+
+// stringOrUnknown returns a known value, or Unknown for an empty string, so an
+// omitted server field doesn't pin a stale prior-state value on a replace.
+func stringOrUnknown(s string) types.String {
+	if s == "" {
+		return types.StringUnknown()
 	}
+	return types.StringValue(s)
 }
 
 // readReplicaOfRequiresReplace replaces the instance when read_replica_of is

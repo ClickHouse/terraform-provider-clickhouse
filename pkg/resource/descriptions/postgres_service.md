@@ -73,8 +73,12 @@ pgbouncer_config = {
   prior state rather than clearing it — a read replica inherits its primary's
   parameters, and the server may surface values the configuration never
   declared, so those must be allowed into state. To change parameters, edit the
-  map; to drop one, remove its key. Writing `pg_config = {}` clears all declared
-  parameters (same as `tags = {}`).
+  map; to drop one, remove its key. Writing `pg_config = {}` on an existing
+  instance clears all declared parameters (same as `tags = {}`). An empty
+  `pg_config = {}` is **only valid on update** — the server rejects it on create,
+  so on a create (including a read replica / restore) omit the attribute to use
+  the default / inherit, or set at least one parameter (the provider blocks an
+  empty map at plan time with a clear error).
 - **Values are strings** — quote numbers (`"200"`).
 - **Restarts are not automatic.** Some parameter changes require a database
   restart; the provider surfaces the server's restart-required hint as a

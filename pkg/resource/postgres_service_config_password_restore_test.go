@@ -383,6 +383,56 @@ func TestConfigIsOrigin(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// originSourceChanged — replace that re-derives inherited attrs from a new source
+// ---------------------------------------------------------------------------
+
+func TestOriginSourceChanged(t *testing.T) {
+	restoreType := map[string]attr.Type{"source_id": types.StringType, "restore_target": types.StringType}
+	restore := func(src, target string) types.Object {
+		if src == "" {
+			return types.ObjectNull(restoreType)
+		}
+		return types.ObjectValueMust(restoreType, map[string]attr.Value{
+			"source_id":      types.StringValue(src),
+			"restore_target": types.StringValue(target),
+		})
+	}
+	mk := func(rro string, isPrimary bool, rSrc, rTarget string) models.PostgresServiceResourceModel {
+		ro := types.StringNull()
+		if rro != "" {
+			ro = types.StringValue(rro)
+		}
+		return models.PostgresServiceResourceModel{
+			ReadReplicaOf:        ro,
+			IsPrimary:            types.BoolValue(isPrimary),
+			RestoreToPointInTime: restore(rSrc, rTarget),
+		}
+	}
+	cases := []struct {
+		name   string
+		config models.PostgresServiceResourceModel
+		state  models.PostgresServiceResourceModel
+		want   bool
+	}{
+		{"replica unchanged", mk("p1", false, "", ""), mk("p1", false, "", ""), false},
+		{"replica re-pointed (live) → re-derive", mk("p2", false, "", ""), mk("p1", false, "", ""), true},
+		{"replica re-pointed but promoted → no (adopted in place)", mk("p2", true, "", ""), mk("p1", true, "", ""), false},
+		{"replica removed → no (becoming standalone)", mk("", false, "", ""), mk("p1", false, "", ""), false},
+		{"restore unchanged", mk("", true, "s1", "2026-06-01T00:00:00Z"), mk("", true, "s1", "2026-06-01T00:00:00Z"), false},
+		{"restore source changed → re-derive", mk("", true, "s2", "2026-06-01T00:00:00Z"), mk("", true, "s1", "2026-06-01T00:00:00Z"), true},
+		{"restore target changed → re-derive", mk("", true, "s1", "2026-07-01T00:00:00Z"), mk("", true, "s1", "2026-06-01T00:00:00Z"), true},
+		{"standard (no origin)", mk("", true, "", ""), mk("", true, "", ""), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := originSourceChanged(c.config, c.state); got != c.want {
+				t.Errorf("originSourceChanged = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // readReplicaOfShouldReplace — promotion-aware replace decision
 // ---------------------------------------------------------------------------
 
@@ -431,6 +481,35 @@ func TestPlanToReadReplicaRequest(t *testing.T) {
 	}
 	if body.Name != "replica-1" || body.PgConfig["max_connections"] != "200" || len(body.Tags) != 1 {
 		t.Errorf("unexpected body: %#v", body)
+	}
+}
+
+// An explicit empty pg_config / pgbouncer_config is rejected by the server on
+// create (undefinedOr(isPopulatedObject)), so the provider blocks it at plan.
+func TestForbidEmptyConfigOnCreate(t *testing.T) {
+	empty := types.MapValueMust(types.StringType, map[string]attr.Value{})
+	pop := mapTags("max_connections", "200")
+	null := types.MapNull(types.StringType)
+	cases := []struct {
+		name    string
+		pg      types.Map
+		pgb     types.Map
+		wantErr int
+	}{
+		{"both omitted (null)", null, null, 0},
+		{"both populated", pop, pop, 0},
+		{"pg_config empty", empty, null, 1},
+		{"pgbouncer_config empty", null, empty, 1},
+		{"both empty", empty, empty, 2},
+		{"pg populated, pgbouncer empty", pop, empty, 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := models.PostgresServiceResourceModel{PgConfig: c.pg, PgBouncerConfig: c.pgb}
+			if diags := forbidEmptyConfigOnCreate(m); diags.ErrorsCount() != c.wantErr {
+				t.Errorf("want %d errors; got %d: %v", c.wantErr, diags.ErrorsCount(), diags)
+			}
+		})
 	}
 }
 
