@@ -2145,13 +2145,45 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// NOTE: managed_table is intentionally left untouched here. For DB pipes (Postgres/MySQL/
-	// BigQuery/MongoDB) the field is not applicable — tables are managed per-mapping via
-	// table_mappings and the value is never sent to or returned by the API. Overriding it to a
-	// fixed value (as a previous revision did) breaks Terraform's plan-consistency check whenever
-	// the user explicitly configures it (e.g. managed_table = true), producing a "planned value
-	// does not match config value" error. syncClickPipeState preserves the configured value from
-	// state instead, keeping plan, create, and read consistent. See issue #543.
+	// managed_table handling for DB pipes (Postgres/MySQL/BigQuery/MongoDB). The field is not
+	// applicable to these sources — tables are managed per-mapping via table_mappings and the value
+	// is never sent to or returned by the API. We must NOT override an explicitly-configured value:
+	// doing so breaks Terraform's plan-consistency check and produced the "planned value does not
+	// match config value" error in issue #543. When the field is omitted from config, however, we
+	// copy the prior state value into the plan rather than letting the schema default (true) take
+	// over. Because managed_table has RequiresReplace(), this keeps provider upgrades
+	// non-destructive for existing DB pipes whose state was written as managed_table = false by
+	// older provider versions — without it, an omitted field could plan false -> true and force a
+	// spurious resource replacement.
+	if !request.State.Raw.IsNull() && !state.Destination.IsNull() {
+		var planSourceModel models.ClickPipeSourceModel
+		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+			sourceType := getSourceType(planSourceModel)
+			isDBPipe := sourceType == SourceTypePostgres || sourceType == SourceTypeMySQL || sourceType == SourceTypeBigQuery || sourceType == SourceTypeMongoDB
+
+			// Did the user set destination.managed_table explicitly in config?
+			configHasManagedTable := false
+			if !config.Destination.IsNull() {
+				var configDestination models.ClickPipeDestinationModel
+				if diags := config.Destination.As(ctx, &configDestination, basetypes.ObjectAsOptions{}); !diags.HasError() {
+					configHasManagedTable = !configDestination.ManagedTable.IsNull()
+				}
+			}
+
+			if isDBPipe && !configHasManagedTable && !plan.Destination.IsNull() {
+				var stateDestination, planDestination models.ClickPipeDestinationModel
+				if diags := state.Destination.As(ctx, &stateDestination, basetypes.ObjectAsOptions{}); !diags.HasError() {
+					if diags := plan.Destination.As(ctx, &planDestination, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						if !stateDestination.ManagedTable.IsNull() && !planDestination.ManagedTable.Equal(stateDestination.ManagedTable) {
+							planDestination.ManagedTable = stateDestination.ManagedTable
+							plan.Destination = planDestination.ObjectValue()
+							response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// Handle trigger_resync auto-reset behavior
 	// If config has trigger_resync = true, set the plan to false to match the final state
