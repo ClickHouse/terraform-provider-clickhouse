@@ -350,6 +350,70 @@ func TestSourceAttributeConflicts(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// configIsOrigin — replica/restore detection (deferred when interpolated)
+// ---------------------------------------------------------------------------
+
+func TestConfigIsOrigin(t *testing.T) {
+	restoreType := map[string]attr.Type{"source_id": types.StringType, "restore_target": types.StringType}
+	nullRestore := types.ObjectNull(restoreType)
+	setRestore := types.ObjectValueMust(restoreType, map[string]attr.Value{
+		"source_id":      types.StringValue("src-1"),
+		"restore_target": types.StringValue("2026-06-01T00:00:00Z"),
+	})
+	cases := []struct {
+		name    string
+		rro     types.String
+		restore types.Object
+		want    bool
+	}{
+		{"standard (both null)", types.StringNull(), nullRestore, false},
+		{"replica", types.StringValue("primary-1"), nullRestore, true},
+		{"restore", types.StringNull(), setRestore, true},
+		{"read_replica_of unknown → deferred", types.StringUnknown(), nullRestore, false},
+		{"restore unknown → deferred", types.StringNull(), types.ObjectUnknown(restoreType), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := models.PostgresServiceResourceModel{ReadReplicaOf: c.rro, RestoreToPointInTime: c.restore}
+			if got := configIsOrigin(m); got != c.want {
+				t.Errorf("configIsOrigin = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// readReplicaOfShouldReplace — promotion-aware replace decision
+// ---------------------------------------------------------------------------
+
+func TestReadReplicaOfShouldReplace(t *testing.T) {
+	primary := types.StringValue("primary-1")
+	other := types.StringValue("primary-2")
+	none := types.StringNull()
+	cases := []struct {
+		name      string
+		state     types.String
+		plan      types.String
+		isPrimary bool
+		want      bool
+	}{
+		{"unchanged live replica", primary, primary, false, false},
+		{"unchanged promoted", primary, primary, true, false},
+		{"repoint live replica → replace", primary, other, false, true},
+		{"remove from live replica → replace", primary, none, false, true},
+		{"repoint promoted → in place", primary, other, true, false},
+		{"remove from promoted → in place", primary, none, true, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := readReplicaOfShouldReplace(c.state, c.plan, c.isPrimary); got != c.want {
+				t.Errorf("readReplicaOfShouldReplace(%v,%v,%v) = %v, want %v", c.state, c.plan, c.isPrimary, got, c.want)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // restore / read replica request builders
 // ---------------------------------------------------------------------------
 

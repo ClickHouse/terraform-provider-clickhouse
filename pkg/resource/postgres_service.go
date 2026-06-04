@@ -938,12 +938,22 @@ func readReplicaOfRequiresReplace(ctx context.Context, req planmodifier.StringRe
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return // create or destroy: nothing to replace
 	}
-	if req.StateValue.Equal(req.PlanValue) {
-		return // unchanged
-	}
 	var isPrimary types.Bool
 	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("is_primary"), &isPrimary)...)
-	resp.RequiresReplace = !isPrimary.ValueBool()
+	resp.RequiresReplace = readReplicaOfShouldReplace(req.StateValue, req.PlanValue, isPrimary.ValueBool())
+}
+
+// readReplicaOfShouldReplace is the pure decision behind readReplicaOfRequiresReplace:
+// changing or removing read_replica_of replaces a live replica, but once the
+// instance has been promoted out-of-band (is_primary=true) it's already a
+// standalone primary, so the change is reconciled in place. Unchanged → no
+// replace. (is_primary defaults to false when unreadable, so the safe
+// "replace a live replica" path wins.)
+func readReplicaOfShouldReplace(stateVal, planVal types.String, isPrimary bool) bool {
+	if stateVal.Equal(planVal) {
+		return false // unchanged
+	}
+	return !isPrimary
 }
 
 // ---------------------------------------------------------------------------
