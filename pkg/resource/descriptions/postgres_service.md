@@ -91,8 +91,9 @@ The superuser password can be managed three ways:
   Stored in (sensitive) state.
 - **`password_wo` + `password_wo_version`** — a write-only password: the
   `password_wo` *value* is never stored in state, keeping the literal out of
-  your configuration and plan diffs. Rotation is triggered by **incrementing
-  `password_wo_version`** (write-only values can't be diffed); bumping the
+  your configuration and plan diffs. Rotation is triggered by **changing
+  `password_wo_version`** — incrementing it by convention, though any change
+  rotates (write-only values can't be diffed); changing the
   version without supplying a `password_wo` value is a no-op.
 
 The `password` attribute is **always hydrated from the server** (which echoes

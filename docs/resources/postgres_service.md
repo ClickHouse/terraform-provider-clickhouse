@@ -67,8 +67,9 @@ description: |-
   captured into (sensitive) state as password.password — a value you supply; changing it rotates the password.
   Stored in (sensitive) state.password_wo + password_wo_version — a write-only password: the
   password_wo value is never stored in state, keeping the literal out of
-  your configuration and plan diffs. Rotation is triggered by incrementing
-  password_wo_version (write-only values can't be diffed); bumping the
+  your configuration and plan diffs. Rotation is triggered by changing
+  password_wo_version — incrementing it by convention, though any change
+  rotates (write-only values can't be diffed); changing the
   version without supplying a password_wo value is a no-op.
   The password attribute is always hydrated from the server (which echoes
   it on every GET), so it holds the live password in all three modes — including
@@ -241,8 +242,9 @@ The superuser password can be managed three ways:
   Stored in (sensitive) state.
 - **`password_wo` + `password_wo_version`** — a write-only password: the
   `password_wo` *value* is never stored in state, keeping the literal out of
-  your configuration and plan diffs. Rotation is triggered by **incrementing
-  `password_wo_version`** (write-only values can't be diffed); bumping the
+  your configuration and plan diffs. Rotation is triggered by **changing
+  `password_wo_version`** — incrementing it by convention, though any change
+  rotates (write-only values can't be diffed); changing the
   version without supplying a `password_wo` value is a no-op.
 
 The `password` attribute is **always hydrated from the server** (which echoes
@@ -355,8 +357,8 @@ UI, or CLI directly.
 - `cloud_provider` (String) Cloud provider hosting the instance. Currently only 'aws' is supported. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
 - `ha_type` (String) High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = "none"' explicitly. Omit for a read replica or point-in-time restore (inherited from the source).
 - `password` (String, Sensitive) Superuser password. Optional: set it to manage the password in Terraform, or omit it and the server generates one. Computed and refreshed from each GET (the server echoes it), so it always reflects the live password and an out-of-band rotation is reconciled on the next refresh. Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Conflicts with password_wo. Stored in (sensitive) state.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Superuser password supplied as a write-only value: this attribute is never stored in state, keeping the literal out of your configuration and plan diffs. Note the resulting password is still readable in state via the `password` attribute and `connection_string` (the server echoes it) — write-only keeps it out of the config, not out of state. Because write-only values aren't tracked, rotation is triggered by incrementing password_wo_version (not by changing this value). Same complexity rules as password. Requires password_wo_version; conflicts with password.
-- `password_wo_version` (Number) Version counter for password_wo. Increment this to trigger a password rotation when using password_wo. Required whenever password_wo is set.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Superuser password supplied as a write-only value: this attribute is never stored in state, keeping the literal out of your configuration and plan diffs. Note the resulting password is still readable in state via the `password` attribute and `connection_string` (the server echoes it) — write-only keeps it out of the config, not out of state. Because write-only values aren't tracked, rotation is triggered by **changing** password_wo_version (incrementing it by convention) — any change rotates, mirroring clickhouse_service — not by editing this value. Same complexity rules as password. Requires password_wo_version; conflicts with password.
+- `password_wo_version` (Number) Version counter for password_wo. Change this (incrementing by convention) to trigger a password rotation when using password_wo — any change rotates. Required whenever password_wo is set.
 - `pg_config` (Map of String) Postgres server parameters (pgConfig) as a key-value map. Declared parameters are the desired state — every apply sends the full map via POST /config (full replacement), so removing a key from the map removes it server-side. Set `pg_config = {}` to clear all parameters; omit the attribute to preserve the prior state (read replicas inherit the primary's parameters, and the server may surface values the configuration never declared — so it is Optional+Computed like tags). Out-of-band changes are reverted on the next apply. Some parameters require a database restart; the provider surfaces the server's restart-required hint as a warning (restart out-of-band).
 - `pgbouncer_config` (Map of String) PgBouncer connection-pooler parameters (pgBouncerConfig) as a key-value map. Same Optional+Computed semantics as pg_config; set `pgbouncer_config = {}` to clear.
 - `postgres_version` (String) Major Postgres version (e.g. '18'). The server picks the patch release within that major. Changing the major triggers destroy-and-recreate. Omit for a read replica or point-in-time restore (inherited from the source).

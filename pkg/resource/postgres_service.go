@@ -261,8 +261,8 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					// Optional+Computed (like tags): a read replica inherits the
 					// primary's config, and GET /config can return parameters the
 					// user never declared — those must be allowed into state
-					// without an inconsistent-result error. USFU pins the prior
-					// value on omission; `pg_config = {}` clears all parameters.
+					// without an inconsistent-result error. UseStateForUnknown pins
+					// the prior value on omission; `pg_config = {}` clears all.
 					mapplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.Map{
@@ -351,7 +351,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				// config-aware distinction.
 			},
 			"password_wo": schema.StringAttribute{
-				Description: "Superuser password supplied as a write-only value: this attribute is never stored in state, keeping the literal out of your configuration and plan diffs. Note the resulting password is still readable in state via the `password` attribute and `connection_string` (the server echoes it) — write-only keeps it out of the config, not out of state. Because write-only values aren't tracked, rotation is triggered by incrementing password_wo_version (not by changing this value). Same complexity rules as password. Requires password_wo_version; conflicts with password.",
+				Description: "Superuser password supplied as a write-only value: this attribute is never stored in state, keeping the literal out of your configuration and plan diffs. Note the resulting password is still readable in state via the `password` attribute and `connection_string` (the server echoes it) — write-only keeps it out of the config, not out of state. Because write-only values aren't tracked, rotation is triggered by **changing** password_wo_version (incrementing it by convention) — any change rotates, mirroring clickhouse_service — not by editing this value. Same complexity rules as password. Requires password_wo_version; conflicts with password.",
 				Optional:    true,
 				Sensitive:   true,
 				WriteOnly:   true,
@@ -362,7 +362,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				),
 			},
 			"password_wo_version": schema.Int64Attribute{
-				Description: "Version counter for password_wo. Increment this to trigger a password rotation when using password_wo. Required whenever password_wo is set.",
+				Description: "Version counter for password_wo. Change this (incrementing by convention) to trigger a password rotation when using password_wo — any change rotates. Required whenever password_wo is set.",
 				Optional:    true,
 				Validators: []validator.Int64{
 					int64validator.AlsoRequires(path.MatchRoot("password_wo")),
@@ -787,8 +787,9 @@ func (r *PostgresServiceResource) ImportState(ctx context.Context, req resource.
 //     (a write-only version bump, or an interpolated password) so mark them
 //     unknown; otherwise pin the prior state value. `password` only needs
 //     setting when the user didn't configure a literal (a configured value is
-//     already the known plan value); this replaces USFU, which can't tell
-//     "unknown because unconfigured" from "unknown because interpolated".
+//     already the known plan value); this replaces the UseStateForUnknown plan
+//     modifier, which can't tell "unknown because unconfigured" from "unknown
+//     because interpolated".
 //
 // read_replica_of and restore_to_point_in_time are plain (non-Computed)
 // attributes whose RequiresReplaceIf / RequiresReplace modifiers own their
