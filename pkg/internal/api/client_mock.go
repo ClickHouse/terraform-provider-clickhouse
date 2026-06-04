@@ -26,6 +26,13 @@ type ClientMock struct {
 	beforeChangeClickPipeStateCounter uint64
 	ChangeClickPipeStateMock          mClientMockChangeClickPipeState
 
+	funcChangeServiceState          func(ctx context.Context, serviceId string, command string) (sp1 *Service, err error)
+	funcChangeServiceStateOrigin    string
+	inspectFuncChangeServiceState   func(ctx context.Context, serviceId string, command string)
+	afterChangeServiceStateCounter  uint64
+	beforeChangeServiceStateCounter uint64
+	ChangeServiceStateMock          mClientMockChangeServiceState
+
 	funcCreateClickPipe          func(ctx context.Context, serviceId string, clickPipe ClickPipe) (cp1 *ClickPipe, err error)
 	funcCreateClickPipeOrigin    string
 	inspectFuncCreateClickPipe   func(ctx context.Context, serviceId string, clickPipe ClickPipe)
@@ -292,6 +299,13 @@ type ClientMock struct {
 	beforeListRolesCounter uint64
 	ListRolesMock          mClientMockListRoles
 
+	funcListServices          func(ctx context.Context) (sa1 []Service, err error)
+	funcListServicesOrigin    string
+	inspectFuncListServices   func(ctx context.Context)
+	afterListServicesCounter  uint64
+	beforeListServicesCounter uint64
+	ListServicesMock          mClientMockListServices
+
 	funcReplacePostgresConfig          func(ctx context.Context, postgresId string, body PostgresConfig) (pp1 *PostgresConfigUpdateResponse, err error)
 	funcReplacePostgresConfigOrigin    string
 	inspectFuncReplacePostgresConfig   func(ctx context.Context, postgresId string, body PostgresConfig)
@@ -472,6 +486,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.ChangeClickPipeStateMock = mClientMockChangeClickPipeState{mock: m}
 	m.ChangeClickPipeStateMock.callArgs = []*ClientMockChangeClickPipeStateParams{}
 
+	m.ChangeServiceStateMock = mClientMockChangeServiceState{mock: m}
+	m.ChangeServiceStateMock.callArgs = []*ClientMockChangeServiceStateParams{}
+
 	m.CreateClickPipeMock = mClientMockCreateClickPipe{mock: m}
 	m.CreateClickPipeMock.callArgs = []*ClientMockCreateClickPipeParams{}
 
@@ -585,6 +602,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.ListRolesMock = mClientMockListRoles{mock: m}
 	m.ListRolesMock.callArgs = []*ClientMockListRolesParams{}
+
+	m.ListServicesMock = mClientMockListServices{mock: m}
+	m.ListServicesMock.callArgs = []*ClientMockListServicesParams{}
 
 	m.ReplacePostgresConfigMock = mClientMockReplacePostgresConfig{mock: m}
 	m.ReplacePostgresConfigMock.callArgs = []*ClientMockReplacePostgresConfigParams{}
@@ -1065,6 +1085,380 @@ func (m *ClientMock) MinimockChangeClickPipeStateInspect() {
 	if !m.ChangeClickPipeStateMock.invocationsDone() && afterChangeClickPipeStateCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ChangeClickPipeState at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ChangeClickPipeStateMock.expectedInvocations), m.ChangeClickPipeStateMock.expectedInvocationsOrigin, afterChangeClickPipeStateCounter)
+	}
+}
+
+type mClientMockChangeServiceState struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockChangeServiceStateExpectation
+	expectations       []*ClientMockChangeServiceStateExpectation
+
+	callArgs []*ClientMockChangeServiceStateParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockChangeServiceStateExpectation specifies expectation struct of the Client.ChangeServiceState
+type ClientMockChangeServiceStateExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockChangeServiceStateParams
+	paramPtrs          *ClientMockChangeServiceStateParamPtrs
+	expectationOrigins ClientMockChangeServiceStateExpectationOrigins
+	results            *ClientMockChangeServiceStateResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockChangeServiceStateParams contains parameters of the Client.ChangeServiceState
+type ClientMockChangeServiceStateParams struct {
+	ctx       context.Context
+	serviceId string
+	command   string
+}
+
+// ClientMockChangeServiceStateParamPtrs contains pointers to parameters of the Client.ChangeServiceState
+type ClientMockChangeServiceStateParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	command   *string
+}
+
+// ClientMockChangeServiceStateResults contains results of the Client.ChangeServiceState
+type ClientMockChangeServiceStateResults struct {
+	sp1 *Service
+	err error
+}
+
+// ClientMockChangeServiceStateOrigins contains origins of expectations of the Client.ChangeServiceState
+type ClientMockChangeServiceStateExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originCommand   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmChangeServiceState *mClientMockChangeServiceState) Optional() *mClientMockChangeServiceState {
+	mmChangeServiceState.optional = true
+	return mmChangeServiceState
+}
+
+// Expect sets up expected params for Client.ChangeServiceState
+func (mmChangeServiceState *mClientMockChangeServiceState) Expect(ctx context.Context, serviceId string, command string) *mClientMockChangeServiceState {
+	if mmChangeServiceState.mock.funcChangeServiceState != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by Set")
+	}
+
+	if mmChangeServiceState.defaultExpectation == nil {
+		mmChangeServiceState.defaultExpectation = &ClientMockChangeServiceStateExpectation{}
+	}
+
+	if mmChangeServiceState.defaultExpectation.paramPtrs != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by ExpectParams functions")
+	}
+
+	mmChangeServiceState.defaultExpectation.params = &ClientMockChangeServiceStateParams{ctx, serviceId, command}
+	mmChangeServiceState.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmChangeServiceState.expectations {
+		if minimock.Equal(e.params, mmChangeServiceState.defaultExpectation.params) {
+			mmChangeServiceState.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmChangeServiceState.defaultExpectation.params)
+		}
+	}
+
+	return mmChangeServiceState
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ChangeServiceState
+func (mmChangeServiceState *mClientMockChangeServiceState) ExpectCtxParam1(ctx context.Context) *mClientMockChangeServiceState {
+	if mmChangeServiceState.mock.funcChangeServiceState != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by Set")
+	}
+
+	if mmChangeServiceState.defaultExpectation == nil {
+		mmChangeServiceState.defaultExpectation = &ClientMockChangeServiceStateExpectation{}
+	}
+
+	if mmChangeServiceState.defaultExpectation.params != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by Expect")
+	}
+
+	if mmChangeServiceState.defaultExpectation.paramPtrs == nil {
+		mmChangeServiceState.defaultExpectation.paramPtrs = &ClientMockChangeServiceStateParamPtrs{}
+	}
+	mmChangeServiceState.defaultExpectation.paramPtrs.ctx = &ctx
+	mmChangeServiceState.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmChangeServiceState
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.ChangeServiceState
+func (mmChangeServiceState *mClientMockChangeServiceState) ExpectServiceIdParam2(serviceId string) *mClientMockChangeServiceState {
+	if mmChangeServiceState.mock.funcChangeServiceState != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by Set")
+	}
+
+	if mmChangeServiceState.defaultExpectation == nil {
+		mmChangeServiceState.defaultExpectation = &ClientMockChangeServiceStateExpectation{}
+	}
+
+	if mmChangeServiceState.defaultExpectation.params != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by Expect")
+	}
+
+	if mmChangeServiceState.defaultExpectation.paramPtrs == nil {
+		mmChangeServiceState.defaultExpectation.paramPtrs = &ClientMockChangeServiceStateParamPtrs{}
+	}
+	mmChangeServiceState.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmChangeServiceState.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmChangeServiceState
+}
+
+// ExpectCommandParam3 sets up expected param command for Client.ChangeServiceState
+func (mmChangeServiceState *mClientMockChangeServiceState) ExpectCommandParam3(command string) *mClientMockChangeServiceState {
+	if mmChangeServiceState.mock.funcChangeServiceState != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by Set")
+	}
+
+	if mmChangeServiceState.defaultExpectation == nil {
+		mmChangeServiceState.defaultExpectation = &ClientMockChangeServiceStateExpectation{}
+	}
+
+	if mmChangeServiceState.defaultExpectation.params != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by Expect")
+	}
+
+	if mmChangeServiceState.defaultExpectation.paramPtrs == nil {
+		mmChangeServiceState.defaultExpectation.paramPtrs = &ClientMockChangeServiceStateParamPtrs{}
+	}
+	mmChangeServiceState.defaultExpectation.paramPtrs.command = &command
+	mmChangeServiceState.defaultExpectation.expectationOrigins.originCommand = minimock.CallerInfo(1)
+
+	return mmChangeServiceState
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ChangeServiceState
+func (mmChangeServiceState *mClientMockChangeServiceState) Inspect(f func(ctx context.Context, serviceId string, command string)) *mClientMockChangeServiceState {
+	if mmChangeServiceState.mock.inspectFuncChangeServiceState != nil {
+		mmChangeServiceState.mock.t.Fatalf("Inspect function is already set for ClientMock.ChangeServiceState")
+	}
+
+	mmChangeServiceState.mock.inspectFuncChangeServiceState = f
+
+	return mmChangeServiceState
+}
+
+// Return sets up results that will be returned by Client.ChangeServiceState
+func (mmChangeServiceState *mClientMockChangeServiceState) Return(sp1 *Service, err error) *ClientMock {
+	if mmChangeServiceState.mock.funcChangeServiceState != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by Set")
+	}
+
+	if mmChangeServiceState.defaultExpectation == nil {
+		mmChangeServiceState.defaultExpectation = &ClientMockChangeServiceStateExpectation{mock: mmChangeServiceState.mock}
+	}
+	mmChangeServiceState.defaultExpectation.results = &ClientMockChangeServiceStateResults{sp1, err}
+	mmChangeServiceState.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmChangeServiceState.mock
+}
+
+// Set uses given function f to mock the Client.ChangeServiceState method
+func (mmChangeServiceState *mClientMockChangeServiceState) Set(f func(ctx context.Context, serviceId string, command string) (sp1 *Service, err error)) *ClientMock {
+	if mmChangeServiceState.defaultExpectation != nil {
+		mmChangeServiceState.mock.t.Fatalf("Default expectation is already set for the Client.ChangeServiceState method")
+	}
+
+	if len(mmChangeServiceState.expectations) > 0 {
+		mmChangeServiceState.mock.t.Fatalf("Some expectations are already set for the Client.ChangeServiceState method")
+	}
+
+	mmChangeServiceState.mock.funcChangeServiceState = f
+	mmChangeServiceState.mock.funcChangeServiceStateOrigin = minimock.CallerInfo(1)
+	return mmChangeServiceState.mock
+}
+
+// When sets expectation for the Client.ChangeServiceState which will trigger the result defined by the following
+// Then helper
+func (mmChangeServiceState *mClientMockChangeServiceState) When(ctx context.Context, serviceId string, command string) *ClientMockChangeServiceStateExpectation {
+	if mmChangeServiceState.mock.funcChangeServiceState != nil {
+		mmChangeServiceState.mock.t.Fatalf("ClientMock.ChangeServiceState mock is already set by Set")
+	}
+
+	expectation := &ClientMockChangeServiceStateExpectation{
+		mock:               mmChangeServiceState.mock,
+		params:             &ClientMockChangeServiceStateParams{ctx, serviceId, command},
+		expectationOrigins: ClientMockChangeServiceStateExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmChangeServiceState.expectations = append(mmChangeServiceState.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ChangeServiceState return parameters for the expectation previously defined by the When method
+func (e *ClientMockChangeServiceStateExpectation) Then(sp1 *Service, err error) *ClientMock {
+	e.results = &ClientMockChangeServiceStateResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ChangeServiceState should be invoked
+func (mmChangeServiceState *mClientMockChangeServiceState) Times(n uint64) *mClientMockChangeServiceState {
+	if n == 0 {
+		mmChangeServiceState.mock.t.Fatalf("Times of ClientMock.ChangeServiceState mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmChangeServiceState.expectedInvocations, n)
+	mmChangeServiceState.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmChangeServiceState
+}
+
+func (mmChangeServiceState *mClientMockChangeServiceState) invocationsDone() bool {
+	if len(mmChangeServiceState.expectations) == 0 && mmChangeServiceState.defaultExpectation == nil && mmChangeServiceState.mock.funcChangeServiceState == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmChangeServiceState.mock.afterChangeServiceStateCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmChangeServiceState.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ChangeServiceState implements Client
+func (mmChangeServiceState *ClientMock) ChangeServiceState(ctx context.Context, serviceId string, command string) (sp1 *Service, err error) {
+	mm_atomic.AddUint64(&mmChangeServiceState.beforeChangeServiceStateCounter, 1)
+	defer mm_atomic.AddUint64(&mmChangeServiceState.afterChangeServiceStateCounter, 1)
+
+	mmChangeServiceState.t.Helper()
+
+	if mmChangeServiceState.inspectFuncChangeServiceState != nil {
+		mmChangeServiceState.inspectFuncChangeServiceState(ctx, serviceId, command)
+	}
+
+	mm_params := ClientMockChangeServiceStateParams{ctx, serviceId, command}
+
+	// Record call args
+	mmChangeServiceState.ChangeServiceStateMock.mutex.Lock()
+	mmChangeServiceState.ChangeServiceStateMock.callArgs = append(mmChangeServiceState.ChangeServiceStateMock.callArgs, &mm_params)
+	mmChangeServiceState.ChangeServiceStateMock.mutex.Unlock()
+
+	for _, e := range mmChangeServiceState.ChangeServiceStateMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmChangeServiceState.ChangeServiceStateMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmChangeServiceState.ChangeServiceStateMock.defaultExpectation.Counter, 1)
+		mm_want := mmChangeServiceState.ChangeServiceStateMock.defaultExpectation.params
+		mm_want_ptrs := mmChangeServiceState.ChangeServiceStateMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockChangeServiceStateParams{ctx, serviceId, command}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmChangeServiceState.t.Errorf("ClientMock.ChangeServiceState got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmChangeServiceState.ChangeServiceStateMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmChangeServiceState.t.Errorf("ClientMock.ChangeServiceState got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmChangeServiceState.ChangeServiceStateMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.command != nil && !minimock.Equal(*mm_want_ptrs.command, mm_got.command) {
+				mmChangeServiceState.t.Errorf("ClientMock.ChangeServiceState got unexpected parameter command, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmChangeServiceState.ChangeServiceStateMock.defaultExpectation.expectationOrigins.originCommand, *mm_want_ptrs.command, mm_got.command, minimock.Diff(*mm_want_ptrs.command, mm_got.command))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmChangeServiceState.t.Errorf("ClientMock.ChangeServiceState got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmChangeServiceState.ChangeServiceStateMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmChangeServiceState.ChangeServiceStateMock.defaultExpectation.results
+		if mm_results == nil {
+			mmChangeServiceState.t.Fatal("No results are set for the ClientMock.ChangeServiceState")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmChangeServiceState.funcChangeServiceState != nil {
+		return mmChangeServiceState.funcChangeServiceState(ctx, serviceId, command)
+	}
+	mmChangeServiceState.t.Fatalf("Unexpected call to ClientMock.ChangeServiceState. %v %v %v", ctx, serviceId, command)
+	return
+}
+
+// ChangeServiceStateAfterCounter returns a count of finished ClientMock.ChangeServiceState invocations
+func (mmChangeServiceState *ClientMock) ChangeServiceStateAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmChangeServiceState.afterChangeServiceStateCounter)
+}
+
+// ChangeServiceStateBeforeCounter returns a count of ClientMock.ChangeServiceState invocations
+func (mmChangeServiceState *ClientMock) ChangeServiceStateBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmChangeServiceState.beforeChangeServiceStateCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ChangeServiceState.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmChangeServiceState *mClientMockChangeServiceState) Calls() []*ClientMockChangeServiceStateParams {
+	mmChangeServiceState.mutex.RLock()
+
+	argCopy := make([]*ClientMockChangeServiceStateParams, len(mmChangeServiceState.callArgs))
+	copy(argCopy, mmChangeServiceState.callArgs)
+
+	mmChangeServiceState.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockChangeServiceStateDone returns true if the count of the ChangeServiceState invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockChangeServiceStateDone() bool {
+	if m.ChangeServiceStateMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ChangeServiceStateMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ChangeServiceStateMock.invocationsDone()
+}
+
+// MinimockChangeServiceStateInspect logs each unmet expectation
+func (m *ClientMock) MinimockChangeServiceStateInspect() {
+	for _, e := range m.ChangeServiceStateMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ChangeServiceState at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterChangeServiceStateCounter := mm_atomic.LoadUint64(&m.afterChangeServiceStateCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ChangeServiceStateMock.defaultExpectation != nil && afterChangeServiceStateCounter < 1 {
+		if m.ChangeServiceStateMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ChangeServiceState at\n%s", m.ChangeServiceStateMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ChangeServiceState at\n%s with params: %#v", m.ChangeServiceStateMock.defaultExpectation.expectationOrigins.origin, *m.ChangeServiceStateMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcChangeServiceState != nil && afterChangeServiceStateCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ChangeServiceState at\n%s", m.funcChangeServiceStateOrigin)
+	}
+
+	if !m.ChangeServiceStateMock.invocationsDone() && afterChangeServiceStateCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ChangeServiceState at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ChangeServiceStateMock.expectedInvocations), m.ChangeServiceStateMock.expectedInvocationsOrigin, afterChangeServiceStateCounter)
 	}
 }
 
@@ -14251,6 +14645,318 @@ func (m *ClientMock) MinimockListRolesInspect() {
 	}
 }
 
+type mClientMockListServices struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListServicesExpectation
+	expectations       []*ClientMockListServicesExpectation
+
+	callArgs []*ClientMockListServicesParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListServicesExpectation specifies expectation struct of the Client.ListServices
+type ClientMockListServicesExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListServicesParams
+	paramPtrs          *ClientMockListServicesParamPtrs
+	expectationOrigins ClientMockListServicesExpectationOrigins
+	results            *ClientMockListServicesResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListServicesParams contains parameters of the Client.ListServices
+type ClientMockListServicesParams struct {
+	ctx context.Context
+}
+
+// ClientMockListServicesParamPtrs contains pointers to parameters of the Client.ListServices
+type ClientMockListServicesParamPtrs struct {
+	ctx *context.Context
+}
+
+// ClientMockListServicesResults contains results of the Client.ListServices
+type ClientMockListServicesResults struct {
+	sa1 []Service
+	err error
+}
+
+// ClientMockListServicesOrigins contains origins of expectations of the Client.ListServices
+type ClientMockListServicesExpectationOrigins struct {
+	origin    string
+	originCtx string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListServices *mClientMockListServices) Optional() *mClientMockListServices {
+	mmListServices.optional = true
+	return mmListServices
+}
+
+// Expect sets up expected params for Client.ListServices
+func (mmListServices *mClientMockListServices) Expect(ctx context.Context) *mClientMockListServices {
+	if mmListServices.mock.funcListServices != nil {
+		mmListServices.mock.t.Fatalf("ClientMock.ListServices mock is already set by Set")
+	}
+
+	if mmListServices.defaultExpectation == nil {
+		mmListServices.defaultExpectation = &ClientMockListServicesExpectation{}
+	}
+
+	if mmListServices.defaultExpectation.paramPtrs != nil {
+		mmListServices.mock.t.Fatalf("ClientMock.ListServices mock is already set by ExpectParams functions")
+	}
+
+	mmListServices.defaultExpectation.params = &ClientMockListServicesParams{ctx}
+	mmListServices.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListServices.expectations {
+		if minimock.Equal(e.params, mmListServices.defaultExpectation.params) {
+			mmListServices.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListServices.defaultExpectation.params)
+		}
+	}
+
+	return mmListServices
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListServices
+func (mmListServices *mClientMockListServices) ExpectCtxParam1(ctx context.Context) *mClientMockListServices {
+	if mmListServices.mock.funcListServices != nil {
+		mmListServices.mock.t.Fatalf("ClientMock.ListServices mock is already set by Set")
+	}
+
+	if mmListServices.defaultExpectation == nil {
+		mmListServices.defaultExpectation = &ClientMockListServicesExpectation{}
+	}
+
+	if mmListServices.defaultExpectation.params != nil {
+		mmListServices.mock.t.Fatalf("ClientMock.ListServices mock is already set by Expect")
+	}
+
+	if mmListServices.defaultExpectation.paramPtrs == nil {
+		mmListServices.defaultExpectation.paramPtrs = &ClientMockListServicesParamPtrs{}
+	}
+	mmListServices.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListServices.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListServices
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListServices
+func (mmListServices *mClientMockListServices) Inspect(f func(ctx context.Context)) *mClientMockListServices {
+	if mmListServices.mock.inspectFuncListServices != nil {
+		mmListServices.mock.t.Fatalf("Inspect function is already set for ClientMock.ListServices")
+	}
+
+	mmListServices.mock.inspectFuncListServices = f
+
+	return mmListServices
+}
+
+// Return sets up results that will be returned by Client.ListServices
+func (mmListServices *mClientMockListServices) Return(sa1 []Service, err error) *ClientMock {
+	if mmListServices.mock.funcListServices != nil {
+		mmListServices.mock.t.Fatalf("ClientMock.ListServices mock is already set by Set")
+	}
+
+	if mmListServices.defaultExpectation == nil {
+		mmListServices.defaultExpectation = &ClientMockListServicesExpectation{mock: mmListServices.mock}
+	}
+	mmListServices.defaultExpectation.results = &ClientMockListServicesResults{sa1, err}
+	mmListServices.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListServices.mock
+}
+
+// Set uses given function f to mock the Client.ListServices method
+func (mmListServices *mClientMockListServices) Set(f func(ctx context.Context) (sa1 []Service, err error)) *ClientMock {
+	if mmListServices.defaultExpectation != nil {
+		mmListServices.mock.t.Fatalf("Default expectation is already set for the Client.ListServices method")
+	}
+
+	if len(mmListServices.expectations) > 0 {
+		mmListServices.mock.t.Fatalf("Some expectations are already set for the Client.ListServices method")
+	}
+
+	mmListServices.mock.funcListServices = f
+	mmListServices.mock.funcListServicesOrigin = minimock.CallerInfo(1)
+	return mmListServices.mock
+}
+
+// When sets expectation for the Client.ListServices which will trigger the result defined by the following
+// Then helper
+func (mmListServices *mClientMockListServices) When(ctx context.Context) *ClientMockListServicesExpectation {
+	if mmListServices.mock.funcListServices != nil {
+		mmListServices.mock.t.Fatalf("ClientMock.ListServices mock is already set by Set")
+	}
+
+	expectation := &ClientMockListServicesExpectation{
+		mock:               mmListServices.mock,
+		params:             &ClientMockListServicesParams{ctx},
+		expectationOrigins: ClientMockListServicesExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListServices.expectations = append(mmListServices.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListServices return parameters for the expectation previously defined by the When method
+func (e *ClientMockListServicesExpectation) Then(sa1 []Service, err error) *ClientMock {
+	e.results = &ClientMockListServicesResults{sa1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListServices should be invoked
+func (mmListServices *mClientMockListServices) Times(n uint64) *mClientMockListServices {
+	if n == 0 {
+		mmListServices.mock.t.Fatalf("Times of ClientMock.ListServices mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListServices.expectedInvocations, n)
+	mmListServices.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListServices
+}
+
+func (mmListServices *mClientMockListServices) invocationsDone() bool {
+	if len(mmListServices.expectations) == 0 && mmListServices.defaultExpectation == nil && mmListServices.mock.funcListServices == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListServices.mock.afterListServicesCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListServices.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListServices implements Client
+func (mmListServices *ClientMock) ListServices(ctx context.Context) (sa1 []Service, err error) {
+	mm_atomic.AddUint64(&mmListServices.beforeListServicesCounter, 1)
+	defer mm_atomic.AddUint64(&mmListServices.afterListServicesCounter, 1)
+
+	mmListServices.t.Helper()
+
+	if mmListServices.inspectFuncListServices != nil {
+		mmListServices.inspectFuncListServices(ctx)
+	}
+
+	mm_params := ClientMockListServicesParams{ctx}
+
+	// Record call args
+	mmListServices.ListServicesMock.mutex.Lock()
+	mmListServices.ListServicesMock.callArgs = append(mmListServices.ListServicesMock.callArgs, &mm_params)
+	mmListServices.ListServicesMock.mutex.Unlock()
+
+	for _, e := range mmListServices.ListServicesMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sa1, e.results.err
+		}
+	}
+
+	if mmListServices.ListServicesMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListServices.ListServicesMock.defaultExpectation.Counter, 1)
+		mm_want := mmListServices.ListServicesMock.defaultExpectation.params
+		mm_want_ptrs := mmListServices.ListServicesMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListServicesParams{ctx}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListServices.t.Errorf("ClientMock.ListServices got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListServices.ListServicesMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListServices.t.Errorf("ClientMock.ListServices got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListServices.ListServicesMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListServices.ListServicesMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListServices.t.Fatal("No results are set for the ClientMock.ListServices")
+		}
+		return (*mm_results).sa1, (*mm_results).err
+	}
+	if mmListServices.funcListServices != nil {
+		return mmListServices.funcListServices(ctx)
+	}
+	mmListServices.t.Fatalf("Unexpected call to ClientMock.ListServices. %v", ctx)
+	return
+}
+
+// ListServicesAfterCounter returns a count of finished ClientMock.ListServices invocations
+func (mmListServices *ClientMock) ListServicesAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListServices.afterListServicesCounter)
+}
+
+// ListServicesBeforeCounter returns a count of ClientMock.ListServices invocations
+func (mmListServices *ClientMock) ListServicesBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListServices.beforeListServicesCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListServices.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListServices *mClientMockListServices) Calls() []*ClientMockListServicesParams {
+	mmListServices.mutex.RLock()
+
+	argCopy := make([]*ClientMockListServicesParams, len(mmListServices.callArgs))
+	copy(argCopy, mmListServices.callArgs)
+
+	mmListServices.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListServicesDone returns true if the count of the ListServices invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListServicesDone() bool {
+	if m.ListServicesMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListServicesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListServicesMock.invocationsDone()
+}
+
+// MinimockListServicesInspect logs each unmet expectation
+func (m *ClientMock) MinimockListServicesInspect() {
+	for _, e := range m.ListServicesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListServices at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListServicesCounter := mm_atomic.LoadUint64(&m.afterListServicesCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListServicesMock.defaultExpectation != nil && afterListServicesCounter < 1 {
+		if m.ListServicesMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListServices at\n%s", m.ListServicesMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListServices at\n%s with params: %#v", m.ListServicesMock.defaultExpectation.expectationOrigins.origin, *m.ListServicesMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListServices != nil && afterListServicesCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListServices at\n%s", m.funcListServicesOrigin)
+	}
+
+	if !m.ListServicesMock.invocationsDone() && afterListServicesCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListServices at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListServicesMock.expectedInvocations), m.ListServicesMock.expectedInvocationsOrigin, afterListServicesCounter)
+	}
+}
+
 type mClientMockReplacePostgresConfig struct {
 	optional           bool
 	mock               *ClientMock
@@ -23539,6 +24245,8 @@ func (m *ClientMock) MinimockFinish() {
 		if !m.minimockDone() {
 			m.MinimockChangeClickPipeStateInspect()
 
+			m.MinimockChangeServiceStateInspect()
+
 			m.MinimockCreateClickPipeInspect()
 
 			m.MinimockCreatePostgresInspect()
@@ -23615,6 +24323,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockListRolesInspect()
 
+			m.MinimockListServicesInspect()
+
 			m.MinimockReplacePostgresConfigInspect()
 
 			m.MinimockRestorePostgresInspect()
@@ -23686,6 +24396,7 @@ func (m *ClientMock) minimockDone() bool {
 	done := true
 	return done &&
 		m.MinimockChangeClickPipeStateDone() &&
+		m.MinimockChangeServiceStateDone() &&
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreatePostgresDone() &&
 		m.MinimockCreatePostgresReadReplicaDone() &&
@@ -23724,6 +24435,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockListPostgresDone() &&
 		m.MinimockListReversePrivateEndpointsDone() &&
 		m.MinimockListRolesDone() &&
+		m.MinimockListServicesDone() &&
 		m.MinimockReplacePostgresConfigDone() &&
 		m.MinimockRestorePostgresDone() &&
 		m.MinimockRotateTDEKeyDone() &&

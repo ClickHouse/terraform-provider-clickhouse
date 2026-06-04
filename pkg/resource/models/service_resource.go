@@ -227,6 +227,7 @@ type ServiceResourceModel struct {
 	MaxReplicaMemoryGb              types.Int64  `tfsdk:"max_replica_memory_gb"`
 	NumReplicas                     types.Int64  `tfsdk:"num_replicas"`
 	IdleTimeoutMinutes              types.Int64  `tfsdk:"idle_timeout_minutes"`
+	Stop                            types.Bool   `tfsdk:"stop"`
 	IAMRole                         types.String `tfsdk:"iam_role"`
 	PrivateEndpointConfig           types.Object `tfsdk:"private_endpoint_config"`
 	EncryptionKey                   types.String `tfsdk:"encryption_key"`
@@ -262,6 +263,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.MaxTotalMemoryGb.Equal(b.MaxTotalMemoryGb) ||
 		!m.NumReplicas.Equal(b.NumReplicas) ||
 		!m.IdleTimeoutMinutes.Equal(b.IdleTimeoutMinutes) ||
+		!m.Stop.Equal(b.Stop) ||
 		!m.IAMRole.Equal(b.IAMRole) ||
 		!m.PrivateEndpointConfig.Equal(b.PrivateEndpointConfig) ||
 		!m.EncryptionKey.Equal(b.EncryptionKey) ||
