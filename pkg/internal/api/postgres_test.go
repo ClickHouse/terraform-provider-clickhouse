@@ -19,6 +19,7 @@ const (
 	testPostgresID           = "pg-1"
 	testPostgresInstancePath = "/organizations/org-1/postgres/pg-1"
 	testPostgresListPath     = "/organizations/org-1/postgres"
+	testPostgresSizeXLarge   = "r6gd.xlarge"
 )
 
 // newPostgresTestClient spins up an httptest.Server with the given handler
@@ -223,16 +224,16 @@ func TestUpdatePostgres_PatchesOnlyChangedFields(t *testing.T) {
 		if err := json.Unmarshal(body, &capturedBody); err != nil {
 			t.Fatalf("decode request body: %v", err)
 		}
-		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", Size: "r6gd.xlarge"}})
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", Size: testPostgresSizeXLarge}})
 	})
-	_, err := client.UpdatePostgres(context.Background(), testPostgresID, PostgresUpdate{Size: "r6gd.xlarge"})
+	_, err := client.UpdatePostgres(context.Background(), testPostgresID, PostgresUpdate{Size: testPostgresSizeXLarge})
 	if err != nil {
 		t.Fatalf("UpdatePostgres: %v", err)
 	}
 	if _, ok := capturedBody["name"]; ok {
 		t.Errorf("PATCH body must not include name; got %v", capturedBody)
 	}
-	if got := capturedBody["size"]; got != "r6gd.xlarge" {
+	if got := capturedBody["size"]; got != testPostgresSizeXLarge {
 		t.Errorf("size = %v; want r6gd.xlarge", got)
 	}
 }
@@ -412,38 +413,92 @@ func TestWaitForPostgresState_UnknownStateDoesNotCrash(t *testing.T) {
 	}
 }
 
-// ----- WaitForPostgresStateTransitionAndReturn --------------------------------------
+// ----- WaitForPostgresMatch --------------------------------------------------
 
-func TestWaitForPostgresStateTransitionAndReturn_TransitionsAwayAndBack(t *testing.T) {
-	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		n := calls.Add(1)
-		state := PostgresStateRunning
-		if n == 2 {
-			state = PostgresStateRestarting
-		}
-		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: state}})
-	})
-	err := client.waitForPostgresStateTransitionAndReturnWithInterval(context.Background(), testPostgresID,
-		PostgresStateRunning, 1*time.Millisecond, 20)
-	if err != nil {
-		t.Fatalf("WaitForPostgresStateTransitionAndReturn: %v", err)
-	}
-	if calls.Load() < 3 {
-		t.Errorf("expected ≥3 polls (running → restarting → running); got %d", calls.Load())
+// matchSize returns a predicate that succeeds when the server reports
+// state=running and the given size.
+func matchSize(size string) func(*Postgres) bool {
+	return func(pg *Postgres) bool {
+		return pg.State == PostgresStateRunning && pg.Size == size
 	}
 }
 
-func TestWaitForPostgresStateTransitionAndReturn_PropagatesGetErrors(t *testing.T) {
-	// Phase-1 polling repeatedly errors (instance was deleted out-of-band,
-	// or an auth token expired). The wait helper must surface the error
-	// rather than silently returning nil — otherwise the resource layer
-	// would proceed as if the update completed.
+func TestWaitForPostgresMatch_SucceedsOnConsecutivePredicateMatches(t *testing.T) {
+	// Server returns the requested values cleanly throughout — the hot-reload
+	// case (server applied the change before our first poll). Helper must
+	// succeed after settleRetries consecutive matching polls.
+	var calls atomic.Int32
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning, Size: testPostgresSizeXLarge}})
+	})
+	err := client.waitForPostgresMatchWithInterval(context.Background(), testPostgresID,
+		matchSize(testPostgresSizeXLarge), 1*time.Millisecond, 10, 3)
+	if err != nil {
+		t.Errorf("expected success after 3 consecutive matches; got %v", err)
+	}
+	if got := calls.Load(); got != 3 {
+		t.Errorf("expected exactly 3 polls (settleRetries=3); got %d", got)
+	}
+}
+
+func TestWaitForPostgresMatch_QueuedWorkWaitsForFieldFlip(t *testing.T) {
+	// The race-trigger case the predicate-based helper is designed for:
+	// server returns state=running but the field (size) hasn't flipped yet
+	// because Ubicloud has queued the work. The helper must NOT succeed
+	// until the field reflects the requested value.
+	var calls atomic.Int32
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		n := calls.Add(1)
+		size := "r6gd.large" // pre-PATCH steady state
+		if n >= 4 {
+			size = testPostgresSizeXLarge // Ubicloud finally committed the change
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning, Size: size}})
+	})
+	err := client.waitForPostgresMatchWithInterval(context.Background(), testPostgresID,
+		matchSize(testPostgresSizeXLarge), 1*time.Millisecond, 20, 3)
+	if err != nil {
+		t.Fatalf("expected success once field flipped + settled; got %v", err)
+	}
+	// Polls 1-3: size=large (no match, stable=0); polls 4-6: size=xlarge (3 matches → success).
+	if got := calls.Load(); got != 6 {
+		t.Errorf("expected exactly 6 polls (3 pre-flip, 3 post-flip); got %d", got)
+	}
+}
+
+func TestWaitForPostgresMatch_TransientMatchResetsSettleWindow(t *testing.T) {
+	// Server briefly shows the matching state mid-transition, then flips back
+	// to non-matching, then matches stably. Settle must reset across the
+	// inversion so success is anchored to STABLE matching, not transient.
+	var calls atomic.Int32
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		n := calls.Add(1)
+		size := testPostgresSizeXLarge
+		if n == 2 {
+			size = "r6gd.large" // transient inversion
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning, Size: size}})
+	})
+	err := client.waitForPostgresMatchWithInterval(context.Background(), testPostgresID,
+		matchSize(testPostgresSizeXLarge), 1*time.Millisecond, 20, 3)
+	if err != nil {
+		t.Fatalf("expected eventual success; got %v", err)
+	}
+	// poll1 match (1), poll2 mismatch (reset to 0), polls 3-5 match (stable=3 → success).
+	if got := calls.Load(); got != 5 {
+		t.Errorf("expected exactly 5 polls (transient inversion forces reset); got %d", got)
+	}
+}
+
+func TestWaitForPostgresMatch_PropagatesGetErrors(t *testing.T) {
+	// Polling repeatedly errors (instance deleted out-of-band, auth expired).
+	// Helper must surface the error rather than silently returning nil.
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 	})
-	err := client.waitForPostgresStateTransitionAndReturnWithInterval(context.Background(), testPostgresID,
-		PostgresStateRunning, 1*time.Millisecond, 4)
+	err := client.waitForPostgresMatchWithInterval(context.Background(), testPostgresID,
+		matchSize(testPostgresSizeXLarge), 1*time.Millisecond, 4, 3)
 	if err == nil {
 		t.Fatal("expected error to propagate from failing GetPostgres; got nil")
 	}
@@ -452,17 +507,64 @@ func TestWaitForPostgresStateTransitionAndReturn_PropagatesGetErrors(t *testing.
 	}
 }
 
-func TestWaitForPostgresStateTransitionAndReturn_NoOpSuccessOnlyWhenObservedStable(t *testing.T) {
-	// Server returns the terminal state cleanly throughout phase-1. This is
-	// the legitimate no-op case (e.g., a config change that hot-reloaded);
-	// the helper should succeed.
+func TestWaitForPostgresMatch_NeverMatchesTimesOut(t *testing.T) {
+	// Field never flips (Ubicloud silently dropped the work, or the server
+	// is in an unrecoverable state). Helper must time out rather than
+	// silently report success.
 	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning}})
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning, Size: "r6gd.large"}})
 	})
-	err := client.waitForPostgresStateTransitionAndReturnWithInterval(context.Background(), testPostgresID,
-		PostgresStateRunning, 1*time.Millisecond, 4)
-	if err != nil {
-		t.Errorf("observed-stable case should be no-op success; got %v", err)
+	err := client.waitForPostgresMatchWithInterval(context.Background(), testPostgresID,
+		matchSize(testPostgresSizeXLarge), 1*time.Millisecond, 5, 3)
+	if err == nil {
+		t.Fatal("expected timeout error when predicate never matches; got nil")
+	}
+	if !strings.Contains(err.Error(), "did not match") {
+		t.Errorf("error should mention failure to match; got %v", err)
+	}
+	if !strings.Contains(err.Error(), PostgresStateRunning) {
+		t.Errorf("error should mention last seen state %q; got %v", PostgresStateRunning, err)
+	}
+}
+
+func TestWaitForPostgresMatch_HonorsContextCancellation(t *testing.T) {
+	// Predicate never matches → without ctx-aware backoff, the helper would
+	// burn the full budget. With backoff.WithContext, cancellation bails fast.
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning, Size: "r6gd.large"}})
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	err := client.waitForPostgresMatchWithInterval(ctx, testPostgresID,
+		matchSize(testPostgresSizeXLarge), 50*time.Millisecond, 600, 3)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("expected error from context timeout; got nil")
+	}
+	// Budget if cancellation were ignored: 600 × 50ms = 30s. Honoring ctx
+	// should bail within a couple of poll intervals after the deadline.
+	if elapsed > 1*time.Second {
+		t.Errorf("cancellation should bail well before budget; took %v", elapsed)
+	}
+}
+
+func TestWaitForPostgresState_HonorsContextCancellation(t *testing.T) {
+	// Same guarantee for the simpler state-only helper.
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateCreating}})
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	err := client.waitForPostgresStateWithInterval(ctx, testPostgresID,
+		func(s string) bool { return s == PostgresStateRunning }, 50*time.Millisecond, 600)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("expected error from context timeout; got nil")
+	}
+	if elapsed > 1*time.Second {
+		t.Errorf("cancellation should bail well before budget; took %v", elapsed)
 	}
 }
 
