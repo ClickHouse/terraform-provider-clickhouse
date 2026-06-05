@@ -2,11 +2,14 @@ package resource
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +50,7 @@ func buildPostgresPlanWithCredentials(credentials types.Object) models.ClickPipe
 		"source_schema_name":     types.StringValue("public"),
 		"source_table":           types.StringValue("users"),
 		"target_table":           types.StringValue("users"),
-		"excluded_columns":       types.ListNull(types.StringType),
+		"excluded_columns":       types.SetNull(types.StringType),
 		"use_custom_sorting_key": types.BoolNull(),
 		"sorting_keys":           types.ListNull(types.StringType),
 		"table_engine":           types.StringNull(),
@@ -170,7 +173,7 @@ func buildMySQLPlanWithCredentials(credentials types.Object) models.ClickPipeRes
 		"source_schema_name":     types.StringValue("public"),
 		"source_table":           types.StringValue("users"),
 		"target_table":           types.StringValue("users"),
-		"excluded_columns":       types.ListNull(types.StringType),
+		"excluded_columns":       types.SetNull(types.StringType),
 		"use_custom_sorting_key": types.BoolNull(),
 		"sorting_keys":           types.ListNull(types.StringType),
 		"table_engine":           types.StringNull(),
@@ -512,4 +515,120 @@ func TestGetStateCheckFunc_AcceptsPausedAndStopped(t *testing.T) {
 	assert.False(t, checker(api.ClickPipeRunningState), "Running must NOT match when stopped=true")
 	assert.False(t, checker(api.ClickPipeSnapShotState), "Snapshot is transient, not terminal")
 	assert.False(t, checker(api.ClickPipeProvisioningState), "Provisioning is transient, not terminal")
+}
+
+// Issue #558 — reordering excluded_columns (now a Set, was an ordered List) must not trip the "table mappings are immutable" ModifyPlan guard.
+
+// postgresPlanWithExcludedColumns clones the complete Postgres fixture and
+// overrides the single table mapping's excluded_columns (as a Set) and
+// target_table. Everything else is identical between the state and plan we build
+// from it, so ModifyPlan sees no change other than what the test varies.
+func postgresPlanWithExcludedColumns(ctx context.Context, excludedColumns []string, targetTable string) models.ClickPipeResourceModel {
+	state := getPostgresInitialState()
+
+	// getPostgresInitialState leaves these complex-typed fields as zero values,
+	// which carry no element/attribute types. tfsdk.State.Set rejects that, so
+	// fill them with correctly-typed nulls before encoding against the schema.
+	state.Scaling = types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes)
+	state.FieldMappings = types.ListNull(models.ClickPipeFieldMappingModel{}.ObjectType())
+	state.Settings = types.DynamicNull()
+	state.Stopped = types.BoolNull()
+	state.TriggerResync = types.BoolNull()
+
+	excludedVals := make([]attr.Value, len(excludedColumns))
+	for i, c := range excludedColumns {
+		excludedVals[i] = types.StringValue(c)
+	}
+	mappingAttrs := map[string]attr.Value{
+		"source_schema_name":     types.StringValue("public"),
+		"source_table":           types.StringValue("users"),
+		"target_table":           types.StringValue(targetTable),
+		"excluded_columns":       types.SetValueMust(types.StringType, excludedVals),
+		"use_custom_sorting_key": types.BoolNull(),
+		"sorting_keys":           types.ListNull(types.StringType), // sorting_keys stays an ordered List
+		"table_engine":           types.StringNull(),
+		"partition_key":          types.StringNull(),
+	}
+
+	var src models.ClickPipeSourceModel
+	state.Source.As(ctx, &src, basetypes.ObjectAsOptions{})
+	var pg models.ClickPipePostgresSourceModel
+	src.Postgres.As(ctx, &pg, basetypes.ObjectAsOptions{})
+	pg.TableMappings = types.SetValueMust(
+		models.ClickPipePostgresTableMappingModel{}.ObjectType(),
+		[]attr.Value{
+			types.ObjectValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType().AttrTypes, mappingAttrs),
+		},
+	)
+	src.Postgres = pg.ObjectValue()
+	state.Source = src.ObjectValue()
+	return state
+}
+
+func TestClickPipeResource_ModifyPlan_ExcludedColumnsReorder_Issue558(t *testing.T) {
+	ctx := context.Background()
+	r := &ClickPipeResource{}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("building resource schema failed: %v", schemaResp.Diagnostics.Errors())
+	}
+	sch := schemaResp.Schema
+
+	// run drives ModifyPlan for an update (non-null state + plan) and returns the
+	// resulting diagnostics.
+	run := func(t *testing.T, stateModel, planModel models.ClickPipeResourceModel) diag.Diagnostics {
+		t.Helper()
+		stateVal := tfsdk.State{Schema: sch}
+		if d := stateVal.Set(ctx, &stateModel); d.HasError() {
+			t.Fatalf("encoding prior state failed: %v", d.Errors())
+		}
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &planModel); d.HasError() {
+			t.Fatalf("encoding plan failed: %v", d.Errors())
+		}
+		req := resource.ModifyPlanRequest{
+			State:  stateVal,
+			Plan:   planVal,
+			Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+		}
+		resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
+		r.ModifyPlan(ctx, req, resp)
+		return resp.Diagnostics
+	}
+
+	// detailContains reports whether any error diagnostic's detail contains substr.
+	// We assert on the specific immutability message rather than HasError() so the
+	// test is robust against unrelated ModifyPlan diagnostics.
+	detailContains := func(diags diag.Diagnostics, substr string) bool {
+		for _, d := range diags.Errors() {
+			if strings.Contains(d.Detail(), substr) {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("reordered excluded_columns is not a forbidden modification", func(t *testing.T) {
+		// state = order a refresh wrote (API order); plan = config order. Same set.
+		state := postgresPlanWithExcludedColumns(ctx, []string{"status", "status_source", "created_at", "updated_at"}, "users")
+		plan := postgresPlanWithExcludedColumns(ctx, []string{"updated_at", "created_at", "status", "status_source"}, "users")
+
+		diags := run(t, state, plan)
+
+		assert.False(t, detailContains(diags, "Cannot modify excluded_columns"),
+			"#558: reordering excluded_columns must NOT be flagged as a mapping modification; got: %v", diags.Errors())
+	})
+
+	t.Run("changing target_table is still rejected (guard intact)", func(t *testing.T) {
+		// Control: the immutability guard must still fire on a genuine change.
+		state := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+		plan := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users_renamed")
+
+		diags := run(t, state, plan)
+
+		assert.True(t, detailContains(diags, "Cannot modify target_table"),
+			"a real target_table change on an existing mapping must still be rejected; got: %v", diags.Errors())
+	})
 }
