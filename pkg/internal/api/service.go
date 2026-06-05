@@ -70,6 +70,22 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 	return &service, nil
 }
 
+func (c *ClientImpl) ListServices(ctx context.Context) ([]Service, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getServicePath("", ""), nil)
+	if err != nil {
+		return nil, err
+	}
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	servicesResponse := ResponseWithResult[[]Service]{}
+	if err := json.Unmarshal(body, &servicesResponse); err != nil {
+		return nil, err
+	}
+	return servicesResponse.Result, nil
+}
+
 func (c *ClientImpl) CreateService(ctx context.Context, s Service) (*Service, string, error) {
 	// Needed until we have alignment between service creation and replicaScaling calls.
 	s.FixMemoryBounds()
@@ -155,6 +171,31 @@ func (c *ClientImpl) UpdateService(ctx context.Context, serviceId string, s Serv
 	return &serviceResponse.Result, nil
 }
 
+func (c *ClientImpl) ChangeServiceState(ctx context.Context, serviceId string, command string) (*Service, error) {
+	rb, err := json.Marshal(ServiceStateUpdate{Command: command})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.getServicePath(serviceId, "/state"), strings.NewReader(string(rb)))
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	serviceResponse := ResponseWithResult[Service]{}
+	err = json.Unmarshal(body, &serviceResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return &serviceResponse.Result, nil
+}
+
 func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Service, error) {
 	service, err := c.GetService(ctx, serviceId)
 	if IsNotFound(err) {
@@ -166,7 +207,7 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 
 	if service.State != StateStopped && service.State != StateStopping {
 		rb, _ := json.Marshal(ServiceStateUpdate{
-			Command: "stop",
+			Command: ServiceStateCommandStop,
 		})
 		req, err := http.NewRequest(http.MethodPatch, c.getServicePath(serviceId, "/state"), strings.NewReader(string(rb)))
 		if err != nil {
