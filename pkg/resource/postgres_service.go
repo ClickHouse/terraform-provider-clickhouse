@@ -58,13 +58,13 @@ func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.Metad
 // ValidateConfig surfaces the alpha warning at plan time, matching the other
 // alpha resources (clickhouse_role, clickhouse_service_upgrade_window, …).
 //
-// The create-time attribute rules (required for a standard create; inherited
-// from the source for a replica / restore) are NOT enforced here: ValidateConfig
-// is stateless, so it can't tell a create from an update. Enforcing them here
-// would block an in-place resize / HA-flip of an existing replica (whose
-// read_replica_of stays in config) and would fire when an existing instance
-// drops its origin block. Both checks are therefore create-scoped in ModifyPlan,
-// which has prior state.
+// State-dependent rules are NOT enforced here: ValidateConfig is stateless, so
+// it can't tell a create from an update or read prior state. That covers the
+// create-time attribute rules (required for a standard create; inherited from
+// the source for a replica / restore — enforcing them here would misfire when an
+// existing instance drops its origin block) and the live-replica modification
+// block (which needs is_primary from prior state). All of these live in
+// ModifyPlan, which has prior state.
 func (r *PostgresServiceResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	utils.AlphaWarning("clickhouse_postgres_service", &resp.Diagnostics)
 }
@@ -194,6 +194,39 @@ func requireStandardCreateAttributes(config models.PostgresServiceResourceModel)
 			)
 		}
 	}
+	return diags
+}
+
+// replicaUpdateForbidden blocks the in-place edits the server rejects on a LIVE
+// read replica. Ubicloud refuses any direct PATCH to a read replica with
+// "Read replicas cannot be modified directly! Please modify the parent database
+// instead." (a 400 before it even reads the body), and size / ha_type / tags all
+// travel on that PATCH endpoint — so changing them on a live replica can never
+// succeed and would otherwise surface only as an apply-time error plus a
+// non-converging plan. pg_config / pgbouncer_config are NOT blocked: they use a
+// separate POST /config endpoint that does accept per-replica values. The caller
+// invokes this only for a live replica (read_replica_of set, is_primary false —
+// a promoted replica is a standalone primary and is freely modifiable). Compares
+// plan to state so it mirrors exactly what Update would PATCH.
+func replicaUpdateForbidden(plan, state models.PostgresServiceResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	forbid := func(name string, planVal, stateVal attr.Value) {
+		// An unknown plan value (e.g. an interpolated size that may resolve to the
+		// current value) can't be proven to be a change — defer to apply rather
+		// than false-positive at plan. A known value that differs is the change we
+		// block.
+		if planVal.IsUnknown() || planVal.Equal(stateVal) {
+			return
+		}
+		diags.AddAttributeError(
+			path.Root(name),
+			"Read replica cannot be modified directly",
+			"`"+name+"` cannot be changed on a live read replica — the server rejects direct modifications. Change it on the parent (primary) instead, or remove read_replica_of to detach this into a standalone primary first.",
+		)
+	}
+	forbid("size", plan.Size, state.Size)
+	forbid("ha_type", plan.HaType, state.HaType)
+	forbid("tags", plan.Tags, state.Tags)
 	return diags
 }
 
@@ -896,6 +929,19 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 			"This instance's is_primary is true, so it was promoted to a standalone primary outside Terraform. Remove read_replica_of from the configuration to reconcile it as a primary — that change is applied in place and does not destroy the instance.",
 		)
 		return
+	}
+
+	// A live read replica (is_primary false — the promotion case returned above —
+	// with read_replica_of still declared) cannot be modified directly: the server
+	// 400s any size / ha_type / tags PATCH. Surface that at plan time instead of an
+	// apply-time error and a plan that never converges. (read_replica_of changes
+	// are handled earlier: a re-point re-derives via originSourceChanged, and a
+	// removal replaces via readReplicaOfRequiresReplace.)
+	if !config.ReadReplicaOf.IsNull() {
+		resp.Diagnostics.Append(replicaUpdateForbidden(plan, state)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	// password and connection_string are Computed and hydrated from the server on

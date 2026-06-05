@@ -463,6 +463,42 @@ func TestReadReplicaOfShouldReplace(t *testing.T) {
 	}
 }
 
+// A live read replica rejects direct size / ha_type / tags edits (the server
+// 400s the PATCH); pg_config changes are allowed (separate endpoint).
+func TestReplicaUpdateForbidden(t *testing.T) {
+	large, xlarge := types.StringValue("r6gd.large"), types.StringValue("r6gd.xlarge")
+	none, async := types.StringValue("none"), types.StringValue("async")
+	tagsA, tagsB := mapTags("env", "prod"), mapTags("env", "dev")
+	cfgA, cfgB := mapTags("max_connections", "200"), mapTags("max_connections", "250")
+	m := func(size, ha types.String, tags, pg types.Map) models.PostgresServiceResourceModel {
+		return models.PostgresServiceResourceModel{Size: size, HaType: ha, Tags: tags, PgConfig: pg}
+	}
+	cases := []struct {
+		name        string
+		plan, state models.PostgresServiceResourceModel
+		wantErr     int
+	}{
+		{"no change", m(large, none, tagsA, cfgA), m(large, none, tagsA, cfgA), 0},
+		{"size changed", m(xlarge, none, tagsA, cfgA), m(large, none, tagsA, cfgA), 1},
+		{"ha_type changed", m(large, async, tagsA, cfgA), m(large, none, tagsA, cfgA), 1},
+		{"tags changed", m(large, none, tagsB, cfgA), m(large, none, tagsA, cfgA), 1},
+		{"size+ha_type changed", m(xlarge, async, tagsA, cfgA), m(large, none, tagsA, cfgA), 2},
+		{"all three changed", m(xlarge, async, tagsB, cfgA), m(large, none, tagsA, cfgA), 3},
+		{"pg_config only changed → allowed", m(large, none, tagsA, cfgB), m(large, none, tagsA, cfgA), 0},
+		// Unknown (interpolated) plan values can't be proven changed → defer to
+		// apply, don't false-positive at plan.
+		{"unknown size → deferred", m(types.StringUnknown(), none, tagsA, cfgA), m(large, none, tagsA, cfgA), 0},
+		{"unknown tags → deferred", m(large, none, types.MapUnknown(types.StringType), cfgA), m(large, none, tagsA, cfgA), 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if diags := replicaUpdateForbidden(c.plan, c.state); diags.ErrorsCount() != c.wantErr {
+				t.Errorf("want %d errors; got %d: %v", c.wantErr, diags.ErrorsCount(), diags)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // restore / read replica request builders
 // ---------------------------------------------------------------------------

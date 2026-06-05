@@ -100,14 +100,22 @@ description: |-
   size) and ha_type (server-assigned for a new replica/restore) are not
   taken from the source — they must be omitted; setting them is a plan-time
   error. They show as "(known after apply)".
-  If the source ID doesn't exist, the plan errors. (Once the instance exists you
-  can resize it or change ha_type in place — those are normal in-place updates.)
+  If the source ID doesn't exist, the plan errors. (A standalone primary or a
+  restored instance can be resized or have its ha_type changed in place — those
+  are normal in-place updates. A live read replica cannot — see below.)
   read_replica_of — set to a primary's ID to create a streaming read
   replica. Mutually exclusive with restore_to_point_in_time and with
   password / password_wo (a replica inherits the primary's superuser).
   Changing or removing it destroys and recreates the instance as a
   standalone primary — a live replica can't be converted in place (see
-  "Out-of-band changes" for the promotion exception).restore_to_point_in_time = { source_id, restore_target } — create
+  "Out-of-band changes" for the promotion exception).
+  A live read replica cannot be modified directly: changing size,
+  ha_type, or tags is a plan-time error ("read replica cannot be
+  modified directly"), because the server rejects any such change on a replica.
+  Resize/retag the parent instead, or remove read_replica_of first to
+  detach this into a standalone primary. (pg_config / pgbouncer_config are
+  changeable on a replica — they use a separate endpoint that allows per-replica
+  values.)restore_to_point_in_time = { source_id, restore_target } — create
   this instance by restoring another instance's backup to an RFC3339
   timestamp. The restored instance's name is this resource's top-level name
   and it is independent of its source. A backup must exist at or before
@@ -287,8 +295,9 @@ them. The provider reads the source at plan time and fills them in:
   taken from the source — they must be **omitted**; setting them is a plan-time
   error. They show as "(known after apply)".
 
-If the source ID doesn't exist, the plan errors. (Once the instance exists you
-can resize it or change `ha_type` in place — those are normal in-place updates.)
+If the source ID doesn't exist, the plan errors. (A standalone primary or a
+restored instance can be resized or have its `ha_type` changed in place — those
+are normal in-place updates. A **live read replica cannot** — see below.)
 
 - **`read_replica_of`** — set to a primary's ID to create a streaming read
   replica. Mutually exclusive with `restore_to_point_in_time` and with
@@ -296,6 +305,13 @@ can resize it or change `ha_type` in place — those are normal in-place updates
   Changing or removing it **destroys and recreates** the instance as a
   standalone primary — a live replica can't be converted in place (see
   "Out-of-band changes" for the promotion exception).
+  A **live read replica cannot be modified directly**: changing `size`,
+  `ha_type`, or `tags` is a **plan-time error** ("read replica cannot be
+  modified directly"), because the server rejects any such change on a replica.
+  Resize/retag the **parent** instead, or remove `read_replica_of` first to
+  detach this into a standalone primary. (`pg_config` / `pgbouncer_config` **are**
+  changeable on a replica — they use a separate endpoint that allows per-replica
+  values.)
 - **`restore_to_point_in_time = { source_id, restore_target }`** — create
   this instance by restoring another instance's backup to an RFC3339
   timestamp. The restored instance's name is this resource's top-level `name`
