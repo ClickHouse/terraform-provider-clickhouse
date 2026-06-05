@@ -1710,7 +1710,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						},
 					},
 					"managed_table": schema.BoolAttribute{
-						MarkdownDescription: "Whether the table is managed by ClickHouse Cloud. If `false`, the table must exist in the database. Default is `true`.",
+						MarkdownDescription: "Whether the table is managed by ClickHouse Cloud. If `false`, the table must exist in the database. Default is `true`. **Not applicable to database/CDC pipes** (Postgres, MySQL, BigQuery, MongoDB): for those sources destination tables are always managed per-table via `table_mappings`, so this field is ignored and not sent to the API.",
 						Default:             booldefault.StaticBool(true),
 						Computed:            true,
 						Optional:            true,
@@ -2146,39 +2146,49 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// managed_table handling for DB pipes (Postgres/MySQL/BigQuery/MongoDB). The field is not
-	// applicable to these sources — tables are managed per-mapping via table_mappings and the value
-	// is never sent to or returned by the API. We must NOT override an explicitly-configured value:
-	// doing so breaks Terraform's plan-consistency check and produced the "planned value does not
-	// match config value" error in issue #543. When the field is omitted from config, however, we
-	// copy the prior state value into the plan rather than letting the schema default (true) take
-	// over. Because managed_table has RequiresReplace(), this keeps provider upgrades
-	// non-destructive for existing DB pipes whose state was written as managed_table = false by
-	// older provider versions — without it, an omitted field could plan false -> true and force a
-	// spurious resource replacement.
-	if !request.State.Raw.IsNull() && !state.Destination.IsNull() {
-		var planSourceModel models.ClickPipeSourceModel
-		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-			sourceType := getSourceType(planSourceModel)
+	// managed_table doesn't apply to DB/CDC pipes (Postgres/MySQL/BigQuery/MongoDB): tables are
+	// managed via table_mappings and the field is never sent to the API. We accept it for
+	// compatibility but (1) warn when it's explicitly set, (2) never override an explicit value
+	// (that caused the plan-consistency error in #543), and (3) when omitted, carry the prior state
+	// value forward so upgrading from an older provider (which stored false) doesn't force a replace.
+	if !config.Source.IsNull() {
+		var configSourceModel models.ClickPipeSourceModel
+		if diags := config.Source.As(ctx, &configSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
+			sourceType := getSourceType(configSourceModel)
 			isDBPipe := sourceType == SourceTypePostgres || sourceType == SourceTypeMySQL || sourceType == SourceTypeBigQuery || sourceType == SourceTypeMongoDB
 
-			// Did the user set destination.managed_table explicitly in config?
-			configHasManagedTable := false
+			// Read config, not plan: config is null when omitted; the plan is already filled by the default.
+			configManagedTableSet := false
 			if !config.Destination.IsNull() {
 				var configDestination models.ClickPipeDestinationModel
 				if diags := config.Destination.As(ctx, &configDestination, basetypes.ObjectAsOptions{}); !diags.HasError() {
-					configHasManagedTable = !configDestination.ManagedTable.IsNull()
+					configManagedTableSet = !configDestination.ManagedTable.IsNull()
 				}
 			}
 
-			if isDBPipe && !configHasManagedTable && !plan.Destination.IsNull() {
-				var stateDestination, planDestination models.ClickPipeDestinationModel
-				if diags := state.Destination.As(ctx, &stateDestination, basetypes.ObjectAsOptions{}); !diags.HasError() {
-					if diags := plan.Destination.As(ctx, &planDestination, basetypes.ObjectAsOptions{}); !diags.HasError() {
-						if !stateDestination.ManagedTable.IsNull() && !planDestination.ManagedTable.Equal(stateDestination.ManagedTable) {
-							planDestination.ManagedTable = stateDestination.ManagedTable
-							plan.Destination = planDestination.ObjectValue()
-							response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
+			if isDBPipe {
+				// (1) Warn on explicit set. Fires on create and update.
+				if configManagedTableSet {
+					response.Diagnostics.AddAttributeWarning(
+						path.Root("destination").AtName("managed_table"),
+						"managed_table has no effect for database (CDC) pipes",
+						fmt.Sprintf("destination.managed_table is ignored for '%s' sources. Destination tables for "+
+							"database/CDC pipes are always managed per-table via the source's table_mappings (each "+
+							"mapping's target_table and table_engine). The value is not sent to the API; you can remove it.",
+							sourceType),
+					)
+				}
+
+				// (3) Omitted on update: keep the prior state value to avoid a spurious replace.
+				if !configManagedTableSet && !request.State.Raw.IsNull() && !state.Destination.IsNull() && !plan.Destination.IsNull() {
+					var stateDestination, planDestination models.ClickPipeDestinationModel
+					if diags := state.Destination.As(ctx, &stateDestination, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						if diags := plan.Destination.As(ctx, &planDestination, basetypes.ObjectAsOptions{}); !diags.HasError() {
+							if !stateDestination.ManagedTable.IsNull() && !planDestination.ManagedTable.Equal(stateDestination.ManagedTable) {
+								planDestination.ManagedTable = stateDestination.ManagedTable
+								plan.Destination = planDestination.ObjectValue()
+								response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
+							}
 						}
 					}
 				}
@@ -4824,9 +4834,8 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	}
 
 	// For DB pipes, table/columns/tableDefinition are always null (managed via table_mappings).
-	// managed_table is not sent to or returned by the API for these sources, so preserve the
-	// user-configured value from state to keep plan, create, and read consistent (issue #543).
-	// Fall back to the schema default (true) when there is no prior state, e.g. on import.
+	// managed_table isn't returned by the API, so preserve it from state (issue #543); fall back
+	// to the schema default (true) when there's no prior state, e.g. on import.
 	if isDBPipe {
 		destinationModel.Table = types.StringNull()
 		if stateDestinationModel.ManagedTable.IsNull() {

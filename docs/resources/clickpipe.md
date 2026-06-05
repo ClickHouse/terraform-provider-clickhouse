@@ -109,7 +109,7 @@ Optional:
 
 - `columns` (Attributes List) The list of columns for the ClickHouse table. Required for all sources except Postgres CDC (where columns are determined from source tables). (see [below for nested schema](#nestedatt--destination--columns))
 - `database` (String) The name of the ClickHouse database. Default is `default`.
-- `managed_table` (Boolean) Whether the table is managed by ClickHouse Cloud. If `false`, the table must exist in the database. Default is `true`.
+- `managed_table` (Boolean) Whether the table is managed by ClickHouse Cloud. If `false`, the table must exist in the database. Default is `true`. **Not applicable to database/CDC pipes** (Postgres, MySQL, BigQuery, MongoDB): for those sources destination tables are always managed per-table via `table_mappings`, so this field is ignored and not sent to the API.
 - `roles` (List of String) ClickPipe will create a ClickHouse user with these roles. Add your custom roles here if required.
 - `table` (String) The name of the ClickHouse table. Required for all sources except Postgres CDC (where tables are created from table_mappings).
 - `table_definition` (Attributes) Definition of the destination table. Required for ClickPipes managed tables. (see [below for nested schema](#nestedatt--destination--table_definition))
