@@ -180,7 +180,7 @@ var ClickPipeObjectStorageFormats = []string{
 	ClickPipeCSVFormat,
 	ClickPipeCSVWithNamesFormat,
 	ClickPipeParquetFormat,
-	ClickPipeAvroFormat
+	ClickPipeAvroFormat,
 }
 
 const (

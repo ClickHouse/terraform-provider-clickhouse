@@ -460,7 +460,7 @@ Optional:
 
 Required:
 
-- `format` (String) The format of the S3 objects. (`JSONEachRow`, `CSV`, `CSVWithNames`, `Parquet`)
+- `format` (String) The format of the S3 objects. (`JSONEachRow`, `CSV`, `CSVWithNames`, `Parquet`, `Avro`)
 
 Optional:
 
