@@ -85,6 +85,11 @@ type PostgresListItem struct {
 }
 
 // PostgresCreate is the POST /postgres request body (PostgresInstancePostRequestV1).
+// PgConfig / PgBouncerConfig use omitempty: a nil map is omitted (server uses its
+// default / a replica inherits). The server's create validator is
+// undefinedOr(isPopulatedObject), so an explicit empty {} is rejected — the
+// provider blocks that at plan time (see forbidEmptyConfigOnCreate), so only
+// nil or populated maps ever reach here.
 type PostgresCreate struct {
 	Name            string      `json:"name"`
 	Provider        string      `json:"provider"`
@@ -110,7 +115,9 @@ type PostgresUpdate struct {
 	Tags   *[]Tag `json:"tags,omitempty"`
 }
 
-// PostgresRestoreRequest is the POST /postgres/{id}/restoredService body.
+// PostgresRestoreRequest is the POST /postgres/{id}/restoredService body. Same
+// pgConfig/pgBouncerConfig contract as PostgresCreate (omit nil; empty {} is
+// rejected by the server and blocked at plan).
 type PostgresRestoreRequest struct {
 	Name            string      `json:"name"`
 	RestoreTarget   string      `json:"restoreTarget"`
@@ -119,7 +126,9 @@ type PostgresRestoreRequest struct {
 	Tags            []Tag       `json:"tags,omitempty"`
 }
 
-// PostgresReadReplicaRequest is the POST /postgres/{id}/readReplica body.
+// PostgresReadReplicaRequest is the POST /postgres/{id}/readReplica body. Same
+// pgConfig/pgBouncerConfig contract as PostgresCreate (omit nil; empty {} is
+// rejected by the server and blocked at plan).
 type PostgresReadReplicaRequest struct {
 	Name            string      `json:"name"`
 	PgConfig        PgConfigMap `json:"pgConfig,omitempty"`
