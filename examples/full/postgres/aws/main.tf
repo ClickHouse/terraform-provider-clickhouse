@@ -22,16 +22,10 @@ variable "region" {
   default = "us-east-1"
 }
 
-# The shared e2e harness generates names like "[e2e]-postgres-...": sanitize to
-# the Postgres instance-name charset (lowercase, alnum + hyphen).
-locals {
-  pg_name = lower(replace(replace(replace(replace(var.service_name, "[", ""), "]", ""), ".", "-"), " ", "-"))
-}
-
 # Primary: exercises explicit version, HA, runtime config (pg_config /
 # pgbouncer_config), tags, and a user-managed password.
 resource "clickhouse_postgres_service" "primary" {
-  name             = local.pg_name
+  name             = var.service_name
   cloud_provider   = "aws"
   region           = var.region
   size             = "c6gd.large"
@@ -56,7 +50,7 @@ resource "clickhouse_postgres_service" "primary" {
 
 # Read replica of the primary (inherits the superuser, so no password here).
 resource "clickhouse_postgres_service" "replica" {
-  name            = "${local.pg_name}-replica"
+  name            = "${var.service_name}-replica"
   cloud_provider  = "aws"
   region          = var.region
   size            = "c6gd.large"
