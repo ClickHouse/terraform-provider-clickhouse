@@ -87,35 +87,26 @@ pgbouncer_config = {
 
 ## Passwords
 
-The superuser password can be managed three ways:
+The superuser password can be managed two ways:
 
-- **Omit both `password` and `password_wo`** — the server generates one,
-  captured into (sensitive) state as `password`.
-- **`password`** — a value you supply; changing it rotates the password.
-  Stored in (sensitive) state.
-- **`password_wo` + `password_wo_version`** — a write-only password: the
-  `password_wo` *value* is never stored in state, keeping the literal out of
-  your configuration and plan diffs. Rotation is triggered by **changing
-  `password_wo_version`** — incrementing it by convention, though any change
-  rotates (write-only values can't be diffed); changing the
-  version without supplying a `password_wo` value is a no-op.
+- **Omit `password`** — the server generates one, captured into (sensitive)
+  state as `password`.
+- **`password`** — a value you supply; changing it rotates the password
+  (`PATCH /password`). Stored in (sensitive) state.
 
 The `password` attribute is **always hydrated from the server** (which echoes
-it on every `GET`), so it holds the live password in all three modes — including
-write-only. In other words, `password_wo` keeps the secret out of your
-*configuration*, not out of *state*.
+it on every `GET`), so it always reflects the live password and an out-of-band
+rotation is reconciled on the next refresh.
 
-> **The password is in state regardless of which mode you use.** Both the
-> `password` attribute and the `connection_string` (which embeds the credential
-> in the URI) are stored in the state file in plaintext. They're marked
-> `Sensitive`, but there is no way to suppress them — ensure your state backend
-> is encrypted at rest.
+> **The password is stored in state.** Both the `password` attribute and the
+> `connection_string` (which embeds the credential in the URI) are stored in the
+> state file in plaintext. They're marked `Sensitive`, but there is no way to
+> suppress them — ensure your state backend is encrypted at rest.
 
-Rules: `password` and `password_wo` are mutually exclusive; both require
-**≥12 chars with at least one lowercase, one uppercase, and one digit**
-(enforced at plan time). Rotation is a `PATCH /password` — it does not resize
-or restart the instance, and there is a brief (~1–2s) server-side propagation
-window before a new password becomes active.
+Rules: `password` requires **≥12 chars with at least one lowercase, one
+uppercase, and one digit** (enforced at plan time). Rotation is a `PATCH
+/password` — it does not resize or restart the instance, and there is a brief
+(~1–2s) server-side propagation window before a new password becomes active.
 
 ## Read replicas and point-in-time restore
 
@@ -138,17 +129,18 @@ are normal in-place updates. A **live read replica cannot** — see below.)
 
 - **`read_replica_of`** — set to a primary's ID to create a streaming read
   replica. Mutually exclusive with `restore_to_point_in_time` and with
-  `password` / `password_wo` (a replica inherits the primary's superuser).
+  `password` (a replica inherits the primary's superuser).
   Changing or removing it **destroys and recreates** the instance as a
   standalone primary — a live replica can't be converted in place (see
   "Out-of-band changes" for the promotion exception).
   A **live read replica cannot be modified directly**: changing `size`,
   `ha_type`, or `tags` is a **plan-time error** ("read replica cannot be
   modified directly"), because the server rejects any such change on a replica.
-  Resize/retag the **parent** instead, or remove `read_replica_of` first to
-  detach this into a standalone primary. (`pg_config` / `pgbouncer_config` **are**
-  changeable on a replica — they use a separate endpoint that allows per-replica
-  values.)
+  Resize/retag the **parent** instead. (Removing `read_replica_of` turns this
+  into a standalone primary, but — as noted above — that **destroys and
+  recreates** a live replica; it is not an in-place detach.) `pg_config` /
+  `pgbouncer_config` **are** changeable on a replica — they use a separate
+  endpoint that allows per-replica values.
 - **`restore_to_point_in_time = { source_id, restore_target }`** — create
   this instance by restoring another instance's backup to an RFC3339
   timestamp. The restored instance's name is this resource's top-level `name`

@@ -143,31 +143,16 @@ func TestPostgresPasswordValidators(t *testing.T) {
 }
 
 func TestDecidePasswordOnCreate(t *testing.T) {
-	t.Run("neither → no rotation (server-generated stands)", func(t *testing.T) {
-		got := decidePasswordOnCreate(
-			models.PostgresServiceResourceModel{Password: types.StringNull()},
-			models.PostgresServiceResourceModel{PasswordWO: types.StringNull()},
-		)
+	t.Run("omitted → no rotation (server-generated stands)", func(t *testing.T) {
+		got := decidePasswordOnCreate(models.PostgresServiceResourceModel{Password: types.StringNull()})
 		if got.Set {
 			t.Errorf("got %#v", got)
 		}
 	})
-	t.Run("regular password → set", func(t *testing.T) {
-		got := decidePasswordOnCreate(
-			models.PostgresServiceResourceModel{Password: types.StringValue("UserPass1234")},
-			models.PostgresServiceResourceModel{PasswordWO: types.StringNull()},
-		)
+	t.Run("supplied password → set", func(t *testing.T) {
+		got := decidePasswordOnCreate(models.PostgresServiceResourceModel{Password: types.StringValue("UserPass1234")})
 		if !got.Set || got.Value != "UserPass1234" {
 			t.Errorf("got %#v", got)
-		}
-	})
-	t.Run("write-only → set + precedence over regular", func(t *testing.T) {
-		got := decidePasswordOnCreate(
-			models.PostgresServiceResourceModel{Password: types.StringValue("UserPass1234")},
-			models.PostgresServiceResourceModel{PasswordWO: types.StringValue("WriteOnly1234")},
-		)
-		if !got.Set || got.Value != "WriteOnly1234" {
-			t.Errorf("write-only must win; got %#v", got)
 		}
 	})
 }
@@ -175,40 +160,27 @@ func TestDecidePasswordOnCreate(t *testing.T) {
 func TestDecidePasswordRotationOnUpdate(t *testing.T) {
 	t.Run("no change", func(t *testing.T) {
 		if _, rot := decidePasswordRotationOnUpdate(
-			models.PostgresServiceResourceModel{Password: types.StringValue("Same12345678"), PasswordWOVersion: types.Int64Null()},
-			models.PostgresServiceResourceModel{Password: types.StringValue("Same12345678"), PasswordWOVersion: types.Int64Null()},
-			models.PostgresServiceResourceModel{PasswordWO: types.StringNull()},
+			models.PostgresServiceResourceModel{Password: types.StringValue("Same12345678")},
+			models.PostgresServiceResourceModel{Password: types.StringValue("Same12345678")},
 		); rot {
 			t.Error("expected no rotation")
 		}
 	})
-	t.Run("regular change", func(t *testing.T) {
+	t.Run("password change → rotate", func(t *testing.T) {
 		v, rot := decidePasswordRotationOnUpdate(
-			models.PostgresServiceResourceModel{Password: types.StringValue("NewPass12345"), PasswordWOVersion: types.Int64Null()},
-			models.PostgresServiceResourceModel{Password: types.StringValue("OldPass12345"), PasswordWOVersion: types.Int64Null()},
-			models.PostgresServiceResourceModel{PasswordWO: types.StringNull()},
+			models.PostgresServiceResourceModel{Password: types.StringValue("NewPass12345")},
+			models.PostgresServiceResourceModel{Password: types.StringValue("OldPass12345")},
 		)
 		if !rot || v != "NewPass12345" {
 			t.Errorf("got v=%q rot=%v", v, rot)
 		}
 	})
-	t.Run("wo version bump", func(t *testing.T) {
-		v, rot := decidePasswordRotationOnUpdate(
-			models.PostgresServiceResourceModel{Password: types.StringNull(), PasswordWOVersion: types.Int64Value(2)},
-			models.PostgresServiceResourceModel{Password: types.StringNull(), PasswordWOVersion: types.Int64Value(1)},
-			models.PostgresServiceResourceModel{PasswordWO: types.StringValue("RotatedWO1234")},
-		)
-		if !rot || v != "RotatedWO1234" {
-			t.Errorf("got v=%q rot=%v", v, rot)
-		}
-	})
-	t.Run("wo version unchanged → no rotation even with config value", func(t *testing.T) {
+	t.Run("removed from config → no rotation (state value pinned)", func(t *testing.T) {
 		if _, rot := decidePasswordRotationOnUpdate(
-			models.PostgresServiceResourceModel{Password: types.StringNull(), PasswordWOVersion: types.Int64Value(1)},
-			models.PostgresServiceResourceModel{Password: types.StringNull(), PasswordWOVersion: types.Int64Value(1)},
-			models.PostgresServiceResourceModel{PasswordWO: types.StringValue("PresentNoBump1")},
+			models.PostgresServiceResourceModel{Password: types.StringNull()},
+			models.PostgresServiceResourceModel{Password: types.StringValue("OldPass12345")},
 		); rot {
-			t.Error("version is the sole trigger; must not rotate")
+			t.Error("a null plan password must not rotate")
 		}
 	})
 }
@@ -217,33 +189,22 @@ func TestPasswordRotationPlanned(t *testing.T) {
 	cfg := func(pw types.String) models.PostgresServiceResourceModel {
 		return models.PostgresServiceResourceModel{Password: pw}
 	}
-	st := func(pw types.String, ver types.Int64) models.PostgresServiceResourceModel {
-		return models.PostgresServiceResourceModel{Password: pw, PasswordWOVersion: ver}
-	}
-	pl := func(ver types.Int64) models.PostgresServiceResourceModel {
-		return models.PostgresServiceResourceModel{PasswordWOVersion: ver}
+	st := func(pw types.String) models.PostgresServiceResourceModel {
+		return models.PostgresServiceResourceModel{Password: pw}
 	}
 
-	if !passwordRotationPlanned(cfg(types.StringUnknown()), pl(types.Int64Null()), st(types.StringValue("old"), types.Int64Null())) {
+	if !passwordRotationPlanned(cfg(types.StringUnknown()), st(types.StringValue("old"))) {
 		t.Error("interpolated (unknown) config should rotate")
 	}
-	if !passwordRotationPlanned(cfg(types.StringValue("new")), pl(types.Int64Null()), st(types.StringValue("old"), types.Int64Null())) {
+	if !passwordRotationPlanned(cfg(types.StringValue("new")), st(types.StringValue("old"))) {
 		t.Error("changed config should rotate")
 	}
-	if passwordRotationPlanned(cfg(types.StringValue("same")), pl(types.Int64Null()), st(types.StringValue("same"), types.Int64Null())) {
+	if passwordRotationPlanned(cfg(types.StringValue("same")), st(types.StringValue("same"))) {
 		t.Error("equal config should not rotate")
 	}
-	if !passwordRotationPlanned(cfg(types.StringNull()), pl(types.Int64Value(2)), st(types.StringNull(), types.Int64Value(1))) {
-		t.Error("wo version bump should rotate")
-	}
-	if passwordRotationPlanned(cfg(types.StringNull()), pl(types.Int64Value(1)), st(types.StringNull(), types.Int64Value(1))) {
-		t.Error("no change should not rotate")
-	}
-	// Removing password_wo + password_wo_version: plan version null, state set.
-	// Must NOT be treated as a rotation (mirrors decidePasswordRotationOnUpdate),
-	// else connection_string would be marked unknown with no actual rotation.
-	if passwordRotationPlanned(cfg(types.StringNull()), pl(types.Int64Null()), st(types.StringNull(), types.Int64Value(1))) {
-		t.Error("removing password_wo_version (plan null, state set) must not rotate")
+	// Omitting password (null config): the live value is pinned from state, not rotated.
+	if passwordRotationPlanned(cfg(types.StringNull()), st(types.StringValue("live"))) {
+		t.Error("null (omitted) config must not rotate")
 	}
 }
 

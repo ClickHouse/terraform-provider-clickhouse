@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"regexp"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -221,7 +220,7 @@ func replicaUpdateForbidden(plan, state models.PostgresServiceResourceModel) dia
 		diags.AddAttributeError(
 			path.Root(name),
 			"Read replica cannot be modified directly",
-			"`"+name+"` cannot be changed on a live read replica — the server rejects direct modifications. Change it on the parent (primary) instead, or remove read_replica_of to detach this into a standalone primary first.",
+			"`"+name+"` cannot be changed on a live read replica — the server rejects direct modifications. Change it on the parent (primary) instead. Removing read_replica_of turns this into a standalone primary, but destroys and recreates the instance (it is not an in-place detach).",
 		)
 	}
 	forbid("size", plan.Size, state.Size)
@@ -406,16 +405,13 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Sensitive:   true,
 			},
 
-			// --- Sensitive / write-only --------------------------------------
+			// --- Sensitive ---------------------------------------------------
 			"password": schema.StringAttribute{
-				Description: "Superuser password. Optional: set it to manage the password in Terraform, or omit it and the server generates one. Computed and refreshed from each GET (the server echoes it), so it always reflects the live password and an out-of-band rotation is reconciled on the next refresh. Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Conflicts with password_wo. Stored in (sensitive) state.",
+				Description: "Superuser password. Optional: set it to manage the password in Terraform, or omit it and the server generates one. Computed and refreshed from each GET (the server echoes it), so it always reflects the live password and an out-of-band rotation is reconciled on the next refresh. Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Stored in (sensitive) state.",
 				Optional:    true,
 				Computed:    true,
 				Sensitive:   true,
-				Validators: append(
-					postgresPasswordValidators(),
-					stringvalidator.ConflictsWith(path.MatchRoot("password_wo")),
-				),
+				Validators:  postgresPasswordValidators(),
 				// No UseStateForUnknown plan modifier: it cannot distinguish
 				// "unknown because unconfigured" (server-generated → pin to
 				// state) from "unknown because the configured value is an
@@ -423,28 +419,10 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				// rotation that must NOT be suppressed). ModifyPlan makes that
 				// config-aware distinction.
 			},
-			"password_wo": schema.StringAttribute{
-				Description: "Superuser password supplied as a write-only value: this attribute is never stored in state, keeping the literal out of your configuration and plan diffs. Note the resulting password is still readable in state via the `password` attribute and `connection_string` (the server echoes it) — write-only keeps it out of the config, not out of state. Because write-only values aren't tracked, rotation is triggered by **changing** password_wo_version (incrementing it by convention) — any change rotates, mirroring clickhouse_service — not by editing this value. Same complexity rules as password. Requires password_wo_version; conflicts with password.",
-				Optional:    true,
-				Sensitive:   true,
-				WriteOnly:   true,
-				Validators: append(
-					postgresPasswordValidators(),
-					stringvalidator.AlsoRequires(path.MatchRoot("password_wo_version")),
-					stringvalidator.ConflictsWith(path.MatchRoot("password")),
-				),
-			},
-			"password_wo_version": schema.Int64Attribute{
-				Description: "Version counter for password_wo. Change this (incrementing by convention) to trigger a password rotation when using password_wo — any change rotates. Required whenever password_wo is set.",
-				Optional:    true,
-				Validators: []validator.Int64{
-					int64validator.AlsoRequires(path.MatchRoot("password_wo")),
-				},
-			},
 
 			// --- Provenance / immutable --------------------------------------
 			"read_replica_of": schema.StringAttribute{
-				Description: "ID of the primary instance to replicate. When set, this instance is created as a read replica (streaming replication) of that primary. Immutable for a live replica: changing or removing it destroys and recreates the instance as a standalone primary. The one exception is an out-of-band promotion — if you promote the replica via the API/UI (is_primary becomes true), changing or removing read_replica_of then reconciles state in place without destroying the promoted primary. Mutually exclusive with restore_to_point_in_time and with password / password_wo (a replica inherits the primary's superuser).",
+				Description: "ID of the primary instance to replicate. When set, this instance is created as a read replica (streaming replication) of that primary. Immutable for a live replica: changing or removing it destroys and recreates the instance as a standalone primary. The one exception is an out-of-band promotion — if you promote the replica via the API/UI (is_primary becomes true), changing or removing read_replica_of then reconciles state in place without destroying the promoted primary. Mutually exclusive with restore_to_point_in_time and with password (a replica inherits the primary's superuser).",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplaceIf(
@@ -457,7 +435,6 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					stringvalidator.ConflictsWith(
 						path.MatchRoot("restore_to_point_in_time"),
 						path.MatchRoot("password"),
-						path.MatchRoot("password_wo"),
 					),
 				},
 			},
@@ -500,11 +477,8 @@ func (r *PostgresServiceResource) Configure(_ context.Context, req resource.Conf
 // Create provisions a new instance via one of three mutually-exclusive paths:
 // standard, read replica (read_replica_of), or point-in-time restore.
 func (r *PostgresServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan, config models.PostgresServiceResourceModel
+	var plan models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	// Config carries the write-only password_wo value (write-only attributes
-	// are absent from Plan and State — only Config has them).
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -563,9 +537,9 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	// If the user supplied a password (regular or write-only), rotate to it now
+	// If the user supplied a password, rotate to it now
 	// via PATCH /password (CreatePostgres always has the server generate one).
-	pwIntent := decidePasswordOnCreate(plan, config)
+	pwIntent := decidePasswordOnCreate(plan)
 	if pwIntent.Set {
 		value := pwIntent.Value
 		if _, err := r.client.SetPostgresPassword(ctx, pg.Id, api.PostgresPassword{Password: value}); err != nil {
@@ -602,14 +576,11 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		model.PostgresVersion = types.StringNull()
 	}
 	// password is Computed and hydrated from the GET above (the server echoes the
-	// current password — generated, regular, write-only, or inherited). Guarantee
-	// it resolves to a known value so resp.State.Set can't fail if the server
-	// transiently omits it. password_wo is the write-only input attribute and is
-	// never persisted.
+	// current password — generated, supplied, or inherited). Guarantee it resolves
+	// to a known value so resp.State.Set can't fail if the server transiently omits it.
 	if model.Password.IsUnknown() {
 		model.Password = types.StringNull()
 	}
-	model.PasswordWO = types.StringNull()
 
 	cfg, err := r.client.GetPostgresConfig(ctx, final.Id)
 	if err != nil {
@@ -661,10 +632,8 @@ func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadReq
 	// is true, adopting the promoted instance as a standalone primary.
 	//
 	// syncPostgresState hydrates password from the GET (the server echoes it),
-	// so state always holds the live password — even in write-only mode. This
-	// lets import recover the credential and reconciles out-of-band rotations.
-	// (The credential is in state regardless via connection_string, which embeds
-	// it; password_wo only keeps the value out of the *configuration*.)
+	// so state always holds the live password. This lets import recover the
+	// credential and reconciles out-of-band rotations.
 
 	cfg, err := r.client.GetPostgresConfig(ctx, state.ID.ValueString())
 	if err != nil {
@@ -696,10 +665,9 @@ func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadReq
 // RequiresReplaceIf (replace for a live replica, adopted in place once promoted
 // out-of-band) so Update also handles that in-place adoption.
 func (r *PostgresServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state, config models.PostgresServiceResourceModel
+	var plan, state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -711,7 +679,7 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	rotateValue, rotate := decidePasswordRotationOnUpdate(plan, state, config)
+	rotateValue, rotate := decidePasswordRotationOnUpdate(plan, state)
 
 	if updatePlan.Body == nil && !configUpdate.Changed && !rotate {
 		// No-op: skips the GET hydration below, so resolve any unknown ModifyPlan
@@ -771,9 +739,8 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		}
 	}
 
-	// Password rotation (PATCH /password): a password_wo_version bump (using the
-	// write-only value from config) or a change to the regular password. Never
-	// part of the instance PATCH body.
+	// Password rotation (PATCH /password): a change to the `password` value.
+	// Never part of the instance PATCH body.
 	if rotate {
 		value := rotateValue
 		if _, err := r.client.SetPostgresPassword(ctx, state.ID.ValueString(), api.PostgresPassword{Password: value}); err != nil {
@@ -857,7 +824,7 @@ func (r *PostgresServiceResource) ImportState(ctx context.Context, req resource.
 //     `connection_string` plan-stable. Both are Computed and hydrated from the
 //     server, so state always holds a known value; the only question is the
 //     planned value. When a rotation is planned the new value isn't known yet
-//     (a write-only version bump, or an interpolated password) so mark them
+//     (an interpolated password) so mark them
 //     unknown; otherwise pin the prior state value. `password` only needs
 //     setting when the user didn't configure a literal (a configured value is
 //     already the known plan value); this replaces the UseStateForUnknown plan
@@ -947,11 +914,11 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 	// password and connection_string are Computed and hydrated from the server on
 	// every read, so state always holds a known value. The only question is plan
 	// stability: when a rotation is planned the new value isn't known yet (a
-	// write-only version bump, or an interpolated password), so mark them
+	// an interpolated password), so mark them
 	// unknown; otherwise pin the prior state value (which equals the live one).
 	// `password` only needs setting when the user didn't configure a literal —
 	// a configured value is already the known plan value.
-	rotation := passwordRotationPlanned(config, plan, state)
+	rotation := passwordRotationPlanned(config, state)
 	if config.Password.IsNull() {
 		pw := state.Password
 		if rotation {
@@ -1507,15 +1474,11 @@ type passwordCreateIntent struct {
 	Value string // value to PATCH (when Set)
 }
 
-// decidePasswordOnCreate resolves the post-create password action. password_wo
-// (write-only, from config) takes precedence over the regular password; if
-// neither is supplied the server-generated value stands (no rotation).
-func decidePasswordOnCreate(plan, config models.PostgresServiceResourceModel) passwordCreateIntent {
-	if !config.PasswordWO.IsNull() && !config.PasswordWO.IsUnknown() {
-		if wo := config.PasswordWO.ValueString(); wo != "" {
-			return passwordCreateIntent{Set: true, Value: wo}
-		}
-	}
+// decidePasswordOnCreate resolves the post-create password action: CreatePostgres
+// always has the server generate a password, so we only PATCH a new one when the
+// user supplied a literal `password`. The resulting password — generated or
+// supplied — is hydrated into state from the post-create GET either way.
+func decidePasswordOnCreate(plan models.PostgresServiceResourceModel) passwordCreateIntent {
 	if !plan.Password.IsNull() && !plan.Password.IsUnknown() {
 		if pw := plan.Password.ValueString(); pw != "" {
 			return passwordCreateIntent{Set: true, Value: pw}
@@ -1524,16 +1487,9 @@ func decidePasswordOnCreate(plan, config models.PostgresServiceResourceModel) pa
 	return passwordCreateIntent{Set: false}
 }
 
-// decidePasswordRotationOnUpdate returns the new password and whether to rotate.
-// A password_wo_version bump rotates to the write-only value; otherwise a
-// change to the regular password rotates to it. The write-only branch wins.
-func decidePasswordRotationOnUpdate(plan, state, config models.PostgresServiceResourceModel) (value string, rotate bool) {
-	if !plan.PasswordWOVersion.IsNull() && !plan.PasswordWOVersion.Equal(state.PasswordWOVersion) {
-		if wo := config.PasswordWO.ValueString(); wo != "" {
-			return wo, true
-		}
-		return "", false
-	}
+// decidePasswordRotationOnUpdate returns the new password and whether to rotate:
+// a change to the `password` value rotates to it via PATCH /password.
+func decidePasswordRotationOnUpdate(plan, state models.PostgresServiceResourceModel) (value string, rotate bool) {
 	if !plan.Password.IsNull() && !plan.Password.IsUnknown() && !plan.Password.Equal(state.Password) {
 		if pw := plan.Password.ValueString(); pw != "" {
 			return pw, true
@@ -1543,18 +1499,12 @@ func decidePasswordRotationOnUpdate(plan, state, config models.PostgresServiceRe
 }
 
 // passwordRotationPlanned reports whether a password rotation is planned, used
-// by ModifyPlan to decide whether connection_string must be marked unknown.
-func passwordRotationPlanned(config, plan, state models.PostgresServiceResourceModel) bool {
+// by ModifyPlan to decide whether connection_string must be marked unknown. A
+// rotation is planned when the configured password is an unresolved interpolation
+// (unknown) or differs from the current state value.
+func passwordRotationPlanned(config, state models.PostgresServiceResourceModel) bool {
 	if config.Password.IsUnknown() {
 		return true
 	}
-	if !config.Password.IsNull() && !config.Password.Equal(state.Password) {
-		return true
-	}
-	// Mirror decidePasswordRotationOnUpdate's guard: only a non-null version
-	// bump is a rotation. Without the IsNull check, removing password_wo +
-	// password_wo_version (plan version null, state version set) would mark
-	// connection_string unknown here while decidePasswordRotationOnUpdate does
-	// NOT rotate — a plan/apply inconsistency.
-	return !plan.PasswordWOVersion.IsNull() && !plan.PasswordWOVersion.Equal(state.PasswordWOVersion)
+	return !config.Password.IsNull() && !config.Password.Equal(state.Password)
 }

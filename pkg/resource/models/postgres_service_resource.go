@@ -36,16 +36,10 @@ type PostgresServiceResourceModel struct {
 	Username         types.String `tfsdk:"username"`
 	ConnectionString types.String `tfsdk:"connection_string"`
 
-	// Sensitive / write-only.
+	// Sensitive.
 	// Password is Optional+Computed: user-supplied, or server-generated when
 	// omitted; always hydrated from the GET so it holds the live password.
-	// PasswordWO is the write-only input attribute (never stored in state — but
-	// the password it sets is still visible via Password / connection_string);
-	// its rotation is triggered by bumping PasswordWOVersion. Password and
-	// PasswordWO are mutually exclusive.
-	Password          types.String `tfsdk:"password"`
-	PasswordWO        types.String `tfsdk:"password_wo"`
-	PasswordWOVersion types.Int64  `tfsdk:"password_wo_version"`
+	Password types.String `tfsdk:"password"`
 
 	// Provenance — create-time only, mutually exclusive. ReadReplicaOf holds the
 	// parent primary's ID for a read replica; changing/removing it replaces the

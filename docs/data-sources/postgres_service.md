@@ -13,7 +13,7 @@ description: |-
   the server doesn't expose a per-instance port). It does not surface a standalone
   password field, but the returned connection_string (sensitive) embeds the
   active password — so the credential is available here. The write-time create
-  inputs — password_wo, read_replica_of, restore_to_point_in_time — are not
+  inputs — read_replica_of, restore_to_point_in_time — are not
   read back. tags, pg_config, and pgbouncer_config are read-only string maps.
   Example
   
@@ -40,7 +40,7 @@ Returns the service's server-reported attributes: `cloud_provider`, `region`,
 the server doesn't expose a per-instance port). It does not surface a standalone
 `password` field, but the returned `connection_string` (sensitive) embeds the
 active password — so the credential is available here. The write-time create
-inputs — `password_wo`, `read_replica_of`, `restore_to_point_in_time` — are not
+inputs — `read_replica_of`, `restore_to_point_in_time` — are not
 read back. `tags`, `pg_config`, and `pgbouncer_config` are read-only string maps.
 
 ## Example
