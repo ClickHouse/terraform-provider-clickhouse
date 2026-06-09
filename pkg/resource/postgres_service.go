@@ -223,6 +223,7 @@ func replicaUpdateForbidden(plan, state models.PostgresServiceResourceModel) dia
 			"`"+name+"` cannot be changed on a live read replica — the server rejects direct modifications. Change it on the parent (primary) instead. Removing read_replica_of turns this into a standalone primary, but destroys and recreates the instance (it is not an in-place detach).",
 		)
 	}
+	forbid("name", plan.Name, state.Name)
 	forbid("size", plan.Size, state.Size)
 	forbid("ha_type", plan.HaType, state.HaType)
 	forbid("tags", plan.Tags, state.Tags)
@@ -242,13 +243,10 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Human-readable name. Immutable post-create; changes force destroy-and-recreate. Differs from clickhouse_service, which allows in-place rename.",
+				Description: "Human-readable name. Can be changed in place; the rename is applied via PATCH (no destroy-and-recreate). Note: renaming rotates the server-assigned hostname and CA certificates, so connection_string and hostname change and existing clients must reconnect.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthBetween(postgresInstanceNameMin, postgresInstanceNameMax),
-				},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"cloud_provider": schema.StringAttribute{
@@ -911,13 +909,28 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 		}
 	}
 
+	// A rename rotates the server-assigned host name and CA certificates. hostname
+	// (UseStateForUnknown) and connection_string (pinned below) would otherwise
+	// carry stale values, tripping an inconsistent-result error on the post-apply
+	// read. Mark hostname unknown so the plan shows it changing, and warn that
+	// existing clients must reconnect to the new host and re-trust the new cert.
+	rename := renamePlanned(plan, state)
+	if rename {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("hostname"), types.StringUnknown())...)
+		resp.Diagnostics.AddAttributeWarning(
+			path.Root("name"),
+			"Renaming rotates the connection endpoint",
+			"Changing name renames the service in place, but the server also issues a new host name and CA certificates. Existing clients must reconnect to the new hostname and re-trust the new certificate; hostname and connection_string will change.",
+		)
+	}
+
 	// password and connection_string are Computed and hydrated from the server on
 	// every read, so state always holds a known value. The only question is plan
-	// stability: when a rotation is planned the new value isn't known yet (a
-	// an interpolated password), so mark them
-	// unknown; otherwise pin the prior state value (which equals the live one).
-	// `password` only needs setting when the user didn't configure a literal —
-	// a configured value is already the known plan value.
+	// stability: when a rotation is planned the new value isn't known yet (an
+	// interpolated password), and a rename re-issues the connection string, so
+	// mark them unknown; otherwise pin the prior state value (which equals the
+	// live one). `password` only needs setting when the user didn't configure a
+	// literal — a configured value is already the known plan value.
 	rotation := passwordRotationPlanned(config, state)
 	if config.Password.IsNull() {
 		pw := state.Password
@@ -927,7 +940,7 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("password"), pw)...)
 	}
 	connStr := state.ConnectionString
-	if rotation {
+	if rotation || rename {
 		connStr = types.StringUnknown()
 	}
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("connection_string"), connStr)...)
@@ -1163,6 +1176,13 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 	changed := false
 	transitionExpected := false
 
+	if !plan.Name.Equal(state.Name) {
+		update.Name = plan.Name.ValueString()
+		changed = true
+		// A rename is server-side eventually-consistent (it rotates the host name
+		// and CA certs), so wait until the new name is reflected before reading back.
+		transitionExpected = true
+	}
 	if !plan.Size.Equal(state.Size) {
 		update.Size = plan.Size.ValueString()
 		changed = true
@@ -1208,6 +1228,7 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 // PATCHed (size / ha_type / tags). This is field-aware so the wait doesn't
 // settle on a stale 'running' before Ubicloud commits the queued change.
 func buildPostgresMatchPredicate(body *api.PostgresUpdate) func(*api.Postgres) bool {
+	expectName := body.Name
 	expectSize := body.Size
 	expectHaType := body.HaType
 	var expectTags map[string]string
@@ -1220,6 +1241,9 @@ func buildPostgresMatchPredicate(body *api.PostgresUpdate) func(*api.Postgres) b
 	}
 	return func(pg *api.Postgres) bool {
 		if pg.State != api.PostgresStateRunning {
+			return false
+		}
+		if expectName != "" && pg.Name != expectName {
 			return false
 		}
 		if expectSize != "" && pg.Size != expectSize {
@@ -1507,4 +1531,15 @@ func passwordRotationPlanned(config, state models.PostgresServiceResourceModel) 
 		return true
 	}
 	return !config.Password.IsNull() && !config.Password.Equal(state.Password)
+}
+
+// renamePlanned reports whether the update plans an in-place rename: a known
+// plan name that differs from the live state. name is Required (always known in
+// a non-interpolated plan); an unknown (interpolated) name can't be proven a
+// change, so defer to apply.
+func renamePlanned(plan, state models.PostgresServiceResourceModel) bool {
+	if plan.Name.IsUnknown() {
+		return false
+	}
+	return !plan.Name.Equal(state.Name)
 }

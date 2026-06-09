@@ -517,6 +517,25 @@ func TestBuildPostgresUpdate(t *testing.T) {
 			t.Errorf("size change inside combined diff must still surface TransitionExpected")
 		}
 	})
+
+	t.Run("name-only diff produces name body with TransitionExpected", func(t *testing.T) {
+		plan := baseModel("c6gd.large", "none", mapTags())
+		plan.Name = types.StringValue("renamed")
+		state := baseModel("c6gd.large", "none", mapTags())
+		state.Name = types.StringValue("original")
+		result, diags := buildPostgresUpdate(ctx, plan, state)
+		if diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if result.Body == nil || result.Body.Name != "renamed" {
+			t.Errorf("expected name=renamed in body, got %#v", result.Body)
+		}
+		// A rename is server-side eventually-consistent (the host name + certs
+		// rotate); the wait must hold until the new name is reflected.
+		if !result.TransitionExpected {
+			t.Errorf("name change must signal TransitionExpected=true")
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -594,6 +613,17 @@ func TestBuildPostgresMatchPredicate(t *testing.T) {
 		}
 		if predicate(&api.Postgres{State: api.PostgresStateRunning, Size: "r6gd.large", HaType: "async", Tags: []api.Tag{{Key: "team", Value: "billing"}}}) {
 			t.Error("must NOT match while size still pending")
+		}
+	})
+
+	t.Run("name-only PATCH: only name is gated", func(t *testing.T) {
+		body := &api.PostgresUpdate{Name: "renamed"}
+		predicate := buildPostgresMatchPredicate(body)
+		if !predicate(&api.Postgres{State: api.PostgresStateRunning, Name: "renamed"}) {
+			t.Error("should match once the server reflects the new name")
+		}
+		if predicate(&api.Postgres{State: api.PostgresStateRunning, Name: "original"}) {
+			t.Error("must NOT match while name is still the pre-rename value (queued-rename race case)")
 		}
 	})
 }

@@ -238,6 +238,28 @@ func TestUpdatePostgres_PatchesOnlyChangedFields(t *testing.T) {
 	}
 }
 
+func TestUpdatePostgres_SendsNameWhenSet(t *testing.T) {
+	const newName = "renamed-pg"
+	var capturedBody map[string]any
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+		if err := json.Unmarshal(body, &capturedBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", Name: newName}})
+	})
+	_, err := client.UpdatePostgres(context.Background(), testPostgresID, PostgresUpdate{Name: newName})
+	if err != nil {
+		t.Fatalf("UpdatePostgres: %v", err)
+	}
+	if got := capturedBody["name"]; got != newName {
+		t.Errorf("name = %v; want %q", got, newName)
+	}
+}
+
 // ----- DeletePostgres ------------------------------------------------------
 
 func TestDeletePostgres_HappyPath(t *testing.T) {
