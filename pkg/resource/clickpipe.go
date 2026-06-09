@@ -1720,7 +1720,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						},
 					},
 					"table_definition": schema.SingleNestedAttribute{
-						MarkdownDescription: "Definition of the destination table. Required for ClickPipes managed tables.",
+						MarkdownDescription: "Definition of the destination table. Required for ClickPipes managed tables. **Not supported for database/CDC pipes** (Postgres, MySQL, BigQuery, MongoDB): for those sources destination tables are defined per-table via `table_mappings` (each mapping's `target_table`, `table_engine`, `sorting_keys`, etc.), so configuring this is rejected at plan time.",
 						Optional:            true,
 						Attributes: map[string]schema.Attribute{
 							"engine": schema.SingleNestedAttribute{
@@ -2160,14 +2160,28 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 
 			// Read config, not plan: config is null when omitted; the plan is already filled by the default.
 			configManagedTableSet := false
+			configTableDefinitionSet := false
 			if !config.Destination.IsNull() {
 				var configDestination models.ClickPipeDestinationModel
 				if diags := config.Destination.As(ctx, &configDestination, basetypes.ObjectAsOptions{}); !diags.HasError() {
 					configManagedTableSet = !configDestination.ManagedTable.IsNull()
+					configTableDefinitionSet = !configDestination.TableDefinition.IsNull()
 				}
 			}
 
 			if isDBPipe {
+				// (0) Reject table_definition: CDC pipes drop it on create and null it on read, so a configured value tripped "inconsistent result after apply" (issue #571).
+				if configTableDefinitionSet {
+					response.Diagnostics.AddAttributeError(
+						path.Root("destination").AtName("table_definition"),
+						"table_definition is not supported for database (CDC) pipes",
+						fmt.Sprintf("destination.table_definition cannot be used with '%s' sources. Destination tables for "+
+							"database/CDC pipes are defined per-table via the source's table_mappings (each mapping's "+
+							"target_table, table_engine, sorting_keys, etc.). Remove destination.table_definition.",
+							sourceType),
+					)
+				}
+
 				// (1) Warn on explicit set. Fires on create and update.
 				if configManagedTableSet {
 					response.Diagnostics.AddAttributeWarning(
