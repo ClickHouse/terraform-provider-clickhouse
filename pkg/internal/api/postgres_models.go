@@ -103,8 +103,8 @@ type PostgresCreate struct {
 }
 
 // PostgresUpdate is the PATCH /postgres/{id} body. Server accepts
-// name / size / haType / tags. Setting name renames the service in place;
-// the server also rotates the host name and CA certificates as a side effect.
+// name / size / haType / tags. Setting name renames the service and rotates
+// its host name and CA certificates as a side effect.
 // Tags is *[]Tag so callers can distinguish:
 //
 //	nil       -> field omitted; server leaves existing tags alone

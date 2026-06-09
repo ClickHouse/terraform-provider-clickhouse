@@ -100,9 +100,9 @@ func (c *ClientImpl) CreatePostgres(ctx context.Context, body PostgresCreate) (*
 	return &resp.Result, resp.Result.Password, nil
 }
 
-// UpdatePostgres PATCHes name / size / haType / tags. A name change renames
-// the service in place (the server also rotates its host name and CA certs).
-// Other fields would be rejected by the server; PostgresUpdate's shape enforces this.
+// UpdatePostgres PATCHes name / size / haType / tags. A name change also
+// rotates the service's host name and CA certs. Other fields would be rejected
+// by the server; PostgresUpdate's shape enforces this.
 func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (*Postgres, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {

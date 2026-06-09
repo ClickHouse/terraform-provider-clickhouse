@@ -243,7 +243,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Human-readable name. Can be changed in place; the rename is applied via PATCH (no destroy-and-recreate). Note: renaming rotates the server-assigned hostname and CA certificates, so connection_string and hostname change and existing clients must reconnect.",
+				Description: "Human-readable name. Changing it rotates the server-assigned hostname and CA certificates, so connection_string and hostname change and existing clients must reconnect.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthBetween(postgresInstanceNameMin, postgresInstanceNameMax),
@@ -920,7 +920,7 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 		resp.Diagnostics.AddAttributeWarning(
 			path.Root("name"),
 			"Renaming rotates the connection endpoint",
-			"Changing name renames the service in place, but the server also issues a new host name and CA certificates. Existing clients must reconnect to the new hostname and re-trust the new certificate; hostname and connection_string will change.",
+			"Renaming rotates the service's host name and CA certificates: hostname and connection_string change, and existing clients must reconnect to the new host and re-trust the new certificate.",
 		)
 	}
 
