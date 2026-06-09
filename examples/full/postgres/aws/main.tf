@@ -28,7 +28,7 @@ resource "clickhouse_postgres_service" "primary" {
   name             = var.service_name
   cloud_provider   = "aws"
   region           = var.region
-  size             = "c6gd.large"
+  size             = "m6gd.large"
   postgres_version = "18"
   ha_type          = "async"
 
@@ -53,7 +53,7 @@ resource "clickhouse_postgres_service" "replica" {
   name            = "${var.service_name}-replica"
   cloud_provider  = "aws"
   region          = var.region
-  size            = "c6gd.large"
+  size            = "m6gd.large"
   read_replica_of = clickhouse_postgres_service.primary.id
 }
 

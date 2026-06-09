@@ -2,9 +2,13 @@ resource "clickhouse_postgres_service" "example" {
   name           = "my-postgres"
   cloud_provider = "aws"
   region         = "us-east-1"
-  size           = "c6gd.large"
+  size           = "m6gd.large"
 
-  # High-availability mode: "none" (default), "async", or "sync".
+  # High-availability mode — number of standby replicas:
+  #   "none"  – primary only, no standby (default)
+  #   "async" – 1 standby, asynchronous replication
+  #   "sync"  – 2 standbys, synchronous replication
+  # See https://clickhouse.com/docs/cloud/managed-postgres/high-availability
   ha_type = "async"
 
   tags = {
