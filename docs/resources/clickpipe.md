@@ -112,7 +112,7 @@ Optional:
 - `managed_table` (Boolean) Whether the table is managed by ClickHouse Cloud. If `false`, the table must exist in the database. Default is `true`. **Not applicable to database/CDC pipes** (Postgres, MySQL, BigQuery, MongoDB): for those sources destination tables are always managed per-table via `table_mappings`, so this field is ignored and not sent to the API.
 - `roles` (List of String) ClickPipe will create a ClickHouse user with these roles. Add your custom roles here if required.
 - `table` (String) The name of the ClickHouse table. Required for all sources except Postgres CDC (where tables are created from table_mappings).
-- `table_definition` (Attributes) Definition of the destination table. Required for ClickPipes managed tables. (see [below for nested schema](#nestedatt--destination--table_definition))
+- `table_definition` (Attributes) Definition of the destination table. Required for ClickPipes managed tables. **Not supported for database/CDC pipes** (Postgres, MySQL, BigQuery, MongoDB): for those sources destination tables are defined per-table via `table_mappings` (each mapping's `target_table`, `table_engine`, `sorting_keys`, etc.), so configuring this is rejected at plan time. (see [below for nested schema](#nestedatt--destination--table_definition))
 
 <a id="nestedatt--destination--columns"></a>
 ### Nested Schema for `destination.columns`

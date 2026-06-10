@@ -632,3 +632,94 @@ func TestClickPipeResource_ModifyPlan_ExcludedColumnsReorder_Issue558(t *testing
 			"a real target_table change on an existing mapping must still be rejected; got: %v", diags.Errors())
 	})
 }
+
+// Issue #571 — ModifyPlan must reject destination.table_definition on a CDC pipe (it caused "inconsistent result after apply"), and must not fire when it's omitted.
+
+// postgresPlanWithTableDefinition clones the Postgres fixture, optionally adding a minimal destination.table_definition (MergeTree).
+func postgresPlanWithTableDefinition(withTableDef bool) models.ClickPipeResourceModel {
+	plan := getPostgresInitialState()
+
+	plan.Scaling = types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes)
+	plan.FieldMappings = types.ListNull(models.ClickPipeFieldMappingModel{}.ObjectType())
+	plan.Settings = types.DynamicNull()
+	plan.Stopped = types.BoolValue(false)
+	plan.TriggerResync = types.BoolNull()
+
+	tableDef := types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes)
+	if withTableDef {
+		tableDef = models.ClickPipeDestinationTableDefinitionModel{
+			Engine: models.ClickPipeDestinationTableEngineModel{
+				Type:            types.StringValue("MergeTree"),
+				VersionColumnID: types.StringNull(),
+				ColumnIDs:       types.ListNull(types.StringType),
+			}.ObjectValue(),
+			SortingKey:  types.ListValueMust(types.StringType, []attr.Value{}),
+			PartitionBy: types.StringNull(),
+			PrimaryKey:  types.StringNull(),
+		}.ObjectValue()
+	}
+
+	plan.Destination = models.ClickPipeDestinationModel{
+		Database:        types.StringValue("default"),
+		Table:           types.StringNull(),
+		ManagedTable:    types.BoolNull(),
+		TableDefinition: tableDef,
+		Columns:         types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType()),
+		Roles:           types.ListNull(types.StringType),
+	}.ObjectValue()
+
+	return plan
+}
+
+func TestClickPipeResource_ModifyPlan_RejectsTableDefinitionForCDC_Issue571(t *testing.T) {
+	ctx := context.Background()
+	r := &ClickPipeResource{}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("building resource schema failed: %v", schemaResp.Diagnostics.Errors())
+	}
+	sch := schemaResp.Schema
+
+	// runCreate drives ModifyPlan for a create (null prior state) and returns the diagnostics.
+	runCreate := func(t *testing.T, planModel models.ClickPipeResourceModel) diag.Diagnostics {
+		t.Helper()
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &planModel); d.HasError() {
+			t.Fatalf("encoding plan failed: %v", d.Errors())
+		}
+		req := resource.ModifyPlanRequest{
+			State:  tfsdk.State{Schema: sch}, // null Raw => create
+			Plan:   planVal,
+			Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+		}
+		resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
+		r.ModifyPlan(ctx, req, resp)
+		return resp.Diagnostics
+	}
+
+	detailContains := func(diags diag.Diagnostics, substr string) bool {
+		for _, d := range diags.Errors() {
+			if strings.Contains(d.Detail(), substr) {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("table_definition on a CDC pipe is rejected at plan time", func(t *testing.T) {
+		diags := runCreate(t, postgresPlanWithTableDefinition(true))
+
+		assert.True(t, detailContains(diags, "destination.table_definition cannot be used"),
+			"#571: a table_definition on a Postgres CDC pipe must be rejected at plan time; got: %v", diags.Errors())
+	})
+
+	t.Run("omitting table_definition on a CDC pipe is allowed", func(t *testing.T) {
+		// Control: the guard must not over-fire when table_definition is absent.
+		diags := runCreate(t, postgresPlanWithTableDefinition(false))
+
+		assert.False(t, detailContains(diags, "destination.table_definition cannot be used"),
+			"a Postgres CDC pipe without table_definition must not be rejected; got: %v", diags.Errors())
+	})
+}
