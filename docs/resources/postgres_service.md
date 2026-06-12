@@ -143,9 +143,12 @@ description: |-
   before users can adopt them; size is the most frequently changed
   attribute, so the trade-off goes the other way here. The
   cloud_provider, ha_type, and postgres_version attributes
-  remain client-side validated because they churn rarely.name is immutable post-create. The server's PATCH body has no
-  name field, so changing it forces destroy-and-recreate via
-  RequiresReplace.The connection string and password are visible in plan output even
+  remain client-side validated because they churn rarely.Changing name rotates the service's hostname and CA certificates,
+  so hostname and connection_string change (the plan marks them as
+  updating and emits a warning) and existing clients must reconnect to
+  the new host and re-trust the new certificate. Renaming a live read
+  replica is rejected at plan time, mirroring size / ha_type /
+  tags.The connection string and password are visible in plan output even
   though both are marked Sensitive. The Terraform CLI renders
   Sensitive attributes as (sensitive value) in human-readable
   output but the underlying state file is plaintext — ensure your
@@ -341,9 +344,12 @@ UI, or CLI directly.
   attribute, so the trade-off goes the other way here. The
   `cloud_provider`, `ha_type`, and `postgres_version` attributes
   remain client-side validated because they churn rarely.
-- `name` is immutable post-create. The server's PATCH body has no
-  `name` field, so changing it forces destroy-and-recreate via
-  `RequiresReplace`.
+- Changing `name` rotates the service's hostname and CA certificates,
+  so `hostname` and `connection_string` change (the plan marks them as
+  updating and emits a warning) and existing clients must reconnect to
+  the new host and re-trust the new certificate. Renaming a live read
+  replica is rejected at plan time, mirroring `size` / `ha_type` /
+  `tags`.
 - The connection string and password are visible in plan output even
   though both are marked `Sensitive`. The Terraform CLI renders
   `Sensitive` attributes as `(sensitive value)` in human-readable
@@ -357,7 +363,7 @@ UI, or CLI directly.
 
 ### Required
 
-- `name` (String) Human-readable name. Immutable post-create; changes force destroy-and-recreate. Differs from clickhouse_service, which allows in-place rename.
+- `name` (String) Human-readable name. Changing it rotates the server-assigned hostname and CA certificates, so connection_string and hostname change and existing clients must reconnect.
 
 ### Optional
 

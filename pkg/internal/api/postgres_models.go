@@ -102,14 +102,16 @@ type PostgresCreate struct {
 	PgBouncerConfig PgConfigMap `json:"pgBouncerConfig,omitempty"`
 }
 
-// PostgresUpdate is the PATCH /postgres/{id} body. Server accepts ONLY
-// size / haType / tags; `name` is intentionally absent (no field in the
-// server schema). Tags is *[]Tag so callers can distinguish:
+// PostgresUpdate is the PATCH /postgres/{id} body. Server accepts
+// name / size / haType / tags. Setting name renames the service and rotates
+// its host name and CA certificates as a side effect.
+// Tags is *[]Tag so callers can distinguish:
 //
 //	nil       -> field omitted; server leaves existing tags alone
 //	&[]Tag{}  -> server clears all tags
 //	&[]Tag{…} -> server replaces with these
 type PostgresUpdate struct {
+	Name   string `json:"name,omitempty"`
 	Size   string `json:"size,omitempty"`
 	HaType string `json:"haType,omitempty"`
 	Tags   *[]Tag `json:"tags,omitempty"`
