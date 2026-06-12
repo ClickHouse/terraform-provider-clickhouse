@@ -335,6 +335,7 @@ jobs:
   cleanup:
     runs-on: k8s-small
     needs: [ "e2e", "import", "upgrade", "token" ]
+    if: always() && needs.token.result == 'success'
     continue-on-error: true
     steps:
       - name: Checkout
@@ -362,7 +363,7 @@ jobs:
   # Bump the provider version in the examples directory
   bump-examples:
     needs: [ "validate", "e2e", "import", "upgrade" ]
-    if: ${{ needs.e2e.result != 'failure' && needs.import.result != 'failure' && needs.upgrade.result != 'failure' }}
+    if: ${{ always() && needs.validate.result == 'success' && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' }}
     runs-on: k8s-small
     permissions:
       contents: write
@@ -462,7 +463,7 @@ jobs:
       contents: write
       pull-requests: write
     needs: [ "e2e", "import", "upgrade", "bump-examples" ]
-    if: ${{ needs.e2e.result != 'failure' && needs.import.result != 'failure' && needs.upgrade.result != 'failure' }}
+    if: ${{ always() && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' && needs.bump-examples.result == 'success' }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -495,7 +496,7 @@ jobs:
       contents: write
     runs-on: k8s-medium
     needs: [ "validate", "tag", "e2e", "import", "upgrade" ]
-    if: ${{ needs.e2e.result != 'failure' && needs.import.result != 'failure' && needs.upgrade.result != 'failure' }}
+    if: ${{ always() && needs.validate.result == 'success' && needs.tag.result == 'success' && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
