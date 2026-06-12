@@ -3912,6 +3912,8 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				if diags := stateKafkaModel.SchemaRegistry.As(ctx, &stateSchemaRegistryModel, basetypes.ObjectAsOptions{}); diags.HasError() {
 					return fmt.Errorf("error reading ClickPipe Kafka source schema registry: %v", diags)
 				}
+			} else {
+				stateSchemaRegistryModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
 			}
 
 			schemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{
