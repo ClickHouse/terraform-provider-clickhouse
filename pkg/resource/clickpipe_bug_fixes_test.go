@@ -20,6 +20,56 @@ import (
 
 func int64Ptr(i int64) *int64 { return &i }
 
+func TestClickPipeResource_syncClickPipeState_KafkaSchemaRegistryImport(t *testing.T) {
+	ctx := context.Background()
+
+	state := models.ClickPipeResourceModel{
+		ID:        types.StringValue("test-pipe-id"),
+		ServiceID: types.StringValue("test-service-id"),
+		Source:    types.ObjectNull(models.ClickPipeSourceModel{}.ObjectType().AttrTypes),
+	}
+
+	mc := minimock.NewController(t)
+	apiClientMock := api.NewClientMock(mc).
+		GetClickPipeMock.
+		Expect(ctx, state.ServiceID.ValueString(), state.ID.ValueString()).
+		Return(&api.ClickPipe{
+			ID:    "test-pipe-id",
+			Name:  "test-pipe",
+			State: "Running",
+			Source: api.ClickPipeSource{
+				Kafka: &api.ClickPipeKafkaSource{
+					Type:           "confluent",
+					Format:         "Protobuf",
+					Brokers:        "broker:9092",
+					Topics:         "test-topic",
+					Authentication: "PLAIN",
+					SchemaRegistry: &api.ClickPipeKafkaSchemaRegistry{
+						URL:            "https://schema-registry.example/schemas/ids/1",
+						Authentication: "PLAIN",
+					},
+				},
+			},
+			Destination: api.ClickPipeDestination{Database: "default"},
+		}, nil)
+
+	r := &ClickPipeResource{client: apiClientMock}
+
+	err := r.syncClickPipeState(ctx, &state)
+	assert.NoError(t, err)
+
+	var sourceModel models.ClickPipeSourceModel
+	state.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})
+	var kafkaModel models.ClickPipeKafkaSourceModel
+	sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{})
+	assert.False(t, kafkaModel.SchemaRegistry.IsNull(), "schema_registry should be populated after sync")
+	var srModel models.ClickPipeKafkaSchemaRegistryModel
+	kafkaModel.SchemaRegistry.As(ctx, &srModel, basetypes.ObjectAsOptions{})
+	assert.Equal(t, "https://schema-registry.example/schemas/ids/1", srModel.URL.ValueString())
+	assert.Equal(t, "PLAIN", srModel.Authentication.ValueString())
+	assert.True(t, srModel.Credentials.IsNull(), "credentials should be a typed null (not present in API response)")
+}
+
 // ============================================================================
 // Issue #528 — Postgres/MySQL credentials become "undefined" when
 // lifecycle.ignore_changes hides them during update.
