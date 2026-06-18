@@ -1208,7 +1208,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									},
 									"replication_mechanism": schema.StringAttribute{
 										MarkdownDescription: fmt.Sprintf(
-											"Replication mechanism for the MySQL pipe. (%s). Default is `GTID`.",
+											"Replication mechanism for the MySQL pipe. (%s). Default is `GTID`. "+
+												"Mechanisms other than `GTID` (e.g. `FILE_POS`) must be enabled for your organization; contact ClickHouse support to enable this feature.",
 											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMySQLReplicationMechanisms),
 										),
 										Optional: true,
