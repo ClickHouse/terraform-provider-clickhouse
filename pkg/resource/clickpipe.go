@@ -438,6 +438,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									listplanmodifier.RequiresReplace(),
 								},
 							},
+							"exactly_once": schema.BoolAttribute{
+								MarkdownDescription: "Enable exactly-once delivery. Guarantees every Kafka record is inserted exactly once across restarts and rebalances.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.RequiresReplace(),
+								},
+							},
 						},
 					},
 					"object_storage": schema.SingleNestedAttribute{
@@ -2833,6 +2840,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !isUpdate {
 			source.Kafka.Type = kafkaModel.Type.ValueString()
 			source.Kafka.Format = kafkaModel.Format.ValueString()
+			source.Kafka.ExactlyOnce = kafkaModel.ExactlyOnce.ValueBoolPointer()
 		}
 
 		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
@@ -3946,6 +3954,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			kafkaModel.ReversePrivateEndpointIDs, _ = types.ListValue(types.StringType, reversePrivateEndpointIDs)
 		} else {
 			kafkaModel.ReversePrivateEndpointIDs = types.ListNull(types.StringType)
+		}
+
+		if clickPipe.Source.Kafka.ExactlyOnce != nil {
+			kafkaModel.ExactlyOnce = types.BoolValue(*clickPipe.Source.Kafka.ExactlyOnce)
+		} else {
+			kafkaModel.ExactlyOnce = types.BoolNull()
 		}
 
 		sourceModel.Kafka = kafkaModel.ObjectValue()
