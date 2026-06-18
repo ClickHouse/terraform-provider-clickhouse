@@ -186,6 +186,8 @@ type ClickPipeKafkaSourceModel struct {
 	CACertificate  types.String `tfsdk:"ca_certificate"`
 
 	ReversePrivateEndpointIDs types.List `tfsdk:"reverse_private_endpoint_ids"`
+
+	ExactlyOnce types.Bool `tfsdk:"exactly_once"`
 }
 
 func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
@@ -203,6 +205,7 @@ func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
 			"iam_role":                     types.StringType,
 			"ca_certificate":               types.StringType,
 			"reverse_private_endpoint_ids": types.ListType{ElemType: types.StringType},
+			"exactly_once":                 types.BoolType,
 		},
 	}
 }
@@ -221,6 +224,7 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 		"iam_role":                     m.IAMRole,
 		"ca_certificate":               m.CACertificate,
 		"reverse_private_endpoint_ids": m.ReversePrivateEndpointIDs,
+		"exactly_once":                 m.ExactlyOnce,
 	})
 }
 
