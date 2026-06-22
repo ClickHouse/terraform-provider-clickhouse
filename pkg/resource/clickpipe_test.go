@@ -519,6 +519,7 @@ func buildKafkaMutualTLSPlan(certificate, privateKey types.String) models.ClickP
 		"iam_role":                     types.StringNull(),
 		"ca_certificate":               types.StringNull(),
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
+		"exactly_once":                 types.BoolNull(),
 	}
 
 	sourceModel := models.ClickPipeSourceModel{
@@ -720,6 +721,7 @@ func buildKafkaCredentialsPlan(password, passwordWO types.String, passwordWOVers
 			"iam_role":                     types.StringNull(),
 			"ca_certificate":               types.StringNull(),
 			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
+			"exactly_once":                 types.BoolNull(),
 		}
 		sourceModel := models.ClickPipeSourceModel{
 			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
@@ -817,6 +819,7 @@ func buildKafkaSchemaRegistryCredentialsPlan(password, passwordWO types.String, 
 			"iam_role":                     types.StringNull(),
 			"ca_certificate":               types.StringNull(),
 			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
+			"exactly_once":                 types.BoolNull(),
 		}
 		sourceModel := models.ClickPipeSourceModel{
 			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),

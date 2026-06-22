@@ -108,6 +108,8 @@ type ClickPipeKafkaSource struct {
 	CACertificate  *string                          `json:"caCertificate,omitempty"`
 
 	ReversePrivateEndpointIDs []string `json:"reversePrivateEndpointIds,omitempty"`
+
+	ExactlyOnce *bool `json:"exactlyOnce,omitempty"`
 }
 
 type ClickPipeObjectStorageSource struct {
