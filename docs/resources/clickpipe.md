@@ -231,6 +231,7 @@ Optional:
 - `ca_certificate` (String) PEM encoded CA certificates to validate the broker's certificate.
 - `consumer_group` (String) Consumer group of the Kafka source. If not provided `clickpipes-<ID>` will be used.
 - `credentials` (Attributes) The credentials for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--credentials))
+- `exactly_once` (Boolean) Enable exactly-once delivery. Guarantees every Kafka record is inserted exactly once across restarts and rebalances.
 - `iam_role` (String) The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
