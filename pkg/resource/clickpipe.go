@@ -2107,6 +2107,24 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 			mysqlModel := models.ClickPipeMySQLSourceModel{}
 			response.Diagnostics.Append(sourceModel.MySQL.As(ctx, &mysqlModel, basetypes.ObjectAsOptions{})...)
 
+			// MariaDB sources only support GTID replication.
+			if !mysqlModel.Type.IsUnknown() && !mysqlModel.Settings.IsNull() && !mysqlModel.Settings.IsUnknown() {
+				mysqlType := mysqlModel.Type.ValueString()
+				if api.IsClickPipeMySQLMariaDBSourceType(mysqlType) {
+					settingsModel := models.ClickPipeMySQLSettingsModel{}
+					response.Diagnostics.Append(mysqlModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
+
+					mechanism := settingsModel.ReplicationMechanism
+					if !mechanism.IsUnknown() && !mechanism.IsNull() && mechanism.ValueString() != api.ClickPipeMySQLReplicationMechanismGTID {
+						response.Diagnostics.AddAttributeError(
+							path.Root("source").AtName("mysql").AtName("settings").AtName("replication_mechanism"),
+							"Invalid MySQL replication configuration",
+							fmt.Sprintf("source type %q only supports the %q replication mechanism.", mysqlType, api.ClickPipeMySQLReplicationMechanismGTID),
+						)
+					}
+				}
+			}
+
 			// Validate all target tables are unique
 			if !mysqlModel.TableMappings.IsNull() && len(mysqlModel.TableMappings.Elements()) > 0 {
 				tableMappings := make([]models.ClickPipeMySQLTableMappingModel, len(mysqlModel.TableMappings.Elements()))
