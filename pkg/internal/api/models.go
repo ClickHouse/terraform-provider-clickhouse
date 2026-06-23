@@ -60,11 +60,14 @@ type Service struct {
 	Tier                            string                        `json:"tier,omitempty"`
 	IdleScaling                     bool                          `json:"idleScaling"`
 	IpAccessList                    []IpAccess                    `json:"ipAccessList"`
+	AutoscalingMode                 string                        `json:"autoscalingMode,omitempty"`
 	MinTotalMemoryGb                *int                          `json:"minTotalMemoryGb,omitempty"`
 	MaxTotalMemoryGb                *int                          `json:"maxTotalMemoryGb,omitempty"`
 	MinReplicaMemoryGb              *int                          `json:"minReplicaMemoryGb,omitempty"`
 	MaxReplicaMemoryGb              *int                          `json:"maxReplicaMemoryGb,omitempty"`
 	NumReplicas                     *int                          `json:"numReplicas,omitempty"`
+	MinReplicas                     *int                          `json:"minReplicas,omitempty"`
+	MaxReplicas                     *int                          `json:"maxReplicas,omitempty"`
 	IdleTimeoutMinutes              *int                          `json:"idleTimeoutMinutes,omitempty"`
 	State                           string                        `json:"state,omitempty"`
 	Endpoints                       []Endpoint                    `json:"endpoints,omitempty"`
@@ -102,6 +105,12 @@ type ServiceKeyRotation struct {
 // FixMemoryBounds ensures the MinTotalMemoryGb and MaxTotalMemoryGb fields are set before doing an API call to create the service
 // This is needed because there is a different interface between the /replicaScaling and the service creation API calls.
 func (s *Service) FixMemoryBounds() {
+	// A service that already carries the replica-count band (both MinReplicas and MaxReplicas) uses the
+	// explicit scaling fields, not the deprecated totals — nothing to translate, so return before fabricating
+	// bounds. (Defensive: the create path sets the per-replica memory bounds before this runs.)
+	if s.MinReplicas != nil && s.MaxReplicas != nil {
+		return
+	}
 	if s.MinReplicaMemoryGb == nil && s.MinTotalMemoryGb != nil {
 		// Due to a bug on the API, we always assumed the MinTotalMemoryGb value was always related to 3 replicas.
 		// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same

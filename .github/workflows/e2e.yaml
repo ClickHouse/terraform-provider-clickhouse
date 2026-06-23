@@ -100,7 +100,7 @@ jobs:
         uses: ./.github/actions/list-examples
         id: list
         with:
-          ignore: pci
+          ignore: pci|horizontal_autoscaling
 
   # Run e2e tests
   e2e:

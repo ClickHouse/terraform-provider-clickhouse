@@ -21,16 +21,18 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 	schedule := &api.AutoScalingSchedule{
 		Entries: []api.AutoScalingScheduleEntry{
 			{
-				Name:         "business",
-				Weekdays:     []int{1, 2, 3, 4, 5},
-				StartHourUtc: 8,
-				EndHourUtc:   18,
-				MinReplicas:  intPtr(3),
-				MaxReplicas:  intPtr(3),
-				IdleScaling:  boolPtr(false),
+				Name:            "business",
+				Weekdays:        []int{1, 2, 3, 4, 5},
+				StartHourUtc:    8,
+				EndHourUtc:      18,
+				AutoscalingMode: api.AutoscalingModeHorizontal,
+				MinReplicas:     intPtr(3),
+				MaxReplicas:     intPtr(6),
+				IdleScaling:     boolPtr(false),
 			},
 		},
 		BaseConfig: &api.AutoScalingScheduleBaseConfig{
+			AutoscalingMode:    api.AutoscalingModeVertical,
 			MinReplicaMemoryGb: intPtr(8),
 			MaxReplicaMemoryGb: intPtr(32),
 			IdleScaling:        boolPtr(true),
@@ -63,8 +65,11 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 		t.Fatalf("len(entries) = %d; want 1", len(entries))
 	}
 	e := entries[0]
-	if e.MinReplicas.ValueInt64() != 3 || e.MaxReplicas.ValueInt64() != 3 {
-		t.Errorf("replicas = (%d, %d); want (3, 3)", e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64())
+	if e.AutoscalingMode.ValueString() != api.AutoscalingModeHorizontal {
+		t.Errorf("autoscaling_mode = %q; want %q", e.AutoscalingMode.ValueString(), api.AutoscalingModeHorizontal)
+	}
+	if e.MinReplicas.ValueInt64() != 3 || e.MaxReplicas.ValueInt64() != 6 {
+		t.Errorf("replicas = (%d, %d); want (3, 6)", e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64())
 	}
 	if e.IdleScaling.IsNull() || e.IdleScaling.ValueBool() {
 		t.Errorf("idle_scaling should be present and false")
@@ -183,10 +188,11 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 		Weekdays:           weekdaySet,
 		StartHourUtc:       types.Int64Value(9),
 		EndHourUtc:         types.Int64Value(17),
+		AutoscalingMode:    types.StringValue(api.AutoscalingModeHorizontal),
 		MinReplicaMemoryGb: types.Int64Value(8),
-		MaxReplicaMemoryGb: types.Int64Value(32),
+		MaxReplicaMemoryGb: types.Int64Value(8),
 		MinReplicas:        types.Int64Value(2),
-		MaxReplicas:        types.Int64Value(2),
+		MaxReplicas:        types.Int64Value(6),
 		IdleScaling:        types.BoolValue(true),
 		IdleTimeoutMinutes: types.Int64Value(15),
 	}
@@ -201,6 +207,9 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 	g := got[0]
 	if g.Name != "primary" || g.StartHourUtc != 9 || g.EndHourUtc != 17 {
 		t.Errorf("scalar fields mismatch: %+v", g)
+	}
+	if g.AutoscalingMode != api.AutoscalingModeHorizontal {
+		t.Errorf("AutoscalingMode = %q; want %q", g.AutoscalingMode, api.AutoscalingModeHorizontal)
 	}
 	if !reflect.DeepEqual(g.Weekdays, []int{1, 3}) {
 		t.Errorf("weekdays = %v; want [1 3] (sorted)", g.Weekdays)
@@ -271,7 +280,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			wantErrCount: 1,
 		},
 		{
-			name: "min != max",
+			name: "vertical min != max is rejected",
 			entry: models.ScheduledScalingEntryModel{
 				Name:         types.StringValue("uneven"),
 				Weekdays:     mustSet(1),
@@ -279,6 +288,32 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 				EndHourUtc:   types.Int64Value(24),
 				MinReplicas:  types.Int64Value(2),
 				MaxReplicas:  types.Int64Value(5),
+			},
+			wantErrCount: 1,
+		},
+		{
+			name: "horizontal band (min < max) is allowed",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("horizontal-band"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringValue(api.AutoscalingModeHorizontal),
+				MinReplicas:     types.Int64Value(2),
+				MaxReplicas:     types.Int64Value(5),
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "horizontal inverted band (min > max) is rejected",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("horizontal-inverted"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringValue(api.AutoscalingModeHorizontal),
+				MinReplicas:     types.Int64Value(5),
+				MaxReplicas:     types.Int64Value(2),
 			},
 			wantErrCount: 1,
 		},

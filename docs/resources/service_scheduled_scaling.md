@@ -108,15 +108,20 @@ resource "clickhouse_service_scheduled_scaling" "example" {
 
   entries = [
     {
-      name           = "Business hours"
-      weekdays       = [1, 2, 3, 4, 5]
-      start_hour_utc = 8
-      end_hour_utc   = 18
-      min_replicas   = 3
-      max_replicas   = 3
-      idle_scaling   = false
+      # Horizontal: the replica count scales across the band at a fixed per-replica memory while active.
+      name                  = "Business hours"
+      weekdays              = [1, 2, 3, 4, 5]
+      start_hour_utc        = 8
+      end_hour_utc          = 18
+      autoscaling_mode      = "horizontal"
+      min_replicas          = 3
+      max_replicas          = 6
+      min_replica_memory_gb = 16
+      max_replica_memory_gb = 16
+      idle_scaling          = false
     },
     {
+      # Vertical (the default when autoscaling_mode is omitted): a fixed replica count (min == max).
       name                 = "Overnight"
       weekdays             = [0, 1, 2, 3, 4, 5, 6]
       start_hour_utc       = 22
@@ -155,12 +160,13 @@ Required:
 
 Optional:
 
+- `autoscaling_mode` (String) Autoscaling mode while the window is active: "vertical" (fixed replica count via min_replicas == max_replicas, memory scales between min_replica_memory_gb and max_replica_memory_gb) or "horizontal" (replica count scales between min_replicas and max_replicas at fixed per-replica memory, min_replica_memory_gb == max_replica_memory_gb). When omitted the entry is vertical.
 - `idle_scaling` (Boolean) Whether idle scaling is enabled while the window is active.
 - `idle_timeout_minutes` (Number) Minutes of inactivity before the service scales to zero. Must be at least 5. Only meaningful when idle_scaling is true.
 - `max_replica_memory_gb` (Number) Maximum memory per replica in GiB. Must be set together with min_replica_memory_gb.
-- `max_replicas` (Number) Maximum replica count while the window is active. Currently the server requires min_replicas == max_replicas.
+- `max_replicas` (Number) Maximum replica count while the window is active. For a vertical entry min_replicas must equal max_replicas (fixed count); for a horizontal entry it is the high end of the replica band.
 - `min_replica_memory_gb` (Number) Minimum memory per replica in GiB. Must be set together with max_replica_memory_gb.
-- `min_replicas` (Number) Minimum replica count while the window is active. Currently the server requires min_replicas == max_replicas.
+- `min_replicas` (Number) Minimum replica count while the window is active. For a vertical entry min_replicas must equal max_replicas (fixed count); for a horizontal entry it is the low end of the replica band.
 
 
 <a id="nestedatt--base_config"></a>
@@ -168,6 +174,7 @@ Optional:
 
 Read-Only:
 
+- `autoscaling_mode` (String)
 - `idle_scaling` (Boolean)
 - `idle_timeout_minutes` (Number)
 - `max_replica_memory_gb` (Number)
