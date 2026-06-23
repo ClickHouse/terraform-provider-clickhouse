@@ -773,3 +773,60 @@ func TestClickPipeResource_ModifyPlan_RejectsTableDefinitionForCDC_Issue571(t *t
 			"a Postgres CDC pipe without table_definition must not be rejected; got: %v", diags.Errors())
 	})
 }
+
+func TestClickPipeResource_ConfigValidators_RejectCDCScaling(t *testing.T) {
+	ctx := context.Background()
+	r := &ClickPipeResource{}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("building resource schema failed: %v", schemaResp.Diagnostics.Errors())
+	}
+	sch := schemaResp.Schema
+
+	runValidateConfig := func(t *testing.T, configModel models.ClickPipeResourceModel) diag.Diagnostics {
+		t.Helper()
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &configModel); d.HasError() {
+			t.Fatalf("encoding config failed: %v", d.Errors())
+		}
+		configVal := tfsdk.Config{Schema: sch, Raw: planVal.Raw}
+
+		var diags diag.Diagnostics
+		for _, validator := range r.ConfigValidators(ctx) {
+			resp := &resource.ValidateConfigResponse{}
+			validator.ValidateResource(ctx, resource.ValidateConfigRequest{Config: configVal}, resp)
+			diags.Append(resp.Diagnostics...)
+		}
+		return diags
+	}
+	detailContains := func(diags diag.Diagnostics, substr string) bool {
+		for _, d := range diags.Errors() {
+			if strings.Contains(d.Detail(), substr) {
+				return true
+			}
+		}
+		return false
+	}
+
+	postgresConfig := getPostgresInitialState()
+	postgresConfig.Scaling = types.ObjectValueMust(models.ClickPipeScalingModel{}.ObjectType().AttrTypes, map[string]attr.Value{
+		"replicas":               types.Int64Value(2),
+		"replica_cpu_millicores": types.Int64Null(),
+		"replica_memory_gb":      types.Float64Null(),
+	})
+	postgresConfig.FieldMappings = types.ListNull(models.ClickPipeFieldMappingModel{}.ObjectType())
+	postgresConfig.Settings = types.DynamicNull()
+	postgresConfig.Stopped = types.BoolNull()
+	postgresConfig.TriggerResync = types.BoolNull()
+
+	diags := runValidateConfig(t, postgresConfig)
+	assert.True(t, detailContains(diags, "scaling cannot be configured on clickhouse_clickpipe for Postgres, MySQL, or MongoDB CDC sources"),
+		"CDC scaling must be rejected before create; got: %v", diags.Errors())
+
+	postgresConfig.Scaling = types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes)
+	diags = runValidateConfig(t, postgresConfig)
+	assert.False(t, detailContains(diags, "scaling cannot be configured on clickhouse_clickpipe"),
+		"Postgres CDC without clickpipe scaling must remain valid; got: %v", diags.Errors())
+}
