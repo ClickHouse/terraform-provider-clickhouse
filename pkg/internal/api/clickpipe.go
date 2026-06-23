@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -295,6 +296,16 @@ var ClickPipeMySQLSourceTypes = []string{
 	ClickPipeMySQLSourceTypePlanetScaleVites,
 	ClickPipeMySQLSourceTypeMariaDB,
 	ClickPipeMySQLSourceTypeRDSMariaDB,
+}
+
+// ClickPipeMySQLMariaDBSourceTypes lists the MariaDB-flavored MySQL source types.
+var ClickPipeMySQLMariaDBSourceTypes = []string{
+	ClickPipeMySQLSourceTypeMariaDB,
+	ClickPipeMySQLSourceTypeRDSMariaDB,
+}
+
+func IsClickPipeMySQLMariaDBSourceType(sourceType string) bool {
+	return slices.Contains(ClickPipeMySQLMariaDBSourceTypes, sourceType)
 }
 
 // MongoDB constants

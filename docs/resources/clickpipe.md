@@ -430,7 +430,7 @@ Optional:
 - `delete_on_merge` (Boolean) Enable hard delete behavior in ReplacingMergeTree for MySQL DELETE operations.
 - `initial_load_parallelism` (Number) Number of parallel connections to use during initial load.
 - `pull_batch_size` (Number) Number of rows to pull in each batch.
-- `replication_mechanism` (String) Replication mechanism for the MySQL pipe. (`GTID`, `FILE_POS`). Default is `GTID`.
+- `replication_mechanism` (String) Replication mechanism for the MySQL pipe. (`GTID`, `FILE_POS`). Default is `GTID`. Mechanisms other than `GTID` (e.g. `FILE_POS`) must be enabled for your organization; contact ClickHouse support to enable this feature.
 - `snapshot_num_rows_per_partition` (Number) Number of rows to snapshot per partition.
 - `snapshot_number_of_parallel_tables` (Number) Number of parallel tables to snapshot.
 - `sync_interval_seconds` (Number) Interval in seconds to sync data from MySQL.

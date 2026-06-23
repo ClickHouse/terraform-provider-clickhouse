@@ -1215,7 +1215,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									},
 									"replication_mechanism": schema.StringAttribute{
 										MarkdownDescription: fmt.Sprintf(
-											"Replication mechanism for the MySQL pipe. (%s). Default is `GTID`.",
+											"Replication mechanism for the MySQL pipe. (%s). Default is `GTID`. "+
+												"Mechanisms other than `GTID` (e.g. `FILE_POS`) must be enabled for your organization; contact ClickHouse support to enable this feature.",
 											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMySQLReplicationMechanisms),
 										),
 										Optional: true,
@@ -2112,6 +2113,24 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		if !sourceModel.MySQL.IsNull() {
 			mysqlModel := models.ClickPipeMySQLSourceModel{}
 			response.Diagnostics.Append(sourceModel.MySQL.As(ctx, &mysqlModel, basetypes.ObjectAsOptions{})...)
+
+			// MariaDB sources only support GTID replication.
+			if !mysqlModel.Type.IsUnknown() && !mysqlModel.Settings.IsNull() && !mysqlModel.Settings.IsUnknown() {
+				mysqlType := mysqlModel.Type.ValueString()
+				if api.IsClickPipeMySQLMariaDBSourceType(mysqlType) {
+					settingsModel := models.ClickPipeMySQLSettingsModel{}
+					response.Diagnostics.Append(mysqlModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
+
+					mechanism := settingsModel.ReplicationMechanism
+					if !mechanism.IsUnknown() && !mechanism.IsNull() && mechanism.ValueString() != api.ClickPipeMySQLReplicationMechanismGTID {
+						response.Diagnostics.AddAttributeError(
+							path.Root("source").AtName("mysql").AtName("settings").AtName("replication_mechanism"),
+							"Invalid MySQL replication configuration",
+							fmt.Sprintf("source type %q only supports the %q replication mechanism.", mysqlType, api.ClickPipeMySQLReplicationMechanismGTID),
+						)
+					}
+				}
+			}
 
 			// Validate all target tables are unique
 			if !mysqlModel.TableMappings.IsNull() && len(mysqlModel.TableMappings.Elements()) > 0 {
