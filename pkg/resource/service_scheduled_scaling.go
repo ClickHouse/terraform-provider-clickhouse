@@ -28,9 +28,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &ServiceScheduledScalingResource{}
-	_ resource.ResourceWithConfigure   = &ServiceScheduledScalingResource{}
-	_ resource.ResourceWithImportState = &ServiceScheduledScalingResource{}
+	_ resource.Resource                   = &ServiceScheduledScalingResource{}
+	_ resource.ResourceWithConfigure      = &ServiceScheduledScalingResource{}
+	_ resource.ResourceWithImportState    = &ServiceScheduledScalingResource{}
+	_ resource.ResourceWithValidateConfig = &ServiceScheduledScalingResource{}
 )
 
 //go:embed descriptions/service_scheduled_scaling.md
@@ -105,6 +106,17 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 								int64validator.Between(1, 24),
 							},
 						},
+						"autoscaling_mode": schema.StringAttribute{
+							Description: "Autoscaling mode while the window is active: \"vertical\" (fixed replica count via min_replicas == max_replicas, memory scales between min_replica_memory_gb and max_replica_memory_gb) or \"horizontal\" (replica count scales between min_replicas and max_replicas at fixed per-replica memory, min_replica_memory_gb == max_replica_memory_gb). When omitted the server defaults to vertical, so a distinct min_replicas/max_replicas band requires an explicit autoscaling_mode = \"horizontal\". The schedule update is a full replace and per-entry mode is not preserved across updates, so set autoscaling_mode explicitly on every entry you want to keep horizontal.",
+							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+							Validators: []validator.String{
+								stringvalidator.OneOf(api.AutoscalingModeVertical, api.AutoscalingModeHorizontal),
+							},
+						},
 						"min_replica_memory_gb": schema.Int64Attribute{
 							Description: "Minimum memory per replica in GiB. Must be set together with max_replica_memory_gb.",
 							Optional:    true,
@@ -130,24 +142,26 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 							},
 						},
 						"min_replicas": schema.Int64Attribute{
-							Description: "Minimum replica count while the window is active. Currently the server requires min_replicas == max_replicas.",
+							Description: "Minimum replica count while the window is active. For a vertical entry min_replicas must equal max_replicas (fixed count); for a horizontal entry it is the low end of the replica band.",
 							Optional:    true,
 							Computed:    true,
 							PlanModifiers: []planmodifier.Int64{
 								int64planmodifier.UseStateForUnknown(),
 							},
 							Validators: []validator.Int64{
+								int64validator.AtLeast(1),
 								int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("max_replicas")),
 							},
 						},
 						"max_replicas": schema.Int64Attribute{
-							Description: "Maximum replica count while the window is active. Currently the server requires min_replicas == max_replicas.",
+							Description: "Maximum replica count while the window is active. For a vertical entry min_replicas must equal max_replicas (fixed count); for a horizontal entry it is the high end of the replica band.",
 							Optional:    true,
 							Computed:    true,
 							PlanModifiers: []planmodifier.Int64{
 								int64planmodifier.UseStateForUnknown(),
 							},
 							Validators: []validator.Int64{
+								int64validator.AtLeast(1),
 								int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("min_replicas")),
 							},
 						},
@@ -180,6 +194,7 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 					objectplanmodifier.UseStateForUnknown(),
 				},
 				Attributes: map[string]schema.Attribute{
+					"autoscaling_mode":      schema.StringAttribute{Computed: true},
 					"min_replica_memory_gb": schema.Int64Attribute{Computed: true},
 					"max_replica_memory_gb": schema.Int64Attribute{Computed: true},
 					"min_replicas":          schema.Int64Attribute{Computed: true},
@@ -365,9 +380,11 @@ func (r *ServiceScheduledScalingResource) ValidateConfig(ctx context.Context, re
 
 // validateScheduledScalingEntries enforces per-entry cross-field rules that
 // can't be expressed as individual attribute validators (non-zero window,
-// min <= max for memory, min == max for replicas). The "set together"
-// constraints on the memory and replica pairs are handled at schema level
-// via int64validator.AlsoRequires.
+// min <= max for memory and replicas, and min == max for replicas unless
+// autoscaling_mode is explicitly "horizontal" — an omitted mode defaults to
+// vertical, which requires the fixed count). The "set together" constraints on
+// the memory and replica pairs are handled at schema level via
+// int64validator.AlsoRequires.
 func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	entriesPath := path.Root("entries")
@@ -394,14 +411,34 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 			)
 		}
 
+		// A vertical entry has a fixed replica count (min == max); a horizontal entry scales replicas across a
+		// band (min <= max). The min <= max ordering holds for both modes, so it's enforced whenever both
+		// bounds are set. The vertical-only equality (min == max) is enforced whenever the mode is known and not
+		// horizontal — the server defaults an omitted mode to vertical (UC-1173: absent ⇒ vertical, confirmed
+		// against the shipped API), so a distinct band without an explicit autoscaling_mode = "horizontal" is a
+		// vertical violation, rejected here at plan time for a clearer error than the server's 400. Only an
+		// interpolated (Unknown) mode is deferred, since ValidateConfig is stateless and can't resolve it. Other
+		// mode ↔ field contradictions are the API's and not duplicated here.
+		isHorizontal := e.AutoscalingMode.ValueString() == api.AutoscalingModeHorizontal
+		modeKnown := !e.AutoscalingMode.IsUnknown()
 		minRepSet := !e.MinReplicas.IsNull() && !e.MinReplicas.IsUnknown()
 		maxRepSet := !e.MaxReplicas.IsNull() && !e.MaxReplicas.IsUnknown()
-		if minRepSet && maxRepSet && e.MinReplicas.ValueInt64() != e.MaxReplicas.ValueInt64() {
-			diags.AddAttributeError(
-				entriesPath,
-				"min_replicas must equal max_replicas",
-				fmt.Sprintf("%s has min=%d, max=%d. The scheduled scaling API currently requires a fixed replica count per entry.", entryRef, e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64()),
-			)
+		if minRepSet && maxRepSet {
+			minR, maxR := e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64()
+			switch {
+			case minR > maxR:
+				diags.AddAttributeError(
+					entriesPath,
+					"min_replicas must be <= max_replicas",
+					fmt.Sprintf("%s has min=%d, max=%d.", entryRef, minR, maxR),
+				)
+			case modeKnown && !isHorizontal && minR != maxR:
+				diags.AddAttributeError(
+					entriesPath,
+					"min_replicas must equal max_replicas",
+					fmt.Sprintf("%s has min=%d, max=%d. A vertical scheduled entry requires a fixed replica count; use autoscaling_mode = \"horizontal\" for a replica band.", entryRef, minR, maxR),
+				)
+			}
 		}
 	}
 	return diags
@@ -442,6 +479,9 @@ func planEntriesToAPI(ctx context.Context, entriesSet types.Set) ([]api.AutoScal
 			Weekdays:     intWeekdays,
 			StartHourUtc: int(em.StartHourUtc.ValueInt64()),
 			EndHourUtc:   int(em.EndHourUtc.ValueInt64()),
+		}
+		if !em.AutoscalingMode.IsNull() && !em.AutoscalingMode.IsUnknown() {
+			entry.AutoscalingMode = em.AutoscalingMode.ValueString()
 		}
 		if !em.MinReplicaMemoryGb.IsNull() && !em.MinReplicaMemoryGb.IsUnknown() {
 			v := int(em.MinReplicaMemoryGb.ValueInt64())
@@ -522,6 +562,7 @@ func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEnt
 		Weekdays:           weekdaySet,
 		StartHourUtc:       types.Int64Value(int64(e.StartHourUtc)),
 		EndHourUtc:         types.Int64Value(int64(e.EndHourUtc)),
+		AutoscalingMode:    deriveAutoscalingMode(e.AutoscalingMode, e.MinReplicas, e.MaxReplicas),
 		MinReplicaMemoryGb: int64PtrToValue(e.MinReplicaMemoryGb),
 		MaxReplicaMemoryGb: int64PtrToValue(e.MaxReplicaMemoryGb),
 		MinReplicas:        int64PtrToValue(e.MinReplicas),
@@ -535,6 +576,7 @@ func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEnt
 
 func apiBaseConfigToModel(b api.AutoScalingScheduleBaseConfig) models.ScheduledScalingBaseConfigModel {
 	return models.ScheduledScalingBaseConfigModel{
+		AutoscalingMode:    deriveAutoscalingMode(b.AutoscalingMode, b.MinReplicas, b.MaxReplicas),
 		MinReplicaMemoryGb: int64PtrToValue(b.MinReplicaMemoryGb),
 		MaxReplicaMemoryGb: int64PtrToValue(b.MaxReplicaMemoryGb),
 		MinReplicas:        int64PtrToValue(b.MinReplicas),
@@ -549,6 +591,21 @@ func int64PtrToValue(v *int) types.Int64 {
 		return types.Int64Null()
 	}
 	return types.Int64Value(int64(*v))
+}
+
+// deriveAutoscalingMode resolves the mode for read-back state: the explicit mode the server returned, or —
+// when the server echoes it empty — the mode implied by the band shape (a distinct min/max band is
+// horizontal, else vertical). Deriving rather than storing Null keeps an entry configured with an explicit
+// mode from reading back Null against a concrete config value (a perpetual diff). Shared by the schedule
+// entry and base-config read paths so the two stay consistent.
+func deriveAutoscalingMode(mode string, minReplicas, maxReplicas *int) types.String {
+	if mode != "" {
+		return types.StringValue(mode)
+	}
+	if minReplicas != nil && maxReplicas != nil && *minReplicas != *maxReplicas {
+		return types.StringValue(api.AutoscalingModeHorizontal)
+	}
+	return types.StringValue(api.AutoscalingModeVertical)
 }
 
 func boolPtrToValue(v *bool) types.Bool {

@@ -18,4 +18,7 @@ const (
 
 	ComplianceTypeHIPAA = "hipaa"
 	ComplianceTypePCI   = "pci"
+
+	AutoscalingModeVertical   = "vertical"
+	AutoscalingModeHorizontal = "horizontal"
 )

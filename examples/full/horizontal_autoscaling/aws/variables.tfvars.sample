@@ -1,0 +1,4 @@
+# Placeholder values — replace with your own organization ID and API key before running.
+organization_id = "REPLACE_WITH_YOUR_ORGANIZATION_ID"
+token_key       = "REPLACE_WITH_YOUR_API_KEY_ID"
+token_secret    = "REPLACE_WITH_YOUR_API_KEY_SECRET"

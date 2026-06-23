@@ -12,6 +12,7 @@ type ScheduledScalingEntryModel struct {
 	Weekdays           types.Set    `tfsdk:"weekdays"`
 	StartHourUtc       types.Int64  `tfsdk:"start_hour_utc"`
 	EndHourUtc         types.Int64  `tfsdk:"end_hour_utc"`
+	AutoscalingMode    types.String `tfsdk:"autoscaling_mode"`
 	MinReplicaMemoryGb types.Int64  `tfsdk:"min_replica_memory_gb"`
 	MaxReplicaMemoryGb types.Int64  `tfsdk:"max_replica_memory_gb"`
 	MinReplicas        types.Int64  `tfsdk:"min_replicas"`
@@ -27,6 +28,7 @@ func (m ScheduledScalingEntryModel) ObjectType() types.ObjectType {
 			"weekdays":              types.SetType{ElemType: types.Int64Type},
 			"start_hour_utc":        types.Int64Type,
 			"end_hour_utc":          types.Int64Type,
+			"autoscaling_mode":      types.StringType,
 			"min_replica_memory_gb": types.Int64Type,
 			"max_replica_memory_gb": types.Int64Type,
 			"min_replicas":          types.Int64Type,
@@ -43,6 +45,7 @@ func (m ScheduledScalingEntryModel) ObjectValue() basetypes.ObjectValue {
 		"weekdays":              m.Weekdays,
 		"start_hour_utc":        m.StartHourUtc,
 		"end_hour_utc":          m.EndHourUtc,
+		"autoscaling_mode":      m.AutoscalingMode,
 		"min_replica_memory_gb": m.MinReplicaMemoryGb,
 		"max_replica_memory_gb": m.MaxReplicaMemoryGb,
 		"min_replicas":          m.MinReplicas,
@@ -55,17 +58,19 @@ func (m ScheduledScalingEntryModel) ObjectValue() basetypes.ObjectValue {
 // ScheduledScalingBaseConfigModel mirrors the schedule's fallback configuration
 // applied when no entry is currently active.
 type ScheduledScalingBaseConfigModel struct {
-	MinReplicaMemoryGb types.Int64 `tfsdk:"min_replica_memory_gb"`
-	MaxReplicaMemoryGb types.Int64 `tfsdk:"max_replica_memory_gb"`
-	MinReplicas        types.Int64 `tfsdk:"min_replicas"`
-	MaxReplicas        types.Int64 `tfsdk:"max_replicas"`
-	IdleScaling        types.Bool  `tfsdk:"idle_scaling"`
-	IdleTimeoutMinutes types.Int64 `tfsdk:"idle_timeout_minutes"`
+	AutoscalingMode    types.String `tfsdk:"autoscaling_mode"`
+	MinReplicaMemoryGb types.Int64  `tfsdk:"min_replica_memory_gb"`
+	MaxReplicaMemoryGb types.Int64  `tfsdk:"max_replica_memory_gb"`
+	MinReplicas        types.Int64  `tfsdk:"min_replicas"`
+	MaxReplicas        types.Int64  `tfsdk:"max_replicas"`
+	IdleScaling        types.Bool   `tfsdk:"idle_scaling"`
+	IdleTimeoutMinutes types.Int64  `tfsdk:"idle_timeout_minutes"`
 }
 
 func (m ScheduledScalingBaseConfigModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
+			"autoscaling_mode":      types.StringType,
 			"min_replica_memory_gb": types.Int64Type,
 			"max_replica_memory_gb": types.Int64Type,
 			"min_replicas":          types.Int64Type,
@@ -78,6 +83,7 @@ func (m ScheduledScalingBaseConfigModel) ObjectType() types.ObjectType {
 
 func (m ScheduledScalingBaseConfigModel) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"autoscaling_mode":      m.AutoscalingMode,
 		"min_replica_memory_gb": m.MinReplicaMemoryGb,
 		"max_replica_memory_gb": m.MaxReplicaMemoryGb,
 		"min_replicas":          m.MinReplicas,
