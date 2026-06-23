@@ -82,8 +82,49 @@ func (v pubsubSeekValidator) ValidateResource(ctx context.Context, req resource.
 	}
 }
 
+// cdcClickPipeScalingValidator prevents a partial create where the ClickPipe
+// POST succeeds but the follow-up scaling PATCH is rejected by the API.
+type cdcClickPipeScalingValidator struct{}
+
+func (v cdcClickPipeScalingValidator) Description(_ context.Context) string {
+	return "Validates that ClickPipe scaling is not configured for CDC source types."
+}
+
+func (v cdcClickPipeScalingValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v cdcClickPipeScalingValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data models.ClickPipeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.Scaling.IsNull() || data.Scaling.IsUnknown() || data.Source.IsNull() || data.Source.IsUnknown() {
+		return
+	}
+
+	sourceModel := models.ClickPipeSourceModel{}
+	resp.Diagnostics.Append(data.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if sourceModel.Postgres.IsNull() && sourceModel.MySQL.IsNull() && sourceModel.MongoDB.IsNull() {
+		return
+	}
+
+	resp.Diagnostics.AddAttributeError(
+		path.Root("scaling"),
+		"Invalid CDC ClickPipe scaling configuration",
+		"scaling cannot be configured on clickhouse_clickpipe for Postgres, MySQL, or MongoDB CDC sources. Configure CDC infrastructure sizing with clickhouse_clickpipe_cdc_infrastructure instead.",
+	)
+}
+
 func (c *ClickPipeResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		pubsubSeekValidator{},
+		cdcClickPipeScalingValidator{},
 	}
 }
