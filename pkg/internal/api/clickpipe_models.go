@@ -108,6 +108,8 @@ type ClickPipeKafkaSource struct {
 	CACertificate  *string                          `json:"caCertificate,omitempty"`
 
 	ReversePrivateEndpointIDs []string `json:"reversePrivateEndpointIds,omitempty"`
+
+	ExactlyOnce *bool `json:"exactlyOnce,omitempty"`
 }
 
 type ClickPipeObjectStorageSource struct {
@@ -148,6 +150,23 @@ type ClickPipeKinesisSource struct {
 	Authentication string                    `json:"authentication"`
 	AccessKey      *ClickPipeSourceAccessKey `json:"accessKey,omitempty"`
 	IAMRole        *string                   `json:"iamRole,omitempty"`
+}
+
+type ClickPipePubSubSource struct {
+	Format         string `json:"format"`
+	ProjectID      string `json:"projectId"`
+	Topic          string `json:"topic"`
+	Authentication string `json:"authentication"`
+
+	SeekType      string  `json:"seekType"`
+	SeekTimestamp *string `json:"seekTimestamp,omitempty"`
+
+	Filter         *string `json:"filter,omitempty"`
+	EnableOrdering *bool   `json:"enableOrdering,omitempty"`
+	AckDeadline    *int64  `json:"ackDeadline,omitempty"`
+
+	// Write-only; never returned by GET. Required on POST, optional on PATCH.
+	ServiceAccountKey *ClickPipeServiceAccount `json:"serviceAccountKey,omitempty"`
 }
 
 type ClickPipePostgresSource struct {
@@ -297,6 +316,7 @@ type ClickPipeSource struct {
 	Kafka           *ClickPipeKafkaSource         `json:"kafka,omitempty"`
 	ObjectStorage   *ClickPipeObjectStorageSource `json:"objectStorage,omitempty"`
 	Kinesis         *ClickPipeKinesisSource       `json:"kinesis,omitempty"`
+	PubSub          *ClickPipePubSubSource        `json:"pubsub,omitempty"`
 	Postgres        *ClickPipePostgresSource      `json:"postgres,omitempty"`
 	MySQL           *ClickPipeMySQLSource         `json:"mysql,omitempty"`
 	BigQuery        *ClickPipeBigQuerySource      `json:"bigquery,omitempty"`

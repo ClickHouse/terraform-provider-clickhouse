@@ -77,7 +77,7 @@ jobs:
     runs-on: k8s-nano
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Find TF releases
         uses: ./.github/actions/find-tf-releases
@@ -91,7 +91,7 @@ jobs:
     runs-on: k8s-nano
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - uses: ./.github/actions/list-examples
         id: list
@@ -113,7 +113,7 @@ jobs:
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -202,7 +202,7 @@ jobs:
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -295,7 +295,7 @@ jobs:
         test_name : ["generic"]
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -353,10 +353,11 @@ jobs:
   cleanup:
     runs-on: k8s-small
     needs: [ "e2e", "import", "upgrade", "token" ]
+    if: always() && needs.token.result == 'success'
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Get API details for env
         id: credentials
@@ -380,14 +381,14 @@ jobs:
   # Bump the provider version in the examples directory
   bump-examples:
     needs: [ "validate", "e2e", "import", "upgrade" ]
-    if: ${{ needs.e2e.result != 'failure' && needs.import.result != 'failure' && needs.upgrade.result != 'failure' }}
+    if: ${{ always() && needs.validate.result == 'success' && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' }}
     runs-on: k8s-small
     permissions:
       contents: write
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: "main"
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
@@ -428,6 +429,18 @@ jobs:
             sed -i '1s/^/# This file is generated automatically please do not edit\n/' $dst
           done
 
+      # tfplugindocs shells out to the terraform binary on PATH to export the
+      # provider schema. Write-only attributes (e.g. password_wo) only appear in
+      # `terraform providers schema -json` on Terraform >= 1.11, so the docs only
+      # render the [Write-only] annotation when a >= 1.11 binary is used. Pin one
+      # here so CI matches local generation. terraform_wrapper must be false so
+      # tfplugindocs can read the schema JSON from stdout.
+      - name: Setup terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.11.4"
+          terraform_wrapper: false
+
       - name: Build docs for stable release
         if: ${{ needs.validate.outputs.enable_alpha == 'false' }}
         run: |
@@ -439,13 +452,27 @@ jobs:
           make docs-alpha
 
       - name: Commit
-        run: |
-          git add docs/resources/
-          git diff --quiet --exit-code && (echo "No changes detected" && exit 0)
-          git config --global user.name "Release Github Action"
-          git config --global user.email "bot@users.noreply.github.com"
-          git commit -a -m "Bump provider version in examples to ${{ inputs.version }}"
-          git push
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          shell: bash
+          command: |
+            set -eo pipefail
+            git add docs/resources/
+            if git diff --quiet --exit-code; then
+              echo "No changes detected"
+              exit 0
+            fi
+            git config --global user.name "Release Github Action"
+            git config --global user.email "bot@users.noreply.github.com"
+
+            # On a retry the commit may already exist locally; `|| true` lets us
+            # fall through to the push so the retry can complete the operation
+            # that originally failed at the network step.
+            git commit -a -m "Bump provider version in examples to ${{ inputs.version }}" || true
+            git push
 
   # Create tag for the release
   tag:
@@ -454,17 +481,32 @@ jobs:
       contents: write
       pull-requests: write
     needs: [ "e2e", "import", "upgrade", "bump-examples" ]
-    if: ${{ needs.e2e.result != 'failure' && needs.import.result != 'failure' && needs.upgrade.result != 'failure' }}
+    if: ${{ always() && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' && needs.bump-examples.result == 'success' }}
     steps:
     - name: Checkout
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         ref: "main"
     - name: Create tag
-      run: |
-        tag="v${{ inputs.version }}"
-        git tag $tag
-        git push origin $tag
+      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+      with:
+        timeout_minutes: 3
+        max_attempts: 3
+        retry_wait_seconds: 15
+        shell: bash
+        command: |
+          set -eo pipefail
+          tag="v${{ inputs.version }}"
+
+          # Idempotent re-run: if the tag is already on origin, treat as success.
+          if git ls-remote --tags origin "refs/tags/${tag}" | grep -q "refs/tags/${tag}$"; then
+            echo "Tag ${tag} already exists on origin"
+            exit 0
+          fi
+
+          # Create (or re-point) the local tag without failing on "already exists".
+          git tag -f "${tag}"
+          git push origin "${tag}"
 
   # Make a new release out of the tag
   goreleaser:
@@ -472,10 +514,10 @@ jobs:
       contents: write
     runs-on: k8s-medium
     needs: [ "validate", "tag", "e2e", "import", "upgrade" ]
-    if: ${{ needs.e2e.result != 'failure' && needs.import.result != 'failure' && needs.upgrade.result != 'failure' }}
+    if: ${{ always() && needs.validate.result == 'success' && needs.tag.result == 'success' && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: v${{inputs.version}}
           # Allow goreleaser to access older tag information.
@@ -506,10 +548,21 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
         with:
-          args: release --clean --config ${{ needs.validate.outputs.goreleaser_config }}
+          install-only: true
+
+      - name: Run GoReleaser
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        with:
+          timeout_minutes: 30
+          max_attempts: 3
+          retry_wait_seconds: 30
+          shell: bash
+          command: |
+            set -eo pipefail
+            goreleaser release --clean --config ${{ needs.validate.outputs.goreleaser_config }}
         env:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -526,7 +579,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
           ref: "main"
@@ -542,10 +595,22 @@ jobs:
           make docs
 
       - name: Commit
-        run: |
-          git add docs/resources/
-          git diff --quiet --exit-code && (echo "No changes detected" && exit 0)
-          git config --global user.name "Release Github Action"
-          git config --global user.email "bot@users.noreply.github.com"
-          git commit -a -m "Remove alpha docs from main branch"
-          git push
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          shell: bash
+          command: |
+            set -eo pipefail
+            git add docs/resources/
+            if git diff --quiet --exit-code; then
+              echo "No changes detected"
+              exit 0
+            fi
+            git config --global user.name "Release Github Action"
+            git config --global user.email "bot@users.noreply.github.com"
+
+            # `|| true` lets a retry that already committed locally still push.
+            git commit -a -m "Remove alpha docs from main branch" || true
+            git push

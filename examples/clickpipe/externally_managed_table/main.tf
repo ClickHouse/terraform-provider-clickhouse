@@ -12,15 +12,15 @@ variable "kafka_topics" {
 }
 
 variable "kafka_username" {
-  sensitive   = true
+  sensitive = true
 }
 
 variable "kafka_password" {
-  sensitive   = true
+  sensitive = true
 }
 
 variable "table_name" {
-  type        = string
+  type = string
 }
 
 variable "table_columns" {
@@ -38,7 +38,7 @@ variable "field_mappings" {
 }
 
 resource "clickhouse_clickpipe" "kafka_confluent" {
-  name        = "Confluent 🚀 ClickPipe"
+  name = "Confluent 🚀 ClickPipe"
 
   service_id = var.service_id
 

@@ -1,0 +1,38 @@
+name: Notify owning team on labeled issues and PRs
+
+on:
+  issues:
+    types:
+      - labeled
+  pull_request:
+    types:
+      - labeled
+
+jobs:
+  notify:
+    runs-on: k8s-nano
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Notify the team that owns the label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          LABEL: ${{ github.event.label.name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Map a label to the team handle + display name. Add new teams here.
+          case "$LABEL" in
+            clickpipes) team="@ClickHouse/clickpipes"; product="ClickPipes" ;;
+            clickgres)  team="@ClickHouse/clickgres";  product="ClickGres"  ;;
+            *) echo "No team mapping for label '$LABEL', nothing to notify."; exit 0 ;;
+          esac
+
+          if [ "$EVENT" = "issues" ]; then
+            gh issue comment "$ISSUE_NUMBER" --body "$team This issue has been tagged as ${product}-related."
+          else
+            gh pr comment "$PR_NUMBER" --body "$team This PR has been tagged as ${product}-related."
+          fi

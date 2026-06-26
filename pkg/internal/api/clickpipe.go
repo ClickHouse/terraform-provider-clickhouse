@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -17,6 +18,8 @@ const (
 	ClickPipeRunningState       = "Running"
 	ClickPipeStoppingState      = "Stopping"
 	ClickPipeStoppedState       = "Stopped"
+	ClickPipePausingState       = "Pausing"
+	ClickPipePausedState        = "Paused"
 	ClickPipeFailedState        = "Failed"
 	ClickPipeCompletedState     = "Completed"
 	ClickPipeSnapShotState      = "Snapshot"
@@ -82,6 +85,7 @@ const (
 	ClickPipeKafkaMSKSourceType           = "msk"
 	ClickPipeKafkaWarpStreamSourceType    = "warpstream"
 	ClickPipeKafkaAzureEventHubSourceType = "azureeventhub"
+	ClickPipeKafkaGCMKSourceType          = "gcmk"
 )
 
 var ClickPipeKafkaSourceTypes = []string{
@@ -91,6 +95,7 @@ var ClickPipeKafkaSourceTypes = []string{
 	ClickPipeKafkaMSKSourceType,
 	ClickPipeKafkaWarpStreamSourceType,
 	ClickPipeKafkaAzureEventHubSourceType,
+	ClickPipeKafkaGCMKSourceType,
 }
 
 const (
@@ -145,11 +150,38 @@ var ClickPipeKinesisIteratorTypes = []string{
 	ClickPipeKinesisAtTimestampIteratorType,
 }
 
+const (
+	ClickPipePubSubSourceType = "pubsub"
+)
+
+var ClickPipePubSubFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeProtobufFormat,
+}
+
+const (
+	ClickPipePubSubSeekTypeLatest    = "latest"
+	ClickPipePubSubSeekTypeEarliest  = "earliest"
+	ClickPipePubSubSeekTypeTimestamp = "timestamp"
+)
+
+var ClickPipePubSubSeekTypes = []string{
+	ClickPipePubSubSeekTypeLatest,
+	ClickPipePubSubSeekTypeEarliest,
+	ClickPipePubSubSeekTypeTimestamp,
+}
+
+var ClickPipePubSubAuthenticationMethods = []string{
+	ClickPipeAuthenticationServiceAccount,
+}
+
 var ClickPipeObjectStorageFormats = []string{
 	ClickPipeJSONEachRowFormat,
 	ClickPipeCSVFormat,
 	ClickPipeCSVWithNamesFormat,
 	ClickPipeParquetFormat,
+	ClickPipeAvroFormat,
 }
 
 const (
@@ -264,6 +296,16 @@ var ClickPipeMySQLSourceTypes = []string{
 	ClickPipeMySQLSourceTypePlanetScaleVites,
 	ClickPipeMySQLSourceTypeMariaDB,
 	ClickPipeMySQLSourceTypeRDSMariaDB,
+}
+
+// ClickPipeMySQLMariaDBSourceTypes lists the MariaDB-flavored MySQL source types.
+var ClickPipeMySQLMariaDBSourceTypes = []string{
+	ClickPipeMySQLSourceTypeMariaDB,
+	ClickPipeMySQLSourceTypeRDSMariaDB,
+}
+
+func IsClickPipeMySQLMariaDBSourceType(sourceType string) bool {
+	return slices.Contains(ClickPipeMySQLMariaDBSourceTypes, sourceType)
 }
 
 // MongoDB constants

@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"cmp"
 	"context"
 	_ "embed"
 	"os"
@@ -64,11 +65,11 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 				Optional:    true,
 			},
 			"token_key": schema.StringAttribute{
-				Description: "Token key of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_TOKEN_KEY` environment variable.",
+				Description: "Token key of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_CLOUD_API_KEY` environment variable.",
 				Optional:    true,
 			},
 			"token_secret": schema.StringAttribute{
-				Description: "Token secret of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_TOKEN_SECRET` environment variable.",
+				Description: "Token secret of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_CLOUD_API_SECRET` environment variable.",
 				Optional:    true,
 				Sensitive:   true,
 			},
@@ -117,7 +118,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 			path.Root("token_key"),
 			"Unknown ClickHouse OpenAPI Token Key",
 			"The provider cannot create the ClickHouse OpenAPI client as there is an unknown configuration value for the token key. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the CLICKHOUSE_TOKEN_KEY environment variable.",
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the CLICKHOUSE_CLOUD_API_KEY environment variable.",
 		)
 	}
 
@@ -126,7 +127,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 			path.Root("token_secret"),
 			"Unknown ClickHouse OpenAPI Token Secret",
 			"The provider cannot create the ClickHouse OpenAPI client as there is an unknown configuration value for the token secret. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the CLICKHOUSE_TOKEN_SECRET environment variable.",
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the CLICKHOUSE_CLOUD_API_SECRET environment variable.",
 		)
 	}
 
@@ -139,8 +140,16 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 
 	apiUrl := os.Getenv("CLICKHOUSE_API_URL")
 	organizationId := os.Getenv("CLICKHOUSE_ORG_ID")
-	tokenKey := os.Getenv("CLICKHOUSE_TOKEN_KEY")
-	tokenSecret := os.Getenv("CLICKHOUSE_TOKEN_SECRET")
+	// Read credentials from env: prefer new CLICKHOUSE_CLOUD_API_{KEY,SECRET},
+	// fall back to legacy CLICKHOUSE_TOKEN_{KEY,SECRET}.
+	tokenKey := cmp.Or(
+		os.Getenv("CLICKHOUSE_CLOUD_API_KEY"),
+		os.Getenv("CLICKHOUSE_TOKEN_KEY"),
+	)
+	tokenSecret := cmp.Or(
+		os.Getenv("CLICKHOUSE_CLOUD_API_SECRET"),
+		os.Getenv("CLICKHOUSE_TOKEN_SECRET"),
+	)
 
 	if !config.ApiUrl.IsNull() {
 		apiUrl = config.ApiUrl.ValueString()
@@ -200,7 +209,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 				path.Root("token_key"),
 				"Missing ClickHouse OpenAPI Token Key",
 				"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the token key. "+
-					"Set the token_key value in the configuration or use the CLICKHOUSE_TOKEN_KEY environment variable. "+
+					"Set the token_key value in the configuration or use the CLICKHOUSE_CLOUD_API_KEY environment variable. "+
 					"If either is already set, ensure the value is not empty.",
 			)
 		}
@@ -211,9 +220,9 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		if tokenSecret == "" {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("token_secret"),
-				"Missing ClickHouse OpenAPI Token Key",
+				"Missing ClickHouse OpenAPI Token Secret",
 				"The provider cannot create the ClickHouse OpenAPI client: missing or empty value for the token secret. "+
-					"Set the token_secret value in the configuration or use the CLICKHOUSE_TOKEN_SECRET environment variable. "+
+					"Set the token_secret value in the configuration or use the CLICKHOUSE_CLOUD_API_SECRET environment variable. "+
 					"If either is already set, ensure the value is not empty.",
 			)
 		}
@@ -252,6 +261,9 @@ func (p *clickhouseProvider) DataSources(_ context.Context) []func() upstreamdat
 		datasource.NewRolesDataSource,
 		datasource.NewRoleDataSource,
 		datasource.NewUserDataSource,
+		datasource.NewPostgresServiceDataSource,
+		datasource.NewPostgresServicesDataSource,
+		datasource.NewPostgresServiceCaCertificatesDataSource,
 	}
 }
 

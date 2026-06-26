@@ -53,16 +53,18 @@ jobs:
           exit 1
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
 
       - name: Install Langfuse
-        run: pip3 install langfuse
+        run: |
+          python3 -m venv /tmp/langfuse-venv
+          /tmp/langfuse-venv/bin/pip install langfuse
 
       - name: Generate release notes with Claude
-        uses: anthropics/claude-code-action@c3d45e8e941e1b2ad7b278c57482d9c5bf1f35b3 # v1.0.99
+        uses: anthropics/claude-code-action@2fee15510437d71399d9139ed60433470484a8fb # v1.0.153
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           settings: |
@@ -73,7 +75,7 @@ jobs:
                     "hooks": [
                       {
                         "type": "command",
-                        "command": "python3 $GITHUB_WORKSPACE/.claude/hooks/langfuse_hook.py"
+                        "command": "/tmp/langfuse-venv/bin/python3 $GITHUB_WORKSPACE/.claude/hooks/langfuse_hook.py"
                       }
                     ]
                   }
@@ -86,7 +88,7 @@ jobs:
                 "LANGFUSE_BASE_URL": "${{ secrets.LANGFUSE_BASE_URL }}"
               }
             }
-          claude_args: --allowedTools "Read(pkg/**),Read(/tmp/**),Write(/tmp/release-notes.md),Bash(gh pr view:*),Bash(gh release view:*),Bash(gh release list:*)"
+          claude_args: --allowedTools "Read,Write,Bash(gh pr view:*),Bash(gh release view:*),Bash(gh release list:*)"
           prompt: |
             REPO: ${{ github.repository }}
             VERSION: ${{ inputs.tag || github.ref_name }}
@@ -130,7 +132,7 @@ jobs:
 
             For each PR, read the resource/datasource files it touched under pkg/resource/ and pkg/datasource/ to understand what changed. Read the relevant description markdown files under pkg/resource/descriptions/ and pkg/datasource/descriptions/ for user-facing context. Do not scan source files for features that are not referenced by a PR in the changelog — if a feature is not in the changelog, it was not added in this release.
 
-            For each resource introduced or modified by a PR in the changelog, check whether it is alpha-gated by reading pkg/resource/register_debug.go and pkg/resource/register_stable.go. A resource is alpha-only if it appears in register_debug.go (which has the `//go:build alpha` tag) and not in register_stable.go. Alpha-only resources must never appear under ✨ New Features or 🔧 Improvements — list them under 🧪 Experimental Features with a note that they require the latest alpha build available.
+            For each resource introduced or modified by a PR in the changelog, determine whether it is marked as alpha (experimental). Alpha resources now ship in the regular provider build but emit a runtime "alpha" warning and carry an alpha callout in their docs. Detect this by reading the resource's description markdown at pkg/resource/descriptions/<resource>.md and checking for a line containing "This resource is in alpha"; as a secondary signal, the resource's Go source under pkg/resource/ calls utils.AlphaWarning(...). Resources marked alpha must never appear under ✨ New Features or 🔧 Improvements — list them under 🧪 Experimental Features with a note that they are available in the regular release but are still in alpha and may change in future provider versions.
 
             ## Step 4: Write the summary
 
@@ -141,7 +143,7 @@ jobs:
             Sections (in this order):
             - 💥 **Backward Incompatible Changes** — schema changes requiring state migration, renamed/removed attributes or resources, changed defaults that alter existing behaviour
             - ✨ **New Features** — new resources, data sources, or attributes that users can start using
-            - 🧪 **Experimental Features** — alpha-gated resources or features not yet stable (only include if IS_ALPHA is "true" or if alpha-tagged items exist)
+            - 🧪 **Experimental Features** — alpha-marked resources or features not yet stable (only include if IS_ALPHA is "true" or if any changelog PR touches an alpha-marked resource)
             - 🔧 **Improvements** — enhancements to existing resources, better error messages, improved validation, UX improvements
             - 🐛 **Bug Fixes** — fixes for incorrect behaviour in a previously released version
             - 📦 **Build / Testing / Packaging** — CI changes, dependency updates, test improvements (only if noteworthy to users)

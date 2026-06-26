@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	ReversePrivateEndpointTypeVPCEndpointService = "VPC_ENDPOINT_SERVICE"
-	ReversePrivateEndpointTypeVPCResource        = "VPC_RESOURCE"
-	ReversePrivateEndpointTypeMSKMultiVPC        = "MSK_MULTI_VPC"
+	ReversePrivateEndpointTypeVPCEndpointService      = "VPC_ENDPOINT_SERVICE"
+	ReversePrivateEndpointTypeVPCResource             = "VPC_RESOURCE"
+	ReversePrivateEndpointTypeMSKMultiVPC             = "MSK_MULTI_VPC"
+	ReversePrivateEndpointTypeGCPPSCServiceAttachment = "GCP_PSC_SERVICE_ATTACHMENT"
 )
 
 const (
@@ -38,6 +39,7 @@ var (
 		ReversePrivateEndpointTypeVPCEndpointService,
 		ReversePrivateEndpointTypeVPCResource,
 		ReversePrivateEndpointTypeMSKMultiVPC,
+		ReversePrivateEndpointTypeGCPPSCServiceAttachment,
 	}
 
 	MSKAuthenticationTypes = []string{
@@ -112,6 +114,30 @@ func (c *ClientImpl) CreateReversePrivateEndpoint(ctx context.Context, serviceId
 	}
 
 	req, err := http.NewRequest(http.MethodPost, c.getServicePath(serviceId, "/clickpipesReversePrivateEndpoints"), &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	response := ResponseWithResult[ReversePrivateEndpoint]{}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ReversePrivateEndpoint: %w", err)
+	}
+
+	return &response.Result, nil
+}
+
+func (c *ClientImpl) UpdateReversePrivateEndpoint(ctx context.Context, serviceId, reversePrivateEndpointId string, request UpdateReversePrivateEndpoint) (*ReversePrivateEndpoint, error) {
+	var payload bytes.Buffer
+	if err := json.NewEncoder(&payload).Encode(request); err != nil {
+		return nil, fmt.Errorf("failed to encode ReversePrivateEndpoint update: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.GetReversePrivateEndpointPath(serviceId, reversePrivateEndpointId), &payload)
 	if err != nil {
 		return nil, err
 	}

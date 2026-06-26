@@ -20,3 +20,10 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "msk_multi_vpc" {
   msk_cluster_arn    = "arn:aws:kafka:us-east-1:123456789012:cluster/ClickHouse-Cluster/1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6-1"
   msk_authentication = "SASL_IAM"
 }
+
+resource "clickhouse_clickpipes_reverse_private_endpoint" "gcp_psc_service_attachment" {
+  service_id             = "3a10a385-ced2-452e-abb8-908c80976a8f"
+  description            = "GCP_PSC_SERVICE_ATTACHMENT reverse private endpoint for ClickPipes"
+  type                   = "GCP_PSC_SERVICE_ATTACHMENT"
+  gcp_service_attachment = "projects/my-project/regions/us-central1/serviceAttachments/my-service"
+}

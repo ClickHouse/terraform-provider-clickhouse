@@ -12,13 +12,25 @@ type ReversePrivateEndpoint struct {
 	Status          string   `json:"status,omitempty"`
 }
 
+// CustomPrivateDNSMapping represents a custom DNS name managed by ClickHouse Cloud.
+type CustomPrivateDNSMapping struct {
+	PrivateDNSName string `json:"privateDnsName,omitempty"`
+}
+
 // CreateReversePrivateEndpoint is the request payload for creating a reverse private endpoint
 type CreateReversePrivateEndpoint struct {
-	Description                string  `json:"description,omitempty"`
-	Type                       string  `json:"type,omitempty"`
-	VPCEndpointServiceName     *string `json:"vpcEndpointServiceName,omitempty"`
-	VPCResourceConfigurationID *string `json:"vpcResourceConfigurationId,omitempty"`
-	VPCResourceShareArn        *string `json:"vpcResourceShareArn,omitempty"`
-	MSKClusterArn              *string `json:"mskClusterArn,omitempty"`
-	MSKAuthentication          *string `json:"mskAuthentication,omitempty"`
+	Description                string                    `json:"description,omitempty"`
+	Type                       string                    `json:"type,omitempty"`
+	VPCEndpointServiceName     *string                   `json:"vpcEndpointServiceName,omitempty"`
+	VPCResourceConfigurationID *string                   `json:"vpcResourceConfigurationId,omitempty"`
+	VPCResourceShareArn        *string                   `json:"vpcResourceShareArn,omitempty"`
+	MSKClusterArn              *string                   `json:"mskClusterArn,omitempty"`
+	MSKAuthentication          *string                   `json:"mskAuthentication,omitempty"`
+	GCPServiceAttachment       *string                   `json:"gcpServiceAttachment,omitempty"`
+	CustomPrivateDNSMappings   []CustomPrivateDNSMapping `json:"customPrivateDnsMappings,omitempty"`
+}
+
+// UpdateReversePrivateEndpoint is the request payload for updating mutable reverse private endpoint fields.
+type UpdateReversePrivateEndpoint struct {
+	CustomPrivateDNSMappings *[]CustomPrivateDNSMapping `json:"customPrivateDnsMappings,omitempty"`
 }
