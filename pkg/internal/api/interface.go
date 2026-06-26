@@ -9,10 +9,12 @@ type Client interface {
 	GetApiKeyID(ctx context.Context, name *string) (*ApiKey, error)
 
 	GetService(ctx context.Context, serviceId string) (*Service, error)
+	ListServices(ctx context.Context) ([]Service, error)
 	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
 	CreateService(ctx context.Context, s Service) (*Service, string, error)
 	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error
 	UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error)
+	ChangeServiceState(ctx context.Context, serviceId string, command string) (*Service, error)
 	UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (*Service, error)
 	GetScheduledScaling(ctx context.Context, serviceId string) (*AutoScalingSchedule, error)
 	UpdateScheduledScaling(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (*AutoScalingSchedule, error)
