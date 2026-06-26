@@ -160,7 +160,7 @@ runs:
         subscription-id: ${{ inputs.azure_subscription_id }}
 
     - name: Authenticate to GCP
-      uses: google-github-actions/auth@v3
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       if: ${{ inputs.cloud_provider == 'gcp' && inputs.gcp_workload_identity_provider != '' }}
       with:
         workload_identity_provider: ${{ inputs.gcp_workload_identity_provider }}
