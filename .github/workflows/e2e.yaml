@@ -199,8 +199,6 @@ jobs:
           gcp_workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           gcp_region: ${{ steps.credentials.outputs.region }}
-          gcp_workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
   upgrade:
     needs: ["token", "find-tf-releases", "list-examples"]
@@ -298,8 +296,6 @@ jobs:
           gcp_workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           gcp_region: ${{ steps.credentials.outputs.region }}
-          gcp_workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
   report:
     runs-on: k8s-nano
