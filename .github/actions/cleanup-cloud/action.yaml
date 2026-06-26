@@ -22,6 +22,22 @@ inputs:
   azure_subscription_id:
     required: true
     description: The Azure subscription id to use for cleanup
+  gcp_project:
+    required: false
+    default: ""
+    description: The GCP project ID to use for GCP cleanup
+  gcp_region:
+    required: false
+    default: ""
+    description: The GCP region to use for GCP cleanup
+  gcp_workload_identity_provider:
+    required: false
+    default: ""
+    description: The GCP Workload Identity Federation provider resource name
+  gcp_service_account:
+    required: false
+    default: ""
+    description: The GCP service account email for Workload Identity Federation
 
 runs:
   using: composite
@@ -58,3 +74,24 @@ runs:
         SERVICE_NAME: ${{ inputs.service_name }}
       run: |
         ./.github/actions/cleanup-cloud/cleanup-azure.sh
+
+    - name: Authenticate to GCP
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      if: inputs.cloud_provider == 'gcp' && inputs.gcp_workload_identity_provider != ''
+      with:
+        workload_identity_provider: ${{ inputs.gcp_workload_identity_provider }}
+        service_account: ${{ inputs.gcp_service_account }}
+
+    - name: Set up gcloud CLI
+      uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+      if: inputs.cloud_provider == 'gcp' && inputs.gcp_project != ''
+
+    - name: Cleanup GCP
+      if: inputs.cloud_provider == 'gcp' && inputs.gcp_project != ''
+      shell: bash
+      env:
+        GCP_PROJECT: ${{ inputs.gcp_project }}
+        GCP_REGION: ${{ inputs.gcp_region }}
+        SERVICE_NAME: ${{ inputs.service_name }}
+      run: |
+        ./.github/actions/cleanup-cloud/cleanup-gcp.sh

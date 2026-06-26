@@ -169,6 +169,9 @@ jobs:
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          gcp_project: ${{ secrets.GCP_PROJECT }}
+          gcp_workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           kafka_brokers: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_BROKERS || '' }}
           kafka_topics: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_TOPICS || '' }}
           kafka_username: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_USERNAME || '' }}
@@ -192,6 +195,10 @@ jobs:
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          gcp_project: ${{ secrets.GCP_PROJECT }}
+          gcp_workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          gcp_region: ${{ steps.credentials.outputs.region }}
 
   upgrade:
     needs: ["token", "find-tf-releases", "list-examples"]
@@ -259,6 +266,9 @@ jobs:
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          gcp_project: ${{ secrets.GCP_PROJECT }}
+          gcp_workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           kafka_brokers: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_BROKERS || '' }}
           kafka_topics: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_TOPICS || '' }}
           kafka_username: ${{ matrix.test.name == 'clickpipes' && secrets.KAFKA_USERNAME || '' }}
@@ -282,6 +292,10 @@ jobs:
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          gcp_project: ${{ secrets.GCP_PROJECT }}
+          gcp_workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          gcp_region: ${{ steps.credentials.outputs.region }}
 
   report:
     runs-on: k8s-nano
