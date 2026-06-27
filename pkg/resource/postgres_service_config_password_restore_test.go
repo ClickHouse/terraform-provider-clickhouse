@@ -208,6 +208,24 @@ func TestPasswordRotationPlanned(t *testing.T) {
 	}
 }
 
+func TestRenamePlanned(t *testing.T) {
+	mdl := func(n types.String) models.PostgresServiceResourceModel {
+		return models.PostgresServiceResourceModel{Name: n}
+	}
+
+	if !renamePlanned(mdl(types.StringValue("new")), mdl(types.StringValue("old"))) {
+		t.Error("a known plan name differing from state is a planned rename")
+	}
+	if renamePlanned(mdl(types.StringValue("same")), mdl(types.StringValue("same"))) {
+		t.Error("identical names are not a rename")
+	}
+	// name is Required (not Computed): an unknown plan value is an interpolated
+	// config that can't be proven a change, so defer to apply.
+	if renamePlanned(mdl(types.StringUnknown()), mdl(types.StringValue("old"))) {
+		t.Error("an unknown (interpolated) name must not be treated as a rename at plan time")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // create-time attribute validation: required for a standard create; for a
 // replica/restore validated against the source (match/omit → ok, conflict →
@@ -434,6 +452,11 @@ func TestReplicaUpdateForbidden(t *testing.T) {
 	m := func(size, ha types.String, tags, pg types.Map) models.PostgresServiceResourceModel {
 		return models.PostgresServiceResourceModel{Size: size, HaType: ha, Tags: tags, PgConfig: pg}
 	}
+	withName := func(base models.PostgresServiceResourceModel, n types.String) models.PostgresServiceResourceModel {
+		base.Name = n
+		return base
+	}
+	nameOld, nameNew := types.StringValue("svc-old"), types.StringValue("svc-new")
 	cases := []struct {
 		name        string
 		plan, state models.PostgresServiceResourceModel
@@ -450,6 +473,10 @@ func TestReplicaUpdateForbidden(t *testing.T) {
 		// apply, don't false-positive at plan.
 		{"unknown size → deferred", m(types.StringUnknown(), none, tagsA, cfgA), m(large, none, tagsA, cfgA), 0},
 		{"unknown tags → deferred", m(large, none, types.MapUnknown(types.StringType), cfgA), m(large, none, tagsA, cfgA), 0},
+		// A live replica's name is server-derived; renaming it directly is rejected,
+		// so block it at plan time alongside size/ha_type/tags.
+		{"name changed", withName(m(large, none, tagsA, cfgA), nameNew), withName(m(large, none, tagsA, cfgA), nameOld), 1},
+		{"unknown name → deferred", withName(m(large, none, tagsA, cfgA), types.StringUnknown()), withName(m(large, none, tagsA, cfgA), nameOld), 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
