@@ -4,7 +4,6 @@ page_title: "clickhouse_role Resource - clickhouse"
 subcategory: ""
 description: |-
   You can use the clickhouse_role resource to manage custom RBAC roles in ClickHouse Cloud.
-  ~> Note: This resource is in alpha. To assign actors (users or API keys) to a role, use the clickhouse_role_assignment resource.
   Example Usage
   
   resource "clickhouse_role" "example" {
@@ -48,8 +47,6 @@ description: |-
 # clickhouse_role (Resource)
 
 You can use the *clickhouse_role* resource to manage custom RBAC roles in ClickHouse Cloud.
-
-~> **Note:** This resource is in alpha. To assign actors (users or API keys) to a role, use the `clickhouse_role_assignment` resource.
 
 ## Example Usage
 
