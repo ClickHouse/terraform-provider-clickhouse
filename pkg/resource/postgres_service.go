@@ -55,7 +55,7 @@ func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.Metad
 }
 
 // ValidateConfig surfaces the alpha warning at plan time, matching the other
-// alpha resources (clickhouse_role, clickhouse_service_upgrade_window, …).
+// alpha resources (clickhouse_service_upgrade_window, …).
 //
 // State-dependent rules are NOT enforced here: ValidateConfig is stateless, so
 // it can't tell a create from an update or read prior state. That covers the

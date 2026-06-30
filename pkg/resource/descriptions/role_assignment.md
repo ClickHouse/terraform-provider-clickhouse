@@ -2,7 +2,7 @@ Use the *clickhouse_role_assignment* resource to assign actors (users and/or API
 
 One resource manages all actors for a given role. Use `user_ids` to assign users, `api_key_ids` to assign API keys, or both. Only one `clickhouse_role_assignment` per role is needed.
 
-~> **Note:** This resource is in alpha. On delete, all actors are removed from the role.
+~> **Note:** On delete, all actors are removed from the role.
 
 To look up the ID of a system role by name, use the `clickhouse_role` data source.
 To look up a user ID by email, use the `clickhouse_user` data source.
