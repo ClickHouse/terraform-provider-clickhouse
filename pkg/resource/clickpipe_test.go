@@ -2,11 +2,14 @@ package resource
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/stretchr/testify/assert"
@@ -624,10 +627,39 @@ func buildObjectStoragePlan(skipInitialLoad types.Bool, startAfter types.String)
 	}
 
 	return models.ClickPipeResourceModel{
-		ID:        types.StringValue("test-pipe-id"),
-		ServiceID: types.StringValue("service-123"),
-		Name:      types.StringValue("test-object-storage-pipe"),
-		Source:    sourceModel.ObjectValue(),
+		ID:            types.StringValue("test-pipe-id"),
+		ServiceID:     types.StringValue("service-123"),
+		Name:          types.StringValue("test-object-storage-pipe"),
+		Scaling:       types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes),
+		State:         types.StringValue("Running"),
+		Stopped:       types.BoolValue(false),
+		Source:        sourceModel.ObjectValue(),
+		Destination:   buildObjectStorageDestination().ObjectValue(),
+		FieldMappings: types.ListNull(models.ClickPipeFieldMappingModel{}.ObjectType()),
+		Settings:      types.DynamicNull(),
+		TriggerResync: types.BoolNull(),
+	}
+}
+
+func buildObjectStorageDestination() models.ClickPipeDestinationModel {
+	return models.ClickPipeDestinationModel{
+		Database:        types.StringValue("default"),
+		Table:           types.StringValue("data"),
+		ManagedTable:    types.BoolValue(true),
+		TableDefinition: types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes),
+		Columns: types.ListValueMust(
+			models.ClickPipeDestinationColumnModel{}.ObjectType(),
+			[]attr.Value{
+				types.ObjectValueMust(
+					models.ClickPipeDestinationColumnModel{}.ObjectType().AttrTypes,
+					map[string]attr.Value{
+						"name": types.StringValue("id"),
+						"type": types.StringValue("Int32"),
+					},
+				),
+			},
+		),
+		Roles: types.ListNull(types.StringType),
 	}
 }
 
@@ -672,6 +704,70 @@ func TestExtractSourceFromPlan_ObjectStorageInitialLoadOptions(t *testing.T) {
 		assert.NotNil(t, source.ObjectStorage)
 		assert.Nil(t, source.ObjectStorage.SkipInitialLoad)
 		assert.Nil(t, source.ObjectStorage.StartAfter)
+	})
+}
+
+func TestClickPipeResource_ModifyPlan_ObjectStorageInitialLoadValidation(t *testing.T) {
+	ctx := context.Background()
+	resourceUnderTest := &ClickPipeResource{}
+
+	schemaResp := &resource.SchemaResponse{}
+	resourceUnderTest.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("building resource schema failed: %v", schemaResp.Diagnostics.Errors())
+	}
+	sch := schemaResp.Schema
+
+	run := func(t *testing.T, planModel models.ClickPipeResourceModel) diag.Diagnostics {
+		t.Helper()
+
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &planModel); d.HasError() {
+			t.Fatalf("encoding plan failed: %v", d.Errors())
+		}
+
+		req := resource.ModifyPlanRequest{
+			Plan:   planVal,
+			Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+		}
+		resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
+		resourceUnderTest.ModifyPlan(ctx, req, resp)
+		return resp.Diagnostics
+	}
+
+	detailContains := func(diags diag.Diagnostics, substr string) bool {
+		for _, d := range diags.Errors() {
+			if strings.Contains(d.Detail(), substr) {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("skip_initial_load requires queue_url", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolValue(true), types.StringNull())
+		var sourceModel models.ClickPipeSourceModel
+		diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})
+		assert.False(t, diags.HasError(), "expected no source decode errors, got: %v", diags.Errors())
+
+		var objectStorageModel models.ClickPipeObjectStorageSourceModel
+		diags = sourceModel.ObjectStorage.As(ctx, &objectStorageModel, basetypes.ObjectAsOptions{})
+		assert.False(t, diags.HasError(), "expected no object storage decode errors, got: %v", diags.Errors())
+		objectStorageModel.QueueURL = types.StringNull()
+		sourceModel.ObjectStorage = objectStorageModel.ObjectValue()
+		plan.Source = sourceModel.ObjectValue()
+
+		diags = run(t, plan)
+
+		assert.True(t, detailContains(diags, "queue_url is required when skip_initial_load is true"), "expected queue_url validation diagnostic, got: %v", diags.Errors())
+	})
+
+	t.Run("skip_initial_load cannot be combined with start_after", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolValue(true), types.StringValue("events/2026-06-01/"))
+
+		diags := run(t, plan)
+
+		assert.True(t, detailContains(diags, "start_after cannot be provided when skip_initial_load is true"), "expected start_after validation diagnostic, got: %v", diags.Errors())
 	})
 }
 

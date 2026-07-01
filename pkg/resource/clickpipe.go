@@ -539,14 +539,14 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"skip_initial_load": schema.BoolAttribute{
-								MarkdownDescription: "If set to true, skips the initial load and only ingests files delivered by queue notifications. Only applicable when queueUrl is provided.",
+								MarkdownDescription: "If set to true, skips the initial load and only ingests files delivered by queue notifications. Only applicable when `queue_url` is provided.",
 								Optional:            true,
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.RequiresReplace(),
 								},
 							},
 							"start_after": schema.StringAttribute{
-								MarkdownDescription: "Start continuous ingestion after this object key. Cannot be provided when skipInitialLoad is true.",
+								MarkdownDescription: "Start continuous ingestion after this object key. Cannot be provided when `skip_initial_load` is true.",
 								Optional:            true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
