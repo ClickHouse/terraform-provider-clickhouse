@@ -592,6 +592,89 @@ func TestExtractSourceFromPlan_KafkaMutualTLS(t *testing.T) {
 	})
 }
 
+func buildObjectStoragePlan(skipInitialLoad types.Bool, startAfter types.String) models.ClickPipeResourceModel {
+	objectStorageAttrs := map[string]attr.Value{
+		"type":                 types.StringValue(api.ClickPipeObjectStorageS3Type),
+		"format":               types.StringValue("JSONEachRow"),
+		"url":                  types.StringValue("https://test-bucket.s3.us-east-1.amazonaws.com/data/*.json"),
+		"delimiter":            types.StringNull(),
+		"compression":          types.StringNull(),
+		"is_continuous":        types.BoolValue(true),
+		"queue_url":            types.StringValue("https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue"),
+		"skip_initial_load":    skipInitialLoad,
+		"start_after":          startAfter,
+		"authentication":       types.StringValue(api.ClickPipeAuthenticationIAMUser),
+		"access_key":           types.ObjectNull(models.ClickPipeSourceAccessKeyModel{}.ObjectType().AttrTypes),
+		"iam_role":             types.StringNull(),
+		"service_account_key":  types.StringNull(),
+		"connection_string":    types.StringNull(),
+		"path":                 types.StringNull(),
+		"azure_container_name": types.StringNull(),
+	}
+
+	sourceModel := models.ClickPipeSourceModel{
+		Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+		ObjectStorage: types.ObjectValueMust(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes, objectStorageAttrs),
+		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+		PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+		Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+		MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+		MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+	}
+
+	return models.ClickPipeResourceModel{
+		ID:        types.StringValue("test-pipe-id"),
+		ServiceID: types.StringValue("service-123"),
+		Name:      types.StringValue("test-object-storage-pipe"),
+		Source:    sourceModel.ObjectValue(),
+	}
+}
+
+func TestExtractSourceFromPlan_ObjectStorageInitialLoadOptions(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("sets skip_initial_load and omits start_after when true", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolValue(true), types.StringValue("events/2026-06-01/"))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.ObjectStorage)
+		assert.NotNil(t, source.ObjectStorage.SkipInitialLoad)
+		assert.True(t, *source.ObjectStorage.SkipInitialLoad)
+		assert.Nil(t, source.ObjectStorage.StartAfter)
+	})
+
+	t.Run("sets start_after when skip_initial_load is false", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolValue(false), types.StringValue("events/2026-06-01/"))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.ObjectStorage)
+		assert.NotNil(t, source.ObjectStorage.SkipInitialLoad)
+		assert.False(t, *source.ObjectStorage.SkipInitialLoad)
+		assert.NotNil(t, source.ObjectStorage.StartAfter)
+		assert.Equal(t, "events/2026-06-01/", *source.ObjectStorage.StartAfter)
+	})
+
+	t.Run("omits skip_initial_load when unset", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolNull(), types.StringNull())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.ObjectStorage)
+		assert.Nil(t, source.ObjectStorage.SkipInitialLoad)
+		assert.Nil(t, source.ObjectStorage.StartAfter)
+	})
+}
+
 // buildPostgresCredentialsPlan returns plan/config models for Postgres; password_wo is stripped from plan, password_wo_version is preserved (it's not write-only).
 func buildPostgresCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
 	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {

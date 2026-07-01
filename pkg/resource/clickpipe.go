@@ -538,6 +538,20 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									stringplanmodifier.RequiresReplace(),
 								},
 							},
+							"skip_initial_load": schema.BoolAttribute{
+								MarkdownDescription: "If set to true, skips the initial load and only ingests files delivered by queue notifications. Only applicable when queueUrl is provided.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.RequiresReplace(),
+								},
+							},
+							"start_after": schema.StringAttribute{
+								MarkdownDescription: "Start continuous ingestion after this object key. Cannot be provided when skipInitialLoad is true.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"authentication": schema.StringAttribute{
 								MarkdownDescription: "CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER and SERVICE_ACCOUNT are for GCS. If not provided, no authentication is used",
 								Optional:            true,
@@ -2010,6 +2024,22 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				}
 			}
 
+			if !objectStorageModel.SkipInitialLoad.IsNull() && !objectStorageModel.SkipInitialLoad.IsUnknown() && objectStorageModel.SkipInitialLoad.ValueBool() {
+				if objectStorageModel.QueueURL.IsNull() || objectStorageModel.QueueURL.IsUnknown() || objectStorageModel.QueueURL.ValueString() == "" {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"queue_url is required when skip_initial_load is true",
+					)
+				}
+
+				if !objectStorageModel.StartAfter.IsNull() && !objectStorageModel.StartAfter.IsUnknown() && objectStorageModel.StartAfter.ValueString() != "" {
+					response.Diagnostics.AddError(
+						"Invalid Configuration",
+						"start_after cannot be provided when skip_initial_load is true",
+					)
+				}
+			}
+
 			// Validate IAM_ROLE is not used with GCS
 			if storageType == api.ClickPipeObjectStorageGCSType && authType == api.ClickPipeAuthenticationIAMRole {
 				response.Diagnostics.AddError(
@@ -3018,15 +3048,20 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		}
 
 		objectStorage := &api.ClickPipeObjectStorageSource{
-			Type:           objectStorageModel.Type.ValueString(),
-			Format:         objectStorageModel.Format.ValueString(),
-			Delimiter:      objectStorageModel.Delimiter.ValueStringPointer(),
-			Compression:    objectStorageModel.Compression.ValueStringPointer(),
-			IsContinuous:   objectStorageModel.IsContinuous.ValueBool(),
-			QueueURL:       objectStorageModel.QueueURL.ValueStringPointer(),
-			Authentication: objectStorageModel.Authentication.ValueStringPointer(),
-			AccessKey:      accessKey,
-			IAMRole:        objectStorageModel.IAMRole.ValueStringPointer(),
+			Type:            objectStorageModel.Type.ValueString(),
+			Format:          objectStorageModel.Format.ValueString(),
+			Delimiter:       objectStorageModel.Delimiter.ValueStringPointer(),
+			Compression:     objectStorageModel.Compression.ValueStringPointer(),
+			IsContinuous:    objectStorageModel.IsContinuous.ValueBool(),
+			QueueURL:        objectStorageModel.QueueURL.ValueStringPointer(),
+			SkipInitialLoad: objectStorageModel.SkipInitialLoad.ValueBoolPointer(),
+			Authentication:  objectStorageModel.Authentication.ValueStringPointer(),
+			AccessKey:       accessKey,
+			IAMRole:         objectStorageModel.IAMRole.ValueStringPointer(),
+		}
+
+		if objectStorage.SkipInitialLoad == nil || !*objectStorage.SkipInitialLoad {
+			objectStorage.StartAfter = objectStorageModel.StartAfter.ValueStringPointer()
 		}
 
 		switch storageType {
@@ -4002,7 +4037,13 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Compression:  types.StringPointerValue(clickPipe.Source.ObjectStorage.Compression),
 			IsContinuous: types.BoolValue(clickPipe.Source.ObjectStorage.IsContinuous),
 			QueueURL:     types.StringPointerValue(clickPipe.Source.ObjectStorage.QueueURL),
+			StartAfter:   types.StringPointerValue(clickPipe.Source.ObjectStorage.StartAfter),
 			IAMRole:      types.StringPointerValue(clickPipe.Source.ObjectStorage.IAMRole),
+		}
+		if clickPipe.Source.ObjectStorage.SkipInitialLoad != nil {
+			objectStorageModel.SkipInitialLoad = types.BoolPointerValue(clickPipe.Source.ObjectStorage.SkipInitialLoad)
+		} else {
+			objectStorageModel.SkipInitialLoad = stateObjectStorageModel.SkipInitialLoad
 		}
 
 		// Set storage-type-specific fields
