@@ -451,16 +451,18 @@ func (m ClickPipePostgresSourceModel) ObjectValue() types.Object {
 }
 
 type ClickPipeObjectStorageSourceModel struct {
-	Type           types.String `tfsdk:"type"`
-	Format         types.String `tfsdk:"format"`
-	URL            types.String `tfsdk:"url"`
-	Delimiter      types.String `tfsdk:"delimiter"`
-	Compression    types.String `tfsdk:"compression"`
-	IsContinuous   types.Bool   `tfsdk:"is_continuous"`
-	QueueURL       types.String `tfsdk:"queue_url"`
-	Authentication types.String `tfsdk:"authentication"`
-	AccessKey      types.Object `tfsdk:"access_key"`
-	IAMRole        types.String `tfsdk:"iam_role"`
+	Type            types.String `tfsdk:"type"`
+	Format          types.String `tfsdk:"format"`
+	URL             types.String `tfsdk:"url"`
+	Delimiter       types.String `tfsdk:"delimiter"`
+	Compression     types.String `tfsdk:"compression"`
+	IsContinuous    types.Bool   `tfsdk:"is_continuous"`
+	QueueURL        types.String `tfsdk:"queue_url"`
+	SkipInitialLoad types.Bool   `tfsdk:"skip_initial_load"`
+	StartAfter      types.String `tfsdk:"start_after"`
+	Authentication  types.String `tfsdk:"authentication"`
+	AccessKey       types.Object `tfsdk:"access_key"`
+	IAMRole         types.String `tfsdk:"iam_role"`
 
 	// GCS specific fields
 	ServiceAccountKey types.String `tfsdk:"service_account_key"`
@@ -481,6 +483,8 @@ func (m ClickPipeObjectStorageSourceModel) ObjectType() types.ObjectType {
 			"compression":          types.StringType,
 			"is_continuous":        types.BoolType,
 			"queue_url":            types.StringType,
+			"skip_initial_load":    types.BoolType,
+			"start_after":          types.StringType,
 			"authentication":       types.StringType,
 			"access_key":           ClickPipeSourceAccessKeyModel{}.ObjectType(),
 			"iam_role":             types.StringType,
@@ -501,6 +505,8 @@ func (m ClickPipeObjectStorageSourceModel) ObjectValue() types.Object {
 		"compression":          m.Compression,
 		"is_continuous":        m.IsContinuous,
 		"queue_url":            m.QueueURL,
+		"skip_initial_load":    m.SkipInitialLoad,
+		"start_after":          m.StartAfter,
 		"authentication":       m.Authentication,
 		"access_key":           m.AccessKey,
 		"iam_role":             m.IAMRole,
