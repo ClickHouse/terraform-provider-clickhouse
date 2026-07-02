@@ -5,31 +5,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
-
-func newScheduledScalingTestClient(t *testing.T, handler http.HandlerFunc) (*ClientImpl, *httptest.Server) {
-	t.Helper()
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-	client, err := NewClient(ClientConfig{
-		ApiURL:         server.URL,
-		OrganizationID: "org-1",
-		TokenKey:       "key",
-		TokenSecret:    "secret",
-	})
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-	return client, server
-}
-
-func intPtr(v int) *int    { return &v }
-func boolPtr(v bool) *bool { return &v }
 
 func TestGetScheduledScaling(t *testing.T) {
 	expectedPath := "/organizations/org-1/services/svc-1/scalingSchedule"
@@ -57,7 +37,7 @@ func TestGetScheduledScaling(t *testing.T) {
 		ActiveEntryID: "entry-1",
 	}
 
-	client, _ := newScheduledScalingTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %q; want GET", r.Method)
 		}
@@ -96,7 +76,7 @@ func TestUpdateScheduledScaling_PostsEntriesAndOmitsServerOnlyFields(t *testing.
 	}
 
 	var capturedBody map[string]any
-	client, _ := newScheduledScalingTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("method = %q; want POST", r.Method)
 		}
@@ -131,7 +111,7 @@ func TestUpdateScheduledScaling_PostsEntriesAndOmitsServerOnlyFields(t *testing.
 
 func TestUpdateScheduledScaling_EmptyEntriesSerializesToEmptyArray(t *testing.T) {
 	var captured string
-	client, _ := newScheduledScalingTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		captured = string(body)
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[AutoScalingSchedule]{Result: AutoScalingSchedule{Entries: []AutoScalingScheduleEntry{}}})
@@ -148,7 +128,7 @@ func TestUpdateScheduledScaling_EmptyEntriesSerializesToEmptyArray(t *testing.T)
 
 func TestDeleteScheduledScaling(t *testing.T) {
 	expectedPath := "/organizations/org-1/services/svc-1/scalingSchedule"
-	client, _ := newScheduledScalingTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			t.Errorf("method = %q; want DELETE", r.Method)
 		}

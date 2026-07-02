@@ -39,10 +39,11 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &ServiceResource{}
-	_ resource.ResourceWithConfigure   = &ServiceResource{}
-	_ resource.ResourceWithImportState = &ServiceResource{}
-	_ resource.ResourceWithModifyPlan  = &ServiceResource{}
+	_ resource.Resource                   = &ServiceResource{}
+	_ resource.ResourceWithConfigure      = &ServiceResource{}
+	_ resource.ResourceWithImportState    = &ServiceResource{}
+	_ resource.ResourceWithModifyPlan     = &ServiceResource{}
+	_ resource.ResourceWithValidateConfig = &ServiceResource{}
 )
 
 //go:embed descriptions/service.md
@@ -326,7 +327,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				DeprecationMessage: "Please use max_replica_memory_gb instead",
 			},
 			"min_replica_memory_gb": schema.Int64Attribute{
-				Description: "Minimum memory of a single replica during auto-scaling in GiB.",
+				Description: "Minimum memory of a single replica in GiB. For vertical autoscaling this is the low end of the memory range; for horizontal it must equal max_replica_memory_gb (per-replica memory is fixed).",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
@@ -334,7 +335,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"max_replica_memory_gb": schema.Int64Attribute{
-				Description: "Maximum memory of a single replica during auto-scaling in GiB.",
+				Description: "Maximum memory of a single replica in GiB. For vertical autoscaling this is the high end of the memory range; for horizontal it must equal min_replica_memory_gb (per-replica memory is fixed).",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
@@ -344,9 +345,49 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"num_replicas": schema.Int64Attribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Number of replicas for the service.",
+				Description: "Legacy fixed replica count for a vertical service. Conflicts with min_replicas/max_replicas. Forbidden when autoscaling_mode is \"horizontal\".",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.ConflictsWith(path.Expressions{path.MatchRoot("min_replicas"), path.MatchRoot("max_replicas")}...),
+				},
+			},
+			"autoscaling_mode": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Autoscaling mode for the service: \"vertical\" (fixed replica count, memory scales between min_replica_memory_gb and max_replica_memory_gb) or \"horizontal\" (replica count scales between min_replicas and max_replicas at fixed per-replica memory, min_replica_memory_gb == max_replica_memory_gb). When omitted on create the service defaults to vertical; on an existing service omitting it keeps the current mode. It is unset for development-tier services (which cannot set an autoscaling mode). Horizontal autoscaling must be enabled for your organization.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					stringvalidator.OneOf(api.AutoscalingModeVertical, api.AutoscalingModeHorizontal),
+				},
+			},
+			"min_replicas": schema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Minimum number of replicas. For horizontal autoscaling this is the low end of the band; for vertical it must equal max_replicas (the go-forward replacement for num_replicas). Conflicts with num_replicas.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+					int64validator.ConflictsWith(path.Expressions{path.MatchRoot("num_replicas")}...),
+					int64validator.AlsoRequires(path.Expressions{path.MatchRoot("max_replicas")}...),
+				},
+			},
+			"max_replicas": schema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Maximum number of replicas. For horizontal autoscaling this is the high end of the band; for vertical it must equal min_replicas. Conflicts with num_replicas.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+					int64validator.ConflictsWith(path.Expressions{path.MatchRoot("num_replicas")}...),
+					int64validator.AlsoRequires(path.Expressions{path.MatchRoot("min_replicas")}...),
 				},
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
@@ -529,6 +570,42 @@ func (r *ServiceResource) Configure(_ context.Context, req resource.ConfigureReq
 	r.client = req.ProviderData.(api.Client)
 }
 
+// resolveIsHorizontal works out whether the plan should be treated as horizontal autoscaling.
+// autoscaling_mode is Optional+Computed with no static default, so it is often absent from the config; the
+// mode is then inferred from the scaling fields the config does set. Precedence:
+//  1. an explicit autoscaling_mode token in the config wins;
+//  2. otherwise a replica band that isn't a fully-known equal band is a horizontal signal — a distinct band
+//     (min != max) or a band with a bound still unknown (interpolated) — and it beats keep-state;
+//  3. otherwise num_replicas is the legacy vertical count;
+//  4. otherwise, on an existing service, keep the mode already in state — omitting an Optional+Computed field
+//     means "keep current" (a resize/import, or a degenerate equal min == max band, which must NOT flip the
+//     prior mode: only a distinct band or an explicit token switches);
+//  5. otherwise (a fresh create with no horizontal signal — no band, or an equal band) default to vertical.
+func resolveIsHorizontal(config, state models.ServiceResourceModel, hasState bool) bool {
+	switch config.AutoscalingMode.ValueString() {
+	case api.AutoscalingModeHorizontal:
+		return true
+	case api.AutoscalingModeVertical:
+		return false
+	}
+	equalKnownBand := !config.MinReplicas.IsNull() && !config.MaxReplicas.IsNull() &&
+		!config.MinReplicas.IsUnknown() && !config.MaxReplicas.IsUnknown() &&
+		config.MinReplicas.ValueInt64() == config.MaxReplicas.ValueInt64()
+	switch {
+	case (!config.MinReplicas.IsNull() || !config.MaxReplicas.IsNull()) && !equalKnownBand:
+		// A distinct band (min != max) or a band with an as-yet-unknown bound: an unambiguous horizontal
+		// signal that overrides the prior mode. A fully-known equal band is excluded — it's the vertical
+		// count shape (and a degenerate horizontal one), so it defers to keep-state / the vertical default.
+		return true
+	case !config.NumReplicas.IsNull():
+		return false
+	case hasState:
+		return state.AutoscalingMode.ValueString() == api.AutoscalingModeHorizontal
+	default:
+		return false
+	}
+}
+
 func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		// If the entire plan is null, the resource is planned for destruction.
@@ -682,6 +759,18 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 	}
 
+	// Resolve the autoscaling mode for the plan-time checks below (see resolveIsHorizontal for the precedence).
+	isHorizontal := resolveIsHorizontal(config, state, !req.State.Raw.IsNull())
+
+	// num_replicas is the legacy vertical fixed count. The num_replicas↔band ConflictsWith validator doesn't
+	// cover mode+num_replicas, so enforce the "forbidden when horizontal" contract here at plan time.
+	if isHorizontal && !config.NumReplicas.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"num_replicas can't be set when autoscaling_mode is \"horizontal\"",
+		)
+	}
+
 	if plan.Tier.ValueString() == api.TierDevelopment {
 		if !plan.BYOCID.IsNull() && !plan.BYOCID.IsUnknown() {
 			resp.Diagnostics.AddError(
@@ -708,6 +797,21 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
 				"num_replicas cannot be defined if the service tier is development",
+			)
+		}
+
+		// Development tier has no autoscaling mode; reject an explicitly-set autoscaling_mode (either value)
+		// or any band field. An explicit "vertical" would otherwise pass here but read back as null
+		// (the non-production sync branch nulls autoscaling_mode) → inconsistent-result-after-apply.
+		// These read the PLAN (not the config like the production branch's isHorizontal): dev-tier state is
+		// always null for these fields, so UseStateForUnknown maps null→null in the plan, making plan and
+		// config equivalent here — and num_replicas just above already keys off the plan, so this matches.
+		if (!plan.AutoscalingMode.IsNull() && !plan.AutoscalingMode.IsUnknown()) ||
+			(!plan.MinReplicas.IsNull() && !plan.MinReplicas.IsUnknown()) ||
+			(!plan.MaxReplicas.IsNull() && !plan.MaxReplicas.IsUnknown()) {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"autoscaling_mode, min_replicas, and max_replicas cannot be defined if the service tier is development",
 			)
 		}
 
@@ -740,7 +844,9 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 	} else {
-		// Production and PPv2
+		// Production and PPv2. Both autoscaling modes require the per-replica memory fields — vertical scales
+		// memory across the [min, max] range, horizontal fixes it at min == max — so these requirements apply
+		// regardless of mode.
 		if !plan.BYOCID.IsNull() {
 			if plan.MinReplicaMemoryGb.IsNull() || plan.MinReplicaMemoryGb.IsUnknown() {
 				resp.Diagnostics.AddError(
@@ -757,17 +863,19 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			}
 		}
 
-		if plan.MinReplicaMemoryGb.IsNull() && plan.MinTotalMemoryGb.IsNull() {
+		// A per-replica field omitted on a create is Unknown (Optional+Computed), not Null, so guard on both —
+		// otherwise a production create with no memory fields at all slips through and POSTs a 0 GiB bound.
+		if (plan.MinReplicaMemoryGb.IsNull() || plan.MinReplicaMemoryGb.IsUnknown()) && plan.MinTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"min_replica_memory_gb must be defined if the service tier is production",
+				"min_replica_memory_gb must be defined if the service tier is production or PPv2",
 			)
 		}
 
-		if plan.MaxReplicaMemoryGb.IsUnknown() && plan.MaxTotalMemoryGb.IsUnknown() {
+		if (plan.MaxReplicaMemoryGb.IsNull() || plan.MaxReplicaMemoryGb.IsUnknown()) && plan.MaxTotalMemoryGb.IsNull() {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
-				"max_replica_memory_gb must be defined if the service tier is production",
+				"max_replica_memory_gb must be defined if the service tier is production or PPv2",
 			)
 		}
 
@@ -816,23 +924,61 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 				plan.EncryptionKey = types.StringNull()
 			}
 		}
+
+		// Mode-switch consistency: the Computed scaling fields are otherwise pinned to their prior value by
+		// UseStateForUnknown, while syncServiceState rewrites them from the post-apply read — so a mode switch
+		// that drops a field from the config plans the stale value but reads back the new mode's shape
+		// ("inconsistent result after apply"). Write the resolved mode token and null the off-mode fields the
+		// config no longer sets. Skip this when the config mode is Unknown (e.g. autoscaling_mode = a
+		// not-yet-known reference): forcing a token there could contradict the value that resolves at apply.
+		if !config.AutoscalingMode.IsUnknown() {
+			if isHorizontal {
+				plan.AutoscalingMode = types.StringValue(api.AutoscalingModeHorizontal)
+				// num_replicas is the vertical fixed count; drop a value pinned from prior vertical state when
+				// the config no longer sets it, so switching to horizontal doesn't carry a stale count.
+				if config.NumReplicas.IsNull() {
+					plan.NumReplicas = types.Int64Null()
+				}
+			} else {
+				plan.AutoscalingMode = types.StringValue(api.AutoscalingModeVertical)
+				// min/max_replicas are the horizontal band; drop a band pinned from prior horizontal state when
+				// the config no longer sets it, so switching to vertical doesn't carry a stale band.
+				if config.MinReplicas.IsNull() {
+					plan.MinReplicas = types.Int64Null()
+				}
+				if config.MaxReplicas.IsNull() {
+					plan.MaxReplicas = types.Int64Null()
+				}
+				// When the vertical count now comes from an equal band (config supplies the band and drops
+				// num_replicas), drop a num_replicas pinned from prior vertical state so the plan doesn't keep
+				// a stale count the API will clear — the mirror of the horizontal branch nulling num_replicas.
+				if config.NumReplicas.IsNull() && (!config.MinReplicas.IsNull() || !config.MaxReplicas.IsNull()) {
+					plan.NumReplicas = types.Int64Null()
+				}
+			}
+			resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+		}
 	}
 
-	if !plan.MinTotalMemoryGb.IsNull() && !plan.MinReplicaMemoryGb.IsUnknown() {
+	// A per-replica field counts as "set" only when it holds a concrete value: a null (e.g. a module passing
+	// null) and an unknown (an omitted Optional+Computed per-replica field on a create, which UseStateForUnknown
+	// leaves unknown) both mean "not set", so a deprecated-totals-only config must not trip these conflicts.
+	perReplicaSet := func(v types.Int64) bool { return !v.IsNull() && !v.IsUnknown() }
+	if !plan.MinTotalMemoryGb.IsNull() && perReplicaSet(plan.MinReplicaMemoryGb) {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"min_total_memory_gb and min_replica_memory_gb can't be specified at the same time. Please remove deprecated field min_total_memory_gb",
 		)
 	}
 
-	if !plan.MaxTotalMemoryGb.IsNull() && !plan.MaxReplicaMemoryGb.IsUnknown() {
+	if !plan.MaxTotalMemoryGb.IsNull() && perReplicaSet(plan.MaxReplicaMemoryGb) {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"max_total_memory_gb and max_replica_memory_gb can't be specified at the same time. Please remove deprecated field max_total_memory_gb",
 		)
 	}
 
-	if (!plan.MinReplicaMemoryGb.IsUnknown() || !plan.MaxReplicaMemoryGb.IsUnknown()) && (!plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull()) {
+	if (perReplicaSet(plan.MinReplicaMemoryGb) || perReplicaSet(plan.MaxReplicaMemoryGb)) && (!plan.MinTotalMemoryGb.IsNull() || !plan.MaxTotalMemoryGb.IsNull()) {
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"If you specify either min_replica_memory_gb or max_replica_memory_gb fields, you can't use deprecated min_total_memory_gb nor max_total_memory_gb fields any more.",
@@ -977,6 +1123,36 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 }
 
+// ValidateConfig applies the cheap, mode-agnostic ordering checks that give a clearer plan-time error than
+// the API's contradiction responses. The mode ↔ field combination rules — which fields each autoscaling_mode
+// accepts, num_replicas vs the band, ranged vs fixed per-replica memory — are owned by the API (UC-1173) and
+// deliberately not duplicated here. Runs at plan time for both create and update.
+func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config models.ServiceResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	known := func(v types.Int64) bool { return !v.IsNull() && !v.IsUnknown() }
+
+	if known(config.MinReplicas) && known(config.MaxReplicas) &&
+		config.MinReplicas.ValueInt64() > config.MaxReplicas.ValueInt64() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"min_replicas must be less than or equal to max_replicas.",
+		)
+	}
+
+	if known(config.MinReplicaMemoryGb) && known(config.MaxReplicaMemoryGb) &&
+		config.MinReplicaMemoryGb.ValueInt64() > config.MaxReplicaMemoryGb.ValueInt64() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"min_replica_memory_gb must be less than or equal to max_replica_memory_gb.",
+		)
+	}
+}
+
 // Create a new resource
 func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan and config
@@ -1018,8 +1194,33 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	if service.Tier == api.TierProduction || service.Tier == api.TierPPv2 {
+		// Pass the explicit autoscaling_mode and scaling fields straight through to the API (UC-1173), which
+		// validates the mode/field combination. Both modes use min/max_replicas and the per-replica memory
+		// fields — vertical scales memory across the [min, max] range at a fixed replica count, horizontal
+		// scales replicas across the band at fixed (min == max) per-replica memory — so no mode branch is
+		// needed here; send whatever is set and let the API reject an invalid combination.
+		if !plan.AutoscalingMode.IsNull() && !plan.AutoscalingMode.IsUnknown() {
+			service.AutoscalingMode = plan.AutoscalingMode.ValueString()
+		}
+		if !plan.MinReplicas.IsNull() && !plan.MinReplicas.IsUnknown() {
+			minReplicas := int(plan.MinReplicas.ValueInt64())
+			service.MinReplicas = &minReplicas
+		}
+		if !plan.MaxReplicas.IsNull() && !plan.MaxReplicas.IsUnknown() {
+			maxReplicas := int(plan.MaxReplicas.ValueInt64())
+			service.MaxReplicas = &maxReplicas
+		}
+		if !plan.NumReplicas.IsNull() && !plan.NumReplicas.IsUnknown() {
+			numReplicas := int(plan.NumReplicas.ValueInt64())
+			if numReplicas > 0 {
+				service.NumReplicas = &numReplicas
+			}
+		}
+
 		var minReplicaMemoryGb, maxReplicaMemoryGb int
-		if !plan.MinReplicaMemoryGb.IsUnknown() {
+		// Use the per-replica value when it's actually set: an explicitly-null min_replica_memory_gb
+		// (common when a module passes null) is NOT "set" — fall back to translating the deprecated total.
+		if !plan.MinReplicaMemoryGb.IsNull() && !plan.MinReplicaMemoryGb.IsUnknown() {
 			minReplicaMemoryGb = int(plan.MinReplicaMemoryGb.ValueInt64())
 		} else {
 			// Due to a bug on the API, we always assumed the MinTotalMemoryGb value was always related to 3 replicas.
@@ -1028,19 +1229,13 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			minReplicaMemoryGb = int(plan.MinTotalMemoryGb.ValueInt64() / 3)
 		}
 
-		if !plan.MaxReplicaMemoryGb.IsUnknown() {
+		if !plan.MaxReplicaMemoryGb.IsNull() && !plan.MaxReplicaMemoryGb.IsUnknown() {
 			maxReplicaMemoryGb = int(plan.MaxReplicaMemoryGb.ValueInt64())
 		} else {
 			// Due to a bug on the API, we always assumed the MaxTotalMemoryGb value was always related to 3 replicas.
 			// Now we use a per-replica API to set the min total memory so we need to divide by 3 to get the same
 			// behaviour as before.
 			maxReplicaMemoryGb = int(plan.MaxTotalMemoryGb.ValueInt64() / 3)
-		}
-		if !plan.NumReplicas.IsNull() {
-			numReplicas := int(plan.NumReplicas.ValueInt64())
-			if numReplicas > 0 {
-				service.NumReplicas = &numReplicas
-			}
 		}
 
 		service.MinReplicaMemoryGb = &minReplicaMemoryGb
@@ -1319,8 +1514,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	resp.Diagnostics.Append(diags...)
 	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
-	req.Config.Get(ctx, &config)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -1486,6 +1680,15 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		*idleScaling = plan.IdleScaling.ValueBool()
 		replicaScaling.IdleScaling = idleScaling
 	}
+	// Include the plan's resolved autoscaling_mode (including a token ModifyPlan wrote) in the PATCH body so
+	// the API applies the mode rather than inferring it from field presence (UC-1173). A mode difference also
+	// forces the PATCH; when only another scaling field changed, the mode rides along on that PATCH.
+	if !plan.AutoscalingMode.IsNull() && !plan.AutoscalingMode.IsUnknown() {
+		replicaScaling.AutoscalingMode = plan.AutoscalingMode.ValueStringPointer()
+		if plan.AutoscalingMode != state.AutoscalingMode {
+			scalingChange = true
+		}
+	}
 	if plan.MinTotalMemoryGb != state.MinTotalMemoryGb {
 		scalingChange = true
 		if !plan.MinTotalMemoryGb.IsNull() {
@@ -1515,7 +1718,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 	if !plan.MaxReplicaMemoryGb.IsUnknown() && plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb {
 		scalingChange = true
-		if !plan.MaxReplicaMemoryGb.IsUnknown() {
+		if !plan.MaxReplicaMemoryGb.IsNull() {
 			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
 			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
@@ -1526,6 +1729,24 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		if !plan.NumReplicas.IsNull() && !plan.NumReplicas.IsUnknown() {
 			numReplicas := int(plan.NumReplicas.ValueInt64())
 			replicaScaling.NumReplicas = &numReplicas
+		}
+	}
+	// On a mode switch ModifyPlan nulls the fields the target mode doesn't use, so the `!plan.X.IsNull()` guards
+	// here leave them out of the PATCH (omitempty) — the mode plus the set fields are the switch signal sent.
+	// TODO(UC-1152): confirm the API clears the dropped fields server-side on such a PATCH before relying on
+	// this; if not, send explicit nulls instead of omitting them.
+	if !plan.MinReplicas.IsUnknown() && plan.MinReplicas != state.MinReplicas {
+		scalingChange = true
+		if !plan.MinReplicas.IsNull() {
+			minReplicas := int(plan.MinReplicas.ValueInt64())
+			replicaScaling.MinReplicas = &minReplicas
+		}
+	}
+	if !plan.MaxReplicas.IsUnknown() && plan.MaxReplicas != state.MaxReplicas {
+		scalingChange = true
+		if !plan.MaxReplicas.IsNull() {
+			maxReplicas := int(plan.MaxReplicas.ValueInt64())
+			replicaScaling.MaxReplicas = &maxReplicas
 		}
 	}
 	if plan.IdleTimeoutMinutes != state.IdleTimeoutMinutes {
@@ -2090,19 +2311,38 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	}
 
 	if service.Tier == api.TierProduction || service.Tier == api.TierPPv2 {
-		if service.MinReplicaMemoryGb != nil {
-			state.MinReplicaMemoryGb = types.Int64Value(int64(*service.MinReplicaMemoryGb))
+		// The API owns the autoscaling shape (UC-1173): reflect the mode it returns and every scaling field it
+		// set, nulling the fields it left unset so the config stays stable. Both modes carry the replica band
+		// and the per-replica memory fields (vertical scales memory across the range at a fixed count;
+		// horizontal scales replicas across the band at fixed per-replica memory).
+		int64OrNull := func(p *int) types.Int64 {
+			if p != nil {
+				return types.Int64Value(int64(*p))
+			}
+			return types.Int64Null()
 		}
-		if service.MaxReplicaMemoryGb != nil {
-			state.MaxReplicaMemoryGb = types.Int64Value(int64(*service.MaxReplicaMemoryGb))
+		switch {
+		case service.AutoscalingMode != "":
+			state.AutoscalingMode = types.StringValue(service.AutoscalingMode)
+		case service.MinReplicas != nil && service.MaxReplicas != nil && *service.MinReplicas != *service.MaxReplicas:
+			// Defensive fallback for an API response that predates the explicit autoscaling_mode field: a
+			// distinct replica band (min != max) with no fixed count implies horizontal.
+			state.AutoscalingMode = types.StringValue(api.AutoscalingModeHorizontal)
+		default:
+			state.AutoscalingMode = types.StringValue(api.AutoscalingModeVertical)
 		}
-		if service.NumReplicas != nil {
-			state.NumReplicas = types.Int64Value(int64(*service.NumReplicas))
-		}
+		state.MinReplicas = int64OrNull(service.MinReplicas)
+		state.MaxReplicas = int64OrNull(service.MaxReplicas)
+		state.MinReplicaMemoryGb = int64OrNull(service.MinReplicaMemoryGb)
+		state.MaxReplicaMemoryGb = int64OrNull(service.MaxReplicaMemoryGb)
+		state.NumReplicas = int64OrNull(service.NumReplicas)
 	} else {
 		state.MinReplicaMemoryGb = types.Int64Null()
 		state.MaxReplicaMemoryGb = types.Int64Null()
 		state.NumReplicas = types.Int64Null()
+		state.MinReplicas = types.Int64Null()
+		state.MaxReplicas = types.Int64Null()
+		state.AutoscalingMode = types.StringNull()
 	}
 
 	{

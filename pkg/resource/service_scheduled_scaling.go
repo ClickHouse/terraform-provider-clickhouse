@@ -105,6 +105,17 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 								int64validator.Between(1, 24),
 							},
 						},
+						"autoscaling_mode": schema.StringAttribute{
+							Description: "Autoscaling mode while the window is active: \"vertical\" (fixed replica count via min_replicas == max_replicas, memory scales between min_replica_memory_gb and max_replica_memory_gb) or \"horizontal\" (replica count scales between min_replicas and max_replicas at fixed per-replica memory, min_replica_memory_gb == max_replica_memory_gb). When omitted the entry is vertical.",
+							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+							Validators: []validator.String{
+								stringvalidator.OneOf(api.AutoscalingModeVertical, api.AutoscalingModeHorizontal),
+							},
+						},
 						"min_replica_memory_gb": schema.Int64Attribute{
 							Description: "Minimum memory per replica in GiB. Must be set together with max_replica_memory_gb.",
 							Optional:    true,
@@ -130,7 +141,7 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 							},
 						},
 						"min_replicas": schema.Int64Attribute{
-							Description: "Minimum replica count while the window is active. Currently the server requires min_replicas == max_replicas.",
+							Description: "Minimum replica count while the window is active. For a vertical entry min_replicas must equal max_replicas (fixed count); for a horizontal entry it is the low end of the replica band.",
 							Optional:    true,
 							Computed:    true,
 							PlanModifiers: []planmodifier.Int64{
@@ -141,7 +152,7 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 							},
 						},
 						"max_replicas": schema.Int64Attribute{
-							Description: "Maximum replica count while the window is active. Currently the server requires min_replicas == max_replicas.",
+							Description: "Maximum replica count while the window is active. For a vertical entry min_replicas must equal max_replicas (fixed count); for a horizontal entry it is the high end of the replica band.",
 							Optional:    true,
 							Computed:    true,
 							PlanModifiers: []planmodifier.Int64{
@@ -180,6 +191,7 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 					objectplanmodifier.UseStateForUnknown(),
 				},
 				Attributes: map[string]schema.Attribute{
+					"autoscaling_mode":      schema.StringAttribute{Computed: true},
 					"min_replica_memory_gb": schema.Int64Attribute{Computed: true},
 					"max_replica_memory_gb": schema.Int64Attribute{Computed: true},
 					"min_replicas":          schema.Int64Attribute{Computed: true},
@@ -394,13 +406,24 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 			)
 		}
 
+		// A vertical entry has a fixed replica count (min == max); a horizontal entry scales replicas across a
+		// band (min <= max). Only enforce the equality for vertical (mode absent ⇒ vertical). The band ordering
+		// and the mode ↔ field contradiction rules are owned by the API and not duplicated here.
+		isHorizontal := e.AutoscalingMode.ValueString() == api.AutoscalingModeHorizontal
 		minRepSet := !e.MinReplicas.IsNull() && !e.MinReplicas.IsUnknown()
 		maxRepSet := !e.MaxReplicas.IsNull() && !e.MaxReplicas.IsUnknown()
-		if minRepSet && maxRepSet && e.MinReplicas.ValueInt64() != e.MaxReplicas.ValueInt64() {
+		if !isHorizontal && minRepSet && maxRepSet && e.MinReplicas.ValueInt64() != e.MaxReplicas.ValueInt64() {
 			diags.AddAttributeError(
 				entriesPath,
 				"min_replicas must equal max_replicas",
-				fmt.Sprintf("%s has min=%d, max=%d. The scheduled scaling API currently requires a fixed replica count per entry.", entryRef, e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64()),
+				fmt.Sprintf("%s has min=%d, max=%d. A vertical scheduled entry requires a fixed replica count; use autoscaling_mode = \"horizontal\" for a replica band.", entryRef, e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64()),
+			)
+		}
+		if isHorizontal && minRepSet && maxRepSet && e.MinReplicas.ValueInt64() > e.MaxReplicas.ValueInt64() {
+			diags.AddAttributeError(
+				entriesPath,
+				"min_replicas must be <= max_replicas",
+				fmt.Sprintf("%s has min=%d, max=%d.", entryRef, e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64()),
 			)
 		}
 	}
@@ -442,6 +465,9 @@ func planEntriesToAPI(ctx context.Context, entriesSet types.Set) ([]api.AutoScal
 			Weekdays:     intWeekdays,
 			StartHourUtc: int(em.StartHourUtc.ValueInt64()),
 			EndHourUtc:   int(em.EndHourUtc.ValueInt64()),
+		}
+		if !em.AutoscalingMode.IsNull() && !em.AutoscalingMode.IsUnknown() {
+			entry.AutoscalingMode = em.AutoscalingMode.ValueString()
 		}
 		if !em.MinReplicaMemoryGb.IsNull() && !em.MinReplicaMemoryGb.IsUnknown() {
 			v := int(em.MinReplicaMemoryGb.ValueInt64())
@@ -522,6 +548,7 @@ func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEnt
 		Weekdays:           weekdaySet,
 		StartHourUtc:       types.Int64Value(int64(e.StartHourUtc)),
 		EndHourUtc:         types.Int64Value(int64(e.EndHourUtc)),
+		AutoscalingMode:    stringValueOrNull(e.AutoscalingMode),
 		MinReplicaMemoryGb: int64PtrToValue(e.MinReplicaMemoryGb),
 		MaxReplicaMemoryGb: int64PtrToValue(e.MaxReplicaMemoryGb),
 		MinReplicas:        int64PtrToValue(e.MinReplicas),
@@ -535,6 +562,7 @@ func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEnt
 
 func apiBaseConfigToModel(b api.AutoScalingScheduleBaseConfig) models.ScheduledScalingBaseConfigModel {
 	return models.ScheduledScalingBaseConfigModel{
+		AutoscalingMode:    stringValueOrNull(b.AutoscalingMode),
 		MinReplicaMemoryGb: int64PtrToValue(b.MinReplicaMemoryGb),
 		MaxReplicaMemoryGb: int64PtrToValue(b.MaxReplicaMemoryGb),
 		MinReplicas:        int64PtrToValue(b.MinReplicas),
@@ -549,6 +577,13 @@ func int64PtrToValue(v *int) types.Int64 {
 		return types.Int64Null()
 	}
 	return types.Int64Value(int64(*v))
+}
+
+func stringValueOrNull(v string) types.String {
+	if v == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(v)
 }
 
 func boolPtrToValue(v *bool) types.Bool {

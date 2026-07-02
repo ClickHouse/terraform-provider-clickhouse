@@ -22,8 +22,9 @@ const (
 	testPostgresSizeXLarge   = "r6gd.xlarge"
 )
 
-// newPostgresTestClient spins up an httptest.Server with the given handler
-// and returns a *ClientImpl pointed at it. Mirrors newScheduledScalingTestClient.
+// newPostgresTestClient spins up an httptest.Server with the given handler and returns a *ClientImpl
+// pointed at it. Like the shared newTestAPIClient (common_test.go) but pins testOrgID, which the
+// postgres path assertions expect.
 func newPostgresTestClient(t *testing.T, handler http.HandlerFunc) (*ClientImpl, *httptest.Server) {
 	t.Helper()
 	server := httptest.NewServer(handler)

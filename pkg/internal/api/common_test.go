@@ -3,11 +3,35 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
+
+func intPtr(v int) *int       { return &v }
+func boolPtr(v bool) *bool    { return &v }
+func strPtr(v string) *string { return &v }
+
+// newTestAPIClient spins up an httptest.Server with the given handler and returns a *ClientImpl pointed at
+// it. Shared neutral helper for the API client's HTTP-level tests (scaling, service, scheduled-scaling, …).
+func newTestAPIClient(t *testing.T, handler http.HandlerFunc) (*ClientImpl, *httptest.Server) {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	client, err := NewClient(ClientConfig{
+		ApiURL:         server.URL,
+		OrganizationID: "org-1",
+		TokenKey:       "key",
+		TokenSecret:    "secret",
+	})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return client, server
+}
 
 func TestRedactSensitiveBody(t *testing.T) {
 	cases := []struct {
