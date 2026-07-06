@@ -6,6 +6,8 @@ description: |-
   You can use the clickhouse_service resource to deploy ClickHouse cloud instances on supported cloud providers.
   Known limitations:
   If you create a service with warehouse_id set and then remove warehouse_id attribute completely, the provider won't detect the change. If you want to make a secondary service become primary, remove the warehouse_id and taint it before applying.If you create a service with readonly flag set to true and then remove readonly flag completely, the provider won't detect the change. If you want to make a secondary service read write, explicitly set the readonly flag to false.
+  Stopping a service:
+  Setting stop = true stops the service: its compute is fully shut down so compute billing stops (storage is still billed). Unlike auto-idle (see idle_scaling), a stopped service does NOT auto-resume on query; set stop = false to start it again.Secondary (replica) services in a warehouse can be stopped independently — stopping one only shuts down that service's compute; the primary and sibling services keep running.The primary (first) service of a warehouse cannot be stopped while any secondary services still exist: ClickHouse Cloud requires the first service to stay up. Remove the secondary services before stopping the primary.
 ---
 
 # clickhouse_service (Resource)
@@ -16,6 +18,12 @@ Known limitations:
 
 - If you create a service with `warehouse_id` set and then remove `warehouse_id` attribute completely, the provider won't detect the change. If you want to make a secondary service become primary, remove the `warehouse_id` and taint it before applying.
 - If you create a service with `readonly` flag set to true and then remove `readonly` flag completely, the provider won't detect the change. If you want to make a secondary service read write, explicitly set the `readonly` flag to false.
+
+Stopping a service:
+
+- Setting `stop = true` stops the service: its compute is fully shut down so compute billing stops (storage is still billed). Unlike auto-idle (see `idle_scaling`), a stopped service does NOT auto-resume on query; set `stop = false` to start it again.
+- Secondary (replica) services in a warehouse can be stopped independently — stopping one only shuts down that service's compute; the primary and sibling services keep running.
+- The primary (first) service of a warehouse cannot be stopped while any secondary services still exist: ClickHouse Cloud requires the first service to stay up. Remove the secondary services before stopping the primary.
 
 ## Example Usage
 
@@ -82,6 +90,7 @@ resource "clickhouse_service" "service" {
 - `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
 - `release_channel` (String) Release channel to use for this service. Can be 'default', 'fast' or 'slow'.
+- `stop` (Boolean) When set to true the service is stopped; when false it is started. A stopped service has its compute fully shut down (compute billing stops; storage is still billed) and will NOT auto-resume on query — unlike auto-idle (see idle_scaling). For a warehouse, secondary (replica) services can be stopped independently; the primary (first) service cannot be stopped while any secondary services still exist (ClickHouse Cloud requires the first service to stay up), so stopping it will fail until the secondary services are removed.
 - `tags` (Map of String) Tags associated with the service as key-value pairs.
 - `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
 - `transparent_data_encryption` (Attributes) Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan. (see [below for nested schema](#nestedatt--transparent_data_encryption))

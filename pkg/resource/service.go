@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 	internalplanmodifier "github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/planmodifier"
@@ -220,6 +221,16 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "When set to true the service is allowed to scale down to zero when idle.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"stop": schema.BoolAttribute{
+				Description: "When set to true the service is stopped; when false it is started. " +
+					"A stopped service has its compute fully shut down (compute billing stops; storage is still billed) and will NOT auto-resume on query — unlike auto-idle (see idle_scaling). " +
+					"For a warehouse, secondary (replica) services can be stopped independently; the primary (first) service cannot be stopped while any secondary services still exist (ClickHouse Cloud requires the first service to stay up), so stopping it will fail until the secondary services are removed.",
+				Optional: true,
+				Computed: true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
@@ -679,6 +690,29 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 		if !state.IdleScaling.ValueBool() && plan.IdleScaling.ValueBool() {
 			plan.IdleTimeoutMinutes = config.IdleTimeoutMinutes
+		}
+
+		// A warehouse's primary service cannot be stopped while it still has secondary
+		// (replica) services attached: ClickHouse Cloud requires the first service in a
+		// warehouse to stay up. Catch this at plan time instead of failing mid-apply.
+		if r.client != nil &&
+			!plan.Stop.IsUnknown() && plan.Stop.ValueBool() && !state.Stop.ValueBool() &&
+			state.IsPrimary.ValueBool() &&
+			!state.DataWarehouseID.IsNull() && state.DataWarehouseID.ValueString() != "" {
+			services, err := r.client.ListServices(ctx)
+			if err != nil {
+				// Best-effort: if we can't list services, don't block the plan; the API
+				// will still enforce the rule at apply time.
+				tflog.Warn(ctx, "could not list services to validate stopping a warehouse primary", map[string]any{"error": err.Error()})
+			} else if anySecondaryInWarehouse(services, state.DataWarehouseID.ValueString(), state.ID.ValueString()) {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("stop"),
+					"Cannot stop warehouse primary service",
+					"This service is the primary of a warehouse that still has secondary (replica) services. "+
+						"ClickHouse Cloud requires the first service in a warehouse to stay running, so it cannot be stopped while secondary services exist. "+
+						"Remove (delete) the secondary services first, or keep this service running (set stop = false).",
+				)
+			}
 		}
 	}
 
@@ -1264,6 +1298,19 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		}
 	}
 
+	// Stop the service if requested, after all other create operations.
+	if !plan.Stop.IsUnknown() && plan.Stop.ValueBool() {
+		_, err := r.client.ChangeServiceState(ctx, s.Id, api.ServiceStateCommandStop)
+		if err != nil {
+			resp.Diagnostics.AddError("Error stopping ClickHouse Service", "Could not stop service after creation, unexpected error: "+err.Error())
+			return
+		}
+		if err := r.client.WaitForServiceState(ctx, s.Id, func(st string) bool { return st == api.StateStopped }, 30*60); err != nil {
+			resp.Diagnostics.AddError("Error waiting for ClickHouse Service to stop", err.Error())
+			return
+		}
+	}
+
 	// Map response body to schema and populate Computed attribute values
 	plan.ID = types.StringValue(s.Id)
 	err = r.syncServiceState(ctx, &plan, true)
@@ -1328,6 +1375,21 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	// Generate API request body from plan
 	serviceId := state.ID.ValueString()
+
+	// Start the service early, before any other update operations, so that
+	// subsequent changes can be applied to a running service.
+	if !plan.Stop.IsUnknown() && !plan.Stop.Equal(state.Stop) && !plan.Stop.ValueBool() {
+		_, err := r.client.ChangeServiceState(ctx, serviceId, api.ServiceStateCommandStart)
+		if err != nil {
+			resp.Diagnostics.AddError("Error starting ClickHouse Service", "Could not start service, unexpected error: "+err.Error())
+			return
+		}
+		if err := r.client.WaitForServiceState(ctx, serviceId, isServiceStarted, 30*60); err != nil {
+			resp.Diagnostics.AddError("Error waiting for ClickHouse Service to start", err.Error())
+			return
+		}
+	}
+
 	service := api.ServiceUpdate{
 		Name:         "",
 		IpAccessList: nil,
@@ -1682,6 +1744,20 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 				)
 				return
 			}
+		}
+	}
+
+	// Stop the service last, after all other update operations have been
+	// applied, since a stopped service cannot accept further changes.
+	if !plan.Stop.IsUnknown() && !plan.Stop.Equal(state.Stop) && plan.Stop.ValueBool() {
+		_, err := r.client.ChangeServiceState(ctx, serviceId, api.ServiceStateCommandStop)
+		if err != nil {
+			resp.Diagnostics.AddError("Error stopping ClickHouse Service", "Could not stop service, unexpected error: "+err.Error())
+			return
+		}
+		if err := r.client.WaitForServiceState(ctx, serviceId, func(s string) bool { return s == api.StateStopped }, 30*60); err != nil {
+			resp.Diagnostics.AddError("Error waiting for ClickHouse Service to stop", err.Error())
+			return
 		}
 	}
 
@@ -2089,6 +2165,8 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.IdleTimeoutMinutes = types.Int64Null()
 	}
 
+	state.Stop = types.BoolValue(isServiceStopped(service.State))
+
 	if service.Tier == api.TierProduction || service.Tier == api.TierPPv2 {
 		if service.MinReplicaMemoryGb != nil {
 			state.MinReplicaMemoryGb = types.Int64Value(int64(*service.MinReplicaMemoryGb))
@@ -2253,6 +2331,38 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 	}
 
 	return nil
+}
+
+func isServiceStopped(state string) bool {
+	return state == api.StateStopped || state == api.StateStopping
+}
+
+// isServiceStarted reports whether the service has settled into a running-like terminal state after a start.
+func isServiceStarted(state string) bool {
+	switch state {
+	case api.StateRunning, api.StateIdle, api.StateDegraded, api.StatePartiallyRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// anySecondaryInWarehouse reports whether services contains a secondary service
+// (a service in the same warehouse that is not the primary), excluding selfID.
+func anySecondaryInWarehouse(services []api.Service, warehouseID, selfID string) bool {
+	if warehouseID == "" {
+		return false
+	}
+	for i := range services {
+		svc := services[i]
+		if svc.Id == selfID {
+			continue
+		}
+		if svc.DataWarehouseId != nil && *svc.DataWarehouseId == warehouseID && (svc.IsPrimary == nil || !*svc.IsPrimary) {
+			return true
+		}
+	}
+	return false
 }
 
 func servicePasswordUpdateFromPlainPassword(password string) api.ServicePasswordUpdate {
