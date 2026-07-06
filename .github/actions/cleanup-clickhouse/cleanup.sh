@@ -44,6 +44,31 @@ while :; do
   sleep 5
 done
 
+echo "Deleting Managed Postgres services with suffix ${SUFFIX}..."
+
+# A failed apply skips terraform destroy, so Postgres services can leak here.
+# Replicas sort first (isPrimary=false) because a primary cannot be deleted
+# while a replica is attached to it.
+while :; do
+  OUTPUT="$(curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" "${API_URL}/organizations/${ORGANIZATION_ID}/postgres")"
+  mapfile -t PG_IDS < <(jq --arg suffix "${SUFFIX}" -r '.result | sort_by(.isPrimary)[] | select(.name | contains($suffix)) | .id' <<<"${OUTPUT}")
+
+  if [[ "${#PG_IDS[@]}" -eq 0 ]]; then
+    echo "No Managed Postgres services to cleanup."
+    break
+  fi
+
+  echo "There are ${#PG_IDS[@]} Managed Postgres services to be cleaned up."
+
+  for ID in "${PG_IDS[@]}"; do
+    echo "Deleting Managed Postgres service ${ID}..."
+    curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" -XDELETE "${API_URL}/organizations/${ORGANIZATION_ID}/postgres/${ID}" -o /dev/null
+  done
+
+  echo "Waiting 5 seconds..."
+  sleep 5
+done
+
 echo "Cleanup of private link endpoints under the terraform organization..."
 
 OUTPUT="$(curl -su "${TOKEN_KEY}:${TOKEN_SECRET}" "${API_URL}/organizations/${ORGANIZATION_ID}")"
