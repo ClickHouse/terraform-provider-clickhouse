@@ -3764,12 +3764,18 @@ func convertMongoDBTableMappingModelToAPI(ctx context.Context, diagnostics *diag
 	return mapping
 }
 
+// isClickPipeStoppedState reports whether the pipe is in a terminal paused state
+// (Stopped or Paused), as opposed to a transitional Stopping/Pausing state. CDC
+// sources (Postgres/MySQL/MongoDB) only permit table_mappings edits while the pipe
+// is paused, so this gates the pause-before-edit and is the state to wait for.
+func isClickPipeStoppedState(state string) bool {
+	return state == api.ClickPipeStoppedState || state == api.ClickPipePausedState
+}
+
 func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.ClickPipeResourceModel) func(string) bool {
 	// If stopped, wait for Stopped (streaming pipes) or Paused (CDC pipes — Postgres/MySQL/MongoDB).
 	if plan.Stopped.ValueBool() {
-		return func(state string) bool {
-			return state == api.ClickPipeStoppedState || state == api.ClickPipePausedState
-		}
+		return isClickPipeStoppedState
 	}
 
 	// Check if this is a snapshot-only DB pipe (Postgres/MySQL snapshot mode or BigQuery)
@@ -5129,6 +5135,10 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	var pipeChanged bool
+	// requiresPauseForEdit is set when the plan changes table_mappings on a CDC
+	// source (Postgres/MySQL/MongoDB). Those edits are rejected unless the pipe is
+	// paused, so it is paused before the edit and resumed afterward.
+	var requiresPauseForEdit bool
 	var clickPipeUpdate api.ClickPipeUpdate
 
 	if !plan.Name.Equal(state.Name) {
@@ -5172,6 +5182,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 				// If table_mappings changed, set TableMappingsToAdd/Remove on Postgres source
 				if tableMappingsChanged && source.Postgres != nil {
+					requiresPauseForEdit = true
 					// Extract plan table mappings
 					planTableMappingModels := make([]models.ClickPipePostgresTableMappingModel, len(planPostgresModel.TableMappings.Elements()))
 					response.Diagnostics.Append(planPostgresModel.TableMappings.ElementsAs(ctx, &planTableMappingModels, false)...)
@@ -5248,6 +5259,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				}
 
 				if tableMappingsChanged && source.MySQL != nil {
+					requiresPauseForEdit = true
 					planTableMappingModels := make([]models.ClickPipeMySQLTableMappingModel, len(planMySQLModel.TableMappings.Elements()))
 					response.Diagnostics.Append(planMySQLModel.TableMappings.ElementsAs(ctx, &planTableMappingModels, false)...)
 
@@ -5318,6 +5330,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				}
 				clickPipeUpdate.Source = source
 				if tableMappingsChanged && source.MongoDB != nil {
+					requiresPauseForEdit = true
 					planTableMappingModels := make([]models.ClickPipeMongoDBTableMappingModel, len(planMongoDBModel.TableMappings.Elements()))
 					response.Diagnostics.Append(planMongoDBModel.TableMappings.ElementsAs(ctx, &planTableMappingModels, false)...)
 
@@ -5488,6 +5501,41 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	// when certain fields change — in which case we must trust the UpdateClickPipe
 	// response, not the stale prior state, to decide whether to issue stop/start.
 	liveState := state.State.ValueString()
+
+	// CDC sources (Postgres/MySQL/MongoDB) reject table_mappings edits unless the
+	// pipe is paused (the API returns "ClickPipe must be paused to edit"). When such
+	// an edit is planned and the pipe is running, pause it first; the stop/start
+	// reconciliation below then resumes it to the plan's desired state. Without this
+	// a single apply that adds or removes a table fails and needs a manual pause.
+	pausedForEdit := false
+	// Failure-path guard: if we paused and Update returns with an error before the
+	// reconciliation below resumes the pipe, resume it so a failed edit can't leave
+	// the pipe stuck paused. The happy path is handled by the reconciliation itself.
+	defer func() {
+		if pausedForEdit && response.Diagnostics.HasError() {
+			_, _ = c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), api.ClickPipeStateStart)
+		}
+	}()
+	if requiresPauseForEdit && !isClickPipeStoppedState(liveState) {
+		if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), api.ClickPipeStateStop); err != nil {
+			response.Diagnostics.AddError(
+				"Error Pausing ClickPipe",
+				"Could not pause ClickPipe before editing table mappings, unexpected error: "+err.Error(),
+			)
+			return
+		}
+		// The pipe is now being paused; from here the deferred guard ensures it is
+		// resumed if anything below fails.
+		pausedForEdit = true
+		if _, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), isClickPipeStoppedState, clickPipeStateChangeMaxWait); err != nil {
+			response.Diagnostics.AddError(
+				"Error Pausing ClickPipe",
+				"ClickPipe did not reach a paused state before editing table mappings: "+err.Error(),
+			)
+			return
+		}
+		liveState = api.ClickPipeStoppedState
+	}
 
 	// Update the main ClickPipe if non-settings fields changed
 	if pipeChanged {
