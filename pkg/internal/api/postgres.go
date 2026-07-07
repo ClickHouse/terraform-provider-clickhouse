@@ -24,9 +24,11 @@ var (
 // Retry budgets. Overridable per-call via the *WithBudget / *WithInterval
 // helpers so unit tests can run in milliseconds.
 var (
-	postgresDeleteRetryInterval        = 10 * time.Second
-	postgresDeleteRetryAttempts uint64 = 90 // 90 × 10s = 15 minutes
-	postgresStatePollInterval          = 5 * time.Second
+	postgresDeleteRetryInterval            = 10 * time.Second
+	postgresDeleteRetryAttempts     uint64 = 90 // 90 × 10s = 15 minutes
+	postgresReplicaNotReadyInterval        = 20 * time.Second
+	postgresReplicaNotReadyAttempts uint64 = 90 // 90 × 20s = 30 minutes
+	postgresStatePollInterval              = 5 * time.Second
 	// Predicate must hold this long before WaitForPostgresMatch succeeds —
 	// rejects transient matches during multi-step transitions. 15s = 3 polls.
 	postgresStateSettleDuration = 15 * time.Second
@@ -387,24 +389,62 @@ func (c *ClientImpl) RestorePostgres(ctx context.Context, sourceId string, body 
 }
 
 // CreatePostgresReadReplica creates a read replica of the source primary.
+// A fresh primary rejects replicas with a 400 until its first base backup
+// completes (an unpredictable window observed from 0s to several minutes);
+// that specific error retries for ~30 min, everything else fails immediately.
 func (c *ClientImpl) CreatePostgresReadReplica(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (*Postgres, error) {
+	return c.createPostgresReadReplicaWithInterval(ctx, sourceId, body, postgresReplicaNotReadyInterval, postgresReplicaNotReadyAttempts)
+}
+
+// createPostgresReadReplicaWithInterval is the test seam for CreatePostgresReadReplica.
+func (c *ClientImpl) createPostgresReadReplicaWithInterval(ctx context.Context, sourceId string, body PostgresReadReplicaRequest, interval time.Duration, maxRetries uint64) (*Postgres, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode PostgresReadReplicaRequest: %w", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, c.getPostgresPath(sourceId, "/readReplica"), bytes.NewReader(rb))
-	if err != nil {
+	var pg *Postgres
+	createOnce := func() error {
+		req, err := http.NewRequest(http.MethodPost, c.getPostgresPath(sourceId, "/readReplica"), bytes.NewReader(rb))
+		if err != nil {
+			return backoff.Permanent(err)
+		}
+		respBody, err := c.doRequest(ctx, req)
+		if err != nil {
+			if errIndicatesReplicaNotReady(err) {
+				return err
+			}
+			return backoff.Permanent(err)
+		}
+		resp := ResponseWithResult[Postgres]{}
+		if err := json.Unmarshal(respBody, &resp); err != nil {
+			return backoff.Permanent(fmt.Errorf("failed to unmarshal Postgres: %w", err))
+		}
+		pg = &resp.Result
+		return nil
+	}
+	if interval <= 0 {
+		interval = postgresReplicaNotReadyInterval
+	}
+	b := backoff.WithContext(backoff.NewConstantBackOff(interval), ctx)
+	if err := backoff.Retry(createOnce, backoff.WithMaxRetries(b, maxRetries)); err != nil {
 		return nil, err
 	}
-	respBody, err := c.doRequest(ctx, req)
-	if err != nil {
-		return nil, err
+	return pg, nil
+}
+
+// errIndicatesReplicaNotReady matches the 400 a primary returns while its
+// first base backup is pending: "Parent server is not ready for read
+// replicas. There are no backups, yet." Message-substring match because the
+// public API exposes no structured error code for this condition.
+func errIndicatesReplicaNotReady(err error) bool {
+	if err == nil {
+		return false
 	}
-	resp := ResponseWithResult[Postgres]{}
-	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Postgres: %w", err)
+	msg := err.Error()
+	if !strings.HasPrefix(msg, "status: 400") {
+		return false
 	}
-	return &resp.Result, nil
+	return strings.Contains(strings.ToLower(msg), "not ready for read replicas")
 }
 
 // ---------------------------------------------------------------------------

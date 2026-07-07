@@ -782,6 +782,64 @@ func TestCreatePostgresReadReplica_HappyPath(t *testing.T) {
 	}
 }
 
+func TestCreatePostgresReadReplica_RetriesWhileParentNotReady(t *testing.T) {
+	var calls atomic.Int32
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		n := calls.Add(1)
+		if n <= 2 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"BAD_REQUEST: Parent server is not ready for read replicas. There are no backups, yet.","status":400}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-replica", IsPrimary: false}})
+	})
+	got, err := client.createPostgresReadReplicaWithInterval(context.Background(), "primary-id", PostgresReadReplicaRequest{Name: "replica"}, 1*time.Millisecond, 5)
+	if err != nil {
+		t.Fatalf("CreatePostgresReadReplica should retry while the parent is not ready; got %v", err)
+	}
+	if got.Id != "pg-replica" {
+		t.Errorf("replica id = %q; want pg-replica", got.Id)
+	}
+	if calls.Load() != 3 {
+		t.Errorf("expected 3 calls (2x not-ready 400 + 1x 200); got %d", calls.Load())
+	}
+}
+
+func TestCreatePostgresReadReplica_FailsFastOnOtherBadRequest(t *testing.T) {
+	var calls atomic.Int32
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"BAD_REQUEST: invalid size","status":400}`))
+	})
+	_, err := client.createPostgresReadReplicaWithInterval(context.Background(), "primary-id", PostgresReadReplicaRequest{Name: "replica"}, 1*time.Millisecond, 5)
+	if err == nil {
+		t.Fatal("expected error; got nil")
+	}
+	if calls.Load() != 1 {
+		t.Errorf("expected fail-fast (1 call); got %d calls", calls.Load())
+	}
+}
+
+func TestCreatePostgresReadReplica_FailsFastOnConflict(t *testing.T) {
+	var calls atomic.Int32
+	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":"CONFLICT: Conflict","status":409}`))
+	})
+	_, err := client.createPostgresReadReplicaWithInterval(context.Background(), "primary-id", PostgresReadReplicaRequest{Name: "replica"}, 1*time.Millisecond, 5)
+	if err == nil {
+		t.Fatal("expected error; got nil")
+	}
+	if calls.Load() != 1 {
+		t.Errorf("expected fail-fast (1 call); got %d calls", calls.Load())
+	}
+}
+
 // ----- CA certificates (raw response) ------------------------------------
 
 func TestGetPostgresCaCertificates_ReturnsRawPEM(t *testing.T) {
