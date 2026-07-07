@@ -29,6 +29,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		resource.NewClickPipeCdcInfrastructureResource,
 		resource.NewClickPipeReversePrivateEndpointResource,
 		resource.NewClickPipeReversePrivateEndpointCustomPrivateDNSResource,
+		resource.NewInvitationResource,
 		resource.NewOrganizationSettingsResource,
 		resource.NewPrivateEndpointRegistrationResource,
 		resource.NewRoleResource,
@@ -49,6 +50,7 @@ func (servicePackage) DataSources() []func() upstreamdatasource.DataSource {
 		datasource.NewRolesDataSource,
 		datasource.NewRoleDataSource,
 		datasource.NewUserDataSource,
+		datasource.NewUsersDataSource,
 		datasource.NewServiceDataSource,
 		datasource.NewServicesDataSource,
 	}
