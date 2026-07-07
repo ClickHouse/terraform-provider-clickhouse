@@ -261,6 +261,7 @@ func (p *clickhouseProvider) DataSources(_ context.Context) []func() upstreamdat
 		datasource.NewRolesDataSource,
 		datasource.NewRoleDataSource,
 		datasource.NewUserDataSource,
+		datasource.NewUsersDataSource,
 		datasource.NewPostgresServiceDataSource,
 		datasource.NewPostgresServicesDataSource,
 		datasource.NewPostgresServiceCaCertificatesDataSource,
