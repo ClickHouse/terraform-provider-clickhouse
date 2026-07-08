@@ -25,6 +25,39 @@ func TestIsForbidden(t *testing.T) {
 	}
 }
 
+func TestIsServiceIdle(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{
+			name: "424 for idle service",
+			err:  errors.New(`status: 424, body: {"requestId":"x","error":"FAILED_DEPENDENCY: ClickPipe creation is allowed only when the ClickHouse service is running. Current state: idle","status":424}`),
+			want: true,
+		},
+		{
+			name: "424 for stopped service must not trigger a wake",
+			err:  errors.New(`status: 424, body: {"requestId":"x","error":"FAILED_DEPENDENCY: ClickPipe creation is allowed only when the ClickHouse service is running. Current state: stopped","status":424}`),
+			want: false,
+		},
+		{
+			name: "non-424 mentioning idle",
+			err:  errors.New("status: 400, body: Current state: idle"),
+			want: false,
+		},
+		{name: "non-status error", err: errors.New("connection refused"), want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsServiceIdle(tc.err); got != tc.want {
+				t.Errorf("IsServiceIdle(%v) = %v; want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestIsBadRequestWith(t *testing.T) {
 	cases := []struct {
 		name   string
