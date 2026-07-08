@@ -835,18 +835,19 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
-									"The type of the Postgres source. (%s). Default is `%s`.",
-									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipePostgresSourceTypes),
+									"The type of the Postgres source. (%s). Default is `%s`. Provider-flavored values such as `rdspostgres` are deprecated; use the base `%s` type.",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipePostgresAcceptedSourceTypes),
+									api.ClickPipePostgresSourceType,
 									api.ClickPipePostgresSourceType,
 								),
 								Computed: true,
 								Optional: true,
 								Default:  stringdefault.StaticString(api.ClickPipePostgresSourceType),
 								Validators: []validator.String{
-									stringvalidator.OneOf(api.ClickPipePostgresSourceTypes...),
+									stringvalidator.OneOf(api.ClickPipePostgresAcceptedSourceTypes...),
 								},
 								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.RequiresReplace(),
+									requiresReplaceIfBaseTypeChanges{collapse: api.CollapsePostgresSourceType},
 								},
 							},
 							"host": schema.StringAttribute{
@@ -1107,17 +1108,17 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
-									"The type of MySQL-compatible source. (%s). Default is `mysql`.",
-									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMySQLSourceTypes),
+									"The type of MySQL-compatible source. (%s). Default is `mysql`. Provider-flavored values such as `rdsmysql` are deprecated; use the base `mysql` or `mariadb` type.",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMySQLAcceptedSourceTypes),
 								),
 								Optional: true,
 								Computed: true,
 								Default:  stringdefault.StaticString(api.ClickPipeMySQLSourceTypeMySQL),
 								Validators: []validator.String{
-									stringvalidator.OneOf(api.ClickPipeMySQLSourceTypes...),
+									stringvalidator.OneOf(api.ClickPipeMySQLAcceptedSourceTypes...),
 								},
 								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.RequiresReplace(),
+									requiresReplaceIfBaseTypeChanges{collapse: api.CollapseMySQLSourceType},
 								},
 							},
 							"host": schema.StringAttribute{
@@ -4339,9 +4340,9 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			TableMappings: types.SetNull(models.ClickPipePostgresTableMappingModel{}.ObjectType()),
 		}
 
-		// Set type from API response
+		// Set type from API response, collapsing legacy provider-flavored types to the base type.
 		if clickPipe.Source.Postgres.Type != "" {
-			postgresModel.Type = types.StringValue(clickPipe.Source.Postgres.Type)
+			postgresModel.Type = types.StringValue(api.CollapsePostgresSourceType(clickPipe.Source.Postgres.Type))
 		} else {
 			postgresModel.Type = types.StringValue(api.ClickPipePostgresSourceType)
 		}
@@ -4560,9 +4561,9 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			TableMappings: types.SetNull(models.ClickPipeMySQLTableMappingModel{}.ObjectType()),
 		}
 
-		// Set type from API response
+		// Set type from API response, collapsing legacy provider-flavored types to the base engine type.
 		if clickPipe.Source.MySQL.Type != "" {
-			mysqlModel.Type = types.StringValue(clickPipe.Source.MySQL.Type)
+			mysqlModel.Type = types.StringValue(api.CollapseMySQLSourceType(clickPipe.Source.MySQL.Type))
 		} else {
 			mysqlModel.Type = types.StringValue(api.ClickPipeMySQLSourceTypeMySQL)
 		}

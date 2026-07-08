@@ -7,6 +7,33 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+// requiresReplaceIfBaseTypeChanges requires replacement only when the base database type
+// changes. Legacy provider-flavored values (e.g. "rdspostgres") collapse to their base
+// ("postgres") via collapse, so upgrading a config from a flavored value to the base type
+// updates in place instead of destroying and recreating the pipe.
+type requiresReplaceIfBaseTypeChanges struct {
+	collapse func(string) string
+}
+
+func (r requiresReplaceIfBaseTypeChanges) Description(ctx context.Context) string {
+	return "Requires replacement only if the base database type changes."
+}
+
+func (r requiresReplaceIfBaseTypeChanges) MarkdownDescription(ctx context.Context) string {
+	return r.Description(ctx)
+}
+
+func (r requiresReplaceIfBaseTypeChanges) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	// Skip on create (no prior state) and destroy (no plan).
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	if r.collapse(req.StateValue.ValueString()) != r.collapse(req.PlanValue.ValueString()) {
+		resp.RequiresReplace = true
+	}
+}
+
 // requiresReplaceIfSourceTypeChanges is a custom plan modifier that requires replacement
 // only when the source type changes (null → non-null or non-null → null), but allows
 // updates to fields within the same source type.

@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
 )
 
 func TestRequiresReplaceIfSourceTypeChanges(t *testing.T) {
@@ -227,5 +229,122 @@ func TestVolatileComputedString_Description(t *testing.T) {
 	}
 	if modifier.MarkdownDescription(context.Background()) == "" {
 		t.Error("MarkdownDescription should not be empty")
+	}
+}
+
+// TestRequiresReplaceIfBaseTypeChanges verifies that collapsing a legacy provider-flavored
+// source type to its base type (e.g. rdspostgres → postgres) updates in place, while a real
+// base-type change (mysql → mariadb) still forces replacement.
+func TestRequiresReplaceIfBaseTypeChanges(t *testing.T) {
+	t.Parallel()
+
+	nonNull := tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{})
+
+	testCases := map[string]struct {
+		collapse                func(string) string
+		stateRaw                tftypes.Value
+		planRaw                 tftypes.Value
+		stateValue              types.String
+		planValue               types.String
+		expectedRequiresReplace bool
+	}{
+		"postgres flavor collapses to base - no replace": {
+			collapse:                api.CollapsePostgresSourceType,
+			stateRaw:                nonNull,
+			planRaw:                 nonNull,
+			stateValue:              types.StringValue("rdspostgres"),
+			planValue:               types.StringValue("postgres"),
+			expectedRequiresReplace: false,
+		},
+		"postgres same base - no replace": {
+			collapse:                api.CollapsePostgresSourceType,
+			stateRaw:                nonNull,
+			planRaw:                 nonNull,
+			stateValue:              types.StringValue("postgres"),
+			planValue:               types.StringValue("postgres"),
+			expectedRequiresReplace: false,
+		},
+		"mysql provider prefix collapses to base - no replace": {
+			collapse:                api.CollapseMySQLSourceType,
+			stateRaw:                nonNull,
+			planRaw:                 nonNull,
+			stateValue:              types.StringValue("rdsmysql"),
+			planValue:               types.StringValue("mysql"),
+			expectedRequiresReplace: false,
+		},
+		"mariadb prefix collapses to mariadb - no replace": {
+			collapse:                api.CollapseMySQLSourceType,
+			stateRaw:                nonNull,
+			planRaw:                 nonNull,
+			stateValue:              types.StringValue("rdsmariadb"),
+			planValue:               types.StringValue("mariadb"),
+			expectedRequiresReplace: false,
+		},
+		"mysql to mariadb changes engine - replace": {
+			collapse:                api.CollapseMySQLSourceType,
+			stateRaw:                nonNull,
+			planRaw:                 nonNull,
+			stateValue:              types.StringValue("mysql"),
+			planValue:               types.StringValue("mariadb"),
+			expectedRequiresReplace: true,
+		},
+		"creating-resource - no replace": {
+			collapse:                api.CollapsePostgresSourceType,
+			stateRaw:                tftypes.NewValue(tftypes.Object{}, nil),
+			planRaw:                 nonNull,
+			stateValue:              types.StringNull(),
+			planValue:               types.StringValue("postgres"),
+			expectedRequiresReplace: false,
+		},
+		"destroying-resource - no replace": {
+			collapse:                api.CollapsePostgresSourceType,
+			stateRaw:                nonNull,
+			planRaw:                 tftypes.NewValue(tftypes.Object{}, nil),
+			stateValue:              types.StringValue("postgres"),
+			planValue:               types.StringNull(),
+			expectedRequiresReplace: false,
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			modifier := requiresReplaceIfBaseTypeChanges{collapse: testCase.collapse}
+			req := planmodifier.StringRequest{
+				State:      tfsdk.State{Raw: testCase.stateRaw},
+				Plan:       tfsdk.Plan{Raw: testCase.planRaw},
+				StateValue: testCase.stateValue,
+				PlanValue:  testCase.planValue,
+			}
+			resp := &planmodifier.StringResponse{}
+
+			modifier.PlanModifyString(context.Background(), req, resp)
+
+			if resp.RequiresReplace != testCase.expectedRequiresReplace {
+				t.Errorf("expected RequiresReplace to be %v, got %v", testCase.expectedRequiresReplace, resp.RequiresReplace)
+			}
+		})
+	}
+}
+
+func TestCollapseSourceType(t *testing.T) {
+	t.Parallel()
+
+	if got := api.CollapsePostgresSourceType("aurorapostgres"); got != "postgres" {
+		t.Errorf("CollapsePostgresSourceType(aurorapostgres) = %q, want postgres", got)
+	}
+	if got := api.CollapsePostgresSourceType("postgres"); got != "postgres" {
+		t.Errorf("CollapsePostgresSourceType(postgres) = %q, want postgres", got)
+	}
+	if got := api.CollapseMySQLSourceType("auroramysql"); got != "mysql" {
+		t.Errorf("CollapseMySQLSourceType(auroramysql) = %q, want mysql", got)
+	}
+	if got := api.CollapseMySQLSourceType("rdsmariadb"); got != "mariadb" {
+		t.Errorf("CollapseMySQLSourceType(rdsmariadb) = %q, want mariadb", got)
+	}
+	// Unknown values pass through unchanged.
+	if got := api.CollapsePostgresSourceType("something-else"); got != "something-else" {
+		t.Errorf("CollapsePostgresSourceType(something-else) = %q, want something-else", got)
 	}
 }
