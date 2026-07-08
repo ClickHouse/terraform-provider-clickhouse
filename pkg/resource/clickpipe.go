@@ -3534,11 +3534,17 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		}
 
 		mysqlSource := &api.ClickPipeMySQLSource{
-			Type:     mysqlModel.Type.ValueString(),
 			Host:     mysqlModel.Host.ValueString(),
 			Port:     int(mysqlModel.Port.ValueInt64()),
 			Settings: settings,
 			Mappings: tableMappings,
+		}
+
+		// type is immutable for an existing pipe, so only send it on create (matching
+		// Postgres). Omitting it on update avoids PATCHing a base type onto a pipe the
+		// backend stored under a legacy provider-flavored type.
+		if !isUpdate {
+			mysqlSource.Type = mysqlModel.Type.ValueString()
 		}
 
 		// Only attach a credentials block when the username is actually known.
