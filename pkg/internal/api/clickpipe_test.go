@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -19,30 +18,12 @@ const (
 	idle424BodyFormat       = `{"requestId":"x","error":"FAILED_DEPENDENCY: ClickPipe creation is allowed only when the ClickHouse service is running. Current state: %s","status":424}`
 )
 
-// newClickPipeTestClient spins up an httptest.Server with the given handler
-// and returns a *ClientImpl pointed at it. Mirrors newPostgresTestClient.
-func newClickPipeTestClient(t *testing.T, handler http.HandlerFunc) (*ClientImpl, *httptest.Server) {
-	t.Helper()
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-	client, err := NewClient(ClientConfig{
-		ApiURL:         server.URL,
-		OrganizationID: testOrgID,
-		TokenKey:       "key",
-		TokenSecret:    "secret",
-	})
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-	return client, server
-}
-
 // ----- doClickPipeRequest idle-service wake (issue #376) --------------------
 
 func TestCreateClickPipe_WakesIdleServiceAndRetries(t *testing.T) {
 	var createCalls, wakeCalls, stateGetCalls int
 
-	client, _ := newClickPipeTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		switch {
@@ -108,7 +89,7 @@ func TestCreateClickPipe_WakesIdleServiceAndRetries(t *testing.T) {
 func TestCreateClickPipe_StoppedService424_DoesNotWake(t *testing.T) {
 	var createCalls int
 
-	client, _ := newClickPipeTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == testClickPipesPath:
 			createCalls++
@@ -137,7 +118,7 @@ func TestCreateClickPipe_StoppedService424_DoesNotWake(t *testing.T) {
 }
 
 func TestCreateClickPipe_WakeFails_ReturnsError(t *testing.T) {
-	client, _ := newClickPipeTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		switch {
