@@ -127,6 +127,21 @@ var ClickPipePostgresSourceTypes = []string{
 	ClickPipePostgresTigerDataSourceType,
 }
 
+// ClickPipePostgresAcceptedSourceTypes lists the source types accepted as input. The
+// provider-flavored variants above are deprecated: users must collapse them to the base
+// `postgres` type. ClickPipePostgresSourceTypes is retained to normalize legacy state.
+var ClickPipePostgresAcceptedSourceTypes = []string{
+	ClickPipePostgresSourceType,
+}
+
+// CollapsePostgresSourceType maps any legacy provider-flavored Postgres type to its base type.
+func CollapsePostgresSourceType(sourceType string) string {
+	if slices.Contains(ClickPipePostgresSourceTypes, sourceType) {
+		return ClickPipePostgresSourceType
+	}
+	return sourceType
+}
+
 var ClickPipeObjectStorageAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
@@ -307,6 +322,26 @@ var ClickPipeMySQLMariaDBSourceTypes = []string{
 
 func IsClickPipeMySQLMariaDBSourceType(sourceType string) bool {
 	return slices.Contains(ClickPipeMySQLMariaDBSourceTypes, sourceType)
+}
+
+// ClickPipeMySQLAcceptedSourceTypes lists the source types accepted as input. Provider
+// prefixes are collapsed to a base engine type, but the MariaDB engine stays distinct
+// from MySQL. ClickPipeMySQLSourceTypes is retained to normalize legacy state.
+var ClickPipeMySQLAcceptedSourceTypes = []string{
+	ClickPipeMySQLSourceTypeMySQL,
+	ClickPipeMySQLSourceTypeMariaDB,
+}
+
+// CollapseMySQLSourceType maps any legacy provider-flavored MySQL type to its base engine
+// type, preserving the MySQL/MariaDB distinction.
+func CollapseMySQLSourceType(sourceType string) string {
+	if IsClickPipeMySQLMariaDBSourceType(sourceType) {
+		return ClickPipeMySQLSourceTypeMariaDB
+	}
+	if slices.Contains(ClickPipeMySQLSourceTypes, sourceType) {
+		return ClickPipeMySQLSourceTypeMySQL
+	}
+	return sourceType
 }
 
 // MongoDB constants

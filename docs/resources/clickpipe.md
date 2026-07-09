@@ -401,7 +401,7 @@ Optional:
 - `port` (Number) The port of the MySQL instance. Default is 3306.
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MySQL connection.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
-- `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
+- `type` (String) The type of MySQL-compatible source. (`mysql`, `mariadb`). Default is `mysql`. Provider-flavored values such as `rdsmysql` are deprecated; use the base `mysql` or `mariadb` type.
 
 <a id="nestedatt--source--mysql--credentials"></a>
 ### Nested Schema for `source.mysql.credentials`
@@ -509,7 +509,7 @@ Optional:
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `iam_role`.
 - `port` (Number) The port of the Postgres instance. Default is 5432.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
-- `type` (String) The type of the Postgres source. (`postgres`, `supabase`, `neon`, `alloydb`, `planetscale`, `rdspostgres`, `aurorapostgres`, `cloudsqlpostgres`, `azurepostgres`, `crunchybridge`, `tigerdata`). Default is `postgres`.
+- `type` (String) The type of the Postgres source. (`postgres`). Default is `postgres`. Provider-flavored values such as `rdspostgres` are deprecated; use the base `postgres` type.
 
 <a id="nestedatt--source--postgres--credentials"></a>
 ### Nested Schema for `source.postgres.credentials`
