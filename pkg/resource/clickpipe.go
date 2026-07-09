@@ -180,9 +180,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"state": schema.StringAttribute{
 				MarkdownDescription: "The current state of the ClickPipe. This is a read-only field that reports the actual state from ClickHouse Cloud. Possible values include `Running`, `Stopped`, `Paused`, `Provisioning`, `Failed`, `InternalError`, etc.",
 				Computed:            true,
-				PlanModifiers: []planmodifier.String{
-					volatileComputedString{},
-				},
 			},
 			"source": schema.SingleNestedAttribute{
 				Description: "The data source for the ClickPipe. At least one source configuration must be provided.",
@@ -2544,6 +2541,9 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 			}
 		}
 	}
+
+	// Must stay the final step: decides `state` from the fully repaired plan.
+	c.planStateAttribute(ctx, request, response)
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {

@@ -8,6 +8,7 @@ import (
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -829,4 +830,75 @@ func TestClickPipeResource_ConfigValidators_RejectCDCScaling(t *testing.T) {
 	diags = runValidateConfig(t, postgresConfig)
 	assert.False(t, detailContains(diags, "scaling cannot be configured on clickhouse_clickpipe"),
 		"Postgres CDC without clickpipe scaling must remain valid; got: %v", diags.Errors())
+}
+
+// Issue #595 — an update plan that differs from prior state only because the
+// framework marked the computed `state` attribute Unknown must collapse back to a
+// no-op, while a plan with a real change must keep `state` Unknown (the #529
+// consistency-check protection).
+
+func TestClickPipeResource_ModifyPlan_StateOnNoOpPlan_Issue595(t *testing.T) {
+	ctx := context.Background()
+	r := &ClickPipeResource{}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("building resource schema failed: %v", schemaResp.Diagnostics.Errors())
+	}
+	sch := schemaResp.Schema
+
+	// run drives ModifyPlan for an update (non-null state + plan) and returns the
+	// planned `state` attribute.
+	run := func(t *testing.T, stateModel, planModel models.ClickPipeResourceModel) types.String {
+		t.Helper()
+		stateVal := tfsdk.State{Schema: sch}
+		if d := stateVal.Set(ctx, &stateModel); d.HasError() {
+			t.Fatalf("encoding prior state failed: %v", d.Errors())
+		}
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &planModel); d.HasError() {
+			t.Fatalf("encoding plan failed: %v", d.Errors())
+		}
+		req := resource.ModifyPlanRequest{
+			State:  stateVal,
+			Plan:   planVal,
+			Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+		}
+		resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
+		r.ModifyPlan(ctx, req, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("ModifyPlan returned errors: %v", resp.Diagnostics.Errors())
+		}
+		var planned types.String
+		if d := resp.Plan.GetAttribute(ctx, path.Root("state"), &planned); d.HasError() {
+			t.Fatalf("reading planned state failed: %v", d.Errors())
+		}
+		return planned
+	}
+
+	t.Run("no-op plan restores the prior state value", func(t *testing.T) {
+		prior := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+		prior.State = types.StringValue("Running")
+		plan := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+		plan.State = types.StringUnknown() // as the framework leaves it before ModifyPlan runs
+
+		planned := run(t, prior, plan)
+
+		assert.True(t, planned.Equal(types.StringValue("Running")),
+			"#595: a plan with no other changes must keep the prior state value, got %v", planned)
+	})
+
+	t.Run("real update keeps state Unknown", func(t *testing.T) {
+		prior := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+		prior.State = types.StringValue("Running")
+		plan := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+		plan.State = types.StringUnknown()
+		plan.Name = types.StringValue("renamed-pipe")
+
+		planned := run(t, prior, plan)
+
+		assert.True(t, planned.IsUnknown(),
+			"an update may settle in a transient state, so the planned state must stay Unknown, got %v", planned)
+	})
 }
