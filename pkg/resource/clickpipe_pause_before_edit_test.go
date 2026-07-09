@@ -313,9 +313,9 @@ func TestClickPipeResource_Update_RetriesOnceOnMustBePaused400(t *testing.T) {
 		"an unanticipated must-be-paused 400 must trigger pause + exactly one PATCH retry, then converge back to running")
 }
 
-// alreadyRunning400 is the API's response to a start command that lost the race
+// errAlreadyRunning400 is the API's response to a start command that lost the race
 // against the post-edit auto-resume (observed live while testing #497).
-var alreadyRunning400 = errors.New(`status: 400, body: {"requestId":"x","error":"BAD_REQUEST: 3524192a ClickPipe is already running","status":400}`)
+var errAlreadyRunning400 = errors.New(`status: 400, body: {"requestId":"x","error":"BAD_REQUEST: 3524192a ClickPipe is already running","status":400}`)
 
 func TestClickPipeResource_Update_ToleratesAlreadyRunningOnReconcileStart(t *testing.T) {
 	// Live repro: pause → PATCH succeeds (response still reports Paused) → the
@@ -335,7 +335,7 @@ func TestClickPipeResource_Update_ToleratesAlreadyRunningOnReconcileStart(t *tes
 	mock.ChangeClickPipeStateMock.Set(func(_ context.Context, _, _, command string) (*api.ClickPipe, error) {
 		*calls = append(*calls, "state:"+command)
 		if command == api.ClickPipeStateStart {
-			return nil, alreadyRunning400
+			return nil, errAlreadyRunning400
 		}
 		return nil, nil
 	})
@@ -363,7 +363,7 @@ func TestClickPipeResource_Update_GuardToleratesAlreadyRunning(t *testing.T) {
 	mock.ChangeClickPipeStateMock.Set(func(_ context.Context, _, _, command string) (*api.ClickPipe, error) {
 		*calls = append(*calls, "state:"+command)
 		if command == api.ClickPipeStateStart {
-			return nil, alreadyRunning400
+			return nil, errAlreadyRunning400
 		}
 		return nil, nil
 	})
