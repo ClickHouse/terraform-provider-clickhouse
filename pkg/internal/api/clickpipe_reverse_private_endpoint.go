@@ -69,7 +69,7 @@ func (c *ClientImpl) ListReversePrivateEndpoints(ctx context.Context, serviceId 
 		return nil, err
 	}
 
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (c *ClientImpl) GetReversePrivateEndpoint(ctx context.Context, serviceId, r
 		return nil, err
 	}
 
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (c *ClientImpl) CreateReversePrivateEndpoint(ctx context.Context, serviceId
 		return nil, err
 	}
 
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (c *ClientImpl) UpdateReversePrivateEndpoint(ctx context.Context, serviceId
 		return nil, err
 	}
 
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func (c *ClientImpl) DeleteReversePrivateEndpoint(ctx context.Context, serviceId
 		return err
 	}
 
-	_, err = c.doRequest(ctx, req)
+	_, err = c.doClickPipeRequest(ctx, serviceId, req)
 	return err
 }
 

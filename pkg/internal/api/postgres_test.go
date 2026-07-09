@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -21,24 +20,6 @@ const (
 	testPostgresListPath     = "/organizations/org-1/postgres"
 	testPostgresSizeXLarge   = "r6gd.xlarge"
 )
-
-// newPostgresTestClient spins up an httptest.Server with the given handler
-// and returns a *ClientImpl pointed at it. Mirrors newScheduledScalingTestClient.
-func newPostgresTestClient(t *testing.T, handler http.HandlerFunc) (*ClientImpl, *httptest.Server) {
-	t.Helper()
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-	client, err := NewClient(ClientConfig{
-		ApiURL:         server.URL,
-		OrganizationID: testOrgID,
-		TokenKey:       "key",
-		TokenSecret:    "secret",
-	})
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-	return client, server
-}
 
 func assertBasicAuth(t *testing.T, r *http.Request) {
 	t.Helper()
@@ -68,7 +49,7 @@ func TestGetPostgres_HappyPath(t *testing.T) {
 		Hostname:  "my-pg.example.com",
 	}
 
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %q; want GET", r.Method)
 		}
@@ -90,7 +71,7 @@ func TestGetPostgres_HappyPath(t *testing.T) {
 }
 
 func TestGetPostgres_NotFound(t *testing.T) {
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 	})
 	_, err := client.GetPostgres(context.Background(), testPostgresID)
@@ -111,7 +92,7 @@ func TestListPostgres_HappyPath(t *testing.T) {
 		{Id: "pg-2", Name: "two", Provider: "aws", Region: "us-west-2", State: "creating", CreatedAt: "t2", IsPrimary: false},
 	}
 
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %q; want GET", r.Method)
 		}
@@ -148,7 +129,7 @@ func TestCreatePostgres_HappyPath_PersistsServerGeneratedPassword(t *testing.T) 
 	}
 
 	var capturedBody PostgresCreate
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("method = %q; want POST", r.Method)
 		}
@@ -191,7 +172,7 @@ func TestCreatePostgres_NoPasswordInResponse_ReturnsEmptyPasswordOut(t *testing.
 		Id: "pg-new", Name: "my-pg", Provider: "aws", Region: "us-east-1",
 		Size: "r6gd.large", State: PostgresStateCreating,
 	}
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: pgServerSide})
 	})
 	_, password, err := client.CreatePostgres(context.Background(), PostgresCreate{
@@ -210,7 +191,7 @@ func TestCreatePostgres_NoPasswordInResponse_ReturnsEmptyPasswordOut(t *testing.
 func TestUpdatePostgres_PatchesOnlyChangedFields(t *testing.T) {
 	expectedPath := testPostgresInstancePath
 	var capturedBody map[string]any
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPatch {
 			t.Errorf("method = %q; want PATCH", r.Method)
 		}
@@ -242,7 +223,7 @@ func TestUpdatePostgres_PatchesOnlyChangedFields(t *testing.T) {
 
 func TestDeletePostgres_HappyPath(t *testing.T) {
 	expectedPath := testPostgresInstancePath
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			t.Errorf("method = %q; want DELETE", r.Method)
 		}
@@ -260,7 +241,7 @@ func TestDeletePostgres_HappyPath(t *testing.T) {
 }
 
 func TestDeletePostgres_NotFoundReturnsNil(t *testing.T) {
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 	})
 	err := client.DeletePostgres(context.Background(), testPostgresID)
@@ -271,7 +252,7 @@ func TestDeletePostgres_NotFoundReturnsNil(t *testing.T) {
 
 func TestDeletePostgres_RetriesOn409(t *testing.T) {
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
 		if n <= 2 {
 			http.Error(w, `{"error":"transient conflict"}`, http.StatusConflict)
@@ -297,7 +278,7 @@ func TestDeletePostgres_RetriesOn409WithoutDependentSignal(t *testing.T) {
 	// against the loose pattern match that an earlier draft of the heuristic
 	// allowed (OR rather than AND).
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
 		if n <= 2 {
 			w.Header().Set("Content-Type", "application/json")
@@ -319,7 +300,7 @@ func TestDeletePostgres_RetriesOn409WithoutDependentSignal(t *testing.T) {
 
 func TestDeletePostgres_FailsFastOnDependentReplica(t *testing.T) {
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		// Server signals a dependent replica blocks deletion.
 		w.Header().Set("Content-Type", "application/json")
@@ -342,7 +323,7 @@ func TestDeletePostgres_FailsFastOnDependentReplica(t *testing.T) {
 
 func TestWaitForPostgresState_TransitionsToRunning(t *testing.T) {
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
 		state := PostgresStateCreating
 		if n >= 3 {
@@ -362,7 +343,7 @@ func TestWaitForPostgresState_TransitionsToRunning(t *testing.T) {
 }
 
 func TestWaitForPostgresState_TimesOutWithLastSeenState(t *testing.T) {
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateCreating}})
 	})
 	err := client.waitForPostgresStateWithInterval(context.Background(), testPostgresID,
@@ -381,7 +362,7 @@ func TestWaitForPostgresState_PropagatesGetErrors(t *testing.T) {
 	// token revoked), the helper must surface the real error rather than
 	// rewriting it to the misleading "did not reach the expected state"
 	// timeout message. Same shape as the LeaveAndReturn equivalent test.
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 	})
 	err := client.waitForPostgresStateWithInterval(context.Background(), testPostgresID,
@@ -399,7 +380,7 @@ func TestWaitForPostgresState_PropagatesGetErrors(t *testing.T) {
 }
 
 func TestWaitForPostgresState_UnknownStateDoesNotCrash(t *testing.T) {
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: "something_brand_new"}})
 	})
 	err := client.waitForPostgresStateWithInterval(context.Background(), testPostgresID,
@@ -428,7 +409,7 @@ func TestWaitForPostgresMatch_SucceedsOnConsecutivePredicateMatches(t *testing.T
 	// case (server applied the change before our first poll). Helper must
 	// succeed after settleRetries consecutive matching polls.
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning, Size: testPostgresSizeXLarge}})
 	})
@@ -448,7 +429,7 @@ func TestWaitForPostgresMatch_QueuedWorkWaitsForFieldFlip(t *testing.T) {
 	// because Ubicloud has queued the work. The helper must NOT succeed
 	// until the field reflects the requested value.
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
 		size := "r6gd.large" // pre-PATCH steady state
 		if n >= 4 {
@@ -472,7 +453,7 @@ func TestWaitForPostgresMatch_TransientMatchResetsSettleWindow(t *testing.T) {
 	// to non-matching, then matches stably. Settle must reset across the
 	// inversion so success is anchored to STABLE matching, not transient.
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
 		size := testPostgresSizeXLarge
 		if n == 2 {
@@ -494,7 +475,7 @@ func TestWaitForPostgresMatch_TransientMatchResetsSettleWindow(t *testing.T) {
 func TestWaitForPostgresMatch_PropagatesGetErrors(t *testing.T) {
 	// Polling repeatedly errors (instance deleted out-of-band, auth expired).
 	// Helper must surface the error rather than silently returning nil.
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 	})
 	err := client.waitForPostgresMatchWithInterval(context.Background(), testPostgresID,
@@ -511,7 +492,7 @@ func TestWaitForPostgresMatch_NeverMatchesTimesOut(t *testing.T) {
 	// Field never flips (Ubicloud silently dropped the work, or the server
 	// is in an unrecoverable state). Helper must time out rather than
 	// silently report success.
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning, Size: "r6gd.large"}})
 	})
 	err := client.waitForPostgresMatchWithInterval(context.Background(), testPostgresID,
@@ -530,7 +511,7 @@ func TestWaitForPostgresMatch_NeverMatchesTimesOut(t *testing.T) {
 func TestWaitForPostgresMatch_HonorsContextCancellation(t *testing.T) {
 	// Predicate never matches → without ctx-aware backoff, the helper would
 	// burn the full budget. With backoff.WithContext, cancellation bails fast.
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateRunning, Size: "r6gd.large"}})
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -551,7 +532,7 @@ func TestWaitForPostgresMatch_HonorsContextCancellation(t *testing.T) {
 
 func TestWaitForPostgresState_HonorsContextCancellation(t *testing.T) {
 	// Same guarantee for the simpler state-only helper.
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{Result: Postgres{Id: "pg-1", State: PostgresStateCreating}})
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -573,7 +554,7 @@ func TestWaitForPostgresState_HonorsContextCancellation(t *testing.T) {
 func TestSetPostgresPassword_UserSuppliedReturnsEmpty(t *testing.T) {
 	expectedPath := "/organizations/org-1/postgres/pg-1/password"
 	var capturedBody PostgresPassword
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPatch {
 			t.Errorf("method = %q; want PATCH", r.Method)
 		}
@@ -607,7 +588,7 @@ func TestSetPostgresPassword_UserSuppliedReturnsEmpty(t *testing.T) {
 }
 
 func TestSetPostgresPassword_ServerGeneratedReturnsValue(t *testing.T) {
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[PostgresPassword]{Result: PostgresPassword{Password: "ServerGen-Aa1!password"}})
 	})
 	got, err := client.SetPostgresPassword(context.Background(), testPostgresID, PostgresPassword{})
@@ -625,7 +606,7 @@ func TestSetPostgresPassword_ServerGeneratedReturnsValue(t *testing.T) {
 func TestSetPostgresPassword_IdempotencyForUserSuppliedValue(t *testing.T) {
 	// User-supplied password is idempotent: server re-sets the same value
 	// and returns an empty Password both times.
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(ResponseWithResult[PostgresPassword]{Result: PostgresPassword{}})
 	})
 	supplied := "User-Supplied-Aa1!password"
@@ -646,7 +627,7 @@ func TestSetPostgresPassword_IdempotencyForUserSuppliedValue(t *testing.T) {
 
 func TestGetPostgresConfig_HappyPath(t *testing.T) {
 	expectedPath := "/organizations/org-1/postgres/pg-1/config"
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %q; want GET", r.Method)
 		}
@@ -670,7 +651,7 @@ func TestGetPostgresConfig_HappyPath(t *testing.T) {
 func TestReplacePostgresConfig_PostsBothMaps(t *testing.T) {
 	expectedPath := "/organizations/org-1/postgres/pg-1/config"
 	var captured PostgresConfig
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("method = %q; want POST", r.Method)
 		}
@@ -705,7 +686,7 @@ func TestReplacePostgresConfig_AcceptsEmptyMaps(t *testing.T) {
 	// Per Phase 0 Curl 3, runtime validator wins: {} is accepted by the server.
 	// The client should send {} (not omitempty) so users can clear all parameters.
 	var captured map[string]any
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("read request body: %v", err)
@@ -742,7 +723,7 @@ func TestReplacePostgresConfig_AcceptsEmptyMaps(t *testing.T) {
 
 func TestRestorePostgres_HappyPath(t *testing.T) {
 	expectedPath := "/organizations/org-1/postgres/source-id/restoredService"
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("method = %q; want POST", r.Method)
 		}
@@ -764,7 +745,7 @@ func TestRestorePostgres_HappyPath(t *testing.T) {
 
 func TestCreatePostgresReadReplica_HappyPath(t *testing.T) {
 	expectedPath := "/organizations/org-1/postgres/primary-id/readReplica"
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("method = %q; want POST", r.Method)
 		}
@@ -784,7 +765,7 @@ func TestCreatePostgresReadReplica_HappyPath(t *testing.T) {
 
 func TestCreatePostgresReadReplica_RetriesWhileParentNotReady(t *testing.T) {
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
 		if n <= 2 {
 			w.Header().Set("Content-Type", "application/json")
@@ -808,7 +789,7 @@ func TestCreatePostgresReadReplica_RetriesWhileParentNotReady(t *testing.T) {
 
 func TestCreatePostgresReadReplica_FailsFastOnOtherBadRequest(t *testing.T) {
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -825,7 +806,7 @@ func TestCreatePostgresReadReplica_FailsFastOnOtherBadRequest(t *testing.T) {
 
 func TestCreatePostgresReadReplica_FailsFastOnConflict(t *testing.T) {
 	var calls atomic.Int32
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
@@ -845,7 +826,7 @@ func TestCreatePostgresReadReplica_FailsFastOnConflict(t *testing.T) {
 func TestGetPostgresCaCertificates_ReturnsRawPEM(t *testing.T) {
 	expectedPath := "/organizations/org-1/postgres/pg-1/caCertificates"
 	pem := "-----BEGIN CERTIFICATE-----\nMIID...\n-----END CERTIFICATE-----\n"
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %q; want GET", r.Method)
 		}
@@ -869,7 +850,7 @@ func TestGetPostgresCaCertificates_ReturnsRawPEM(t *testing.T) {
 func TestPostgres_RateLimit429HonorsResetHeader(t *testing.T) {
 	var calls atomic.Int32
 	start := time.Now()
-	client, _ := newPostgresTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
 		if n == 1 {
 			w.Header().Set(ResponseHeaderRateLimitReset, "0")
