@@ -312,3 +312,68 @@ func TestClickPipeResource_Update_RetriesOnceOnMustBePaused400(t *testing.T) {
 	assert.Equal(t, []string{"update", "state:stop", "wait", "update", "state:start", "wait", "get"}, *calls,
 		"an unanticipated must-be-paused 400 must trigger pause + exactly one PATCH retry, then converge back to running")
 }
+
+// alreadyRunning400 is the API's response to a start command that lost the race
+// against the post-edit auto-resume (observed live while testing #497).
+var alreadyRunning400 = errors.New(`status: 400, body: {"requestId":"x","error":"BAD_REQUEST: 3524192a ClickPipe is already running","status":400}`)
+
+func TestClickPipeResource_Update_ToleratesAlreadyRunningOnReconcileStart(t *testing.T) {
+	// Live repro: pause → PATCH succeeds (response still reports Paused) → the
+	// API auto-resumes the pipe before the reconciliation's start lands → the
+	// start 400s with "already running". The pipe is in exactly the desired
+	// state, so the apply must succeed.
+	ctx := context.Background()
+	state := postgresUpdateModel(ctx, t, "users", "orders")
+	plan := postgresUpdateModel(ctx, t, "users")
+
+	syncPipe := postgresAPIPipe(api.ClickPipeRunningState, "users")
+	mc := minimock.NewController(t)
+	mock, calls := pauseEditClientMock(mc, syncPipe, func(int) (*api.ClickPipe, error) {
+		return postgresAPIPipe(api.ClickPipePausedState, "users"), nil
+	})
+	expectSyncRead(mock, calls, syncPipe)
+	mock.ChangeClickPipeStateMock.Set(func(_ context.Context, _, _, command string) (*api.ClickPipe, error) {
+		*calls = append(*calls, "state:"+command)
+		if command == api.ClickPipeStateStart {
+			return nil, alreadyRunning400
+		}
+		return nil, nil
+	})
+
+	resp := driveClickPipeUpdate(ctx, t, &ClickPipeResource{client: mock}, state, plan)
+
+	assert.False(t, resp.Diagnostics.HasError(),
+		"a start that lost the race against the API's auto-resume must not fail the apply: %v", resp.Diagnostics.Errors())
+	assert.Empty(t, resp.Diagnostics.Warnings(), "no spurious warnings for a pipe already in the desired state")
+	assert.Equal(t, []string{"state:stop", "wait", "update", "state:start", "wait", "get"}, *calls)
+}
+
+func TestClickPipeResource_Update_GuardToleratesAlreadyRunning(t *testing.T) {
+	// If the edit fails and the recovery resume finds the pipe already running
+	// (e.g. resumed out of band), the failed-edit error must surface but the
+	// "may be left paused" warning must not — the pipe is not paused.
+	ctx := context.Background()
+	state := postgresUpdateModel(ctx, t, "users")
+	plan := postgresUpdateModel(ctx, t, "users", "orders")
+
+	mc := minimock.NewController(t)
+	mock, calls := pauseEditClientMock(mc, postgresAPIPipe(api.ClickPipeRunningState, "users"), func(int) (*api.ClickPipe, error) {
+		return nil, errors.New("status: 500, body: internal error")
+	})
+	mock.ChangeClickPipeStateMock.Set(func(_ context.Context, _, _, command string) (*api.ClickPipe, error) {
+		*calls = append(*calls, "state:"+command)
+		if command == api.ClickPipeStateStart {
+			return nil, alreadyRunning400
+		}
+		return nil, nil
+	})
+
+	resp := driveClickPipeUpdate(ctx, t, &ClickPipeResource{client: mock}, state, plan)
+
+	assert.True(t, resp.Diagnostics.HasError(), "the failed PATCH must still surface its error")
+	for _, d := range resp.Diagnostics.Warnings() {
+		assert.NotEqual(t, "ClickPipe may be left paused", d.Summary(),
+			"an already-running pipe must not be reported as possibly paused")
+	}
+	assert.Equal(t, []string{"state:stop", "wait", "update", "state:start"}, *calls)
+}

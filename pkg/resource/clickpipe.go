@@ -71,6 +71,12 @@ const (
 	// paused to edit". Source-type prefix intentionally excluded.
 	clickPipeMustBePausedError = "must be paused to edit"
 
+	// clickPipeAlreadyRunningError identifies the 400 returned for a start
+	// command on a pipe that is already running — the API's post-edit
+	// auto-resume can race a start issued by the provider, and "already
+	// running" is exactly the state a start seeks.
+	clickPipeAlreadyRunningError = "ClickPipe is already running"
+
 	// ClickPipe destination table engine types
 	ClickPipeEngineMergeTree          = "MergeTree"
 	ClickPipeEngineReplacingMergeTree = "ReplacingMergeTree"
@@ -5535,7 +5541,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	// reconciliation below issues start/stop per the plan.
 	defer func() {
 		if pausedForEdit && response.Diagnostics.HasError() && !plan.Stopped.ValueBool() {
-			if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), api.ClickPipeStateStart); err != nil {
+			if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), api.ClickPipeStateStart); err != nil && !api.IsBadRequestWith(err, clickPipeAlreadyRunningError) {
 				response.Diagnostics.AddWarning(
 					"ClickPipe may be left paused",
 					"The ClickPipe was paused to apply an edit that failed, and resuming it also failed: "+err.Error()+
@@ -5624,11 +5630,17 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 	if command != "" {
 		if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), command); err != nil {
-			response.Diagnostics.AddError(
-				"Error Changing ClickPipe State",
-				"Could not change ClickPipe state, unexpected error: "+err.Error(),
-			)
-			return
+			// The API auto-resumes a paused pipe after validating an edit, and that
+			// transition can land before this start does. "already running" is the
+			// state a start seeks, so treat it as success; the wait below still
+			// confirms the pipe settles in the desired state.
+			if command != api.ClickPipeStateStart || !api.IsBadRequestWith(err, clickPipeAlreadyRunningError) {
+				response.Diagnostics.AddError(
+					"Error Changing ClickPipe State",
+					"Could not change ClickPipe state, unexpected error: "+err.Error(),
+				)
+				return
+			}
 		}
 	}
 
