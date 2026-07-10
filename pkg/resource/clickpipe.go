@@ -3775,11 +3775,12 @@ func convertMongoDBTableMappingModelToAPI(ctx context.Context, diagnostics *diag
 	return mapping
 }
 
-// isClickPipeStoppedState reports whether the pipe is in a terminal paused state
-// (Stopped or Paused), as opposed to a transitional Stopping/Pausing state. CDC
-// sources (Postgres/MySQL/MongoDB) only permit table_mappings edits while the pipe
-// is paused, so this gates the pause-before-edit and is the state to wait for.
-func isClickPipeStoppedState(state string) bool {
+// isClickPipeStoppedOrPaused reports whether the pipe has settled into a
+// terminal non-running state — the API reports Stopped for streaming pipes and
+// Paused for CDC pipes (Postgres/MySQL/MongoDB) — as opposed to a transitional
+// Stopping/Pausing state. CDC pipes only accept table_mappings edits in these
+// states, so this also gates the pause-before-edit orchestration.
+func isClickPipeStoppedOrPaused(state string) bool {
 	return state == api.ClickPipeStoppedState || state == api.ClickPipePausedState
 }
 
@@ -3791,7 +3792,7 @@ func (c *ClickPipeResource) pauseClickPipeForEdit(ctx context.Context, serviceID
 	if _, err := c.client.ChangeClickPipeState(ctx, serviceID, pipeID, api.ClickPipeStateStop); err != nil {
 		return false, fmt.Errorf("could not pause ClickPipe: %w", err)
 	}
-	if _, err := c.client.WaitForClickPipeState(ctx, serviceID, pipeID, isClickPipeStoppedState, clickPipeStateChangeMaxWait); err != nil {
+	if _, err := c.client.WaitForClickPipeState(ctx, serviceID, pipeID, isClickPipeStoppedOrPaused, clickPipeStateChangeMaxWait); err != nil {
 		return true, fmt.Errorf("ClickPipe did not reach a paused state: %w", err)
 	}
 	return true, nil
@@ -3800,7 +3801,7 @@ func (c *ClickPipeResource) pauseClickPipeForEdit(ctx context.Context, serviceID
 func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.ClickPipeResourceModel) func(string) bool {
 	// If stopped, wait for Stopped (streaming pipes) or Paused (CDC pipes — Postgres/MySQL/MongoDB).
 	if plan.Stopped.ValueBool() {
-		return isClickPipeStoppedState
+		return isClickPipeStoppedOrPaused
 	}
 
 	// Check if this is a snapshot-only DB pipe (Postgres/MySQL snapshot mode or BigQuery)
@@ -5550,7 +5551,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			}
 		}
 	}()
-	if requiresPauseForEdit && !isClickPipeStoppedState(liveState) {
+	if requiresPauseForEdit && !isClickPipeStoppedOrPaused(liveState) {
 		stopIssued, err := c.pauseClickPipeForEdit(ctx, state.ServiceID.ValueString(), state.ID.ValueString())
 		pausedForEdit = stopIssued
 		if err != nil {

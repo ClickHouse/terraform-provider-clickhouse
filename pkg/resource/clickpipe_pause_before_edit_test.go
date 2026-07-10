@@ -20,11 +20,11 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 
-// isClickPipeStoppedState gates the pause-before-edit for CDC table_mappings
+// isClickPipeStoppedOrPaused gates the pause-before-edit for CDC table_mappings
 // changes and is the state we wait for. It must recognize only the terminal
 // paused states (Stopped/Paused), not transitional (Stopping/Pausing) or active
 // states, or an edit could be issued against a pipe that is not yet editable.
-func TestIsClickPipeStoppedState(t *testing.T) {
+func TestIsClickPipeStoppedOrPaused(t *testing.T) {
 	t.Parallel()
 
 	testCases := map[string]struct {
@@ -45,8 +45,8 @@ func TestIsClickPipeStoppedState(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if got := isClickPipeStoppedState(tc.state); got != tc.expected {
-				t.Errorf("isClickPipeStoppedState(%q) = %v, want %v", tc.state, got, tc.expected)
+			if got := isClickPipeStoppedOrPaused(tc.state); got != tc.expected {
+				t.Errorf("isClickPipeStoppedOrPaused(%q) = %v, want %v", tc.state, got, tc.expected)
 			}
 		})
 	}
