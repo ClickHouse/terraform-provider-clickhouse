@@ -36,13 +36,6 @@ func ipAccessObjectType() types.ObjectType {
 	}}
 }
 
-func privateEndpointConfigObjectType() types.ObjectType {
-	return types.ObjectType{AttrTypes: map[string]attr.Type{
-		"endpoint_service_id":  types.StringType,
-		"private_dns_hostname": types.StringType,
-	}}
-}
-
 // serviceObjectType is the shared object type for both data sources.
 func serviceObjectType() types.ObjectType {
 	return types.ObjectType{AttrTypes: map[string]attr.Type{
@@ -70,7 +63,6 @@ func serviceObjectType() types.ObjectType {
 		"iam_role":                           types.StringType,
 		"ip_access":                          types.ListType{ElemType: ipAccessObjectType()},
 		"private_endpoint_ids":               types.ListType{ElemType: types.StringType},
-		"private_endpoint_config":            privateEndpointConfigObjectType(),
 		"encryption_key":                     types.StringType,
 		"encryption_assumed_role_identifier": types.StringType,
 		"has_transparent_data_encryption":    types.BoolType,
@@ -147,17 +139,6 @@ func serviceToObjectValue(ctx context.Context, svc api.Service) (types.Object, d
 	privateEndpointIds, d := types.ListValue(types.StringType, pidElems)
 	diags.Append(d...)
 
-	// private endpoint config
-	privateEndpointConfig := types.ObjectNull(privateEndpointConfigObjectType().AttrTypes)
-	if svc.PrivateEndpointConfig != nil {
-		o, d := types.ObjectValue(privateEndpointConfigObjectType().AttrTypes, map[string]attr.Value{
-			"endpoint_service_id":  types.StringValue(svc.PrivateEndpointConfig.EndpointServiceId),
-			"private_dns_hostname": types.StringValue(svc.PrivateEndpointConfig.PrivateDnsHostname),
-		})
-		diags.Append(d...)
-		privateEndpointConfig = o
-	}
-
 	// tags (reuse postgres helper)
 	tags, d := apiTagsToStringMap(svc.Tags)
 	diags.Append(d...)
@@ -187,7 +168,6 @@ func serviceToObjectValue(ctx context.Context, svc api.Service) (types.Object, d
 		"iam_role":                           strOrNull(svc.IAMRole),
 		"ip_access":                          ipAccess,
 		"private_endpoint_ids":               privateEndpointIds,
-		"private_endpoint_config":            privateEndpointConfig,
 		"encryption_key":                     strOrNull(svc.EncryptionKey),
 		"encryption_assumed_role_identifier": strOrNull(svc.EncryptionAssumedRoleIdentifier),
 		"has_transparent_data_encryption":    types.BoolValue(svc.HasTransparentDataEncryption),
@@ -232,11 +212,7 @@ func serviceComputedAttributes() map[string]schema.Attribute {
 				"description": schema.StringAttribute{Computed: true},
 			},
 		}},
-		"private_endpoint_ids": schema.ListAttribute{Computed: true, ElementType: types.StringType},
-		"private_endpoint_config": schema.SingleNestedAttribute{Computed: true, Attributes: map[string]schema.Attribute{
-			"endpoint_service_id":  schema.StringAttribute{Computed: true},
-			"private_dns_hostname": schema.StringAttribute{Computed: true},
-		}},
+		"private_endpoint_ids":               schema.ListAttribute{Computed: true, ElementType: types.StringType},
 		"encryption_key":                     schema.StringAttribute{Computed: true},
 		"encryption_assumed_role_identifier": schema.StringAttribute{Computed: true},
 		"has_transparent_data_encryption":    schema.BoolAttribute{Computed: true},
@@ -323,7 +299,6 @@ type serviceDataSourceModel struct {
 	IAMRole                        types.String `tfsdk:"iam_role"`
 	IpAccess                       types.List   `tfsdk:"ip_access"`
 	PrivateEndpointIds             types.List   `tfsdk:"private_endpoint_ids"`
-	PrivateEndpointConfig          types.Object `tfsdk:"private_endpoint_config"`
 	EncryptionKey                  types.String `tfsdk:"encryption_key"`
 	EncryptionAssumedRoleID        types.String `tfsdk:"encryption_assumed_role_identifier"`
 	HasTransparentDataEncryption   types.Bool   `tfsdk:"has_transparent_data_encryption"`

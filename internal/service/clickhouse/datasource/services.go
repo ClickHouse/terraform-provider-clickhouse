@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
@@ -41,6 +42,23 @@ func tagFiltersFromMap(tags map[string]string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// servicesToListValue maps a slice of api.Service into the shared list value
+// used by the plural data source's "services" attribute. Extracted from Read
+// so the mapping is independently testable. A nil/empty slice yields a known
+// empty list, not a null one.
+func servicesToListValue(ctx context.Context, items []api.Service) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	elems := make([]attr.Value, 0, len(items))
+	for _, it := range items {
+		obj, d := serviceToObjectValue(ctx, it)
+		diags.Append(d...)
+		elems = append(elems, obj)
+	}
+	list, d := types.ListValue(serviceObjectType(), elems)
+	diags.Append(d...)
+	return list, diags
 }
 
 func (d *servicesDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -98,17 +116,7 @@ func (d *servicesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	elems := make([]attr.Value, 0, len(items))
-	for _, it := range items {
-		obj, diags := serviceToObjectValue(ctx, it)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		elems = append(elems, obj)
-	}
-
-	list, diags := types.ListValue(serviceObjectType(), elems)
+	list, diags := servicesToListValue(ctx, items)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

@@ -57,7 +57,6 @@ output "service_endpoints" {
 - `min_total_memory_gb` (Number)
 - `name` (String)
 - `num_replicas` (Number)
-- `private_endpoint_config` (Attributes) (see [below for nested schema](#nestedatt--private_endpoint_config))
 - `private_endpoint_ids` (List of String)
 - `readonly` (Boolean)
 - `region` (String)
@@ -85,12 +84,3 @@ Read-Only:
 
 - `description` (String)
 - `source` (String)
-
-
-<a id="nestedatt--private_endpoint_config"></a>
-### Nested Schema for `private_endpoint_config`
-
-Read-Only:
-
-- `endpoint_service_id` (String)
-- `private_dns_hostname` (String)

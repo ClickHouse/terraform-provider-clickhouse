@@ -93,11 +93,7 @@ func TestServiceToObjectValue_MapsNestedAccessAndEncryption(t *testing.T) {
 		Region:             "eu-west-1",
 		IpAccessList:       []api.IpAccess{{Source: "1.2.3.4", Description: "office"}},
 		PrivateEndpointIds: []string{"pe-1", "pe-2"},
-		PrivateEndpointConfig: &api.ServicePrivateEndpointConfig{
-			EndpointServiceId:  "esid",
-			PrivateDnsHostname: "dns",
-		},
-		EncryptionKey: "kkk",
+		EncryptionKey:      "kkk",
 	}
 
 	obj, diags := serviceToObjectValue(ctx, svc)
@@ -117,10 +113,6 @@ func TestServiceToObjectValue_MapsNestedAccessAndEncryption(t *testing.T) {
 	pids := attrs["private_endpoint_ids"].(types.List).Elements()
 	if len(pids) != 2 {
 		t.Errorf("private_endpoint_ids len = %d; want 2", len(pids))
-	}
-	pec := attrs["private_endpoint_config"].(types.Object).Attributes()
-	if got := pec["endpoint_service_id"].(types.String).ValueString(); got != "esid" {
-		t.Errorf("endpoint_service_id = %q; want esid", got)
 	}
 	if got := attrs["encryption_key"].(types.String).ValueString(); got != "kkk" {
 		t.Errorf("encryption_key = %q; want kkk", got)
