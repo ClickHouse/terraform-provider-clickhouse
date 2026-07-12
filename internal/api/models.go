@@ -81,6 +81,8 @@ type Service struct {
 	EncryptionRoleID                string                        `json:"encryptionRoleId,omitempty"`
 	BackupConfiguration             *BackupConfiguration          `json:"backupConfiguration,omitempty"`
 	ReleaseChannel                  string                        `json:"releaseChannel,omitempty"`
+	ClickHouseVersion               string                        `json:"clickhouseVersion,omitempty"`
+	CreatedAt                       string                        `json:"createdAt,omitempty"`
 	QueryAPIEndpoints               *ServiceQueryEndpoint         `json:"-"`
 	BackupID                        *string                       `json:"backupId,omitempty"`
 	ComplianceType                  *string                       `json:"complianceType,omitempty"`
