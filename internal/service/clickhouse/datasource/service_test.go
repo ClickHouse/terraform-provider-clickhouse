@@ -2,8 +2,10 @@ package datasource
 
 import (
 	"context"
+	"sort"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
@@ -171,5 +173,17 @@ func TestServiceObjectRoundTripsToModel(t *testing.T) {
 	}
 	if m.NumReplicas.ValueInt64() != 2 {
 		t.Errorf("NumReplicas = %d; want 2", m.NumReplicas.ValueInt64())
+	}
+}
+
+func TestTagFiltersFromMap(t *testing.T) {
+	got := tagFiltersFromMap(map[string]string{"Env": "prod", "Team": "data"})
+	sort.Strings(got)
+	want := []string{"tag:Env=prod", "tag:Team=data"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("tagFiltersFromMap mismatch (-want +got):\n%s", diff)
+	}
+	if got := tagFiltersFromMap(nil); got != nil {
+		t.Errorf("nil map => %v; want nil", got)
 	}
 }
