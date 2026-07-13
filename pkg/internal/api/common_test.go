@@ -3,11 +3,31 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
+
+// newTestClient spins up an httptest.Server with the given handler and
+// returns a *ClientImpl pointed at it. Shared across the API test suites.
+func newTestClient(t *testing.T, handler http.HandlerFunc) (*ClientImpl, *httptest.Server) {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	client, err := NewClient(ClientConfig{
+		ApiURL:         server.URL,
+		OrganizationID: testOrgID,
+		TokenKey:       "key",
+		TokenSecret:    "secret",
+	})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	return client, server
+}
 
 func TestRedactSensitiveBody(t *testing.T) {
 	cases := []struct {

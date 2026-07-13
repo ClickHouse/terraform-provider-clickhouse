@@ -12,6 +12,7 @@ const (
 	StateProvisioning = "provisioning"
 	StateStopped      = "stopped"
 	StateStopping     = "stopping"
+	StateRunning      = "running"
 
 	ResponseHeaderRateLimitReset = "X-RateLimit-Reset"
 

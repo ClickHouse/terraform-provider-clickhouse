@@ -1,7 +1,5 @@
 You can use the *clickhouse_role* resource to manage custom RBAC roles in ClickHouse Cloud.
 
-~> **Note:** This resource is in alpha. To assign actors (users or API keys) to a role, use the `clickhouse_role_assignment` resource.
-
 ## Example Usage
 
 ```hcl
