@@ -135,7 +135,7 @@ resource "clickhouse_service_scheduled_scaling" "example" {
 
 ### Required
 
-- `entries` (Attributes Set) Recurring scaling windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment; otherwise base_config applies. (see [below for nested schema](#nestedatt--entries))
+- `entries` (Attributes List) Recurring scaling windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment; otherwise base_config applies. (see [below for nested schema](#nestedatt--entries))
 - `service_id` (String) ClickHouse Cloud service ID this schedule applies to.
 
 ### Read-Only

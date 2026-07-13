@@ -135,25 +135,25 @@ func TestApplyScheduleToState_CapturesAllEntries(t *testing.T) {
 	}
 }
 
-// buildEntrySet constructs a types.Set of ScheduledScalingEntryModel for
+// buildEntryList constructs a types.List of ScheduledScalingEntryModel for
 // driving planEntriesToAPI in tests.
-func buildEntrySet(t *testing.T, entries ...models.ScheduledScalingEntryModel) types.Set {
+func buildEntryList(t *testing.T, entries ...models.ScheduledScalingEntryModel) types.List {
 	t.Helper()
 	values := make([]attr.Value, len(entries))
 	for i, e := range entries {
 		values[i] = e.ObjectValue()
 	}
-	set, diags := types.SetValue(models.ScheduledScalingEntryModel{}.ObjectType(), values)
+	list, diags := types.ListValue(models.ScheduledScalingEntryModel{}.ObjectType(), values)
 	if diags.HasError() {
-		t.Fatalf("SetValue: %v", diags)
+		t.Fatalf("ListValue: %v", diags)
 	}
-	return set
+	return list
 }
 
 func TestPlanEntriesToAPI_EmptyAndNullInputs(t *testing.T) {
 	ctx := context.Background()
 
-	got, diags := planEntriesToAPI(ctx, types.SetNull(models.ScheduledScalingEntryModel{}.ObjectType()))
+	got, diags := planEntriesToAPI(ctx, types.ListNull(models.ScheduledScalingEntryModel{}.ObjectType()))
 	if diags.HasError() {
 		t.Fatalf("null input diags: %v", diags)
 	}
@@ -161,7 +161,7 @@ func TestPlanEntriesToAPI_EmptyAndNullInputs(t *testing.T) {
 		t.Errorf("null input: len = %d; want 0", len(got))
 	}
 
-	got, diags = planEntriesToAPI(ctx, buildEntrySet(t))
+	got, diags = planEntriesToAPI(ctx, buildEntryList(t))
 	if diags.HasError() {
 		t.Fatalf("empty input diags: %v", diags)
 	}
@@ -191,7 +191,7 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 		IdleTimeoutMinutes: types.Int64Value(15),
 	}
 
-	got, diags := planEntriesToAPI(context.Background(), buildEntrySet(t, entry))
+	got, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -372,7 +372,7 @@ func TestPlanEntriesToAPI_OmitsNullOptionalFields(t *testing.T) {
 		IdleTimeoutMinutes: types.Int64Null(),
 	}
 
-	got, diags := planEntriesToAPI(context.Background(), buildEntrySet(t, entry))
+	got, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -452,7 +452,7 @@ func TestRoundTrip_NoServerNormalization(t *testing.T) {
 		IdleScaling:        types.BoolValue(true),
 		IdleTimeoutMinutes: types.Int64Value(15),
 	}
-	planList := buildEntrySet(t, planEntry)
+	planList := buildEntryList(t, planEntry)
 
 	apiEntries, d := planEntriesToAPI(ctx, planList)
 	if d.HasError() {
@@ -500,5 +500,96 @@ func TestRoundTrip_NoServerNormalization(t *testing.T) {
 	sort.Ints(got)
 	if !reflect.DeepEqual(got, []int{1, 2, 3}) {
 		t.Errorf("weekdays = %v; want [1 2 3]", got)
+	}
+}
+
+// TestRoundTrip_NonIdleEntryServerOmitsIdleFields reproduces the reported
+// "Provider produced inconsistent result after apply" bug: for a non-idle
+// entry the server omits idleScaling/idleTimeoutMinutes from its response.
+// idle_scaling must map back to an explicit false (not null) so it correlates
+// with a user's idle_scaling = false. idle_timeout_minutes stays null and is
+// expected to be left unset (or Computed) by the caller.
+func TestRoundTrip_NonIdleEntryServerOmitsIdleFields(t *testing.T) {
+	ctx := context.Background()
+
+	// Server echoes a memory-based, non-idle entry but omits the idle fields.
+	serverResponse := &api.AutoScalingSchedule{
+		Entries: []api.AutoScalingScheduleEntry{
+			{
+				Name:               "Business Hours",
+				Weekdays:           []int{0, 1, 2, 3, 4, 5, 6},
+				StartHourUtc:       5,
+				EndHourUtc:         19,
+				MinReplicaMemoryGb: intPtr(236),
+				MaxReplicaMemoryGb: intPtr(236),
+				MinReplicas:        intPtr(10),
+				MaxReplicas:        intPtr(10),
+				IdleScaling:        nil, // server omits for non-idle entries
+				IdleTimeoutMinutes: nil,
+			},
+		},
+	}
+
+	state := &models.ServiceScheduledScalingResourceModel{}
+	if d := applyScheduleToState(serverResponse, state); d.HasError() {
+		t.Fatalf("applyScheduleToState: %v", d)
+	}
+
+	var entries []models.ScheduledScalingEntryModel
+	if d := state.Entries.ElementsAs(ctx, &entries, false); d.HasError() {
+		t.Fatalf("ElementsAs: %v", d)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("len = %d; want 1", len(entries))
+	}
+	e := entries[0]
+	if e.IdleScaling.IsNull() {
+		t.Errorf("idle_scaling is null; want explicit false so it correlates with the plan")
+	}
+	if e.IdleScaling.ValueBool() {
+		t.Errorf("idle_scaling = true; want false")
+	}
+	if !e.IdleTimeoutMinutes.IsNull() {
+		t.Errorf("idle_timeout_minutes = %v; want null when server omits it", e.IdleTimeoutMinutes)
+	}
+}
+
+// TestOrderEntriesToPrior asserts the API response is reordered to follow the
+// plan/state order, so the list attribute stays stable when the server returns
+// entries in a different order.
+func TestOrderEntriesToPrior(t *testing.T) {
+	nameOnly := func(n string) models.ScheduledScalingEntryModel {
+		return models.ScheduledScalingEntryModel{
+			Name:               types.StringValue(n),
+			Weekdays:           types.SetNull(types.Int64Type),
+			StartHourUtc:       types.Int64Null(),
+			EndHourUtc:         types.Int64Null(),
+			MinReplicaMemoryGb: types.Int64Null(),
+			MaxReplicaMemoryGb: types.Int64Null(),
+			MinReplicas:        types.Int64Null(),
+			MaxReplicas:        types.Int64Null(),
+			IdleScaling:        types.BoolNull(),
+			IdleTimeoutMinutes: types.Int64Null(),
+		}
+	}
+	prior := buildEntryList(t, nameOnly("a"), nameOnly("b"), nameOnly("c"))
+
+	// Server returns them shuffled.
+	apiEntries := []api.AutoScalingScheduleEntry{
+		{Name: "c"}, {Name: "a"}, {Name: "b"},
+	}
+
+	got := orderEntriesToPrior(apiEntries, prior)
+	gotNames := []string{got[0].Name, got[1].Name, got[2].Name}
+	if !reflect.DeepEqual(gotNames, []string{"a", "b", "c"}) {
+		t.Errorf("order = %v; want [a b c]", gotNames)
+	}
+
+	// A server-only entry (not in prior) is appended after the matched ones.
+	apiEntries = []api.AutoScalingScheduleEntry{{Name: "b"}, {Name: "new"}, {Name: "a"}}
+	got = orderEntriesToPrior(apiEntries, prior)
+	gotNames = []string{got[0].Name, got[1].Name, got[2].Name}
+	if !reflect.DeepEqual(gotNames, []string{"a", "b", "new"}) {
+		t.Errorf("order with extra = %v; want [a b new]", gotNames)
 	}
 }

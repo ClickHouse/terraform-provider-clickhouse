@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -66,12 +67,20 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"entries": schema.SetNestedAttribute{
+			"entries": schema.ListNestedAttribute{
+				// A list (not a set) is deliberate: entries carry Computed
+				// nested attributes (replicas/memory/idle_*) that the server may
+				// fill in or normalize. Terraform cannot correlate set elements
+				// that contain unknown values, nor tolerate any post-apply
+				// normalization of a set element, which surfaces as "Provider
+				// produced inconsistent result after apply ... does not correlate
+				// with any element in actual". A list correlates by index and
+				// permits Computed fields to resolve after apply.
 				Description: "Recurring scaling windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment; otherwise base_config applies.",
 				Required:    true,
-				Validators: []validator.Set{
-					setvalidator.SizeAtLeast(1),
-					setvalidator.SizeAtMost(api.MaxAutoScalingScheduleEntries),
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+					listvalidator.SizeAtMost(api.MaxAutoScalingScheduleEntries),
 				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -408,15 +417,15 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 }
 
 // planEntriesToAPI converts the Terraform plan set of entries into API entries.
-func planEntriesToAPI(ctx context.Context, entriesSet types.Set) ([]api.AutoScalingScheduleEntry, diag.Diagnostics) {
+func planEntriesToAPI(ctx context.Context, entriesList types.List) ([]api.AutoScalingScheduleEntry, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if entriesSet.IsNull() || entriesSet.IsUnknown() {
+	if entriesList.IsNull() || entriesList.IsUnknown() {
 		return []api.AutoScalingScheduleEntry{}, diags
 	}
 
 	var entryModels []models.ScheduledScalingEntryModel
-	diags.Append(entriesSet.ElementsAs(ctx, &entryModels, false)...)
+	diags.Append(entriesList.ElementsAs(ctx, &entryModels, false)...)
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -474,13 +483,55 @@ func planEntriesToAPI(ctx context.Context, entriesSet types.Set) ([]api.AutoScal
 	return result, diags
 }
 
+// orderEntriesToPrior reorders apiEntries to follow the entry-name order of
+// prior (the current plan or state list) so the list attribute stays stable
+// regardless of the order the API returns entries in. Entries whose names are
+// not present in prior keep their server order and are appended at the end.
+func orderEntriesToPrior(apiEntries []api.AutoScalingScheduleEntry, prior types.List) []api.AutoScalingScheduleEntry {
+	if prior.IsNull() || prior.IsUnknown() || len(prior.Elements()) == 0 {
+		return apiEntries
+	}
+
+	var priorModels []models.ScheduledScalingEntryModel
+	if d := prior.ElementsAs(context.Background(), &priorModels, false); d.HasError() {
+		// Fall back to server order if the prior list can't be decoded.
+		return apiEntries
+	}
+
+	firstIndexByName := make(map[string]int, len(apiEntries))
+	for i, e := range apiEntries {
+		if _, seen := firstIndexByName[e.Name]; !seen {
+			firstIndexByName[e.Name] = i
+		}
+	}
+
+	used := make([]bool, len(apiEntries))
+	ordered := make([]api.AutoScalingScheduleEntry, 0, len(apiEntries))
+	for _, pm := range priorModels {
+		if idx, ok := firstIndexByName[pm.Name.ValueString()]; ok && !used[idx] {
+			ordered = append(ordered, apiEntries[idx])
+			used[idx] = true
+		}
+	}
+	for i, e := range apiEntries {
+		if !used[i] {
+			ordered = append(ordered, e)
+		}
+	}
+	return ordered
+}
+
 // applyScheduleToState maps an API AutoScalingSchedule response into the
 // Terraform state model.
 func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.ServiceScheduledScalingResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	entryValues := make([]attr.Value, len(schedule.Entries))
-	for i, e := range schedule.Entries {
+	// Preserve the plan/state ordering so the list attribute does not churn if
+	// the API returns entries in a different order than they were written.
+	ordered := orderEntriesToPrior(schedule.Entries, state.Entries)
+
+	entryValues := make([]attr.Value, len(ordered))
+	for i, e := range ordered {
 		entryModel, d := apiEntryToModel(e)
 		diags.Append(d...)
 		if diags.HasError() {
@@ -488,12 +539,12 @@ func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.Servi
 		}
 		entryValues[i] = entryModel.ObjectValue()
 	}
-	entriesSet, d := types.SetValue(models.ScheduledScalingEntryModel{}.ObjectType(), entryValues)
+	entriesList, d := types.ListValue(models.ScheduledScalingEntryModel{}.ObjectType(), entryValues)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
 	}
-	state.Entries = entriesSet
+	state.Entries = entriesList
 
 	if schedule.BaseConfig != nil {
 		state.BaseConfig = apiBaseConfigToModel(*schedule.BaseConfig).ObjectValue()
@@ -526,7 +577,11 @@ func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEnt
 		MaxReplicaMemoryGb: int64PtrToValue(e.MaxReplicaMemoryGb),
 		MinReplicas:        int64PtrToValue(e.MinReplicas),
 		MaxReplicas:        int64PtrToValue(e.MaxReplicas),
-		IdleScaling:        boolPtrToValue(e.IdleScaling),
+		// idle_scaling has a meaningful default of false, and the server omits
+		// it for non-idle entries. Map a nil response to an explicit false so it
+		// round-trips against a user's idle_scaling = false instead of becoming
+		// null (which would never correlate with the plan).
+		IdleScaling:        boolPtrToValueDefaultFalse(e.IdleScaling),
 		IdleTimeoutMinutes: int64PtrToValue(e.IdleTimeoutMinutes),
 	}
 
@@ -554,6 +609,16 @@ func int64PtrToValue(v *int) types.Int64 {
 func boolPtrToValue(v *bool) types.Bool {
 	if v == nil {
 		return types.BoolNull()
+	}
+	return types.BoolValue(*v)
+}
+
+// boolPtrToValueDefaultFalse maps a nil pointer to an explicit false rather than
+// null. Used for entry idle_scaling, which has a meaningful default of false and
+// is omitted by the server for non-idle entries.
+func boolPtrToValueDefaultFalse(v *bool) types.Bool {
+	if v == nil {
+		return types.BoolValue(false)
 	}
 	return types.BoolValue(*v)
 }
