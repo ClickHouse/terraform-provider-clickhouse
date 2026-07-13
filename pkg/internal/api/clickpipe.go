@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 const (
@@ -363,12 +364,42 @@ func (c *ClientImpl) getClickPipePath(serviceId, clickPipeId, path string) strin
 	return c.getServicePath(serviceId, fmt.Sprintf("/clickpipes/%s%s", clickPipeId, path))
 }
 
+// serviceWakeMaxWaitSeconds caps how long doClickPipeRequest waits for an idle
+// service to reach the running state after sending the awake command.
+const serviceWakeMaxWaitSeconds = 10 * 60
+
+// doClickPipeRequest sends a ClickPipes API request through doRequest.
+// The ClickPipes API rejects requests with 424 FAILED_DEPENDENCY while the
+// target service is idle; in that case the service is woken up, we wait for it
+// to reach the running state and the original request is retried once.
+// https://github.com/ClickHouse/terraform-provider-clickhouse/issues/376
+func (c *ClientImpl) doClickPipeRequest(ctx context.Context, serviceId string, req *http.Request) ([]byte, error) {
+	body, err := c.doRequest(ctx, req)
+	if !IsServiceIdle(err) {
+		return body, err
+	}
+
+	tflog.Info(ctx, "ClickHouse service is idle; waking it up before retrying the ClickPipes request", map[string]any{
+		"serviceId": serviceId,
+	})
+
+	if wakeErr := c.wakeService(ctx, serviceId); wakeErr != nil {
+		return nil, fmt.Errorf("service %s is idle and waking it up failed: %w", serviceId, wakeErr)
+	}
+
+	if waitErr := c.waitForServiceRunning(ctx, serviceId, serviceWakeMaxWaitSeconds); waitErr != nil {
+		return nil, fmt.Errorf("service %s is idle and did not reach the running state after waking it up: %w", serviceId, waitErr)
+	}
+
+	return c.doRequest(ctx, req)
+}
+
 func (c *ClientImpl) GetClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getClickPipePath(serviceId, clickPipeId, ""), nil)
 	if err != nil {
 		return nil, err
 	}
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +424,7 @@ func (c *ClientImpl) CreateClickPipe(ctx context.Context, serviceId string, clic
 		return nil, err
 	}
 
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -417,7 +448,7 @@ func (c *ClientImpl) UpdateClickPipe(ctx context.Context, serviceId string, clic
 		return nil, err
 	}
 
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -469,7 +500,7 @@ func (c *ClientImpl) ScalingClickPipe(ctx context.Context, serviceId string, cli
 		return nil, err
 	}
 
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -494,7 +525,7 @@ func (c *ClientImpl) ChangeClickPipeState(ctx context.Context, serviceId string,
 	if err != nil {
 		return nil, err
 	}
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -512,7 +543,7 @@ func (c *ClientImpl) DeleteClickPipe(ctx context.Context, serviceId string, clic
 	if err != nil {
 		return err
 	}
-	_, err = c.doRequest(ctx, req)
+	_, err = c.doClickPipeRequest(ctx, serviceId, req)
 	return err
 }
 
@@ -521,7 +552,7 @@ func (c *ClientImpl) GetClickPipeSettings(ctx context.Context, serviceId string,
 	if err != nil {
 		return nil, err
 	}
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -545,7 +576,7 @@ func (c *ClientImpl) UpdateClickPipeSettings(ctx context.Context, serviceId stri
 		return nil, err
 	}
 
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +604,7 @@ func (c *ClientImpl) GetClickPipeCdcScaling(ctx context.Context, serviceId strin
 	if err != nil {
 		return nil, err
 	}
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -597,7 +628,7 @@ func (c *ClientImpl) UpdateClickPipeCdcScaling(ctx context.Context, serviceId st
 		return nil, err
 	}
 
-	body, err := c.doRequest(ctx, req)
+	body, err := c.doClickPipeRequest(ctx, serviceId, req)
 	if err != nil {
 		return nil, err
 	}
