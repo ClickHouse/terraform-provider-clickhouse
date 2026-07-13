@@ -77,7 +77,7 @@ jobs:
     runs-on: k8s-nano
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Find TF releases
         uses: ./.github/actions/find-tf-releases
@@ -91,7 +91,7 @@ jobs:
     runs-on: k8s-nano
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - uses: ./.github/actions/list-examples
         id: list
@@ -113,7 +113,7 @@ jobs:
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -200,7 +200,7 @@ jobs:
         test: ${{ fromJSON(needs.list-examples.outputs.examples) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -291,7 +291,7 @@ jobs:
         test_name : ["generic"]
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -353,7 +353,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Get API details for env
         id: credentials
@@ -384,7 +384,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: "main"
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
@@ -480,7 +480,7 @@ jobs:
     if: ${{ always() && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' && needs.bump-examples.result == 'success' }}
     steps:
     - name: Checkout
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         ref: "main"
     - name: Create tag
@@ -513,7 +513,7 @@ jobs:
     if: ${{ always() && needs.validate.result == 'success' && needs.tag.result == 'success' && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: v${{inputs.version}}
           # Allow goreleaser to access older tag information.
@@ -575,7 +575,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
           ref: "main"
