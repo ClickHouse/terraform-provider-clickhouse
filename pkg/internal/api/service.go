@@ -130,6 +130,76 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 	return nil
 }
 
+// getServiceState returns just the service state. Unlike GetService it does
+// not fan out to the private endpoint config, backup configuration and query
+// endpoints sub-resources, so it is cheap enough to poll.
+func (c *ClientImpl) getServiceState(ctx context.Context, serviceId string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, ""), nil)
+	if err != nil {
+		return "", err
+	}
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	serviceResponse := ResponseWithResult[Service]{}
+	if err := json.Unmarshal(body, &serviceResponse); err != nil {
+		return "", err
+	}
+
+	return serviceResponse.Result.State, nil
+}
+
+// wakeService asks the API to un-idle the service. The "awake" command is a
+// no-op on a service that is already running or waking up.
+func (c *ClientImpl) wakeService(ctx context.Context, serviceId string) error {
+	rb, err := json.Marshal(ServiceStateUpdate{
+		Command: "awake",
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, c.getServicePath(serviceId, "/state"), strings.NewReader(string(rb)))
+	if err != nil {
+		return err
+	}
+
+	_, err = c.doRequest(ctx, req)
+	return err
+}
+
+// waitForServiceRunning polls the service state until it is running — the
+// only state in which the ClickPipes API accepts creations and updates
+// (partially_running is NOT sufficient). It is a lightweight alternative to
+// WaitForServiceState for internal use (e.g. after wakeService), polling only
+// the state instead of the full GetService fan-out.
+func (c *ClientImpl) waitForServiceRunning(ctx context.Context, serviceId string, maxWaitSeconds int) error {
+	checkState := func() error {
+		state, err := c.getServiceState(ctx, serviceId)
+		if is5xx(err) {
+			// 500s are automatically retried in `doRequest`.
+			// If we get it here, we consider it an unrecoverable error.
+			return backoff.Permanent(err)
+		} else if err != nil {
+			return err
+		}
+
+		if state == StateRunning {
+			return nil
+		}
+
+		return fmt.Errorf("service %s is in state %s", serviceId, state)
+	}
+
+	if maxWaitSeconds < 5 {
+		maxWaitSeconds = 5
+	}
+
+	return backoff.Retry(checkState, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)), ctx)) //nolint:gosec
+}
+
 func (c *ClientImpl) UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error) {
 	rb, err := json.Marshal(s)
 	if err != nil {
