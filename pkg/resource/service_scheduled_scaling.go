@@ -235,7 +235,7 @@ func (r *ServiceScheduledScalingResource) Create(ctx context.Context, req resour
 		return
 	}
 
-	entries, d := planEntriesToAPI(ctx, plan.Entries)
+	entries, planModels, d := planEntriesToAPI(ctx, plan.Entries)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -255,7 +255,7 @@ func (r *ServiceScheduledScalingResource) Create(ctx context.Context, req resour
 	}
 
 	plan.ID = plan.ServiceID
-	resp.Diagnostics.Append(applyScheduleToStateWithPlan(ctx, schedule, plan.Entries, &plan)...)
+	resp.Diagnostics.Append(applyScheduleToStateWithPlan(schedule, planModels, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -299,7 +299,7 @@ func (r *ServiceScheduledScalingResource) Update(ctx context.Context, req resour
 		return
 	}
 
-	entries, d := planEntriesToAPI(ctx, plan.Entries)
+	entries, planModels, d := planEntriesToAPI(ctx, plan.Entries)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -319,7 +319,7 @@ func (r *ServiceScheduledScalingResource) Update(ctx context.Context, req resour
 	}
 
 	plan.ID = plan.ServiceID
-	resp.Diagnostics.Append(applyScheduleToStateWithPlan(ctx, schedule, plan.Entries, &plan)...)
+	resp.Diagnostics.Append(applyScheduleToStateWithPlan(schedule, planModels, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -411,16 +411,9 @@ func (r *ServiceScheduledScalingResource) UpgradeState(_ context.Context) map[in
 				entryType := models.ScheduledScalingEntryModel{}.ObjectType()
 				entries := types.ListNull(entryType)
 				if !prior.Entries.IsNull() && !prior.Entries.IsUnknown() {
-					var entryModels []models.ScheduledScalingEntryModel
-					resp.Diagnostics.Append(prior.Entries.ElementsAs(ctx, &entryModels, false)...)
-					if resp.Diagnostics.HasError() {
-						return
-					}
-					values := make([]attr.Value, len(entryModels))
-					for i, em := range entryModels {
-						values[i] = em.ObjectValue()
-					}
-					list, d := types.ListValue(entryType, values)
+					// The set's elements are already values of the list's
+					// element type; re-wrap them directly.
+					list, d := types.ListValue(entryType, prior.Entries.Elements())
 					resp.Diagnostics.Append(d...)
 					if resp.Diagnostics.HasError() {
 						return
@@ -504,18 +497,20 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 	return diags
 }
 
-// planEntriesToAPI converts the Terraform plan list of entries into API entries.
-func planEntriesToAPI(ctx context.Context, entriesList types.List) ([]api.AutoScalingScheduleEntry, diag.Diagnostics) {
+// planEntriesToAPI converts the Terraform plan list of entries into API
+// entries. It also returns the decoded plan models so Create/Update can
+// reconcile the server response against the plan without decoding twice.
+func planEntriesToAPI(ctx context.Context, entriesList types.List) ([]api.AutoScalingScheduleEntry, []models.ScheduledScalingEntryModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	if entriesList.IsNull() || entriesList.IsUnknown() {
-		return []api.AutoScalingScheduleEntry{}, diags
+		return []api.AutoScalingScheduleEntry{}, nil, diags
 	}
 
 	var entryModels []models.ScheduledScalingEntryModel
 	diags.Append(entriesList.ElementsAs(ctx, &entryModels, false)...)
 	if diags.HasError() {
-		return nil, diags
+		return nil, nil, diags
 	}
 
 	result := make([]api.AutoScalingScheduleEntry, len(entryModels))
@@ -523,7 +518,7 @@ func planEntriesToAPI(ctx context.Context, entriesList types.List) ([]api.AutoSc
 		var weekdays []int64
 		diags.Append(em.Weekdays.ElementsAs(ctx, &weekdays, false)...)
 		if diags.HasError() {
-			return nil, diags
+			return nil, nil, diags
 		}
 		intWeekdays := make([]int, len(weekdays))
 		for j, w := range weekdays {
@@ -568,7 +563,7 @@ func planEntriesToAPI(ctx context.Context, entriesList types.List) ([]api.AutoSc
 		result[i] = entry
 	}
 
-	return result, diags
+	return result, entryModels, diags
 }
 
 // applyScheduleToState maps an API AutoScalingSchedule response into the
@@ -608,8 +603,54 @@ func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.Servi
 // response. That is fixed server-side (control-plane#35956), but reconciling
 // against the plan keeps Create/Update correct regardless of which fields any
 // server version echoes.
-func applyScheduleToStateWithPlan(ctx context.Context, schedule *api.AutoScalingSchedule, planEntries types.List, state *models.ServiceScheduledScalingResourceModel) diag.Diagnostics {
-	entriesList, diags := reconcileEntriesWithPlan(ctx, schedule, planEntries)
+//
+// Each planned value the user set (known in the plan) is kept; only fields the
+// user left unset (unknown) resolve from the server's echoed value. Entries
+// correlate to the server response by index — the POST replaces the full
+// schedule and the server preserves entry order — but the name is verified
+// before merging so a reordered response can never fill unset fields from the
+// wrong entry (they resolve to null instead, which is a valid outcome for an
+// unknown).
+func applyScheduleToStateWithPlan(schedule *api.AutoScalingSchedule, planModels []models.ScheduledScalingEntryModel, state *models.ServiceScheduledScalingResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	values := make([]attr.Value, len(planModels))
+	for i, pm := range planModels {
+		// The zero model is all-null: the fallback when the server returned no
+		// matching entry at this index.
+		var server models.ScheduledScalingEntryModel
+		if i < len(schedule.Entries) && schedule.Entries[i].Name == pm.Name.ValueString() {
+			sm, d := apiEntryToModel(schedule.Entries[i])
+			diags.Append(d...)
+			if diags.HasError() {
+				return diags
+			}
+			server = sm
+		}
+
+		if pm.MinReplicaMemoryGb.IsUnknown() {
+			pm.MinReplicaMemoryGb = server.MinReplicaMemoryGb
+		}
+		if pm.MaxReplicaMemoryGb.IsUnknown() {
+			pm.MaxReplicaMemoryGb = server.MaxReplicaMemoryGb
+		}
+		if pm.MinReplicas.IsUnknown() {
+			pm.MinReplicas = server.MinReplicas
+		}
+		if pm.MaxReplicas.IsUnknown() {
+			pm.MaxReplicas = server.MaxReplicas
+		}
+		if pm.IdleScaling.IsUnknown() {
+			pm.IdleScaling = server.IdleScaling
+		}
+		if pm.IdleTimeoutMinutes.IsUnknown() {
+			pm.IdleTimeoutMinutes = server.IdleTimeoutMinutes
+		}
+		values[i] = pm.ObjectValue()
+	}
+
+	entriesList, d := types.ListValue(models.ScheduledScalingEntryModel{}.ObjectType(), values)
+	diags.Append(d...)
 	if diags.HasError() {
 		return diags
 	}
@@ -625,83 +666,6 @@ func applyBaseConfigToState(schedule *api.AutoScalingSchedule, state *models.Ser
 	} else {
 		state.BaseConfig = types.ObjectNull(models.ScheduledScalingBaseConfigModel{}.ObjectType().AttrTypes)
 	}
-}
-
-// reconcileEntriesWithPlan builds the entries list for state by keeping each
-// planned value the user set (known in the plan) and only falling back to the
-// server's echoed value where the plan left a field unset (unknown). Entries
-// correlate to the server response by index: the POST replaces the full
-// schedule and the server preserves entry order.
-func reconcileEntriesWithPlan(ctx context.Context, schedule *api.AutoScalingSchedule, planEntries types.List) (types.List, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	entryType := models.ScheduledScalingEntryModel{}.ObjectType()
-
-	var planModels []models.ScheduledScalingEntryModel
-	diags.Append(planEntries.ElementsAs(ctx, &planModels, false)...)
-	if diags.HasError() {
-		return types.ListNull(entryType), diags
-	}
-
-	values := make([]attr.Value, len(planModels))
-	for i, pm := range planModels {
-		// When the server returns a matching entry, use its values to resolve
-		// fields the user left unset; otherwise resolve them to null.
-		server := models.ScheduledScalingEntryModel{
-			MinReplicaMemoryGb: types.Int64Null(),
-			MaxReplicaMemoryGb: types.Int64Null(),
-			MinReplicas:        types.Int64Null(),
-			MaxReplicas:        types.Int64Null(),
-			IdleScaling:        types.BoolNull(),
-			IdleTimeoutMinutes: types.Int64Null(),
-		}
-		if i < len(schedule.Entries) {
-			sm, d := apiEntryToModel(schedule.Entries[i])
-			diags.Append(d...)
-			if diags.HasError() {
-				return types.ListNull(entryType), diags
-			}
-			server = sm
-		}
-
-		merged := models.ScheduledScalingEntryModel{
-			// Required fields are always known in the plan.
-			Name:         pm.Name,
-			Weekdays:     pm.Weekdays,
-			StartHourUtc: pm.StartHourUtc,
-			EndHourUtc:   pm.EndHourUtc,
-			// Optional+Computed: keep the planned value when the user set one.
-			MinReplicaMemoryGb: pickInt64(pm.MinReplicaMemoryGb, server.MinReplicaMemoryGb),
-			MaxReplicaMemoryGb: pickInt64(pm.MaxReplicaMemoryGb, server.MaxReplicaMemoryGb),
-			MinReplicas:        pickInt64(pm.MinReplicas, server.MinReplicas),
-			MaxReplicas:        pickInt64(pm.MaxReplicas, server.MaxReplicas),
-			IdleScaling:        pickBool(pm.IdleScaling, server.IdleScaling),
-			IdleTimeoutMinutes: pickInt64(pm.IdleTimeoutMinutes, server.IdleTimeoutMinutes),
-		}
-		values[i] = merged.ObjectValue()
-	}
-
-	entriesList, d := types.ListValue(entryType, values)
-	diags.Append(d...)
-	if diags.HasError() {
-		return types.ListNull(entryType), diags
-	}
-	return entriesList, diags
-}
-
-// pickInt64 returns the planned value unless the user left it unset (unknown),
-// in which case the server-resolved value is used.
-func pickInt64(plan, server types.Int64) types.Int64 {
-	if plan.IsUnknown() {
-		return server
-	}
-	return plan
-}
-
-func pickBool(plan, server types.Bool) types.Bool {
-	if plan.IsUnknown() {
-		return server
-	}
-	return plan
 }
 
 func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEntryModel, diag.Diagnostics) {
@@ -729,7 +693,7 @@ func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEnt
 		// The server echoes idle_scaling in practice, but treat a missing value
 		// as its effective default, false, so a refresh of a non-idle entry can
 		// never show perpetual drift if a server version omits it.
-		IdleScaling:        boolPtrToValueDefault(e.IdleScaling, false),
+		IdleScaling:        types.BoolValue(e.IdleScaling != nil && *e.IdleScaling),
 		IdleTimeoutMinutes: int64PtrToValue(e.IdleTimeoutMinutes),
 	}
 
@@ -757,13 +721,6 @@ func int64PtrToValue(v *int) types.Int64 {
 func boolPtrToValue(v *bool) types.Bool {
 	if v == nil {
 		return types.BoolNull()
-	}
-	return types.BoolValue(*v)
-}
-
-func boolPtrToValueDefault(v *bool, def bool) types.Bool {
-	if v == nil {
-		return types.BoolValue(def)
 	}
 	return types.BoolValue(*v)
 }

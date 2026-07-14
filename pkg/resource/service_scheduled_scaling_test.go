@@ -153,7 +153,7 @@ func buildEntryList(t *testing.T, entries ...models.ScheduledScalingEntryModel) 
 func TestPlanEntriesToAPI_EmptyAndNullInputs(t *testing.T) {
 	ctx := context.Background()
 
-	got, diags := planEntriesToAPI(ctx, types.ListNull(models.ScheduledScalingEntryModel{}.ObjectType()))
+	got, _, diags := planEntriesToAPI(ctx, types.ListNull(models.ScheduledScalingEntryModel{}.ObjectType()))
 	if diags.HasError() {
 		t.Fatalf("null input diags: %v", diags)
 	}
@@ -161,7 +161,7 @@ func TestPlanEntriesToAPI_EmptyAndNullInputs(t *testing.T) {
 		t.Errorf("null input: len = %d; want 0", len(got))
 	}
 
-	got, diags = planEntriesToAPI(ctx, buildEntryList(t))
+	got, _, diags = planEntriesToAPI(ctx, buildEntryList(t))
 	if diags.HasError() {
 		t.Fatalf("empty input diags: %v", diags)
 	}
@@ -191,7 +191,7 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 		IdleTimeoutMinutes: types.Int64Value(15),
 	}
 
-	got, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
+	got, _, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -217,18 +217,6 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 }
 
 func TestValidateScheduledScalingEntries(t *testing.T) {
-	mustSet := func(vals ...int64) types.Set {
-		elems := make([]attr.Value, len(vals))
-		for i, v := range vals {
-			elems[i] = types.Int64Value(v)
-		}
-		s, diags := types.SetValue(types.Int64Type, elems)
-		if diags.HasError() {
-			t.Fatalf("SetValue: %v", diags)
-		}
-		return s
-	}
-
 	tests := []struct {
 		name         string
 		entry        models.ScheduledScalingEntryModel
@@ -238,7 +226,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			name: "valid entry",
 			entry: models.ScheduledScalingEntryModel{
 				Name:         types.StringValue("ok"),
-				Weekdays:     mustSet(1),
+				Weekdays:     weekdaySetOf(t, 1),
 				StartHourUtc: types.Int64Value(8),
 				EndHourUtc:   types.Int64Value(18),
 				MinReplicas:  types.Int64Value(2),
@@ -250,7 +238,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			name: "start equals end",
 			entry: models.ScheduledScalingEntryModel{
 				Name:         types.StringValue("bad-window"),
-				Weekdays:     mustSet(1),
+				Weekdays:     weekdaySetOf(t, 1),
 				StartHourUtc: types.Int64Value(10),
 				EndHourUtc:   types.Int64Value(10),
 			},
@@ -262,7 +250,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			name: "memory min > max",
 			entry: models.ScheduledScalingEntryModel{
 				Name:               types.StringValue("inverted-memory"),
-				Weekdays:           mustSet(1),
+				Weekdays:           weekdaySetOf(t, 1),
 				StartHourUtc:       types.Int64Value(0),
 				EndHourUtc:         types.Int64Value(24),
 				MinReplicaMemoryGb: types.Int64Value(64),
@@ -274,7 +262,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			name: "min != max",
 			entry: models.ScheduledScalingEntryModel{
 				Name:         types.StringValue("uneven"),
-				Weekdays:     mustSet(1),
+				Weekdays:     weekdaySetOf(t, 1),
 				StartHourUtc: types.Int64Value(0),
 				EndHourUtc:   types.Int64Value(24),
 				MinReplicas:  types.Int64Value(2),
@@ -288,7 +276,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			name: "idle: both set, idle_scaling=true",
 			entry: models.ScheduledScalingEntryModel{
 				Name:               types.StringValue("both-true"),
-				Weekdays:           mustSet(1),
+				Weekdays:           weekdaySetOf(t, 1),
 				StartHourUtc:       types.Int64Value(0),
 				EndHourUtc:         types.Int64Value(24),
 				IdleScaling:        types.BoolValue(true),
@@ -301,7 +289,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			name: "idle: both set, idle_scaling=false",
 			entry: models.ScheduledScalingEntryModel{
 				Name:               types.StringValue("ui-persisted"),
-				Weekdays:           mustSet(1),
+				Weekdays:           weekdaySetOf(t, 1),
 				StartHourUtc:       types.Int64Value(0),
 				EndHourUtc:         types.Int64Value(24),
 				IdleScaling:        types.BoolValue(false),
@@ -313,7 +301,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			name: "idle: only idle_timeout set",
 			entry: models.ScheduledScalingEntryModel{
 				Name:               types.StringValue("lone-timeout"),
-				Weekdays:           mustSet(1),
+				Weekdays:           weekdaySetOf(t, 1),
 				StartHourUtc:       types.Int64Value(0),
 				EndHourUtc:         types.Int64Value(24),
 				IdleTimeoutMinutes: types.Int64Value(10),
@@ -324,7 +312,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			name: "idle: only idle_scaling set",
 			entry: models.ScheduledScalingEntryModel{
 				Name:         types.StringValue("lone-scaling"),
-				Weekdays:     mustSet(1),
+				Weekdays:     weekdaySetOf(t, 1),
 				StartHourUtc: types.Int64Value(0),
 				EndHourUtc:   types.Int64Value(24),
 				IdleScaling:  types.BoolValue(true),
@@ -335,7 +323,7 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			name: "idle: both unset",
 			entry: models.ScheduledScalingEntryModel{
 				Name:         types.StringValue("no-idle"),
-				Weekdays:     mustSet(1),
+				Weekdays:     weekdaySetOf(t, 1),
 				StartHourUtc: types.Int64Value(0),
 				EndHourUtc:   types.Int64Value(24),
 			},
@@ -372,7 +360,7 @@ func TestPlanEntriesToAPI_OmitsNullOptionalFields(t *testing.T) {
 		IdleTimeoutMinutes: types.Int64Null(),
 	}
 
-	got, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
+	got, _, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -454,7 +442,7 @@ func TestRoundTrip_NoServerNormalization(t *testing.T) {
 	}
 	planList := buildEntryList(t, planEntry)
 
-	apiEntries, d := planEntriesToAPI(ctx, planList)
+	apiEntries, _, d := planEntriesToAPI(ctx, planList)
 	if d.HasError() {
 		t.Fatalf("planEntriesToAPI: %v", d)
 	}
@@ -511,7 +499,7 @@ func reconcileSingleEntry(t *testing.T, planEntry models.ScheduledScalingEntryMo
 
 	state := &models.ServiceScheduledScalingResourceModel{}
 	schedule := &api.AutoScalingSchedule{Entries: []api.AutoScalingScheduleEntry{serverEntry}}
-	if d := applyScheduleToStateWithPlan(ctx, schedule, buildEntryList(t, planEntry), state); d.HasError() {
+	if d := applyScheduleToStateWithPlan(schedule, []models.ScheduledScalingEntryModel{planEntry}, state); d.HasError() {
 		t.Fatalf("applyScheduleToStateWithPlan: %v", d)
 	}
 
