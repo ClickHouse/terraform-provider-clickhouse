@@ -543,7 +543,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"start_after": schema.StringAttribute{
-								MarkdownDescription: "Start continuous ingestion after this object key. Cannot be provided when `skip_initial_load` is true.",
+								MarkdownDescription: "Start continuous ingestion after this object key (e.g. `logs/2024-01-01/events-000042.json`). Cannot be provided when `skip_initial_load` is true.",
 								Optional:            true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
