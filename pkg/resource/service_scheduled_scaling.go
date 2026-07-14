@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -28,9 +29,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &ServiceScheduledScalingResource{}
-	_ resource.ResourceWithConfigure   = &ServiceScheduledScalingResource{}
-	_ resource.ResourceWithImportState = &ServiceScheduledScalingResource{}
+	_ resource.Resource                 = &ServiceScheduledScalingResource{}
+	_ resource.ResourceWithConfigure    = &ServiceScheduledScalingResource{}
+	_ resource.ResourceWithImportState  = &ServiceScheduledScalingResource{}
+	_ resource.ResourceWithUpgradeState = &ServiceScheduledScalingResource{}
 )
 
 //go:embed descriptions/service_scheduled_scaling.md
@@ -50,6 +52,8 @@ func (r *ServiceScheduledScalingResource) Metadata(_ context.Context, req resour
 
 func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		// v1 changed `entries` from a set to a list; see UpgradeState.
+		Version:             1,
 		MarkdownDescription: serviceScheduledScalingResourceDescription,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -66,12 +70,12 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"entries": schema.SetNestedAttribute{
-				Description: "Recurring scaling windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment; otherwise base_config applies.",
+			"entries": schema.ListNestedAttribute{
+				Description: "Recurring scaling windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment; otherwise base_config applies. Ordering is not significant to the server, but as a list the order is tracked in state.",
 				Required:    true,
-				Validators: []validator.Set{
-					setvalidator.SizeAtLeast(1),
-					setvalidator.SizeAtMost(api.MaxAutoScalingScheduleEntries),
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+					listvalidator.SizeAtMost(api.MaxAutoScalingScheduleEntries),
 				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -251,7 +255,7 @@ func (r *ServiceScheduledScalingResource) Create(ctx context.Context, req resour
 	}
 
 	plan.ID = plan.ServiceID
-	resp.Diagnostics.Append(applyScheduleToState(schedule, &plan)...)
+	resp.Diagnostics.Append(applyScheduleToStateWithPlan(ctx, schedule, plan.Entries, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -315,7 +319,7 @@ func (r *ServiceScheduledScalingResource) Update(ctx context.Context, req resour
 	}
 
 	plan.ID = plan.ServiceID
-	resp.Diagnostics.Append(applyScheduleToState(schedule, &plan)...)
+	resp.Diagnostics.Append(applyScheduleToStateWithPlan(ctx, schedule, plan.Entries, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -340,6 +344,99 @@ func (r *ServiceScheduledScalingResource) ImportState(ctx context.Context, req r
 	// `id` and `service_id` are equal — write both so Read finds the service.
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), req.ID)...)
+}
+
+// scheduledScalingModelV0 is the v0 state layout, where `entries` was a set.
+type scheduledScalingModelV0 struct {
+	ID         types.String `tfsdk:"id"`
+	ServiceID  types.String `tfsdk:"service_id"`
+	Entries    types.Set    `tfsdk:"entries"`
+	BaseConfig types.Object `tfsdk:"base_config"`
+}
+
+// scheduledScalingSchemaV0 mirrors the v0 schema's types so prior state can be
+// decoded. Only attribute types matter here (validators, descriptions, and plan
+// modifiers do not affect decoding), so this is intentionally minimal.
+func scheduledScalingSchemaV0() schema.Schema {
+	entryAttrs := map[string]schema.Attribute{
+		"name":                  schema.StringAttribute{Required: true},
+		"weekdays":              schema.SetAttribute{Required: true, ElementType: types.Int64Type},
+		"start_hour_utc":        schema.Int64Attribute{Required: true},
+		"end_hour_utc":          schema.Int64Attribute{Required: true},
+		"min_replica_memory_gb": schema.Int64Attribute{Optional: true, Computed: true},
+		"max_replica_memory_gb": schema.Int64Attribute{Optional: true, Computed: true},
+		"min_replicas":          schema.Int64Attribute{Optional: true, Computed: true},
+		"max_replicas":          schema.Int64Attribute{Optional: true, Computed: true},
+		"idle_scaling":          schema.BoolAttribute{Optional: true, Computed: true},
+		"idle_timeout_minutes":  schema.Int64Attribute{Optional: true, Computed: true},
+	}
+	return schema.Schema{
+		Version: 0,
+		Attributes: map[string]schema.Attribute{
+			"id":         schema.StringAttribute{Computed: true},
+			"service_id": schema.StringAttribute{Required: true},
+			"entries": schema.SetNestedAttribute{
+				Required:     true,
+				NestedObject: schema.NestedAttributeObject{Attributes: entryAttrs},
+			},
+			"base_config": schema.SingleNestedAttribute{
+				Computed: true,
+				Attributes: map[string]schema.Attribute{
+					"min_replica_memory_gb": schema.Int64Attribute{Computed: true},
+					"max_replica_memory_gb": schema.Int64Attribute{Computed: true},
+					"min_replicas":          schema.Int64Attribute{Computed: true},
+					"max_replicas":          schema.Int64Attribute{Computed: true},
+					"idle_scaling":          schema.BoolAttribute{Computed: true},
+					"idle_timeout_minutes":  schema.Int64Attribute{Computed: true},
+				},
+			},
+		},
+	}
+}
+
+// UpgradeState migrates v0 state (entries as a set) to v1 (entries as a list).
+// The entry object type is unchanged, so the collection is simply re-wrapped.
+func (r *ServiceScheduledScalingResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
+	priorSchema := scheduledScalingSchemaV0()
+	return map[int64]resource.StateUpgrader{
+		0: {
+			PriorSchema: &priorSchema,
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				var prior scheduledScalingModelV0
+				resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				entryType := models.ScheduledScalingEntryModel{}.ObjectType()
+				entries := types.ListNull(entryType)
+				if !prior.Entries.IsNull() && !prior.Entries.IsUnknown() {
+					var entryModels []models.ScheduledScalingEntryModel
+					resp.Diagnostics.Append(prior.Entries.ElementsAs(ctx, &entryModels, false)...)
+					if resp.Diagnostics.HasError() {
+						return
+					}
+					values := make([]attr.Value, len(entryModels))
+					for i, em := range entryModels {
+						values[i] = em.ObjectValue()
+					}
+					list, d := types.ListValue(entryType, values)
+					resp.Diagnostics.Append(d...)
+					if resp.Diagnostics.HasError() {
+						return
+					}
+					entries = list
+				}
+
+				resp.Diagnostics.Append(resp.State.Set(ctx, &models.ServiceScheduledScalingResourceModel{
+					ID:         prior.ID,
+					ServiceID:  prior.ServiceID,
+					Entries:    entries,
+					BaseConfig: prior.BaseConfig,
+				})...)
+			},
+		},
+	}
 }
 
 func (r *ServiceScheduledScalingResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
@@ -407,16 +504,16 @@ func validateScheduledScalingEntries(entries []models.ScheduledScalingEntryModel
 	return diags
 }
 
-// planEntriesToAPI converts the Terraform plan set of entries into API entries.
-func planEntriesToAPI(ctx context.Context, entriesSet types.Set) ([]api.AutoScalingScheduleEntry, diag.Diagnostics) {
+// planEntriesToAPI converts the Terraform plan list of entries into API entries.
+func planEntriesToAPI(ctx context.Context, entriesList types.List) ([]api.AutoScalingScheduleEntry, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if entriesSet.IsNull() || entriesSet.IsUnknown() {
+	if entriesList.IsNull() || entriesList.IsUnknown() {
 		return []api.AutoScalingScheduleEntry{}, diags
 	}
 
 	var entryModels []models.ScheduledScalingEntryModel
-	diags.Append(entriesSet.ElementsAs(ctx, &entryModels, false)...)
+	diags.Append(entriesList.ElementsAs(ctx, &entryModels, false)...)
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -475,7 +572,8 @@ func planEntriesToAPI(ctx context.Context, entriesSet types.Set) ([]api.AutoScal
 }
 
 // applyScheduleToState maps an API AutoScalingSchedule response into the
-// Terraform state model.
+// Terraform state model, taking entry contents from the server response. Used
+// on Read, where no plan is available to reconcile against.
 func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.ServiceScheduledScalingResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -488,20 +586,117 @@ func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.Servi
 		}
 		entryValues[i] = entryModel.ObjectValue()
 	}
-	entriesSet, d := types.SetValue(models.ScheduledScalingEntryModel{}.ObjectType(), entryValues)
+	entriesList, d := types.ListValue(models.ScheduledScalingEntryModel{}.ObjectType(), entryValues)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
 	}
-	state.Entries = entriesSet
+	state.Entries = entriesList
 
+	applyBaseConfigToState(schedule, state)
+	return diags
+}
+
+// applyScheduleToStateWithPlan is the Create/Update counterpart of
+// applyScheduleToState. It reconciles the server response against the plan so
+// that values the user set explicitly survive server-side normalization. The
+// server drops the idle fields for a non-idle entry (idle_scaling=false), so a
+// server-only mapping would turn a planned idle_scaling=false into null and
+// trip Terraform's "produced inconsistent result after apply" check.
+func applyScheduleToStateWithPlan(ctx context.Context, schedule *api.AutoScalingSchedule, planEntries types.List, state *models.ServiceScheduledScalingResourceModel) diag.Diagnostics {
+	entriesList, diags := reconcileEntriesWithPlan(ctx, schedule, planEntries)
+	if diags.HasError() {
+		return diags
+	}
+	state.Entries = entriesList
+
+	applyBaseConfigToState(schedule, state)
+	return diags
+}
+
+func applyBaseConfigToState(schedule *api.AutoScalingSchedule, state *models.ServiceScheduledScalingResourceModel) {
 	if schedule.BaseConfig != nil {
 		state.BaseConfig = apiBaseConfigToModel(*schedule.BaseConfig).ObjectValue()
 	} else {
 		state.BaseConfig = types.ObjectNull(models.ScheduledScalingBaseConfigModel{}.ObjectType().AttrTypes)
 	}
+}
 
-	return diags
+// reconcileEntriesWithPlan builds the entries list for state by keeping each
+// planned value the user set (known in the plan) and only falling back to the
+// server's echoed value where the plan left a field unset (unknown). Entries
+// correlate to the server response by index: the POST replaces the full
+// schedule and the server preserves entry order.
+func reconcileEntriesWithPlan(ctx context.Context, schedule *api.AutoScalingSchedule, planEntries types.List) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	entryType := models.ScheduledScalingEntryModel{}.ObjectType()
+
+	var planModels []models.ScheduledScalingEntryModel
+	diags.Append(planEntries.ElementsAs(ctx, &planModels, false)...)
+	if diags.HasError() {
+		return types.ListNull(entryType), diags
+	}
+
+	values := make([]attr.Value, len(planModels))
+	for i, pm := range planModels {
+		// When the server returns a matching entry, use its values to resolve
+		// fields the user left unset; otherwise resolve them to null.
+		server := models.ScheduledScalingEntryModel{
+			MinReplicaMemoryGb: types.Int64Null(),
+			MaxReplicaMemoryGb: types.Int64Null(),
+			MinReplicas:        types.Int64Null(),
+			MaxReplicas:        types.Int64Null(),
+			IdleScaling:        types.BoolNull(),
+			IdleTimeoutMinutes: types.Int64Null(),
+		}
+		if i < len(schedule.Entries) {
+			sm, d := apiEntryToModel(schedule.Entries[i])
+			diags.Append(d...)
+			if diags.HasError() {
+				return types.ListNull(entryType), diags
+			}
+			server = sm
+		}
+
+		merged := models.ScheduledScalingEntryModel{
+			// Required fields are always known in the plan.
+			Name:         pm.Name,
+			Weekdays:     pm.Weekdays,
+			StartHourUtc: pm.StartHourUtc,
+			EndHourUtc:   pm.EndHourUtc,
+			// Optional+Computed: keep the planned value when the user set one.
+			MinReplicaMemoryGb: pickInt64(pm.MinReplicaMemoryGb, server.MinReplicaMemoryGb),
+			MaxReplicaMemoryGb: pickInt64(pm.MaxReplicaMemoryGb, server.MaxReplicaMemoryGb),
+			MinReplicas:        pickInt64(pm.MinReplicas, server.MinReplicas),
+			MaxReplicas:        pickInt64(pm.MaxReplicas, server.MaxReplicas),
+			IdleScaling:        pickBool(pm.IdleScaling, server.IdleScaling),
+			IdleTimeoutMinutes: pickInt64(pm.IdleTimeoutMinutes, server.IdleTimeoutMinutes),
+		}
+		values[i] = merged.ObjectValue()
+	}
+
+	entriesList, d := types.ListValue(entryType, values)
+	diags.Append(d...)
+	if diags.HasError() {
+		return types.ListNull(entryType), diags
+	}
+	return entriesList, diags
+}
+
+// pickInt64 returns the planned value unless the user left it unset (unknown),
+// in which case the server-resolved value is used.
+func pickInt64(plan, server types.Int64) types.Int64 {
+	if plan.IsUnknown() {
+		return server
+	}
+	return plan
+}
+
+func pickBool(plan, server types.Bool) types.Bool {
+	if plan.IsUnknown() {
+		return server
+	}
+	return plan
 }
 
 func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEntryModel, diag.Diagnostics) {
@@ -526,7 +721,10 @@ func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEnt
 		MaxReplicaMemoryGb: int64PtrToValue(e.MaxReplicaMemoryGb),
 		MinReplicas:        int64PtrToValue(e.MinReplicas),
 		MaxReplicas:        int64PtrToValue(e.MaxReplicas),
-		IdleScaling:        boolPtrToValue(e.IdleScaling),
+		// The server omits the idle fields for a non-idle entry; treat a missing
+		// idle_scaling as its effective value, false, so a refresh of an entry
+		// written with idle_scaling=false does not show perpetual drift.
+		IdleScaling:        boolPtrToValueDefault(e.IdleScaling, false),
 		IdleTimeoutMinutes: int64PtrToValue(e.IdleTimeoutMinutes),
 	}
 
@@ -554,6 +752,13 @@ func int64PtrToValue(v *int) types.Int64 {
 func boolPtrToValue(v *bool) types.Bool {
 	if v == nil {
 		return types.BoolNull()
+	}
+	return types.BoolValue(*v)
+}
+
+func boolPtrToValueDefault(v *bool, def bool) types.Bool {
+	if v == nil {
+		return types.BoolValue(def)
 	}
 	return types.BoolValue(*v)
 }

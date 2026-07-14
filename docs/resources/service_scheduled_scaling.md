@@ -4,7 +4,7 @@ page_title: "clickhouse_service_scheduled_scaling Resource - clickhouse"
 subcategory: ""
 description: |-
   You can use the clickhouse_service_scheduled_scaling resource to manage time-based scaling rules for a ClickHouse Cloud service.
-  A schedule is a set of recurring weekly windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment. While a window is active the service uses the replica count, memory bounds, and idle-scaling settings declared on that entry; otherwise the service falls back to its base auto-scaling configuration.
+  A schedule is a list of recurring weekly windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment. While a window is active the service uses the replica count, memory bounds, and idle-scaling settings declared on that entry; otherwise the service falls back to its base auto-scaling configuration.
   ~> Note: This resource is in alpha. Scheduled scaling must be enabled for your organization (canUseScheduledAutoscaling). Reach out to ClickHouse support if the API returns 403 FORBIDDEN. The server currently requires min_replicas == max_replicas per entry, and a maximum of 10 entries per schedule.
   Hour ranges
   Hour ranges are asymmetric:
@@ -46,7 +46,7 @@ description: |-
 
 You can use the *clickhouse_service_scheduled_scaling* resource to manage time-based scaling rules for a ClickHouse Cloud service.
 
-A schedule is a set of recurring weekly windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment. While a window is active the service uses the replica count, memory bounds, and idle-scaling settings declared on that entry; otherwise the service falls back to its base auto-scaling configuration.
+A schedule is a list of recurring weekly windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment. While a window is active the service uses the replica count, memory bounds, and idle-scaling settings declared on that entry; otherwise the service falls back to its base auto-scaling configuration.
 
 ~> **Note:** This resource is in alpha. Scheduled scaling must be enabled for your organization (`canUseScheduledAutoscaling`). Reach out to ClickHouse support if the API returns `403 FORBIDDEN`. The server currently requires `min_replicas == max_replicas` per entry, and a maximum of 10 entries per schedule.
 
@@ -135,7 +135,7 @@ resource "clickhouse_service_scheduled_scaling" "example" {
 
 ### Required
 
-- `entries` (Attributes Set) Recurring scaling windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment; otherwise base_config applies. (see [below for nested schema](#nestedatt--entries))
+- `entries` (Attributes List) Recurring scaling windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment; otherwise base_config applies. Ordering is not significant to the server, but as a list the order is tracked in state. (see [below for nested schema](#nestedatt--entries))
 - `service_id` (String) ClickHouse Cloud service ID this schedule applies to.
 
 ### Read-Only

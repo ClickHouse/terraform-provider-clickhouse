@@ -135,25 +135,25 @@ func TestApplyScheduleToState_CapturesAllEntries(t *testing.T) {
 	}
 }
 
-// buildEntrySet constructs a types.Set of ScheduledScalingEntryModel for
+// buildEntryList constructs a types.List of ScheduledScalingEntryModel for
 // driving planEntriesToAPI in tests.
-func buildEntrySet(t *testing.T, entries ...models.ScheduledScalingEntryModel) types.Set {
+func buildEntryList(t *testing.T, entries ...models.ScheduledScalingEntryModel) types.List {
 	t.Helper()
 	values := make([]attr.Value, len(entries))
 	for i, e := range entries {
 		values[i] = e.ObjectValue()
 	}
-	set, diags := types.SetValue(models.ScheduledScalingEntryModel{}.ObjectType(), values)
+	list, diags := types.ListValue(models.ScheduledScalingEntryModel{}.ObjectType(), values)
 	if diags.HasError() {
-		t.Fatalf("SetValue: %v", diags)
+		t.Fatalf("ListValue: %v", diags)
 	}
-	return set
+	return list
 }
 
 func TestPlanEntriesToAPI_EmptyAndNullInputs(t *testing.T) {
 	ctx := context.Background()
 
-	got, diags := planEntriesToAPI(ctx, types.SetNull(models.ScheduledScalingEntryModel{}.ObjectType()))
+	got, diags := planEntriesToAPI(ctx, types.ListNull(models.ScheduledScalingEntryModel{}.ObjectType()))
 	if diags.HasError() {
 		t.Fatalf("null input diags: %v", diags)
 	}
@@ -161,7 +161,7 @@ func TestPlanEntriesToAPI_EmptyAndNullInputs(t *testing.T) {
 		t.Errorf("null input: len = %d; want 0", len(got))
 	}
 
-	got, diags = planEntriesToAPI(ctx, buildEntrySet(t))
+	got, diags = planEntriesToAPI(ctx, buildEntryList(t))
 	if diags.HasError() {
 		t.Fatalf("empty input diags: %v", diags)
 	}
@@ -191,7 +191,7 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 		IdleTimeoutMinutes: types.Int64Value(15),
 	}
 
-	got, diags := planEntriesToAPI(context.Background(), buildEntrySet(t, entry))
+	got, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -372,7 +372,7 @@ func TestPlanEntriesToAPI_OmitsNullOptionalFields(t *testing.T) {
 		IdleTimeoutMinutes: types.Int64Null(),
 	}
 
-	got, diags := planEntriesToAPI(context.Background(), buildEntrySet(t, entry))
+	got, diags := planEntriesToAPI(context.Background(), buildEntryList(t, entry))
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -452,7 +452,7 @@ func TestRoundTrip_NoServerNormalization(t *testing.T) {
 		IdleScaling:        types.BoolValue(true),
 		IdleTimeoutMinutes: types.Int64Value(15),
 	}
-	planList := buildEntrySet(t, planEntry)
+	planList := buildEntryList(t, planEntry)
 
 	apiEntries, d := planEntriesToAPI(ctx, planList)
 	if d.HasError() {
@@ -500,5 +500,272 @@ func TestRoundTrip_NoServerNormalization(t *testing.T) {
 	sort.Ints(got)
 	if !reflect.DeepEqual(got, []int{1, 2, 3}) {
 		t.Errorf("weekdays = %v; want [1 2 3]", got)
+	}
+}
+
+// reconcileSingleEntry drives applyScheduleToStateWithPlan for one plan entry
+// against one server-returned entry and returns the resulting state entry.
+func reconcileSingleEntry(t *testing.T, planEntry models.ScheduledScalingEntryModel, serverEntry api.AutoScalingScheduleEntry) models.ScheduledScalingEntryModel {
+	t.Helper()
+	ctx := context.Background()
+
+	state := &models.ServiceScheduledScalingResourceModel{}
+	schedule := &api.AutoScalingSchedule{Entries: []api.AutoScalingScheduleEntry{serverEntry}}
+	if d := applyScheduleToStateWithPlan(ctx, schedule, buildEntryList(t, planEntry), state); d.HasError() {
+		t.Fatalf("applyScheduleToStateWithPlan: %v", d)
+	}
+
+	var entries []models.ScheduledScalingEntryModel
+	if d := state.Entries.ElementsAs(ctx, &entries, false); d.HasError() {
+		t.Fatalf("ElementsAs: %v", d)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d; want 1", len(entries))
+	}
+	return entries[0]
+}
+
+func weekdaySetOf(t *testing.T, days ...int64) types.Set {
+	t.Helper()
+	elems := make([]attr.Value, len(days))
+	for i, d := range days {
+		elems[i] = types.Int64Value(d)
+	}
+	s, diags := types.SetValue(types.Int64Type, elems)
+	if diags.HasError() {
+		t.Fatalf("SetValue: %v", diags)
+	}
+	return s
+}
+
+// TestApplyScheduleToStateWithPlan_PreservesIdleScalingFalse reproduces issue
+// #611: a non-idle entry (idle_scaling=false) whose idle fields the server
+// drops from its response. Without reconciliation the planned false becomes
+// null and Terraform aborts with "inconsistent result after apply".
+func TestApplyScheduleToStateWithPlan_PreservesIdleScalingFalse(t *testing.T) {
+	plan := models.ScheduledScalingEntryModel{
+		Name:               types.StringValue("Business Hours"),
+		Weekdays:           weekdaySetOf(t, 1, 2, 3, 4, 5),
+		StartHourUtc:       types.Int64Value(5),
+		EndHourUtc:         types.Int64Value(19),
+		MinReplicaMemoryGb: types.Int64Value(236),
+		MaxReplicaMemoryGb: types.Int64Value(236),
+		MinReplicas:        types.Int64Value(10),
+		MaxReplicas:        types.Int64Value(10),
+		IdleScaling:        types.BoolValue(false),
+		// Left unset by the user: unknown at plan time.
+		IdleTimeoutMinutes: types.Int64Unknown(),
+	}
+	// Server echoes the sizing but drops the idle fields for a non-idle entry.
+	server := api.AutoScalingScheduleEntry{
+		Name:               "Business Hours",
+		Weekdays:           []int{1, 2, 3, 4, 5},
+		StartHourUtc:       5,
+		EndHourUtc:         19,
+		MinReplicaMemoryGb: intPtr(236),
+		MaxReplicaMemoryGb: intPtr(236),
+		MinReplicas:        intPtr(10),
+		MaxReplicas:        intPtr(10),
+	}
+
+	got := reconcileSingleEntry(t, plan, server)
+
+	if got.IdleScaling.IsNull() || got.IdleScaling.IsUnknown() {
+		t.Fatalf("idle_scaling should be a known value, got %v", got.IdleScaling)
+	}
+	if got.IdleScaling.ValueBool() {
+		t.Errorf("idle_scaling = true; want false (planned value must survive)")
+	}
+	if !got.IdleTimeoutMinutes.IsNull() {
+		t.Errorf("idle_timeout_minutes = %v; want null (unset in plan, dropped by server)", got.IdleTimeoutMinutes)
+	}
+	if got.MinReplicas.ValueInt64() != 10 || got.MaxReplicas.ValueInt64() != 10 {
+		t.Errorf("replicas = (%d, %d); want (10, 10)", got.MinReplicas.ValueInt64(), got.MaxReplicas.ValueInt64())
+	}
+}
+
+// TestApplyScheduleToStateWithPlan_PreservesExplicitIdleTimeout covers the
+// issue's "same happens whether idle_timeout_minutes is set or omitted": an
+// explicit idle_timeout_minutes must also survive the server dropping it.
+func TestApplyScheduleToStateWithPlan_PreservesExplicitIdleTimeout(t *testing.T) {
+	plan := models.ScheduledScalingEntryModel{
+		Name:               types.StringValue("Business Hours"),
+		Weekdays:           weekdaySetOf(t, 1),
+		StartHourUtc:       types.Int64Value(5),
+		EndHourUtc:         types.Int64Value(19),
+		MinReplicas:        types.Int64Value(10),
+		MaxReplicas:        types.Int64Value(10),
+		MinReplicaMemoryGb: types.Int64Null(),
+		MaxReplicaMemoryGb: types.Int64Null(),
+		IdleScaling:        types.BoolValue(false),
+		IdleTimeoutMinutes: types.Int64Value(5),
+	}
+	server := api.AutoScalingScheduleEntry{
+		Name:         "Business Hours",
+		Weekdays:     []int{1},
+		StartHourUtc: 5,
+		EndHourUtc:   19,
+		MinReplicas:  intPtr(10),
+		MaxReplicas:  intPtr(10),
+	}
+
+	got := reconcileSingleEntry(t, plan, server)
+
+	if got.IdleScaling.ValueBool() {
+		t.Errorf("idle_scaling = true; want false")
+	}
+	if got.IdleTimeoutMinutes.IsNull() || got.IdleTimeoutMinutes.ValueInt64() != 5 {
+		t.Errorf("idle_timeout_minutes = %v; want 5 (planned value must survive)", got.IdleTimeoutMinutes)
+	}
+}
+
+// TestApplyScheduleToStateWithPlan_FillsUnknownFromServer verifies the other
+// direction: a field the user left unset (unknown at plan) is resolved from the
+// server's echoed value.
+func TestApplyScheduleToStateWithPlan_FillsUnknownFromServer(t *testing.T) {
+	plan := models.ScheduledScalingEntryModel{
+		Name:               types.StringValue("Overnight"),
+		Weekdays:           weekdaySetOf(t, 0, 6),
+		StartHourUtc:       types.Int64Value(22),
+		EndHourUtc:         types.Int64Value(6),
+		MinReplicaMemoryGb: types.Int64Unknown(),
+		MaxReplicaMemoryGb: types.Int64Unknown(),
+		MinReplicas:        types.Int64Unknown(),
+		MaxReplicas:        types.Int64Unknown(),
+		IdleScaling:        types.BoolValue(true),
+		IdleTimeoutMinutes: types.Int64Value(5),
+	}
+	server := api.AutoScalingScheduleEntry{
+		Name:               "Overnight",
+		Weekdays:           []int{0, 6},
+		StartHourUtc:       22,
+		EndHourUtc:         6,
+		MinReplicaMemoryGb: intPtr(16),
+		MaxReplicaMemoryGb: intPtr(16),
+		MinReplicas:        intPtr(1),
+		MaxReplicas:        intPtr(1),
+		IdleScaling:        boolPtr(true),
+		IdleTimeoutMinutes: intPtr(5),
+	}
+
+	got := reconcileSingleEntry(t, plan, server)
+
+	if got.MinReplicas.ValueInt64() != 1 || got.MaxReplicas.ValueInt64() != 1 {
+		t.Errorf("replicas = (%d, %d); want (1, 1) from server", got.MinReplicas.ValueInt64(), got.MaxReplicas.ValueInt64())
+	}
+	if got.MinReplicaMemoryGb.ValueInt64() != 16 || got.MaxReplicaMemoryGb.ValueInt64() != 16 {
+		t.Errorf("memory = (%d, %d); want (16, 16) from server", got.MinReplicaMemoryGb.ValueInt64(), got.MaxReplicaMemoryGb.ValueInt64())
+	}
+	if !got.IdleScaling.ValueBool() {
+		t.Errorf("idle_scaling = false; want true")
+	}
+}
+
+// TestServiceScheduledScalingResource_UpgradeStateV0ToV1 verifies that state
+// written by an older provider (entries as a set) upgrades cleanly to the v1
+// layout (entries as a list) without losing entry content.
+func TestServiceScheduledScalingResource_UpgradeStateV0ToV1(t *testing.T) {
+	ctx := context.Background()
+	r := NewServiceScheduledScalingResource().(*ServiceScheduledScalingResource)
+
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("Schema: %v", schemaResp.Diagnostics)
+	}
+	currentSchema := schemaResp.Schema
+
+	upgrader, ok := r.UpgradeState(ctx)[0]
+	if !ok {
+		t.Fatalf("no upgrader registered for schema version 0")
+	}
+	if upgrader.PriorSchema == nil {
+		t.Fatalf("upgrader is missing a PriorSchema")
+	}
+	priorSchema := *upgrader.PriorSchema
+
+	entry := models.ScheduledScalingEntryModel{
+		Name:               types.StringValue("business"),
+		Weekdays:           weekdaySetOf(t, 1, 2),
+		StartHourUtc:       types.Int64Value(8),
+		EndHourUtc:         types.Int64Value(18),
+		MinReplicaMemoryGb: types.Int64Null(),
+		MaxReplicaMemoryGb: types.Int64Null(),
+		MinReplicas:        types.Int64Value(3),
+		MaxReplicas:        types.Int64Value(3),
+		IdleScaling:        types.BoolValue(true),
+		IdleTimeoutMinutes: types.Int64Value(5),
+	}
+	entrySet, d := types.SetValue(models.ScheduledScalingEntryModel{}.ObjectType(), []attr.Value{entry.ObjectValue()})
+	if d.HasError() {
+		t.Fatalf("SetValue: %v", d)
+	}
+
+	priorState := tfsdk.State{
+		Schema: priorSchema,
+		Raw:    tftypes.NewValue(priorSchema.Type().TerraformType(ctx), nil),
+	}
+	if d := priorState.Set(ctx, scheduledScalingModelV0{
+		ID:         types.StringValue("svc-1"),
+		ServiceID:  types.StringValue("svc-1"),
+		Entries:    entrySet,
+		BaseConfig: types.ObjectNull(models.ScheduledScalingBaseConfigModel{}.ObjectType().AttrTypes),
+	}); d.HasError() {
+		t.Fatalf("prior state Set: %v", d)
+	}
+
+	resp := &resource.UpgradeStateResponse{
+		State: tfsdk.State{
+			Schema: currentSchema,
+			Raw:    tftypes.NewValue(currentSchema.Type().TerraformType(ctx), nil),
+		},
+	}
+	upgrader.StateUpgrader(ctx, resource.UpgradeStateRequest{State: &priorState}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("upgrade diags: %v", resp.Diagnostics)
+	}
+
+	var upgraded models.ServiceScheduledScalingResourceModel
+	if d := resp.State.Get(ctx, &upgraded); d.HasError() {
+		t.Fatalf("Get upgraded (entries must decode as a list): %v", d)
+	}
+	if upgraded.ServiceID.ValueString() != "svc-1" {
+		t.Errorf("service_id = %q; want svc-1", upgraded.ServiceID.ValueString())
+	}
+	var entries []models.ScheduledScalingEntryModel
+	if d := upgraded.Entries.ElementsAs(ctx, &entries, false); d.HasError() {
+		t.Fatalf("ElementsAs: %v", d)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d; want 1", len(entries))
+	}
+	if entries[0].Name.ValueString() != "business" {
+		t.Errorf("name = %q; want business", entries[0].Name.ValueString())
+	}
+	if entries[0].MinReplicas.ValueInt64() != 3 || !entries[0].IdleScaling.ValueBool() {
+		t.Errorf("entry content not preserved: %+v", entries[0])
+	}
+}
+
+// TestApiEntryToModel_DefaultsIdleScalingFalse guards the Read path: a server
+// entry that omits idle_scaling maps to an explicit false so a refresh of a
+// non-idle entry does not report perpetual drift.
+func TestApiEntryToModel_DefaultsIdleScalingFalse(t *testing.T) {
+	got, diags := apiEntryToModel(api.AutoScalingScheduleEntry{
+		Name:         "no-idle",
+		Weekdays:     []int{1},
+		StartHourUtc: 0,
+		EndHourUtc:   24,
+		MinReplicas:  intPtr(2),
+		MaxReplicas:  intPtr(2),
+	})
+	if diags.HasError() {
+		t.Fatalf("apiEntryToModel: %v", diags)
+	}
+	if got.IdleScaling.IsNull() || got.IdleScaling.IsUnknown() {
+		t.Fatalf("idle_scaling should default to a known value, got %v", got.IdleScaling)
+	}
+	if got.IdleScaling.ValueBool() {
+		t.Errorf("idle_scaling = true; want false")
 	}
 }
