@@ -9118,10 +9118,12 @@ func (mmGetOrganization *ClientMock) GetOrganization(ctx context.Context) (op1 *
 		mm_got := ClientMockGetOrganizationParams{ctx}
 
 		if mm_want_ptrs != nil {
+
 			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
 				mmGetOrganization.t.Errorf("ClientMock.GetOrganization got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmGetOrganization.GetOrganizationMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
 			}
+
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
 			mmGetOrganization.t.Errorf("ClientMock.GetOrganization got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 				mmGetOrganization.GetOrganizationMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
@@ -9428,10 +9430,12 @@ func (mmGetOrganizationPrivateEndpoints *ClientMock) GetOrganizationPrivateEndpo
 		mm_got := ClientMockGetOrganizationPrivateEndpointsParams{ctx}
 
 		if mm_want_ptrs != nil {
+
 			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
 				mmGetOrganizationPrivateEndpoints.t.Errorf("ClientMock.GetOrganizationPrivateEndpoints got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
 			}
+
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
 			mmGetOrganizationPrivateEndpoints.t.Errorf("ClientMock.GetOrganizationPrivateEndpoints got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 				mmGetOrganizationPrivateEndpoints.GetOrganizationPrivateEndpointsMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
@@ -13198,10 +13202,12 @@ func (mmListMembers *ClientMock) ListMembers(ctx context.Context) (ma1 []Member,
 		mm_got := ClientMockListMembersParams{ctx}
 
 		if mm_want_ptrs != nil {
+
 			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
 				mmListMembers.t.Errorf("ClientMock.ListMembers got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmListMembers.ListMembersMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
 			}
+
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
 			mmListMembers.t.Errorf("ClientMock.ListMembers got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 				mmListMembers.ListMembersMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
@@ -13508,10 +13514,12 @@ func (mmListPostgres *ClientMock) ListPostgres(ctx context.Context) (pa1 []Postg
 		mm_got := ClientMockListPostgresParams{ctx}
 
 		if mm_want_ptrs != nil {
+
 			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
 				mmListPostgres.t.Errorf("ClientMock.ListPostgres got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmListPostgres.ListPostgresMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
 			}
+
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
 			mmListPostgres.t.Errorf("ClientMock.ListPostgres got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 				mmListPostgres.ListPostgresMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
@@ -14161,10 +14169,12 @@ func (mmListRoles *ClientMock) ListRoles(ctx context.Context) (ra1 []RBACRole, e
 		mm_got := ClientMockListRolesParams{ctx}
 
 		if mm_want_ptrs != nil {
+
 			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
 				mmListRoles.t.Errorf("ClientMock.ListRoles got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmListRoles.ListRolesMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
 			}
+
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
 			mmListRoles.t.Errorf("ClientMock.ListRoles got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 				mmListRoles.ListRolesMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
