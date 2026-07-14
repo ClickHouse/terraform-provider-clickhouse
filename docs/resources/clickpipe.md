@@ -477,7 +477,7 @@ Optional:
 - `queue_url` (String) Queue URL for event-based continuous ingestion. When provided, files are ingested based on event notifications rather than lexicographical order. Only applicable when `is_continuous` is `true` and authentication is provided. For S3: SQS URL in the format `https://sqs.{region}.amazonaws.com/{account-id}/{queue-name}`. For GCS: Pub/Sub subscription in the format `projects/{project}/subscriptions/{subscription}`.
 - `service_account_key` (String, Sensitive) Base64-encoded GCP service account JSON key for GCS authentication. Required when authentication is `SERVICE_ACCOUNT`.
 - `skip_initial_load` (Boolean) If set to true, skips the initial load and only ingests files delivered by queue notifications. Only applicable when `queue_url` is provided.
-- `start_after` (String) Skip all files up to and including this object key during the initial load (e.g. `logs/2024-01-01/events-000042.json`). Keys are compared in lexicographical order. Cannot be provided when `skip_initial_load` is true.
+- `start_after` (String) Skip all files up to and including this object key during the initial load (e.g. `logs/2024-01-01/events-000042.json`). Cannot be provided when `skip_initial_load` is true.
 - `type` (String) The type of the S3-compatible source (`s3`, `gcs`, `azureblobstorage`). Default is `s3`.
 - `url` (String) The URL of the S3/GCS bucket. Required for S3 and GCS types. Not used for Azure Blob Storage (use path and azure_container_name instead). You can specify multiple files using bash-like wildcards. For more information, see the documentation on using wildcards in path: https://clickhouse.com/docs/en/integrations/clickpipes/object-storage#limitations
 
