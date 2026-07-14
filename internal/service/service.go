@@ -37,6 +37,13 @@ type Metadata struct {
 // ProviderData is what the provider's Configure hands to every resource and
 // data source. Each service group reads the client(s) it needs; a nil client
 // means the user did not configure that group.
+//
+// The unwrap invariant (assert *ProviderData, check the client is non-nil,
+// then take it) is currently repeated in every resource/data-source Configure
+// method. Extracting a shared helper here (e.g. CloudClientFromProviderData)
+// is a deliberate follow-up: Phase 1 keeps the explicit per-Configure form to
+// stay behavior-preserving, and Phase 3 re-touches all Configure methods, so
+// the de-duplication is best done then. See docs/rfcs/0001.
 type ProviderData struct {
 	API api.Client // ClickHouse Cloud OpenAPI (Basic auth)
 }
