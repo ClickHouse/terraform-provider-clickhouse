@@ -284,7 +284,7 @@ func (r *ServiceScheduledScalingResource) Read(ctx context.Context, req resource
 	}
 
 	state.ID = state.ServiceID
-	resp.Diagnostics.Append(applyScheduleToState(schedule, &state)...)
+	resp.Diagnostics.Append(applyScheduleToState(ctx, schedule, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -412,7 +412,10 @@ func (r *ServiceScheduledScalingResource) UpgradeState(_ context.Context) map[in
 				entries := types.ListNull(entryType)
 				if !prior.Entries.IsNull() && !prior.Entries.IsUnknown() {
 					// The set's elements are already values of the list's
-					// element type; re-wrap them directly.
+					// element type; re-wrap them directly. This relies on the
+					// v0 and v1 entry object types being identical — if a
+					// future schema version changes the entry type, this
+					// upgrader must decode and convert instead.
 					list, d := types.ListValue(entryType, prior.Entries.Elements())
 					resp.Diagnostics.Append(d...)
 					if resp.Diagnostics.HasError() {
@@ -569,17 +572,56 @@ func planEntriesToAPI(ctx context.Context, entriesList types.List) ([]api.AutoSc
 // applyScheduleToState maps an API AutoScalingSchedule response into the
 // Terraform state model, taking entry contents from the server response. Used
 // on Read, where no plan is available to reconcile against.
-func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.ServiceScheduledScalingResourceModel) diag.Diagnostics {
+//
+// Because entries is a list, element identity is positional: writing the
+// response order verbatim would surface a spurious, non-converging reorder
+// diff after any refresh where the server returns entries in a different
+// order than the config. Entries are therefore reordered to match the prior
+// state (correlated by their identity key); entries not in prior state are
+// appended in server order. On import, prior state is empty and server order
+// is kept.
+func applyScheduleToState(ctx context.Context, schedule *api.AutoScalingSchedule, state *models.ServiceScheduledScalingResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	entryValues := make([]attr.Value, len(schedule.Entries))
+	serverModels := make([]models.ScheduledScalingEntryModel, len(schedule.Entries))
 	for i, e := range schedule.Entries {
 		entryModel, d := apiEntryToModel(e)
 		diags.Append(d...)
 		if diags.HasError() {
 			return diags
 		}
-		entryValues[i] = entryModel.ObjectValue()
+		serverModels[i] = entryModel
+	}
+
+	var priorModels []models.ScheduledScalingEntryModel
+	if !state.Entries.IsNull() && !state.Entries.IsUnknown() {
+		diags.Append(state.Entries.ElementsAs(ctx, &priorModels, false)...)
+		if diags.HasError() {
+			return diags
+		}
+	}
+
+	ordered := make([]models.ScheduledScalingEntryModel, 0, len(serverModels))
+	used := make([]bool, len(serverModels))
+	for _, pm := range priorModels {
+		key := modelEntryKey(pm)
+		for j, sm := range serverModels {
+			if !used[j] && modelEntryKey(sm) == key {
+				ordered = append(ordered, sm)
+				used[j] = true
+				break
+			}
+		}
+	}
+	for j, sm := range serverModels {
+		if !used[j] {
+			ordered = append(ordered, sm)
+		}
+	}
+
+	entryValues := make([]attr.Value, len(ordered))
+	for i, em := range ordered {
+		entryValues[i] = em.ObjectValue()
 	}
 	entriesList, d := types.ListValue(models.ScheduledScalingEntryModel{}.ObjectType(), entryValues)
 	diags.Append(d...)
@@ -590,6 +632,27 @@ func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.Servi
 
 	applyBaseConfigToState(schedule, state)
 	return diags
+}
+
+// apiEntryKey / modelEntryKey compute a schedule entry's identity from its
+// user-declared fields: name plus the window itself (sorted weekdays and
+// hours). Names alone are not guaranteed unique, but two entries cannot cover
+// the same window (the server rejects overlaps), so the combined key is.
+func apiEntryKey(e api.AutoScalingScheduleEntry) string {
+	wd := append([]int(nil), e.Weekdays...)
+	sort.Ints(wd)
+	return fmt.Sprintf("%s|%v|%d|%d", e.Name, wd, e.StartHourUtc, e.EndHourUtc)
+}
+
+func modelEntryKey(m models.ScheduledScalingEntryModel) string {
+	wd := make([]int, 0, len(m.Weekdays.Elements()))
+	for _, v := range m.Weekdays.Elements() {
+		if iv, ok := v.(types.Int64); ok && !iv.IsNull() && !iv.IsUnknown() {
+			wd = append(wd, int(iv.ValueInt64()))
+		}
+	}
+	sort.Ints(wd)
+	return fmt.Sprintf("%s|%v|%d|%d", m.Name.ValueString(), wd, m.StartHourUtc.ValueInt64(), m.EndHourUtc.ValueInt64())
 }
 
 // applyScheduleToStateWithPlan is the Create/Update counterpart of
@@ -607,10 +670,10 @@ func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.Servi
 // Each planned value the user set (known in the plan) is kept; only fields the
 // user left unset (unknown) resolve from the server's echoed value. Entries
 // correlate to the server response by index — the POST replaces the full
-// schedule and the server preserves entry order — but the name is verified
-// before merging so a reordered response can never fill unset fields from the
-// wrong entry (they resolve to null instead, which is a valid outcome for an
-// unknown).
+// schedule and the server preserves entry order — but the entry's identity key
+// (name + window, see apiEntryKey) is verified before merging so a reordered
+// response can never fill unset fields from the wrong entry (they resolve to
+// null instead, which is a valid outcome for an unknown).
 func applyScheduleToStateWithPlan(schedule *api.AutoScalingSchedule, planModels []models.ScheduledScalingEntryModel, state *models.ServiceScheduledScalingResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -619,7 +682,7 @@ func applyScheduleToStateWithPlan(schedule *api.AutoScalingSchedule, planModels 
 		// The zero model is all-null: the fallback when the server returned no
 		// matching entry at this index.
 		var server models.ScheduledScalingEntryModel
-		if i < len(schedule.Entries) && schedule.Entries[i].Name == pm.Name.ValueString() {
+		if i < len(schedule.Entries) && apiEntryKey(schedule.Entries[i]) == modelEntryKey(pm) {
 			sm, d := apiEntryToModel(schedule.Entries[i])
 			diags.Append(d...)
 			if diags.HasError() {

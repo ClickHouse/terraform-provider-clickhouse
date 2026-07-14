@@ -42,7 +42,7 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 		ServiceID: types.StringValue("svc-1"),
 	}
 
-	diags := applyScheduleToState(schedule, state)
+	diags := applyScheduleToState(context.Background(), schedule, state)
 	if diags.HasError() {
 		t.Fatalf("unexpected diags: %v", diags)
 	}
@@ -94,7 +94,7 @@ func TestApplyScheduleToState_NullBaseConfigWhenAbsent(t *testing.T) {
 		ServiceID: types.StringValue("svc-1"),
 	}
 
-	diags := applyScheduleToState(&api.AutoScalingSchedule{
+	diags := applyScheduleToState(context.Background(), &api.AutoScalingSchedule{
 		Entries:    []api.AutoScalingScheduleEntry{},
 		BaseConfig: nil,
 	}, state)
@@ -116,7 +116,7 @@ func TestApplyScheduleToState_CapturesAllEntries(t *testing.T) {
 	}
 
 	state := &models.ServiceScheduledScalingResourceModel{ServiceID: types.StringValue("svc-1")}
-	diags := applyScheduleToState(schedule, state)
+	diags := applyScheduleToState(context.Background(), schedule, state)
 	if diags.HasError() {
 		t.Fatalf("diags: %v", diags)
 	}
@@ -451,7 +451,7 @@ func TestRoundTrip_NoServerNormalization(t *testing.T) {
 	serverResponse := &api.AutoScalingSchedule{Entries: apiEntries}
 
 	state := &models.ServiceScheduledScalingResourceModel{}
-	if d := applyScheduleToState(serverResponse, state); d.HasError() {
+	if d := applyScheduleToState(context.Background(), serverResponse, state); d.HasError() {
 		t.Fatalf("applyScheduleToState: %v", d)
 	}
 
@@ -738,6 +738,65 @@ func TestServiceScheduledScalingResource_UpgradeStateV0ToV1(t *testing.T) {
 	}
 	if entries[0].MinReplicas.ValueInt64() != 3 || !entries[0].IdleScaling.ValueBool() {
 		t.Errorf("entry content not preserved: %+v", entries[0])
+	}
+}
+
+// TestApplyScheduleToState_PreservesPriorOrder guards the Read path against
+// server-side reordering: entries is a list (positional identity), so a
+// response returned in a different order than prior state must be reordered
+// back, or every refresh after a server sort would show a permanent reorder
+// diff. The two entries share a name deliberately — correlation must key on
+// the full identity (name + window), not the name alone.
+func TestApplyScheduleToState_PreservesPriorOrder(t *testing.T) {
+	ctx := context.Background()
+
+	morning := models.ScheduledScalingEntryModel{
+		Name:               types.StringValue("shift"),
+		Weekdays:           weekdaySetOf(t, 1),
+		StartHourUtc:       types.Int64Value(8),
+		EndHourUtc:         types.Int64Value(12),
+		MinReplicas:        types.Int64Value(2),
+		MaxReplicas:        types.Int64Value(2),
+		MinReplicaMemoryGb: types.Int64Null(),
+		MaxReplicaMemoryGb: types.Int64Null(),
+		IdleScaling:        types.BoolValue(false),
+		IdleTimeoutMinutes: types.Int64Null(),
+	}
+	evening := morning
+	evening.StartHourUtc = types.Int64Value(12)
+	evening.EndHourUtc = types.Int64Value(18)
+	evening.MinReplicas = types.Int64Value(4)
+	evening.MaxReplicas = types.Int64Value(4)
+
+	// Prior state order: morning, evening. Server responds reversed.
+	state := &models.ServiceScheduledScalingResourceModel{
+		Entries: buildEntryList(t, morning, evening),
+	}
+	schedule := &api.AutoScalingSchedule{
+		Entries: []api.AutoScalingScheduleEntry{
+			{Name: "shift", Weekdays: []int{1}, StartHourUtc: 12, EndHourUtc: 18, MinReplicas: intPtr(4), MaxReplicas: intPtr(4), IdleScaling: boolPtr(false)},
+			{Name: "shift", Weekdays: []int{1}, StartHourUtc: 8, EndHourUtc: 12, MinReplicas: intPtr(2), MaxReplicas: intPtr(2), IdleScaling: boolPtr(false)},
+		},
+	}
+
+	if d := applyScheduleToState(ctx, schedule, state); d.HasError() {
+		t.Fatalf("applyScheduleToState: %v", d)
+	}
+
+	var got []models.ScheduledScalingEntryModel
+	if d := state.Entries.ElementsAs(ctx, &got, false); d.HasError() {
+		t.Fatalf("ElementsAs: %v", d)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len = %d; want 2", len(got))
+	}
+	if got[0].StartHourUtc.ValueInt64() != 8 || got[1].StartHourUtc.ValueInt64() != 12 {
+		t.Errorf("order = (%d, %d); want prior-state order (8, 12)",
+			got[0].StartHourUtc.ValueInt64(), got[1].StartHourUtc.ValueInt64())
+	}
+	if got[0].MinReplicas.ValueInt64() != 2 || got[1].MinReplicas.ValueInt64() != 4 {
+		t.Errorf("replicas = (%d, %d); want (2, 4) — content must follow the matched entry",
+			got[0].MinReplicas.ValueInt64(), got[1].MinReplicas.ValueInt64())
 	}
 }
 
