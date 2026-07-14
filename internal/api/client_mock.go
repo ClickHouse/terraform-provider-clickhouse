@@ -2,7 +2,7 @@
 
 package api
 
-//go:generate minimock -i github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api.Client -o client_mock.go -n ClientMock -p api
+//go:generate minimock -i github.com/ClickHouse/terraform-provider-clickhouse/internal/api.Client -o client_mock.go -n ClientMock -p api
 
 import (
 	"context"

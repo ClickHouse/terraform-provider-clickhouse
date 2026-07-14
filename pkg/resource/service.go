@@ -24,8 +24,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	internalplanmodifier "github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/planmodifier"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	internalplanmodifier "github.com/ClickHouse/terraform-provider-clickhouse/internal/planmodifier"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"

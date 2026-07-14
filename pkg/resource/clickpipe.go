@@ -31,9 +31,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/utils"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/tfutils"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 )
 

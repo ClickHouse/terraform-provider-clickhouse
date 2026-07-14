@@ -13,7 +13,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/project"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/project"
 )
 
 type ResponseWithResult[T any] struct {

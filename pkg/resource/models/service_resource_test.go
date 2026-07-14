@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/test"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/tfutils"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/test"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/tfutils"
 )
 
 func TestServiceResource_Equals(t *testing.T) {

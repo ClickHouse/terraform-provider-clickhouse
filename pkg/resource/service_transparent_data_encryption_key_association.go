@@ -5,7 +5,7 @@ import (
 	_ "embed"
 	"errors"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource/models"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
