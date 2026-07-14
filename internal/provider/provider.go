@@ -14,9 +14,8 @@ import (
 	upstreamresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/datasource"
-	pgdatasource "github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres/datasource"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 )
 
 // Ensure the implementation satisfies the expected interfaces
@@ -27,17 +26,17 @@ var (
 //go:embed README.md
 var providerDescription string
 
-func NewBuilder(resources []func() upstreamresource.Resource) func() provider.Provider {
+func NewBuilder(packages []service.ServicePackage) func() provider.Provider {
 	return func() provider.Provider {
 		return &clickhouseProvider{
-			resources: resources,
+			servicePackages: packages,
 		}
 	}
 }
 
 // clickhouseProvider is the provider implementation.
 type clickhouseProvider struct {
-	resources []func() upstreamresource.Resource
+	servicePackages []service.ServicePackage
 }
 
 type clickhouseProviderModel struct {
@@ -256,19 +255,18 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 
 // DataSources defines the data sources implemented in the provider.
 func (p *clickhouseProvider) DataSources(_ context.Context) []func() upstreamdatasource.DataSource {
-	return []func() upstreamdatasource.DataSource{
-		datasource.NewPrivateEndpointConfigDataSource,
-		datasource.NewApiKeyIDDataSource,
-		datasource.NewRolesDataSource,
-		datasource.NewRoleDataSource,
-		datasource.NewUserDataSource,
-		pgdatasource.NewPostgresServiceDataSource,
-		pgdatasource.NewPostgresServicesDataSource,
-		pgdatasource.NewPostgresServiceCaCertificatesDataSource,
+	var out []func() upstreamdatasource.DataSource
+	for _, sp := range p.servicePackages {
+		out = append(out, sp.DataSources()...)
 	}
+	return out
 }
 
 // Resources defines the resources implemented in the provider.
 func (p *clickhouseProvider) Resources(_ context.Context) []func() upstreamresource.Resource {
-	return p.resources
+	var out []func() upstreamresource.Resource
+	for _, sp := range p.servicePackages {
+		out = append(out, sp.Resources()...)
+	}
+	return out
 }

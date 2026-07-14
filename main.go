@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/provider"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/registry"
 )
 
 // Provider documentation generation.
@@ -18,7 +18,7 @@ func main() {
 
 	flag.BoolVar(&debug, "debug", false, "set to true to run the provider with support for debuggers like delve")
 	flag.Parse()
-	providerserver.Serve(context.Background(), provider.NewBuilder(resource.GetResourceFactories()), providerserver.ServeOpts{ //nolint:errcheck
+	providerserver.Serve(context.Background(), provider.NewBuilder(registry.ServicePackages()), providerserver.ServeOpts{ //nolint:errcheck
 		Address: "registry.terraform.io/ClickHouse/clickhouse",
 		Debug:   debug,
 	})
