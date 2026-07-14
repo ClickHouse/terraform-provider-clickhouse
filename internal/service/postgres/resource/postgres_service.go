@@ -24,7 +24,7 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres/resource/models"
 )
 
 var (

@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres/resource/models"
 )
 
 // ---------------------------------------------------------------------------

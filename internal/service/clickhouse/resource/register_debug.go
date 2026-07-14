@@ -4,6 +4,8 @@ package resource
 
 import (
 	upstreamresource "github.com/hashicorp/terraform-plugin-framework/resource"
+
+	pgresource "github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres/resource"
 )
 
 func GetResourceFactories() []func() upstreamresource.Resource {
@@ -13,7 +15,7 @@ func GetResourceFactories() []func() upstreamresource.Resource {
 		NewClickPipeReversePrivateEndpointCustomPrivateDNSResource,
 		NewClickPipeReversePrivateEndpointResource,
 		NewOrganizationSettingsResource,
-		NewPostgresServiceResource,
+		pgresource.NewPostgresServiceResource,
 		NewPrivateEndpointRegistrationResource,
 		NewRoleAssignmentResource,
 		NewRoleResource,

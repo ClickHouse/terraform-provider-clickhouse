@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/datasource"
+	pgdatasource "github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres/datasource"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 )
 
@@ -261,9 +262,9 @@ func (p *clickhouseProvider) DataSources(_ context.Context) []func() upstreamdat
 		datasource.NewRolesDataSource,
 		datasource.NewRoleDataSource,
 		datasource.NewUserDataSource,
-		datasource.NewPostgresServiceDataSource,
-		datasource.NewPostgresServicesDataSource,
-		datasource.NewPostgresServiceCaCertificatesDataSource,
+		pgdatasource.NewPostgresServiceDataSource,
+		pgdatasource.NewPostgresServicesDataSource,
+		pgdatasource.NewPostgresServiceCaCertificatesDataSource,
 	}
 }
 
