@@ -655,6 +655,115 @@ func TestApplyScheduleToStateWithPlan_FillsUnknownFromServer(t *testing.T) {
 	}
 }
 
+// TestApplyScheduleToStateWithPlan_ReorderedResponse exercises the reconcile on
+// a multi-entry plan whose server response is returned in a different order.
+// The index+identity-key correlation means a reordered element fails to match,
+// so known plan fields must survive while unset (unknown) fields resolve to
+// null — without error and preserving plan order.
+func TestApplyScheduleToStateWithPlan_ReorderedResponse(t *testing.T) {
+	ctx := context.Background()
+
+	planA := models.ScheduledScalingEntryModel{
+		Name: types.StringValue("A"), Weekdays: weekdaySetOf(t, 1),
+		StartHourUtc: types.Int64Value(8), EndHourUtc: types.Int64Value(12),
+		MinReplicas: types.Int64Value(3), MaxReplicas: types.Int64Value(3),
+		MinReplicaMemoryGb: types.Int64Null(), MaxReplicaMemoryGb: types.Int64Null(),
+		IdleScaling: types.BoolValue(false), IdleTimeoutMinutes: types.Int64Unknown(),
+	}
+	planB := models.ScheduledScalingEntryModel{
+		Name: types.StringValue("B"), Weekdays: weekdaySetOf(t, 2),
+		StartHourUtc: types.Int64Value(12), EndHourUtc: types.Int64Value(16),
+		MinReplicas: types.Int64Value(5), MaxReplicas: types.Int64Value(5),
+		MinReplicaMemoryGb: types.Int64Null(), MaxReplicaMemoryGb: types.Int64Null(),
+		IdleScaling: types.BoolValue(false), IdleTimeoutMinutes: types.Int64Unknown(),
+	}
+
+	// Server echoes the entries in reversed order.
+	schedule := &api.AutoScalingSchedule{
+		Entries: []api.AutoScalingScheduleEntry{
+			{Name: "B", Weekdays: []int{2}, StartHourUtc: 12, EndHourUtc: 16, MinReplicas: intPtr(5), MaxReplicas: intPtr(5), IdleScaling: boolPtr(false), IdleTimeoutMinutes: intPtr(30)},
+			{Name: "A", Weekdays: []int{1}, StartHourUtc: 8, EndHourUtc: 12, MinReplicas: intPtr(3), MaxReplicas: intPtr(3), IdleScaling: boolPtr(false), IdleTimeoutMinutes: intPtr(30)},
+		},
+	}
+
+	state := &models.ServiceScheduledScalingResourceModel{}
+	if d := applyScheduleToStateWithPlan(schedule, []models.ScheduledScalingEntryModel{planA, planB}, state); d.HasError() {
+		t.Fatalf("applyScheduleToStateWithPlan: %v", d)
+	}
+
+	var got []models.ScheduledScalingEntryModel
+	if d := state.Entries.ElementsAs(ctx, &got, false); d.HasError() {
+		t.Fatalf("ElementsAs: %v", d)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len = %d; want 2", len(got))
+	}
+	// Plan order is preserved.
+	if got[0].Name.ValueString() != "A" || got[1].Name.ValueString() != "B" {
+		t.Errorf("order = [%s %s]; want [A B]", got[0].Name.ValueString(), got[1].Name.ValueString())
+	}
+	// Known plan fields survive.
+	if got[0].MinReplicas.ValueInt64() != 3 || got[1].MinReplicas.ValueInt64() != 5 {
+		t.Errorf("replicas = (%d, %d); want (3, 5)", got[0].MinReplicas.ValueInt64(), got[1].MinReplicas.ValueInt64())
+	}
+	// Unset fields resolve to null rather than filling from the mis-indexed
+	// server entry (which reported idle_timeout_minutes=30).
+	for i, e := range got {
+		if !e.IdleTimeoutMinutes.IsNull() {
+			t.Errorf("entry %d idle_timeout_minutes = %v; want null (reordered response must not fill unknowns)", i, e.IdleTimeoutMinutes)
+		}
+	}
+}
+
+// TestApplyScheduleToStateWithPlan_FewerServerEntries verifies that when the
+// server returns fewer entries than planned, state still has one entry per
+// planned entry (the plan drives length); the missing entry's unset fields
+// resolve to null.
+func TestApplyScheduleToStateWithPlan_FewerServerEntries(t *testing.T) {
+	ctx := context.Background()
+
+	planA := models.ScheduledScalingEntryModel{
+		Name: types.StringValue("A"), Weekdays: weekdaySetOf(t, 1),
+		StartHourUtc: types.Int64Value(8), EndHourUtc: types.Int64Value(12),
+		MinReplicas: types.Int64Value(3), MaxReplicas: types.Int64Value(3),
+		MinReplicaMemoryGb: types.Int64Null(), MaxReplicaMemoryGb: types.Int64Null(),
+		IdleScaling: types.BoolValue(false), IdleTimeoutMinutes: types.Int64Unknown(),
+	}
+	planB := models.ScheduledScalingEntryModel{
+		Name: types.StringValue("B"), Weekdays: weekdaySetOf(t, 2),
+		StartHourUtc: types.Int64Value(12), EndHourUtc: types.Int64Value(16),
+		MinReplicas: types.Int64Value(5), MaxReplicas: types.Int64Value(5),
+		MinReplicaMemoryGb: types.Int64Null(), MaxReplicaMemoryGb: types.Int64Null(),
+		IdleScaling: types.BoolValue(false), IdleTimeoutMinutes: types.Int64Unknown(),
+	}
+
+	// Server returns only the first entry.
+	schedule := &api.AutoScalingSchedule{
+		Entries: []api.AutoScalingScheduleEntry{
+			{Name: "A", Weekdays: []int{1}, StartHourUtc: 8, EndHourUtc: 12, MinReplicas: intPtr(3), MaxReplicas: intPtr(3), IdleScaling: boolPtr(false)},
+		},
+	}
+
+	state := &models.ServiceScheduledScalingResourceModel{}
+	if d := applyScheduleToStateWithPlan(schedule, []models.ScheduledScalingEntryModel{planA, planB}, state); d.HasError() {
+		t.Fatalf("applyScheduleToStateWithPlan: %v", d)
+	}
+
+	var got []models.ScheduledScalingEntryModel
+	if d := state.Entries.ElementsAs(ctx, &got, false); d.HasError() {
+		t.Fatalf("ElementsAs: %v", d)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len = %d; want 2 (plan drives length)", len(got))
+	}
+	if got[1].Name.ValueString() != "B" {
+		t.Errorf("entry[1] name = %q; want B", got[1].Name.ValueString())
+	}
+	if !got[1].IdleTimeoutMinutes.IsNull() {
+		t.Errorf("entry[1] idle_timeout_minutes = %v; want null (no server entry to fill from)", got[1].IdleTimeoutMinutes)
+	}
+}
+
 // TestServiceScheduledScalingResource_UpgradeStateV0ToV1 verifies that state
 // written by an older provider (entries as a set) upgrades cleanly to the v1
 // layout (entries as a list) without losing entry content.

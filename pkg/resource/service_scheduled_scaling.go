@@ -394,8 +394,31 @@ func scheduledScalingSchemaV0() schema.Schema {
 	}
 }
 
+// entryObjectTypeV1 is the entry object type frozen as of schema v1. The v0->v1
+// upgrader targets this rather than models.ScheduledScalingEntryModel{}.ObjectType()
+// so a future v2 that changes the entry shape cannot silently break this
+// upgrader: the 0: upgrader must keep emitting the v1 type while re-wrapping
+// v0-typed elements, and a live-model type would then mismatch.
+func entryObjectTypeV1() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"name":                  types.StringType,
+			"weekdays":              types.SetType{ElemType: types.Int64Type},
+			"start_hour_utc":        types.Int64Type,
+			"end_hour_utc":          types.Int64Type,
+			"min_replica_memory_gb": types.Int64Type,
+			"max_replica_memory_gb": types.Int64Type,
+			"min_replicas":          types.Int64Type,
+			"max_replicas":          types.Int64Type,
+			"idle_scaling":          types.BoolType,
+			"idle_timeout_minutes":  types.Int64Type,
+		},
+	}
+}
+
 // UpgradeState migrates v0 state (entries as a set) to v1 (entries as a list).
-// The entry object type is unchanged, so the collection is simply re-wrapped.
+// The v0 and v1 entry object types are identical, so the collection is simply
+// re-wrapped into the frozen v1 type.
 func (r *ServiceScheduledScalingResource) UpgradeState(_ context.Context) map[int64]resource.StateUpgrader {
 	priorSchema := scheduledScalingSchemaV0()
 	return map[int64]resource.StateUpgrader{
@@ -408,10 +431,10 @@ func (r *ServiceScheduledScalingResource) UpgradeState(_ context.Context) map[in
 					return
 				}
 
-				entryType := models.ScheduledScalingEntryModel{}.ObjectType()
+				entryType := entryObjectTypeV1()
 				entries := types.ListNull(entryType)
 				if !prior.Entries.IsNull() && !prior.Entries.IsUnknown() {
-					// The set's elements are already values of the list's
+					// The set's elements are already values of the frozen v1
 					// element type; re-wrap them directly. This relies on the
 					// v0 and v1 entry object types being identical — if a
 					// future schema version changes the entry type, this
@@ -637,11 +660,17 @@ func applyScheduleToState(ctx context.Context, schedule *api.AutoScalingSchedule
 // apiEntryKey / modelEntryKey compute a schedule entry's identity from its
 // user-declared fields: name plus the window itself (sorted weekdays and
 // hours). Names alone are not guaranteed unique, but two entries cannot cover
-// the same window (the server rejects overlaps), so the combined key is.
-func apiEntryKey(e api.AutoScalingScheduleEntry) string {
-	wd := append([]int(nil), e.Weekdays...)
+// the same window (the server rejects overlaps), so the combined key is. Both
+// delegate to entryKey so the two representations can never drift in format —
+// a divergence would silently break correlation with no compile error.
+func entryKey(name string, weekdays []int, startHourUtc, endHourUtc int) string {
+	wd := append([]int(nil), weekdays...)
 	sort.Ints(wd)
-	return fmt.Sprintf("%s|%v|%d|%d", e.Name, wd, e.StartHourUtc, e.EndHourUtc)
+	return fmt.Sprintf("%s|%v|%d|%d", name, wd, startHourUtc, endHourUtc)
+}
+
+func apiEntryKey(e api.AutoScalingScheduleEntry) string {
+	return entryKey(e.Name, e.Weekdays, e.StartHourUtc, e.EndHourUtc)
 }
 
 func modelEntryKey(m models.ScheduledScalingEntryModel) string {
@@ -651,8 +680,7 @@ func modelEntryKey(m models.ScheduledScalingEntryModel) string {
 			wd = append(wd, int(iv.ValueInt64()))
 		}
 	}
-	sort.Ints(wd)
-	return fmt.Sprintf("%s|%v|%d|%d", m.Name.ValueString(), wd, m.StartHourUtc.ValueInt64(), m.EndHourUtc.ValueInt64())
+	return entryKey(m.Name.ValueString(), wd, int(m.StartHourUtc.ValueInt64()), int(m.EndHourUtc.ValueInt64()))
 }
 
 // applyScheduleToStateWithPlan is the Create/Update counterpart of
