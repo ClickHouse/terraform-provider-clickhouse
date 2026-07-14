@@ -32,13 +32,13 @@ linters:
           - dupl
       # goconst flags Terraform schema attribute keys (idiomatic string literals)
       # throughout the schema-definition packages. Keep goconst active only on the
-      # client/logic code (pkg/internal/...), where magic-string detection has value.
-      - path: (pkg/resource|pkg/datasource)
+      # client/logic code (internal/api, internal/...), where magic-string detection has value.
+      - path: (internal/service/[^/]+/resource|internal/service/[^/]+/datasource)
         linters:
           - goconst
       # Postgres and MySQL ClickPipe sources are intentionally implemented as parallel
       # code paths (distinct model/API types). The resulting duplication is accepted.
-      - path: pkg/resource/clickpipe\.go
+      - path: internal/service/clickhouse/resource/clickpipe\.go
         linters:
           - dupl
 

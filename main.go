@@ -6,8 +6,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/provider"
-	"github.com/ClickHouse/terraform-provider-clickhouse/pkg/resource"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/provider"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource"
 )
 
 // Provider documentation generation.
