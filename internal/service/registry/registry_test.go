@@ -48,4 +48,20 @@ func TestServicePackages(t *testing.T) {
 	if len(resTypes) == 0 || len(dsTypes) == 0 {
 		t.Fatal("registry returned no resources or no data sources")
 	}
+
+	// Golden-count guard: the registered surface must stay exactly what the
+	// pre-restructure provider exposed. This catches a factory accidentally
+	// dropped from a group's list (which the uniqueness check above would miss).
+	// Bump these numbers deliberately when a group gains or loses a
+	// resource/data source.
+	const (
+		wantResources   = 14
+		wantDataSources = 8
+	)
+	if len(resTypes) != wantResources {
+		t.Errorf("registered resource count = %d, want %d (a factory was added or dropped?)", len(resTypes), wantResources)
+	}
+	if len(dsTypes) != wantDataSources {
+		t.Errorf("registered data source count = %d, want %d (a factory was added or dropped?)", len(dsTypes), wantDataSources)
+	}
 }
