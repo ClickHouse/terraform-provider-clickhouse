@@ -3,8 +3,10 @@ package datasource
 import (
 	"context"
 	_ "embed"
+	"fmt"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -35,15 +37,18 @@ func (d *rolesDataSource) Configure(_ context.Context, req datasource.ConfigureR
 	if req.ProviderData == nil {
 		return
 	}
-	client, ok := req.ProviderData.(api.Client)
+	providerData, ok := req.ProviderData.(*service.ProviderData)
 	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
-			"Expected api.Client, got something else. Please report this issue to the provider developers.",
-		)
+		resp.Diagnostics.AddError("Unexpected provider data",
+			fmt.Sprintf("expected *service.ProviderData, got %T. This is a bug in the provider.", req.ProviderData))
 		return
 	}
-	d.client = client
+	if providerData.API == nil {
+		resp.Diagnostics.AddError("ClickHouse Cloud API not configured",
+			"This resource requires ClickHouse Cloud credentials. Set organization_id, token_key and token_secret on the provider (or the corresponding CLICKHOUSE_* environment variables).")
+		return
+	}
+	d.client = providerData.API
 }
 
 func (d *rolesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {

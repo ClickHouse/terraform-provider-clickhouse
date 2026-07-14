@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
 
@@ -72,17 +73,21 @@ func (r *ClickPipeCdcInfrastructureResource) Schema(_ context.Context, _ resourc
 }
 
 func (r *ClickPipeCdcInfrastructureResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData != nil {
-		client, ok := req.ProviderData.(api.Client)
-		if !ok {
-			resp.Diagnostics.AddError(
-				"Unexpected Resource Configure Type",
-				fmt.Sprintf("Expected api.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-			)
-			return
-		}
-		r.client = client
+	if req.ProviderData == nil {
+		return
 	}
+	providerData, ok := req.ProviderData.(*service.ProviderData)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected provider data",
+			fmt.Sprintf("expected *service.ProviderData, got %T. This is a bug in the provider.", req.ProviderData))
+		return
+	}
+	if providerData.API == nil {
+		resp.Diagnostics.AddError("ClickHouse Cloud API not configured",
+			"This resource requires ClickHouse Cloud credentials. Set organization_id, token_key and token_secret on the provider (or the corresponding CLICKHOUSE_* environment variables).")
+		return
+	}
+	r.client = providerData.API
 }
 
 func (r *ClickPipeCdcInfrastructureResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

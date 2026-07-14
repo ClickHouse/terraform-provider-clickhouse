@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
 
@@ -87,20 +88,27 @@ func (r *ClickPipeReversePrivateEndpointCustomPrivateDNSResource) Schema(ctx con
 	}
 }
 
-func (r *ClickPipeReversePrivateEndpointCustomPrivateDNSResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *ClickPipeReversePrivateEndpointCustomPrivateDNSResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
-
-	client, ok := req.ProviderData.(*api.ClientImpl)
+	providerData, ok := req.ProviderData.(*service.ProviderData)
 	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *api.ClientImpl, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)
+		resp.Diagnostics.AddError("Unexpected provider data",
+			fmt.Sprintf("expected *service.ProviderData, got %T. This is a bug in the provider.", req.ProviderData))
 		return
 	}
-
+	if providerData.API == nil {
+		resp.Diagnostics.AddError("ClickHouse Cloud API not configured",
+			"This resource requires ClickHouse Cloud credentials. Set organization_id, token_key and token_secret on the provider (or the corresponding CLICKHOUSE_* environment variables).")
+		return
+	}
+	client, ok := providerData.API.(*api.ClientImpl)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected client type",
+			fmt.Sprintf("expected *api.ClientImpl, got %T. This is a bug in the provider.", providerData.API))
+		return
+	}
 	r.client = client
 }
 

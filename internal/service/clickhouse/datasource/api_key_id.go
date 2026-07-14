@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 )
 
 //go:embed descriptions/api_key_id.md
@@ -29,12 +30,22 @@ type apiKeyIdDataSource struct {
 	client api.Client
 }
 
-func (d *apiKeyIdDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
-	// Access DataSourceData from the provider configuration
+func (d *apiKeyIdDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
-	d.client = req.ProviderData.(api.Client)
+	providerData, ok := req.ProviderData.(*service.ProviderData)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected provider data",
+			fmt.Sprintf("expected *service.ProviderData, got %T. This is a bug in the provider.", req.ProviderData))
+		return
+	}
+	if providerData.API == nil {
+		resp.Diagnostics.AddError("ClickHouse Cloud API not configured",
+			"This resource requires ClickHouse Cloud credentials. Set organization_id, token_key and token_secret on the provider (or the corresponding CLICKHOUSE_* environment variables).")
+		return
+	}
+	d.client = providerData.API
 }
 
 func (d *apiKeyIdDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {

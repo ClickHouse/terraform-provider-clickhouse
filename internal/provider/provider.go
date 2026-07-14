@@ -249,8 +249,9 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 
 	// Make the ClickHouse client available during DataSource and Resource
 	// type Configure methods.
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	data := &service.ProviderData{API: client}
+	resp.DataSourceData = data
+	resp.ResourceData = data
 }
 
 // DataSources defines the data sources implemented in the provider.

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/test"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/test"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"

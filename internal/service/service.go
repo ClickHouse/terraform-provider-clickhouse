@@ -6,6 +6,8 @@ package service
 import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 )
 
 // ServicePackage is implemented once per service group. A group
@@ -30,4 +32,11 @@ type Metadata struct {
 	HumanName string    // docs/diagnostics label, e.g. "ClickStack"
 	Owner     string    // CODEOWNERS team, e.g. "@ClickHouse/clickstack"
 	Stability Stability // default maturity for the group
+}
+
+// ProviderData is what the provider's Configure hands to every resource and
+// data source. Each service group reads the client(s) it needs; a nil client
+// means the user did not configure that group.
+type ProviderData struct {
+	API api.Client // ClickHouse Cloud OpenAPI (Basic auth)
 }

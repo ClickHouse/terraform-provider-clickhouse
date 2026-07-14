@@ -32,9 +32,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/tfutils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
 
 var (
@@ -99,12 +100,22 @@ func NewClickPipeResource() resource.Resource {
 	return &ClickPipeResource{}
 }
 
-func (c *ClickPipeResource) Configure(_ context.Context, request resource.ConfigureRequest, _ *resource.ConfigureResponse) {
-	if request.ProviderData == nil {
+func (c *ClickPipeResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
 		return
 	}
-
-	c.client = request.ProviderData.(api.Client)
+	providerData, ok := req.ProviderData.(*service.ProviderData)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected provider data",
+			fmt.Sprintf("expected *service.ProviderData, got %T. This is a bug in the provider.", req.ProviderData))
+		return
+	}
+	if providerData.API == nil {
+		resp.Diagnostics.AddError("ClickHouse Cloud API not configured",
+			"This resource requires ClickHouse Cloud credentials. Set organization_id, token_key and token_secret on the provider (or the corresponding CLICKHOUSE_* environment variables).")
+		return
+	}
+	c.client = providerData.API
 }
 
 func (c *ClickPipeResource) Metadata(_ context.Context, request resource.MetadataRequest, response *resource.MetadataResponse) {

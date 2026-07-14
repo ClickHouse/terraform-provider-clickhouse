@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -26,6 +27,7 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	internalplanmodifier "github.com/ClickHouse/terraform-provider-clickhouse/internal/planmodifier"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -521,12 +523,22 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *ServiceResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *ServiceResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
-
-	r.client = req.ProviderData.(api.Client)
+	providerData, ok := req.ProviderData.(*service.ProviderData)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected provider data",
+			fmt.Sprintf("expected *service.ProviderData, got %T. This is a bug in the provider.", req.ProviderData))
+		return
+	}
+	if providerData.API == nil {
+		resp.Diagnostics.AddError("ClickHouse Cloud API not configured",
+			"This resource requires ClickHouse Cloud credentials. Set organization_id, token_key and token_secret on the provider (or the corresponding CLICKHOUSE_* environment variables).")
+		return
+	}
+	r.client = providerData.API
 }
 
 func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {

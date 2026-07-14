@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
@@ -23,8 +24,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres/resource/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 var (
@@ -463,15 +465,18 @@ func (r *PostgresServiceResource) Configure(_ context.Context, req resource.Conf
 	if req.ProviderData == nil {
 		return
 	}
-	client, ok := req.ProviderData.(api.Client)
+	providerData, ok := req.ProviderData.(*service.ProviderData)
 	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
-			"Expected api.Client, got something else. Please report this issue to the provider developers.",
-		)
+		resp.Diagnostics.AddError("Unexpected provider data",
+			fmt.Sprintf("expected *service.ProviderData, got %T. This is a bug in the provider.", req.ProviderData))
 		return
 	}
-	r.client = client
+	if providerData.API == nil {
+		resp.Diagnostics.AddError("ClickHouse Cloud API not configured",
+			"This resource requires ClickHouse Cloud credentials. Set organization_id, token_key and token_secret on the provider (or the corresponding CLICKHOUSE_* environment variables).")
+		return
+	}
+	r.client = providerData.API
 }
 
 // Create provisions a new instance via one of three mutually-exclusive paths:
