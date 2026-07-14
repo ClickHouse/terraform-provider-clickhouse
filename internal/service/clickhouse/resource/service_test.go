@@ -1160,6 +1160,26 @@ func TestServiceResource_ModifyPlan_horizontal(t *testing.T) {
 		}
 	})
 
+	t.Run("explicit-vertical create without num_replicas plans cleanly (switch guard is update-only)", func(t *testing.T) {
+		// The switch-to-vertical guard is gated on hasState — a fresh create (null state) omitting num_replicas
+		// must not be rejected; the API defaults the count. This pins the create-path exemption, which the
+		// update-only modeSwitch cases don't exercise.
+		verticalCreate := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+			s.Tier = types.StringValue(api.TierProduction)
+			s.AutoscalingMode = types.StringValue(api.AutoscalingModeVertical)
+			s.NumReplicas = types.Int64Null()
+			s.MinReplicas = types.Int64Null()
+			s.MaxReplicas = types.Int64Null()
+			s.MinReplicaMemoryGb = types.Int64Value(8)
+			s.MaxReplicaMemoryGb = types.Int64Value(32)
+			s.MinTotalMemoryGb = types.Int64Null()
+			s.MaxTotalMemoryGb = types.Int64Null()
+		}).Get()
+		if detailContains(run(t, verticalCreate), "switching to vertical autoscaling requires num_replicas") {
+			t.Errorf("a fresh vertical create without num_replicas must not trip the update-only switch guard")
+		}
+	})
+
 	t.Run("deprecated total-memory only (per-replica null) does not trip the mutual-exclusion conflict", func(t *testing.T) {
 		// A config using only the deprecated min/max_total_memory_gb (per-replica fields null, as a module
 		// passing null produces) must not be rejected as "can't be specified at the same time".
@@ -1416,6 +1436,158 @@ func TestServiceResource_ModifyPlan_modeSwitch(t *testing.T) {
 		if !foundBandGuard {
 			t.Errorf("expected the vertical-band guard message; got %v", diags.Errors())
 		}
+	})
+
+	t.Run("horizontal->vertical without num_replicas is rejected at plan time", func(t *testing.T) {
+		// The reported case (UC-1264): drop the band + set autoscaling_mode = "vertical" but supply no
+		// num_replicas. The service was horizontal, so there is no stored count to keep — without num_replicas
+		// the switch fails at apply with an opaque 400. Catch it at plan time and steer to num_replicas.
+		noCountConfig := vertical(func(s *models.ServiceResourceModel) {
+			s.NumReplicas = types.Int64Null()
+			s.MinReplicas = types.Int64Null()
+			s.MaxReplicas = types.Int64Null()
+		})
+		if !detailContains(runErr(t, horizontal(nil), noCountConfig, noCountConfig), "switching to vertical autoscaling requires num_replicas") {
+			t.Errorf("a horizontal->vertical switch with no num_replicas must be rejected at plan time")
+		}
+	})
+
+	t.Run("vertical resize omitting num_replicas keeps the stored count (no false reject)", func(t *testing.T) {
+		// An existing vertical service updated with num_replicas omitted keeps its stored count
+		// (UseStateForUnknown pins it). The switch-requires-a-count guard must NOT fire — state.AutoscalingMode
+		// already matches the target (vertical), so this is a keep-current resize, not a switch. run t.Fatalf's
+		// on any error.
+		resizeConfig := vertical(func(s *models.ServiceResourceModel) {
+			s.NumReplicas = types.Int64Null()
+			s.MinReplicaMemoryGb = types.Int64Value(4)
+		})
+		plan := vertical(func(s *models.ServiceResourceModel) {
+			s.MinReplicaMemoryGb = types.Int64Value(4)
+		})
+		run(t, vertical(nil), resizeConfig, plan)
+	})
+
+	t.Run("switch to vertical with an interpolated (unknown) mode defers, not rejects", func(t *testing.T) {
+		// autoscaling_mode = var.mode is Unknown in config; the mode can't be resolved yet, so the enforceMode
+		// gate skips the switch guards and defers to apply rather than false-rejecting a config that may
+		// resolve valid.
+		unknownModeConfig := vertical(func(s *models.ServiceResourceModel) {
+			s.AutoscalingMode = types.StringUnknown()
+			s.NumReplicas = types.Int64Null()
+			s.MinReplicas = types.Int64Null()
+			s.MaxReplicas = types.Int64Null()
+		})
+		if detailContains(runErr(t, horizontal(nil), unknownModeConfig, unknownModeConfig), "switching to vertical autoscaling requires num_replicas") {
+			t.Errorf("an interpolated (unknown) mode must defer the switch guard, not reject")
+		}
+	})
+
+	t.Run("vertical->horizontal without a band is rejected at plan time", func(t *testing.T) {
+		// The mirror of the reported case: set autoscaling_mode = "horizontal" (with equal memory) but supply
+		// no min_replicas/max_replicas. The service was vertical, so there is no stored band to keep — without
+		// the band the switch fails at apply. Catch it at plan time and steer to the replica band.
+		noBandConfig := horizontal(func(s *models.ServiceResourceModel) {
+			s.MinReplicas = types.Int64Null()
+			s.MaxReplicas = types.Int64Null()
+		})
+		if !detailContains(runErr(t, vertical(nil), noBandConfig, noBandConfig), "switching to horizontal autoscaling requires min_replicas and max_replicas") {
+			t.Errorf("a vertical->horizontal switch with no band must be rejected at plan time")
+		}
+	})
+
+	t.Run("horizontal resize omitting the band keeps the stored band (no false reject)", func(t *testing.T) {
+		// An existing horizontal service updated with the band omitted keeps its stored band. The
+		// switch-requires-a-band guard must NOT fire — state.AutoscalingMode already matches the target
+		// (horizontal), so this is a keep-current memory-only resize, not a switch.
+		resizeConfig := horizontal(func(s *models.ServiceResourceModel) {
+			s.MinReplicas = types.Int64Null()
+			s.MaxReplicas = types.Int64Null()
+			s.MinReplicaMemoryGb = types.Int64Value(8)
+			s.MaxReplicaMemoryGb = types.Int64Value(8)
+		})
+		plan := horizontal(func(s *models.ServiceResourceModel) {
+			s.MinReplicaMemoryGb = types.Int64Value(8)
+			s.MaxReplicaMemoryGb = types.Int64Value(8)
+		})
+		run(t, horizontal(nil), resizeConfig, plan)
+	})
+
+	t.Run("vertical->horizontal with a leftover num_replicas emits one diagnostic, not two", func(t *testing.T) {
+		// A v→h switch that leaves num_replicas set and omits the band trips the num_replicas-forbidden guard;
+		// the switch-requires-a-band guard must defer (parallel to the h→v guard deferring to the band guard),
+		// so the caller sees the single most-specific error, not a stacked pair.
+		leftoverCount := horizontal(func(s *models.ServiceResourceModel) {
+			s.MinReplicas = types.Int64Null()
+			s.MaxReplicas = types.Int64Null()
+			s.NumReplicas = types.Int64Value(3)
+		})
+		diags := runErr(t, vertical(nil), leftoverCount, leftoverCount)
+		if !detailContains(diags, "num_replicas can't be set when autoscaling_mode is \"horizontal\"") {
+			t.Errorf("expected the num_replicas-forbidden diagnostic; got %v", diags.Errors())
+		}
+		if detailContains(diags, "switching to horizontal autoscaling requires") {
+			t.Errorf("the switch-requires-a-band guard must defer to the num_replicas-forbidden guard, not stack a second error; got %v", diags.Errors())
+		}
+	})
+
+	t.Run("vertical->horizontal with leftover total-memory emits one diagnostic, not two", func(t *testing.T) {
+		// The deprecated min/max_total_memory_gb aren't cleared by the read path, so a legacy totals-sized
+		// vertical service edited to horizontal (band omitted, totals left in the HCL) trips the
+		// totals-forbidden guard; the switch-requires-a-band guard must defer to it, mirroring the num_replicas
+		// case above, so only the single most-specific error fires.
+		leftoverTotals := horizontal(func(s *models.ServiceResourceModel) {
+			s.MinReplicas = types.Int64Null()
+			s.MaxReplicas = types.Int64Null()
+			s.MinReplicaMemoryGb = types.Int64Null()
+			s.MaxReplicaMemoryGb = types.Int64Null()
+			s.MinTotalMemoryGb = types.Int64Value(48)
+			s.MaxTotalMemoryGb = types.Int64Value(48)
+		})
+		diags := runErr(t, vertical(nil), leftoverTotals, leftoverTotals)
+		if !detailContains(diags, "min_total_memory_gb/max_total_memory_gb can't be used with autoscaling_mode") {
+			t.Errorf("expected the totals-forbidden diagnostic; got %v", diags.Errors())
+		}
+		if detailContains(diags, "switching to horizontal autoscaling requires") {
+			t.Errorf("the switch-requires-a-band guard must defer to the totals-forbidden guard, not stack a second error; got %v", diags.Errors())
+		}
+	})
+
+	t.Run("horizontal->vertical with a leftover band emits one diagnostic, not two", func(t *testing.T) {
+		// The h→v mirror of the leftover-field dedup: a switch to vertical that leaves a band set (and omits
+		// num_replicas) trips the band-rejected-for-vertical guard; the switch-requires-a-count guard must
+		// defer to it via its band-null clause, so only the single band-rejected error fires.
+		leftoverBand := vertical(func(s *models.ServiceResourceModel) {
+			s.NumReplicas = types.Int64Null()
+			s.MinReplicas = types.Int64Value(3)
+			s.MaxReplicas = types.Int64Value(10)
+		})
+		diags := runErr(t, horizontal(nil), leftoverBand, leftoverBand)
+		if !detailContains(diags, "min_replicas/max_replicas define a horizontal replica band") {
+			t.Errorf("expected the band-rejected diagnostic; got %v", diags.Errors())
+		}
+		if detailContains(diags, "switching to vertical autoscaling requires") {
+			t.Errorf("the switch-requires-a-count guard must defer to the band-rejected guard, not stack a second error; got %v", diags.Errors())
+		}
+	})
+
+	t.Run("legacy vertical service with null num_replicas resizes without a false switch-reject", func(t *testing.T) {
+		// A legacy vertical service (sized via the deprecated total-memory path) can read back with num_replicas
+		// null while its stored mode is still vertical. A keep-current memory resize (mode + num_replicas
+		// omitted) must not be misread as a switch-to-vertical: the guard keys on the stored mode, not on
+		// num_replicas nullness.
+		legacyState := vertical(func(s *models.ServiceResourceModel) {
+			s.NumReplicas = types.Int64Null()
+		})
+		resizeConfig := vertical(func(s *models.ServiceResourceModel) {
+			s.AutoscalingMode = types.StringNull()
+			s.NumReplicas = types.Int64Null()
+			s.MinReplicaMemoryGb = types.Int64Value(16)
+		})
+		plan := vertical(func(s *models.ServiceResourceModel) {
+			s.NumReplicas = types.Int64Null()
+			s.MinReplicaMemoryGb = types.Int64Value(16)
+		})
+		run(t, legacyState, resizeConfig, plan)
 	})
 
 	t.Run("interpolated (Unknown) mode with an equal band defers, not rejected", func(t *testing.T) {

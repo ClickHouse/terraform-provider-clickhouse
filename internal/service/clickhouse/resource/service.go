@@ -640,10 +640,12 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
+	hasState := !req.State.Raw.IsNull()
+
 	var plan, state, config models.ServiceResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
-	if !req.State.Raw.IsNull() {
+	if hasState {
 		diags = req.State.Get(ctx, &state)
 		resp.Diagnostics.Append(diags...)
 	}
@@ -659,7 +661,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
-	if !req.State.Raw.IsNull() {
+	if hasState {
 		// Validations for updates.
 		if !plan.BYOCID.IsNull() && !plan.BYOCID.IsUnknown() && plan.BYOCID != state.BYOCID {
 			resp.Diagnostics.AddAttributeError(
@@ -788,7 +790,7 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	// Resolve the autoscaling mode for the plan-time checks below (see resolveIsHorizontal for the precedence).
-	isHorizontal := resolveIsHorizontal(config, state, !req.State.Raw.IsNull())
+	isHorizontal := resolveIsHorizontal(config, state, hasState)
 
 	// These two mode-vs-field guards resolve mode from config, so an interpolated (Unknown) autoscaling_mode
 	// can't be resolved yet — defer both to the API (mirroring the mode-switch nulling block below and the
@@ -830,6 +832,38 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		resp.Diagnostics.AddError(
 			"Invalid Configuration",
 			"min_replicas/max_replicas define a horizontal replica band; for vertical autoscaling set the replica count with num_replicas, or set autoscaling_mode = \"horizontal\" to use a band",
+		)
+	}
+
+	// Keyed on the prior stored mode so each guard fires only on a genuine cross-mode switch. Switching modes
+	// needs the target mode's replica field supplied — the other mode's stored value can't carry over (the API
+	// reports vertical as num_replicas with the band cleared, horizontal as a min/max band with num_replicas
+	// cleared) — so without it the switch is accepted at plan time and fails at apply with an opaque 400. Each
+	// guard requires the *other* mode's fields absent so the more specific num_replicas- / totals- / band-
+	// forbidden guards above own the leftover-field case instead of stacking a second diagnostic. Update-only:
+	// a fresh create lets the API default the count.
+	// Accepted limitation: a pre-autoscaling service just upgraded to the v1 schema carries a null stored mode
+	// until the next refreshed read, so a switch planned with -refresh=false in that window defers to the API
+	// 400 rather than being caught here — fail-open, never a false reject.
+	noReplicaFieldSupplied := config.NumReplicas.IsNull() && config.MinReplicas.IsNull() && config.MaxReplicas.IsNull()
+	if enforceMode && hasState && !isHorizontal &&
+		state.AutoscalingMode.ValueString() == api.AutoscalingModeHorizontal && noReplicaFieldSupplied {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"switching to vertical autoscaling requires num_replicas — set num_replicas to the fixed replica count",
+		)
+	}
+	// The horizontal guard also defers when the deprecated min/max_total_memory_gb are still set: those are
+	// Optional-only (not cleared by the read path), so a legacy totals-sized vertical service edited to
+	// horizontal without removing them trips the totals-forbidden guard above — this guard stays quiet so only
+	// that single, more-specific diagnostic fires. The vertical guard needs no such clause: totals are a valid
+	// vertical memory source, so they don't stack a diagnostic on a switch to vertical.
+	if enforceMode && hasState && isHorizontal &&
+		state.AutoscalingMode.ValueString() == api.AutoscalingModeVertical && noReplicaFieldSupplied &&
+		config.MinTotalMemoryGb.IsNull() && config.MaxTotalMemoryGb.IsNull() {
+		resp.Diagnostics.AddError(
+			"Invalid Configuration",
+			"switching to horizontal autoscaling requires min_replicas and max_replicas — set the replica band the count scales across",
 		)
 	}
 
