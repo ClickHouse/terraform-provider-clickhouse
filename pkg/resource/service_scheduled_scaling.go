@@ -599,10 +599,15 @@ func applyScheduleToState(schedule *api.AutoScalingSchedule, state *models.Servi
 
 // applyScheduleToStateWithPlan is the Create/Update counterpart of
 // applyScheduleToState. It reconciles the server response against the plan so
-// that values the user set explicitly survive server-side normalization. The
-// server drops the idle fields for a non-idle entry (idle_scaling=false), so a
-// server-only mapping would turn a planned idle_scaling=false into null and
-// trip Terraform's "produced inconsistent result after apply" check.
+// that values the user set explicitly survive server-side normalization: any
+// field the server echoes differently from how it was sent (or not at all)
+// would otherwise land in state as null and trip Terraform's "produced
+// inconsistent result after apply" check. The known instance of this was
+// UC-1252 (issue #611): the server normalized a vertical entry's equal
+// minReplicas/maxReplicas band to numReplicas and omitted the band from the
+// response. That is fixed server-side (control-plane#35956), but reconciling
+// against the plan keeps Create/Update correct regardless of which fields any
+// server version echoes.
 func applyScheduleToStateWithPlan(ctx context.Context, schedule *api.AutoScalingSchedule, planEntries types.List, state *models.ServiceScheduledScalingResourceModel) diag.Diagnostics {
 	entriesList, diags := reconcileEntriesWithPlan(ctx, schedule, planEntries)
 	if diags.HasError() {
@@ -721,9 +726,9 @@ func apiEntryToModel(e api.AutoScalingScheduleEntry) (models.ScheduledScalingEnt
 		MaxReplicaMemoryGb: int64PtrToValue(e.MaxReplicaMemoryGb),
 		MinReplicas:        int64PtrToValue(e.MinReplicas),
 		MaxReplicas:        int64PtrToValue(e.MaxReplicas),
-		// The server omits the idle fields for a non-idle entry; treat a missing
-		// idle_scaling as its effective value, false, so a refresh of an entry
-		// written with idle_scaling=false does not show perpetual drift.
+		// The server echoes idle_scaling in practice, but treat a missing value
+		// as its effective default, false, so a refresh of a non-idle entry can
+		// never show perpetual drift if a server version omits it.
 		IdleScaling:        boolPtrToValueDefault(e.IdleScaling, false),
 		IdleTimeoutMinutes: int64PtrToValue(e.IdleTimeoutMinutes),
 	}

@@ -13,7 +13,11 @@ import (
 const MaxAutoScalingScheduleEntries = 10
 
 // AutoScalingScheduleEntry mirrors the OpenAPI public AutoScalingScheduleEntryV1
-// shape: a single weekly recurring scaling window.
+// shape: a single weekly recurring scaling window. Responses always express the
+// replica count and memory as min/max bands (equal min == max for a vertical
+// entry, per UC-1252 / control-plane#35956); the response also carries an
+// autoscalingMode discriminator that this struct deliberately does not model —
+// the provider only writes vertical entries (min_replicas == max_replicas).
 type AutoScalingScheduleEntry struct {
 	// ID is server-generated; empty when sent in a POST request.
 	ID                 string `json:"id,omitempty"`

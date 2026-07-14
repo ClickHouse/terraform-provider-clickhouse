@@ -538,11 +538,15 @@ func weekdaySetOf(t *testing.T, days ...int64) types.Set {
 	return s
 }
 
-// TestApplyScheduleToStateWithPlan_PreservesIdleScalingFalse reproduces issue
-// #611: a non-idle entry (idle_scaling=false) whose idle fields the server
-// drops from its response. Without reconciliation the planned false becomes
-// null and Terraform aborts with "inconsistent result after apply".
-func TestApplyScheduleToStateWithPlan_PreservesIdleScalingFalse(t *testing.T) {
+// TestApplyScheduleToStateWithPlan_PreservesReplicaBand reproduces the actual
+// issue #611 normalization (UC-1252): the server collapsed a vertical entry's
+// equal min/max replica band to numReplicas (a field the provider does not
+// model) and omitted minReplicas/maxReplicas from the response, while echoing
+// the idle fields. Without reconciliation the planned 10/10 becomes null/null
+// and Terraform aborts with "inconsistent result after apply". Fixed
+// server-side in control-plane#35956; kept here so the provider stays correct
+// against any server version.
+func TestApplyScheduleToStateWithPlan_PreservesReplicaBand(t *testing.T) {
 	plan := models.ScheduledScalingEntryModel{
 		Name:               types.StringValue("Business Hours"),
 		Weekdays:           weekdaySetOf(t, 1, 2, 3, 4, 5),
@@ -556,7 +560,8 @@ func TestApplyScheduleToStateWithPlan_PreservesIdleScalingFalse(t *testing.T) {
 		// Left unset by the user: unknown at plan time.
 		IdleTimeoutMinutes: types.Int64Unknown(),
 	}
-	// Server echoes the sizing but drops the idle fields for a non-idle entry.
+	// Pre-#35956 server response: memory and idle fields echoed, replica band
+	// omitted (returned as numReplicas, which the provider does not decode).
 	server := api.AutoScalingScheduleEntry{
 		Name:               "Business Hours",
 		Weekdays:           []int{1, 2, 3, 4, 5},
@@ -564,29 +569,30 @@ func TestApplyScheduleToStateWithPlan_PreservesIdleScalingFalse(t *testing.T) {
 		EndHourUtc:         19,
 		MinReplicaMemoryGb: intPtr(236),
 		MaxReplicaMemoryGb: intPtr(236),
-		MinReplicas:        intPtr(10),
-		MaxReplicas:        intPtr(10),
+		IdleScaling:        boolPtr(false),
 	}
 
 	got := reconcileSingleEntry(t, plan, server)
 
+	if got.MinReplicas.ValueInt64() != 10 || got.MaxReplicas.ValueInt64() != 10 {
+		t.Errorf("replicas = (%d, %d); want (10, 10) (planned values must survive)", got.MinReplicas.ValueInt64(), got.MaxReplicas.ValueInt64())
+	}
 	if got.IdleScaling.IsNull() || got.IdleScaling.IsUnknown() {
 		t.Fatalf("idle_scaling should be a known value, got %v", got.IdleScaling)
 	}
 	if got.IdleScaling.ValueBool() {
-		t.Errorf("idle_scaling = true; want false (planned value must survive)")
+		t.Errorf("idle_scaling = true; want false")
 	}
 	if !got.IdleTimeoutMinutes.IsNull() {
-		t.Errorf("idle_timeout_minutes = %v; want null (unset in plan, dropped by server)", got.IdleTimeoutMinutes)
-	}
-	if got.MinReplicas.ValueInt64() != 10 || got.MaxReplicas.ValueInt64() != 10 {
-		t.Errorf("replicas = (%d, %d); want (10, 10)", got.MinReplicas.ValueInt64(), got.MaxReplicas.ValueInt64())
+		t.Errorf("idle_timeout_minutes = %v; want null (unset in plan, not echoed by server)", got.IdleTimeoutMinutes)
 	}
 }
 
-// TestApplyScheduleToStateWithPlan_PreservesExplicitIdleTimeout covers the
-// issue's "same happens whether idle_timeout_minutes is set or omitted": an
-// explicit idle_timeout_minutes must also survive the server dropping it.
+// TestApplyScheduleToStateWithPlan_PreservesExplicitIdleTimeout guards the
+// general property behind the fix: any value the user set explicitly survives
+// a server response that does not echo it. The fixture drops the idle fields —
+// a normalization no current server version performs — precisely to prove the
+// reconcile holds for fields beyond the replica band.
 func TestApplyScheduleToStateWithPlan_PreservesExplicitIdleTimeout(t *testing.T) {
 	plan := models.ScheduledScalingEntryModel{
 		Name:               types.StringValue("Business Hours"),
@@ -748,8 +754,9 @@ func TestServiceScheduledScalingResource_UpgradeStateV0ToV1(t *testing.T) {
 }
 
 // TestApiEntryToModel_DefaultsIdleScalingFalse guards the Read path: a server
-// entry that omits idle_scaling maps to an explicit false so a refresh of a
-// non-idle entry does not report perpetual drift.
+// entry that omits idle_scaling maps to its effective default, false, so a
+// refresh can never report perpetual drift on it. Current server versions echo
+// idle_scaling; this pins the defensive default.
 func TestApiEntryToModel_DefaultsIdleScalingFalse(t *testing.T) {
 	got, diags := apiEntryToModel(api.AutoScalingScheduleEntry{
 		Name:         "no-idle",
