@@ -543,7 +543,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"start_after": schema.StringAttribute{
-								MarkdownDescription: "Skip all files up to and including this object key during the initial load (e.g. `logs/2024-01-01/events-000042.json`). Cannot be provided when `skip_initial_load` is true.",
+								MarkdownDescription: "Skip all files up to and including this object key during the initial load (e.g. `events/2026-06-01/`). Cannot be provided when `skip_initial_load` is true.",
 								Optional:            true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
