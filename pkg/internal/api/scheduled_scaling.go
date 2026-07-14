@@ -21,6 +21,7 @@ type AutoScalingScheduleEntry struct {
 	Weekdays           []int  `json:"weekdays"`
 	StartHourUtc       int    `json:"startHourUtc"`
 	EndHourUtc         int    `json:"endHourUtc"`
+	AutoscalingMode    string `json:"autoscalingMode,omitempty"`
 	MinReplicaMemoryGb *int   `json:"minReplicaMemoryGb,omitempty"`
 	MaxReplicaMemoryGb *int   `json:"maxReplicaMemoryGb,omitempty"`
 	MinReplicas        *int   `json:"minReplicas,omitempty"`
@@ -34,12 +35,13 @@ type AutoScalingScheduleEntry struct {
 // AutoScalingScheduleBaseConfig is the fallback configuration applied when no
 // entry is currently active. Returned in GET responses and accepted in updates.
 type AutoScalingScheduleBaseConfig struct {
-	MinReplicaMemoryGb *int  `json:"minReplicaMemoryGb,omitempty"`
-	MaxReplicaMemoryGb *int  `json:"maxReplicaMemoryGb,omitempty"`
-	MinReplicas        *int  `json:"minReplicas,omitempty"`
-	MaxReplicas        *int  `json:"maxReplicas,omitempty"`
-	IdleScaling        *bool `json:"idleScaling,omitempty"`
-	IdleTimeoutMinutes *int  `json:"idleTimeoutMinutes,omitempty"`
+	AutoscalingMode    string `json:"autoscalingMode,omitempty"`
+	MinReplicaMemoryGb *int   `json:"minReplicaMemoryGb,omitempty"`
+	MaxReplicaMemoryGb *int   `json:"maxReplicaMemoryGb,omitempty"`
+	MinReplicas        *int   `json:"minReplicas,omitempty"`
+	MaxReplicas        *int   `json:"maxReplicas,omitempty"`
+	IdleScaling        *bool  `json:"idleScaling,omitempty"`
+	IdleTimeoutMinutes *int   `json:"idleTimeoutMinutes,omitempty"`
 }
 
 // AutoScalingSchedule is the response payload returned by GET and POST.

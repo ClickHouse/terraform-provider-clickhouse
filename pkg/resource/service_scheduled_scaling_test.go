@@ -21,16 +21,18 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 	schedule := &api.AutoScalingSchedule{
 		Entries: []api.AutoScalingScheduleEntry{
 			{
-				Name:         "business",
-				Weekdays:     []int{1, 2, 3, 4, 5},
-				StartHourUtc: 8,
-				EndHourUtc:   18,
-				MinReplicas:  intPtr(3),
-				MaxReplicas:  intPtr(3),
-				IdleScaling:  boolPtr(false),
+				Name:            "business",
+				Weekdays:        []int{1, 2, 3, 4, 5},
+				StartHourUtc:    8,
+				EndHourUtc:      18,
+				AutoscalingMode: api.AutoscalingModeHorizontal,
+				MinReplicas:     intPtr(3),
+				MaxReplicas:     intPtr(6),
+				IdleScaling:     boolPtr(false),
 			},
 		},
 		BaseConfig: &api.AutoScalingScheduleBaseConfig{
+			AutoscalingMode:    api.AutoscalingModeVertical,
 			MinReplicaMemoryGb: intPtr(8),
 			MaxReplicaMemoryGb: intPtr(32),
 			IdleScaling:        boolPtr(true),
@@ -63,8 +65,11 @@ func TestApplyScheduleToState_PopulatesEntriesAndBaseConfig(t *testing.T) {
 		t.Fatalf("len(entries) = %d; want 1", len(entries))
 	}
 	e := entries[0]
-	if e.MinReplicas.ValueInt64() != 3 || e.MaxReplicas.ValueInt64() != 3 {
-		t.Errorf("replicas = (%d, %d); want (3, 3)", e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64())
+	if e.AutoscalingMode.ValueString() != api.AutoscalingModeHorizontal {
+		t.Errorf("autoscaling_mode = %q; want %q", e.AutoscalingMode.ValueString(), api.AutoscalingModeHorizontal)
+	}
+	if e.MinReplicas.ValueInt64() != 3 || e.MaxReplicas.ValueInt64() != 6 {
+		t.Errorf("replicas = (%d, %d); want (3, 6)", e.MinReplicas.ValueInt64(), e.MaxReplicas.ValueInt64())
 	}
 	if e.IdleScaling.IsNull() || e.IdleScaling.ValueBool() {
 		t.Errorf("idle_scaling should be present and false")
@@ -183,10 +188,11 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 		Weekdays:           weekdaySet,
 		StartHourUtc:       types.Int64Value(9),
 		EndHourUtc:         types.Int64Value(17),
+		AutoscalingMode:    types.StringValue(api.AutoscalingModeHorizontal),
 		MinReplicaMemoryGb: types.Int64Value(8),
-		MaxReplicaMemoryGb: types.Int64Value(32),
+		MaxReplicaMemoryGb: types.Int64Value(8),
 		MinReplicas:        types.Int64Value(2),
-		MaxReplicas:        types.Int64Value(2),
+		MaxReplicas:        types.Int64Value(6),
 		IdleScaling:        types.BoolValue(true),
 		IdleTimeoutMinutes: types.Int64Value(15),
 	}
@@ -201,6 +207,9 @@ func TestPlanEntriesToAPI_ConvertsAllFields(t *testing.T) {
 	g := got[0]
 	if g.Name != "primary" || g.StartHourUtc != 9 || g.EndHourUtc != 17 {
 		t.Errorf("scalar fields mismatch: %+v", g)
+	}
+	if g.AutoscalingMode != api.AutoscalingModeHorizontal {
+		t.Errorf("AutoscalingMode = %q; want %q", g.AutoscalingMode, api.AutoscalingModeHorizontal)
 	}
 	if !reflect.DeepEqual(g.Weekdays, []int{1, 3}) {
 		t.Errorf("weekdays = %v; want [1 3] (sorted)", g.Weekdays)
@@ -271,7 +280,11 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 			wantErrCount: 1,
 		},
 		{
-			name: "min != max",
+			// An OMITTED mode defaults to vertical server-side (UC-1173: absent ⇒ vertical, confirmed against the
+			// shipped API — there is no per-entry keep-current on the full-replace POST), so a distinct band
+			// without an explicit autoscaling_mode = "horizontal" is a vertical violation and rejected at plan
+			// time. Only an interpolated (Unknown) mode is deferred (see the Unknown cases above).
+			name: "omitted mode (defaults vertical) with a distinct band is rejected",
 			entry: models.ScheduledScalingEntryModel{
 				Name:         types.StringValue("uneven"),
 				Weekdays:     mustSet(1),
@@ -279,6 +292,132 @@ func TestValidateScheduledScalingEntries(t *testing.T) {
 				EndHourUtc:   types.Int64Value(24),
 				MinReplicas:  types.Int64Value(2),
 				MaxReplicas:  types.Int64Value(5),
+			},
+			wantErrCount: 1,
+		},
+		{
+			name: "horizontal band (min < max) is allowed",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("horizontal-band"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringValue(api.AutoscalingModeHorizontal),
+				MinReplicas:     types.Int64Value(2),
+				MaxReplicas:     types.Int64Value(5),
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "horizontal inverted band (min > max) is rejected",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("horizontal-inverted"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringValue(api.AutoscalingModeHorizontal),
+				MinReplicas:     types.Int64Value(5),
+				MaxReplicas:     types.Int64Value(2),
+			},
+			wantErrCount: 1,
+		},
+		{
+			// autoscaling_mode = var.mode is Unknown at plan; the vertical-only min==max equality must be
+			// deferred to the apply-time replan, or a band that resolves horizontal is wrongly rejected. The
+			// mode-agnostic min<=max ordering still holds, so a distinct band passes.
+			name: "unknown autoscaling_mode with a distinct band is not rejected",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("unknown-mode-band"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringUnknown(),
+				MinReplicas:     types.Int64Value(2),
+				MaxReplicas:     types.Int64Value(6),
+			},
+			wantErrCount: 0,
+		},
+		{
+			// The min<=max ordering is mode-agnostic, so an inverted band is rejected even when the mode is
+			// unknown — only the vertical equality rule is deferred.
+			name: "unknown autoscaling_mode with an inverted band is still rejected",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("unknown-mode-inverted"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringUnknown(),
+				MinReplicas:     types.Int64Value(6),
+				MaxReplicas:     types.Int64Value(2),
+			},
+			wantErrCount: 1,
+		},
+		{
+			// An explicit "vertical" token rejects a distinct band the same as an omitted mode (both are vertical:
+			// explicit and default). Only an explicit "horizontal" token, or an interpolated/Unknown mode, skips
+			// the equality.
+			name: "explicit vertical token with a distinct band is rejected",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("explicit-vertical-band"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringValue(api.AutoscalingModeVertical),
+				MinReplicas:     types.Int64Value(2),
+				MaxReplicas:     types.Int64Value(5),
+			},
+			wantErrCount: 1,
+		},
+		{
+			name: "explicit vertical token with an equal band is allowed",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("explicit-vertical-equal"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringValue(api.AutoscalingModeVertical),
+				MinReplicas:     types.Int64Value(3),
+				MaxReplicas:     types.Int64Value(3),
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "explicit horizontal token with an equal band is allowed",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("explicit-horizontal-equal"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringValue(api.AutoscalingModeHorizontal),
+				MinReplicas:     types.Int64Value(3),
+				MaxReplicas:     types.Int64Value(3),
+			},
+			wantErrCount: 0,
+		},
+		{
+			// The min <= max ordering is mode-agnostic: it fires ahead of the vertical equality case, so an
+			// inverted band is rejected regardless of the mode token.
+			name: "omitted mode with an inverted band is rejected",
+			entry: models.ScheduledScalingEntryModel{
+				Name:         types.StringValue("omitted-inverted"),
+				Weekdays:     mustSet(1),
+				StartHourUtc: types.Int64Value(0),
+				EndHourUtc:   types.Int64Value(24),
+				MinReplicas:  types.Int64Value(6),
+				MaxReplicas:  types.Int64Value(2),
+			},
+			wantErrCount: 1,
+		},
+		{
+			name: "explicit vertical token with an inverted band is rejected",
+			entry: models.ScheduledScalingEntryModel{
+				Name:            types.StringValue("explicit-vertical-inverted"),
+				Weekdays:        mustSet(1),
+				StartHourUtc:    types.Int64Value(0),
+				EndHourUtc:      types.Int64Value(24),
+				AutoscalingMode: types.StringValue(api.AutoscalingModeVertical),
+				MinReplicas:     types.Int64Value(6),
+				MaxReplicas:     types.Int64Value(2),
 			},
 			wantErrCount: 1,
 		},
@@ -500,5 +639,28 @@ func TestRoundTrip_NoServerNormalization(t *testing.T) {
 	sort.Ints(got)
 	if !reflect.DeepEqual(got, []int{1, 2, 3}) {
 		t.Errorf("weekdays = %v; want [1 2 3]", got)
+	}
+}
+
+func TestDeriveAutoscalingMode(t *testing.T) {
+	cases := []struct {
+		name     string
+		mode     string
+		min, max *int
+		want     string
+	}{
+		{"explicit vertical is preserved", api.AutoscalingModeVertical, intPtr(3), intPtr(3), api.AutoscalingModeVertical},
+		{"explicit horizontal is not second-guessed by an equal band", api.AutoscalingModeHorizontal, intPtr(3), intPtr(3), api.AutoscalingModeHorizontal},
+		{"omitted mode with a distinct band derives horizontal", "", intPtr(2), intPtr(5), api.AutoscalingModeHorizontal},
+		{"omitted mode with an equal band derives vertical", "", intPtr(3), intPtr(3), api.AutoscalingModeVertical},
+		{"omitted mode with no band derives vertical", "", nil, nil, api.AutoscalingModeVertical},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := deriveAutoscalingMode(tc.mode, tc.min, tc.max)
+			if got.ValueString() != tc.want {
+				t.Errorf("deriveAutoscalingMode(%q, %v, %v) = %q; want %q", tc.mode, tc.min, tc.max, got.ValueString(), tc.want)
+			}
+		})
 	}
 }

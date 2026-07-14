@@ -8,11 +8,14 @@ import (
 )
 
 type ReplicaScalingUpdate struct {
-	IdleScaling        *bool `json:"idleScaling,omitempty"` // bool pointer so that `false`` is not omitted
-	MinReplicaMemoryGb *int  `json:"minReplicaMemoryGb,omitempty"`
-	MaxReplicaMemoryGb *int  `json:"maxReplicaMemoryGb,omitempty"`
-	NumReplicas        *int  `json:"numReplicas,omitempty"`
-	IdleTimeoutMinutes *int  `json:"idleTimeoutMinutes,omitempty"`
+	IdleScaling        *bool   `json:"idleScaling,omitempty"` // bool pointer so that `false`` is not omitted
+	AutoscalingMode    *string `json:"autoscalingMode,omitempty"`
+	MinReplicaMemoryGb *int    `json:"minReplicaMemoryGb,omitempty"`
+	MaxReplicaMemoryGb *int    `json:"maxReplicaMemoryGb,omitempty"`
+	NumReplicas        *int    `json:"numReplicas,omitempty"`
+	MinReplicas        *int    `json:"minReplicas,omitempty"`
+	MaxReplicas        *int    `json:"maxReplicas,omitempty"`
+	IdleTimeoutMinutes *int    `json:"idleTimeoutMinutes,omitempty"`
 }
 
 func (c *ClientImpl) UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (*Service, error) {

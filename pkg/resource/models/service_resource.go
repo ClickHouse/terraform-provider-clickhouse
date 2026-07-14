@@ -226,6 +226,9 @@ type ServiceResourceModel struct {
 	MinReplicaMemoryGb              types.Int64  `tfsdk:"min_replica_memory_gb"`
 	MaxReplicaMemoryGb              types.Int64  `tfsdk:"max_replica_memory_gb"`
 	NumReplicas                     types.Int64  `tfsdk:"num_replicas"`
+	AutoscalingMode                 types.String `tfsdk:"autoscaling_mode"`
+	MinReplicas                     types.Int64  `tfsdk:"min_replicas"`
+	MaxReplicas                     types.Int64  `tfsdk:"max_replicas"`
 	IdleTimeoutMinutes              types.Int64  `tfsdk:"idle_timeout_minutes"`
 	IAMRole                         types.String `tfsdk:"iam_role"`
 	PrivateEndpointConfig           types.Object `tfsdk:"private_endpoint_config"`
@@ -260,7 +263,12 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.IdleScaling.Equal(b.IdleScaling) ||
 		!m.MinTotalMemoryGb.Equal(b.MinTotalMemoryGb) ||
 		!m.MaxTotalMemoryGb.Equal(b.MaxTotalMemoryGb) ||
+		!m.MinReplicaMemoryGb.Equal(b.MinReplicaMemoryGb) ||
+		!m.MaxReplicaMemoryGb.Equal(b.MaxReplicaMemoryGb) ||
 		!m.NumReplicas.Equal(b.NumReplicas) ||
+		!m.AutoscalingMode.Equal(b.AutoscalingMode) ||
+		!m.MinReplicas.Equal(b.MinReplicas) ||
+		!m.MaxReplicas.Equal(b.MaxReplicas) ||
 		!m.IdleTimeoutMinutes.Equal(b.IdleTimeoutMinutes) ||
 		!m.IAMRole.Equal(b.IAMRole) ||
 		!m.PrivateEndpointConfig.Equal(b.PrivateEndpointConfig) ||
