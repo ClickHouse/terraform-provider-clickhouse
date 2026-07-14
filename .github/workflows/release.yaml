@@ -14,6 +14,11 @@ on:
         required: false
         default: true
         description: "Additionally run upgrade test from latest stable version of the plugin to the one being released"
+      skip_tests:
+        type: string
+        required: false
+        default: ""
+        description: "Regex of E2E example names to skip, e.g. 'role_management|scheduled_scaling'. Use only for suites known-broken by external changes; all remaining tests still gate the release."
 
 defaults:
   run:
@@ -96,7 +101,12 @@ jobs:
       - uses: ./.github/actions/list-examples
         id: list
         with:
-          ignore: pci
+          ignore: ${{ inputs.skip_tests != '' && format('pci|({0})', inputs.skip_tests) || 'pci' }}
+
+      - name: Warn about skipped tests
+        if: ${{ inputs.skip_tests != '' }}
+        run: |
+          echo "::warning::E2E suites matching '${{ inputs.skip_tests }}' are SKIPPED for this release by operator request. The release is gated only on the remaining suites."
 
   # Run e2e tests
   e2e:
@@ -329,6 +339,23 @@ jobs:
           region: ${{ steps.credentials.outputs.region }}
 
 
+  # Manual escape hatch: when any test job fails, this job pauses the run
+  # waiting for a reviewer of the 'release-e2e-override' environment. Approving
+  # ("Review deployments" button on the run page) waives the failures and lets
+  # the release proceed gated only on the jobs that passed; rejecting fails the
+  # release as usual. Nothing is re-run — the failure is knowingly accepted.
+  # Note: a failed e2e also skips the import job entirely (import needs e2e),
+  # so approving past an e2e failure means releasing without import coverage.
+  override-test-failure:
+    runs-on: k8s-nano
+    environment: release-e2e-override
+    needs: [ "validate", "e2e", "import", "upgrade" ]
+    if: ${{ always() && needs.validate.result == 'success' && (needs.e2e.result == 'failure' || needs.import.result == 'failure' || needs.upgrade.result == 'failure') && needs.e2e.result != 'cancelled' && needs.import.result != 'cancelled' && needs.upgrade.result != 'cancelled' }}
+    steps:
+      - name: Record override
+        run: |
+          echo "::warning::Release ${{ inputs.version }} approved despite test failures (e2e: ${{ needs.e2e.result }}, import: ${{ needs.import.result }}, upgrade: ${{ needs.upgrade.result }}). Approved via the release-e2e-override environment."
+
   report:
     runs-on: k8s-nano
     needs: [ "e2e", "import", "upgrade" ]
@@ -376,8 +403,8 @@ jobs:
 
   # Bump the provider version in the examples directory
   bump-examples:
-    needs: [ "validate", "e2e", "import", "upgrade" ]
-    if: ${{ always() && needs.validate.result == 'success' && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' }}
+    needs: [ "validate", "e2e", "import", "upgrade", "override-test-failure" ]
+    if: ${{ always() && needs.validate.result == 'success' && ((needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success') || needs.override-test-failure.result == 'success') }}
     runs-on: k8s-small
     permissions:
       contents: write
@@ -476,8 +503,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    needs: [ "e2e", "import", "upgrade", "bump-examples" ]
-    if: ${{ always() && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' && needs.bump-examples.result == 'success' }}
+    needs: [ "e2e", "import", "upgrade", "bump-examples", "override-test-failure" ]
+    if: ${{ always() && needs.bump-examples.result == 'success' && ((needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success') || needs.override-test-failure.result == 'success') }}
     steps:
     - name: Checkout
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -509,8 +536,8 @@ jobs:
     permissions:
       contents: write
     runs-on: k8s-medium
-    needs: [ "validate", "tag", "e2e", "import", "upgrade" ]
-    if: ${{ always() && needs.validate.result == 'success' && needs.tag.result == 'success' && needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success' }}
+    needs: [ "validate", "tag", "e2e", "import", "upgrade", "override-test-failure" ]
+    if: ${{ always() && needs.validate.result == 'success' && needs.tag.result == 'success' && ((needs.e2e.result == 'success' && needs.import.result == 'success' && needs.upgrade.result == 'success') || needs.override-test-failure.result == 'success') }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
