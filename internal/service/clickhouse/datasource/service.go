@@ -100,6 +100,28 @@ func strPtrOrNull(p *string) types.String {
 	return strOrNull(*p)
 }
 
+func strOrNull(s string) types.String {
+	if s == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(s)
+}
+
+// apiTagsToStringMap converts api tags to a string map, dropping empty-value
+// tags. Empty input returns a known empty map (not null), matching the
+// resource layer so a data-source result interpolated into a resource
+// attribute doesn't produce a spurious empty-vs-null diff.
+func apiTagsToStringMap(tags []api.Tag) (types.Map, diag.Diagnostics) {
+	m := make(map[string]attr.Value, len(tags))
+	for _, t := range tags {
+		if t.Value == "" {
+			continue
+		}
+		m[t.Key] = types.StringValue(t.Value)
+	}
+	return types.MapValue(types.StringType, m)
+}
+
 // ---- mapping --------------------------------------------------------------
 
 // serviceToObjectValue maps an api.Service to the shared object value. It is the
