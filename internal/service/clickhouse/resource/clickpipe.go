@@ -5262,11 +5262,22 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 						}
 					}
 
-					if len(tableMappingsToAdd) > 0 {
-						source.Postgres.TableMappingsToAdd = tableMappingsToAdd
-					}
-					if len(tableMappingsToRemove) > 0 {
-						source.Postgres.TableMappingsToRemove = tableMappingsToRemove
+					if otherFieldsChanged {
+						if len(tableMappingsToAdd) > 0 {
+							source.Postgres.TableMappingsToAdd = tableMappingsToAdd
+						}
+						if len(tableMappingsToRemove) > 0 {
+							source.Postgres.TableMappingsToRemove = tableMappingsToRemove
+						}
+					} else {
+						// Only table_mappings changed: PATCH just the mapping deltas.
+						// Re-sending the connection (host/port/settings) makes the
+						// control plane re-validate the source connection, which fails
+						// because the unchanged credentials are omitted (#617).
+						source.Postgres = &api.ClickPipePostgresSource{
+							TableMappingsToAdd:    tableMappingsToAdd,
+							TableMappingsToRemove: tableMappingsToRemove,
+						}
 					}
 				}
 
@@ -5332,11 +5343,22 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 						}
 					}
 
-					if len(tableMappingsToAdd) > 0 {
-						source.MySQL.TableMappingsToAdd = tableMappingsToAdd
-					}
-					if len(tableMappingsToRemove) > 0 {
-						source.MySQL.TableMappingsToRemove = tableMappingsToRemove
+					if otherFieldsChanged {
+						if len(tableMappingsToAdd) > 0 {
+							source.MySQL.TableMappingsToAdd = tableMappingsToAdd
+						}
+						if len(tableMappingsToRemove) > 0 {
+							source.MySQL.TableMappingsToRemove = tableMappingsToRemove
+						}
+					} else {
+						// Only table_mappings changed: PATCH just the mapping deltas.
+						// Re-sending the connection (host/port/settings) makes the
+						// control plane re-validate the source connection, which fails
+						// because the unchanged credentials are omitted (#617).
+						source.MySQL = &api.ClickPipeMySQLSource{
+							TableMappingsToAdd:    tableMappingsToAdd,
+							TableMappingsToRemove: tableMappingsToRemove,
+						}
 					}
 				}
 
@@ -5402,11 +5424,22 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 						}
 					}
 
-					if len(tableMappingsToAdd) > 0 {
-						source.MongoDB.TableMappingsToAdd = tableMappingsToAdd
-					}
-					if len(tableMappingsToRemove) > 0 {
-						source.MongoDB.TableMappingsToRemove = tableMappingsToRemove
+					if otherFieldsChanged {
+						if len(tableMappingsToAdd) > 0 {
+							source.MongoDB.TableMappingsToAdd = tableMappingsToAdd
+						}
+						if len(tableMappingsToRemove) > 0 {
+							source.MongoDB.TableMappingsToRemove = tableMappingsToRemove
+						}
+					} else {
+						// Only table_mappings changed: PATCH just the mapping deltas.
+						// Re-sending the connection (uri/settings) makes the control
+						// plane re-validate the source connection, which fails because
+						// the unchanged credentials are omitted from the payload (#617).
+						source.MongoDB = &api.ClickPipeMongoDBSource{
+							TableMappingsToAdd:    tableMappingsToAdd,
+							TableMappingsToRemove: tableMappingsToRemove,
+						}
 					}
 				}
 			}
