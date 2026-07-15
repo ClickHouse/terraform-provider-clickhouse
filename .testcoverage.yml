@@ -1,0 +1,28 @@
+# Configuration for github.com/vladopajic/go-test-coverage (run with `make cover`).
+# Enforced in CI on every pull request, where the report is posted as a PR comment.
+#
+# https://github.com/vladopajic/go-test-coverage
+
+# Coverage profile produced by `go test -coverprofile` (see `make cover-profile`).
+profile: cover.out
+
+# Coverage thresholds, in percent [0-100]. They start permissive (0) and are
+# raised over time; `total` is the gate CI enforces.
+threshold:
+  # Minimum coverage for individual files. Kept at 0 for now so the headline gate
+  # is the project total below; raise once per-file coverage is consistently high.
+  file: 0
+
+  # Minimum coverage for each package. Same rationale as `file`.
+  package: 0
+
+  # Minimum overall project coverage. This is the gate the CI check enforces.
+  total: 0
+
+# Files/packages excluded from coverage statistics.
+exclude:
+  paths:
+    # Provider entrypoint: `func main` server wiring, not meaningfully unit-tested.
+    - main\.go$
+    # Generated mock for the Cloud API client.
+    - internal/api/client_mock\.go$

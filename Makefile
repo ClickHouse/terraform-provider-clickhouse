@@ -48,6 +48,45 @@ fmt: ensure-golangci-lint
 	go fmt ./...
 	$(GOLANGCILINT) run --fix --allow-serial-runners
 
+.PHONY: lint
+lint: ensure-golangci-lint ## Run go vet and golangci-lint
+	go vet ./...
+	$(GOLANGCILINT) run
+
+.PHONY: sec
+sec: ensure-golangci-lint ## Run only the gosec security linter (honors .golangci.yml exclusions)
+	$(GOLANGCILINT) run --enable-only gosec ./...
+
+.PHONY: testacc
+testacc: ## Run acceptance tests (creates real resources)
+	TF_ACC=1 go test ./... -v -timeout=120m
+
+.PHONY: cover-profile
+cover-profile: ## Produce cover.out
+	go test ./... -coverprofile=./cover.out -covermode=atomic -coverpkg=./... -timeout=120s
+
+.PHONY: cover
+cover: cover-profile ## Enforce coverage thresholds from .testcoverage.yml
+	go tool go-test-coverage --config=./.testcoverage.yml
+
+.PHONY: cover-html
+cover-html: cover-profile ## Open an HTML coverage report
+	go tool cover -html=cover.out -o=cover.html
+
+.PHONY: docs-check
+docs-check: docs-alpha ## Fail if generated docs are stale (mirrors docs.yaml)
+	git diff --exit-code docs/ || (echo "docs are stale: run 'make docs-alpha' and commit" && exit 1)
+
+.PHONY: goreleaser-check
+goreleaser-check: ## Validate both goreleaser configs and do a snapshot build
+	goreleaser check --config .goreleaser-stable.yml
+	goreleaser check --config .goreleaser-alpha.yml
+	goreleaser build --config .goreleaser-stable.yml --snapshot --clean --single-target
+
+.PHONY: adr
+adr: ## Create an ADR: make adr title="..." statement="..."
+	go tool adr-tool short-adr -p ./decisions -t "$(title)" -s "$(statement)"
+
 mock:
 	cd ./internal/api && minimock -i github.com/ClickHouse/terraform-provider-clickhouse/internal/api.Client -o client_mock.go -n ClientMock -p api && cd ../..
 
