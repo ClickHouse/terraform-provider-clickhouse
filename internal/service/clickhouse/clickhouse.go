@@ -24,6 +24,7 @@ func (servicePackage) Meta() service.Metadata {
 
 func (servicePackage) Resources() []func() upstreamresource.Resource {
 	return []func() upstreamresource.Resource{
+		resource.NewApiKeyResource,
 		resource.NewServiceResource,
 		resource.NewClickPipeResource,
 		resource.NewClickPipeCdcInfrastructureResource,
