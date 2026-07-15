@@ -1,0 +1,65 @@
+name: Enforce test coverage
+
+on:
+  pull_request: {}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  # Needed so the coverage report can be posted as a PR comment.
+  pull-requests: write
+
+jobs:
+  coverage:
+    runs-on: k8s-small
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Generate coverage profile
+        run: make cover-profile
+
+      # Runs the same go-test-coverage tool pinned in go.mod (make cover) so CI
+      # and local runs enforce identical thresholds. continue-on-error so the
+      # report is still posted before the job is failed below.
+      - name: Check coverage threshold
+        id: coverage
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          go tool go-test-coverage --config=./.testcoverage.yml | tee /tmp/coverage-report.txt
+
+      - name: Post coverage report to PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- go-test-coverage-report -->'
+          report="$(cat /tmp/coverage-report.txt)"
+          body="$(printf '%s\n### Test coverage report\n\n```\n%s\n```\n' "$marker" "$report")"
+          existing="$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq "map(select(.body | contains(\"$marker\"))) | .[0].id // empty" | head -n1)"
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body" >/dev/null
+            echo "Updated coverage comment on PR #$PR_NUMBER"
+          else
+            gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
+            echo "Created coverage comment on PR #$PR_NUMBER"
+          fi
+
+      - name: Enforce coverage threshold
+        if: steps.coverage.outcome == 'failure'
+        run: |
+          echo "::error::Test coverage is below the threshold defined in .testcoverage.yml"
+          exit 1
