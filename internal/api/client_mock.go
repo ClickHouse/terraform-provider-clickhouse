@@ -26,6 +26,13 @@ type ClientMock struct {
 	beforeChangeClickPipeStateCounter uint64
 	ChangeClickPipeStateMock          mClientMockChangeClickPipeState
 
+	funcCreateApiKey          func(ctx context.Context, req ApiKeyCreateRequest) (ap1 *ApiKeyCreateResult, err error)
+	funcCreateApiKeyOrigin    string
+	inspectFuncCreateApiKey   func(ctx context.Context, req ApiKeyCreateRequest)
+	afterCreateApiKeyCounter  uint64
+	beforeCreateApiKeyCounter uint64
+	CreateApiKeyMock          mClientMockCreateApiKey
+
 	funcCreateClickPipe          func(ctx context.Context, serviceId string, clickPipe ClickPipe) (cp1 *ClickPipe, err error)
 	funcCreateClickPipeOrigin    string
 	inspectFuncCreateClickPipe   func(ctx context.Context, serviceId string, clickPipe ClickPipe)
@@ -74,6 +81,13 @@ type ClientMock struct {
 	afterCreateServiceCounter  uint64
 	beforeCreateServiceCounter uint64
 	CreateServiceMock          mClientMockCreateService
+
+	funcDeleteApiKey          func(ctx context.Context, keyId string) (err error)
+	funcDeleteApiKeyOrigin    string
+	inspectFuncDeleteApiKey   func(ctx context.Context, keyId string)
+	afterDeleteApiKeyCounter  uint64
+	beforeDeleteApiKeyCounter uint64
+	DeleteApiKeyMock          mClientMockDeleteApiKey
 
 	funcDeleteClickPipe          func(ctx context.Context, serviceId string, clickPipeId string) (err error)
 	funcDeleteClickPipeOrigin    string
@@ -130,6 +144,13 @@ type ClientMock struct {
 	afterDeleteUpgradeWindowCounter  uint64
 	beforeDeleteUpgradeWindowCounter uint64
 	DeleteUpgradeWindowMock          mClientMockDeleteUpgradeWindow
+
+	funcGetApiKey          func(ctx context.Context, keyId string) (ap1 *ApiKey, err error)
+	funcGetApiKeyOrigin    string
+	inspectFuncGetApiKey   func(ctx context.Context, keyId string)
+	afterGetApiKeyCounter  uint64
+	beforeGetApiKeyCounter uint64
+	GetApiKeyMock          mClientMockGetApiKey
 
 	funcGetApiKeyID          func(ctx context.Context, name *string) (ap1 *ApiKey, err error)
 	funcGetApiKeyIDOrigin    string
@@ -341,6 +362,13 @@ type ClientMock struct {
 	beforeSetPostgresPasswordCounter uint64
 	SetPostgresPasswordMock          mClientMockSetPostgresPassword
 
+	funcUpdateApiKey          func(ctx context.Context, keyId string, req ApiKeyUpdateRequest) (ap1 *ApiKey, err error)
+	funcUpdateApiKeyOrigin    string
+	inspectFuncUpdateApiKey   func(ctx context.Context, keyId string, req ApiKeyUpdateRequest)
+	afterUpdateApiKeyCounter  uint64
+	beforeUpdateApiKeyCounter uint64
+	UpdateApiKeyMock          mClientMockUpdateApiKey
+
 	funcUpdateBackupConfiguration          func(ctx context.Context, serviceId string, b BackupConfiguration) (bp1 *BackupConfiguration, err error)
 	funcUpdateBackupConfigurationOrigin    string
 	inspectFuncUpdateBackupConfiguration   func(ctx context.Context, serviceId string, b BackupConfiguration)
@@ -486,6 +514,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.ChangeClickPipeStateMock = mClientMockChangeClickPipeState{mock: m}
 	m.ChangeClickPipeStateMock.callArgs = []*ClientMockChangeClickPipeStateParams{}
 
+	m.CreateApiKeyMock = mClientMockCreateApiKey{mock: m}
+	m.CreateApiKeyMock.callArgs = []*ClientMockCreateApiKeyParams{}
+
 	m.CreateClickPipeMock = mClientMockCreateClickPipe{mock: m}
 	m.CreateClickPipeMock.callArgs = []*ClientMockCreateClickPipeParams{}
 
@@ -506,6 +537,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.CreateServiceMock = mClientMockCreateService{mock: m}
 	m.CreateServiceMock.callArgs = []*ClientMockCreateServiceParams{}
+
+	m.DeleteApiKeyMock = mClientMockDeleteApiKey{mock: m}
+	m.DeleteApiKeyMock.callArgs = []*ClientMockDeleteApiKeyParams{}
 
 	m.DeleteClickPipeMock = mClientMockDeleteClickPipe{mock: m}
 	m.DeleteClickPipeMock.callArgs = []*ClientMockDeleteClickPipeParams{}
@@ -530,6 +564,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeleteUpgradeWindowMock = mClientMockDeleteUpgradeWindow{mock: m}
 	m.DeleteUpgradeWindowMock.callArgs = []*ClientMockDeleteUpgradeWindowParams{}
+
+	m.GetApiKeyMock = mClientMockGetApiKey{mock: m}
+	m.GetApiKeyMock.callArgs = []*ClientMockGetApiKeyParams{}
 
 	m.GetApiKeyIDMock = mClientMockGetApiKeyID{mock: m}
 	m.GetApiKeyIDMock.callArgs = []*ClientMockGetApiKeyIDParams{}
@@ -620,6 +657,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.SetPostgresPasswordMock = mClientMockSetPostgresPassword{mock: m}
 	m.SetPostgresPasswordMock.callArgs = []*ClientMockSetPostgresPasswordParams{}
+
+	m.UpdateApiKeyMock = mClientMockUpdateApiKey{mock: m}
+	m.UpdateApiKeyMock.callArgs = []*ClientMockUpdateApiKeyParams{}
 
 	m.UpdateBackupConfigurationMock = mClientMockUpdateBackupConfiguration{mock: m}
 	m.UpdateBackupConfigurationMock.callArgs = []*ClientMockUpdateBackupConfigurationParams{}
@@ -1085,6 +1125,349 @@ func (m *ClientMock) MinimockChangeClickPipeStateInspect() {
 	if !m.ChangeClickPipeStateMock.invocationsDone() && afterChangeClickPipeStateCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ChangeClickPipeState at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ChangeClickPipeStateMock.expectedInvocations), m.ChangeClickPipeStateMock.expectedInvocationsOrigin, afterChangeClickPipeStateCounter)
+	}
+}
+
+type mClientMockCreateApiKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateApiKeyExpectation
+	expectations       []*ClientMockCreateApiKeyExpectation
+
+	callArgs []*ClientMockCreateApiKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateApiKeyExpectation specifies expectation struct of the Client.CreateApiKey
+type ClientMockCreateApiKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateApiKeyParams
+	paramPtrs          *ClientMockCreateApiKeyParamPtrs
+	expectationOrigins ClientMockCreateApiKeyExpectationOrigins
+	results            *ClientMockCreateApiKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateApiKeyParams contains parameters of the Client.CreateApiKey
+type ClientMockCreateApiKeyParams struct {
+	ctx context.Context
+	req ApiKeyCreateRequest
+}
+
+// ClientMockCreateApiKeyParamPtrs contains pointers to parameters of the Client.CreateApiKey
+type ClientMockCreateApiKeyParamPtrs struct {
+	ctx *context.Context
+	req *ApiKeyCreateRequest
+}
+
+// ClientMockCreateApiKeyResults contains results of the Client.CreateApiKey
+type ClientMockCreateApiKeyResults struct {
+	ap1 *ApiKeyCreateResult
+	err error
+}
+
+// ClientMockCreateApiKeyOrigins contains origins of expectations of the Client.CreateApiKey
+type ClientMockCreateApiKeyExpectationOrigins struct {
+	origin    string
+	originCtx string
+	originReq string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateApiKey *mClientMockCreateApiKey) Optional() *mClientMockCreateApiKey {
+	mmCreateApiKey.optional = true
+	return mmCreateApiKey
+}
+
+// Expect sets up expected params for Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) Expect(ctx context.Context, req ApiKeyCreateRequest) *mClientMockCreateApiKey {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	if mmCreateApiKey.defaultExpectation == nil {
+		mmCreateApiKey.defaultExpectation = &ClientMockCreateApiKeyExpectation{}
+	}
+
+	if mmCreateApiKey.defaultExpectation.paramPtrs != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by ExpectParams functions")
+	}
+
+	mmCreateApiKey.defaultExpectation.params = &ClientMockCreateApiKeyParams{ctx, req}
+	mmCreateApiKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateApiKey.expectations {
+		if minimock.Equal(e.params, mmCreateApiKey.defaultExpectation.params) {
+			mmCreateApiKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateApiKey.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateApiKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) ExpectCtxParam1(ctx context.Context) *mClientMockCreateApiKey {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	if mmCreateApiKey.defaultExpectation == nil {
+		mmCreateApiKey.defaultExpectation = &ClientMockCreateApiKeyExpectation{}
+	}
+
+	if mmCreateApiKey.defaultExpectation.params != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Expect")
+	}
+
+	if mmCreateApiKey.defaultExpectation.paramPtrs == nil {
+		mmCreateApiKey.defaultExpectation.paramPtrs = &ClientMockCreateApiKeyParamPtrs{}
+	}
+	mmCreateApiKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateApiKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateApiKey
+}
+
+// ExpectReqParam2 sets up expected param req for Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) ExpectReqParam2(req ApiKeyCreateRequest) *mClientMockCreateApiKey {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	if mmCreateApiKey.defaultExpectation == nil {
+		mmCreateApiKey.defaultExpectation = &ClientMockCreateApiKeyExpectation{}
+	}
+
+	if mmCreateApiKey.defaultExpectation.params != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Expect")
+	}
+
+	if mmCreateApiKey.defaultExpectation.paramPtrs == nil {
+		mmCreateApiKey.defaultExpectation.paramPtrs = &ClientMockCreateApiKeyParamPtrs{}
+	}
+	mmCreateApiKey.defaultExpectation.paramPtrs.req = &req
+	mmCreateApiKey.defaultExpectation.expectationOrigins.originReq = minimock.CallerInfo(1)
+
+	return mmCreateApiKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) Inspect(f func(ctx context.Context, req ApiKeyCreateRequest)) *mClientMockCreateApiKey {
+	if mmCreateApiKey.mock.inspectFuncCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateApiKey")
+	}
+
+	mmCreateApiKey.mock.inspectFuncCreateApiKey = f
+
+	return mmCreateApiKey
+}
+
+// Return sets up results that will be returned by Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) Return(ap1 *ApiKeyCreateResult, err error) *ClientMock {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	if mmCreateApiKey.defaultExpectation == nil {
+		mmCreateApiKey.defaultExpectation = &ClientMockCreateApiKeyExpectation{mock: mmCreateApiKey.mock}
+	}
+	mmCreateApiKey.defaultExpectation.results = &ClientMockCreateApiKeyResults{ap1, err}
+	mmCreateApiKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateApiKey.mock
+}
+
+// Set uses given function f to mock the Client.CreateApiKey method
+func (mmCreateApiKey *mClientMockCreateApiKey) Set(f func(ctx context.Context, req ApiKeyCreateRequest) (ap1 *ApiKeyCreateResult, err error)) *ClientMock {
+	if mmCreateApiKey.defaultExpectation != nil {
+		mmCreateApiKey.mock.t.Fatalf("Default expectation is already set for the Client.CreateApiKey method")
+	}
+
+	if len(mmCreateApiKey.expectations) > 0 {
+		mmCreateApiKey.mock.t.Fatalf("Some expectations are already set for the Client.CreateApiKey method")
+	}
+
+	mmCreateApiKey.mock.funcCreateApiKey = f
+	mmCreateApiKey.mock.funcCreateApiKeyOrigin = minimock.CallerInfo(1)
+	return mmCreateApiKey.mock
+}
+
+// When sets expectation for the Client.CreateApiKey which will trigger the result defined by the following
+// Then helper
+func (mmCreateApiKey *mClientMockCreateApiKey) When(ctx context.Context, req ApiKeyCreateRequest) *ClientMockCreateApiKeyExpectation {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateApiKeyExpectation{
+		mock:               mmCreateApiKey.mock,
+		params:             &ClientMockCreateApiKeyParams{ctx, req},
+		expectationOrigins: ClientMockCreateApiKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateApiKey.expectations = append(mmCreateApiKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateApiKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateApiKeyExpectation) Then(ap1 *ApiKeyCreateResult, err error) *ClientMock {
+	e.results = &ClientMockCreateApiKeyResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateApiKey should be invoked
+func (mmCreateApiKey *mClientMockCreateApiKey) Times(n uint64) *mClientMockCreateApiKey {
+	if n == 0 {
+		mmCreateApiKey.mock.t.Fatalf("Times of ClientMock.CreateApiKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateApiKey.expectedInvocations, n)
+	mmCreateApiKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateApiKey
+}
+
+func (mmCreateApiKey *mClientMockCreateApiKey) invocationsDone() bool {
+	if len(mmCreateApiKey.expectations) == 0 && mmCreateApiKey.defaultExpectation == nil && mmCreateApiKey.mock.funcCreateApiKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateApiKey.mock.afterCreateApiKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateApiKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateApiKey implements Client
+func (mmCreateApiKey *ClientMock) CreateApiKey(ctx context.Context, req ApiKeyCreateRequest) (ap1 *ApiKeyCreateResult, err error) {
+	mm_atomic.AddUint64(&mmCreateApiKey.beforeCreateApiKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateApiKey.afterCreateApiKeyCounter, 1)
+
+	mmCreateApiKey.t.Helper()
+
+	if mmCreateApiKey.inspectFuncCreateApiKey != nil {
+		mmCreateApiKey.inspectFuncCreateApiKey(ctx, req)
+	}
+
+	mm_params := ClientMockCreateApiKeyParams{ctx, req}
+
+	// Record call args
+	mmCreateApiKey.CreateApiKeyMock.mutex.Lock()
+	mmCreateApiKey.CreateApiKeyMock.callArgs = append(mmCreateApiKey.CreateApiKeyMock.callArgs, &mm_params)
+	mmCreateApiKey.CreateApiKeyMock.mutex.Unlock()
+
+	for _, e := range mmCreateApiKey.CreateApiKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmCreateApiKey.CreateApiKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateApiKey.CreateApiKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateApiKey.CreateApiKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateApiKey.CreateApiKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateApiKeyParams{ctx, req}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateApiKey.t.Errorf("ClientMock.CreateApiKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateApiKey.CreateApiKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.req != nil && !minimock.Equal(*mm_want_ptrs.req, mm_got.req) {
+				mmCreateApiKey.t.Errorf("ClientMock.CreateApiKey got unexpected parameter req, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateApiKey.CreateApiKeyMock.defaultExpectation.expectationOrigins.originReq, *mm_want_ptrs.req, mm_got.req, minimock.Diff(*mm_want_ptrs.req, mm_got.req))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateApiKey.t.Errorf("ClientMock.CreateApiKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateApiKey.CreateApiKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateApiKey.CreateApiKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateApiKey.t.Fatal("No results are set for the ClientMock.CreateApiKey")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmCreateApiKey.funcCreateApiKey != nil {
+		return mmCreateApiKey.funcCreateApiKey(ctx, req)
+	}
+	mmCreateApiKey.t.Fatalf("Unexpected call to ClientMock.CreateApiKey. %v %v", ctx, req)
+	return
+}
+
+// CreateApiKeyAfterCounter returns a count of finished ClientMock.CreateApiKey invocations
+func (mmCreateApiKey *ClientMock) CreateApiKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateApiKey.afterCreateApiKeyCounter)
+}
+
+// CreateApiKeyBeforeCounter returns a count of ClientMock.CreateApiKey invocations
+func (mmCreateApiKey *ClientMock) CreateApiKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateApiKey.beforeCreateApiKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateApiKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateApiKey *mClientMockCreateApiKey) Calls() []*ClientMockCreateApiKeyParams {
+	mmCreateApiKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateApiKeyParams, len(mmCreateApiKey.callArgs))
+	copy(argCopy, mmCreateApiKey.callArgs)
+
+	mmCreateApiKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateApiKeyDone returns true if the count of the CreateApiKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateApiKeyDone() bool {
+	if m.CreateApiKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateApiKeyMock.invocationsDone()
+}
+
+// MinimockCreateApiKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateApiKeyInspect() {
+	for _, e := range m.CreateApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateApiKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateApiKeyCounter := mm_atomic.LoadUint64(&m.afterCreateApiKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateApiKeyMock.defaultExpectation != nil && afterCreateApiKeyCounter < 1 {
+		if m.CreateApiKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateApiKey at\n%s", m.CreateApiKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateApiKey at\n%s with params: %#v", m.CreateApiKeyMock.defaultExpectation.expectationOrigins.origin, *m.CreateApiKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateApiKey != nil && afterCreateApiKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateApiKey at\n%s", m.funcCreateApiKeyOrigin)
+	}
+
+	if !m.CreateApiKeyMock.invocationsDone() && afterCreateApiKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateApiKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateApiKeyMock.expectedInvocations), m.CreateApiKeyMock.expectedInvocationsOrigin, afterCreateApiKeyCounter)
 	}
 }
 
@@ -3612,6 +3995,348 @@ func (m *ClientMock) MinimockCreateServiceInspect() {
 	if !m.CreateServiceMock.invocationsDone() && afterCreateServiceCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateService at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateServiceMock.expectedInvocations), m.CreateServiceMock.expectedInvocationsOrigin, afterCreateServiceCounter)
+	}
+}
+
+type mClientMockDeleteApiKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteApiKeyExpectation
+	expectations       []*ClientMockDeleteApiKeyExpectation
+
+	callArgs []*ClientMockDeleteApiKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteApiKeyExpectation specifies expectation struct of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteApiKeyParams
+	paramPtrs          *ClientMockDeleteApiKeyParamPtrs
+	expectationOrigins ClientMockDeleteApiKeyExpectationOrigins
+	results            *ClientMockDeleteApiKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteApiKeyParams contains parameters of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyParams struct {
+	ctx   context.Context
+	keyId string
+}
+
+// ClientMockDeleteApiKeyParamPtrs contains pointers to parameters of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyParamPtrs struct {
+	ctx   *context.Context
+	keyId *string
+}
+
+// ClientMockDeleteApiKeyResults contains results of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyResults struct {
+	err error
+}
+
+// ClientMockDeleteApiKeyOrigins contains origins of expectations of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyExpectationOrigins struct {
+	origin      string
+	originCtx   string
+	originKeyId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Optional() *mClientMockDeleteApiKey {
+	mmDeleteApiKey.optional = true
+	return mmDeleteApiKey
+}
+
+// Expect sets up expected params for Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Expect(ctx context.Context, keyId string) *mClientMockDeleteApiKey {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	if mmDeleteApiKey.defaultExpectation == nil {
+		mmDeleteApiKey.defaultExpectation = &ClientMockDeleteApiKeyExpectation{}
+	}
+
+	if mmDeleteApiKey.defaultExpectation.paramPtrs != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteApiKey.defaultExpectation.params = &ClientMockDeleteApiKeyParams{ctx, keyId}
+	mmDeleteApiKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteApiKey.expectations {
+		if minimock.Equal(e.params, mmDeleteApiKey.defaultExpectation.params) {
+			mmDeleteApiKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteApiKey.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteApiKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteApiKey {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	if mmDeleteApiKey.defaultExpectation == nil {
+		mmDeleteApiKey.defaultExpectation = &ClientMockDeleteApiKeyExpectation{}
+	}
+
+	if mmDeleteApiKey.defaultExpectation.params != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Expect")
+	}
+
+	if mmDeleteApiKey.defaultExpectation.paramPtrs == nil {
+		mmDeleteApiKey.defaultExpectation.paramPtrs = &ClientMockDeleteApiKeyParamPtrs{}
+	}
+	mmDeleteApiKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteApiKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteApiKey
+}
+
+// ExpectKeyIdParam2 sets up expected param keyId for Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) ExpectKeyIdParam2(keyId string) *mClientMockDeleteApiKey {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	if mmDeleteApiKey.defaultExpectation == nil {
+		mmDeleteApiKey.defaultExpectation = &ClientMockDeleteApiKeyExpectation{}
+	}
+
+	if mmDeleteApiKey.defaultExpectation.params != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Expect")
+	}
+
+	if mmDeleteApiKey.defaultExpectation.paramPtrs == nil {
+		mmDeleteApiKey.defaultExpectation.paramPtrs = &ClientMockDeleteApiKeyParamPtrs{}
+	}
+	mmDeleteApiKey.defaultExpectation.paramPtrs.keyId = &keyId
+	mmDeleteApiKey.defaultExpectation.expectationOrigins.originKeyId = minimock.CallerInfo(1)
+
+	return mmDeleteApiKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Inspect(f func(ctx context.Context, keyId string)) *mClientMockDeleteApiKey {
+	if mmDeleteApiKey.mock.inspectFuncDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteApiKey")
+	}
+
+	mmDeleteApiKey.mock.inspectFuncDeleteApiKey = f
+
+	return mmDeleteApiKey
+}
+
+// Return sets up results that will be returned by Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Return(err error) *ClientMock {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	if mmDeleteApiKey.defaultExpectation == nil {
+		mmDeleteApiKey.defaultExpectation = &ClientMockDeleteApiKeyExpectation{mock: mmDeleteApiKey.mock}
+	}
+	mmDeleteApiKey.defaultExpectation.results = &ClientMockDeleteApiKeyResults{err}
+	mmDeleteApiKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteApiKey.mock
+}
+
+// Set uses given function f to mock the Client.DeleteApiKey method
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Set(f func(ctx context.Context, keyId string) (err error)) *ClientMock {
+	if mmDeleteApiKey.defaultExpectation != nil {
+		mmDeleteApiKey.mock.t.Fatalf("Default expectation is already set for the Client.DeleteApiKey method")
+	}
+
+	if len(mmDeleteApiKey.expectations) > 0 {
+		mmDeleteApiKey.mock.t.Fatalf("Some expectations are already set for the Client.DeleteApiKey method")
+	}
+
+	mmDeleteApiKey.mock.funcDeleteApiKey = f
+	mmDeleteApiKey.mock.funcDeleteApiKeyOrigin = minimock.CallerInfo(1)
+	return mmDeleteApiKey.mock
+}
+
+// When sets expectation for the Client.DeleteApiKey which will trigger the result defined by the following
+// Then helper
+func (mmDeleteApiKey *mClientMockDeleteApiKey) When(ctx context.Context, keyId string) *ClientMockDeleteApiKeyExpectation {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteApiKeyExpectation{
+		mock:               mmDeleteApiKey.mock,
+		params:             &ClientMockDeleteApiKeyParams{ctx, keyId},
+		expectationOrigins: ClientMockDeleteApiKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteApiKey.expectations = append(mmDeleteApiKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteApiKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteApiKeyExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteApiKeyResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteApiKey should be invoked
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Times(n uint64) *mClientMockDeleteApiKey {
+	if n == 0 {
+		mmDeleteApiKey.mock.t.Fatalf("Times of ClientMock.DeleteApiKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteApiKey.expectedInvocations, n)
+	mmDeleteApiKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteApiKey
+}
+
+func (mmDeleteApiKey *mClientMockDeleteApiKey) invocationsDone() bool {
+	if len(mmDeleteApiKey.expectations) == 0 && mmDeleteApiKey.defaultExpectation == nil && mmDeleteApiKey.mock.funcDeleteApiKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteApiKey.mock.afterDeleteApiKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteApiKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteApiKey implements Client
+func (mmDeleteApiKey *ClientMock) DeleteApiKey(ctx context.Context, keyId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteApiKey.beforeDeleteApiKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteApiKey.afterDeleteApiKeyCounter, 1)
+
+	mmDeleteApiKey.t.Helper()
+
+	if mmDeleteApiKey.inspectFuncDeleteApiKey != nil {
+		mmDeleteApiKey.inspectFuncDeleteApiKey(ctx, keyId)
+	}
+
+	mm_params := ClientMockDeleteApiKeyParams{ctx, keyId}
+
+	// Record call args
+	mmDeleteApiKey.DeleteApiKeyMock.mutex.Lock()
+	mmDeleteApiKey.DeleteApiKeyMock.callArgs = append(mmDeleteApiKey.DeleteApiKeyMock.callArgs, &mm_params)
+	mmDeleteApiKey.DeleteApiKeyMock.mutex.Unlock()
+
+	for _, e := range mmDeleteApiKey.DeleteApiKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteApiKeyParams{ctx, keyId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteApiKey.t.Errorf("ClientMock.DeleteApiKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.keyId != nil && !minimock.Equal(*mm_want_ptrs.keyId, mm_got.keyId) {
+				mmDeleteApiKey.t.Errorf("ClientMock.DeleteApiKey got unexpected parameter keyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.expectationOrigins.originKeyId, *mm_want_ptrs.keyId, mm_got.keyId, minimock.Diff(*mm_want_ptrs.keyId, mm_got.keyId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteApiKey.t.Errorf("ClientMock.DeleteApiKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteApiKey.t.Fatal("No results are set for the ClientMock.DeleteApiKey")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteApiKey.funcDeleteApiKey != nil {
+		return mmDeleteApiKey.funcDeleteApiKey(ctx, keyId)
+	}
+	mmDeleteApiKey.t.Fatalf("Unexpected call to ClientMock.DeleteApiKey. %v %v", ctx, keyId)
+	return
+}
+
+// DeleteApiKeyAfterCounter returns a count of finished ClientMock.DeleteApiKey invocations
+func (mmDeleteApiKey *ClientMock) DeleteApiKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteApiKey.afterDeleteApiKeyCounter)
+}
+
+// DeleteApiKeyBeforeCounter returns a count of ClientMock.DeleteApiKey invocations
+func (mmDeleteApiKey *ClientMock) DeleteApiKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteApiKey.beforeDeleteApiKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteApiKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Calls() []*ClientMockDeleteApiKeyParams {
+	mmDeleteApiKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteApiKeyParams, len(mmDeleteApiKey.callArgs))
+	copy(argCopy, mmDeleteApiKey.callArgs)
+
+	mmDeleteApiKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteApiKeyDone returns true if the count of the DeleteApiKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteApiKeyDone() bool {
+	if m.DeleteApiKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteApiKeyMock.invocationsDone()
+}
+
+// MinimockDeleteApiKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteApiKeyInspect() {
+	for _, e := range m.DeleteApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteApiKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteApiKeyCounter := mm_atomic.LoadUint64(&m.afterDeleteApiKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteApiKeyMock.defaultExpectation != nil && afterDeleteApiKeyCounter < 1 {
+		if m.DeleteApiKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteApiKey at\n%s", m.DeleteApiKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteApiKey at\n%s with params: %#v", m.DeleteApiKeyMock.defaultExpectation.expectationOrigins.origin, *m.DeleteApiKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteApiKey != nil && afterDeleteApiKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteApiKey at\n%s", m.funcDeleteApiKeyOrigin)
+	}
+
+	if !m.DeleteApiKeyMock.invocationsDone() && afterDeleteApiKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteApiKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteApiKeyMock.expectedInvocations), m.DeleteApiKeyMock.expectedInvocationsOrigin, afterDeleteApiKeyCounter)
 	}
 }
 
@@ -6411,6 +7136,349 @@ func (m *ClientMock) MinimockDeleteUpgradeWindowInspect() {
 	if !m.DeleteUpgradeWindowMock.invocationsDone() && afterDeleteUpgradeWindowCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteUpgradeWindow at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteUpgradeWindowMock.expectedInvocations), m.DeleteUpgradeWindowMock.expectedInvocationsOrigin, afterDeleteUpgradeWindowCounter)
+	}
+}
+
+type mClientMockGetApiKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetApiKeyExpectation
+	expectations       []*ClientMockGetApiKeyExpectation
+
+	callArgs []*ClientMockGetApiKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetApiKeyExpectation specifies expectation struct of the Client.GetApiKey
+type ClientMockGetApiKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetApiKeyParams
+	paramPtrs          *ClientMockGetApiKeyParamPtrs
+	expectationOrigins ClientMockGetApiKeyExpectationOrigins
+	results            *ClientMockGetApiKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetApiKeyParams contains parameters of the Client.GetApiKey
+type ClientMockGetApiKeyParams struct {
+	ctx   context.Context
+	keyId string
+}
+
+// ClientMockGetApiKeyParamPtrs contains pointers to parameters of the Client.GetApiKey
+type ClientMockGetApiKeyParamPtrs struct {
+	ctx   *context.Context
+	keyId *string
+}
+
+// ClientMockGetApiKeyResults contains results of the Client.GetApiKey
+type ClientMockGetApiKeyResults struct {
+	ap1 *ApiKey
+	err error
+}
+
+// ClientMockGetApiKeyOrigins contains origins of expectations of the Client.GetApiKey
+type ClientMockGetApiKeyExpectationOrigins struct {
+	origin      string
+	originCtx   string
+	originKeyId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetApiKey *mClientMockGetApiKey) Optional() *mClientMockGetApiKey {
+	mmGetApiKey.optional = true
+	return mmGetApiKey
+}
+
+// Expect sets up expected params for Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) Expect(ctx context.Context, keyId string) *mClientMockGetApiKey {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	if mmGetApiKey.defaultExpectation == nil {
+		mmGetApiKey.defaultExpectation = &ClientMockGetApiKeyExpectation{}
+	}
+
+	if mmGetApiKey.defaultExpectation.paramPtrs != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by ExpectParams functions")
+	}
+
+	mmGetApiKey.defaultExpectation.params = &ClientMockGetApiKeyParams{ctx, keyId}
+	mmGetApiKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetApiKey.expectations {
+		if minimock.Equal(e.params, mmGetApiKey.defaultExpectation.params) {
+			mmGetApiKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetApiKey.defaultExpectation.params)
+		}
+	}
+
+	return mmGetApiKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) ExpectCtxParam1(ctx context.Context) *mClientMockGetApiKey {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	if mmGetApiKey.defaultExpectation == nil {
+		mmGetApiKey.defaultExpectation = &ClientMockGetApiKeyExpectation{}
+	}
+
+	if mmGetApiKey.defaultExpectation.params != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Expect")
+	}
+
+	if mmGetApiKey.defaultExpectation.paramPtrs == nil {
+		mmGetApiKey.defaultExpectation.paramPtrs = &ClientMockGetApiKeyParamPtrs{}
+	}
+	mmGetApiKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetApiKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetApiKey
+}
+
+// ExpectKeyIdParam2 sets up expected param keyId for Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) ExpectKeyIdParam2(keyId string) *mClientMockGetApiKey {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	if mmGetApiKey.defaultExpectation == nil {
+		mmGetApiKey.defaultExpectation = &ClientMockGetApiKeyExpectation{}
+	}
+
+	if mmGetApiKey.defaultExpectation.params != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Expect")
+	}
+
+	if mmGetApiKey.defaultExpectation.paramPtrs == nil {
+		mmGetApiKey.defaultExpectation.paramPtrs = &ClientMockGetApiKeyParamPtrs{}
+	}
+	mmGetApiKey.defaultExpectation.paramPtrs.keyId = &keyId
+	mmGetApiKey.defaultExpectation.expectationOrigins.originKeyId = minimock.CallerInfo(1)
+
+	return mmGetApiKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) Inspect(f func(ctx context.Context, keyId string)) *mClientMockGetApiKey {
+	if mmGetApiKey.mock.inspectFuncGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("Inspect function is already set for ClientMock.GetApiKey")
+	}
+
+	mmGetApiKey.mock.inspectFuncGetApiKey = f
+
+	return mmGetApiKey
+}
+
+// Return sets up results that will be returned by Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) Return(ap1 *ApiKey, err error) *ClientMock {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	if mmGetApiKey.defaultExpectation == nil {
+		mmGetApiKey.defaultExpectation = &ClientMockGetApiKeyExpectation{mock: mmGetApiKey.mock}
+	}
+	mmGetApiKey.defaultExpectation.results = &ClientMockGetApiKeyResults{ap1, err}
+	mmGetApiKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetApiKey.mock
+}
+
+// Set uses given function f to mock the Client.GetApiKey method
+func (mmGetApiKey *mClientMockGetApiKey) Set(f func(ctx context.Context, keyId string) (ap1 *ApiKey, err error)) *ClientMock {
+	if mmGetApiKey.defaultExpectation != nil {
+		mmGetApiKey.mock.t.Fatalf("Default expectation is already set for the Client.GetApiKey method")
+	}
+
+	if len(mmGetApiKey.expectations) > 0 {
+		mmGetApiKey.mock.t.Fatalf("Some expectations are already set for the Client.GetApiKey method")
+	}
+
+	mmGetApiKey.mock.funcGetApiKey = f
+	mmGetApiKey.mock.funcGetApiKeyOrigin = minimock.CallerInfo(1)
+	return mmGetApiKey.mock
+}
+
+// When sets expectation for the Client.GetApiKey which will trigger the result defined by the following
+// Then helper
+func (mmGetApiKey *mClientMockGetApiKey) When(ctx context.Context, keyId string) *ClientMockGetApiKeyExpectation {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetApiKeyExpectation{
+		mock:               mmGetApiKey.mock,
+		params:             &ClientMockGetApiKeyParams{ctx, keyId},
+		expectationOrigins: ClientMockGetApiKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetApiKey.expectations = append(mmGetApiKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetApiKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetApiKeyExpectation) Then(ap1 *ApiKey, err error) *ClientMock {
+	e.results = &ClientMockGetApiKeyResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetApiKey should be invoked
+func (mmGetApiKey *mClientMockGetApiKey) Times(n uint64) *mClientMockGetApiKey {
+	if n == 0 {
+		mmGetApiKey.mock.t.Fatalf("Times of ClientMock.GetApiKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetApiKey.expectedInvocations, n)
+	mmGetApiKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetApiKey
+}
+
+func (mmGetApiKey *mClientMockGetApiKey) invocationsDone() bool {
+	if len(mmGetApiKey.expectations) == 0 && mmGetApiKey.defaultExpectation == nil && mmGetApiKey.mock.funcGetApiKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetApiKey.mock.afterGetApiKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetApiKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetApiKey implements Client
+func (mmGetApiKey *ClientMock) GetApiKey(ctx context.Context, keyId string) (ap1 *ApiKey, err error) {
+	mm_atomic.AddUint64(&mmGetApiKey.beforeGetApiKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetApiKey.afterGetApiKeyCounter, 1)
+
+	mmGetApiKey.t.Helper()
+
+	if mmGetApiKey.inspectFuncGetApiKey != nil {
+		mmGetApiKey.inspectFuncGetApiKey(ctx, keyId)
+	}
+
+	mm_params := ClientMockGetApiKeyParams{ctx, keyId}
+
+	// Record call args
+	mmGetApiKey.GetApiKeyMock.mutex.Lock()
+	mmGetApiKey.GetApiKeyMock.callArgs = append(mmGetApiKey.GetApiKeyMock.callArgs, &mm_params)
+	mmGetApiKey.GetApiKeyMock.mutex.Unlock()
+
+	for _, e := range mmGetApiKey.GetApiKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmGetApiKey.GetApiKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetApiKey.GetApiKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetApiKey.GetApiKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmGetApiKey.GetApiKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetApiKeyParams{ctx, keyId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetApiKey.t.Errorf("ClientMock.GetApiKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetApiKey.GetApiKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.keyId != nil && !minimock.Equal(*mm_want_ptrs.keyId, mm_got.keyId) {
+				mmGetApiKey.t.Errorf("ClientMock.GetApiKey got unexpected parameter keyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetApiKey.GetApiKeyMock.defaultExpectation.expectationOrigins.originKeyId, *mm_want_ptrs.keyId, mm_got.keyId, minimock.Diff(*mm_want_ptrs.keyId, mm_got.keyId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetApiKey.t.Errorf("ClientMock.GetApiKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetApiKey.GetApiKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetApiKey.GetApiKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetApiKey.t.Fatal("No results are set for the ClientMock.GetApiKey")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmGetApiKey.funcGetApiKey != nil {
+		return mmGetApiKey.funcGetApiKey(ctx, keyId)
+	}
+	mmGetApiKey.t.Fatalf("Unexpected call to ClientMock.GetApiKey. %v %v", ctx, keyId)
+	return
+}
+
+// GetApiKeyAfterCounter returns a count of finished ClientMock.GetApiKey invocations
+func (mmGetApiKey *ClientMock) GetApiKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetApiKey.afterGetApiKeyCounter)
+}
+
+// GetApiKeyBeforeCounter returns a count of ClientMock.GetApiKey invocations
+func (mmGetApiKey *ClientMock) GetApiKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetApiKey.beforeGetApiKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetApiKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetApiKey *mClientMockGetApiKey) Calls() []*ClientMockGetApiKeyParams {
+	mmGetApiKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetApiKeyParams, len(mmGetApiKey.callArgs))
+	copy(argCopy, mmGetApiKey.callArgs)
+
+	mmGetApiKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetApiKeyDone returns true if the count of the GetApiKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetApiKeyDone() bool {
+	if m.GetApiKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetApiKeyMock.invocationsDone()
+}
+
+// MinimockGetApiKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetApiKeyInspect() {
+	for _, e := range m.GetApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetApiKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetApiKeyCounter := mm_atomic.LoadUint64(&m.afterGetApiKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetApiKeyMock.defaultExpectation != nil && afterGetApiKeyCounter < 1 {
+		if m.GetApiKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetApiKey at\n%s", m.GetApiKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetApiKey at\n%s with params: %#v", m.GetApiKeyMock.defaultExpectation.expectationOrigins.origin, *m.GetApiKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetApiKey != nil && afterGetApiKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetApiKey at\n%s", m.funcGetApiKeyOrigin)
+	}
+
+	if !m.GetApiKeyMock.invocationsDone() && afterGetApiKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetApiKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetApiKeyMock.expectedInvocations), m.GetApiKeyMock.expectedInvocationsOrigin, afterGetApiKeyCounter)
 	}
 }
 
@@ -16857,6 +17925,380 @@ func (m *ClientMock) MinimockSetPostgresPasswordInspect() {
 	}
 }
 
+type mClientMockUpdateApiKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateApiKeyExpectation
+	expectations       []*ClientMockUpdateApiKeyExpectation
+
+	callArgs []*ClientMockUpdateApiKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateApiKeyExpectation specifies expectation struct of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateApiKeyParams
+	paramPtrs          *ClientMockUpdateApiKeyParamPtrs
+	expectationOrigins ClientMockUpdateApiKeyExpectationOrigins
+	results            *ClientMockUpdateApiKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateApiKeyParams contains parameters of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyParams struct {
+	ctx   context.Context
+	keyId string
+	req   ApiKeyUpdateRequest
+}
+
+// ClientMockUpdateApiKeyParamPtrs contains pointers to parameters of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyParamPtrs struct {
+	ctx   *context.Context
+	keyId *string
+	req   *ApiKeyUpdateRequest
+}
+
+// ClientMockUpdateApiKeyResults contains results of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyResults struct {
+	ap1 *ApiKey
+	err error
+}
+
+// ClientMockUpdateApiKeyOrigins contains origins of expectations of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyExpectationOrigins struct {
+	origin      string
+	originCtx   string
+	originKeyId string
+	originReq   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Optional() *mClientMockUpdateApiKey {
+	mmUpdateApiKey.optional = true
+	return mmUpdateApiKey
+}
+
+// Expect sets up expected params for Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Expect(ctx context.Context, keyId string, req ApiKeyUpdateRequest) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{}
+	}
+
+	if mmUpdateApiKey.defaultExpectation.paramPtrs != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateApiKey.defaultExpectation.params = &ClientMockUpdateApiKeyParams{ctx, keyId, req}
+	mmUpdateApiKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateApiKey.expectations {
+		if minimock.Equal(e.params, mmUpdateApiKey.defaultExpectation.params) {
+			mmUpdateApiKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateApiKey.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateApiKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{}
+	}
+
+	if mmUpdateApiKey.defaultExpectation.params != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Expect")
+	}
+
+	if mmUpdateApiKey.defaultExpectation.paramPtrs == nil {
+		mmUpdateApiKey.defaultExpectation.paramPtrs = &ClientMockUpdateApiKeyParamPtrs{}
+	}
+	mmUpdateApiKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateApiKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateApiKey
+}
+
+// ExpectKeyIdParam2 sets up expected param keyId for Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) ExpectKeyIdParam2(keyId string) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{}
+	}
+
+	if mmUpdateApiKey.defaultExpectation.params != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Expect")
+	}
+
+	if mmUpdateApiKey.defaultExpectation.paramPtrs == nil {
+		mmUpdateApiKey.defaultExpectation.paramPtrs = &ClientMockUpdateApiKeyParamPtrs{}
+	}
+	mmUpdateApiKey.defaultExpectation.paramPtrs.keyId = &keyId
+	mmUpdateApiKey.defaultExpectation.expectationOrigins.originKeyId = minimock.CallerInfo(1)
+
+	return mmUpdateApiKey
+}
+
+// ExpectReqParam3 sets up expected param req for Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) ExpectReqParam3(req ApiKeyUpdateRequest) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{}
+	}
+
+	if mmUpdateApiKey.defaultExpectation.params != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Expect")
+	}
+
+	if mmUpdateApiKey.defaultExpectation.paramPtrs == nil {
+		mmUpdateApiKey.defaultExpectation.paramPtrs = &ClientMockUpdateApiKeyParamPtrs{}
+	}
+	mmUpdateApiKey.defaultExpectation.paramPtrs.req = &req
+	mmUpdateApiKey.defaultExpectation.expectationOrigins.originReq = minimock.CallerInfo(1)
+
+	return mmUpdateApiKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Inspect(f func(ctx context.Context, keyId string, req ApiKeyUpdateRequest)) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.inspectFuncUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateApiKey")
+	}
+
+	mmUpdateApiKey.mock.inspectFuncUpdateApiKey = f
+
+	return mmUpdateApiKey
+}
+
+// Return sets up results that will be returned by Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Return(ap1 *ApiKey, err error) *ClientMock {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{mock: mmUpdateApiKey.mock}
+	}
+	mmUpdateApiKey.defaultExpectation.results = &ClientMockUpdateApiKeyResults{ap1, err}
+	mmUpdateApiKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateApiKey.mock
+}
+
+// Set uses given function f to mock the Client.UpdateApiKey method
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Set(f func(ctx context.Context, keyId string, req ApiKeyUpdateRequest) (ap1 *ApiKey, err error)) *ClientMock {
+	if mmUpdateApiKey.defaultExpectation != nil {
+		mmUpdateApiKey.mock.t.Fatalf("Default expectation is already set for the Client.UpdateApiKey method")
+	}
+
+	if len(mmUpdateApiKey.expectations) > 0 {
+		mmUpdateApiKey.mock.t.Fatalf("Some expectations are already set for the Client.UpdateApiKey method")
+	}
+
+	mmUpdateApiKey.mock.funcUpdateApiKey = f
+	mmUpdateApiKey.mock.funcUpdateApiKeyOrigin = minimock.CallerInfo(1)
+	return mmUpdateApiKey.mock
+}
+
+// When sets expectation for the Client.UpdateApiKey which will trigger the result defined by the following
+// Then helper
+func (mmUpdateApiKey *mClientMockUpdateApiKey) When(ctx context.Context, keyId string, req ApiKeyUpdateRequest) *ClientMockUpdateApiKeyExpectation {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateApiKeyExpectation{
+		mock:               mmUpdateApiKey.mock,
+		params:             &ClientMockUpdateApiKeyParams{ctx, keyId, req},
+		expectationOrigins: ClientMockUpdateApiKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateApiKey.expectations = append(mmUpdateApiKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateApiKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateApiKeyExpectation) Then(ap1 *ApiKey, err error) *ClientMock {
+	e.results = &ClientMockUpdateApiKeyResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateApiKey should be invoked
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Times(n uint64) *mClientMockUpdateApiKey {
+	if n == 0 {
+		mmUpdateApiKey.mock.t.Fatalf("Times of ClientMock.UpdateApiKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateApiKey.expectedInvocations, n)
+	mmUpdateApiKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateApiKey
+}
+
+func (mmUpdateApiKey *mClientMockUpdateApiKey) invocationsDone() bool {
+	if len(mmUpdateApiKey.expectations) == 0 && mmUpdateApiKey.defaultExpectation == nil && mmUpdateApiKey.mock.funcUpdateApiKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateApiKey.mock.afterUpdateApiKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateApiKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateApiKey implements Client
+func (mmUpdateApiKey *ClientMock) UpdateApiKey(ctx context.Context, keyId string, req ApiKeyUpdateRequest) (ap1 *ApiKey, err error) {
+	mm_atomic.AddUint64(&mmUpdateApiKey.beforeUpdateApiKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateApiKey.afterUpdateApiKeyCounter, 1)
+
+	mmUpdateApiKey.t.Helper()
+
+	if mmUpdateApiKey.inspectFuncUpdateApiKey != nil {
+		mmUpdateApiKey.inspectFuncUpdateApiKey(ctx, keyId, req)
+	}
+
+	mm_params := ClientMockUpdateApiKeyParams{ctx, keyId, req}
+
+	// Record call args
+	mmUpdateApiKey.UpdateApiKeyMock.mutex.Lock()
+	mmUpdateApiKey.UpdateApiKeyMock.callArgs = append(mmUpdateApiKey.UpdateApiKeyMock.callArgs, &mm_params)
+	mmUpdateApiKey.UpdateApiKeyMock.mutex.Unlock()
+
+	for _, e := range mmUpdateApiKey.UpdateApiKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateApiKeyParams{ctx, keyId, req}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateApiKey.t.Errorf("ClientMock.UpdateApiKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.keyId != nil && !minimock.Equal(*mm_want_ptrs.keyId, mm_got.keyId) {
+				mmUpdateApiKey.t.Errorf("ClientMock.UpdateApiKey got unexpected parameter keyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.expectationOrigins.originKeyId, *mm_want_ptrs.keyId, mm_got.keyId, minimock.Diff(*mm_want_ptrs.keyId, mm_got.keyId))
+			}
+
+			if mm_want_ptrs.req != nil && !minimock.Equal(*mm_want_ptrs.req, mm_got.req) {
+				mmUpdateApiKey.t.Errorf("ClientMock.UpdateApiKey got unexpected parameter req, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.expectationOrigins.originReq, *mm_want_ptrs.req, mm_got.req, minimock.Diff(*mm_want_ptrs.req, mm_got.req))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateApiKey.t.Errorf("ClientMock.UpdateApiKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateApiKey.t.Fatal("No results are set for the ClientMock.UpdateApiKey")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmUpdateApiKey.funcUpdateApiKey != nil {
+		return mmUpdateApiKey.funcUpdateApiKey(ctx, keyId, req)
+	}
+	mmUpdateApiKey.t.Fatalf("Unexpected call to ClientMock.UpdateApiKey. %v %v %v", ctx, keyId, req)
+	return
+}
+
+// UpdateApiKeyAfterCounter returns a count of finished ClientMock.UpdateApiKey invocations
+func (mmUpdateApiKey *ClientMock) UpdateApiKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateApiKey.afterUpdateApiKeyCounter)
+}
+
+// UpdateApiKeyBeforeCounter returns a count of ClientMock.UpdateApiKey invocations
+func (mmUpdateApiKey *ClientMock) UpdateApiKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateApiKey.beforeUpdateApiKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateApiKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Calls() []*ClientMockUpdateApiKeyParams {
+	mmUpdateApiKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateApiKeyParams, len(mmUpdateApiKey.callArgs))
+	copy(argCopy, mmUpdateApiKey.callArgs)
+
+	mmUpdateApiKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateApiKeyDone returns true if the count of the UpdateApiKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateApiKeyDone() bool {
+	if m.UpdateApiKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateApiKeyMock.invocationsDone()
+}
+
+// MinimockUpdateApiKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateApiKeyInspect() {
+	for _, e := range m.UpdateApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateApiKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateApiKeyCounter := mm_atomic.LoadUint64(&m.afterUpdateApiKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateApiKeyMock.defaultExpectation != nil && afterUpdateApiKeyCounter < 1 {
+		if m.UpdateApiKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateApiKey at\n%s", m.UpdateApiKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateApiKey at\n%s with params: %#v", m.UpdateApiKeyMock.defaultExpectation.expectationOrigins.origin, *m.UpdateApiKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateApiKey != nil && afterUpdateApiKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateApiKey at\n%s", m.funcUpdateApiKeyOrigin)
+	}
+
+	if !m.UpdateApiKeyMock.invocationsDone() && afterUpdateApiKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateApiKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateApiKeyMock.expectedInvocations), m.UpdateApiKeyMock.expectedInvocationsOrigin, afterUpdateApiKeyCounter)
+	}
+}
+
 type mClientMockUpdateBackupConfiguration struct {
 	optional           bool
 	mock               *ClientMock
@@ -24245,6 +25687,8 @@ func (m *ClientMock) MinimockFinish() {
 		if !m.minimockDone() {
 			m.MinimockChangeClickPipeStateInspect()
 
+			m.MinimockCreateApiKeyInspect()
+
 			m.MinimockCreateClickPipeInspect()
 
 			m.MinimockCreatePostgresInspect()
@@ -24258,6 +25702,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockCreateRoleInspect()
 
 			m.MinimockCreateServiceInspect()
+
+			m.MinimockDeleteApiKeyInspect()
 
 			m.MinimockDeleteClickPipeInspect()
 
@@ -24274,6 +25720,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockDeleteServiceInspect()
 
 			m.MinimockDeleteUpgradeWindowInspect()
+
+			m.MinimockGetApiKeyInspect()
 
 			m.MinimockGetApiKeyIDInspect()
 
@@ -24334,6 +25782,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockScalingClickPipeInspect()
 
 			m.MinimockSetPostgresPasswordInspect()
+
+			m.MinimockUpdateApiKeyInspect()
 
 			m.MinimockUpdateBackupConfigurationInspect()
 
@@ -24396,6 +25846,7 @@ func (m *ClientMock) minimockDone() bool {
 	done := true
 	return done &&
 		m.MinimockChangeClickPipeStateDone() &&
+		m.MinimockCreateApiKeyDone() &&
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreatePostgresDone() &&
 		m.MinimockCreatePostgresReadReplicaDone() &&
@@ -24403,6 +25854,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateReversePrivateEndpointDone() &&
 		m.MinimockCreateRoleDone() &&
 		m.MinimockCreateServiceDone() &&
+		m.MinimockDeleteApiKeyDone() &&
 		m.MinimockDeleteClickPipeDone() &&
 		m.MinimockDeletePostgresDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
@@ -24411,6 +25863,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteScheduledScalingDone() &&
 		m.MinimockDeleteServiceDone() &&
 		m.MinimockDeleteUpgradeWindowDone() &&
+		m.MinimockGetApiKeyDone() &&
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetClickPipeDone() &&
@@ -24441,6 +25894,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockRotateTDEKeyDone() &&
 		m.MinimockScalingClickPipeDone() &&
 		m.MinimockSetPostgresPasswordDone() &&
+		m.MinimockUpdateApiKeyDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
 		m.MinimockUpdateClickPipeDone() &&
 		m.MinimockUpdateClickPipeCdcScalingDone() &&

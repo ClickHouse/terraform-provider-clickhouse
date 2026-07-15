@@ -32,6 +32,7 @@ var sensitiveBodyKeys = map[string]struct{}{
 	"newDoubleSha1Hash": {},
 	"password_wo":       {},
 	"tokenSecret":       {},
+	"keySecret":         {},
 	// Postgres connection strings embed the generated password in the URI.
 	"connectionString":  {},
 	"connection_string": {},
