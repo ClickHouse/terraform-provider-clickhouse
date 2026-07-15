@@ -57,6 +57,11 @@ type Client interface {
 	ListMembers(ctx context.Context) ([]Member, error)
 	GetMember(ctx context.Context, userID string) (*Member, error)
 
+	ListInvitations(ctx context.Context) ([]Invitation, error)
+	GetInvitation(ctx context.Context, invitationId string) (*Invitation, error)
+	CreateInvitation(ctx context.Context, req CreateInvitationRequest) (*Invitation, error)
+	DeleteInvitation(ctx context.Context, invitationId string) error
+
 	ListRoles(ctx context.Context) ([]RBACRole, error)
 	GetRole(ctx context.Context, roleId string) (*RBACRole, error)
 	CreateRole(ctx context.Context, req RoleCreateRequest) (*RBACRole, error)

@@ -33,6 +33,13 @@ type ClientMock struct {
 	beforeCreateClickPipeCounter uint64
 	CreateClickPipeMock          mClientMockCreateClickPipe
 
+	funcCreateInvitation          func(ctx context.Context, req CreateInvitationRequest) (ip1 *Invitation, err error)
+	funcCreateInvitationOrigin    string
+	inspectFuncCreateInvitation   func(ctx context.Context, req CreateInvitationRequest)
+	afterCreateInvitationCounter  uint64
+	beforeCreateInvitationCounter uint64
+	CreateInvitationMock          mClientMockCreateInvitation
+
 	funcCreatePostgres          func(ctx context.Context, body PostgresCreate) (pp1 *Postgres, s1 string, err error)
 	funcCreatePostgresOrigin    string
 	inspectFuncCreatePostgres   func(ctx context.Context, body PostgresCreate)
@@ -81,6 +88,13 @@ type ClientMock struct {
 	afterDeleteClickPipeCounter  uint64
 	beforeDeleteClickPipeCounter uint64
 	DeleteClickPipeMock          mClientMockDeleteClickPipe
+
+	funcDeleteInvitation          func(ctx context.Context, invitationId string) (err error)
+	funcDeleteInvitationOrigin    string
+	inspectFuncDeleteInvitation   func(ctx context.Context, invitationId string)
+	afterDeleteInvitationCounter  uint64
+	beforeDeleteInvitationCounter uint64
+	DeleteInvitationMock          mClientMockDeleteInvitation
 
 	funcDeletePostgres          func(ctx context.Context, postgresId string) (err error)
 	funcDeletePostgresOrigin    string
@@ -165,6 +179,13 @@ type ClientMock struct {
 	afterGetClickPipeSettingsCounter  uint64
 	beforeGetClickPipeSettingsCounter uint64
 	GetClickPipeSettingsMock          mClientMockGetClickPipeSettings
+
+	funcGetInvitation          func(ctx context.Context, invitationId string) (ip1 *Invitation, err error)
+	funcGetInvitationOrigin    string
+	inspectFuncGetInvitation   func(ctx context.Context, invitationId string)
+	afterGetInvitationCounter  uint64
+	beforeGetInvitationCounter uint64
+	GetInvitationMock          mClientMockGetInvitation
 
 	funcGetMember          func(ctx context.Context, userID string) (mp1 *Member, err error)
 	funcGetMemberOrigin    string
@@ -263,6 +284,13 @@ type ClientMock struct {
 	afterGetUpgradeWindowCounter  uint64
 	beforeGetUpgradeWindowCounter uint64
 	GetUpgradeWindowMock          mClientMockGetUpgradeWindow
+
+	funcListInvitations          func(ctx context.Context) (ia1 []Invitation, err error)
+	funcListInvitationsOrigin    string
+	inspectFuncListInvitations   func(ctx context.Context)
+	afterListInvitationsCounter  uint64
+	beforeListInvitationsCounter uint64
+	ListInvitationsMock          mClientMockListInvitations
 
 	funcListMembers          func(ctx context.Context) (ma1 []Member, err error)
 	funcListMembersOrigin    string
@@ -475,6 +503,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateClickPipeMock = mClientMockCreateClickPipe{mock: m}
 	m.CreateClickPipeMock.callArgs = []*ClientMockCreateClickPipeParams{}
 
+	m.CreateInvitationMock = mClientMockCreateInvitation{mock: m}
+	m.CreateInvitationMock.callArgs = []*ClientMockCreateInvitationParams{}
+
 	m.CreatePostgresMock = mClientMockCreatePostgres{mock: m}
 	m.CreatePostgresMock.callArgs = []*ClientMockCreatePostgresParams{}
 
@@ -495,6 +526,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeleteClickPipeMock = mClientMockDeleteClickPipe{mock: m}
 	m.DeleteClickPipeMock.callArgs = []*ClientMockDeleteClickPipeParams{}
+
+	m.DeleteInvitationMock = mClientMockDeleteInvitation{mock: m}
+	m.DeleteInvitationMock.callArgs = []*ClientMockDeleteInvitationParams{}
 
 	m.DeletePostgresMock = mClientMockDeletePostgres{mock: m}
 	m.DeletePostgresMock.callArgs = []*ClientMockDeletePostgresParams{}
@@ -531,6 +565,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetClickPipeSettingsMock = mClientMockGetClickPipeSettings{mock: m}
 	m.GetClickPipeSettingsMock.callArgs = []*ClientMockGetClickPipeSettingsParams{}
+
+	m.GetInvitationMock = mClientMockGetInvitation{mock: m}
+	m.GetInvitationMock.callArgs = []*ClientMockGetInvitationParams{}
 
 	m.GetMemberMock = mClientMockGetMember{mock: m}
 	m.GetMemberMock.callArgs = []*ClientMockGetMemberParams{}
@@ -573,6 +610,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetUpgradeWindowMock = mClientMockGetUpgradeWindow{mock: m}
 	m.GetUpgradeWindowMock.callArgs = []*ClientMockGetUpgradeWindowParams{}
+
+	m.ListInvitationsMock = mClientMockListInvitations{mock: m}
+	m.ListInvitationsMock.callArgs = []*ClientMockListInvitationsParams{}
 
 	m.ListMembersMock = mClientMockListMembers{mock: m}
 	m.ListMembersMock.callArgs = []*ClientMockListMembersParams{}
@@ -1439,6 +1479,349 @@ func (m *ClientMock) MinimockCreateClickPipeInspect() {
 	if !m.CreateClickPipeMock.invocationsDone() && afterCreateClickPipeCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateClickPipe at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateClickPipeMock.expectedInvocations), m.CreateClickPipeMock.expectedInvocationsOrigin, afterCreateClickPipeCounter)
+	}
+}
+
+type mClientMockCreateInvitation struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateInvitationExpectation
+	expectations       []*ClientMockCreateInvitationExpectation
+
+	callArgs []*ClientMockCreateInvitationParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateInvitationExpectation specifies expectation struct of the Client.CreateInvitation
+type ClientMockCreateInvitationExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateInvitationParams
+	paramPtrs          *ClientMockCreateInvitationParamPtrs
+	expectationOrigins ClientMockCreateInvitationExpectationOrigins
+	results            *ClientMockCreateInvitationResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateInvitationParams contains parameters of the Client.CreateInvitation
+type ClientMockCreateInvitationParams struct {
+	ctx context.Context
+	req CreateInvitationRequest
+}
+
+// ClientMockCreateInvitationParamPtrs contains pointers to parameters of the Client.CreateInvitation
+type ClientMockCreateInvitationParamPtrs struct {
+	ctx *context.Context
+	req *CreateInvitationRequest
+}
+
+// ClientMockCreateInvitationResults contains results of the Client.CreateInvitation
+type ClientMockCreateInvitationResults struct {
+	ip1 *Invitation
+	err error
+}
+
+// ClientMockCreateInvitationOrigins contains origins of expectations of the Client.CreateInvitation
+type ClientMockCreateInvitationExpectationOrigins struct {
+	origin    string
+	originCtx string
+	originReq string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateInvitation *mClientMockCreateInvitation) Optional() *mClientMockCreateInvitation {
+	mmCreateInvitation.optional = true
+	return mmCreateInvitation
+}
+
+// Expect sets up expected params for Client.CreateInvitation
+func (mmCreateInvitation *mClientMockCreateInvitation) Expect(ctx context.Context, req CreateInvitationRequest) *mClientMockCreateInvitation {
+	if mmCreateInvitation.mock.funcCreateInvitation != nil {
+		mmCreateInvitation.mock.t.Fatalf("ClientMock.CreateInvitation mock is already set by Set")
+	}
+
+	if mmCreateInvitation.defaultExpectation == nil {
+		mmCreateInvitation.defaultExpectation = &ClientMockCreateInvitationExpectation{}
+	}
+
+	if mmCreateInvitation.defaultExpectation.paramPtrs != nil {
+		mmCreateInvitation.mock.t.Fatalf("ClientMock.CreateInvitation mock is already set by ExpectParams functions")
+	}
+
+	mmCreateInvitation.defaultExpectation.params = &ClientMockCreateInvitationParams{ctx, req}
+	mmCreateInvitation.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateInvitation.expectations {
+		if minimock.Equal(e.params, mmCreateInvitation.defaultExpectation.params) {
+			mmCreateInvitation.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateInvitation.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateInvitation
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateInvitation
+func (mmCreateInvitation *mClientMockCreateInvitation) ExpectCtxParam1(ctx context.Context) *mClientMockCreateInvitation {
+	if mmCreateInvitation.mock.funcCreateInvitation != nil {
+		mmCreateInvitation.mock.t.Fatalf("ClientMock.CreateInvitation mock is already set by Set")
+	}
+
+	if mmCreateInvitation.defaultExpectation == nil {
+		mmCreateInvitation.defaultExpectation = &ClientMockCreateInvitationExpectation{}
+	}
+
+	if mmCreateInvitation.defaultExpectation.params != nil {
+		mmCreateInvitation.mock.t.Fatalf("ClientMock.CreateInvitation mock is already set by Expect")
+	}
+
+	if mmCreateInvitation.defaultExpectation.paramPtrs == nil {
+		mmCreateInvitation.defaultExpectation.paramPtrs = &ClientMockCreateInvitationParamPtrs{}
+	}
+	mmCreateInvitation.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateInvitation.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateInvitation
+}
+
+// ExpectReqParam2 sets up expected param req for Client.CreateInvitation
+func (mmCreateInvitation *mClientMockCreateInvitation) ExpectReqParam2(req CreateInvitationRequest) *mClientMockCreateInvitation {
+	if mmCreateInvitation.mock.funcCreateInvitation != nil {
+		mmCreateInvitation.mock.t.Fatalf("ClientMock.CreateInvitation mock is already set by Set")
+	}
+
+	if mmCreateInvitation.defaultExpectation == nil {
+		mmCreateInvitation.defaultExpectation = &ClientMockCreateInvitationExpectation{}
+	}
+
+	if mmCreateInvitation.defaultExpectation.params != nil {
+		mmCreateInvitation.mock.t.Fatalf("ClientMock.CreateInvitation mock is already set by Expect")
+	}
+
+	if mmCreateInvitation.defaultExpectation.paramPtrs == nil {
+		mmCreateInvitation.defaultExpectation.paramPtrs = &ClientMockCreateInvitationParamPtrs{}
+	}
+	mmCreateInvitation.defaultExpectation.paramPtrs.req = &req
+	mmCreateInvitation.defaultExpectation.expectationOrigins.originReq = minimock.CallerInfo(1)
+
+	return mmCreateInvitation
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateInvitation
+func (mmCreateInvitation *mClientMockCreateInvitation) Inspect(f func(ctx context.Context, req CreateInvitationRequest)) *mClientMockCreateInvitation {
+	if mmCreateInvitation.mock.inspectFuncCreateInvitation != nil {
+		mmCreateInvitation.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateInvitation")
+	}
+
+	mmCreateInvitation.mock.inspectFuncCreateInvitation = f
+
+	return mmCreateInvitation
+}
+
+// Return sets up results that will be returned by Client.CreateInvitation
+func (mmCreateInvitation *mClientMockCreateInvitation) Return(ip1 *Invitation, err error) *ClientMock {
+	if mmCreateInvitation.mock.funcCreateInvitation != nil {
+		mmCreateInvitation.mock.t.Fatalf("ClientMock.CreateInvitation mock is already set by Set")
+	}
+
+	if mmCreateInvitation.defaultExpectation == nil {
+		mmCreateInvitation.defaultExpectation = &ClientMockCreateInvitationExpectation{mock: mmCreateInvitation.mock}
+	}
+	mmCreateInvitation.defaultExpectation.results = &ClientMockCreateInvitationResults{ip1, err}
+	mmCreateInvitation.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateInvitation.mock
+}
+
+// Set uses given function f to mock the Client.CreateInvitation method
+func (mmCreateInvitation *mClientMockCreateInvitation) Set(f func(ctx context.Context, req CreateInvitationRequest) (ip1 *Invitation, err error)) *ClientMock {
+	if mmCreateInvitation.defaultExpectation != nil {
+		mmCreateInvitation.mock.t.Fatalf("Default expectation is already set for the Client.CreateInvitation method")
+	}
+
+	if len(mmCreateInvitation.expectations) > 0 {
+		mmCreateInvitation.mock.t.Fatalf("Some expectations are already set for the Client.CreateInvitation method")
+	}
+
+	mmCreateInvitation.mock.funcCreateInvitation = f
+	mmCreateInvitation.mock.funcCreateInvitationOrigin = minimock.CallerInfo(1)
+	return mmCreateInvitation.mock
+}
+
+// When sets expectation for the Client.CreateInvitation which will trigger the result defined by the following
+// Then helper
+func (mmCreateInvitation *mClientMockCreateInvitation) When(ctx context.Context, req CreateInvitationRequest) *ClientMockCreateInvitationExpectation {
+	if mmCreateInvitation.mock.funcCreateInvitation != nil {
+		mmCreateInvitation.mock.t.Fatalf("ClientMock.CreateInvitation mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateInvitationExpectation{
+		mock:               mmCreateInvitation.mock,
+		params:             &ClientMockCreateInvitationParams{ctx, req},
+		expectationOrigins: ClientMockCreateInvitationExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateInvitation.expectations = append(mmCreateInvitation.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateInvitation return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateInvitationExpectation) Then(ip1 *Invitation, err error) *ClientMock {
+	e.results = &ClientMockCreateInvitationResults{ip1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateInvitation should be invoked
+func (mmCreateInvitation *mClientMockCreateInvitation) Times(n uint64) *mClientMockCreateInvitation {
+	if n == 0 {
+		mmCreateInvitation.mock.t.Fatalf("Times of ClientMock.CreateInvitation mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateInvitation.expectedInvocations, n)
+	mmCreateInvitation.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateInvitation
+}
+
+func (mmCreateInvitation *mClientMockCreateInvitation) invocationsDone() bool {
+	if len(mmCreateInvitation.expectations) == 0 && mmCreateInvitation.defaultExpectation == nil && mmCreateInvitation.mock.funcCreateInvitation == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateInvitation.mock.afterCreateInvitationCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateInvitation.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateInvitation implements Client
+func (mmCreateInvitation *ClientMock) CreateInvitation(ctx context.Context, req CreateInvitationRequest) (ip1 *Invitation, err error) {
+	mm_atomic.AddUint64(&mmCreateInvitation.beforeCreateInvitationCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateInvitation.afterCreateInvitationCounter, 1)
+
+	mmCreateInvitation.t.Helper()
+
+	if mmCreateInvitation.inspectFuncCreateInvitation != nil {
+		mmCreateInvitation.inspectFuncCreateInvitation(ctx, req)
+	}
+
+	mm_params := ClientMockCreateInvitationParams{ctx, req}
+
+	// Record call args
+	mmCreateInvitation.CreateInvitationMock.mutex.Lock()
+	mmCreateInvitation.CreateInvitationMock.callArgs = append(mmCreateInvitation.CreateInvitationMock.callArgs, &mm_params)
+	mmCreateInvitation.CreateInvitationMock.mutex.Unlock()
+
+	for _, e := range mmCreateInvitation.CreateInvitationMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ip1, e.results.err
+		}
+	}
+
+	if mmCreateInvitation.CreateInvitationMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateInvitation.CreateInvitationMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateInvitation.CreateInvitationMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateInvitation.CreateInvitationMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateInvitationParams{ctx, req}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateInvitation.t.Errorf("ClientMock.CreateInvitation got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateInvitation.CreateInvitationMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.req != nil && !minimock.Equal(*mm_want_ptrs.req, mm_got.req) {
+				mmCreateInvitation.t.Errorf("ClientMock.CreateInvitation got unexpected parameter req, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateInvitation.CreateInvitationMock.defaultExpectation.expectationOrigins.originReq, *mm_want_ptrs.req, mm_got.req, minimock.Diff(*mm_want_ptrs.req, mm_got.req))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateInvitation.t.Errorf("ClientMock.CreateInvitation got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateInvitation.CreateInvitationMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateInvitation.CreateInvitationMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateInvitation.t.Fatal("No results are set for the ClientMock.CreateInvitation")
+		}
+		return (*mm_results).ip1, (*mm_results).err
+	}
+	if mmCreateInvitation.funcCreateInvitation != nil {
+		return mmCreateInvitation.funcCreateInvitation(ctx, req)
+	}
+	mmCreateInvitation.t.Fatalf("Unexpected call to ClientMock.CreateInvitation. %v %v", ctx, req)
+	return
+}
+
+// CreateInvitationAfterCounter returns a count of finished ClientMock.CreateInvitation invocations
+func (mmCreateInvitation *ClientMock) CreateInvitationAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateInvitation.afterCreateInvitationCounter)
+}
+
+// CreateInvitationBeforeCounter returns a count of ClientMock.CreateInvitation invocations
+func (mmCreateInvitation *ClientMock) CreateInvitationBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateInvitation.beforeCreateInvitationCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateInvitation.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateInvitation *mClientMockCreateInvitation) Calls() []*ClientMockCreateInvitationParams {
+	mmCreateInvitation.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateInvitationParams, len(mmCreateInvitation.callArgs))
+	copy(argCopy, mmCreateInvitation.callArgs)
+
+	mmCreateInvitation.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateInvitationDone returns true if the count of the CreateInvitation invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateInvitationDone() bool {
+	if m.CreateInvitationMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateInvitationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateInvitationMock.invocationsDone()
+}
+
+// MinimockCreateInvitationInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateInvitationInspect() {
+	for _, e := range m.CreateInvitationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateInvitation at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateInvitationCounter := mm_atomic.LoadUint64(&m.afterCreateInvitationCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateInvitationMock.defaultExpectation != nil && afterCreateInvitationCounter < 1 {
+		if m.CreateInvitationMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateInvitation at\n%s", m.CreateInvitationMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateInvitation at\n%s with params: %#v", m.CreateInvitationMock.defaultExpectation.expectationOrigins.origin, *m.CreateInvitationMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateInvitation != nil && afterCreateInvitationCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateInvitation at\n%s", m.funcCreateInvitationOrigin)
+	}
+
+	if !m.CreateInvitationMock.invocationsDone() && afterCreateInvitationCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateInvitation at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateInvitationMock.expectedInvocations), m.CreateInvitationMock.expectedInvocationsOrigin, afterCreateInvitationCounter)
 	}
 }
 
@@ -3965,6 +4348,348 @@ func (m *ClientMock) MinimockDeleteClickPipeInspect() {
 	if !m.DeleteClickPipeMock.invocationsDone() && afterDeleteClickPipeCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteClickPipe at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteClickPipeMock.expectedInvocations), m.DeleteClickPipeMock.expectedInvocationsOrigin, afterDeleteClickPipeCounter)
+	}
+}
+
+type mClientMockDeleteInvitation struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteInvitationExpectation
+	expectations       []*ClientMockDeleteInvitationExpectation
+
+	callArgs []*ClientMockDeleteInvitationParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteInvitationExpectation specifies expectation struct of the Client.DeleteInvitation
+type ClientMockDeleteInvitationExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteInvitationParams
+	paramPtrs          *ClientMockDeleteInvitationParamPtrs
+	expectationOrigins ClientMockDeleteInvitationExpectationOrigins
+	results            *ClientMockDeleteInvitationResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteInvitationParams contains parameters of the Client.DeleteInvitation
+type ClientMockDeleteInvitationParams struct {
+	ctx          context.Context
+	invitationId string
+}
+
+// ClientMockDeleteInvitationParamPtrs contains pointers to parameters of the Client.DeleteInvitation
+type ClientMockDeleteInvitationParamPtrs struct {
+	ctx          *context.Context
+	invitationId *string
+}
+
+// ClientMockDeleteInvitationResults contains results of the Client.DeleteInvitation
+type ClientMockDeleteInvitationResults struct {
+	err error
+}
+
+// ClientMockDeleteInvitationOrigins contains origins of expectations of the Client.DeleteInvitation
+type ClientMockDeleteInvitationExpectationOrigins struct {
+	origin             string
+	originCtx          string
+	originInvitationId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteInvitation *mClientMockDeleteInvitation) Optional() *mClientMockDeleteInvitation {
+	mmDeleteInvitation.optional = true
+	return mmDeleteInvitation
+}
+
+// Expect sets up expected params for Client.DeleteInvitation
+func (mmDeleteInvitation *mClientMockDeleteInvitation) Expect(ctx context.Context, invitationId string) *mClientMockDeleteInvitation {
+	if mmDeleteInvitation.mock.funcDeleteInvitation != nil {
+		mmDeleteInvitation.mock.t.Fatalf("ClientMock.DeleteInvitation mock is already set by Set")
+	}
+
+	if mmDeleteInvitation.defaultExpectation == nil {
+		mmDeleteInvitation.defaultExpectation = &ClientMockDeleteInvitationExpectation{}
+	}
+
+	if mmDeleteInvitation.defaultExpectation.paramPtrs != nil {
+		mmDeleteInvitation.mock.t.Fatalf("ClientMock.DeleteInvitation mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteInvitation.defaultExpectation.params = &ClientMockDeleteInvitationParams{ctx, invitationId}
+	mmDeleteInvitation.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteInvitation.expectations {
+		if minimock.Equal(e.params, mmDeleteInvitation.defaultExpectation.params) {
+			mmDeleteInvitation.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteInvitation.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteInvitation
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteInvitation
+func (mmDeleteInvitation *mClientMockDeleteInvitation) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteInvitation {
+	if mmDeleteInvitation.mock.funcDeleteInvitation != nil {
+		mmDeleteInvitation.mock.t.Fatalf("ClientMock.DeleteInvitation mock is already set by Set")
+	}
+
+	if mmDeleteInvitation.defaultExpectation == nil {
+		mmDeleteInvitation.defaultExpectation = &ClientMockDeleteInvitationExpectation{}
+	}
+
+	if mmDeleteInvitation.defaultExpectation.params != nil {
+		mmDeleteInvitation.mock.t.Fatalf("ClientMock.DeleteInvitation mock is already set by Expect")
+	}
+
+	if mmDeleteInvitation.defaultExpectation.paramPtrs == nil {
+		mmDeleteInvitation.defaultExpectation.paramPtrs = &ClientMockDeleteInvitationParamPtrs{}
+	}
+	mmDeleteInvitation.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteInvitation.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteInvitation
+}
+
+// ExpectInvitationIdParam2 sets up expected param invitationId for Client.DeleteInvitation
+func (mmDeleteInvitation *mClientMockDeleteInvitation) ExpectInvitationIdParam2(invitationId string) *mClientMockDeleteInvitation {
+	if mmDeleteInvitation.mock.funcDeleteInvitation != nil {
+		mmDeleteInvitation.mock.t.Fatalf("ClientMock.DeleteInvitation mock is already set by Set")
+	}
+
+	if mmDeleteInvitation.defaultExpectation == nil {
+		mmDeleteInvitation.defaultExpectation = &ClientMockDeleteInvitationExpectation{}
+	}
+
+	if mmDeleteInvitation.defaultExpectation.params != nil {
+		mmDeleteInvitation.mock.t.Fatalf("ClientMock.DeleteInvitation mock is already set by Expect")
+	}
+
+	if mmDeleteInvitation.defaultExpectation.paramPtrs == nil {
+		mmDeleteInvitation.defaultExpectation.paramPtrs = &ClientMockDeleteInvitationParamPtrs{}
+	}
+	mmDeleteInvitation.defaultExpectation.paramPtrs.invitationId = &invitationId
+	mmDeleteInvitation.defaultExpectation.expectationOrigins.originInvitationId = minimock.CallerInfo(1)
+
+	return mmDeleteInvitation
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteInvitation
+func (mmDeleteInvitation *mClientMockDeleteInvitation) Inspect(f func(ctx context.Context, invitationId string)) *mClientMockDeleteInvitation {
+	if mmDeleteInvitation.mock.inspectFuncDeleteInvitation != nil {
+		mmDeleteInvitation.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteInvitation")
+	}
+
+	mmDeleteInvitation.mock.inspectFuncDeleteInvitation = f
+
+	return mmDeleteInvitation
+}
+
+// Return sets up results that will be returned by Client.DeleteInvitation
+func (mmDeleteInvitation *mClientMockDeleteInvitation) Return(err error) *ClientMock {
+	if mmDeleteInvitation.mock.funcDeleteInvitation != nil {
+		mmDeleteInvitation.mock.t.Fatalf("ClientMock.DeleteInvitation mock is already set by Set")
+	}
+
+	if mmDeleteInvitation.defaultExpectation == nil {
+		mmDeleteInvitation.defaultExpectation = &ClientMockDeleteInvitationExpectation{mock: mmDeleteInvitation.mock}
+	}
+	mmDeleteInvitation.defaultExpectation.results = &ClientMockDeleteInvitationResults{err}
+	mmDeleteInvitation.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteInvitation.mock
+}
+
+// Set uses given function f to mock the Client.DeleteInvitation method
+func (mmDeleteInvitation *mClientMockDeleteInvitation) Set(f func(ctx context.Context, invitationId string) (err error)) *ClientMock {
+	if mmDeleteInvitation.defaultExpectation != nil {
+		mmDeleteInvitation.mock.t.Fatalf("Default expectation is already set for the Client.DeleteInvitation method")
+	}
+
+	if len(mmDeleteInvitation.expectations) > 0 {
+		mmDeleteInvitation.mock.t.Fatalf("Some expectations are already set for the Client.DeleteInvitation method")
+	}
+
+	mmDeleteInvitation.mock.funcDeleteInvitation = f
+	mmDeleteInvitation.mock.funcDeleteInvitationOrigin = minimock.CallerInfo(1)
+	return mmDeleteInvitation.mock
+}
+
+// When sets expectation for the Client.DeleteInvitation which will trigger the result defined by the following
+// Then helper
+func (mmDeleteInvitation *mClientMockDeleteInvitation) When(ctx context.Context, invitationId string) *ClientMockDeleteInvitationExpectation {
+	if mmDeleteInvitation.mock.funcDeleteInvitation != nil {
+		mmDeleteInvitation.mock.t.Fatalf("ClientMock.DeleteInvitation mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteInvitationExpectation{
+		mock:               mmDeleteInvitation.mock,
+		params:             &ClientMockDeleteInvitationParams{ctx, invitationId},
+		expectationOrigins: ClientMockDeleteInvitationExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteInvitation.expectations = append(mmDeleteInvitation.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteInvitation return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteInvitationExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteInvitationResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteInvitation should be invoked
+func (mmDeleteInvitation *mClientMockDeleteInvitation) Times(n uint64) *mClientMockDeleteInvitation {
+	if n == 0 {
+		mmDeleteInvitation.mock.t.Fatalf("Times of ClientMock.DeleteInvitation mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteInvitation.expectedInvocations, n)
+	mmDeleteInvitation.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteInvitation
+}
+
+func (mmDeleteInvitation *mClientMockDeleteInvitation) invocationsDone() bool {
+	if len(mmDeleteInvitation.expectations) == 0 && mmDeleteInvitation.defaultExpectation == nil && mmDeleteInvitation.mock.funcDeleteInvitation == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteInvitation.mock.afterDeleteInvitationCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteInvitation.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteInvitation implements Client
+func (mmDeleteInvitation *ClientMock) DeleteInvitation(ctx context.Context, invitationId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteInvitation.beforeDeleteInvitationCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteInvitation.afterDeleteInvitationCounter, 1)
+
+	mmDeleteInvitation.t.Helper()
+
+	if mmDeleteInvitation.inspectFuncDeleteInvitation != nil {
+		mmDeleteInvitation.inspectFuncDeleteInvitation(ctx, invitationId)
+	}
+
+	mm_params := ClientMockDeleteInvitationParams{ctx, invitationId}
+
+	// Record call args
+	mmDeleteInvitation.DeleteInvitationMock.mutex.Lock()
+	mmDeleteInvitation.DeleteInvitationMock.callArgs = append(mmDeleteInvitation.DeleteInvitationMock.callArgs, &mm_params)
+	mmDeleteInvitation.DeleteInvitationMock.mutex.Unlock()
+
+	for _, e := range mmDeleteInvitation.DeleteInvitationMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteInvitation.DeleteInvitationMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteInvitation.DeleteInvitationMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteInvitation.DeleteInvitationMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteInvitation.DeleteInvitationMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteInvitationParams{ctx, invitationId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteInvitation.t.Errorf("ClientMock.DeleteInvitation got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteInvitation.DeleteInvitationMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.invitationId != nil && !minimock.Equal(*mm_want_ptrs.invitationId, mm_got.invitationId) {
+				mmDeleteInvitation.t.Errorf("ClientMock.DeleteInvitation got unexpected parameter invitationId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteInvitation.DeleteInvitationMock.defaultExpectation.expectationOrigins.originInvitationId, *mm_want_ptrs.invitationId, mm_got.invitationId, minimock.Diff(*mm_want_ptrs.invitationId, mm_got.invitationId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteInvitation.t.Errorf("ClientMock.DeleteInvitation got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteInvitation.DeleteInvitationMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteInvitation.DeleteInvitationMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteInvitation.t.Fatal("No results are set for the ClientMock.DeleteInvitation")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteInvitation.funcDeleteInvitation != nil {
+		return mmDeleteInvitation.funcDeleteInvitation(ctx, invitationId)
+	}
+	mmDeleteInvitation.t.Fatalf("Unexpected call to ClientMock.DeleteInvitation. %v %v", ctx, invitationId)
+	return
+}
+
+// DeleteInvitationAfterCounter returns a count of finished ClientMock.DeleteInvitation invocations
+func (mmDeleteInvitation *ClientMock) DeleteInvitationAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteInvitation.afterDeleteInvitationCounter)
+}
+
+// DeleteInvitationBeforeCounter returns a count of ClientMock.DeleteInvitation invocations
+func (mmDeleteInvitation *ClientMock) DeleteInvitationBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteInvitation.beforeDeleteInvitationCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteInvitation.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteInvitation *mClientMockDeleteInvitation) Calls() []*ClientMockDeleteInvitationParams {
+	mmDeleteInvitation.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteInvitationParams, len(mmDeleteInvitation.callArgs))
+	copy(argCopy, mmDeleteInvitation.callArgs)
+
+	mmDeleteInvitation.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteInvitationDone returns true if the count of the DeleteInvitation invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteInvitationDone() bool {
+	if m.DeleteInvitationMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteInvitationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteInvitationMock.invocationsDone()
+}
+
+// MinimockDeleteInvitationInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteInvitationInspect() {
+	for _, e := range m.DeleteInvitationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteInvitation at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteInvitationCounter := mm_atomic.LoadUint64(&m.afterDeleteInvitationCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteInvitationMock.defaultExpectation != nil && afterDeleteInvitationCounter < 1 {
+		if m.DeleteInvitationMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteInvitation at\n%s", m.DeleteInvitationMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteInvitation at\n%s with params: %#v", m.DeleteInvitationMock.defaultExpectation.expectationOrigins.origin, *m.DeleteInvitationMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteInvitation != nil && afterDeleteInvitationCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteInvitation at\n%s", m.funcDeleteInvitationOrigin)
+	}
+
+	if !m.DeleteInvitationMock.invocationsDone() && afterDeleteInvitationCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteInvitation at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteInvitationMock.expectedInvocations), m.DeleteInvitationMock.expectedInvocationsOrigin, afterDeleteInvitationCounter)
 	}
 }
 
@@ -8168,6 +8893,349 @@ func (m *ClientMock) MinimockGetClickPipeSettingsInspect() {
 	if !m.GetClickPipeSettingsMock.invocationsDone() && afterGetClickPipeSettingsCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetClickPipeSettings at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetClickPipeSettingsMock.expectedInvocations), m.GetClickPipeSettingsMock.expectedInvocationsOrigin, afterGetClickPipeSettingsCounter)
+	}
+}
+
+type mClientMockGetInvitation struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetInvitationExpectation
+	expectations       []*ClientMockGetInvitationExpectation
+
+	callArgs []*ClientMockGetInvitationParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetInvitationExpectation specifies expectation struct of the Client.GetInvitation
+type ClientMockGetInvitationExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetInvitationParams
+	paramPtrs          *ClientMockGetInvitationParamPtrs
+	expectationOrigins ClientMockGetInvitationExpectationOrigins
+	results            *ClientMockGetInvitationResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetInvitationParams contains parameters of the Client.GetInvitation
+type ClientMockGetInvitationParams struct {
+	ctx          context.Context
+	invitationId string
+}
+
+// ClientMockGetInvitationParamPtrs contains pointers to parameters of the Client.GetInvitation
+type ClientMockGetInvitationParamPtrs struct {
+	ctx          *context.Context
+	invitationId *string
+}
+
+// ClientMockGetInvitationResults contains results of the Client.GetInvitation
+type ClientMockGetInvitationResults struct {
+	ip1 *Invitation
+	err error
+}
+
+// ClientMockGetInvitationOrigins contains origins of expectations of the Client.GetInvitation
+type ClientMockGetInvitationExpectationOrigins struct {
+	origin             string
+	originCtx          string
+	originInvitationId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetInvitation *mClientMockGetInvitation) Optional() *mClientMockGetInvitation {
+	mmGetInvitation.optional = true
+	return mmGetInvitation
+}
+
+// Expect sets up expected params for Client.GetInvitation
+func (mmGetInvitation *mClientMockGetInvitation) Expect(ctx context.Context, invitationId string) *mClientMockGetInvitation {
+	if mmGetInvitation.mock.funcGetInvitation != nil {
+		mmGetInvitation.mock.t.Fatalf("ClientMock.GetInvitation mock is already set by Set")
+	}
+
+	if mmGetInvitation.defaultExpectation == nil {
+		mmGetInvitation.defaultExpectation = &ClientMockGetInvitationExpectation{}
+	}
+
+	if mmGetInvitation.defaultExpectation.paramPtrs != nil {
+		mmGetInvitation.mock.t.Fatalf("ClientMock.GetInvitation mock is already set by ExpectParams functions")
+	}
+
+	mmGetInvitation.defaultExpectation.params = &ClientMockGetInvitationParams{ctx, invitationId}
+	mmGetInvitation.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetInvitation.expectations {
+		if minimock.Equal(e.params, mmGetInvitation.defaultExpectation.params) {
+			mmGetInvitation.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetInvitation.defaultExpectation.params)
+		}
+	}
+
+	return mmGetInvitation
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetInvitation
+func (mmGetInvitation *mClientMockGetInvitation) ExpectCtxParam1(ctx context.Context) *mClientMockGetInvitation {
+	if mmGetInvitation.mock.funcGetInvitation != nil {
+		mmGetInvitation.mock.t.Fatalf("ClientMock.GetInvitation mock is already set by Set")
+	}
+
+	if mmGetInvitation.defaultExpectation == nil {
+		mmGetInvitation.defaultExpectation = &ClientMockGetInvitationExpectation{}
+	}
+
+	if mmGetInvitation.defaultExpectation.params != nil {
+		mmGetInvitation.mock.t.Fatalf("ClientMock.GetInvitation mock is already set by Expect")
+	}
+
+	if mmGetInvitation.defaultExpectation.paramPtrs == nil {
+		mmGetInvitation.defaultExpectation.paramPtrs = &ClientMockGetInvitationParamPtrs{}
+	}
+	mmGetInvitation.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetInvitation.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetInvitation
+}
+
+// ExpectInvitationIdParam2 sets up expected param invitationId for Client.GetInvitation
+func (mmGetInvitation *mClientMockGetInvitation) ExpectInvitationIdParam2(invitationId string) *mClientMockGetInvitation {
+	if mmGetInvitation.mock.funcGetInvitation != nil {
+		mmGetInvitation.mock.t.Fatalf("ClientMock.GetInvitation mock is already set by Set")
+	}
+
+	if mmGetInvitation.defaultExpectation == nil {
+		mmGetInvitation.defaultExpectation = &ClientMockGetInvitationExpectation{}
+	}
+
+	if mmGetInvitation.defaultExpectation.params != nil {
+		mmGetInvitation.mock.t.Fatalf("ClientMock.GetInvitation mock is already set by Expect")
+	}
+
+	if mmGetInvitation.defaultExpectation.paramPtrs == nil {
+		mmGetInvitation.defaultExpectation.paramPtrs = &ClientMockGetInvitationParamPtrs{}
+	}
+	mmGetInvitation.defaultExpectation.paramPtrs.invitationId = &invitationId
+	mmGetInvitation.defaultExpectation.expectationOrigins.originInvitationId = minimock.CallerInfo(1)
+
+	return mmGetInvitation
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetInvitation
+func (mmGetInvitation *mClientMockGetInvitation) Inspect(f func(ctx context.Context, invitationId string)) *mClientMockGetInvitation {
+	if mmGetInvitation.mock.inspectFuncGetInvitation != nil {
+		mmGetInvitation.mock.t.Fatalf("Inspect function is already set for ClientMock.GetInvitation")
+	}
+
+	mmGetInvitation.mock.inspectFuncGetInvitation = f
+
+	return mmGetInvitation
+}
+
+// Return sets up results that will be returned by Client.GetInvitation
+func (mmGetInvitation *mClientMockGetInvitation) Return(ip1 *Invitation, err error) *ClientMock {
+	if mmGetInvitation.mock.funcGetInvitation != nil {
+		mmGetInvitation.mock.t.Fatalf("ClientMock.GetInvitation mock is already set by Set")
+	}
+
+	if mmGetInvitation.defaultExpectation == nil {
+		mmGetInvitation.defaultExpectation = &ClientMockGetInvitationExpectation{mock: mmGetInvitation.mock}
+	}
+	mmGetInvitation.defaultExpectation.results = &ClientMockGetInvitationResults{ip1, err}
+	mmGetInvitation.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetInvitation.mock
+}
+
+// Set uses given function f to mock the Client.GetInvitation method
+func (mmGetInvitation *mClientMockGetInvitation) Set(f func(ctx context.Context, invitationId string) (ip1 *Invitation, err error)) *ClientMock {
+	if mmGetInvitation.defaultExpectation != nil {
+		mmGetInvitation.mock.t.Fatalf("Default expectation is already set for the Client.GetInvitation method")
+	}
+
+	if len(mmGetInvitation.expectations) > 0 {
+		mmGetInvitation.mock.t.Fatalf("Some expectations are already set for the Client.GetInvitation method")
+	}
+
+	mmGetInvitation.mock.funcGetInvitation = f
+	mmGetInvitation.mock.funcGetInvitationOrigin = minimock.CallerInfo(1)
+	return mmGetInvitation.mock
+}
+
+// When sets expectation for the Client.GetInvitation which will trigger the result defined by the following
+// Then helper
+func (mmGetInvitation *mClientMockGetInvitation) When(ctx context.Context, invitationId string) *ClientMockGetInvitationExpectation {
+	if mmGetInvitation.mock.funcGetInvitation != nil {
+		mmGetInvitation.mock.t.Fatalf("ClientMock.GetInvitation mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetInvitationExpectation{
+		mock:               mmGetInvitation.mock,
+		params:             &ClientMockGetInvitationParams{ctx, invitationId},
+		expectationOrigins: ClientMockGetInvitationExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetInvitation.expectations = append(mmGetInvitation.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetInvitation return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetInvitationExpectation) Then(ip1 *Invitation, err error) *ClientMock {
+	e.results = &ClientMockGetInvitationResults{ip1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetInvitation should be invoked
+func (mmGetInvitation *mClientMockGetInvitation) Times(n uint64) *mClientMockGetInvitation {
+	if n == 0 {
+		mmGetInvitation.mock.t.Fatalf("Times of ClientMock.GetInvitation mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetInvitation.expectedInvocations, n)
+	mmGetInvitation.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetInvitation
+}
+
+func (mmGetInvitation *mClientMockGetInvitation) invocationsDone() bool {
+	if len(mmGetInvitation.expectations) == 0 && mmGetInvitation.defaultExpectation == nil && mmGetInvitation.mock.funcGetInvitation == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetInvitation.mock.afterGetInvitationCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetInvitation.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetInvitation implements Client
+func (mmGetInvitation *ClientMock) GetInvitation(ctx context.Context, invitationId string) (ip1 *Invitation, err error) {
+	mm_atomic.AddUint64(&mmGetInvitation.beforeGetInvitationCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetInvitation.afterGetInvitationCounter, 1)
+
+	mmGetInvitation.t.Helper()
+
+	if mmGetInvitation.inspectFuncGetInvitation != nil {
+		mmGetInvitation.inspectFuncGetInvitation(ctx, invitationId)
+	}
+
+	mm_params := ClientMockGetInvitationParams{ctx, invitationId}
+
+	// Record call args
+	mmGetInvitation.GetInvitationMock.mutex.Lock()
+	mmGetInvitation.GetInvitationMock.callArgs = append(mmGetInvitation.GetInvitationMock.callArgs, &mm_params)
+	mmGetInvitation.GetInvitationMock.mutex.Unlock()
+
+	for _, e := range mmGetInvitation.GetInvitationMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ip1, e.results.err
+		}
+	}
+
+	if mmGetInvitation.GetInvitationMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetInvitation.GetInvitationMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetInvitation.GetInvitationMock.defaultExpectation.params
+		mm_want_ptrs := mmGetInvitation.GetInvitationMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetInvitationParams{ctx, invitationId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetInvitation.t.Errorf("ClientMock.GetInvitation got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetInvitation.GetInvitationMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.invitationId != nil && !minimock.Equal(*mm_want_ptrs.invitationId, mm_got.invitationId) {
+				mmGetInvitation.t.Errorf("ClientMock.GetInvitation got unexpected parameter invitationId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetInvitation.GetInvitationMock.defaultExpectation.expectationOrigins.originInvitationId, *mm_want_ptrs.invitationId, mm_got.invitationId, minimock.Diff(*mm_want_ptrs.invitationId, mm_got.invitationId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetInvitation.t.Errorf("ClientMock.GetInvitation got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetInvitation.GetInvitationMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetInvitation.GetInvitationMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetInvitation.t.Fatal("No results are set for the ClientMock.GetInvitation")
+		}
+		return (*mm_results).ip1, (*mm_results).err
+	}
+	if mmGetInvitation.funcGetInvitation != nil {
+		return mmGetInvitation.funcGetInvitation(ctx, invitationId)
+	}
+	mmGetInvitation.t.Fatalf("Unexpected call to ClientMock.GetInvitation. %v %v", ctx, invitationId)
+	return
+}
+
+// GetInvitationAfterCounter returns a count of finished ClientMock.GetInvitation invocations
+func (mmGetInvitation *ClientMock) GetInvitationAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetInvitation.afterGetInvitationCounter)
+}
+
+// GetInvitationBeforeCounter returns a count of ClientMock.GetInvitation invocations
+func (mmGetInvitation *ClientMock) GetInvitationBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetInvitation.beforeGetInvitationCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetInvitation.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetInvitation *mClientMockGetInvitation) Calls() []*ClientMockGetInvitationParams {
+	mmGetInvitation.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetInvitationParams, len(mmGetInvitation.callArgs))
+	copy(argCopy, mmGetInvitation.callArgs)
+
+	mmGetInvitation.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetInvitationDone returns true if the count of the GetInvitation invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetInvitationDone() bool {
+	if m.GetInvitationMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetInvitationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetInvitationMock.invocationsDone()
+}
+
+// MinimockGetInvitationInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetInvitationInspect() {
+	for _, e := range m.GetInvitationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetInvitation at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetInvitationCounter := mm_atomic.LoadUint64(&m.afterGetInvitationCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetInvitationMock.defaultExpectation != nil && afterGetInvitationCounter < 1 {
+		if m.GetInvitationMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetInvitation at\n%s", m.GetInvitationMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetInvitation at\n%s with params: %#v", m.GetInvitationMock.defaultExpectation.expectationOrigins.origin, *m.GetInvitationMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetInvitation != nil && afterGetInvitationCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetInvitation at\n%s", m.funcGetInvitationOrigin)
+	}
+
+	if !m.GetInvitationMock.invocationsDone() && afterGetInvitationCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetInvitation at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetInvitationMock.expectedInvocations), m.GetInvitationMock.expectedInvocationsOrigin, afterGetInvitationCounter)
 	}
 }
 
@@ -12969,6 +14037,318 @@ func (m *ClientMock) MinimockGetUpgradeWindowInspect() {
 	if !m.GetUpgradeWindowMock.invocationsDone() && afterGetUpgradeWindowCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetUpgradeWindow at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetUpgradeWindowMock.expectedInvocations), m.GetUpgradeWindowMock.expectedInvocationsOrigin, afterGetUpgradeWindowCounter)
+	}
+}
+
+type mClientMockListInvitations struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListInvitationsExpectation
+	expectations       []*ClientMockListInvitationsExpectation
+
+	callArgs []*ClientMockListInvitationsParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListInvitationsExpectation specifies expectation struct of the Client.ListInvitations
+type ClientMockListInvitationsExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListInvitationsParams
+	paramPtrs          *ClientMockListInvitationsParamPtrs
+	expectationOrigins ClientMockListInvitationsExpectationOrigins
+	results            *ClientMockListInvitationsResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListInvitationsParams contains parameters of the Client.ListInvitations
+type ClientMockListInvitationsParams struct {
+	ctx context.Context
+}
+
+// ClientMockListInvitationsParamPtrs contains pointers to parameters of the Client.ListInvitations
+type ClientMockListInvitationsParamPtrs struct {
+	ctx *context.Context
+}
+
+// ClientMockListInvitationsResults contains results of the Client.ListInvitations
+type ClientMockListInvitationsResults struct {
+	ia1 []Invitation
+	err error
+}
+
+// ClientMockListInvitationsOrigins contains origins of expectations of the Client.ListInvitations
+type ClientMockListInvitationsExpectationOrigins struct {
+	origin    string
+	originCtx string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListInvitations *mClientMockListInvitations) Optional() *mClientMockListInvitations {
+	mmListInvitations.optional = true
+	return mmListInvitations
+}
+
+// Expect sets up expected params for Client.ListInvitations
+func (mmListInvitations *mClientMockListInvitations) Expect(ctx context.Context) *mClientMockListInvitations {
+	if mmListInvitations.mock.funcListInvitations != nil {
+		mmListInvitations.mock.t.Fatalf("ClientMock.ListInvitations mock is already set by Set")
+	}
+
+	if mmListInvitations.defaultExpectation == nil {
+		mmListInvitations.defaultExpectation = &ClientMockListInvitationsExpectation{}
+	}
+
+	if mmListInvitations.defaultExpectation.paramPtrs != nil {
+		mmListInvitations.mock.t.Fatalf("ClientMock.ListInvitations mock is already set by ExpectParams functions")
+	}
+
+	mmListInvitations.defaultExpectation.params = &ClientMockListInvitationsParams{ctx}
+	mmListInvitations.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListInvitations.expectations {
+		if minimock.Equal(e.params, mmListInvitations.defaultExpectation.params) {
+			mmListInvitations.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListInvitations.defaultExpectation.params)
+		}
+	}
+
+	return mmListInvitations
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListInvitations
+func (mmListInvitations *mClientMockListInvitations) ExpectCtxParam1(ctx context.Context) *mClientMockListInvitations {
+	if mmListInvitations.mock.funcListInvitations != nil {
+		mmListInvitations.mock.t.Fatalf("ClientMock.ListInvitations mock is already set by Set")
+	}
+
+	if mmListInvitations.defaultExpectation == nil {
+		mmListInvitations.defaultExpectation = &ClientMockListInvitationsExpectation{}
+	}
+
+	if mmListInvitations.defaultExpectation.params != nil {
+		mmListInvitations.mock.t.Fatalf("ClientMock.ListInvitations mock is already set by Expect")
+	}
+
+	if mmListInvitations.defaultExpectation.paramPtrs == nil {
+		mmListInvitations.defaultExpectation.paramPtrs = &ClientMockListInvitationsParamPtrs{}
+	}
+	mmListInvitations.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListInvitations.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListInvitations
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListInvitations
+func (mmListInvitations *mClientMockListInvitations) Inspect(f func(ctx context.Context)) *mClientMockListInvitations {
+	if mmListInvitations.mock.inspectFuncListInvitations != nil {
+		mmListInvitations.mock.t.Fatalf("Inspect function is already set for ClientMock.ListInvitations")
+	}
+
+	mmListInvitations.mock.inspectFuncListInvitations = f
+
+	return mmListInvitations
+}
+
+// Return sets up results that will be returned by Client.ListInvitations
+func (mmListInvitations *mClientMockListInvitations) Return(ia1 []Invitation, err error) *ClientMock {
+	if mmListInvitations.mock.funcListInvitations != nil {
+		mmListInvitations.mock.t.Fatalf("ClientMock.ListInvitations mock is already set by Set")
+	}
+
+	if mmListInvitations.defaultExpectation == nil {
+		mmListInvitations.defaultExpectation = &ClientMockListInvitationsExpectation{mock: mmListInvitations.mock}
+	}
+	mmListInvitations.defaultExpectation.results = &ClientMockListInvitationsResults{ia1, err}
+	mmListInvitations.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListInvitations.mock
+}
+
+// Set uses given function f to mock the Client.ListInvitations method
+func (mmListInvitations *mClientMockListInvitations) Set(f func(ctx context.Context) (ia1 []Invitation, err error)) *ClientMock {
+	if mmListInvitations.defaultExpectation != nil {
+		mmListInvitations.mock.t.Fatalf("Default expectation is already set for the Client.ListInvitations method")
+	}
+
+	if len(mmListInvitations.expectations) > 0 {
+		mmListInvitations.mock.t.Fatalf("Some expectations are already set for the Client.ListInvitations method")
+	}
+
+	mmListInvitations.mock.funcListInvitations = f
+	mmListInvitations.mock.funcListInvitationsOrigin = minimock.CallerInfo(1)
+	return mmListInvitations.mock
+}
+
+// When sets expectation for the Client.ListInvitations which will trigger the result defined by the following
+// Then helper
+func (mmListInvitations *mClientMockListInvitations) When(ctx context.Context) *ClientMockListInvitationsExpectation {
+	if mmListInvitations.mock.funcListInvitations != nil {
+		mmListInvitations.mock.t.Fatalf("ClientMock.ListInvitations mock is already set by Set")
+	}
+
+	expectation := &ClientMockListInvitationsExpectation{
+		mock:               mmListInvitations.mock,
+		params:             &ClientMockListInvitationsParams{ctx},
+		expectationOrigins: ClientMockListInvitationsExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListInvitations.expectations = append(mmListInvitations.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListInvitations return parameters for the expectation previously defined by the When method
+func (e *ClientMockListInvitationsExpectation) Then(ia1 []Invitation, err error) *ClientMock {
+	e.results = &ClientMockListInvitationsResults{ia1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListInvitations should be invoked
+func (mmListInvitations *mClientMockListInvitations) Times(n uint64) *mClientMockListInvitations {
+	if n == 0 {
+		mmListInvitations.mock.t.Fatalf("Times of ClientMock.ListInvitations mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListInvitations.expectedInvocations, n)
+	mmListInvitations.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListInvitations
+}
+
+func (mmListInvitations *mClientMockListInvitations) invocationsDone() bool {
+	if len(mmListInvitations.expectations) == 0 && mmListInvitations.defaultExpectation == nil && mmListInvitations.mock.funcListInvitations == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListInvitations.mock.afterListInvitationsCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListInvitations.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListInvitations implements Client
+func (mmListInvitations *ClientMock) ListInvitations(ctx context.Context) (ia1 []Invitation, err error) {
+	mm_atomic.AddUint64(&mmListInvitations.beforeListInvitationsCounter, 1)
+	defer mm_atomic.AddUint64(&mmListInvitations.afterListInvitationsCounter, 1)
+
+	mmListInvitations.t.Helper()
+
+	if mmListInvitations.inspectFuncListInvitations != nil {
+		mmListInvitations.inspectFuncListInvitations(ctx)
+	}
+
+	mm_params := ClientMockListInvitationsParams{ctx}
+
+	// Record call args
+	mmListInvitations.ListInvitationsMock.mutex.Lock()
+	mmListInvitations.ListInvitationsMock.callArgs = append(mmListInvitations.ListInvitationsMock.callArgs, &mm_params)
+	mmListInvitations.ListInvitationsMock.mutex.Unlock()
+
+	for _, e := range mmListInvitations.ListInvitationsMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ia1, e.results.err
+		}
+	}
+
+	if mmListInvitations.ListInvitationsMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListInvitations.ListInvitationsMock.defaultExpectation.Counter, 1)
+		mm_want := mmListInvitations.ListInvitationsMock.defaultExpectation.params
+		mm_want_ptrs := mmListInvitations.ListInvitationsMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListInvitationsParams{ctx}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListInvitations.t.Errorf("ClientMock.ListInvitations got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListInvitations.ListInvitationsMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListInvitations.t.Errorf("ClientMock.ListInvitations got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListInvitations.ListInvitationsMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListInvitations.ListInvitationsMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListInvitations.t.Fatal("No results are set for the ClientMock.ListInvitations")
+		}
+		return (*mm_results).ia1, (*mm_results).err
+	}
+	if mmListInvitations.funcListInvitations != nil {
+		return mmListInvitations.funcListInvitations(ctx)
+	}
+	mmListInvitations.t.Fatalf("Unexpected call to ClientMock.ListInvitations. %v", ctx)
+	return
+}
+
+// ListInvitationsAfterCounter returns a count of finished ClientMock.ListInvitations invocations
+func (mmListInvitations *ClientMock) ListInvitationsAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListInvitations.afterListInvitationsCounter)
+}
+
+// ListInvitationsBeforeCounter returns a count of ClientMock.ListInvitations invocations
+func (mmListInvitations *ClientMock) ListInvitationsBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListInvitations.beforeListInvitationsCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListInvitations.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListInvitations *mClientMockListInvitations) Calls() []*ClientMockListInvitationsParams {
+	mmListInvitations.mutex.RLock()
+
+	argCopy := make([]*ClientMockListInvitationsParams, len(mmListInvitations.callArgs))
+	copy(argCopy, mmListInvitations.callArgs)
+
+	mmListInvitations.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListInvitationsDone returns true if the count of the ListInvitations invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListInvitationsDone() bool {
+	if m.ListInvitationsMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListInvitationsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListInvitationsMock.invocationsDone()
+}
+
+// MinimockListInvitationsInspect logs each unmet expectation
+func (m *ClientMock) MinimockListInvitationsInspect() {
+	for _, e := range m.ListInvitationsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListInvitations at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListInvitationsCounter := mm_atomic.LoadUint64(&m.afterListInvitationsCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListInvitationsMock.defaultExpectation != nil && afterListInvitationsCounter < 1 {
+		if m.ListInvitationsMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListInvitations at\n%s", m.ListInvitationsMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListInvitations at\n%s with params: %#v", m.ListInvitationsMock.defaultExpectation.expectationOrigins.origin, *m.ListInvitationsMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListInvitations != nil && afterListInvitationsCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListInvitations at\n%s", m.funcListInvitationsOrigin)
+	}
+
+	if !m.ListInvitationsMock.invocationsDone() && afterListInvitationsCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListInvitations at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListInvitationsMock.expectedInvocations), m.ListInvitationsMock.expectedInvocationsOrigin, afterListInvitationsCounter)
 	}
 }
 
@@ -23541,6 +24921,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateClickPipeInspect()
 
+			m.MinimockCreateInvitationInspect()
+
 			m.MinimockCreatePostgresInspect()
 
 			m.MinimockCreatePostgresReadReplicaInspect()
@@ -23554,6 +24936,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockCreateServiceInspect()
 
 			m.MinimockDeleteClickPipeInspect()
+
+			m.MinimockDeleteInvitationInspect()
 
 			m.MinimockDeletePostgresInspect()
 
@@ -23578,6 +24962,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetClickPipeCdcScalingInspect()
 
 			m.MinimockGetClickPipeSettingsInspect()
+
+			m.MinimockGetInvitationInspect()
 
 			m.MinimockGetMemberInspect()
 
@@ -23606,6 +24992,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetServiceInspect()
 
 			m.MinimockGetUpgradeWindowInspect()
+
+			m.MinimockListInvitationsInspect()
 
 			m.MinimockListMembersInspect()
 
@@ -23687,6 +25075,7 @@ func (m *ClientMock) minimockDone() bool {
 	return done &&
 		m.MinimockChangeClickPipeStateDone() &&
 		m.MinimockCreateClickPipeDone() &&
+		m.MinimockCreateInvitationDone() &&
 		m.MinimockCreatePostgresDone() &&
 		m.MinimockCreatePostgresReadReplicaDone() &&
 		m.MinimockCreateQueryEndpointDone() &&
@@ -23694,6 +25083,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateRoleDone() &&
 		m.MinimockCreateServiceDone() &&
 		m.MinimockDeleteClickPipeDone() &&
+		m.MinimockDeleteInvitationDone() &&
 		m.MinimockDeletePostgresDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
 		m.MinimockDeleteReversePrivateEndpointDone() &&
@@ -23706,6 +25096,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetClickPipeDone() &&
 		m.MinimockGetClickPipeCdcScalingDone() &&
 		m.MinimockGetClickPipeSettingsDone() &&
+		m.MinimockGetInvitationDone() &&
 		m.MinimockGetMemberDone() &&
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationDone() &&
@@ -23720,6 +25111,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockGetUpgradeWindowDone() &&
+		m.MinimockListInvitationsDone() &&
 		m.MinimockListMembersDone() &&
 		m.MinimockListPostgresDone() &&
 		m.MinimockListReversePrivateEndpointsDone() &&
