@@ -1,0 +1,1534 @@
+package resource
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/gojuno/minimock/v3"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
+)
+
+func TestGetSourceType(t *testing.T) {
+	kafkaTypes := models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes
+	objectStorageTypes := models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes
+	kinesisTypes := models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes
+	postgresTypes := models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes
+	mysqlTypes := models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes
+	bigqueryTypes := models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes
+	mongodbTypes := models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes
+	pubsubTypes := models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes
+
+	nullSource := models.ClickPipeSourceModel{
+		Kafka:         types.ObjectNull(kafkaTypes),
+		ObjectStorage: types.ObjectNull(objectStorageTypes),
+		Kinesis:       types.ObjectNull(kinesisTypes),
+		PubSub:        types.ObjectNull(pubsubTypes),
+		Postgres:      types.ObjectNull(postgresTypes),
+		MySQL:         types.ObjectNull(mysqlTypes),
+		BigQuery:      types.ObjectNull(bigqueryTypes),
+		MongoDB:       types.ObjectNull(mongodbTypes),
+	}
+
+	tests := []struct {
+		name         string
+		sourceModel  models.ClickPipeSourceModel
+		expectedType SourceType
+	}{
+		{
+			name: "Kafka source",
+			sourceModel: func() models.ClickPipeSourceModel {
+				s := nullSource
+				s.Kafka = types.ObjectUnknown(kafkaTypes)
+				return s
+			}(),
+			expectedType: SourceTypeKafka,
+		},
+		{
+			name: "ObjectStorage source",
+			sourceModel: func() models.ClickPipeSourceModel {
+				s := nullSource
+				s.ObjectStorage = types.ObjectUnknown(objectStorageTypes)
+				return s
+			}(),
+			expectedType: SourceTypeObjectStorage,
+		},
+		{
+			name: "Kinesis source",
+			sourceModel: func() models.ClickPipeSourceModel {
+				s := nullSource
+				s.Kinesis = types.ObjectUnknown(kinesisTypes)
+				return s
+			}(),
+			expectedType: SourceTypeKinesis,
+		},
+		{
+			name: "PubSub source",
+			sourceModel: func() models.ClickPipeSourceModel {
+				s := nullSource
+				s.PubSub = types.ObjectUnknown(pubsubTypes)
+				return s
+			}(),
+			expectedType: SourceTypePubSub,
+		},
+		{
+			name: "Postgres source",
+			sourceModel: func() models.ClickPipeSourceModel {
+				s := nullSource
+				s.Postgres = types.ObjectUnknown(postgresTypes)
+				return s
+			}(),
+			expectedType: SourceTypePostgres,
+		},
+		{
+			name: "MongoDB source",
+			sourceModel: func() models.ClickPipeSourceModel {
+				s := nullSource
+				s.MongoDB = types.ObjectUnknown(mongodbTypes)
+				return s
+			}(),
+			expectedType: SourceTypeMongoDB,
+		},
+		{
+			name:         "Unknown source (all null)",
+			sourceModel:  nullSource,
+			expectedType: SourceTypeUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getSourceType(tt.sourceModel)
+			assert.Equal(t, tt.expectedType, result)
+		})
+	}
+}
+
+func TestClickPipeResource_syncClickPipeState_Postgres(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name         string
+		state        models.ClickPipeResourceModel
+		response     *api.ClickPipe
+		responseErr  error
+		desiredState models.ClickPipeResourceModel
+		wantErr      bool
+	}{
+		{
+			name:  "Syncs Postgres source with all settings",
+			state: getPostgresInitialState(),
+			response: &api.ClickPipe{
+				ID:    "test-pipe-id",
+				Name:  "test-pipe",
+				State: "running",
+				Source: api.ClickPipeSource{
+					Postgres: &api.ClickPipePostgresSource{
+						Host:     "postgres.example.com",
+						Port:     5432,
+						Database: "mydb",
+						Settings: &api.ClickPipePostgresSettings{
+							ReplicationMode:      "cdc",
+							SyncIntervalSeconds:  intPtr(60),
+							PullBatchSize:        intPtr(1000),
+							PublicationName:      strPtr("my_publication"),
+							AllowNullableColumns: boolPtr(true),
+						},
+						Mappings: []api.ClickPipePostgresTableMapping{
+							{
+								SourceSchemaName: "public",
+								SourceTable:      "users",
+								TargetTable:      "users",
+								TableEngine:      strPtr("ReplacingMergeTree"),
+							},
+						},
+					},
+				},
+				Destination: api.ClickPipeDestination{
+					Database: "default",
+				},
+			},
+			desiredState: getPostgresDesiredState("test-pipe", "running"),
+			wantErr:      false,
+		},
+		{
+			name:  "Preserves null values for optional Postgres settings",
+			state: getPostgresInitialState(),
+			response: &api.ClickPipe{
+				ID:    "test-pipe-id",
+				Name:  "test-pipe",
+				State: "running",
+				Source: api.ClickPipeSource{
+					Postgres: &api.ClickPipePostgresSource{
+						Host:     "postgres.example.com",
+						Port:     5432,
+						Database: "mydb",
+						Settings: &api.ClickPipePostgresSettings{
+							ReplicationMode: "cdc",
+							// Optional fields not set - API may return empty/defaults
+							PublicationName:     nil,
+							ReplicationSlotName: nil,
+							EnableFailoverSlots: nil,
+						},
+						Mappings: []api.ClickPipePostgresTableMapping{
+							{
+								SourceSchemaName: "public",
+								SourceTable:      "users",
+								TargetTable:      "users",
+								TableEngine:      nil, // Not set
+							},
+						},
+					},
+				},
+				Destination: api.ClickPipeDestination{
+					Database: "default",
+				},
+			},
+			desiredState: getPostgresDesiredState("test-pipe", "running"),
+			wantErr:      false,
+		},
+		{
+			name:  "Preserves null destination fields for Postgres CDC",
+			state: getPostgresInitialState(),
+			response: &api.ClickPipe{
+				ID:    "test-pipe-id",
+				Name:  "test-pipe",
+				State: "running",
+				Source: api.ClickPipeSource{
+					Postgres: &api.ClickPipePostgresSource{
+						Host:     "postgres.example.com",
+						Port:     5432,
+						Database: "mydb",
+						Settings: &api.ClickPipePostgresSettings{
+							ReplicationMode: "cdc",
+						},
+						Mappings: []api.ClickPipePostgresTableMapping{
+							{
+								SourceSchemaName: "public",
+								SourceTable:      "users",
+								TargetTable:      "users",
+							},
+						},
+					},
+				},
+				Destination: api.ClickPipeDestination{
+					Database: "default",
+					// API doesn't return these for Postgres CDC
+					Table:        nil,
+					ManagedTable: nil,
+					Columns:      nil,
+				},
+			},
+			desiredState: getPostgresDesiredState("test-pipe", "running"),
+			wantErr:      false,
+		},
+		{
+			name:  "Updates sync_interval_seconds when API returns new value",
+			state: getPostgresInitialState(),
+			response: &api.ClickPipe{
+				ID:    "test-pipe-id",
+				Name:  "test-pipe",
+				State: "running",
+				Source: api.ClickPipeSource{
+					Postgres: &api.ClickPipePostgresSource{
+						Host:     "postgres.example.com",
+						Port:     5432,
+						Database: "mydb",
+						Settings: &api.ClickPipePostgresSettings{
+							ReplicationMode:     "cdc",
+							SyncIntervalSeconds: intPtr(120), // Changed from null to 120
+						},
+						Mappings: []api.ClickPipePostgresTableMapping{
+							{
+								SourceSchemaName: "public",
+								SourceTable:      "users",
+								TargetTable:      "users",
+							},
+						},
+					},
+				},
+				Destination: api.ClickPipeDestination{
+					Database: "default",
+				},
+			},
+			desiredState: getPostgresDesiredState("test-pipe", "running"),
+			wantErr:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+
+			apiClientMock := api.NewClientMock(mc).
+				GetClickPipeMock.
+				Expect(context.Background(), tt.state.ServiceID.ValueString(), tt.state.ID.ValueString()).
+				Return(tt.response, tt.responseErr)
+
+			resource := &ClickPipeResource{
+				client: apiClientMock,
+			}
+
+			err := resource.syncClickPipeState(ctx, &tt.state)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+
+				// Validate key fields
+				assert.Equal(t, tt.desiredState.ID.ValueString(), tt.state.ID.ValueString())
+				assert.Equal(t, tt.desiredState.Name.ValueString(), tt.state.Name.ValueString())
+				assert.Equal(t, tt.desiredState.State.ValueString(), tt.state.State.ValueString())
+
+				// Validate source is synced
+				assert.False(t, tt.state.Source.IsNull())
+
+				// Validate destination preserves null values for Postgres
+				var destModel models.ClickPipeDestinationModel
+				tt.state.Destination.As(ctx, &destModel, basetypes.ObjectAsOptions{})
+				assert.True(t, destModel.Table.IsNull(), "table should remain null for Postgres CDC")
+				assert.Equal(t, types.BoolValue(true), destModel.ManagedTable, "managed_table should default to true for Postgres CDC when unset in state (issue #543)")
+
+				// Validate credentials are preserved from state (not returned by API)
+				var sourceModel models.ClickPipeSourceModel
+				tt.state.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})
+				var postgresModel models.ClickPipePostgresSourceModel
+				sourceModel.Postgres.As(ctx, &postgresModel, basetypes.ObjectAsOptions{})
+				assert.False(t, postgresModel.Credentials.IsNull(), "credentials should be preserved from state")
+			}
+		})
+	}
+}
+
+// TestClickPipeResource_syncClickPipeState_PreservesManagedTable is a regression test for issue
+// #543. managed_table is not applicable to DB pipes: it is never sent to or returned by the API
+// (tables are managed per-mapping via table_mappings). syncClickPipeState must therefore preserve
+// whatever value the user configured in state rather than forcing it to a fixed value. Forcing it
+// to false (a previous revision) broke Terraform's plan-consistency check whenever a user
+// explicitly set managed_table = true on a Postgres CDC pipe.
+func TestClickPipeResource_syncClickPipeState_PreservesManagedTable(t *testing.T) {
+	ctx := context.Background()
+
+	// The API never returns managedTable for DB pipes, so the synced value must come from state.
+	postgresResponse := func() *api.ClickPipe {
+		return &api.ClickPipe{
+			ID:    "test-pipe-id",
+			Name:  "test-pipe",
+			State: "running",
+			Source: api.ClickPipeSource{
+				Postgres: &api.ClickPipePostgresSource{
+					Host:     "postgres.example.com",
+					Port:     5432,
+					Database: "mydb",
+					Settings: &api.ClickPipePostgresSettings{ReplicationMode: "cdc"},
+					Mappings: []api.ClickPipePostgresTableMapping{
+						{SourceSchemaName: "public", SourceTable: "users", TargetTable: "users"},
+					},
+				},
+			},
+			Destination: api.ClickPipeDestination{Database: "default", ManagedTable: nil},
+		}
+	}
+
+	stateWithManagedTable := func(v attr.Value) models.ClickPipeResourceModel {
+		state := getPostgresInitialState()
+		state.Destination = types.ObjectValueMust(
+			models.ClickPipeDestinationModel{}.ObjectType().AttrTypes,
+			map[string]attr.Value{
+				"database":         types.StringValue("default"),
+				"table":            types.StringNull(),
+				"managed_table":    v,
+				"table_definition": types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes),
+				"columns":          types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType()),
+				"roles":            types.ListNull(types.StringType),
+			},
+		)
+		return state
+	}
+
+	tests := []struct {
+		name     string
+		input    attr.Value
+		expected types.Bool
+	}{
+		{name: "explicit true is preserved", input: types.BoolValue(true), expected: types.BoolValue(true)},
+		{name: "explicit false is preserved", input: types.BoolValue(false), expected: types.BoolValue(false)},
+		{name: "null defaults to true on import", input: types.BoolNull(), expected: types.BoolValue(true)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+			state := stateWithManagedTable(tt.input)
+
+			apiClientMock := api.NewClientMock(mc).
+				GetClickPipeMock.
+				Expect(context.Background(), state.ServiceID.ValueString(), state.ID.ValueString()).
+				Return(postgresResponse(), nil)
+
+			resource := &ClickPipeResource{client: apiClientMock}
+
+			err := resource.syncClickPipeState(ctx, &state)
+			assert.NoError(t, err)
+
+			var destModel models.ClickPipeDestinationModel
+			state.Destination.As(ctx, &destModel, basetypes.ObjectAsOptions{})
+			assert.Equal(t, tt.expected, destModel.ManagedTable,
+				"managed_table must be preserved from state for DB pipes (issue #543)")
+		})
+	}
+}
+
+// getPostgresInitialState returns a ClickPipeResourceModel with Postgres source in provisioning state
+func getPostgresInitialState() models.ClickPipeResourceModel {
+	return models.ClickPipeResourceModel{
+		ID:        types.StringValue("test-pipe-id"),
+		ServiceID: types.StringValue("service-123"),
+		Name:      types.StringValue("test-pipe"),
+		State:     types.StringValue("provisioning"),
+		Source: models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+			Postgres: types.ObjectValueMust(
+				models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes,
+				map[string]attr.Value{
+					"type":           types.StringValue("postgres"),
+					"host":           types.StringValue("postgres.example.com"),
+					"port":           types.Int64Value(5432),
+					"database":       types.StringValue("mydb"),
+					"authentication": types.StringNull(),
+					"iam_role":       types.StringNull(),
+					"tls_host":       types.StringNull(),
+					"ca_certificate": types.StringNull(),
+					"credentials": types.ObjectValueMust(
+						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
+						map[string]attr.Value{
+							"username":            types.StringValue("user"),
+							"password":            types.StringValue("pass"),
+							"password_wo":         types.StringNull(),
+							"password_wo_version": types.Int64Null(),
+						},
+					),
+					"settings": types.ObjectValueMust(
+						models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes,
+						map[string]attr.Value{
+							"replication_mode":                   types.StringValue("cdc"),
+							"sync_interval_seconds":              types.Int64Null(),
+							"pull_batch_size":                    types.Int64Null(),
+							"publication_name":                   types.StringNull(),
+							"replication_slot_name":              types.StringNull(),
+							"allow_nullable_columns":             types.BoolNull(),
+							"initial_load_parallelism":           types.Int64Null(),
+							"snapshot_num_rows_per_partition":    types.Int64Null(),
+							"snapshot_number_of_parallel_tables": types.Int64Null(),
+							"enable_failover_slots":              types.BoolNull(),
+							"delete_on_merge":                    types.BoolNull(),
+						},
+					),
+					"table_mappings": types.SetValueMust(
+						models.ClickPipePostgresTableMappingModel{}.ObjectType(),
+						[]attr.Value{
+							types.ObjectValueMust(
+								models.ClickPipePostgresTableMappingModel{}.ObjectType().AttrTypes,
+								map[string]attr.Value{
+									"source_schema_name":     types.StringValue("public"),
+									"source_table":           types.StringValue("users"),
+									"target_table":           types.StringValue("users"),
+									"excluded_columns":       types.SetNull(types.StringType),
+									"use_custom_sorting_key": types.BoolNull(),
+									"sorting_keys":           types.ListNull(types.StringType),
+									"table_engine":           types.StringNull(),
+									"partition_key":          types.StringNull(),
+								},
+							),
+						},
+					),
+				},
+			),
+		}.ObjectValue(),
+		Destination: types.ObjectValueMust(
+			models.ClickPipeDestinationModel{}.ObjectType().AttrTypes,
+			map[string]attr.Value{
+				"database":         types.StringValue("default"),
+				"table":            types.StringNull(),
+				"managed_table":    types.BoolNull(),
+				"table_definition": types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes),
+				"columns":          types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType()),
+				"roles":            types.ListNull(types.StringType),
+			},
+		),
+	}
+}
+
+// getPostgresDesiredState returns the expected state after syncing with the given name and state
+func getPostgresDesiredState(name, state string) models.ClickPipeResourceModel {
+	desiredState := getPostgresInitialState()
+	desiredState.Name = types.StringValue(name)
+	desiredState.State = types.StringValue(state)
+	return desiredState
+}
+
+// Helper functions
+func intPtr(i int) *int {
+	return &i
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func buildKafkaMutualTLSPlan(certificate, privateKey types.String) models.ClickPipeResourceModel {
+	credAttrs := map[string]attr.Value{
+		"username":            types.StringNull(),
+		"password":            types.StringNull(),
+		"password_wo":         types.StringNull(),
+		"password_wo_version": types.Int64Null(),
+		"access_key_id":       types.StringNull(),
+		"secret_key":          types.StringNull(),
+		"connection_string":   types.StringNull(),
+		"certificate":         certificate,
+		"private_key":         privateKey,
+	}
+
+	kafkaAttrs := map[string]attr.Value{
+		"type":                         types.StringValue("kafka"),
+		"format":                       types.StringValue("JSONEachRow"),
+		"brokers":                      types.StringValue("broker:9092"),
+		"topics":                       types.StringValue("test-topic"),
+		"consumer_group":               types.StringNull(),
+		"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
+		"schema_registry":              types.ObjectNull(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes),
+		"authentication":               types.StringValue("MUTUAL_TLS"),
+		"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+		"iam_role":                     types.StringNull(),
+		"ca_certificate":               types.StringNull(),
+		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
+		"exactly_once":                 types.BoolNull(),
+	}
+
+	sourceModel := models.ClickPipeSourceModel{
+		Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
+		ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+		PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+		Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+		MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+		MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+	}
+
+	return models.ClickPipeResourceModel{
+		ID:        types.StringValue("test-pipe-id"),
+		ServiceID: types.StringValue("service-123"),
+		Name:      types.StringValue("test-mtls-pipe"),
+		Source:    sourceModel.ObjectValue(),
+	}
+}
+
+func TestExtractSourceFromPlan_KafkaMutualTLS(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("success: both certificate and private_key provided", func(t *testing.T) {
+		plan := buildKafkaMutualTLSPlan(
+			types.StringValue("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"),
+			types.StringValue("-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----"),
+		)
+
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Kafka)
+		assert.NotNil(t, source.Kafka.Credentials)
+		assert.Equal(t, "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----", *source.Kafka.Credentials.Certificate)
+		assert.Equal(t, "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----", *source.Kafka.Credentials.PrivateKey)
+		assert.Nil(t, source.Kafka.Credentials.ClickPipeSourceCredentials, "SASL credentials should not be set")
+		assert.Nil(t, source.Kafka.Credentials.ClickPipeSourceAccessKey, "access key credentials should not be set")
+		assert.Nil(t, source.Kafka.Credentials.ConnectionString, "connection string should not be set")
+	})
+
+	t.Run("failure: only certificate provided without private_key", func(t *testing.T) {
+		plan := buildKafkaMutualTLSPlan(
+			types.StringValue("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"),
+			types.StringNull(),
+		)
+
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when private_key is missing")
+		assert.Nil(t, source)
+	})
+
+	t.Run("failure: only private_key provided without certificate", func(t *testing.T) {
+		plan := buildKafkaMutualTLSPlan(
+			types.StringNull(),
+			types.StringValue("-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----"),
+		)
+
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when certificate is missing")
+		assert.Nil(t, source)
+	})
+}
+
+func buildObjectStoragePlan(skipInitialLoad types.Bool, startAfter types.String) models.ClickPipeResourceModel {
+	objectStorageAttrs := map[string]attr.Value{
+		"type":                 types.StringValue(api.ClickPipeObjectStorageS3Type),
+		"format":               types.StringValue("JSONEachRow"),
+		"url":                  types.StringValue("https://test-bucket.s3.us-east-1.amazonaws.com/data/*.json"),
+		"delimiter":            types.StringNull(),
+		"compression":          types.StringNull(),
+		"is_continuous":        types.BoolValue(true),
+		"queue_url":            types.StringValue("https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue"),
+		"skip_initial_load":    skipInitialLoad,
+		"start_after":          startAfter,
+		"authentication":       types.StringValue(api.ClickPipeAuthenticationIAMUser),
+		"access_key":           types.ObjectNull(models.ClickPipeSourceAccessKeyModel{}.ObjectType().AttrTypes),
+		"iam_role":             types.StringNull(),
+		"service_account_key":  types.StringNull(),
+		"connection_string":    types.StringNull(),
+		"path":                 types.StringNull(),
+		"azure_container_name": types.StringNull(),
+	}
+
+	sourceModel := models.ClickPipeSourceModel{
+		Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+		ObjectStorage: types.ObjectValueMust(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes, objectStorageAttrs),
+		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+		PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+		Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+		MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+		MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+	}
+
+	return models.ClickPipeResourceModel{
+		ID:            types.StringValue("test-pipe-id"),
+		ServiceID:     types.StringValue("service-123"),
+		Name:          types.StringValue("test-object-storage-pipe"),
+		Scaling:       types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes),
+		State:         types.StringValue("Running"),
+		Stopped:       types.BoolValue(false),
+		Source:        sourceModel.ObjectValue(),
+		Destination:   buildObjectStorageDestination().ObjectValue(),
+		FieldMappings: types.ListNull(models.ClickPipeFieldMappingModel{}.ObjectType()),
+		Settings:      types.DynamicNull(),
+		TriggerResync: types.BoolNull(),
+	}
+}
+
+func buildObjectStorageDestination() models.ClickPipeDestinationModel {
+	return models.ClickPipeDestinationModel{
+		Database:        types.StringValue("default"),
+		Table:           types.StringValue("data"),
+		ManagedTable:    types.BoolValue(true),
+		TableDefinition: types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes),
+		Columns: types.ListValueMust(
+			models.ClickPipeDestinationColumnModel{}.ObjectType(),
+			[]attr.Value{
+				types.ObjectValueMust(
+					models.ClickPipeDestinationColumnModel{}.ObjectType().AttrTypes,
+					map[string]attr.Value{
+						"name": types.StringValue("id"),
+						"type": types.StringValue("Int32"),
+					},
+				),
+			},
+		),
+		Roles: types.ListNull(types.StringType),
+	}
+}
+
+func TestExtractSourceFromPlan_ObjectStorageInitialLoadOptions(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("sets skip_initial_load and omits start_after when true", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolValue(true), types.StringValue("events/2026-06-01/"))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.ObjectStorage)
+		assert.NotNil(t, source.ObjectStorage.SkipInitialLoad)
+		assert.True(t, *source.ObjectStorage.SkipInitialLoad)
+		assert.Nil(t, source.ObjectStorage.StartAfter)
+	})
+
+	t.Run("sets start_after when skip_initial_load is false", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolValue(false), types.StringValue("events/2026-06-01/"))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.ObjectStorage)
+		assert.NotNil(t, source.ObjectStorage.SkipInitialLoad)
+		assert.False(t, *source.ObjectStorage.SkipInitialLoad)
+		assert.NotNil(t, source.ObjectStorage.StartAfter)
+		assert.Equal(t, "events/2026-06-01/", *source.ObjectStorage.StartAfter)
+	})
+
+	t.Run("omits skip_initial_load when unset", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolNull(), types.StringNull())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.ObjectStorage)
+		assert.Nil(t, source.ObjectStorage.SkipInitialLoad)
+		assert.Nil(t, source.ObjectStorage.StartAfter)
+	})
+}
+
+func TestClickPipeResource_ModifyPlan_ObjectStorageInitialLoadValidation(t *testing.T) {
+	ctx := context.Background()
+	resourceUnderTest := &ClickPipeResource{}
+
+	schemaResp := &resource.SchemaResponse{}
+	resourceUnderTest.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("building resource schema failed: %v", schemaResp.Diagnostics.Errors())
+	}
+	sch := schemaResp.Schema
+
+	run := func(t *testing.T, planModel models.ClickPipeResourceModel) diag.Diagnostics {
+		t.Helper()
+
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &planModel); d.HasError() {
+			t.Fatalf("encoding plan failed: %v", d.Errors())
+		}
+
+		req := resource.ModifyPlanRequest{
+			Plan:   planVal,
+			Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+		}
+		resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
+		resourceUnderTest.ModifyPlan(ctx, req, resp)
+		return resp.Diagnostics
+	}
+
+	detailContains := func(diags diag.Diagnostics, substr string) bool {
+		for _, d := range diags.Errors() {
+			if strings.Contains(d.Detail(), substr) {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("skip_initial_load requires queue_url", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolValue(true), types.StringNull())
+		var sourceModel models.ClickPipeSourceModel
+		diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})
+		assert.False(t, diags.HasError(), "expected no source decode errors, got: %v", diags.Errors())
+
+		var objectStorageModel models.ClickPipeObjectStorageSourceModel
+		diags = sourceModel.ObjectStorage.As(ctx, &objectStorageModel, basetypes.ObjectAsOptions{})
+		assert.False(t, diags.HasError(), "expected no object storage decode errors, got: %v", diags.Errors())
+		objectStorageModel.QueueURL = types.StringNull()
+		sourceModel.ObjectStorage = objectStorageModel.ObjectValue()
+		plan.Source = sourceModel.ObjectValue()
+
+		diags = run(t, plan)
+
+		assert.True(t, detailContains(diags, "queue_url is required when skip_initial_load is true"), "expected queue_url validation diagnostic, got: %v", diags.Errors())
+	})
+
+	t.Run("skip_initial_load cannot be combined with start_after", func(t *testing.T) {
+		plan := buildObjectStoragePlan(types.BoolValue(true), types.StringValue("events/2026-06-01/"))
+
+		diags := run(t, plan)
+
+		assert.True(t, detailContains(diags, "start_after cannot be provided when skip_initial_load is true"), "expected start_after validation diagnostic, got: %v", diags.Errors())
+	})
+}
+
+// buildPostgresCredentialsPlan returns plan/config models for Postgres; password_wo is stripped from plan, password_wo_version is preserved (it's not write-only).
+func buildPostgresCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		credAttrs := map[string]attr.Value{
+			"username":            types.StringValue("user"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+		}
+		settingsAttrs := map[string]attr.Value{
+			"replication_mode":                   types.StringValue("cdc"),
+			"sync_interval_seconds":              types.Int64Null(),
+			"pull_batch_size":                    types.Int64Null(),
+			"publication_name":                   types.StringNull(),
+			"replication_slot_name":              types.StringNull(),
+			"allow_nullable_columns":             types.BoolNull(),
+			"initial_load_parallelism":           types.Int64Null(),
+			"snapshot_num_rows_per_partition":    types.Int64Null(),
+			"snapshot_number_of_parallel_tables": types.Int64Null(),
+			"enable_failover_slots":              types.BoolNull(),
+			"delete_on_merge":                    types.BoolNull(),
+		}
+		pgAttrs := map[string]attr.Value{
+			"type":           types.StringValue("postgres"),
+			"host":           types.StringValue("postgres.example.com"),
+			"port":           types.Int64Value(5432),
+			"database":       types.StringValue("mydb"),
+			"authentication": types.StringNull(),
+			"iam_role":       types.StringNull(),
+			"tls_host":       types.StringNull(),
+			"ca_certificate": types.StringNull(),
+			"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":       types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings": types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{}),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectValueMust(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes, pgAttrs),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-pg-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	// Plan never sees password_wo — the framework strips it before the provider receives plan.
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_PostgresWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildPostgresCredentialsPlan(types.StringNull(), types.StringValue("wo-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Postgres)
+		assert.NotNil(t, source.Postgres.Credentials)
+		assert.Equal(t, "wo-secret", source.Postgres.Credentials.Password)
+	})
+
+	t.Run("legacy password used when no write-only set", func(t *testing.T) {
+		plan, config := buildPostgresCredentialsPlan(types.StringValue("legacy-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-pass", source.Postgres.Credentials.Password)
+	})
+
+	t.Run("nil config falls back to plan password", func(t *testing.T) {
+		plan, _ := buildPostgresCredentialsPlan(types.StringValue("plan-only-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "plan-only-pass", source.Postgres.Credentials.Password)
+	})
+
+	t.Run("missing password and password_wo errors for basic auth", func(t *testing.T) {
+		plan, config := buildPostgresCredentialsPlan(types.StringNull(), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when no password supplied for basic auth")
+		_ = source
+	})
+}
+
+// buildKafkaCredentialsPlan returns plan/config models for PLAIN-authenticated Kafka; see buildPostgresCredentialsPlan for the plan-vs-config asymmetry.
+func buildKafkaCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		credAttrs := map[string]attr.Value{
+			"username":            types.StringValue("kuser"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+			"access_key_id":       types.StringNull(),
+			"secret_key":          types.StringNull(),
+			"connection_string":   types.StringNull(),
+			"certificate":         types.StringNull(),
+			"private_key":         types.StringNull(),
+		}
+		kafkaAttrs := map[string]attr.Value{
+			"type":                         types.StringValue("kafka"),
+			"format":                       types.StringValue("JSONEachRow"),
+			"brokers":                      types.StringValue("broker:9092"),
+			"topics":                       types.StringValue("test-topic"),
+			"consumer_group":               types.StringNull(),
+			"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
+			"schema_registry":              types.ObjectNull(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes),
+			"authentication":               types.StringValue("PLAIN"),
+			"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"iam_role":                     types.StringNull(),
+			"ca_certificate":               types.StringNull(),
+			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
+			"exactly_once":                 types.BoolNull(),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-kafka-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_KafkaWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildKafkaCredentialsPlan(types.StringNull(), types.StringValue("wo-kafka-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Kafka)
+		assert.NotNil(t, source.Kafka.Credentials)
+		assert.NotNil(t, source.Kafka.Credentials.ClickPipeSourceCredentials)
+		assert.Equal(t, "wo-kafka-secret", source.Kafka.Credentials.Password)
+	})
+
+	t.Run("legacy password used when no write-only set", func(t *testing.T) {
+		plan, config := buildKafkaCredentialsPlan(types.StringValue("legacy-kafka-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-kafka-pass", source.Kafka.Credentials.Password)
+	})
+
+	t.Run("nil config falls back to plan password", func(t *testing.T) {
+		plan, _ := buildKafkaCredentialsPlan(types.StringValue("plan-only-kafka"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "plan-only-kafka", source.Kafka.Credentials.Password)
+	})
+}
+
+// buildKafkaSchemaRegistryCredentialsPlan returns plan/config models exercising the Schema Registry overlay path; main Kafka creds use a fixed legacy password.
+func buildKafkaSchemaRegistryCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		mainCredAttrs := map[string]attr.Value{
+			"username":            types.StringValue("kuser"),
+			"password":            types.StringValue("main-pass"),
+			"password_wo":         types.StringNull(),
+			"password_wo_version": types.Int64Null(),
+			"access_key_id":       types.StringNull(),
+			"secret_key":          types.StringNull(),
+			"connection_string":   types.StringNull(),
+			"certificate":         types.StringNull(),
+			"private_key":         types.StringNull(),
+		}
+		srCredAttrs := map[string]attr.Value{
+			"username":            types.StringValue("sruser"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+		}
+		srAttrs := map[string]attr.Value{
+			"url":            types.StringValue("https://schema-registry.example.com"),
+			"authentication": types.StringValue("PLAIN"),
+			"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, srCredAttrs),
+		}
+		kafkaAttrs := map[string]attr.Value{
+			"type":                         types.StringValue("kafka"),
+			"format":                       types.StringValue("AvroConfluent"),
+			"brokers":                      types.StringValue("broker:9092"),
+			"topics":                       types.StringValue("test-topic"),
+			"consumer_group":               types.StringNull(),
+			"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
+			"schema_registry":              types.ObjectValueMust(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes, srAttrs),
+			"authentication":               types.StringValue("PLAIN"),
+			"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, mainCredAttrs),
+			"iam_role":                     types.StringNull(),
+			"ca_certificate":               types.StringNull(),
+			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
+			"exactly_once":                 types.BoolNull(),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-kafka-sr-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_KafkaSchemaRegistryWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only schema registry password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildKafkaSchemaRegistryCredentialsPlan(types.StringNull(), types.StringValue("wo-sr-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Kafka)
+		assert.NotNil(t, source.Kafka.SchemaRegistry)
+		assert.NotNil(t, source.Kafka.SchemaRegistry.Credentials)
+		assert.Equal(t, "wo-sr-secret", source.Kafka.SchemaRegistry.Credentials.Password)
+		// Main Kafka credentials should not be affected by SR overlay.
+		assert.Equal(t, "main-pass", source.Kafka.Credentials.Password)
+	})
+
+	t.Run("legacy schema registry password used when no write-only set", func(t *testing.T) {
+		plan, config := buildKafkaSchemaRegistryCredentialsPlan(types.StringValue("legacy-sr-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-sr-pass", source.Kafka.SchemaRegistry.Credentials.Password)
+	})
+
+	t.Run("nil config falls back to plan schema registry password", func(t *testing.T) {
+		plan, _ := buildKafkaSchemaRegistryCredentialsPlan(types.StringValue("plan-only-sr"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "plan-only-sr", source.Kafka.SchemaRegistry.Credentials.Password)
+	})
+}
+
+// buildMySQLCredentialsPlan returns plan/config models for a basic-auth MySQL source.
+func buildMySQLCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		credAttrs := map[string]attr.Value{
+			"username":            types.StringValue("user"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+		}
+		settingsAttrs := map[string]attr.Value{
+			"replication_mode":                   types.StringValue("cdc"),
+			"sync_interval_seconds":              types.Int64Null(),
+			"pull_batch_size":                    types.Int64Null(),
+			"replication_mechanism":              types.StringNull(),
+			"use_compression":                    types.BoolNull(),
+			"allow_nullable_columns":             types.BoolNull(),
+			"initial_load_parallelism":           types.Int64Null(),
+			"snapshot_num_rows_per_partition":    types.Int64Null(),
+			"snapshot_number_of_parallel_tables": types.Int64Null(),
+			"delete_on_merge":                    types.BoolNull(),
+		}
+		mysqlAttrs := map[string]attr.Value{
+			"type":                   types.StringValue("mysql"),
+			"host":                   types.StringValue("mysql.example.com"),
+			"port":                   types.Int64Value(3306),
+			"authentication":         types.StringNull(),
+			"iam_role":               types.StringNull(),
+			"tls_host":               types.StringNull(),
+			"ca_certificate":         types.StringNull(),
+			"disable_tls":            types.BoolNull(),
+			"skip_cert_verification": types.BoolNull(),
+			"credentials":            types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":               types.ObjectValueMust(models.ClickPipeMySQLSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings":         types.SetValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType(), []attr.Value{}),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectValueMust(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes, mysqlAttrs),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-mysql-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_MySQLWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildMySQLCredentialsPlan(types.StringNull(), types.StringValue("wo-mysql-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.MySQL)
+		assert.NotNil(t, source.MySQL.Credentials)
+		assert.Equal(t, "wo-mysql-secret", source.MySQL.Credentials.Password)
+	})
+
+	t.Run("legacy password used when no write-only set", func(t *testing.T) {
+		plan, config := buildMySQLCredentialsPlan(types.StringValue("legacy-mysql-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-mysql-pass", source.MySQL.Credentials.Password)
+	})
+
+	t.Run("missing password and password_wo errors for basic auth", func(t *testing.T) {
+		plan, config := buildMySQLCredentialsPlan(types.StringNull(), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when no password supplied for basic auth")
+		_ = source
+	})
+}
+
+// buildMongoDBCredentialsPlan returns plan/config models for a MongoDB source.
+func buildMongoDBCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
+	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
+		credAttrs := map[string]attr.Value{
+			"username":            types.StringValue("user"),
+			"password":            pw,
+			"password_wo":         pwWO,
+			"password_wo_version": passwordWOVersion,
+		}
+		settingsAttrs := map[string]attr.Value{
+			"replication_mode":                   types.StringValue("cdc"),
+			"sync_interval_seconds":              types.Int64Null(),
+			"pull_batch_size":                    types.Int64Null(),
+			"snapshot_num_rows_per_partition":    types.Int64Null(),
+			"snapshot_number_of_parallel_tables": types.Int64Null(),
+			"delete_on_merge":                    types.BoolNull(),
+			"use_json_native_format":             types.BoolNull(),
+		}
+		mongoAttrs := map[string]attr.Value{
+			"uri":             types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
+			"read_preference": types.StringValue("secondaryPreferred"),
+			"tls_host":        types.StringNull(),
+			"ca_certificate":  types.StringNull(),
+			"disable_tls":     types.BoolNull(),
+			"credentials":     types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":        types.ObjectValueMust(models.ClickPipeMongoDBSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings":  types.SetValueMust(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), []attr.Value{}),
+		}
+		sourceModel := models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB:       types.ObjectValueMust(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes, mongoAttrs),
+		}
+		return models.ClickPipeResourceModel{
+			ID:        types.StringValue("test-pipe-id"),
+			ServiceID: types.StringValue("service-123"),
+			Name:      types.StringValue("test-mongodb-pipe"),
+			Source:    sourceModel.ObjectValue(),
+		}
+	}
+	plan = build(password, types.StringNull())
+	config = build(password, passwordWO)
+	return plan, config
+}
+
+func TestExtractSourceFromPlan_MongoDBWriteOnlyPassword(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("write-only password from config wins over null plan password", func(t *testing.T) {
+		plan, config := buildMongoDBCredentialsPlan(types.StringNull(), types.StringValue("wo-mongo-secret"), types.Int64Value(1))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.MongoDB)
+		assert.NotNil(t, source.MongoDB.Credentials)
+		assert.Equal(t, "wo-mongo-secret", source.MongoDB.Credentials.Password)
+	})
+
+	t.Run("legacy password used when no write-only set", func(t *testing.T) {
+		plan, config := buildMongoDBCredentialsPlan(types.StringValue("legacy-mongo-pass"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "legacy-mongo-pass", source.MongoDB.Credentials.Password)
+	})
+
+	t.Run("nil config falls back to plan password", func(t *testing.T) {
+		plan, _ := buildMongoDBCredentialsPlan(types.StringValue("plan-only-mongo"), types.StringNull(), types.Int64Null())
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.Equal(t, "plan-only-mongo", source.MongoDB.Credentials.Password)
+	})
+}
+
+// buildCredentialsObject constructs a credentials object for credential-change detection tests.
+func buildCredentialsObject(username, password, passwordWO types.String, passwordWOVersion types.Int64) types.Object {
+	return types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, map[string]attr.Value{
+		"username":            username,
+		"password":            password,
+		"password_wo":         passwordWO,
+		"password_wo_version": passwordWOVersion,
+	})
+}
+
+func TestCredentialsObjectChanged(t *testing.T) {
+	// Verifies the Update flow's PATCH-prune decision, especially that `password_wo_version` bumps register as changes.
+	t.Run("unchanged credentials are not flagged as changed", func(t *testing.T) {
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		assert.False(t, credentialsObjectChanged(plan, state), "identical plan and state should not be detected as changed")
+	})
+
+	t.Run("password change is detected", func(t *testing.T) {
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("new-pass"), types.StringNull(), types.Int64Null())
+		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("old-pass"), types.StringNull(), types.Int64Null())
+		assert.True(t, credentialsObjectChanged(plan, state), "password change should be detected so PATCH re-sends credentials")
+	})
+
+	t.Run("username change is detected", func(t *testing.T) {
+		plan := buildCredentialsObject(types.StringValue("new-user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		state := buildCredentialsObject(types.StringValue("old-user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		assert.True(t, credentialsObjectChanged(plan, state), "username change should be detected")
+	})
+
+	t.Run("password_wo_version bump is detected (rotation trigger)", func(t *testing.T) {
+		// Write-only rotation: only the version field changes; password_wo is stripped in plan.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(2))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.True(t, credentialsObjectChanged(plan, state), "version bump should be detected so the rotated password is sent in PATCH")
+	})
+
+	t.Run("password_wo_version unchanged on write-only path is not flagged", func(t *testing.T) {
+		// Same version, both passwords null in plan/state (write-only path with no rotation).
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.False(t, credentialsObjectChanged(plan, state), "no-op apply with stable version should omit credentials from PATCH")
+	})
+
+	t.Run("password_wo populated in plan but null in state at same version is not flagged", func(t *testing.T) {
+		// Real framework behavior: write-only attrs ride along in req.Plan from config but are nulled in req.State.
+		// Without excluding password_wo, every plan after the first apply spuriously detects a credentials change.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringValue("secret"), types.Int64Value(1))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.False(t, credentialsObjectChanged(plan, state), "plan-side password_wo with stable version must not trigger PATCH")
+	})
+
+	t.Run("password_wo populated in plan with version bump is flagged", func(t *testing.T) {
+		// Rotation path: user bumps version AND the framework still surfaces password_wo in plan.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringValue("new-secret"), types.Int64Value(2))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		assert.True(t, credentialsObjectChanged(plan, state), "version bump must trigger PATCH even with password_wo present in plan")
+	})
+
+	t.Run("migration from legacy password to write-only is detected", func(t *testing.T) {
+		// State was created with legacy `password`; user is now switching to password_wo.
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringNull(), types.StringNull(), types.Int64Value(1))
+		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("legacy-pass"), types.StringNull(), types.Int64Null())
+		assert.True(t, credentialsObjectChanged(plan, state), "switching from legacy password to password_wo should re-send credentials")
+	})
+
+	// Robustness guards (PR #532 review comment): Unknown objects and older-schema
+	// state must not panic and must err on the side of "changed".
+	t.Run("unknown plan credentials are treated as changed", func(t *testing.T) {
+		plan := types.ObjectUnknown(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		state := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		assert.True(t, credentialsObjectChanged(plan, state), "unknown plan credentials cannot be proven equal — treat as changed")
+	})
+
+	t.Run("unknown state credentials are treated as changed", func(t *testing.T) {
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		state := types.ObjectUnknown(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		assert.True(t, credentialsObjectChanged(plan, state), "unknown state credentials cannot be proven equal — treat as changed")
+	})
+
+	t.Run("older-schema state missing password_wo_version does not panic and is treated as changed", func(t *testing.T) {
+		// Simulate state produced before password_wo_version existed: a credentials object
+		// whose attribute set lacks the newer key. A direct stateAttrs[name] index would
+		// previously yield a nil value and panic on .Equal().
+		plan := buildCredentialsObject(types.StringValue("user"), types.StringValue("pass"), types.StringNull(), types.Int64Null())
+		legacyState := types.ObjectValueMust(
+			map[string]attr.Type{
+				"username": types.StringType,
+				"password": types.StringType,
+				// password_wo and password_wo_version intentionally absent (older schema)
+			},
+			map[string]attr.Value{
+				"username": types.StringValue("user"),
+				"password": types.StringValue("pass"),
+			},
+		)
+		assert.NotPanics(t, func() {
+			assert.True(t, credentialsObjectChanged(plan, legacyState), "missing newer attribute means schema changed — treat as changed")
+		})
+	})
+}
+
+func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		state       models.ClickPipeResourceModel
+		response    *api.ClickPipe
+		responseErr error
+		wantErr     bool
+	}{
+		{
+			name:  "Syncs MongoDB source with all settings",
+			state: getMongoDBInitialState(),
+			response: &api.ClickPipe{
+				ID:    "test-pipe-id",
+				Name:  "test-pipe",
+				State: "running",
+				Source: api.ClickPipeSource{
+					MongoDB: &api.ClickPipeMongoDBSource{
+						URI:            "mongodb+srv://cluster0.example.mongodb.net/mydb",
+						ReadPreference: "secondaryPreferred",
+						Settings: &api.ClickPipeMongoDBSettings{
+							ReplicationMode:                "cdc",
+							SyncIntervalSeconds:            intPtr(30),
+							PullBatchSize:                  intPtr(500),
+							SnapshotNumRowsPerPartition:    intPtr(100000),
+							SnapshotNumberOfParallelTables: intPtr(2),
+							DeleteOnMerge:                  boolPtr(true),
+							UseJsonNativeFormat:            boolPtr(true),
+						},
+						Mappings: []api.ClickPipeMongoDBTableMapping{
+							{
+								SourceDatabaseName: "mydb",
+								SourceCollection:   "users",
+								TargetTable:        "mydb_users",
+								TableEngine:        strPtr("ReplacingMergeTree"),
+							},
+						},
+					},
+				},
+				Destination: api.ClickPipeDestination{
+					Database: "default",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:  "Preserves null values for optional MongoDB settings",
+			state: getMongoDBInitialState(),
+			response: &api.ClickPipe{
+				ID:    "test-pipe-id",
+				Name:  "test-pipe",
+				State: "running",
+				Source: api.ClickPipeSource{
+					MongoDB: &api.ClickPipeMongoDBSource{
+						URI:            "mongodb+srv://cluster0.example.mongodb.net/mydb",
+						ReadPreference: "secondaryPreferred",
+						Settings: &api.ClickPipeMongoDBSettings{
+							ReplicationMode: "cdc",
+						},
+						Mappings: []api.ClickPipeMongoDBTableMapping{
+							{
+								SourceDatabaseName: "mydb",
+								SourceCollection:   "users",
+								TargetTable:        "mydb_users",
+							},
+						},
+					},
+				},
+				Destination: api.ClickPipeDestination{
+					Database: "default",
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+
+			apiClientMock := api.NewClientMock(mc).
+				GetClickPipeMock.
+				Expect(context.Background(), tt.state.ServiceID.ValueString(), tt.state.ID.ValueString()).
+				Return(tt.response, tt.responseErr)
+
+			resource := &ClickPipeResource{
+				client: apiClientMock,
+			}
+
+			err := resource.syncClickPipeState(ctx, &tt.state)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+
+				assert.Equal(t, "test-pipe-id", tt.state.ID.ValueString())
+				assert.Equal(t, "test-pipe", tt.state.Name.ValueString())
+				assert.Equal(t, "running", tt.state.State.ValueString())
+
+				assert.False(t, tt.state.Source.IsNull())
+
+				// Validate destination preserves null values for MongoDB CDC
+				var destModel models.ClickPipeDestinationModel
+				tt.state.Destination.As(ctx, &destModel, basetypes.ObjectAsOptions{})
+				assert.True(t, destModel.Table.IsNull(), "table should remain null for MongoDB CDC")
+				assert.Equal(t, types.BoolValue(true), destModel.ManagedTable, "managed_table should default to true for MongoDB CDC when unset in state (issue #543)")
+
+				// Validate credentials are preserved from state
+				var sourceModel models.ClickPipeSourceModel
+				tt.state.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})
+				var mongodbModel models.ClickPipeMongoDBSourceModel
+				sourceModel.MongoDB.As(ctx, &mongodbModel, basetypes.ObjectAsOptions{})
+				assert.False(t, mongodbModel.Credentials.IsNull(), "credentials should be preserved from state")
+			}
+		})
+	}
+}
+
+func getMongoDBInitialState() models.ClickPipeResourceModel {
+	return models.ClickPipeResourceModel{
+		ID:        types.StringValue("test-pipe-id"),
+		ServiceID: types.StringValue("service-123"),
+		Name:      types.StringValue("test-pipe"),
+		State:     types.StringValue("provisioning"),
+		Source: models.ClickPipeSourceModel{
+			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+			ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+			Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+			PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+			Postgres:      types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes),
+			MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+			BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+			MongoDB: types.ObjectValueMust(
+				models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes,
+				map[string]attr.Value{
+					"uri":             types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
+					"read_preference": types.StringValue("secondaryPreferred"),
+					"tls_host":        types.StringNull(),
+					"ca_certificate":  types.StringNull(),
+					"disable_tls":     types.BoolValue(false),
+					"credentials": types.ObjectValueMust(
+						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
+						map[string]attr.Value{
+							"username":            types.StringValue("user"),
+							"password":            types.StringValue("pass"),
+							"password_wo":         types.StringNull(),
+							"password_wo_version": types.Int64Null(),
+						},
+					),
+					"settings": types.ObjectValueMust(
+						models.ClickPipeMongoDBSettingsModel{}.ObjectType().AttrTypes,
+						map[string]attr.Value{
+							"replication_mode":                   types.StringValue("cdc"),
+							"sync_interval_seconds":              types.Int64Null(),
+							"pull_batch_size":                    types.Int64Null(),
+							"snapshot_num_rows_per_partition":    types.Int64Null(),
+							"snapshot_number_of_parallel_tables": types.Int64Null(),
+							"delete_on_merge":                    types.BoolNull(),
+							"use_json_native_format":             types.BoolNull(),
+						},
+					),
+					"table_mappings": types.SetValueMust(
+						models.ClickPipeMongoDBTableMappingModel{}.ObjectType(),
+						[]attr.Value{
+							types.ObjectValueMust(
+								models.ClickPipeMongoDBTableMappingModel{}.ObjectType().AttrTypes,
+								map[string]attr.Value{
+									"source_database_name": types.StringValue("mydb"),
+									"source_collection":    types.StringValue("users"),
+									"target_table":         types.StringValue("mydb_users"),
+									"table_engine":         types.StringNull(),
+								},
+							),
+						},
+					),
+				},
+			),
+		}.ObjectValue(),
+		Destination: types.ObjectValueMust(
+			models.ClickPipeDestinationModel{}.ObjectType().AttrTypes,
+			map[string]attr.Value{
+				"database":         types.StringValue("default"),
+				"table":            types.StringNull(),
+				"managed_table":    types.BoolNull(),
+				"table_definition": types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes),
+				"columns":          types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType()),
+				"roles":            types.ListNull(types.StringType),
+			},
+		),
+	}
+}
