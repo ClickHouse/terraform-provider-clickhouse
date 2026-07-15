@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -106,5 +107,35 @@ func TestListServices_APIError(t *testing.T) {
 	})
 	if _, err := client.ListServices(context.Background(), nil); err == nil {
 		t.Fatal("expected error; got nil")
+	}
+}
+
+// GetServiceBase must fetch only the core service object with a single request —
+// no private-endpoint-config, backup, or query-endpoint enrichment calls (unlike
+// GetService).
+func TestGetServiceBase_SingleRequestNoEnrichment(t *testing.T) {
+	var calls int32
+	want := Service{Id: "svc-1", Name: "svc", Provider: "aws", Region: "us-east-1", State: "running"}
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %q; want GET", r.Method)
+		}
+		if r.URL.Path != "/organizations/org-1/services/svc-1" {
+			t.Errorf("path = %q; want /organizations/org-1/services/svc-1", r.URL.Path)
+		}
+		assertBasicAuth(t, r)
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: want})
+	})
+
+	got, err := client.GetServiceBase(context.Background(), "svc-1")
+	if err != nil {
+		t.Fatalf("GetServiceBase: %v", err)
+	}
+	if diff := cmp.Diff(&want, got); diff != "" {
+		t.Errorf("GetServiceBase mismatch (-want +got):\n%s", diff)
+	}
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("GetServiceBase made %d HTTP calls; want exactly 1 (no enrichment)", n)
 	}
 }

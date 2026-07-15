@@ -257,6 +257,13 @@ type ClientMock struct {
 	beforeGetServiceCounter uint64
 	GetServiceMock          mClientMockGetService
 
+	funcGetServiceBase          func(ctx context.Context, serviceId string) (sp1 *Service, err error)
+	funcGetServiceBaseOrigin    string
+	inspectFuncGetServiceBase   func(ctx context.Context, serviceId string)
+	afterGetServiceBaseCounter  uint64
+	beforeGetServiceBaseCounter uint64
+	GetServiceBaseMock          mClientMockGetServiceBase
+
 	funcGetUpgradeWindow          func(ctx context.Context, serviceId string) (up1 *UpgradeWindow, err error)
 	funcGetUpgradeWindowOrigin    string
 	inspectFuncGetUpgradeWindow   func(ctx context.Context, serviceId string)
@@ -577,6 +584,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetServiceMock = mClientMockGetService{mock: m}
 	m.GetServiceMock.callArgs = []*ClientMockGetServiceParams{}
+
+	m.GetServiceBaseMock = mClientMockGetServiceBase{mock: m}
+	m.GetServiceBaseMock.callArgs = []*ClientMockGetServiceBaseParams{}
 
 	m.GetUpgradeWindowMock = mClientMockGetUpgradeWindow{mock: m}
 	m.GetUpgradeWindowMock.callArgs = []*ClientMockGetUpgradeWindowParams{}
@@ -12639,6 +12649,349 @@ func (m *ClientMock) MinimockGetServiceInspect() {
 	}
 }
 
+type mClientMockGetServiceBase struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetServiceBaseExpectation
+	expectations       []*ClientMockGetServiceBaseExpectation
+
+	callArgs []*ClientMockGetServiceBaseParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetServiceBaseExpectation specifies expectation struct of the Client.GetServiceBase
+type ClientMockGetServiceBaseExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetServiceBaseParams
+	paramPtrs          *ClientMockGetServiceBaseParamPtrs
+	expectationOrigins ClientMockGetServiceBaseExpectationOrigins
+	results            *ClientMockGetServiceBaseResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetServiceBaseParams contains parameters of the Client.GetServiceBase
+type ClientMockGetServiceBaseParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetServiceBaseParamPtrs contains pointers to parameters of the Client.GetServiceBase
+type ClientMockGetServiceBaseParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetServiceBaseResults contains results of the Client.GetServiceBase
+type ClientMockGetServiceBaseResults struct {
+	sp1 *Service
+	err error
+}
+
+// ClientMockGetServiceBaseOrigins contains origins of expectations of the Client.GetServiceBase
+type ClientMockGetServiceBaseExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetServiceBase *mClientMockGetServiceBase) Optional() *mClientMockGetServiceBase {
+	mmGetServiceBase.optional = true
+	return mmGetServiceBase
+}
+
+// Expect sets up expected params for Client.GetServiceBase
+func (mmGetServiceBase *mClientMockGetServiceBase) Expect(ctx context.Context, serviceId string) *mClientMockGetServiceBase {
+	if mmGetServiceBase.mock.funcGetServiceBase != nil {
+		mmGetServiceBase.mock.t.Fatalf("ClientMock.GetServiceBase mock is already set by Set")
+	}
+
+	if mmGetServiceBase.defaultExpectation == nil {
+		mmGetServiceBase.defaultExpectation = &ClientMockGetServiceBaseExpectation{}
+	}
+
+	if mmGetServiceBase.defaultExpectation.paramPtrs != nil {
+		mmGetServiceBase.mock.t.Fatalf("ClientMock.GetServiceBase mock is already set by ExpectParams functions")
+	}
+
+	mmGetServiceBase.defaultExpectation.params = &ClientMockGetServiceBaseParams{ctx, serviceId}
+	mmGetServiceBase.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetServiceBase.expectations {
+		if minimock.Equal(e.params, mmGetServiceBase.defaultExpectation.params) {
+			mmGetServiceBase.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetServiceBase.defaultExpectation.params)
+		}
+	}
+
+	return mmGetServiceBase
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetServiceBase
+func (mmGetServiceBase *mClientMockGetServiceBase) ExpectCtxParam1(ctx context.Context) *mClientMockGetServiceBase {
+	if mmGetServiceBase.mock.funcGetServiceBase != nil {
+		mmGetServiceBase.mock.t.Fatalf("ClientMock.GetServiceBase mock is already set by Set")
+	}
+
+	if mmGetServiceBase.defaultExpectation == nil {
+		mmGetServiceBase.defaultExpectation = &ClientMockGetServiceBaseExpectation{}
+	}
+
+	if mmGetServiceBase.defaultExpectation.params != nil {
+		mmGetServiceBase.mock.t.Fatalf("ClientMock.GetServiceBase mock is already set by Expect")
+	}
+
+	if mmGetServiceBase.defaultExpectation.paramPtrs == nil {
+		mmGetServiceBase.defaultExpectation.paramPtrs = &ClientMockGetServiceBaseParamPtrs{}
+	}
+	mmGetServiceBase.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetServiceBase.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetServiceBase
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetServiceBase
+func (mmGetServiceBase *mClientMockGetServiceBase) ExpectServiceIdParam2(serviceId string) *mClientMockGetServiceBase {
+	if mmGetServiceBase.mock.funcGetServiceBase != nil {
+		mmGetServiceBase.mock.t.Fatalf("ClientMock.GetServiceBase mock is already set by Set")
+	}
+
+	if mmGetServiceBase.defaultExpectation == nil {
+		mmGetServiceBase.defaultExpectation = &ClientMockGetServiceBaseExpectation{}
+	}
+
+	if mmGetServiceBase.defaultExpectation.params != nil {
+		mmGetServiceBase.mock.t.Fatalf("ClientMock.GetServiceBase mock is already set by Expect")
+	}
+
+	if mmGetServiceBase.defaultExpectation.paramPtrs == nil {
+		mmGetServiceBase.defaultExpectation.paramPtrs = &ClientMockGetServiceBaseParamPtrs{}
+	}
+	mmGetServiceBase.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetServiceBase.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetServiceBase
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetServiceBase
+func (mmGetServiceBase *mClientMockGetServiceBase) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetServiceBase {
+	if mmGetServiceBase.mock.inspectFuncGetServiceBase != nil {
+		mmGetServiceBase.mock.t.Fatalf("Inspect function is already set for ClientMock.GetServiceBase")
+	}
+
+	mmGetServiceBase.mock.inspectFuncGetServiceBase = f
+
+	return mmGetServiceBase
+}
+
+// Return sets up results that will be returned by Client.GetServiceBase
+func (mmGetServiceBase *mClientMockGetServiceBase) Return(sp1 *Service, err error) *ClientMock {
+	if mmGetServiceBase.mock.funcGetServiceBase != nil {
+		mmGetServiceBase.mock.t.Fatalf("ClientMock.GetServiceBase mock is already set by Set")
+	}
+
+	if mmGetServiceBase.defaultExpectation == nil {
+		mmGetServiceBase.defaultExpectation = &ClientMockGetServiceBaseExpectation{mock: mmGetServiceBase.mock}
+	}
+	mmGetServiceBase.defaultExpectation.results = &ClientMockGetServiceBaseResults{sp1, err}
+	mmGetServiceBase.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetServiceBase.mock
+}
+
+// Set uses given function f to mock the Client.GetServiceBase method
+func (mmGetServiceBase *mClientMockGetServiceBase) Set(f func(ctx context.Context, serviceId string) (sp1 *Service, err error)) *ClientMock {
+	if mmGetServiceBase.defaultExpectation != nil {
+		mmGetServiceBase.mock.t.Fatalf("Default expectation is already set for the Client.GetServiceBase method")
+	}
+
+	if len(mmGetServiceBase.expectations) > 0 {
+		mmGetServiceBase.mock.t.Fatalf("Some expectations are already set for the Client.GetServiceBase method")
+	}
+
+	mmGetServiceBase.mock.funcGetServiceBase = f
+	mmGetServiceBase.mock.funcGetServiceBaseOrigin = minimock.CallerInfo(1)
+	return mmGetServiceBase.mock
+}
+
+// When sets expectation for the Client.GetServiceBase which will trigger the result defined by the following
+// Then helper
+func (mmGetServiceBase *mClientMockGetServiceBase) When(ctx context.Context, serviceId string) *ClientMockGetServiceBaseExpectation {
+	if mmGetServiceBase.mock.funcGetServiceBase != nil {
+		mmGetServiceBase.mock.t.Fatalf("ClientMock.GetServiceBase mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetServiceBaseExpectation{
+		mock:               mmGetServiceBase.mock,
+		params:             &ClientMockGetServiceBaseParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetServiceBaseExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetServiceBase.expectations = append(mmGetServiceBase.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetServiceBase return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetServiceBaseExpectation) Then(sp1 *Service, err error) *ClientMock {
+	e.results = &ClientMockGetServiceBaseResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetServiceBase should be invoked
+func (mmGetServiceBase *mClientMockGetServiceBase) Times(n uint64) *mClientMockGetServiceBase {
+	if n == 0 {
+		mmGetServiceBase.mock.t.Fatalf("Times of ClientMock.GetServiceBase mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetServiceBase.expectedInvocations, n)
+	mmGetServiceBase.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetServiceBase
+}
+
+func (mmGetServiceBase *mClientMockGetServiceBase) invocationsDone() bool {
+	if len(mmGetServiceBase.expectations) == 0 && mmGetServiceBase.defaultExpectation == nil && mmGetServiceBase.mock.funcGetServiceBase == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetServiceBase.mock.afterGetServiceBaseCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetServiceBase.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetServiceBase implements Client
+func (mmGetServiceBase *ClientMock) GetServiceBase(ctx context.Context, serviceId string) (sp1 *Service, err error) {
+	mm_atomic.AddUint64(&mmGetServiceBase.beforeGetServiceBaseCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetServiceBase.afterGetServiceBaseCounter, 1)
+
+	mmGetServiceBase.t.Helper()
+
+	if mmGetServiceBase.inspectFuncGetServiceBase != nil {
+		mmGetServiceBase.inspectFuncGetServiceBase(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetServiceBaseParams{ctx, serviceId}
+
+	// Record call args
+	mmGetServiceBase.GetServiceBaseMock.mutex.Lock()
+	mmGetServiceBase.GetServiceBaseMock.callArgs = append(mmGetServiceBase.GetServiceBaseMock.callArgs, &mm_params)
+	mmGetServiceBase.GetServiceBaseMock.mutex.Unlock()
+
+	for _, e := range mmGetServiceBase.GetServiceBaseMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmGetServiceBase.GetServiceBaseMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetServiceBase.GetServiceBaseMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetServiceBase.GetServiceBaseMock.defaultExpectation.params
+		mm_want_ptrs := mmGetServiceBase.GetServiceBaseMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetServiceBaseParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetServiceBase.t.Errorf("ClientMock.GetServiceBase got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetServiceBase.GetServiceBaseMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetServiceBase.t.Errorf("ClientMock.GetServiceBase got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetServiceBase.GetServiceBaseMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetServiceBase.t.Errorf("ClientMock.GetServiceBase got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetServiceBase.GetServiceBaseMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetServiceBase.GetServiceBaseMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetServiceBase.t.Fatal("No results are set for the ClientMock.GetServiceBase")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmGetServiceBase.funcGetServiceBase != nil {
+		return mmGetServiceBase.funcGetServiceBase(ctx, serviceId)
+	}
+	mmGetServiceBase.t.Fatalf("Unexpected call to ClientMock.GetServiceBase. %v %v", ctx, serviceId)
+	return
+}
+
+// GetServiceBaseAfterCounter returns a count of finished ClientMock.GetServiceBase invocations
+func (mmGetServiceBase *ClientMock) GetServiceBaseAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetServiceBase.afterGetServiceBaseCounter)
+}
+
+// GetServiceBaseBeforeCounter returns a count of ClientMock.GetServiceBase invocations
+func (mmGetServiceBase *ClientMock) GetServiceBaseBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetServiceBase.beforeGetServiceBaseCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetServiceBase.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetServiceBase *mClientMockGetServiceBase) Calls() []*ClientMockGetServiceBaseParams {
+	mmGetServiceBase.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetServiceBaseParams, len(mmGetServiceBase.callArgs))
+	copy(argCopy, mmGetServiceBase.callArgs)
+
+	mmGetServiceBase.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetServiceBaseDone returns true if the count of the GetServiceBase invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetServiceBaseDone() bool {
+	if m.GetServiceBaseMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetServiceBaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetServiceBaseMock.invocationsDone()
+}
+
+// MinimockGetServiceBaseInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetServiceBaseInspect() {
+	for _, e := range m.GetServiceBaseMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetServiceBase at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetServiceBaseCounter := mm_atomic.LoadUint64(&m.afterGetServiceBaseCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetServiceBaseMock.defaultExpectation != nil && afterGetServiceBaseCounter < 1 {
+		if m.GetServiceBaseMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetServiceBase at\n%s", m.GetServiceBaseMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetServiceBase at\n%s with params: %#v", m.GetServiceBaseMock.defaultExpectation.expectationOrigins.origin, *m.GetServiceBaseMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetServiceBase != nil && afterGetServiceBaseCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetServiceBase at\n%s", m.funcGetServiceBaseOrigin)
+	}
+
+	if !m.GetServiceBaseMock.invocationsDone() && afterGetServiceBaseCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetServiceBase at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetServiceBaseMock.expectedInvocations), m.GetServiceBaseMock.expectedInvocationsOrigin, afterGetServiceBaseCounter)
+	}
+}
+
 type mClientMockGetUpgradeWindow struct {
 	optional           bool
 	mock               *ClientMock
@@ -23958,6 +24311,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetServiceInspect()
 
+			m.MinimockGetServiceBaseInspect()
+
 			m.MinimockGetUpgradeWindowInspect()
 
 			m.MinimockListMembersInspect()
@@ -24074,6 +24429,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetRoleDone() &&
 		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
+		m.MinimockGetServiceBaseDone() &&
 		m.MinimockGetUpgradeWindowDone() &&
 		m.MinimockListMembersDone() &&
 		m.MinimockListPostgresDone() &&

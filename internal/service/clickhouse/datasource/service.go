@@ -54,6 +54,9 @@ func serviceObjectType() types.ObjectType {
 		"byoc_id":                            types.StringType,
 		"warehouse_id":                       types.StringType,
 		"num_replicas":                       types.Int64Type,
+		"min_replicas":                       types.Int64Type,
+		"max_replicas":                       types.Int64Type,
+		"autoscaling_mode":                   types.StringType,
 		"min_total_memory_gb":                types.Int64Type,
 		"max_total_memory_gb":                types.Int64Type,
 		"min_replica_memory_gb":              types.Int64Type,
@@ -159,6 +162,9 @@ func serviceToObjectValue(ctx context.Context, svc api.Service) (types.Object, d
 		"byoc_id":                            strPtrOrNull(svc.BYOCId),
 		"warehouse_id":                       strPtrOrNull(svc.DataWarehouseId),
 		"num_replicas":                       int64PtrOrNull(svc.NumReplicas),
+		"min_replicas":                       int64PtrOrNull(svc.MinReplicas),
+		"max_replicas":                       int64PtrOrNull(svc.MaxReplicas),
+		"autoscaling_mode":                   strOrNull(svc.AutoscalingMode),
 		"min_total_memory_gb":                int64PtrOrNull(svc.MinTotalMemoryGb),
 		"max_total_memory_gb":                int64PtrOrNull(svc.MaxTotalMemoryGb),
 		"min_replica_memory_gb":              int64PtrOrNull(svc.MinReplicaMemoryGb),
@@ -185,48 +191,51 @@ func serviceToObjectValue(ctx context.Context, svc api.Service) (types.Object, d
 // singular data source (top level) and the plural data source (nested).
 func serviceComputedAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
-		"name":                  schema.StringAttribute{Computed: true},
-		"cloud_provider":        schema.StringAttribute{Computed: true},
-		"region":                schema.StringAttribute{Computed: true},
-		"tier":                  schema.StringAttribute{Computed: true},
-		"state":                 schema.StringAttribute{Computed: true},
-		"clickhouse_version":    schema.StringAttribute{Computed: true},
-		"created_at":            schema.StringAttribute{Computed: true},
-		"release_channel":       schema.StringAttribute{Computed: true},
-		"is_primary":            schema.BoolAttribute{Computed: true},
-		"readonly":              schema.BoolAttribute{Computed: true},
-		"compliance_type":       schema.StringAttribute{Computed: true},
-		"byoc_id":               schema.StringAttribute{Computed: true},
-		"warehouse_id":          schema.StringAttribute{Computed: true},
-		"num_replicas":          schema.Int64Attribute{Computed: true},
-		"min_total_memory_gb":   schema.Int64Attribute{Computed: true},
-		"max_total_memory_gb":   schema.Int64Attribute{Computed: true},
-		"min_replica_memory_gb": schema.Int64Attribute{Computed: true},
-		"max_replica_memory_gb": schema.Int64Attribute{Computed: true},
-		"idle_scaling":          schema.BoolAttribute{Computed: true},
-		"idle_timeout_minutes":  schema.Int64Attribute{Computed: true},
-		"iam_role":              schema.StringAttribute{Computed: true},
-		"ip_access": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{
+		"name":                  schema.StringAttribute{Description: "Human-readable name of the service.", Computed: true},
+		"cloud_provider":        schema.StringAttribute{Description: "Cloud provider hosting the service ('aws', 'gcp', or 'azure').", Computed: true},
+		"region":                schema.StringAttribute{Description: "Cloud region the service runs in.", Computed: true},
+		"tier":                  schema.StringAttribute{Description: "Service tier.", Computed: true},
+		"state":                 schema.StringAttribute{Description: "Current service state (e.g. 'running', 'idle', 'stopped').", Computed: true},
+		"clickhouse_version":    schema.StringAttribute{Description: "ClickHouse version running on the service.", Computed: true},
+		"created_at":            schema.StringAttribute{Description: "RFC3339 creation timestamp.", Computed: true},
+		"release_channel":       schema.StringAttribute{Description: "Release channel ('default' or 'fast').", Computed: true},
+		"is_primary":            schema.BoolAttribute{Description: "True for a primary service; false for a read replica.", Computed: true},
+		"readonly":              schema.BoolAttribute{Description: "Whether the service is read-only.", Computed: true},
+		"compliance_type":       schema.StringAttribute{Description: "Compliance regime the service was created under, if any (e.g. 'hipaa', 'pci').", Computed: true},
+		"byoc_id":               schema.StringAttribute{Description: "Identifier of the BYOC (Bring Your Own Cloud) infrastructure hosting the service, if any.", Computed: true},
+		"warehouse_id":          schema.StringAttribute{Description: "Identifier of the data warehouse this service belongs to, if any.", Computed: true},
+		"num_replicas":          schema.Int64Attribute{Description: "Number of replicas.", Computed: true},
+		"min_replicas":          schema.Int64Attribute{Description: "Minimum number of replicas (horizontal autoscaling).", Computed: true},
+		"max_replicas":          schema.Int64Attribute{Description: "Maximum number of replicas (horizontal autoscaling).", Computed: true},
+		"autoscaling_mode":      schema.StringAttribute{Description: "Autoscaling mode ('vertical' or 'horizontal').", Computed: true},
+		"min_total_memory_gb":   schema.Int64Attribute{Description: "Minimum total memory across all replicas, in GB.", Computed: true},
+		"max_total_memory_gb":   schema.Int64Attribute{Description: "Maximum total memory across all replicas, in GB.", Computed: true},
+		"min_replica_memory_gb": schema.Int64Attribute{Description: "Minimum memory per replica, in GB.", Computed: true},
+		"max_replica_memory_gb": schema.Int64Attribute{Description: "Maximum memory per replica, in GB.", Computed: true},
+		"idle_scaling":          schema.BoolAttribute{Description: "Whether the service scales down when idle.", Computed: true},
+		"idle_timeout_minutes":  schema.Int64Attribute{Description: "Minutes of inactivity before the service idles.", Computed: true},
+		"iam_role":              schema.StringAttribute{Description: "AWS IAM role the service assumes to access external resources.", Computed: true},
+		"ip_access": schema.ListNestedAttribute{Description: "IP allow-list entries permitted to connect to the service.", Computed: true, NestedObject: schema.NestedAttributeObject{
 			Attributes: map[string]schema.Attribute{
-				"source":      schema.StringAttribute{Computed: true},
-				"description": schema.StringAttribute{Computed: true},
+				"source":      schema.StringAttribute{Description: "CIDR or IP address allowed to connect.", Computed: true},
+				"description": schema.StringAttribute{Description: "Description of the allow-list entry.", Computed: true},
 			},
 		}},
-		"private_endpoint_ids":               schema.ListAttribute{Computed: true, ElementType: types.StringType},
-		"encryption_key":                     schema.StringAttribute{Computed: true},
-		"encryption_assumed_role_identifier": schema.StringAttribute{Computed: true},
-		"has_transparent_data_encryption":    schema.BoolAttribute{Computed: true},
-		"transparent_data_encryption_key_id": schema.StringAttribute{Computed: true},
-		"encryption_role_id":                 schema.StringAttribute{Computed: true},
-		"enable_core_dumps":                  schema.BoolAttribute{Computed: true},
-		"endpoints": schema.ListNestedAttribute{Computed: true, NestedObject: schema.NestedAttributeObject{
+		"private_endpoint_ids":               schema.ListAttribute{Description: "IDs of private endpoints attached to the service.", Computed: true, ElementType: types.StringType},
+		"encryption_key":                     schema.StringAttribute{Description: "Customer-managed encryption key (CMK) protecting the service, if any.", Computed: true},
+		"encryption_assumed_role_identifier": schema.StringAttribute{Description: "IAM role assumed to use the customer-managed encryption key, if any.", Computed: true},
+		"has_transparent_data_encryption":    schema.BoolAttribute{Description: "Whether Transparent Data Encryption (TDE) is enabled.", Computed: true},
+		"transparent_data_encryption_key_id": schema.StringAttribute{Description: "Key ID used for Transparent Data Encryption, if enabled.", Computed: true},
+		"encryption_role_id":                 schema.StringAttribute{Description: "Role ID used for encryption, if any.", Computed: true},
+		"enable_core_dumps":                  schema.BoolAttribute{Description: "Whether core dumps are enabled for debugging.", Computed: true},
+		"endpoints": schema.ListNestedAttribute{Description: "Network endpoints exposed by the service.", Computed: true, NestedObject: schema.NestedAttributeObject{
 			Attributes: map[string]schema.Attribute{
-				"protocol": schema.StringAttribute{Computed: true},
-				"host":     schema.StringAttribute{Computed: true},
-				"port":     schema.Int64Attribute{Computed: true},
+				"protocol": schema.StringAttribute{Description: "Endpoint protocol (e.g. 'nativesecure', 'https', 'mysql').", Computed: true},
+				"host":     schema.StringAttribute{Description: "Endpoint host.", Computed: true},
+				"port":     schema.Int64Attribute{Description: "Endpoint port.", Computed: true},
 			},
 		}},
-		"tags": schema.MapAttribute{Computed: true, ElementType: types.StringType},
+		"tags": schema.MapAttribute{Description: "User-defined key/value tags on the service.", Computed: true, ElementType: types.StringType},
 	}
 }
 
@@ -235,7 +244,7 @@ func serviceComputedAttributes() map[string]schema.Attribute {
 // schema/object-type consistency test.
 func serviceComputedAttributesWithID() map[string]schema.Attribute {
 	attrs := serviceComputedAttributes()
-	attrs["id"] = schema.StringAttribute{Computed: true}
+	attrs["id"] = schema.StringAttribute{Description: "Unique identifier of the service.", Computed: true}
 	return attrs
 }
 
@@ -290,6 +299,9 @@ type serviceDataSourceModel struct {
 	BYOCID                         types.String `tfsdk:"byoc_id"`
 	WarehouseID                    types.String `tfsdk:"warehouse_id"`
 	NumReplicas                    types.Int64  `tfsdk:"num_replicas"`
+	MinReplicas                    types.Int64  `tfsdk:"min_replicas"`
+	MaxReplicas                    types.Int64  `tfsdk:"max_replicas"`
+	AutoscalingMode                types.String `tfsdk:"autoscaling_mode"`
 	MinTotalMemoryGb               types.Int64  `tfsdk:"min_total_memory_gb"`
 	MaxTotalMemoryGb               types.Int64  `tfsdk:"max_total_memory_gb"`
 	MinReplicaMemoryGb             types.Int64  `tfsdk:"min_replica_memory_gb"`
@@ -316,7 +328,7 @@ func (d *serviceDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	svc, err := d.client.GetService(ctx, cfg.ID.ValueString())
+	svc, err := d.client.GetServiceBase(ctx, cfg.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading service", "Could not read service "+cfg.ID.ValueString()+": "+err.Error())
 		return

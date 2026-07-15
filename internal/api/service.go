@@ -25,7 +25,11 @@ type ServiceBody struct {
 }
 
 // GetService - Returns service by ID
-func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service, error) {
+// GetServiceBase fetches only the core service object (GET /services/{id}). It
+// does not make the additional sub-resource calls GetService makes (private
+// endpoint config, backup configuration, query endpoints). Use it when those
+// enriched fields are not needed.
+func (c *ClientImpl) GetServiceBase(ctx context.Context, serviceId string) (*Service, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
@@ -42,6 +46,14 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 	}
 
 	service := serviceResponse.Result
+	return &service, nil
+}
+
+func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service, error) {
+	service, err := c.GetServiceBase(ctx, serviceId)
+	if err != nil {
+		return nil, err
+	}
 
 	endpointConfigResponse, err := c.GetServicePrivateEndpointConfig(ctx, serviceId)
 	if err != nil {
@@ -67,7 +79,7 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 
 	service.QueryAPIEndpoints = queryEndpoints
 
-	return &service, nil
+	return service, nil
 }
 
 // ListServices - Returns all services in the organization, optionally

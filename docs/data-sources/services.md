@@ -48,47 +48,50 @@ output "prod_service_names" {
 
 Read-Only:
 
-- `byoc_id` (String)
-- `clickhouse_version` (String)
-- `cloud_provider` (String)
-- `compliance_type` (String)
-- `created_at` (String)
-- `enable_core_dumps` (Boolean)
-- `encryption_assumed_role_identifier` (String)
-- `encryption_key` (String)
-- `encryption_role_id` (String)
-- `endpoints` (Attributes List) (see [below for nested schema](#nestedatt--services--endpoints))
-- `has_transparent_data_encryption` (Boolean)
-- `iam_role` (String)
-- `id` (String)
-- `idle_scaling` (Boolean)
-- `idle_timeout_minutes` (Number)
-- `ip_access` (Attributes List) (see [below for nested schema](#nestedatt--services--ip_access))
-- `is_primary` (Boolean)
-- `max_replica_memory_gb` (Number)
-- `max_total_memory_gb` (Number)
-- `min_replica_memory_gb` (Number)
-- `min_total_memory_gb` (Number)
-- `name` (String)
-- `num_replicas` (Number)
-- `private_endpoint_ids` (List of String)
-- `readonly` (Boolean)
-- `region` (String)
-- `release_channel` (String)
-- `state` (String)
-- `tags` (Map of String)
-- `tier` (String)
-- `transparent_data_encryption_key_id` (String)
-- `warehouse_id` (String)
+- `autoscaling_mode` (String) Autoscaling mode ('vertical' or 'horizontal').
+- `byoc_id` (String) Identifier of the BYOC (Bring Your Own Cloud) infrastructure hosting the service, if any.
+- `clickhouse_version` (String) ClickHouse version running on the service.
+- `cloud_provider` (String) Cloud provider hosting the service ('aws', 'gcp', or 'azure').
+- `compliance_type` (String) Compliance regime the service was created under, if any (e.g. 'hipaa', 'pci').
+- `created_at` (String) RFC3339 creation timestamp.
+- `enable_core_dumps` (Boolean) Whether core dumps are enabled for debugging.
+- `encryption_assumed_role_identifier` (String) IAM role assumed to use the customer-managed encryption key, if any.
+- `encryption_key` (String) Customer-managed encryption key (CMK) protecting the service, if any.
+- `encryption_role_id` (String) Role ID used for encryption, if any.
+- `endpoints` (Attributes List) Network endpoints exposed by the service. (see [below for nested schema](#nestedatt--services--endpoints))
+- `has_transparent_data_encryption` (Boolean) Whether Transparent Data Encryption (TDE) is enabled.
+- `iam_role` (String) AWS IAM role the service assumes to access external resources.
+- `id` (String) Unique identifier of the service.
+- `idle_scaling` (Boolean) Whether the service scales down when idle.
+- `idle_timeout_minutes` (Number) Minutes of inactivity before the service idles.
+- `ip_access` (Attributes List) IP allow-list entries permitted to connect to the service. (see [below for nested schema](#nestedatt--services--ip_access))
+- `is_primary` (Boolean) True for a primary service; false for a read replica.
+- `max_replica_memory_gb` (Number) Maximum memory per replica, in GB.
+- `max_replicas` (Number) Maximum number of replicas (horizontal autoscaling).
+- `max_total_memory_gb` (Number) Maximum total memory across all replicas, in GB.
+- `min_replica_memory_gb` (Number) Minimum memory per replica, in GB.
+- `min_replicas` (Number) Minimum number of replicas (horizontal autoscaling).
+- `min_total_memory_gb` (Number) Minimum total memory across all replicas, in GB.
+- `name` (String) Human-readable name of the service.
+- `num_replicas` (Number) Number of replicas.
+- `private_endpoint_ids` (List of String) IDs of private endpoints attached to the service.
+- `readonly` (Boolean) Whether the service is read-only.
+- `region` (String) Cloud region the service runs in.
+- `release_channel` (String) Release channel ('default' or 'fast').
+- `state` (String) Current service state (e.g. 'running', 'idle', 'stopped').
+- `tags` (Map of String) User-defined key/value tags on the service.
+- `tier` (String) Service tier.
+- `transparent_data_encryption_key_id` (String) Key ID used for Transparent Data Encryption, if enabled.
+- `warehouse_id` (String) Identifier of the data warehouse this service belongs to, if any.
 
 <a id="nestedatt--services--endpoints"></a>
 ### Nested Schema for `services.endpoints`
 
 Read-Only:
 
-- `host` (String)
-- `port` (Number)
-- `protocol` (String)
+- `host` (String) Endpoint host.
+- `port` (Number) Endpoint port.
+- `protocol` (String) Endpoint protocol (e.g. 'nativesecure', 'https', 'mysql').
 
 
 <a id="nestedatt--services--ip_access"></a>
@@ -96,5 +99,5 @@ Read-Only:
 
 Read-Only:
 
-- `description` (String)
-- `source` (String)
+- `description` (String) Description of the allow-list entry.
+- `source` (String) CIDR or IP address allowed to connect.
