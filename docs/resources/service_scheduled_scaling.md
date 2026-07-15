@@ -5,41 +5,10 @@ subcategory: ""
 description: |-
   You can use the clickhouse_service_scheduled_scaling resource to manage time-based scaling rules for a ClickHouse Cloud service.
   A schedule is a set of recurring weekly windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment. While a window is active the service uses the replica count, memory bounds, and idle-scaling settings declared on that entry; otherwise the service falls back to its base auto-scaling configuration.
-  ~> Note: This resource is in alpha. Scheduled scaling must be enabled for your organization (canUseScheduledAutoscaling). Reach out to ClickHouse support if the API returns 403 FORBIDDEN. The server currently requires min_replicas == max_replicas per entry, and a maximum of 10 entries per schedule.
+  ~> Note: This resource is in alpha. Scheduled scaling must be enabled for your organization (canUseScheduledAutoscaling). Reach out to ClickHouse support if the API returns 403 FORBIDDEN. Each entry is vertical by default — a fixed replica count (min_replicas == max_replicas); set autoscaling_mode = "horizontal" to scale the replica count across a min_replicas–max_replicas band at fixed per-replica memory. A schedule allows a maximum of 10 entries.
   Hour ranges
   Hour ranges are asymmetric:
   start_hour_utc accepts 0–23.end_hour_utc accepts 1–24.start_hour_utc and end_hour_utc must differ.Set start_hour_utc = 0 and end_hour_utc = 24 for a 24-hour window.Set end_hour_utc < start_hour_utc to wrap overnight (e.g. 22 to 6 covers 22:00–06:00 next day).
-  Example Usage
-  
-  resource "clickhouse_service_scheduled_scaling" "example" {
-    service_id = clickhouse_service.example.id
-  
-    entries = [
-      {
-        name           = "Business hours"
-        weekdays       = [1, 2, 3, 4, 5] # Mon-Fri
-        start_hour_utc = 8
-        end_hour_utc   = 18
-        min_replicas   = 3
-        max_replicas   = 3
-        idle_scaling   = false
-      },
-      {
-        name                 = "Overnight"
-        weekdays             = [0, 1, 2, 3, 4, 5, 6]
-        start_hour_utc       = 22
-        end_hour_utc         = 6 # wraps overnight when end < start
-        min_replicas         = 1
-        max_replicas         = 1
-        idle_scaling         = true
-        idle_timeout_minutes = 5
-      },
-    ]
-  }
-  
-  Import
-  
-  terraform import clickhouse_service_scheduled_scaling.example <service_id>
 ---
 
 # clickhouse_service_scheduled_scaling (Resource)
@@ -48,7 +17,7 @@ You can use the *clickhouse_service_scheduled_scaling* resource to manage time-b
 
 A schedule is a set of recurring weekly windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment. While a window is active the service uses the replica count, memory bounds, and idle-scaling settings declared on that entry; otherwise the service falls back to its base auto-scaling configuration.
 
-~> **Note:** This resource is in alpha. Scheduled scaling must be enabled for your organization (`canUseScheduledAutoscaling`). Reach out to ClickHouse support if the API returns `403 FORBIDDEN`. The server currently requires `min_replicas == max_replicas` per entry, and a maximum of 10 entries per schedule.
+~> **Note:** This resource is in alpha. Scheduled scaling must be enabled for your organization (`canUseScheduledAutoscaling`). Reach out to ClickHouse support if the API returns `403 FORBIDDEN`. Each entry is vertical by default — a fixed replica count (`min_replicas == max_replicas`); set `autoscaling_mode = "horizontal"` to scale the replica count across a `min_replicas`–`max_replicas` band at fixed per-replica memory. A schedule allows a maximum of 10 entries.
 
 ## Hour ranges
 
@@ -62,42 +31,6 @@ Hour ranges are asymmetric:
 
 ## Example Usage
 
-```hcl
-resource "clickhouse_service_scheduled_scaling" "example" {
-  service_id = clickhouse_service.example.id
-
-  entries = [
-    {
-      name           = "Business hours"
-      weekdays       = [1, 2, 3, 4, 5] # Mon-Fri
-      start_hour_utc = 8
-      end_hour_utc   = 18
-      min_replicas   = 3
-      max_replicas   = 3
-      idle_scaling   = false
-    },
-    {
-      name                 = "Overnight"
-      weekdays             = [0, 1, 2, 3, 4, 5, 6]
-      start_hour_utc       = 22
-      end_hour_utc         = 6 # wraps overnight when end < start
-      min_replicas         = 1
-      max_replicas         = 1
-      idle_scaling         = true
-      idle_timeout_minutes = 5
-    },
-  ]
-}
-```
-
-## Import
-
-```sh
-terraform import clickhouse_service_scheduled_scaling.example <service_id>
-```
-
-## Example Usage
-
 ```terraform
 resource "clickhouse_service" "svc" {
   ...
@@ -108,15 +41,20 @@ resource "clickhouse_service_scheduled_scaling" "example" {
 
   entries = [
     {
-      name           = "Business hours"
-      weekdays       = [1, 2, 3, 4, 5]
-      start_hour_utc = 8
-      end_hour_utc   = 18
-      min_replicas   = 3
-      max_replicas   = 3
-      idle_scaling   = false
+      # Horizontal: the replica count scales across the band at a fixed per-replica memory while active.
+      name                  = "Business hours"
+      weekdays              = [1, 2, 3, 4, 5]
+      start_hour_utc        = 8
+      end_hour_utc          = 18
+      autoscaling_mode      = "horizontal"
+      min_replicas          = 3
+      max_replicas          = 6
+      min_replica_memory_gb = 16
+      max_replica_memory_gb = 16
+      idle_scaling          = false
     },
     {
+      # Vertical (the default when autoscaling_mode is omitted): a fixed replica count (min == max).
       name                 = "Overnight"
       weekdays             = [0, 1, 2, 3, 4, 5, 6]
       start_hour_utc       = 22
@@ -155,12 +93,13 @@ Required:
 
 Optional:
 
+- `autoscaling_mode` (String) Autoscaling mode while the window is active: "vertical" (fixed replica count via min_replicas == max_replicas, memory scales between min_replica_memory_gb and max_replica_memory_gb) or "horizontal" (replica count scales between min_replicas and max_replicas at fixed per-replica memory, min_replica_memory_gb == max_replica_memory_gb). When omitted the server defaults to vertical, so a distinct min_replicas/max_replicas band requires an explicit autoscaling_mode = "horizontal". The schedule update is a full replace and per-entry mode is not preserved across updates, so set autoscaling_mode explicitly on every entry you want to keep horizontal.
 - `idle_scaling` (Boolean) Whether idle scaling is enabled while the window is active.
 - `idle_timeout_minutes` (Number) Minutes of inactivity before the service scales to zero. Must be at least 5. Only meaningful when idle_scaling is true.
 - `max_replica_memory_gb` (Number) Maximum memory per replica in GiB. Must be set together with min_replica_memory_gb.
-- `max_replicas` (Number) Maximum replica count while the window is active. Currently the server requires min_replicas == max_replicas.
+- `max_replicas` (Number) Maximum replica count while the window is active. For a vertical entry min_replicas must equal max_replicas (fixed count); for a horizontal entry it is the high end of the replica band.
 - `min_replica_memory_gb` (Number) Minimum memory per replica in GiB. Must be set together with max_replica_memory_gb.
-- `min_replicas` (Number) Minimum replica count while the window is active. Currently the server requires min_replicas == max_replicas.
+- `min_replicas` (Number) Minimum replica count while the window is active. For a vertical entry min_replicas must equal max_replicas (fixed count); for a horizontal entry it is the low end of the replica band.
 
 
 <a id="nestedatt--base_config"></a>
@@ -168,6 +107,7 @@ Optional:
 
 Read-Only:
 
+- `autoscaling_mode` (String)
 - `idle_scaling` (Boolean)
 - `idle_timeout_minutes` (Number)
 - `max_replica_memory_gb` (Number)

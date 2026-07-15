@@ -297,6 +297,46 @@ func TestServiceResource_Equals(t *testing.T) {
 			}).Get(),
 			want: false,
 		},
+		{
+			name: "AutoscalingMode changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.AutoscalingMode = types.StringValue("horizontal")
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "MinReplicas changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.MinReplicas = types.Int64Value(2)
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "MaxReplicas changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.MaxReplicas = types.Int64Value(6)
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "MinReplicaMemoryGb changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.MinReplicaMemoryGb = types.Int64Value(16)
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "MaxReplicaMemoryGb changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.MaxReplicaMemoryGb = types.Int64Value(32)
+			}).Get(),
+			want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

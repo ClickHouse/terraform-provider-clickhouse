@@ -11,9 +11,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func intPtr(v int) *int    { return &v }
-func boolPtr(v bool) *bool { return &v }
-
 func TestGetScheduledScaling(t *testing.T) {
 	expectedPath := "/organizations/org-1/services/svc-1/scalingSchedule"
 

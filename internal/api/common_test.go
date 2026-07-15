@@ -11,6 +11,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+func intPtr(v int) *int       { return &v }
+func boolPtr(v bool) *bool    { return &v }
+func strPtr(v string) *string { return &v }
+
 // newTestClient spins up an httptest.Server with the given handler and
 // returns a *ClientImpl pointed at it. Shared across the API test suites.
 func newTestClient(t *testing.T, handler http.HandlerFunc) (*ClientImpl, *httptest.Server) {
