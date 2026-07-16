@@ -36,10 +36,10 @@ type postgresServiceResourceModelV0 struct {
 	RestoreToPointInTime types.Object `tfsdk:"restore_to_point_in_time"`
 }
 
-// postgresServiceSchemaV0 declares only the type shape of schema version 0 —
+// postgresServiceResourceSchemaV0 declares only the type shape of schema version 0 —
 // enough for the framework to decode prior state; validators and plan
 // modifiers are irrelevant during upgrade.
-var postgresServiceSchemaV0 = schema.Schema{
+var postgresServiceResourceSchemaV0 = schema.Schema{
 	Attributes: map[string]schema.Attribute{
 		"id":               schema.StringAttribute{Computed: true},
 		"name":             schema.StringAttribute{Required: true},
@@ -114,7 +114,7 @@ func (r *PostgresServiceResource) UpgradeState(context.Context) map[int64]resour
 	return map[int64]resource.StateUpgrader{
 		// v1 removed connection_string and added password_wo/password_wo_version.
 		0: {
-			PriorSchema: &postgresServiceSchemaV0,
+			PriorSchema: &postgresServiceResourceSchemaV0,
 			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
 				var old postgresServiceResourceModelV0
 				resp.Diagnostics.Append(req.State.Get(ctx, &old)...)

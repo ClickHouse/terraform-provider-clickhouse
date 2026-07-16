@@ -515,7 +515,8 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 
 	// Three mutually-exclusive create paths (enforced by ConflictsWith).
 	// CreatePostgres always has the server generate an initial password; when
-	// the plan declares one it is rotated in below. The password is
+	// the config declares one (password, or write-only password_wo — never
+	// present in the plan) it is rotated in below. The password is
 	// config-owned — never read back from the API.
 	var pg *api.Postgres
 	switch {
@@ -568,8 +569,7 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	// If the user supplied a password, rotate to it now
-	// via PATCH /password (CreatePostgres always has the server generate one).
+	// Rotate to the declared credential (server always generates an initial one).
 	pwIntent := decidePasswordOnCreate(plan, config)
 	if pwIntent.Set {
 		value := pwIntent.Value
@@ -757,8 +757,9 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		}
 	}
 
-	// Password rotation (PATCH /password): a change to the `password` value.
-	// Never part of the instance PATCH body.
+	// Password rotation (PATCH /password): a password_wo_version bump (rotating
+	// to the config-read, write-only password_wo) or, otherwise, a change to the
+	// `password` value. Never part of the instance PATCH body.
 	if rotate {
 		value := rotateValue
 		if _, err := r.client.SetPostgresPassword(ctx, state.ID.ValueString(), api.PostgresPassword{Password: value}); err != nil {

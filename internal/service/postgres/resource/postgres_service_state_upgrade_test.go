@@ -76,7 +76,7 @@ func TestUpgradePostgresServiceStateV0(t *testing.T) {
 func TestPostgresServiceStateUpgraderV0_EndToEnd(t *testing.T) {
 	ctx := context.Background()
 
-	prior := tfsdk.State{Schema: postgresServiceSchemaV0}
+	prior := tfsdk.State{Schema: postgresServiceResourceSchemaV0}
 	if diags := prior.Set(ctx, v0StateFixture()); diags.HasError() {
 		t.Fatalf("seeding v0 state: %v", diags)
 	}
