@@ -33,23 +33,22 @@ type postgresServiceDataSource struct {
 }
 
 type postgresServiceDataSourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	Name             types.String `tfsdk:"name"`
-	CloudProvider    types.String `tfsdk:"cloud_provider"`
-	Region           types.String `tfsdk:"region"`
-	PostgresVersion  types.String `tfsdk:"postgres_version"`
-	Size             types.String `tfsdk:"size"`
-	HaType           types.String `tfsdk:"ha_type"`
-	State            types.String `tfsdk:"state"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	IsPrimary        types.Bool   `tfsdk:"is_primary"`
-	Hostname         types.String `tfsdk:"hostname"`
-	Port             types.Int64  `tfsdk:"port"`
-	Username         types.String `tfsdk:"username"`
-	ConnectionString types.String `tfsdk:"connection_string"`
-	Tags             types.Map    `tfsdk:"tags"`
-	PgConfig         types.Map    `tfsdk:"pg_config"`
-	PgBouncerConfig  types.Map    `tfsdk:"pgbouncer_config"`
+	ID              types.String `tfsdk:"id"`
+	Name            types.String `tfsdk:"name"`
+	CloudProvider   types.String `tfsdk:"cloud_provider"`
+	Region          types.String `tfsdk:"region"`
+	PostgresVersion types.String `tfsdk:"postgres_version"`
+	Size            types.String `tfsdk:"size"`
+	HaType          types.String `tfsdk:"ha_type"`
+	State           types.String `tfsdk:"state"`
+	CreatedAt       types.String `tfsdk:"created_at"`
+	IsPrimary       types.Bool   `tfsdk:"is_primary"`
+	Hostname        types.String `tfsdk:"hostname"`
+	Port            types.Int64  `tfsdk:"port"`
+	Username        types.String `tfsdk:"username"`
+	Tags            types.Map    `tfsdk:"tags"`
+	PgConfig        types.Map    `tfsdk:"pg_config"`
+	PgBouncerConfig types.Map    `tfsdk:"pgbouncer_config"`
 }
 
 func (d *postgresServiceDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -78,20 +77,19 @@ func (d *postgresServiceDataSource) Schema(_ context.Context, _ datasource.Schem
 	resp.Schema = schema.Schema{
 		MarkdownDescription: postgresServiceDataSourceDescription,
 		Attributes: map[string]schema.Attribute{
-			"id":                schema.StringAttribute{Description: "Unique identifier of the Postgres service to look up.", Required: true},
-			"name":              schema.StringAttribute{Description: "Human-readable name.", Computed: true},
-			"cloud_provider":    schema.StringAttribute{Description: "Cloud provider hosting the instance.", Computed: true},
-			"region":            schema.StringAttribute{Description: "Cloud region.", Computed: true},
-			"postgres_version":  schema.StringAttribute{Description: "Major Postgres version.", Computed: true},
-			"size":              schema.StringAttribute{Description: "Instance size (VM SKU).", Computed: true},
-			"ha_type":           schema.StringAttribute{Description: "High-availability mode ('none', 'async', 'sync').", Computed: true},
-			"state":             schema.StringAttribute{Description: "Server-reported state.", Computed: true},
-			"created_at":        schema.StringAttribute{Description: "RFC3339 creation timestamp.", Computed: true},
-			"is_primary":        schema.BoolAttribute{Description: "True for a primary; false for a read replica.", Computed: true},
-			"hostname":          schema.StringAttribute{Description: "Network hostname for client connections.", Computed: true},
-			"port":              schema.Int64Attribute{Description: "TCP port for client connections.", Computed: true},
-			"username":          schema.StringAttribute{Description: "Default superuser name.", Computed: true},
-			"connection_string": schema.StringAttribute{Description: "Full connection URI (embeds the password). Sensitive.", Computed: true, Sensitive: true},
+			"id":               schema.StringAttribute{Description: "Unique identifier of the Postgres service to look up.", Required: true},
+			"name":             schema.StringAttribute{Description: "Human-readable name.", Computed: true},
+			"cloud_provider":   schema.StringAttribute{Description: "Cloud provider hosting the instance.", Computed: true},
+			"region":           schema.StringAttribute{Description: "Cloud region.", Computed: true},
+			"postgres_version": schema.StringAttribute{Description: "Major Postgres version.", Computed: true},
+			"size":             schema.StringAttribute{Description: "Instance size (VM SKU).", Computed: true},
+			"ha_type":          schema.StringAttribute{Description: "High-availability mode ('none', 'async', 'sync').", Computed: true},
+			"state":            schema.StringAttribute{Description: "Server-reported state.", Computed: true},
+			"created_at":       schema.StringAttribute{Description: "RFC3339 creation timestamp.", Computed: true},
+			"is_primary":       schema.BoolAttribute{Description: "True for a primary; false for a read replica.", Computed: true},
+			"hostname":         schema.StringAttribute{Description: "Network hostname for client connections.", Computed: true},
+			"port":             schema.Int64Attribute{Description: "TCP port for client connections.", Computed: true},
+			"username":         schema.StringAttribute{Description: "Default superuser name.", Computed: true},
 			"tags": schema.MapAttribute{
 				Description: "User tags. Read-only; a string map.",
 				Computed:    true,
@@ -146,7 +144,6 @@ func (d *postgresServiceDataSource) Read(ctx context.Context, req datasource.Rea
 	data.Hostname = strOrNull(pg.Hostname)
 	data.Port = types.Int64Value(postgresDefaultPort)
 	data.Username = strOrNull(pg.Username)
-	data.ConnectionString = strOrNull(pg.ConnectionString)
 
 	tags, diags := apiTagsToStringMap(pg.Tags)
 	resp.Diagnostics.Append(diags...)
