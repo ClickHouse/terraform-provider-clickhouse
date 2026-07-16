@@ -12,3 +12,8 @@ dev/
 **/variables*.tfvars
 
 /tmp
+
+# Build and test artifacts (make goreleaser-check / make cover)
+dist/
+cover.out
+cover.html
