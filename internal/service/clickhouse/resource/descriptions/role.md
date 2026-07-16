@@ -40,3 +40,12 @@ resource "clickhouse_role_assignment" "example" {
   user_ids = [data.clickhouse_user.alice.id]
 }
 ```
+
+## Permission reconciliation
+
+The provider only tracks the permissions you declare in configuration. This has two consequences:
+
+- The backend may auto-grant additional permissions as a side effect of a declared one (for example, granting `control-plane:service:manage` may also grant a related permission). Those extra permissions are intentionally not recorded in state.
+- Because of this, a permission added to a policy outside of Terraform (e.g. via the console) is **not** reported as drift and will not be removed on the next apply. To manage a permission with Terraform, add it to the `permissions` list.
+
+A permission you declared that the backend actually removed is still detected as drift and re-added on the next apply.
