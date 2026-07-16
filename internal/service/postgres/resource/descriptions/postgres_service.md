@@ -85,28 +85,29 @@ pgbouncer_config = {
   warning during apply. Restart is not exposed by this resource — restart
   out-of-band.
 
-## Passwords
+## Credentials
 
-The superuser password can be managed two ways:
+Credentials are **config-owned**, matching `clickhouse_service`: the
+ClickHouse Cloud API does not return the Postgres superuser password (or a
+password-bearing connection string), so Terraform manages exactly the
+credential you declare and never reads one back.
 
-- **Omit `password`** — the server generates one, captured into (sensitive)
-  state as `password`.
-- **`password`** — a value you supply; changing it rotates the password
-  (`PATCH /password`). Stored in (sensitive) state.
-
-The `password` attribute is **always hydrated from the server** (which echoes
-it on every `GET`), so it always reflects the live password and an out-of-band
-rotation is reconciled on the next refresh.
-
-> **The password is stored in state.** Both the `password` attribute and the
-> `connection_string` (which embeds the credential in the URI) are stored in the
-> state file in plaintext. They're marked `Sensitive`, but there is no way to
-> suppress them — ensure your state backend is encrypted at rest.
-
-Rules: `password` requires **≥12 chars with at least one lowercase, one
-uppercase, and one digit** (enforced at plan time). Rotation is a `PATCH
-/password` — it does not resize or restart the instance, and there is a brief
-(~1–2s) server-side propagation window before a new password becomes active.
+- A **standard service** must declare `password` or `password_wo` (write-only,
+  never stored in state — requires Terraform >= 1.11, and increment
+  `password_wo_version` to rotate).
+- A **read replica** must not declare either — it inherits the primary's
+  superuser. Its password is not tracked in state.
+- A **point-in-time restore** may declare one (rotated in after the restore);
+  if omitted, the restored service keeps the source backup's password,
+  untracked by Terraform.
+- **Rotation:** change `password`, or bump `password_wo_version`, and apply.
+  Out-of-band rotations (UI/API) are invisible to Terraform — the next
+  Terraform-driven rotation re-asserts the declared value.
+- **Import** cannot recover the live password. After `terraform import`, the
+  first apply rotates to the configured credential.
+- **Connection details:** compose the URI from `hostname`, `port`, `username`,
+  and your declared password, e.g.
+  `postgres://${username}:${password}@${hostname}:${port}/postgres?sslmode=require`.
 
 ## Read replicas and point-in-time restore
 
@@ -129,7 +130,7 @@ are normal in-place updates. A **live read replica cannot** — see below.)
 
 - **`read_replica_of`** — set to a primary's ID to create a streaming read
   replica. Mutually exclusive with `restore_to_point_in_time` and with
-  `password` (a replica inherits the primary's superuser).
+  `password`/`password_wo` (a replica inherits the primary's superuser).
   Changing or removing it **destroys and recreates** the instance as a
   standalone primary — a live replica can't be converted in place (see
   "Out-of-band changes" for the promotion exception).
@@ -158,8 +159,10 @@ restore_to_point_in_time = {
 
 ## Out-of-band changes
 
-- **Password rotated externally**: the next `terraform refresh` syncs
-  the new value into state from the GET response.
+- **Password rotated externally**: invisible to Terraform — the API does not
+  return credentials, so refresh cannot detect it. The next Terraform-driven
+  rotation (changing `password` or bumping `password_wo_version`) re-asserts
+  the declared value.
 - **Replica promoted externally**: the next refresh surfaces `is_primary`
   flipping true, and the plan then **errors** ("read replica has been promoted
   to a primary"), directing you to remove `read_replica_of` from the
@@ -188,8 +191,8 @@ UI, or CLI directly.
 - `name` is immutable post-create. The server's PATCH body has no
   `name` field, so changing it forces destroy-and-recreate via
   `RequiresReplace`.
-- The connection string and password are visible in plan output even
-  though both are marked `Sensitive`. The Terraform CLI renders
-  `Sensitive` attributes as `(sensitive value)` in human-readable
-  output but the underlying state file is plaintext — ensure your
-  state backend is configured for at-rest encryption.
+- `password` is marked `Sensitive`, so the Terraform CLI renders it as
+  `(sensitive value)` in human-readable output, but the underlying
+  state file is plaintext — ensure your state backend is configured
+  for at-rest encryption, or use `password_wo` to keep the credential
+  out of state entirely.
