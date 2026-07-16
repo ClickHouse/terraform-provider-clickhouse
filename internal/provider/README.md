@@ -33,3 +33,28 @@ Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaki
 
 If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the `clickhouse_private_endpoint_registration` resource or the `private_endpoint_ids` attribute of the `clickhouse_service` resource,
 then a manual process is required after the upgrade. Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations](https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations) for more details.
+
+## ClickStack (alpha)
+
+This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) resources via the `clickhouse_clickstack_*` resources and data sources. These are in **alpha**: they emit an alpha warning at plan/apply time and their behavior may change in future releases.
+
+ClickStack uses its own credentials, separate from the ClickHouse Cloud credentials above:
+
+- `clickstack_api_key` (or the `CLICKSTACK_API_KEY` environment variable) — required to use any `clickhouse_clickstack_*` resource.
+- `clickstack_endpoint` (or `CLICKSTACK_ENDPOINT`) — defaults to `https://api.hyperdx.io`; set it to point at a self-hosted ClickStack/HyperDX instance.
+
+Cloud and ClickStack credentials are independent. You can configure only one set: a provider block with just ClickStack credentials is valid (Cloud resources then error if used, and vice versa). To manage both from one configuration, use an aliased provider:
+
+```hcl
+provider "clickhouse" { # ClickHouse Cloud
+  organization_id = var.organization_id
+  token_key       = var.token_key
+  token_secret    = var.token_secret
+}
+
+provider "clickhouse" { # ClickStack (OSS or Cloud)
+  alias              = "clickstack"
+  clickstack_api_key = var.clickstack_api_key
+  # clickstack_endpoint defaults to https://api.hyperdx.io
+}
+```
