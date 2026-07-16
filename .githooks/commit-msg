@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#
+# commit-msg hook for terraform-provider-clickhouse.
+#
+# Enforces Conventional Commits (https://www.conventionalcommits.org/) on the
+# commit subject line. The commit-msg hook (rather than pre-commit) is used
+# because the message is only available at this stage.
+#
+# Enable with `make enable_git_hooks`, which symlinks .githooks/* into
+# .git/hooks/. `git rev-parse --show-toplevel` is used to locate the script so
+# the hook works whether it is symlinked or copied into .git/hooks/.
+# Bypass in an emergency with `git commit --no-verify`.
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+exec "$repo_root/scripts/check-conventional-commit.sh" "$1"

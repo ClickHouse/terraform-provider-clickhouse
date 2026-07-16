@@ -1,5 +1,13 @@
 
 * @ClickHouse/cloud-platform-engineering
 
+# Service groups (AWS-style internal/service/<group>/ layout).
+/internal/service/clickhouse/ @ClickHouse/cloud-platform-engineering
+/internal/service/postgres/   @ClickHouse/clickgres
+/internal/service/clickstack/ @ClickHouse/clickstack
+
+# Component globs are intentionally LAST: CODEOWNERS gives the last matching
+# pattern precedence, so these keep routing e.g. ClickPipes reviews to their
+# team even though those files live inside the clickhouse service group.
 **/clickpipe* @ClickHouse/clickpipes
 **/postgres* @ClickHouse/clickgres
