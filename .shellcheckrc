@@ -1,0 +1,6 @@
+# The examples/**/import.sh files are `terraform import` documentation snippets
+# embedded verbatim into the generated registry docs (see docs/resources/*.md),
+# not standalone executables, so they intentionally omit a shebang. Waive the
+# missing-shebang check globally; real scripts (scripts/, .githooks/) carry a
+# shebang, so SC2148 never applied to them anyway. All other checks stay active.
+disable=SC2148
