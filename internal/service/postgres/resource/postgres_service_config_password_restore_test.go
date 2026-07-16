@@ -246,59 +246,6 @@ func TestDecidePasswordRotationOnUpdate(t *testing.T) {
 	}
 }
 
-func TestPasswordRotationPlanned(t *testing.T) {
-	tests := []struct {
-		name   string
-		config models.PostgresServiceResourceModel
-		state  models.PostgresServiceResourceModel
-		want   bool
-	}{
-		{
-			name:   "unknown configured password (unresolved interpolation) plans a rotation",
-			config: models.PostgresServiceResourceModel{Password: types.StringUnknown()},
-			state:  models.PostgresServiceResourceModel{Password: types.StringValue("OldSecret12345")},
-			want:   true,
-		},
-		{
-			name:   "configured password differing from state plans a rotation",
-			config: models.PostgresServiceResourceModel{Password: types.StringValue("NewSecret12345")},
-			state:  models.PostgresServiceResourceModel{Password: types.StringValue("OldSecret12345")},
-			want:   true,
-		},
-		{
-			name:   "configured password equal to state plans no rotation",
-			config: models.PostgresServiceResourceModel{Password: types.StringValue("SameSecret1234")},
-			state:  models.PostgresServiceResourceModel{Password: types.StringValue("SameSecret1234")},
-			want:   false,
-		},
-		{
-			name:   "no configured password plans no rotation",
-			config: models.PostgresServiceResourceModel{},
-			state:  models.PostgresServiceResourceModel{Password: types.StringValue("OldSecret12345")},
-			want:   false,
-		},
-		{
-			name:   "password_wo_version bump plans a rotation",
-			config: models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(2)},
-			state:  models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(1)},
-			want:   true,
-		},
-		{
-			name:   "password_wo_version unchanged plans no rotation",
-			config: models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(1)},
-			state:  models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(1)},
-			want:   false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := passwordRotationPlanned(tt.config, tt.state); got != tt.want {
-				t.Errorf("passwordRotationPlanned = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 // ---------------------------------------------------------------------------
 // create-time attribute validation: required for a standard create; for a
 // replica/restore validated against the source (match/omit → ok, conflict →

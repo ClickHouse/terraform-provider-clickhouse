@@ -28,13 +28,12 @@ type PostgresServiceResourceModel struct {
 	PgBouncerConfig types.Map `tfsdk:"pgbouncer_config"`
 
 	// Computed.
-	State            types.String `tfsdk:"state"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	IsPrimary        types.Bool   `tfsdk:"is_primary"`
-	Hostname         types.String `tfsdk:"hostname"`
-	Port             types.Int64  `tfsdk:"port"`
-	Username         types.String `tfsdk:"username"`
-	ConnectionString types.String `tfsdk:"connection_string"`
+	State     types.String `tfsdk:"state"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	IsPrimary types.Bool   `tfsdk:"is_primary"`
+	Hostname  types.String `tfsdk:"hostname"`
+	Port      types.Int64  `tfsdk:"port"`
+	Username  types.String `tfsdk:"username"`
 
 	// Sensitive.
 	// Password is config-owned: Terraform manages exactly the declared value
