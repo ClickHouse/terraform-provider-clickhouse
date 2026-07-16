@@ -151,9 +151,26 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 func TestPostgresResource_syncPostgresState_password(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("server echoes password: hydrate from response", func(t *testing.T) {
-		// Import case: state has no password yet; GET returns the credential
-		// so the resource can recover it without re-running Create.
+	t.Run("server echo is ignored: password stays config-owned", func(t *testing.T) {
+		// Config-owned contract: the credential-redaction flag means GET is not
+		// guaranteed to return the password, so the resource must never source
+		// it from the server — even when a (pre-flag) server does echo one.
+		const prior = "config-owned-secret"
+		pre := models.PostgresServiceResourceModel{Password: types.StringValue(prior)}
+		pg := &api.Postgres{
+			Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
+			Size: "c6gd.large", State: api.PostgresStateRunning, IsPrimary: true,
+			Password: "server-echoed-secret",
+		}
+		if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if pre.Password.ValueString() != prior {
+			t.Errorf("Password overwritten from server response: got %q want %q", pre.Password.ValueString(), prior)
+		}
+	})
+
+	t.Run("no configured password: stays null regardless of server response", func(t *testing.T) {
 		var pre models.PostgresServiceResourceModel
 		pg := &api.Postgres{
 			Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
@@ -163,25 +180,8 @@ func TestPostgresResource_syncPostgresState_password(t *testing.T) {
 		if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
-		if pre.Password.ValueString() != "server-echoed-secret" {
-			t.Errorf("Password not hydrated from response: got %q", pre.Password.ValueString())
-		}
-	})
-
-	t.Run("server omits password: preserve prior state", func(t *testing.T) {
-		// If the server ever stops echoing on GET, the Create-time captured
-		// value must survive. Skip-when-empty guards this path.
-		const prior = "prior-state-secret"
-		pre := models.PostgresServiceResourceModel{Password: types.StringValue(prior)}
-		pg := &api.Postgres{
-			Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
-			Size: "c6gd.large", State: api.PostgresStateRunning, IsPrimary: true,
-		}
-		if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
-			t.Fatalf("unexpected diagnostics: %v", diags)
-		}
-		if pre.Password.ValueString() != prior {
-			t.Errorf("Password clobbered when server omitted it: got %q want %q", pre.Password.ValueString(), prior)
+		if !pre.Password.IsNull() {
+			t.Errorf("Password should remain null when not configured: got %q", pre.Password.ValueString())
 		}
 	})
 }
