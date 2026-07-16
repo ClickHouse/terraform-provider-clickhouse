@@ -48,7 +48,7 @@ func (c *Client) WithTeam(teamID string) *Client {
 
 // New returns a Client for the API at endpoint. The endpoint is the base URL
 // of the ClickStack API without the /api/v2 suffix, e.g.
-// "https://api.hyperdx.io" or "http://localhost:8000".
+// "https://hyperdx-api.clickhouse.cloud" or "http://localhost:8000".
 func New(endpoint, apiKey string, httpClient *http.Client) (*Client, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil {

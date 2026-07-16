@@ -36,7 +36,7 @@ func TestNew(t *testing.T) {
 		wantErr  bool
 	}{
 		{name: "valid http", endpoint: "http://localhost:8000", wantErr: false},
-		{name: "valid https", endpoint: "https://api.hyperdx.io", wantErr: false},
+		{name: "valid https", endpoint: "https://hyperdx-api.clickhouse.cloud", wantErr: false},
 		{name: "trailing slash accepted", endpoint: "http://localhost:8000/", wantErr: false},
 		{name: "invalid scheme", endpoint: "ftp://example.com", wantErr: true},
 		{name: "not a url", endpoint: "://nope", wantErr: true},

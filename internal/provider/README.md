@@ -41,7 +41,7 @@ This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/ob
 ClickStack uses its own credentials, separate from the ClickHouse Cloud credentials above:
 
 - `clickstack_api_key` (or the `CLICKSTACK_API_KEY` environment variable) — required to use any `clickhouse_clickstack_*` resource.
-- `clickstack_endpoint` (or `CLICKSTACK_ENDPOINT`) — defaults to `https://api.hyperdx.io`; set it to point at a self-hosted ClickStack/HyperDX instance.
+- `clickstack_endpoint` (or `CLICKSTACK_ENDPOINT`) — defaults to `https://hyperdx-api.clickhouse.cloud` (ClickStack Cloud); set it to point at a self-hosted ClickStack/HyperDX instance.
 
 Cloud and ClickStack credentials are independent. You can configure only one set: a provider block with just ClickStack credentials is valid (Cloud resources then error if used, and vice versa). To manage both from one configuration, use an aliased provider:
 
@@ -55,6 +55,6 @@ provider "clickhouse" { # ClickHouse Cloud
 provider "clickhouse" { # ClickStack (OSS or Cloud)
   alias              = "clickstack"
   clickstack_api_key = var.clickstack_api_key
-  # clickstack_endpoint defaults to https://api.hyperdx.io
+  # clickstack_endpoint defaults to https://hyperdx-api.clickhouse.cloud
 }
 ```

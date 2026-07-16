@@ -83,7 +83,7 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 				Optional:    true,
 			},
 			"clickstack_endpoint": schema.StringAttribute{
-				Description: "Endpoint of the ClickStack API used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_ENDPOINT` environment variable. Defaults to https://api.hyperdx.io.",
+				Description: "Endpoint of the ClickStack API used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_ENDPOINT` environment variable. Defaults to https://hyperdx-api.clickhouse.cloud.",
 				Optional:    true,
 			},
 			"clickstack_api_key": schema.StringAttribute{
@@ -195,7 +195,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		clickstackAPIKey = config.ClickStackAPIKey.ValueString()
 	}
 	if clickstackEndpoint == "" {
-		clickstackEndpoint = "https://api.hyperdx.io"
+		clickstackEndpoint = "https://hyperdx-api.clickhouse.cloud"
 	}
 
 	cloudConfigured := organizationId != "" || tokenKey != "" || tokenSecret != ""

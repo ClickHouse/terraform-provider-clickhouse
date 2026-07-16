@@ -24,7 +24,7 @@ description: |-
   ClickStack (alpha)
   This provider also manages ClickStack https://clickhouse.com/docs/use-cases/observability/clickstack (HyperDX) resources via the clickhouse_clickstack_* resources and data sources. These are in alpha: they emit an alpha warning at plan/apply time and their behavior may change in future releases.
   ClickStack uses its own credentials, separate from the ClickHouse Cloud credentials above:
-  clickstack_api_key (or the CLICKSTACK_API_KEY environment variable) — required to use any clickhouse_clickstack_* resource.clickstack_endpoint (or CLICKSTACK_ENDPOINT) — defaults to https://api.hyperdx.io; set it to point at a self-hosted ClickStack/HyperDX instance.
+  clickstack_api_key (or the CLICKSTACK_API_KEY environment variable) — required to use any clickhouse_clickstack_* resource.clickstack_endpoint (or CLICKSTACK_ENDPOINT) — defaults to https://hyperdx-api.clickhouse.cloud (ClickStack Cloud); set it to point at a self-hosted ClickStack/HyperDX instance.
   Cloud and ClickStack credentials are independent. You can configure only one set: a provider block with just ClickStack credentials is valid (Cloud resources then error if used, and vice versa). To manage both from one configuration, use an aliased provider:
   
   provider "clickhouse" { # ClickHouse Cloud
@@ -36,7 +36,7 @@ description: |-
   provider "clickhouse" { # ClickStack (OSS or Cloud)
     alias              = "clickstack"
     clickstack_api_key = var.clickstack_api_key
-    # clickstack_endpoint defaults to https://api.hyperdx.io
+    # clickstack_endpoint defaults to https://hyperdx-api.clickhouse.cloud
   }
 ---
 
@@ -85,7 +85,7 @@ This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/ob
 ClickStack uses its own credentials, separate from the ClickHouse Cloud credentials above:
 
 - `clickstack_api_key` (or the `CLICKSTACK_API_KEY` environment variable) — required to use any `clickhouse_clickstack_*` resource.
-- `clickstack_endpoint` (or `CLICKSTACK_ENDPOINT`) — defaults to `https://api.hyperdx.io`; set it to point at a self-hosted ClickStack/HyperDX instance.
+- `clickstack_endpoint` (or `CLICKSTACK_ENDPOINT`) — defaults to `https://hyperdx-api.clickhouse.cloud` (ClickStack Cloud); set it to point at a self-hosted ClickStack/HyperDX instance.
 
 Cloud and ClickStack credentials are independent. You can configure only one set: a provider block with just ClickStack credentials is valid (Cloud resources then error if used, and vice versa). To manage both from one configuration, use an aliased provider:
 
@@ -99,7 +99,7 @@ provider "clickhouse" { # ClickHouse Cloud
 provider "clickhouse" { # ClickStack (OSS or Cloud)
   alias              = "clickstack"
   clickstack_api_key = var.clickstack_api_key
-  # clickstack_endpoint defaults to https://api.hyperdx.io
+  # clickstack_endpoint defaults to https://hyperdx-api.clickhouse.cloud
 }
 ```
 
@@ -132,7 +132,7 @@ provider "clickhouse" {
 
 - `api_url` (String) API URL of the ClickHouse OpenAPI the provider will interact with. Alternatively, can be configured using the `CLICKHOUSE_API_URL` environment variable. Only specify if you have a specific deployment of the ClickHouse OpenAPI you want to run against.
 - `clickstack_api_key` (String, Sensitive) API key for the ClickStack API used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_API_KEY` environment variable.
-- `clickstack_endpoint` (String) Endpoint of the ClickStack API used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_ENDPOINT` environment variable. Defaults to https://api.hyperdx.io.
+- `clickstack_endpoint` (String) Endpoint of the ClickStack API used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_ENDPOINT` environment variable. Defaults to https://hyperdx-api.clickhouse.cloud.
 - `organization_id` (String) ID of the organization the provider will create services under. Alternatively, can be configured using the `CLICKHOUSE_ORG_ID` environment variable.
 - `timeout_seconds` (Number) Timeout in seconds for the HTTP client.
 - `token_key` (String) Token key of the key/secret pair. Used to authenticate with OpenAPI. Alternatively, can be configured using the `CLICKHOUSE_CLOUD_API_KEY` environment variable.
