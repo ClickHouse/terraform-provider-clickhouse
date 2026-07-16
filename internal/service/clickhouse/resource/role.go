@@ -411,6 +411,12 @@ func desiredPolicyPermissions(ctx context.Context, policies types.List, diags *d
 // desired and actual, so injected extras and backend-removed permissions are
 // both dropped. When desired is null/unknown (import, first read) there is
 // nothing to reconcile against, so actual is kept.
+//
+// Trade-off: hiding actual-not-desired permissions also means a permission
+// added outside Terraform is not reported as drift. This is tied to the
+// permission-split rollout; when the backend stops auto-granting side-effect
+// permissions, revisit whether to restore authoritative add-drift detection
+// rather than reverting wholesale.
 func reconcilePermissions(ctx context.Context, desired, actual types.Set) (types.Set, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
