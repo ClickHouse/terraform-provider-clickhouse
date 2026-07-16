@@ -110,7 +110,7 @@ provider "clickhouse" { # ClickStack (OSS or Cloud)
 terraform {
   required_providers {
     clickhouse = {
-      version = "3.18.1"
+      version = "3.19.0"
       source  = "ClickHouse/clickhouse"
     }
   }

@@ -122,6 +122,116 @@ func TestRoleResource_syncRoleState(t *testing.T) {
 	}
 }
 
+// TestApplyRoleToState_BackendInjectedPermissions covers the permission-split
+// side effect: granting control-plane:service:manage makes the backend
+// auto-grant control-plane:service:delete, so the API returns more permissions
+// than the user declared. applyRoleToState must reconcile against the
+// permissions the caller already has (the plan on Create/Update, prior state on
+// Read) instead of mirroring the API, otherwise Terraform reports "Provider
+// produced inconsistent result after apply".
+func TestApplyRoleToState_BackendInjectedPermissions(t *testing.T) {
+	declared := []string{
+		"control-plane:service:manage",
+		"control-plane:service:manage-backups",
+		"control-plane:service:view",
+		"control-plane:service:view-backups",
+	}
+	// The backend echoes the declared permissions plus the injected one.
+	withInjected := append(append([]string{}, declared...), "control-plane:service:delete")
+
+	// desiredPolicies builds the plan / prior-state policy list carrying the
+	// permissions the user actually declared.
+	desiredPolicies := func(perms ...string) types.List {
+		return newTestPolicyList(t, newTestPolicyModelWithResources(t, "ALLOW", perms, []string{"instance/*"}))
+	}
+
+	tests := []struct {
+		name           string
+		targetPolicies types.List
+		apiPerms       []string
+		wantPerms      types.Set
+	}{
+		{
+			// Declared 4, backend returns 5: state keeps the 4 so plan == applied.
+			name:           "drops backend-injected permission",
+			targetPolicies: desiredPolicies(declared...),
+			apiPerms:       withInjected,
+			wantPerms:      strSetValue(declared...),
+		},
+		{
+			// A declared permission actually removed on the backend must surface.
+			name:           "read surfaces genuine permission removal",
+			targetPolicies: desiredPolicies(declared...),
+			apiPerms:       []string{"control-plane:service:manage", "control-plane:service:view"},
+			wantPerms:      strSetValue("control-plane:service:manage", "control-plane:service:view"),
+		},
+		{
+			// No prior state to reconcile against, so keep whatever the API returns.
+			name:           "import with no prior policies keeps API permissions",
+			targetPolicies: types.ListNull(models.RolePolicyModel{}.ObjectType()),
+			apiPerms:       withInjected,
+			wantPerms:      strSetValue(withInjected...),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			target := models.RoleResourceModel{
+				ID:       types.StringValue("role-1"),
+				Policies: tt.targetPolicies,
+			}
+
+			role := &api.RBACRole{
+				ID:        "role-1",
+				TenantID:  "tenant-1",
+				OwnerID:   "owner-1",
+				Name:      "tf-test-restricted-operator",
+				Type:      api.RBACRoleTypeCustom,
+				CreatedAt: "2024-01-01T00:00:00Z",
+				UpdatedAt: "2024-01-02T00:00:00Z",
+				Policies: []api.RBACPolicy{
+					{
+						ID:          "pol-1",
+						RoleID:      "role-1",
+						TenantID:    "tenant-1",
+						AllowDeny:   api.RBACAllowDenyAllow,
+						Permissions: tt.apiPerms,
+						Resources:   []string{"instance/*"},
+					},
+				},
+			}
+
+			diags := applyRoleToState(context.Background(), role, &target)
+			if diags.HasError() {
+				t.Fatalf("%s unexpected diagnostics: %v", tt.name, diags)
+			}
+
+			wantState := models.RoleResourceModel{
+				ID:        types.StringValue("role-1"),
+				TenantID:  types.StringValue("tenant-1"),
+				OwnerID:   types.StringValue("owner-1"),
+				Name:      types.StringValue("tf-test-restricted-operator"),
+				Type:      types.StringValue(api.RBACRoleTypeCustom),
+				CreatedAt: types.StringValue("2024-01-01T00:00:00Z"),
+				UpdatedAt: types.StringValue("2024-01-02T00:00:00Z"),
+				Policies: newTestPolicyList(t, models.RolePolicyModel{
+					ID:          types.StringValue("pol-1"),
+					RoleID:      types.StringValue("role-1"),
+					TenantID:    types.StringValue("tenant-1"),
+					Effect:      types.StringValue("ALLOW"),
+					Permissions: tt.wantPerms,
+					Resources:   strSetValue("instance/*"),
+					Tags:        types.ObjectNull(models.RolePolicyTagsModel{}.ObjectType().AttrTypes),
+				}),
+			}
+
+			if !reflect.DeepEqual(target, wantState) {
+				t.Errorf("%s state does not match:\ngot  = %v\nwant = %v", tt.name, target, wantState)
+			}
+		})
+	}
+}
+
 func newTestPolicyModel(t *testing.T, effect string, perms []string) models.RolePolicyModel {
 	t.Helper()
 	permValues := make([]attr.Value, len(perms))
