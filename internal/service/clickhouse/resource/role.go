@@ -198,7 +198,7 @@ func (r *RoleResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	resp.Diagnostics.Append(applyRoleToState(role, &plan)...)
+	resp.Diagnostics.Append(applyRoleToState(ctx, role, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -276,7 +276,7 @@ func (r *RoleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	resp.Diagnostics.Append(applyRoleToState(role, &plan)...)
+	resp.Diagnostics.Append(applyRoleToState(ctx, role, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -317,12 +317,19 @@ func (r *RoleResource) syncRoleState(ctx context.Context, state *models.RoleReso
 	if err != nil {
 		return nil, err
 	}
-	return applyRoleToState(role, state), nil
+	return applyRoleToState(ctx, role, state), nil
 }
 
 // applyRoleToState maps an API RBACRole response into the Terraform state model.
-func applyRoleToState(role *api.RBACRole, state *models.RoleResourceModel) diag.Diagnostics {
+func applyRoleToState(ctx context.Context, role *api.RBACRole, state *models.RoleResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
+
+	// Declared permissions (plan on Create/Update, prior state on Read), captured
+	// before we overwrite state.Policies. Used to reconcile away injected perms.
+	desiredPerms := desiredPolicyPermissions(ctx, state.Policies, &diags)
+	if diags.HasError() {
+		return diags
+	}
 
 	state.ID = types.StringValue(role.ID)
 	state.TenantID = types.StringValue(role.TenantID)
@@ -350,6 +357,19 @@ func applyRoleToState(role *api.RBACRole, state *models.RoleResourceModel) diag.
 			if diags.HasError() {
 				return diags
 			}
+
+			// Matched by index, which assumes the server returns policies in the
+			// same order they were sent. This is the same positional assumption
+			// the ordered policies List already relies on.
+			if i < len(desiredPerms) {
+				reconciled, d := reconcilePermissions(ctx, desiredPerms[i], policyModel.Permissions)
+				diags.Append(d...)
+				if diags.HasError() {
+					return diags
+				}
+				policyModel.Permissions = reconciled
+			}
+
 			policyValues[i] = policyModel.ObjectValue()
 		}
 		policiesList, d := types.ListValue(models.RolePolicyModel{}.ObjectType(), policyValues)
@@ -361,6 +381,75 @@ func applyRoleToState(role *api.RBACRole, state *models.RoleResourceModel) diag.
 	}
 
 	return diags
+}
+
+// desiredPolicyPermissions returns the declared permission set per policy, or
+// nil when there is nothing to reconcile against (import, first read).
+func desiredPolicyPermissions(ctx context.Context, policies types.List, diags *diag.Diagnostics) []types.Set {
+	if policies.IsNull() || policies.IsUnknown() {
+		return nil
+	}
+
+	var policyModels []models.RolePolicyModel
+	diags.Append(policies.ElementsAs(ctx, &policyModels, false)...)
+	if diags.HasError() {
+		return nil
+	}
+
+	perms := make([]types.Set, len(policyModels))
+	for i, pm := range policyModels {
+		perms[i] = pm.Permissions
+	}
+	return perms
+}
+
+// reconcilePermissions returns the permissions to store in state. The backend
+// may auto-grant extra permissions as a side effect (e.g. granting
+// control-plane:service:manage also grants control-plane:service:delete); those
+// must not appear in state or they break the plan == applied consistency check
+// and show up as a permanent diff. Keeps only permissions present in both
+// desired and actual, so injected extras and backend-removed permissions are
+// both dropped. When desired is null/unknown (import, first read) there is
+// nothing to reconcile against, so actual is kept.
+//
+// Trade-off: hiding actual-not-desired permissions also means a permission
+// added outside Terraform is not reported as drift. This is tied to the
+// permission-split rollout; when the backend stops auto-granting side-effect
+// permissions, revisit whether to restore authoritative add-drift detection
+// rather than reverting wholesale.
+func reconcilePermissions(ctx context.Context, desired, actual types.Set) (types.Set, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if desired.IsNull() || desired.IsUnknown() || actual.IsNull() || actual.IsUnknown() {
+		return actual, diags
+	}
+
+	var desiredStrs, actualStrs []string
+	diags.Append(desired.ElementsAs(ctx, &desiredStrs, false)...)
+	diags.Append(actual.ElementsAs(ctx, &actualStrs, false)...)
+	if diags.HasError() {
+		return actual, diags
+	}
+
+	actualSet := make(map[string]struct{}, len(actualStrs))
+	for _, s := range actualStrs {
+		actualSet[s] = struct{}{}
+	}
+
+	kept := make([]string, 0, len(desiredStrs))
+	for _, s := range desiredStrs {
+		if _, found := actualSet[s]; found {
+			kept = append(kept, s)
+		}
+	}
+
+	if len(kept) == 0 {
+		return types.SetNull(types.StringType), diags
+	}
+
+	result, d := types.SetValueFrom(ctx, types.StringType, kept)
+	diags.Append(d...)
+	return result, diags
 }
 
 func planPoliciesToAPICreate(ctx context.Context, policiesList types.List) ([]api.RBACPolicyCreateRequest, diag.Diagnostics) {
