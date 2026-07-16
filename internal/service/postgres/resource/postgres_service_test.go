@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -184,6 +186,28 @@ func TestPostgresResource_syncPostgresState_password(t *testing.T) {
 			t.Errorf("Password should remain null when not configured: got %q", pre.Password.ValueString())
 		}
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Schema — credential attribute shape
+// ---------------------------------------------------------------------------
+
+func TestPostgresSchema_passwordAttributes(t *testing.T) {
+	r := &PostgresServiceResource{}
+	resp := resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, &resp)
+
+	pw, ok := resp.Schema.Attributes["password"].(schema.StringAttribute)
+	if !ok || !pw.Optional || pw.Computed || !pw.Sensitive {
+		t.Errorf("password must be Optional+Sensitive and NOT Computed: %+v", pw)
+	}
+	wo, ok := resp.Schema.Attributes["password_wo"].(schema.StringAttribute)
+	if !ok || !wo.Optional || !wo.Sensitive || !wo.WriteOnly {
+		t.Errorf("password_wo must be Optional+Sensitive+WriteOnly: %+v", wo)
+	}
+	if _, ok := resp.Schema.Attributes["password_wo_version"].(schema.Int64Attribute); !ok {
+		t.Errorf("password_wo_version must be an Int64Attribute")
+	}
 }
 
 // ---------------------------------------------------------------------------
