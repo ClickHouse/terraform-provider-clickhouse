@@ -2878,6 +2878,33 @@ func credentialsObjectChanged(planCredentials, stateCredentials types.Object) bo
 	return false
 }
 
+// sourceFieldsChangedIgnoringMappings reports whether any source attribute other
+// than table_mappings or credentials differs between plan and state. It backs the
+// mappings-only PATCH shortcut (issue #617): that shortcut may drop the connection
+// from the payload only when nothing but table_mappings changed, so comparing
+// every other attribute (rather than an enumerated subset) keeps a
+// connection/settings change made in the same apply from being silently dropped.
+//
+// credentials is excluded and must be checked separately via
+// credentialsObjectChanged: password_wo is write-only, so plan always carries the
+// configured value while state always has it nulled out, which would make a
+// plain Equal() report "changed" on every single apply for write-only-credential
+// pipes and permanently disable this shortcut for them.
+func sourceFieldsChangedIgnoringMappings(planObj, stateObj types.Object) bool {
+	planAttrs := planObj.Attributes()
+	stateAttrs := stateObj.Attributes()
+	for name, planVal := range planAttrs {
+		if name == "table_mappings" || name == "credentials" {
+			continue
+		}
+		stateVal, ok := stateAttrs[name]
+		if !ok || !planVal.Equal(stateVal) {
+			return true
+		}
+	}
+	return false
+}
+
 // extractSourceFromPlan builds the API source from plan. config supplies write-only credentials stripped from plan; pass nil in unit tests not exercising write-only behavior.
 func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics *diag.Diagnostics, plan models.ClickPipeResourceModel, config *models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
 	source := &api.ClickPipeSource{}
@@ -5202,11 +5229,13 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			// Check if table_mappings or other Postgres fields changed
 			tableMappingsChanged := !planPostgresModel.TableMappings.Equal(statePostgresModel.TableMappings)
 			credentialsChanged := credentialsObjectChanged(planPostgresModel.Credentials, statePostgresModel.Credentials)
-			otherFieldsChanged := !planPostgresModel.Host.Equal(statePostgresModel.Host) ||
-				!planPostgresModel.Port.Equal(statePostgresModel.Port) ||
-				!planPostgresModel.Database.Equal(statePostgresModel.Database) ||
-				credentialsChanged ||
-				!planPostgresModel.Settings.Equal(statePostgresModel.Settings)
+			// Any non-mapping source change (host/port/database/settings and
+			// less-common fields like authentication/tls_host/ca_certificate)
+			// disqualifies the mappings-only shortcut, so compare every attribute
+			// except table_mappings rather than an enumerated subset. credentials
+			// is compared separately via credentialsChanged (see
+			// sourceFieldsChangedIgnoringMappings for why).
+			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.Postgres, stateSourceModel.Postgres) || credentialsChanged
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
@@ -5262,11 +5291,22 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 						}
 					}
 
-					if len(tableMappingsToAdd) > 0 {
-						source.Postgres.TableMappingsToAdd = tableMappingsToAdd
-					}
-					if len(tableMappingsToRemove) > 0 {
-						source.Postgres.TableMappingsToRemove = tableMappingsToRemove
+					if otherFieldsChanged {
+						if len(tableMappingsToAdd) > 0 {
+							source.Postgres.TableMappingsToAdd = tableMappingsToAdd
+						}
+						if len(tableMappingsToRemove) > 0 {
+							source.Postgres.TableMappingsToRemove = tableMappingsToRemove
+						}
+					} else {
+						// Only table_mappings changed: PATCH just the mapping deltas.
+						// Re-sending the connection (host/port/settings) makes the
+						// control plane re-validate the source connection, which fails
+						// because the unchanged credentials are omitted (#617).
+						source.Postgres = &api.ClickPipePostgresSource{
+							TableMappingsToAdd:    tableMappingsToAdd,
+							TableMappingsToRemove: tableMappingsToRemove,
+						}
 					}
 				}
 
@@ -5282,10 +5322,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			tableMappingsChanged := !planMySQLModel.TableMappings.Equal(stateMySQLModel.TableMappings)
 			credentialsChanged := credentialsObjectChanged(planMySQLModel.Credentials, stateMySQLModel.Credentials)
-			otherFieldsChanged := !planMySQLModel.Host.Equal(stateMySQLModel.Host) ||
-				!planMySQLModel.Port.Equal(stateMySQLModel.Port) ||
-				credentialsChanged ||
-				!planMySQLModel.Settings.Equal(stateMySQLModel.Settings)
+			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.MySQL, stateSourceModel.MySQL) || credentialsChanged
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
@@ -5332,11 +5369,22 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 						}
 					}
 
-					if len(tableMappingsToAdd) > 0 {
-						source.MySQL.TableMappingsToAdd = tableMappingsToAdd
-					}
-					if len(tableMappingsToRemove) > 0 {
-						source.MySQL.TableMappingsToRemove = tableMappingsToRemove
+					if otherFieldsChanged {
+						if len(tableMappingsToAdd) > 0 {
+							source.MySQL.TableMappingsToAdd = tableMappingsToAdd
+						}
+						if len(tableMappingsToRemove) > 0 {
+							source.MySQL.TableMappingsToRemove = tableMappingsToRemove
+						}
+					} else {
+						// Only table_mappings changed: PATCH just the mapping deltas.
+						// Re-sending the connection (host/port/settings) makes the
+						// control plane re-validate the source connection, which fails
+						// because the unchanged credentials are omitted (#617).
+						source.MySQL = &api.ClickPipeMySQLSource{
+							TableMappingsToAdd:    tableMappingsToAdd,
+							TableMappingsToRemove: tableMappingsToRemove,
+						}
 					}
 				}
 
@@ -5351,13 +5399,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			tableMappingsChanged := !planMongoDBModel.TableMappings.Equal(stateMongoDBModel.TableMappings)
 			credentialsChanged := credentialsObjectChanged(planMongoDBModel.Credentials, stateMongoDBModel.Credentials)
-			otherFieldsChanged := !planMongoDBModel.URI.Equal(stateMongoDBModel.URI) ||
-				!planMongoDBModel.ReadPreference.Equal(stateMongoDBModel.ReadPreference) ||
-				!planMongoDBModel.TLSHost.Equal(stateMongoDBModel.TLSHost) ||
-				!planMongoDBModel.CACertificate.Equal(stateMongoDBModel.CACertificate) ||
-				!planMongoDBModel.DisableTLS.Equal(stateMongoDBModel.DisableTLS) ||
-				credentialsChanged ||
-				!planMongoDBModel.Settings.Equal(stateMongoDBModel.Settings)
+			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.MongoDB, stateSourceModel.MongoDB) || credentialsChanged
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
@@ -5402,11 +5444,22 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 						}
 					}
 
-					if len(tableMappingsToAdd) > 0 {
-						source.MongoDB.TableMappingsToAdd = tableMappingsToAdd
-					}
-					if len(tableMappingsToRemove) > 0 {
-						source.MongoDB.TableMappingsToRemove = tableMappingsToRemove
+					if otherFieldsChanged {
+						if len(tableMappingsToAdd) > 0 {
+							source.MongoDB.TableMappingsToAdd = tableMappingsToAdd
+						}
+						if len(tableMappingsToRemove) > 0 {
+							source.MongoDB.TableMappingsToRemove = tableMappingsToRemove
+						}
+					} else {
+						// Only table_mappings changed: PATCH just the mapping deltas.
+						// Re-sending the connection (uri/settings) makes the control
+						// plane re-validate the source connection, which fails because
+						// the unchanged credentials are omitted from the payload (#617).
+						source.MongoDB = &api.ClickPipeMongoDBSource{
+							TableMappingsToAdd:    tableMappingsToAdd,
+							TableMappingsToRemove: tableMappingsToRemove,
+						}
 					}
 				}
 			}
