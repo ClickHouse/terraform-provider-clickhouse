@@ -2879,16 +2879,22 @@ func credentialsObjectChanged(planCredentials, stateCredentials types.Object) bo
 }
 
 // sourceFieldsChangedIgnoringMappings reports whether any source attribute other
-// than table_mappings differs between plan and state. It backs the mappings-only
-// PATCH shortcut (issue #617): that shortcut may drop the connection from the
-// payload only when nothing but table_mappings changed, so comparing every other
-// attribute (rather than an enumerated subset) keeps a connection/settings/
-// credential change made in the same apply from being silently dropped.
+// than table_mappings or credentials differs between plan and state. It backs the
+// mappings-only PATCH shortcut (issue #617): that shortcut may drop the connection
+// from the payload only when nothing but table_mappings changed, so comparing
+// every other attribute (rather than an enumerated subset) keeps a
+// connection/settings change made in the same apply from being silently dropped.
+//
+// credentials is excluded and must be checked separately via
+// credentialsObjectChanged: password_wo is write-only, so plan always carries the
+// configured value while state always has it nulled out, which would make a
+// plain Equal() report "changed" on every single apply for write-only-credential
+// pipes and permanently disable this shortcut for them.
 func sourceFieldsChangedIgnoringMappings(planObj, stateObj types.Object) bool {
 	planAttrs := planObj.Attributes()
 	stateAttrs := stateObj.Attributes()
 	for name, planVal := range planAttrs {
-		if name == "table_mappings" {
+		if name == "table_mappings" || name == "credentials" {
 			continue
 		}
 		stateVal, ok := stateAttrs[name]
@@ -5223,11 +5229,13 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			// Check if table_mappings or other Postgres fields changed
 			tableMappingsChanged := !planPostgresModel.TableMappings.Equal(statePostgresModel.TableMappings)
 			credentialsChanged := credentialsObjectChanged(planPostgresModel.Credentials, statePostgresModel.Credentials)
-			// Any non-mapping source change (host/port/database/credentials/settings
-			// and less-common fields like authentication/tls_host/ca_certificate)
+			// Any non-mapping source change (host/port/database/settings and
+			// less-common fields like authentication/tls_host/ca_certificate)
 			// disqualifies the mappings-only shortcut, so compare every attribute
-			// except table_mappings rather than an enumerated subset.
-			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.Postgres, stateSourceModel.Postgres)
+			// except table_mappings rather than an enumerated subset. credentials
+			// is compared separately via credentialsChanged (see
+			// sourceFieldsChangedIgnoringMappings for why).
+			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.Postgres, stateSourceModel.Postgres) || credentialsChanged
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
@@ -5314,7 +5322,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			tableMappingsChanged := !planMySQLModel.TableMappings.Equal(stateMySQLModel.TableMappings)
 			credentialsChanged := credentialsObjectChanged(planMySQLModel.Credentials, stateMySQLModel.Credentials)
-			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.MySQL, stateSourceModel.MySQL)
+			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.MySQL, stateSourceModel.MySQL) || credentialsChanged
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
@@ -5391,7 +5399,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			tableMappingsChanged := !planMongoDBModel.TableMappings.Equal(stateMongoDBModel.TableMappings)
 			credentialsChanged := credentialsObjectChanged(planMongoDBModel.Credentials, stateMongoDBModel.Credentials)
-			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.MongoDB, stateSourceModel.MongoDB)
+			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.MongoDB, stateSourceModel.MongoDB) || credentialsChanged
 
 			if tableMappingsChanged || otherFieldsChanged {
 				pipeChanged = true
