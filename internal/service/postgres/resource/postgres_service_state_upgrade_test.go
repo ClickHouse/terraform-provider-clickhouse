@@ -66,9 +66,35 @@ func TestUpgradePostgresServiceStateV0(t *testing.T) {
 		// v0 value is always the server-echoed inherited credential.
 		old := v0StateFixture()
 		old.ReadReplicaOf = types.StringValue("pg-parent")
+		old.IsPrimary = types.BoolValue(false)
 		got := upgradePostgresServiceStateV0(old)
 		if !got.Password.IsNull() {
 			t.Errorf("replica password must upgrade to null, got %v", got.Password)
+		}
+	})
+
+	t.Run("imported replica: password dropped on is_primary=false alone", func(t *testing.T) {
+		// An imported v0 replica has read_replica_of=null (import stores only
+		// the ID and GET exposes no parent), but is_primary is known false —
+		// its password is still the server-echoed inherited credential.
+		old := v0StateFixture()
+		old.ReadReplicaOf = types.StringNull()
+		old.IsPrimary = types.BoolValue(false)
+		got := upgradePostgresServiceStateV0(old)
+		if !got.Password.IsNull() {
+			t.Errorf("imported replica password must upgrade to null, got %v", got.Password)
+		}
+	})
+
+	t.Run("null is_primary: password kept (treat as primary)", func(t *testing.T) {
+		// Defensive: no v0 code path writes a null is_primary, but if one
+		// existed, dropping a primary's declared password would force a
+		// needless rotation — keep it.
+		old := v0StateFixture()
+		old.IsPrimary = types.BoolNull()
+		got := upgradePostgresServiceStateV0(old)
+		if !got.Password.Equal(old.Password) {
+			t.Errorf("password must be kept when is_primary is null, got %v", got.Password)
 		}
 	})
 }

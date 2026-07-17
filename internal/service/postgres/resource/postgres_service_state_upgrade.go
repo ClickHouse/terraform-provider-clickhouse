@@ -80,9 +80,14 @@ var postgresServiceResourceSchemaV0 = schema.Schema{
 // EXCEPT for a read replica: its config can never declare password
 // (ConflictsWith), so a v0 value is always a server-echoed inherited
 // credential; drop it rather than surface a spurious password-removal diff.
+// A replica is recognized by read_replica_of OR known is_primary=false — an
+// imported v0 replica has no read_replica_of in state (import stores only the
+// ID and GET exposes no parent id). A null is_primary (written by no v0 code
+// path) keeps the password: mis-dropping a primary's declared credential
+// would force a needless rotation, the worse failure.
 func upgradePostgresServiceStateV0(old postgresServiceResourceModelV0) models.PostgresServiceResourceModel {
 	password := old.Password
-	if !old.ReadReplicaOf.IsNull() {
+	if !old.ReadReplicaOf.IsNull() || (!old.IsPrimary.IsNull() && !old.IsPrimary.ValueBool()) {
 		password = types.StringNull()
 	}
 	return models.PostgresServiceResourceModel{
