@@ -172,6 +172,33 @@ func sourceAttributeConflicts(config models.PostgresServiceResourceModel, src *a
 // standard create (no read replica / restore). Called only from ModifyPlan's
 // create branch: on update these come from prior state, so dropping an origin
 // block from an existing instance's config must not trip it.
+// requireDeclaredCredential enforces the ClickHouse-style credential rule at
+// plan time: a standard service must declare password or password_wo; a read
+// replica or point-in-time restore inherits its credential from the origin.
+// This is deliberately NOT an AtLeastOneOf schema validator — those also run
+// for destroy plans (a credential-less config could never be destroyed) and
+// know nothing of prior state. Callers scope it: ModifyPlan's create branch
+// applies it to every new instance; the update branch only to primaries, so a
+// replica adopted by import — is_primary=false with no read_replica_of in
+// config, because the API exposes no parent id — needs no credential. Unknown
+// values defer to apply (an interpolated credential or origin may resolve).
+func requireDeclaredCredential(config models.PostgresServiceResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if config.Password.IsUnknown() || config.PasswordWO.IsUnknown() ||
+		config.ReadReplicaOf.IsUnknown() || config.RestoreToPointInTime.IsUnknown() {
+		return diags
+	}
+	if configIsOrigin(config) || !config.Password.IsNull() || !config.PasswordWO.IsNull() {
+		return diags
+	}
+	diags.AddAttributeError(
+		path.Root("password"),
+		"Missing credential",
+		"A standard Postgres service requires `password` or `password_wo` (a read replica or point-in-time restore inherits its credential from the source instead).",
+	)
+	return diags
+}
+
 func requireStandardCreateAttributes(config models.PostgresServiceResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	if config.ReadReplicaOf.IsUnknown() || config.RestoreToPointInTime.IsUnknown() {
@@ -411,14 +438,15 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Description: "Superuser password. Config-owned: the API does not return the password, so Terraform manages exactly the value declared here and never reads it back. One of `password` or `password_wo` is required for a standard service; forbidden for a read replica (it inherits the primary's superuser); optional for a point-in-time restore (omit to keep the source's password, which Terraform then does not track). Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Stored in (sensitive) state — prefer `password_wo` to keep it out of state. `terraform import` cannot recover the live password — the configured value is rotated in on the first apply after import.",
 				Optional:    true,
 				Sensitive:   true,
+				// The "one of password/password_wo is required for a standard
+				// service" rule is enforced in ModifyPlan (requireDeclaredCredential),
+				// NOT as an AtLeastOneOf schema validator: schema validators also
+				// run for destroy plans (a credential-less config could never be
+				// destroyed) and for imported replicas, whose config legitimately
+				// has neither a credential nor read_replica_of.
 				Validators: append(
 					postgresPasswordValidators(),
 					stringvalidator.ConflictsWith(path.MatchRoot("password_wo")),
-					stringvalidator.AtLeastOneOf(
-						path.MatchRoot("password_wo"),
-						path.MatchRoot("read_replica_of"),
-						path.MatchRoot("restore_to_point_in_time"),
-					),
 				),
 			},
 			"password_wo": schema.StringAttribute{
@@ -426,14 +454,10 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				Optional:    true,
 				Sensitive:   true,
 				WriteOnly:   true,
+				// Credential requirement enforced in ModifyPlan — see password.
 				Validators: append(
 					postgresPasswordValidators(),
 					stringvalidator.AlsoRequires(path.MatchRoot("password_wo_version")),
-					stringvalidator.AtLeastOneOf(
-						path.MatchRoot("password"),
-						path.MatchRoot("read_replica_of"),
-						path.MatchRoot("restore_to_point_in_time"),
-					),
 				),
 			},
 			"password_wo_version": schema.Int64Attribute{
@@ -854,6 +878,7 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 		// (create-scoped: ModifyPlan has prior state, so a later resize /
 		// origin-block edit isn't flagged).
 		resp.Diagnostics.Append(requireStandardCreateAttributes(config)...)
+		resp.Diagnostics.Append(requireDeclaredCredential(config)...)
 		resp.Diagnostics.Append(forbidEmptyConfigOnCreate(config)...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -869,6 +894,17 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	// Primaries must declare a credential (or an origin). Scoped to known
+	// is_primary=true: a live replica adopted by import has is_primary=false
+	// with no read_replica_of in config (the API exposes no parent id) and can
+	// take no credential — requiring one would leave it no convergent config.
+	if state.IsPrimary.ValueBool() {
+		resp.Diagnostics.Append(requireDeclaredCredential(config)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	// A replace that recreates the instance from a (different) source — changing

@@ -304,6 +304,61 @@ func TestRequireStandardCreateAttributes(t *testing.T) {
 	}
 }
 
+func TestRequireDeclaredCredential(t *testing.T) {
+	restoreType := map[string]attr.Type{"source_id": types.StringType, "restore_target": types.StringType}
+	nullRestore := types.ObjectNull(restoreType)
+	setRestore := types.ObjectValueMust(restoreType, map[string]attr.Value{
+		"source_id":      types.StringValue("src-1"),
+		"restore_target": types.StringValue("2026-06-01T00:00:00Z"),
+	})
+	base := func() models.PostgresServiceResourceModel {
+		return models.PostgresServiceResourceModel{
+			ReadReplicaOf:        types.StringNull(),
+			RestoreToPointInTime: nullRestore,
+		}
+	}
+	cases := []struct {
+		name    string
+		mutate  func(*models.PostgresServiceResourceModel)
+		wantErr int
+	}{
+		{"no credential, no origin → error", func(m *models.PostgresServiceResourceModel) {}, 1},
+		{"password declared → ok", func(m *models.PostgresServiceResourceModel) {
+			m.Password = types.StringValue("TerraformE2E123")
+		}, 0},
+		{"password_wo declared → ok", func(m *models.PostgresServiceResourceModel) {
+			m.PasswordWO = types.StringValue("WriteOnly456xy")
+		}, 0},
+		{"replica origin → ok", func(m *models.PostgresServiceResourceModel) {
+			m.ReadReplicaOf = types.StringValue("primary-1")
+		}, 0},
+		{"restore origin → ok", func(m *models.PostgresServiceResourceModel) {
+			m.RestoreToPointInTime = setRestore
+		}, 0},
+		{"unknown password (interpolation) → deferred", func(m *models.PostgresServiceResourceModel) {
+			m.Password = types.StringUnknown()
+		}, 0},
+		{"unknown password_wo → deferred", func(m *models.PostgresServiceResourceModel) {
+			m.PasswordWO = types.StringUnknown()
+		}, 0},
+		{"unknown read_replica_of → deferred", func(m *models.PostgresServiceResourceModel) {
+			m.ReadReplicaOf = types.StringUnknown()
+		}, 0},
+		{"unknown restore block → deferred", func(m *models.PostgresServiceResourceModel) {
+			m.RestoreToPointInTime = types.ObjectUnknown(restoreType)
+		}, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := base()
+			c.mutate(&m)
+			if diags := requireDeclaredCredential(m); diags.ErrorsCount() != c.wantErr {
+				t.Errorf("want %d errors; got %d: %v", c.wantErr, diags.ErrorsCount(), diags)
+			}
+		})
+	}
+}
+
 func TestSourceAttributeConflicts(t *testing.T) {
 	src := &api.Postgres{Provider: "aws", Region: "us-west-2", Size: "r6gd.large", PostgresVersion: "18"}
 	full := func(cp, region, size, version, ha string) models.PostgresServiceResourceModel {
