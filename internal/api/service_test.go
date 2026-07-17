@@ -102,8 +102,11 @@ func TestListServices_SendsTagFilters(t *testing.T) {
 }
 
 func TestListServices_APIError(t *testing.T) {
+	// Use a non-5xx status: doRequest retries 5xx with backoff (up to
+	// MaxElapsedTime), which would blow the test timeout. A 403 surfaces the
+	// error immediately, which is what we want to assert.
 	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, `{"error":"boom"}`, http.StatusInternalServerError)
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 	})
 	if _, err := client.ListServices(context.Background(), nil); err == nil {
 		t.Fatal("expected error; got nil")

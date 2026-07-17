@@ -3,6 +3,7 @@ package datasource
 import (
 	"context"
 	_ "embed"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -12,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 )
 
 //go:embed descriptions/service.md

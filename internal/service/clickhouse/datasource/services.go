@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 )
 
 //go:embed descriptions/services.md
