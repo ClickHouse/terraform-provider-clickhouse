@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	clickstackclient "github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
 )
 
 // ServicePackage is implemented once per service group. A group
@@ -45,5 +46,6 @@ type Metadata struct {
 // stay behavior-preserving, and Phase 3 re-touches all Configure methods, so
 // the de-duplication is best done then. See docs/rfcs/0001.
 type ProviderData struct {
-	API api.Client // ClickHouse Cloud OpenAPI (Basic auth)
+	API        api.Client               // ClickHouse Cloud OpenAPI (Basic auth); nil if not configured
+	ClickStack *clickstackclient.Client // ClickStack API (Bearer auth); nil if not configured
 }

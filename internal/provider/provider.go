@@ -14,8 +14,11 @@ import (
 	upstreamresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
+
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
+	clickstackclient "github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
 )
 
 // Ensure the implementation satisfies the expected interfaces
@@ -40,11 +43,13 @@ type clickhouseProvider struct {
 }
 
 type clickhouseProviderModel struct {
-	ApiUrl         types.String `tfsdk:"api_url"`
-	OrganizationID types.String `tfsdk:"organization_id"`
-	TokenKey       types.String `tfsdk:"token_key"`
-	TokenSecret    types.String `tfsdk:"token_secret"`
-	TimeoutSeconds types.Int32  `tfsdk:"timeout_seconds"`
+	ApiUrl             types.String `tfsdk:"api_url"`
+	OrganizationID     types.String `tfsdk:"organization_id"`
+	TokenKey           types.String `tfsdk:"token_key"`
+	TokenSecret        types.String `tfsdk:"token_secret"`
+	TimeoutSeconds     types.Int32  `tfsdk:"timeout_seconds"`
+	ClickStackEndpoint types.String `tfsdk:"clickstack_endpoint"`
+	ClickStackAPIKey   types.String `tfsdk:"clickstack_api_key"`
 }
 
 // Metadata returns the provider type name.
@@ -76,6 +81,15 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 			"timeout_seconds": schema.Int32Attribute{
 				Description: "Timeout in seconds for the HTTP client.",
 				Optional:    true,
+			},
+			"clickstack_endpoint": schema.StringAttribute{
+				Description: "Endpoint of the ClickStack API used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_ENDPOINT` environment variable. Defaults to https://hyperdx-api.clickhouse.cloud.",
+				Optional:    true,
+			},
+			"clickstack_api_key": schema.StringAttribute{
+				Description: "API key for the ClickStack API used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_API_KEY` environment variable.",
+				Optional:    true,
+				Sensitive:   true,
 			},
 		},
 		MarkdownDescription: providerDescription,
@@ -171,12 +185,40 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		tokenSecret = config.TokenSecret.ValueString()
 	}
 
-	// If any of the expected configurations are missing, return
-	// errors with provider-specific guidance.
+	// Resolve ClickStack credentials (configuration overrides environment).
+	clickstackEndpoint := os.Getenv("CLICKSTACK_ENDPOINT")
+	clickstackAPIKey := os.Getenv("CLICKSTACK_API_KEY")
+	if !config.ClickStackEndpoint.IsNull() {
+		clickstackEndpoint = config.ClickStackEndpoint.ValueString()
+	}
+	if !config.ClickStackAPIKey.IsNull() {
+		clickstackAPIKey = config.ClickStackAPIKey.ValueString()
+	}
+	if clickstackEndpoint == "" {
+		clickstackEndpoint = "https://hyperdx-api.clickhouse.cloud"
+	}
 
-	clientConfig := api.ClientConfig{}
+	cloudConfigured := organizationId != "" || tokenKey != "" || tokenSecret != ""
+	clickstackConfigured := clickstackAPIKey != ""
 
-	{
+	data := &service.ProviderData{}
+
+	// Validate and build the ClickHouse Cloud client only when cloud credentials
+	// are (partially) provided, or when nothing at all is configured — a bare
+	// provider block should still surface the cloud credential guidance. A
+	// ClickStack-only configuration skips these checks; cloud resources then fail
+	// individually in their own Configure with a clear "not configured" error.
+	if cloudConfigured || !clickstackConfigured {
+		clientConfig := api.ClientConfig{
+			ApiURL:         apiUrl,
+			OrganizationID: organizationId,
+			TokenKey:       tokenKey,
+			TokenSecret:    tokenSecret,
+		}
+		if !config.TimeoutSeconds.IsUnknown() && !config.TimeoutSeconds.IsNull() {
+			clientConfig.Timeout = time.Second * time.Duration(config.TimeoutSeconds.ValueInt32())
+		}
+
 		if apiUrl == "" {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("api_url"),
@@ -186,11 +228,6 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 					"If either is already set, ensure the value is not empty.",
 			)
 		}
-
-		clientConfig.ApiURL = apiUrl
-	}
-
-	{
 		if organizationId == "" {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("organizationId"),
@@ -200,10 +237,6 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 					"If either is already set, ensure the value is not empty.",
 			)
 		}
-		clientConfig.OrganizationID = organizationId
-	}
-
-	{
 		if tokenKey == "" {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("token_key"),
@@ -213,10 +246,6 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 					"If either is already set, ensure the value is not empty.",
 			)
 		}
-		clientConfig.TokenKey = tokenKey
-	}
-
-	{
 		if tokenSecret == "" {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("token_secret"),
@@ -226,30 +255,42 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 					"If either is already set, ensure the value is not empty.",
 			)
 		}
-		clientConfig.TokenSecret = tokenSecret
-	}
-
-	{
-		if !config.TimeoutSeconds.IsUnknown() && !config.TimeoutSeconds.IsNull() {
-			clientConfig.Timeout = time.Second * time.Duration(config.TimeoutSeconds.ValueInt32())
+		if resp.Diagnostics.HasError() {
+			return
 		}
+
+		// Create a new ClickHouse client using the configuration values
+		client, err := api.NewClient(clientConfig)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Unable to Create ClickHouse OpenAPI Client",
+				"An unexpected error occurred when creating the ClickHouse OpenAPI client. "+
+					"If the error is not clear, please contact the provider developers.\n\n"+
+					"ClickHouse Client Error: "+err.Error(),
+			)
+			return
+		}
+		data.API = client
 	}
 
-	// Create a new ClickHouse client using the configuration values
-	client, err := api.NewClient(clientConfig)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to Create ClickHouse OpenAPI Client",
-			"An unexpected error occurred when creating the ClickHouse OpenAPI client. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"ClickHouse Client Error: "+err.Error(),
-		)
-		return
+	// Build the ClickStack client when a ClickStack API key is configured.
+	if clickstackConfigured {
+		retryClient := retryablehttp.NewClient()
+		retryClient.Logger = nil
+		csClient, err := clickstackclient.New(clickstackEndpoint, clickstackAPIKey, retryClient.StandardClient())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("clickstack_endpoint"),
+				"Invalid ClickStack endpoint",
+				err.Error(),
+			)
+			return
+		}
+		data.ClickStack = csClient
 	}
 
-	// Make the ClickHouse client available during DataSource and Resource
+	// Make the client container available during DataSource and Resource
 	// type Configure methods.
-	data := &service.ProviderData{API: client}
 	resp.DataSourceData = data
 	resp.ResourceData = data
 }

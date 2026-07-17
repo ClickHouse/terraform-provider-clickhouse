@@ -6,6 +6,7 @@ package registry
 import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres"
 )
 
@@ -13,5 +14,6 @@ func ServicePackages() []service.ServicePackage {
 	return []service.ServicePackage{
 		clickhouse.ServicePackage(),
 		postgres.ServicePackage(),
+		clickstack.ServicePackage(),
 	}
 }
