@@ -38,8 +38,14 @@ jobs:
           set -o pipefail
           go tool go-test-coverage --config=./.testcoverage.yml | tee /tmp/coverage-report.txt
 
+      # Best-effort: the coverage report comment is informational. A flaky
+      # GitHub API (which can return an HTML error page that breaks `gh --jq`)
+      # must never fail this job — the threshold itself is enforced by the next
+      # step regardless. continue-on-error plus the per-call guards below keep a
+      # comment hiccup from turning a passing coverage check into a red build.
       - name: Post coverage report to PR
         if: github.event_name == 'pull_request'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -49,13 +55,15 @@ jobs:
           report="$(cat /tmp/coverage-report.txt)"
           body="$(printf '%s\n### Test coverage report\n\n```\n%s\n```\n' "$marker" "$report")"
           existing="$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
-            --jq "map(select(.body | contains(\"$marker\"))) | .[0].id // empty" | head -n1)"
+            --jq "map(select(.body | contains(\"$marker\"))) | .[0].id // empty" 2>/dev/null | head -n1 || true)"
           if [ -n "$existing" ]; then
-            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body" >/dev/null
-            echo "Updated coverage comment on PR #$PR_NUMBER"
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body" >/dev/null 2>&1 \
+              && echo "Updated coverage comment on PR #$PR_NUMBER" \
+              || echo "::warning::could not update coverage comment (GitHub API error); coverage gate is unaffected"
           else
-            gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
-            echo "Created coverage comment on PR #$PR_NUMBER"
+            gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null 2>&1 \
+              && echo "Created coverage comment on PR #$PR_NUMBER" \
+              || echo "::warning::could not post coverage comment (GitHub API error); coverage gate is unaffected"
           fi
 
       - name: Enforce coverage threshold
