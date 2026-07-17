@@ -214,6 +214,22 @@ func TestDecidePasswordRotationOnUpdate(t *testing.T) {
 			wantRotate: false,
 		},
 		{
+			name:       "password_wo_version null->set (first adoption) rotates",
+			plan:       models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(1)},
+			state:      models.PostgresServiceResourceModel{},
+			config:     models.PostgresServiceResourceModel{PasswordWO: types.StringValue("WriteOnly456xy")},
+			wantRotate: true,
+			wantValue:  "WriteOnly456xy",
+		},
+		{
+			name:       "password null->set (post-import adoption) rotates",
+			plan:       models.PostgresServiceResourceModel{Password: types.StringValue("NewSecret12345")},
+			state:      models.PostgresServiceResourceModel{},
+			config:     models.PostgresServiceResourceModel{},
+			wantRotate: true,
+			wantValue:  "NewSecret12345",
+		},
+		{
 			name:       "password change rotates",
 			plan:       models.PostgresServiceResourceModel{Password: types.StringValue("NewSecret12345")},
 			state:      models.PostgresServiceResourceModel{Password: types.StringValue("OldSecret12345")},

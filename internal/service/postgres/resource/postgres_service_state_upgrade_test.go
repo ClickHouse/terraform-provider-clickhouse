@@ -86,6 +86,27 @@ func TestUpgradePostgresServiceStateV0(t *testing.T) {
 		}
 	})
 
+	t.Run("restore: password carried (is_primary=true, restore block set)", func(t *testing.T) {
+		// A v0 restore is a primary; its password may be config-declared or
+		// server-echoed (indistinguishable in state), so it carries verbatim —
+		// the documented one-time `password -> null` diff covers the echoed case.
+		old := v0StateFixture()
+		old.RestoreToPointInTime = types.ObjectValueMust(
+			map[string]attr.Type{"source_id": types.StringType, "restore_target": types.StringType},
+			map[string]attr.Value{
+				"source_id":      types.StringValue("src-1"),
+				"restore_target": types.StringValue("2026-06-01T00:00:00Z"),
+			},
+		)
+		got := upgradePostgresServiceStateV0(old)
+		if !got.Password.Equal(old.Password) {
+			t.Errorf("restore password must carry over: got %v", got.Password)
+		}
+		if !got.RestoreToPointInTime.Equal(old.RestoreToPointInTime) {
+			t.Errorf("restore block must carry over: got %v", got.RestoreToPointInTime)
+		}
+	})
+
 	t.Run("null is_primary: password kept (treat as primary)", func(t *testing.T) {
 		// Defensive: no v0 code path writes a null is_primary, but if one
 		// existed, dropping a primary's declared password would force a

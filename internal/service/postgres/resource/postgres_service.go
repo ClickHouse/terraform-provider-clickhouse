@@ -168,10 +168,6 @@ func sourceAttributeConflicts(config models.PostgresServiceResourceModel, src *a
 	return diags
 }
 
-// requireStandardCreateAttributes requires cloud_provider / region / size for a
-// standard create (no read replica / restore). Called only from ModifyPlan's
-// create branch: on update these come from prior state, so dropping an origin
-// block from an existing instance's config must not trip it.
 // requireDeclaredCredential enforces the ClickHouse-style credential rule at
 // plan time: a standard service must declare password or password_wo; a read
 // replica or point-in-time restore inherits its credential from the origin.
@@ -199,6 +195,35 @@ func requireDeclaredCredential(config models.PostgresServiceResourceModel) diag.
 	return diags
 }
 
+// warnCredentialOnReplica warns when a live replica adopted by import (no
+// read_replica_of in config — the API exposes no parent id, so the schema
+// ConflictsWith cannot fire) declares a credential: the server rejects a
+// direct password change on a replica, so an in-place rotation apply can
+// never converge. A WARNING, not an error, because the same config can be a
+// legitimate replacement into a standalone primary (e.g. a name change) —
+// that replacement's create-side plan re-runs with null prior state and the
+// credential is then required. Unknown values defer to apply.
+func warnCredentialOnReplica(config models.PostgresServiceResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if config.Password.IsUnknown() || config.PasswordWO.IsUnknown() ||
+		config.ReadReplicaOf.IsUnknown() || config.RestoreToPointInTime.IsUnknown() {
+		return diags
+	}
+	if configIsOrigin(config) || (config.Password.IsNull() && config.PasswordWO.IsNull()) {
+		return diags
+	}
+	diags.AddAttributeWarning(
+		path.Root("password"),
+		"Read replica cannot take a credential",
+		"This instance is a live read replica (is_primary is false): it inherits the primary's superuser and the server rejects a direct password change, so an in-place apply of `password` / `password_wo` will fail. Remove the credential — unless this plan replaces the instance (destroy and recreate as a standalone primary), where it is required.",
+	)
+	return diags
+}
+
+// requireStandardCreateAttributes requires cloud_provider / region / size for a
+// standard create (no read replica / restore). Called only from ModifyPlan's
+// create branch: on update these come from prior state, so dropping an origin
+// block from an existing instance's config must not trip it.
 func requireStandardCreateAttributes(config models.PostgresServiceResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	if config.ReadReplicaOf.IsUnknown() || config.RestoreToPointInTime.IsUnknown() {
@@ -480,6 +505,10 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					),
 				},
 				Validators: []validator.String{
+					// Non-empty: a known "" would count as a declared origin,
+					// waiving the plan-time credential/geometry requirements and
+					// sending the create to a malformed API path.
+					stringvalidator.LengthAtLeast(1),
 					stringvalidator.ConflictsWith(
 						path.MatchRoot("restore_to_point_in_time"),
 						path.MatchRoot("password"),
@@ -498,6 +527,9 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					"source_id": schema.StringAttribute{
 						Description: "ID of the source instance whose backup to restore from.",
 						Required:    true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
 					},
 					"restore_target": schema.StringAttribute{
 						Description: "RFC3339 timestamp to restore to (e.g. '2026-06-01T12:00:00Z'). The server restores to the closest available recovery point at or before this time.",
@@ -851,9 +883,15 @@ func (r *PostgresServiceResource) ImportState(ctx context.Context, req resource.
 // ModifyPlan handles:
 //
 //   - On create: validate the create-time attributes (cloud_provider / region /
-//     size required for a standard create) and, for a read replica / restore,
-//     fetch the source to validate any supplied attributes against it and pin
-//     the inherited values into the plan.
+//     size and a declared credential — password/password_wo — required for a
+//     standard create) and, for a read replica / restore, fetch the source to
+//     validate any supplied attributes against it and pin the inherited values
+//     into the plan. Replacements re-run this branch: Terraform Core re-plans
+//     the create side of a replace with a NULL prior state, so these checks
+//     also cover detach/ForceNew/-replace plans.
+//   - On update: require a declared credential for primaries (a live replica
+//     adopted by import is exempt — it can take no credential — but declaring
+//     one on it draws a plan-time warning, since the apply would fail).
 //   - On update: surface an out-of-band promotion (is_primary flipped while
 //     read_replica_of is still declared) as an error.
 //
@@ -896,15 +934,21 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 		return
 	}
 
-	// Primaries must declare a credential (or an origin). Scoped to known
-	// is_primary=true: a live replica adopted by import has is_primary=false
-	// with no read_replica_of in config (the API exposes no parent id) and can
-	// take no credential — requiring one would leave it no convergent config.
+	// Primaries must declare a credential (or an origin). A live replica —
+	// known is_primary=false, including one adopted by import where
+	// read_replica_of is absent because the API exposes no parent id — is
+	// exempt (it can take no credential), but declaring one on it draws a
+	// warning: the in-place rotation apply would fail. Replacement plans
+	// (detach, rename, ForceNew) are covered separately: Terraform Core
+	// re-plans the create side of a replace with a null prior state,
+	// re-running the create branch's unconditional requirement.
 	if state.IsPrimary.ValueBool() {
 		resp.Diagnostics.Append(requireDeclaredCredential(config)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
+	} else if !state.IsPrimary.IsNull() {
+		resp.Diagnostics.Append(warnCredentialOnReplica(config)...)
 	}
 
 	// A replace that recreates the instance from a (different) source — changing
