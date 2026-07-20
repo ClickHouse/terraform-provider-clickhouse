@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sort"
+	"sync/atomic"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // A horizontal create must pass the mode, the replica band, and the fixed (min == max) per-replica memory
@@ -49,5 +53,92 @@ func TestCreateService_horizontalBand(t *testing.T) {
 		if _, present := gotBody[k]; present {
 			t.Errorf("POST body unexpectedly carried vertical-only field %q for a horizontal create: %v", k, gotBody)
 		}
+	}
+}
+
+func TestListServices_HappyPath_NoFilter(t *testing.T) {
+	want := []Service{
+		{Id: "svc-1", Name: "one", Provider: "aws", Region: "us-east-1", State: "running", ClickHouseVersion: "24.5", CreatedAt: "t1"},
+		{Id: "svc-2", Name: "two", Provider: "gcp", Region: "us-central1", State: "idle", ClickHouseVersion: "24.5", CreatedAt: "t2"},
+	}
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %q; want GET", r.Method)
+		}
+		if r.URL.Path != "/organizations/org-1/services" {
+			t.Errorf("path = %q; want /organizations/org-1/services", r.URL.Path)
+		}
+		if got := r.URL.Query()["filter"]; len(got) != 0 {
+			t.Errorf("filter = %v; want none", got)
+		}
+		assertBasicAuth(t, r)
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[[]Service]{Result: want})
+	})
+
+	got, err := client.ListServices(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListServices: %v", err)
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("ListServices mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestListServices_SendsTagFilters(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		got := r.URL.Query()["filter"]
+		sort.Strings(got)
+		want := []string{"tag:Env=prod", "tag:Team=data"}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("filter params mismatch (-want +got):\n%s", diff)
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[[]Service]{Result: []Service{}})
+	})
+
+	_, err := client.ListServices(context.Background(), []string{"tag:Env=prod", "tag:Team=data"})
+	if err != nil {
+		t.Fatalf("ListServices: %v", err)
+	}
+}
+
+func TestListServices_APIError(t *testing.T) {
+	// Use a non-5xx status: doRequest retries 5xx with backoff (up to
+	// MaxElapsedTime), which would blow the test timeout. A 403 surfaces the
+	// error immediately, which is what we want to assert.
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+	})
+	if _, err := client.ListServices(context.Background(), nil); err == nil {
+		t.Fatal("expected error; got nil")
+	}
+}
+
+// GetServiceBase must fetch only the core service object with a single request —
+// no private-endpoint-config, backup, or query-endpoint enrichment calls (unlike
+// GetService).
+func TestGetServiceBase_SingleRequestNoEnrichment(t *testing.T) {
+	var calls int32
+	want := Service{Id: "svc-1", Name: "svc", Provider: "aws", Region: "us-east-1", State: "running"}
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %q; want GET", r.Method)
+		}
+		if r.URL.Path != "/organizations/org-1/services/svc-1" {
+			t.Errorf("path = %q; want /organizations/org-1/services/svc-1", r.URL.Path)
+		}
+		assertBasicAuth(t, r)
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: want})
+	})
+
+	got, err := client.GetServiceBase(context.Background(), "svc-1")
+	if err != nil {
+		t.Fatalf("GetServiceBase: %v", err)
+	}
+	if diff := cmp.Diff(&want, got); diff != "" {
+		t.Errorf("GetServiceBase mismatch (-want +got):\n%s", diff)
+	}
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("GetServiceBase made %d HTTP calls; want exactly 1 (no enrichment)", n)
 	}
 }
