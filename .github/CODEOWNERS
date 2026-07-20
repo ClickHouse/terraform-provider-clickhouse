@@ -11,3 +11,4 @@
 # team even though those files live inside the clickhouse service group.
 **/clickpipe* @ClickHouse/clickpipes
 **/postgres* @ClickHouse/clickgres
+**/clickstack* @ClickHouse/clickstack

@@ -40,9 +40,15 @@ enable_git_hooks: ## Add githooks for code validation before commit, as symlink 
 
 docs: ensure-tfplugindocs
 	$(TFPLUGINDOCS) generate --provider-name=clickhouse
+	go run ./internal/tools/docsubcategory
 
 docs-alpha: ensure-tfplugindocs
 	$(TFPLUGINDOCS) generate --provider-name=clickhouse --additional-go-build-args="-tags alpha"
+	go run -tags alpha ./internal/tools/docsubcategory
+
+.PHONY: docs-validate
+docs-validate: ensure-tfplugindocs ## Validate generated docs and pin subcategories to the registry's group names
+	$(TFPLUGINDOCS) validate --provider-name=clickhouse --allowed-resource-subcategories-file=allowed-subcategories.txt
 
 fmt: ensure-golangci-lint
 	go fmt ./...
