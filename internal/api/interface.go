@@ -9,6 +9,8 @@ type Client interface {
 	GetApiKeyID(ctx context.Context, name *string) (*ApiKey, error)
 
 	GetService(ctx context.Context, serviceId string) (*Service, error)
+	GetServiceBase(ctx context.Context, serviceId string) (*Service, error)
+	ListServices(ctx context.Context, filters []string) ([]Service, error)
 	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
 	CreateService(ctx context.Context, s Service) (*Service, string, error)
 	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error

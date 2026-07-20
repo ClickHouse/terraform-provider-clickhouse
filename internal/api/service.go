@@ -25,7 +25,11 @@ type ServiceBody struct {
 }
 
 // GetService - Returns service by ID
-func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service, error) {
+// GetServiceBase fetches only the core service object (GET /services/{id}). It
+// does not make the additional sub-resource calls GetService makes (private
+// endpoint config, backup configuration, query endpoints). Use it when those
+// enriched fields are not needed.
+func (c *ClientImpl) GetServiceBase(ctx context.Context, serviceId string) (*Service, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, ""), nil)
 	if err != nil {
 		return nil, err
@@ -42,6 +46,14 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 	}
 
 	service := serviceResponse.Result
+	return &service, nil
+}
+
+func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service, error) {
+	service, err := c.GetServiceBase(ctx, serviceId)
+	if err != nil {
+		return nil, err
+	}
 
 	endpointConfigResponse, err := c.GetServicePrivateEndpointConfig(ctx, serviceId)
 	if err != nil {
@@ -67,7 +79,34 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 
 	service.QueryAPIEndpoints = queryEndpoints
 
-	return &service, nil
+	return service, nil
+}
+
+// ListServices - Returns all services in the organization, optionally
+// narrowed by repeated `filter` query params (e.g. tag filters).
+func (c *ClientImpl) ListServices(ctx context.Context, filters []string) ([]Service, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getOrgPath("/services"), nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(filters) > 0 {
+		q := req.URL.Query()
+		for _, f := range filters {
+			q.Add("filter", f)
+		}
+		req.URL.RawQuery = q.Encode()
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := ResponseWithResult[[]Service]{}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal services list: %w", err)
+	}
+	return resp.Result, nil
 }
 
 func (c *ClientImpl) CreateService(ctx context.Context, s Service) (*Service, string, error) {
