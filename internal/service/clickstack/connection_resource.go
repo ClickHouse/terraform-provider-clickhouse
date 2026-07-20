@@ -53,7 +53,6 @@ func (r *connectionResource) Metadata(_ context.Context, req resource.MetadataRe
 }
 
 func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickHouse connection in ClickStack. Connections hold the " +
 			"credentials and endpoint used by sources to query ClickHouse.",
@@ -132,8 +131,11 @@ func (r *connectionResource) Configure(_ context.Context, req resource.Configure
 	r.client = providerData.ClickStack
 }
 
-func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *connectionResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	utils.AlphaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
+}
+
+func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan connectionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -160,6 +162,7 @@ func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequ
 }
 
 func (r *connectionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
 	var state connectionResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

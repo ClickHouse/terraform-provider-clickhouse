@@ -52,7 +52,6 @@ func (r *dashboardResource) Metadata(_ context.Context, req resource.MetadataReq
 }
 
 func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickStack dashboard from a JSON document (the v2 API " +
 			"dashboard body: name, tiles, tags, filters, savedQuery, containers). The JSON is " +
@@ -120,7 +119,6 @@ func (r *dashboardResource) Configure(_ context.Context, req resource.ConfigureR
 }
 
 func (r *dashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
 	var plan dashboardResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -152,6 +150,7 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 }
 
 func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
 	var state dashboardResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -288,6 +287,7 @@ func parseDashboardJSON(s string) error {
 }
 
 func (r *dashboardResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
 	var cfg dashboardResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {

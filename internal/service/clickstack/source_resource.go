@@ -147,7 +147,6 @@ func optStr(desc string) schema.StringAttribute {
 }
 
 func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickStack source (v2 sources API). A source ties a ClickHouse " +
 			"connection to a table and describes how to read one kind of data (log, trace, metric, " +
@@ -343,8 +342,11 @@ func (r *sourceResource) Configure(_ context.Context, req resource.ConfigureRequ
 	r.client = providerData.ClickStack
 }
 
-func (r *sourceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *sourceResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	utils.AlphaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
+}
+
+func (r *sourceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan sourceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -364,6 +366,7 @@ func (r *sourceResource) Create(ctx context.Context, req resource.CreateRequest,
 }
 
 func (r *sourceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
 	var state sourceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

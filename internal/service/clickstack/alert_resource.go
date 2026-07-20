@@ -101,7 +101,6 @@ func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest
 }
 
 func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickStack alert that evaluates a saved search on a schedule and " +
 			"notifies through a channel when a threshold is crossed.\n\n" +
@@ -221,6 +220,7 @@ func (r *alertResource) Configure(_ context.Context, req resource.ConfigureReque
 // short-circuits when an operand is null or unknown, mirroring the guard in the
 // dashboard resource's ValidateConfig.
 func (r *alertResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
 	var cfg alertResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {
@@ -312,7 +312,6 @@ func (m *alertResourceModel) validate() diag.Diagnostics {
 }
 
 func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
 	var plan alertResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -331,6 +330,7 @@ func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 func (r *alertResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
 	var state alertResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

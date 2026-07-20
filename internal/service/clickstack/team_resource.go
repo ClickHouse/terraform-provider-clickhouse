@@ -49,7 +49,6 @@ func (r *teamResource) Metadata(_ context.Context, req resource.MetadataRequest,
 }
 
 func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_team", &resp.Diagnostics)
 	resp.Schema = schema.Schema{
 		Description: "Manages settings for an existing ClickStack team. The team is provisioned " +
 			"out-of-band; this resource adopts it on create and manages its settings. Destroying " +
@@ -101,8 +100,11 @@ func (r *teamResource) Configure(_ context.Context, req resource.ConfigureReques
 	r.client = providerData.ClickStack
 }
 
-func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *teamResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	utils.AlphaWarning("clickhouse_clickstack_team", &resp.Diagnostics)
+}
+
+func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan teamResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -131,6 +133,7 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 }
 
 func (r *teamResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_team", &resp.Diagnostics)
 	var state teamResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

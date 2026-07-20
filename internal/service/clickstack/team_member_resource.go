@@ -61,7 +61,6 @@ func (r *teamMemberResource) Metadata(_ context.Context, req resource.MetadataRe
 }
 
 func (r *teamMemberResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
 	resp.Schema = schema.Schema{
 		Description: "Manages a team member and their RBAC role. On create the member is invited: " +
 			"existing accounts are assigned the role immediately (`status` = `active`), otherwise a " +
@@ -144,8 +143,11 @@ func (r *teamMemberResource) Configure(_ context.Context, req resource.Configure
 	r.client = providerData.ClickStack
 }
 
-func (r *teamMemberResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *teamMemberResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	utils.AlphaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
+}
+
+func (r *teamMemberResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan teamMemberResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -169,6 +171,7 @@ func (r *teamMemberResource) Create(ctx context.Context, req resource.CreateRequ
 }
 
 func (r *teamMemberResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
 	var state teamMemberResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
