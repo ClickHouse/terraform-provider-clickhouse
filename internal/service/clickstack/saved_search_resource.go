@@ -219,7 +219,6 @@ func (r *savedSearchResource) Create(ctx context.Context, req resource.CreateReq
 }
 
 func (r *savedSearchResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_saved_search", &resp.Diagnostics)
 	var state savedSearchResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

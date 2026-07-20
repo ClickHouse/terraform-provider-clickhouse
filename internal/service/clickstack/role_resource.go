@@ -206,7 +206,6 @@ func (r *roleResource) Create(ctx context.Context, req resource.CreateRequest, r
 }
 
 func (r *roleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_role", &resp.Diagnostics)
 	var state roleResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

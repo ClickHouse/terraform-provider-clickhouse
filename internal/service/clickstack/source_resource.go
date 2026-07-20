@@ -366,7 +366,6 @@ func (r *sourceResource) Create(ctx context.Context, req resource.CreateRequest,
 }
 
 func (r *sourceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
 	var state sourceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

@@ -150,7 +150,6 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 }
 
 func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
 	var state dashboardResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

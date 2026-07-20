@@ -250,7 +250,6 @@ func (r *webhookResource) Create(ctx context.Context, req resource.CreateRequest
 }
 
 func (r *webhookResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
 	var state webhookResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

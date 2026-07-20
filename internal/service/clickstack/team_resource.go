@@ -133,7 +133,6 @@ func (r *teamResource) Create(ctx context.Context, req resource.CreateRequest, r
 }
 
 func (r *teamResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_team", &resp.Diagnostics)
 	var state teamResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

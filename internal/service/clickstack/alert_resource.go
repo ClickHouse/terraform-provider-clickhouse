@@ -330,7 +330,6 @@ func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 func (r *alertResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
 	var state alertResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

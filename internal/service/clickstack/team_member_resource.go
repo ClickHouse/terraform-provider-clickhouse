@@ -171,7 +171,6 @@ func (r *teamMemberResource) Create(ctx context.Context, req resource.CreateRequ
 }
 
 func (r *teamMemberResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
 	var state teamMemberResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

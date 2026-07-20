@@ -162,7 +162,6 @@ func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequ
 }
 
 func (r *connectionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
 	var state connectionResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
