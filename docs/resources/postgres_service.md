@@ -65,22 +65,22 @@ description: |-
   restart; the provider surfaces the server's restart-required hint as a
   warning during apply. Restart is not exposed by this resource — restart
   out-of-band.
-  Passwords
-  The superuser password can be managed two ways:
-  Omit password — the server generates one, captured into (sensitive)
-  state as password.password — a value you supply; changing it rotates the password
-  (PATCH /password). Stored in (sensitive) state.
-  The password attribute is always hydrated from the server (which echoes
-  it on every GET), so it always reflects the live password and an out-of-band
-  rotation is reconciled on the next refresh.
-  **The password is stored in state.** Both the `password` attribute and the
-  `connection_string` (which embeds the credential in the URI) are stored in the
-  state file in plaintext. They're marked `Sensitive`, but there is no way to
-  suppress them — ensure your state backend is encrypted at rest.
-  Rules: password requires ≥12 chars with at least one lowercase, one
-  uppercase, and one digit (enforced at plan time). Rotation is a PATCH
-  /password — it does not resize or restart the instance, and there is a brief
-  (~1–2s) server-side propagation window before a new password becomes active.
+  Credentials
+  Credentials are config-owned, matching clickhouse_service: the
+  ClickHouse Cloud API does not return the Postgres superuser password (or a
+  password-bearing connection string), so Terraform manages exactly the
+  credential you declare and never reads one back.
+  A standard service must declare password or password_wo (write-only,
+  never stored in state — requires Terraform >= 1.11, and increment
+  password_wo_version to rotate).A read replica must not declare either — it inherits the primary's
+  superuser. Its password is not tracked in state.A point-in-time restore may declare one (rotated in after the restore);
+  if omitted, the restored service keeps the source backup's password,
+  untracked by Terraform.Rotation: change password, or bump password_wo_version, and apply.
+  Out-of-band rotations (UI/API) are invisible to Terraform — the next
+  Terraform-driven rotation re-asserts the declared value.Import cannot recover the live password. After terraform import, the
+  first apply rotates to the configured credential.Connection details: compose the URI from hostname, port, username,
+  and your declared password, e.g.
+  postgres://${username}:${password}@${hostname}:${port}/postgres?sslmode=require.
   Read replicas and point-in-time restore
   Both create the instance from a source, so the create-time attributes that
   define where it runs and how big it is are inherited from the source — omit
@@ -97,7 +97,7 @@ description: |-
   are normal in-place updates. A live read replica cannot — see below.)
   read_replica_of — set to a primary's ID to create a streaming read
   replica. Mutually exclusive with restore_to_point_in_time and with
-  password (a replica inherits the primary's superuser).
+  password/password_wo (a replica inherits the primary's superuser).
   Changing or removing it destroys and recreates the instance as a
   standalone primary — a live replica can't be converted in place (see
   "Out-of-band changes" for the promotion exception).
@@ -122,8 +122,10 @@ description: |-
   }
   
   Out-of-band changes
-  Password rotated externally: the next terraform refresh syncs
-  the new value into state from the GET response.Replica promoted externally: the next refresh surfaces is_primary
+  Password rotated externally: invisible to Terraform — the API does not
+  return credentials, so refresh cannot detect it. The next Terraform-driven
+  rotation (changing password or bumping password_wo_version) re-asserts
+  the declared value.Replica promoted externally: the next refresh surfaces is_primary
   flipping true, and the plan then errors ("read replica has been promoted
   to a primary"), directing you to remove read_replica_of from the
   configuration. Doing so reconciles the instance in place (no destroy),
@@ -145,11 +147,11 @@ description: |-
   cloud_provider, ha_type, and postgres_version attributes
   remain client-side validated because they churn rarely.name is immutable post-create. The server's PATCH body has no
   name field, so changing it forces destroy-and-recreate via
-  RequiresReplace.The connection string and password are visible in plan output even
-  though both are marked Sensitive. The Terraform CLI renders
-  Sensitive attributes as (sensitive value) in human-readable
-  output but the underlying state file is plaintext — ensure your
-  state backend is configured for at-rest encryption.
+  RequiresReplace.password is marked Sensitive, so the Terraform CLI renders it as
+  (sensitive value) in human-readable output, but the underlying
+  state file is plaintext — ensure your state backend is configured
+  for at-rest encryption, or use password_wo to keep the credential
+  out of state entirely.
 ---
 
 # clickhouse_postgres_service (Resource)
@@ -241,28 +243,29 @@ pgbouncer_config = {
   warning during apply. Restart is not exposed by this resource — restart
   out-of-band.
 
-## Passwords
+## Credentials
 
-The superuser password can be managed two ways:
+Credentials are **config-owned**, matching `clickhouse_service`: the
+ClickHouse Cloud API does not return the Postgres superuser password (or a
+password-bearing connection string), so Terraform manages exactly the
+credential you declare and never reads one back.
 
-- **Omit `password`** — the server generates one, captured into (sensitive)
-  state as `password`.
-- **`password`** — a value you supply; changing it rotates the password
-  (`PATCH /password`). Stored in (sensitive) state.
-
-The `password` attribute is **always hydrated from the server** (which echoes
-it on every `GET`), so it always reflects the live password and an out-of-band
-rotation is reconciled on the next refresh.
-
-> **The password is stored in state.** Both the `password` attribute and the
-> `connection_string` (which embeds the credential in the URI) are stored in the
-> state file in plaintext. They're marked `Sensitive`, but there is no way to
-> suppress them — ensure your state backend is encrypted at rest.
-
-Rules: `password` requires **≥12 chars with at least one lowercase, one
-uppercase, and one digit** (enforced at plan time). Rotation is a `PATCH
-/password` — it does not resize or restart the instance, and there is a brief
-(~1–2s) server-side propagation window before a new password becomes active.
+- A **standard service** must declare `password` or `password_wo` (write-only,
+  never stored in state — requires Terraform >= 1.11, and increment
+  `password_wo_version` to rotate).
+- A **read replica** must not declare either — it inherits the primary's
+  superuser. Its password is not tracked in state.
+- A **point-in-time restore** may declare one (rotated in after the restore);
+  if omitted, the restored service keeps the source backup's password,
+  untracked by Terraform.
+- **Rotation:** change `password`, or bump `password_wo_version`, and apply.
+  Out-of-band rotations (UI/API) are invisible to Terraform — the next
+  Terraform-driven rotation re-asserts the declared value.
+- **Import** cannot recover the live password. After `terraform import`, the
+  first apply rotates to the configured credential.
+- **Connection details:** compose the URI from `hostname`, `port`, `username`,
+  and your declared password, e.g.
+  `postgres://${username}:${password}@${hostname}:${port}/postgres?sslmode=require`.
 
 ## Read replicas and point-in-time restore
 
@@ -285,7 +288,7 @@ are normal in-place updates. A **live read replica cannot** — see below.)
 
 - **`read_replica_of`** — set to a primary's ID to create a streaming read
   replica. Mutually exclusive with `restore_to_point_in_time` and with
-  `password` (a replica inherits the primary's superuser).
+  `password`/`password_wo` (a replica inherits the primary's superuser).
   Changing or removing it **destroys and recreates** the instance as a
   standalone primary — a live replica can't be converted in place (see
   "Out-of-band changes" for the promotion exception).
@@ -314,8 +317,10 @@ restore_to_point_in_time = {
 
 ## Out-of-band changes
 
-- **Password rotated externally**: the next `terraform refresh` syncs
-  the new value into state from the GET response.
+- **Password rotated externally**: invisible to Terraform — the API does not
+  return credentials, so refresh cannot detect it. The next Terraform-driven
+  rotation (changing `password` or bumping `password_wo_version`) re-asserts
+  the declared value.
 - **Replica promoted externally**: the next refresh surfaces `is_primary`
   flipping true, and the plan then **errors** ("read replica has been promoted
   to a primary"), directing you to remove `read_replica_of` from the
@@ -344,11 +349,11 @@ UI, or CLI directly.
 - `name` is immutable post-create. The server's PATCH body has no
   `name` field, so changing it forces destroy-and-recreate via
   `RequiresReplace`.
-- The connection string and password are visible in plan output even
-  though both are marked `Sensitive`. The Terraform CLI renders
-  `Sensitive` attributes as `(sensitive value)` in human-readable
-  output but the underlying state file is plaintext — ensure your
-  state backend is configured for at-rest encryption.
+- `password` is marked `Sensitive`, so the Terraform CLI renders it as
+  `(sensitive value)` in human-readable output, but the underlying
+  state file is plaintext — ensure your state backend is configured
+  for at-rest encryption, or use `password_wo` to keep the credential
+  out of state entirely.
 
 ## Example Usage
 
@@ -371,8 +376,10 @@ resource "clickhouse_postgres_service" "example" {
     team        = "data"
   }
 
-  # The password is server-generated by default. To manage it yourself, set
-  # `password` (stored in sensitive state).
+  # A standard service must declare a credential: `password` (stored in
+  # sensitive state) or `password_wo` + `password_wo_version` (write-only,
+  # never stored in state).
+  password = "Example123Secret"
 }
 ```
 
@@ -385,13 +392,17 @@ resource "clickhouse_postgres_service" "example" {
 
 ### Optional
 
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
 - `cloud_provider` (String) Cloud provider hosting the instance. Currently only 'aws' is supported. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
 - `ha_type` (String) High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = "none"' explicitly. Omit for a read replica or point-in-time restore (inherited from the source).
-- `password` (String, Sensitive) Superuser password. Optional: set it to manage the password in Terraform, or omit it and the server generates one. Computed and refreshed from each GET (the server echoes it), so it always reflects the live password and an out-of-band rotation is reconciled on the next refresh. Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Stored in (sensitive) state.
+- `password` (String, Sensitive) Superuser password. Config-owned: the API does not return the password, so Terraform manages exactly the value declared here and never reads it back. One of `password` or `password_wo` is required for a standard service; forbidden for a read replica (it inherits the primary's superuser); optional for a point-in-time restore (omit to keep the source's password, which Terraform then does not track). Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Stored in (sensitive) state — prefer `password_wo` to keep it out of state. `terraform import` cannot recover the live password — the configured value is rotated in on the first apply after import.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Superuser password, write-only: applied to the service but never persisted to Terraform state (requires Terraform >= 1.11). Preferred over `password`. Requires `password_wo_version`; increment the version to rotate to the current `password_wo` value. Same complexity rules as `password`. Forbidden for a read replica.
+- `password_wo_version` (Number) Version number for `password_wo`. Increment to trigger a password rotation using the current `password_wo` value.
 - `pg_config` (Map of String) Postgres server parameters (pgConfig) as a key-value map. Declared parameters are the desired state — every apply sends the full map via POST /config (full replacement), so removing a key from the map removes it server-side. Set `pg_config = {}` to clear all parameters; omit the attribute to preserve the prior state (read replicas inherit the primary's parameters, and the server may surface values the configuration never declared — so it is Optional+Computed like tags). Out-of-band changes are reverted on the next apply. Some parameters require a database restart; the provider surfaces the server's restart-required hint as a warning (restart out-of-band).
 - `pgbouncer_config` (Map of String) PgBouncer connection-pooler parameters (pgBouncerConfig) as a key-value map. Same Optional+Computed semantics as pg_config; set `pgbouncer_config = {}` to clear.
 - `postgres_version` (String) Major Postgres version (e.g. '18'). The server picks the patch release within that major. Changing the major triggers destroy-and-recreate. Omit for a read replica or point-in-time restore (inherited from the source).
-- `read_replica_of` (String) ID of the primary instance to replicate. When set, this instance is created as a read replica (streaming replication) of that primary. Immutable for a live replica: changing or removing it destroys and recreates the instance as a standalone primary. The one exception is an out-of-band promotion — if you promote the replica via the API/UI (is_primary becomes true), changing or removing read_replica_of then reconciles state in place without destroying the promoted primary. Mutually exclusive with restore_to_point_in_time and with password (a replica inherits the primary's superuser).
+- `read_replica_of` (String) ID of the primary instance to replicate. When set, this instance is created as a read replica (streaming replication) of that primary. Immutable for a live replica: changing or removing it destroys and recreates the instance as a standalone primary. The one exception is an out-of-band promotion — if you promote the replica via the API/UI (is_primary becomes true), changing or removing read_replica_of then reconciles state in place without destroying the promoted primary. Mutually exclusive with restore_to_point_in_time and with password/password_wo (a replica inherits the primary's superuser). After an out-of-band promotion, removing read_replica_of requires declaring password or password_wo, which rotates the promoted primary's superuser password.
 - `region` (String) Cloud region (e.g. 'us-east-1'). No client-side validation; the server rejects unsupported regions. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
 - `restore_to_point_in_time` (Attributes) Create this instance by restoring another Postgres instance's backup to a point in time. The whole block is create-time only: changing source_id / restore_target (re-restore to a new point) OR removing it both destroy and recreate the instance. The restored instance's name is this resource's top-level `name` and it is independent of its source. cloud_provider / region / postgres_version are inherited from the source — omit them, or set them to match (a mismatch is a plan-time error); size and ha_type must be omitted (the restored instance comes up at the backup's size and a server-assigned HA mode). Mutually exclusive with read_replica_of. (see [below for nested schema](#nestedatt--restore_to_point_in_time))
 - `size` (String) Instance size (VM SKU). See https://clickhouse.com/docs/cloud/managed-postgres/scaling for the supported instance families. No client-side enum; the server rejects unsupported sizes with HTTP 400 at apply time. Resizable in place. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
@@ -399,7 +410,6 @@ resource "clickhouse_postgres_service" "example" {
 
 ### Read-Only
 
-- `connection_string` (String, Sensitive) Full connection URI embedding the username and the password. Marked sensitive; the secret-redaction layer also covers it in TF_LOG=DEBUG output. Plan stability is managed in ModifyPlan: pinned to the prior value on unrelated updates, marked unknown when a password rotation is planned (it embeds the password).
 - `created_at` (String) RFC3339 timestamp when the service was created.
 - `hostname` (String) Network hostname for client connections.
 - `id` (String) Unique identifier for the Postgres service. Assigned by ClickHouse Cloud.
@@ -425,7 +435,7 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 ```shell
 #!/bin/bash
 # Managed Postgres services can be imported by specifying the service ID.
-# The password is recovered on import (the server echoes it on GET) and stored
-# in state.
+# terraform import cannot recover the live password; after import, the first
+# apply rotates to the configured password / password_wo.
 terraform import clickhouse_postgres_service.example xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```

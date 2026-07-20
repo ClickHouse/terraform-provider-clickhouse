@@ -8,9 +8,9 @@ description: |-
   services in the organization. Returns a services list of summary objects
   (id, name, cloud_provider, region, postgres_version, size,
   ha_type, state, created_at, is_primary).
-  The list endpoint does not return connection_string, password, or
-  pg_config; use the clickhouse_postgres_service data source (by ID) for the
-  full set of attributes.
+  The list endpoint returns summary fields only; look up a single service by ID
+  (clickhouse_postgres_service) for pg_config / pgbouncer_config.
+  Credentials are never returned by the API.
   Example
   
   data "clickhouse_postgres_services" "all" {}
@@ -29,9 +29,9 @@ services in the organization. Returns a `services` list of summary objects
 (`id`, `name`, `cloud_provider`, `region`, `postgres_version`, `size`,
 `ha_type`, `state`, `created_at`, `is_primary`).
 
-The list endpoint does not return `connection_string`, `password`, or
-`pg_config`; use the `clickhouse_postgres_service` data source (by ID) for the
-full set of attributes.
+The list endpoint returns summary fields only; look up a single service by ID
+(`clickhouse_postgres_service`) for `pg_config` / `pgbouncer_config`.
+Credentials are never returned by the API.
 
 ## Example
 

@@ -9,7 +9,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
@@ -65,21 +68,20 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				Tags:             []api.Tag{{Key: "team", Value: "billing"}},
 			},
 			want: models.PostgresServiceResourceModel{
-				ID:               types.StringValue("pg-1"),
-				Name:             types.StringValue("primary-1"),
-				CloudProvider:    types.StringValue("aws"),
-				Region:           types.StringValue("us-east-1"),
-				PostgresVersion:  types.StringValue("18"),
-				Size:             types.StringValue("r6gd.large"),
-				HaType:           types.StringValue("async"),
-				State:            types.StringValue(api.PostgresStateRunning),
-				CreatedAt:        types.StringValue("2026-05-27T00:00:00Z"),
-				IsPrimary:        types.BoolValue(true),
-				Hostname:         types.StringValue("primary-1.example.com"),
-				Port:             types.Int64Value(postgresDefaultPort),
-				Username:         types.StringValue("default"),
-				ConnectionString: types.StringValue("postgresql://default:secret@primary-1.example.com:5432/postgres"),
-				Tags:             mapTags("team", "billing"),
+				ID:              types.StringValue("pg-1"),
+				Name:            types.StringValue("primary-1"),
+				CloudProvider:   types.StringValue("aws"),
+				Region:          types.StringValue("us-east-1"),
+				PostgresVersion: types.StringValue("18"),
+				Size:            types.StringValue("r6gd.large"),
+				HaType:          types.StringValue("async"),
+				State:           types.StringValue(api.PostgresStateRunning),
+				CreatedAt:       types.StringValue("2026-05-27T00:00:00Z"),
+				IsPrimary:       types.BoolValue(true),
+				Hostname:        types.StringValue("primary-1.example.com"),
+				Port:            types.Int64Value(postgresDefaultPort),
+				Username:        types.StringValue("default"),
+				Tags:            mapTags("team", "billing"),
 			},
 		},
 		{
@@ -91,20 +93,19 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				IsPrimary: true,
 			},
 			want: models.PostgresServiceResourceModel{
-				ID:               types.StringValue("pg-2"),
-				Name:             types.StringValue("n"),
-				CloudProvider:    types.StringValue("aws"),
-				Region:           types.StringValue("us-east-1"),
-				Size:             types.StringValue("c6gd.large"),
-				HaType:           types.StringValue("none"),
-				State:            types.StringValue(api.PostgresStateRunning),
-				CreatedAt:        types.StringValue("2026-05-27T00:00:00Z"),
-				IsPrimary:        types.BoolValue(true),
-				Hostname:         types.StringNull(),
-				Port:             types.Int64Value(postgresDefaultPort),
-				Username:         types.StringNull(),
-				ConnectionString: types.StringNull(),
-				Tags:             mapTags(),
+				ID:            types.StringValue("pg-2"),
+				Name:          types.StringValue("n"),
+				CloudProvider: types.StringValue("aws"),
+				Region:        types.StringValue("us-east-1"),
+				Size:          types.StringValue("c6gd.large"),
+				HaType:        types.StringValue("none"),
+				State:         types.StringValue(api.PostgresStateRunning),
+				CreatedAt:     types.StringValue("2026-05-27T00:00:00Z"),
+				IsPrimary:     types.BoolValue(true),
+				Hostname:      types.StringNull(),
+				Port:          types.Int64Value(postgresDefaultPort),
+				Username:      types.StringNull(),
+				Tags:          mapTags(),
 			},
 		},
 		{
@@ -116,20 +117,19 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 				IsPrimary: false,
 			},
 			want: models.PostgresServiceResourceModel{
-				ID:               types.StringValue("pg-3"),
-				Name:             types.StringValue("n"),
-				CloudProvider:    types.StringValue("aws"),
-				Region:           types.StringValue("us-east-1"),
-				Size:             types.StringValue("c6gd.large"),
-				HaType:           types.StringValue("none"),
-				State:            types.StringValue(api.PostgresStateRunning),
-				CreatedAt:        types.StringValue("2026-05-27T00:00:00Z"),
-				IsPrimary:        types.BoolValue(false),
-				Hostname:         types.StringNull(),
-				Port:             types.Int64Value(postgresDefaultPort),
-				Username:         types.StringNull(),
-				ConnectionString: types.StringNull(),
-				Tags:             mapTags(),
+				ID:            types.StringValue("pg-3"),
+				Name:          types.StringValue("n"),
+				CloudProvider: types.StringValue("aws"),
+				Region:        types.StringValue("us-east-1"),
+				Size:          types.StringValue("c6gd.large"),
+				HaType:        types.StringValue("none"),
+				State:         types.StringValue(api.PostgresStateRunning),
+				CreatedAt:     types.StringValue("2026-05-27T00:00:00Z"),
+				IsPrimary:     types.BoolValue(false),
+				Hostname:      types.StringNull(),
+				Port:          types.Int64Value(postgresDefaultPort),
+				Username:      types.StringNull(),
+				Tags:          mapTags(),
 			},
 		},
 	}
@@ -151,9 +151,26 @@ func TestPostgresResource_syncPostgresState(t *testing.T) {
 func TestPostgresResource_syncPostgresState_password(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("server echoes password: hydrate from response", func(t *testing.T) {
-		// Import case: state has no password yet; GET returns the credential
-		// so the resource can recover it without re-running Create.
+	t.Run("server echo is ignored: password stays config-owned", func(t *testing.T) {
+		// Config-owned contract: the credential-redaction flag means GET is not
+		// guaranteed to return the password, so the resource must never source
+		// it from the server — even when a (pre-flag) server does echo one.
+		const prior = "config-owned-secret"
+		pre := models.PostgresServiceResourceModel{Password: types.StringValue(prior)}
+		pg := &api.Postgres{
+			Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
+			Size: "c6gd.large", State: api.PostgresStateRunning, IsPrimary: true,
+			Password: "server-echoed-secret",
+		}
+		if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if pre.Password.ValueString() != prior {
+			t.Errorf("Password overwritten from server response: got %q want %q", pre.Password.ValueString(), prior)
+		}
+	})
+
+	t.Run("no configured password: stays null regardless of server response", func(t *testing.T) {
 		var pre models.PostgresServiceResourceModel
 		pg := &api.Postgres{
 			Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
@@ -163,25 +180,142 @@ func TestPostgresResource_syncPostgresState_password(t *testing.T) {
 		if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
 			t.Fatalf("unexpected diagnostics: %v", diags)
 		}
-		if pre.Password.ValueString() != "server-echoed-secret" {
-			t.Errorf("Password not hydrated from response: got %q", pre.Password.ValueString())
+		if !pre.Password.IsNull() {
+			t.Errorf("Password should remain null when not configured: got %q", pre.Password.ValueString())
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Schema — credential attribute shape
+// ---------------------------------------------------------------------------
+
+func TestPostgresSchema_passwordAttributes(t *testing.T) {
+	r := &PostgresServiceResource{}
+	resp := resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, &resp)
+
+	pw, ok := resp.Schema.Attributes["password"].(schema.StringAttribute)
+	if !ok || !pw.Optional || pw.Computed || !pw.Sensitive {
+		t.Errorf("password must be Optional+Sensitive and NOT Computed: %+v", pw)
+	}
+	wo, ok := resp.Schema.Attributes["password_wo"].(schema.StringAttribute)
+	if !ok || !wo.Optional || !wo.Sensitive || !wo.WriteOnly {
+		t.Errorf("password_wo must be Optional+Sensitive+WriteOnly: %+v", wo)
+	}
+	if _, ok := resp.Schema.Attributes["password_wo_version"].(schema.Int64Attribute); !ok {
+		t.Errorf("password_wo_version must be an Int64Attribute")
+	}
+	// The v0 state upgrader is keyed on the schema version; a revert to 0
+	// would silently skip upgrades and fail decoding v0 states.
+	if resp.Schema.Version != 1 {
+		t.Errorf("schema Version must be 1: got %d", resp.Schema.Version)
+	}
+	if _, exists := resp.Schema.Attributes["connection_string"]; exists {
+		t.Errorf("connection_string must not exist in schema v1")
+	}
+}
+
+// gateModel builds a fully-populated current-schema model for ModifyPlan
+// tests; every field must be a valid framework value for tfsdk encoding.
+func gateModel(primary bool) models.PostgresServiceResourceModel {
+	return models.PostgresServiceResourceModel{
+		ID:                types.StringValue("pg-1"),
+		Name:              types.StringValue("n"),
+		CloudProvider:     types.StringValue("aws"),
+		Region:            types.StringValue("us-east-1"),
+		PostgresVersion:   types.StringValue("18"),
+		Size:              types.StringValue("m6gd.large"),
+		HaType:            types.StringValue("none"),
+		Tags:              mapTags(),
+		PgConfig:          mapTags(),
+		PgBouncerConfig:   mapTags(),
+		State:             types.StringValue("running"),
+		CreatedAt:         types.StringValue("2026-05-27T00:00:00Z"),
+		IsPrimary:         types.BoolValue(primary),
+		Hostname:          types.StringValue("h.example.com"),
+		Port:              types.Int64Value(5432),
+		Username:          types.StringValue("postgres"),
+		Password:          types.StringNull(),
+		PasswordWO:        types.StringNull(),
+		PasswordWOVersion: types.Int64Null(),
+		ReadReplicaOf:     types.StringNull(),
+		RestoreToPointInTime: types.ObjectNull(map[string]attr.Type{
+			"source_id":      types.StringType,
+			"restore_target": types.StringType,
+		}),
+	}
+}
+
+// TestPostgresModifyPlan_updateCredentialGate exercises the update-branch
+// gate itself (not just the requireDeclaredCredential helper): primaries
+// must declare a credential; a live replica adopted by import is exempt but
+// draws a warning when one is declared.
+func TestPostgresModifyPlan_updateCredentialGate(t *testing.T) {
+	ctx := context.Background()
+	r := &PostgresServiceResource{}
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("schema: %v", schemaResp.Diagnostics)
+	}
+	sch := schemaResp.Schema
+
+	mk := func(m models.PostgresServiceResourceModel) tfsdk.State {
+		s := tfsdk.State{Schema: sch}
+		if diags := s.Set(ctx, m); diags.HasError() {
+			t.Fatalf("encoding model: %v", diags)
+		}
+		return s
+	}
+	run := func(state, plan, config models.PostgresServiceResourceModel) *resource.ModifyPlanResponse {
+		req := resource.ModifyPlanRequest{
+			State:  mk(state),
+			Plan:   tfsdk.Plan{Schema: sch, Raw: mk(plan).Raw},
+			Config: tfsdk.Config{Schema: sch, Raw: mk(config).Raw},
+		}
+		resp := &resource.ModifyPlanResponse{Plan: req.Plan}
+		r.ModifyPlan(ctx, req, resp)
+		return resp
+	}
+
+	t.Run("primary without credential: plan error", func(t *testing.T) {
+		resp := run(gateModel(true), gateModel(true), gateModel(true))
+		if resp.Diagnostics.ErrorsCount() != 1 {
+			t.Fatalf("want 1 error, got %d: %v", resp.Diagnostics.ErrorsCount(), resp.Diagnostics)
+		}
+		if !strings.Contains(resp.Diagnostics.Errors()[0].Summary(), "Missing credential") {
+			t.Errorf("unexpected error: %v", resp.Diagnostics.Errors()[0])
 		}
 	})
 
-	t.Run("server omits password: preserve prior state", func(t *testing.T) {
-		// If the server ever stops echoing on GET, the Create-time captured
-		// value must survive. Skip-when-empty guards this path.
-		const prior = "prior-state-secret"
-		pre := models.PostgresServiceResourceModel{Password: types.StringValue(prior)}
-		pg := &api.Postgres{
-			Id: "pg-x", Name: "n", Provider: "aws", Region: "us-east-1",
-			Size: "c6gd.large", State: api.PostgresStateRunning, IsPrimary: true,
+	t.Run("primary with password: clean", func(t *testing.T) {
+		withPw := gateModel(true)
+		withPw.Password = types.StringValue("ValidPass1234x")
+		resp := run(withPw, withPw, withPw)
+		if resp.Diagnostics.ErrorsCount() != 0 || resp.Diagnostics.WarningsCount() != 0 {
+			t.Errorf("want clean plan, got %v", resp.Diagnostics)
 		}
-		if diags := syncPostgresState(ctx, pg, &pre); diags.HasError() {
-			t.Fatalf("unexpected diagnostics: %v", diags)
+	})
+
+	t.Run("imported replica, bare config: exempt and clean", func(t *testing.T) {
+		resp := run(gateModel(false), gateModel(false), gateModel(false))
+		if resp.Diagnostics.ErrorsCount() != 0 || resp.Diagnostics.WarningsCount() != 0 {
+			t.Errorf("want clean plan, got %v", resp.Diagnostics)
 		}
-		if pre.Password.ValueString() != prior {
-			t.Errorf("Password clobbered when server omitted it: got %q want %q", pre.Password.ValueString(), prior)
+	})
+
+	t.Run("imported replica with declared password: warning, no error", func(t *testing.T) {
+		state := gateModel(false)
+		cfg := gateModel(false)
+		cfg.Password = types.StringValue("ValidPass1234x")
+		resp := run(state, cfg, cfg)
+		if resp.Diagnostics.ErrorsCount() != 0 {
+			t.Fatalf("want no errors, got %v", resp.Diagnostics)
+		}
+		if resp.Diagnostics.WarningsCount() != 1 ||
+			!strings.Contains(resp.Diagnostics.Warnings()[0].Summary(), "Read replica cannot take a credential") {
+			t.Errorf("want the replica-credential warning, got %v", resp.Diagnostics)
 		}
 	})
 }
@@ -624,7 +758,6 @@ func modelsEqual(t *testing.T, got, want models.PostgresServiceResourceModel) bo
 		{"Hostname", got.Hostname, want.Hostname},
 		{"Port", got.Port, want.Port},
 		{"Username", got.Username, want.Username},
-		{"ConnectionString", got.ConnectionString, want.ConnectionString},
 		{"Tags", got.Tags, want.Tags},
 		{"Password", got.Password, want.Password},
 	}

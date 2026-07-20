@@ -33,8 +33,8 @@ type postgresServicesDataSourceModel struct {
 }
 
 // postgresServiceSummaryObjectType is the element type of the services list.
-// Summary fields only — the list endpoint does not return connection_string,
-// password, or pg_config.
+// Summary fields only — look up a single service by ID for pg_config /
+// pgbouncer_config; credentials are never returned by the API.
 func postgresServiceSummaryObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{

@@ -143,68 +143,122 @@ func TestPostgresPasswordValidators(t *testing.T) {
 }
 
 func TestDecidePasswordOnCreate(t *testing.T) {
-	t.Run("omitted → no rotation (server-generated stands)", func(t *testing.T) {
-		got := decidePasswordOnCreate(models.PostgresServiceResourceModel{Password: types.StringNull()})
-		if got.Set {
-			t.Errorf("got %#v", got)
-		}
-	})
-	t.Run("supplied password → set", func(t *testing.T) {
-		got := decidePasswordOnCreate(models.PostgresServiceResourceModel{Password: types.StringValue("UserPass1234")})
-		if !got.Set || got.Value != "UserPass1234" {
-			t.Errorf("got %#v", got)
-		}
-	})
+	tests := []struct {
+		name      string
+		plan      models.PostgresServiceResourceModel
+		config    models.PostgresServiceResourceModel
+		wantSet   bool
+		wantValue string
+	}{
+		{
+			name:      "password_wo preferred over password",
+			plan:      models.PostgresServiceResourceModel{Password: types.StringValue("PlainSecret123")},
+			config:    models.PostgresServiceResourceModel{PasswordWO: types.StringValue("WriteOnly456xy")},
+			wantSet:   true,
+			wantValue: "WriteOnly456xy",
+		},
+		{
+			name:      "password literal used when no password_wo",
+			plan:      models.PostgresServiceResourceModel{Password: types.StringValue("PlainSecret123")},
+			config:    models.PostgresServiceResourceModel{},
+			wantSet:   true,
+			wantValue: "PlainSecret123",
+		},
+		{
+			name:    "neither declared: no rotation (replica / restore keep source credential)",
+			plan:    models.PostgresServiceResourceModel{},
+			config:  models.PostgresServiceResourceModel{},
+			wantSet: false,
+		},
+		{
+			name:    "unknown password (unresolved interpolation): no rotation",
+			plan:    models.PostgresServiceResourceModel{Password: types.StringUnknown()},
+			config:  models.PostgresServiceResourceModel{},
+			wantSet: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := decidePasswordOnCreate(tt.plan, tt.config)
+			if got.Set != tt.wantSet || got.Value != tt.wantValue {
+				t.Errorf("decidePasswordOnCreate = %+v, want Set=%v Value=%q", got, tt.wantSet, tt.wantValue)
+			}
+		})
+	}
 }
 
 func TestDecidePasswordRotationOnUpdate(t *testing.T) {
-	t.Run("no change", func(t *testing.T) {
-		if _, rot := decidePasswordRotationOnUpdate(
-			models.PostgresServiceResourceModel{Password: types.StringValue("Same12345678")},
-			models.PostgresServiceResourceModel{Password: types.StringValue("Same12345678")},
-		); rot {
-			t.Error("expected no rotation")
-		}
-	})
-	t.Run("password change → rotate", func(t *testing.T) {
-		v, rot := decidePasswordRotationOnUpdate(
-			models.PostgresServiceResourceModel{Password: types.StringValue("NewPass12345")},
-			models.PostgresServiceResourceModel{Password: types.StringValue("OldPass12345")},
-		)
-		if !rot || v != "NewPass12345" {
-			t.Errorf("got v=%q rot=%v", v, rot)
-		}
-	})
-	t.Run("removed from config → no rotation (state value pinned)", func(t *testing.T) {
-		if _, rot := decidePasswordRotationOnUpdate(
-			models.PostgresServiceResourceModel{Password: types.StringNull()},
-			models.PostgresServiceResourceModel{Password: types.StringValue("OldPass12345")},
-		); rot {
-			t.Error("a null plan password must not rotate")
-		}
-	})
-}
-
-func TestPasswordRotationPlanned(t *testing.T) {
-	cfg := func(pw types.String) models.PostgresServiceResourceModel {
-		return models.PostgresServiceResourceModel{Password: pw}
+	tests := []struct {
+		name       string
+		plan       models.PostgresServiceResourceModel
+		state      models.PostgresServiceResourceModel
+		config     models.PostgresServiceResourceModel
+		wantRotate bool
+		wantValue  string
+	}{
+		{
+			name:       "password_wo_version bump rotates to password_wo",
+			plan:       models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(2)},
+			state:      models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(1)},
+			config:     models.PostgresServiceResourceModel{PasswordWO: types.StringValue("WriteOnly456xy")},
+			wantRotate: true,
+			wantValue:  "WriteOnly456xy",
+		},
+		{
+			name:  "same version: no rotation even with password_wo set",
+			plan:  models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(1)},
+			state: models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(1)},
+			config: models.PostgresServiceResourceModel{
+				PasswordWO: types.StringValue("WriteOnly456xy"),
+			},
+			wantRotate: false,
+		},
+		{
+			name:       "password_wo_version null->set (first adoption) rotates",
+			plan:       models.PostgresServiceResourceModel{PasswordWOVersion: types.Int64Value(1)},
+			state:      models.PostgresServiceResourceModel{},
+			config:     models.PostgresServiceResourceModel{PasswordWO: types.StringValue("WriteOnly456xy")},
+			wantRotate: true,
+			wantValue:  "WriteOnly456xy",
+		},
+		{
+			name:       "password null->set (post-import adoption) rotates",
+			plan:       models.PostgresServiceResourceModel{Password: types.StringValue("NewSecret12345")},
+			state:      models.PostgresServiceResourceModel{},
+			config:     models.PostgresServiceResourceModel{},
+			wantRotate: true,
+			wantValue:  "NewSecret12345",
+		},
+		{
+			name:       "password change rotates",
+			plan:       models.PostgresServiceResourceModel{Password: types.StringValue("NewSecret12345")},
+			state:      models.PostgresServiceResourceModel{Password: types.StringValue("OldSecret12345")},
+			config:     models.PostgresServiceResourceModel{},
+			wantRotate: true,
+			wantValue:  "NewSecret12345",
+		},
+		{
+			name:       "password unchanged: no rotation",
+			plan:       models.PostgresServiceResourceModel{Password: types.StringValue("SameSecret1234")},
+			state:      models.PostgresServiceResourceModel{Password: types.StringValue("SameSecret1234")},
+			config:     models.PostgresServiceResourceModel{},
+			wantRotate: false,
+		},
+		{
+			name:       "password removed from config: no rotation (unmanage)",
+			plan:       models.PostgresServiceResourceModel{},
+			state:      models.PostgresServiceResourceModel{Password: types.StringValue("OldSecret12345")},
+			config:     models.PostgresServiceResourceModel{},
+			wantRotate: false,
+		},
 	}
-	st := func(pw types.String) models.PostgresServiceResourceModel {
-		return models.PostgresServiceResourceModel{Password: pw}
-	}
-
-	if !passwordRotationPlanned(cfg(types.StringUnknown()), st(types.StringValue("old"))) {
-		t.Error("interpolated (unknown) config should rotate")
-	}
-	if !passwordRotationPlanned(cfg(types.StringValue("new")), st(types.StringValue("old"))) {
-		t.Error("changed config should rotate")
-	}
-	if passwordRotationPlanned(cfg(types.StringValue("same")), st(types.StringValue("same"))) {
-		t.Error("equal config should not rotate")
-	}
-	// Omitting password (null config): the live value is pinned from state, not rotated.
-	if passwordRotationPlanned(cfg(types.StringNull()), st(types.StringValue("live"))) {
-		t.Error("null (omitted) config must not rotate")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value, rotate := decidePasswordRotationOnUpdate(tt.plan, tt.state, tt.config)
+			if rotate != tt.wantRotate || value != tt.wantValue {
+				t.Errorf("decidePasswordRotationOnUpdate = (%q, %v), want (%q, %v)", value, rotate, tt.wantValue, tt.wantRotate)
+			}
+		})
 	}
 }
 
@@ -260,6 +314,61 @@ func TestRequireStandardCreateAttributes(t *testing.T) {
 			m := std()
 			c.mutate(&m)
 			if diags := requireStandardCreateAttributes(m); diags.ErrorsCount() != c.wantErr {
+				t.Errorf("want %d errors; got %d: %v", c.wantErr, diags.ErrorsCount(), diags)
+			}
+		})
+	}
+}
+
+func TestRequireDeclaredCredential(t *testing.T) {
+	restoreType := map[string]attr.Type{"source_id": types.StringType, "restore_target": types.StringType}
+	nullRestore := types.ObjectNull(restoreType)
+	setRestore := types.ObjectValueMust(restoreType, map[string]attr.Value{
+		"source_id":      types.StringValue("src-1"),
+		"restore_target": types.StringValue("2026-06-01T00:00:00Z"),
+	})
+	base := func() models.PostgresServiceResourceModel {
+		return models.PostgresServiceResourceModel{
+			ReadReplicaOf:        types.StringNull(),
+			RestoreToPointInTime: nullRestore,
+		}
+	}
+	cases := []struct {
+		name    string
+		mutate  func(*models.PostgresServiceResourceModel)
+		wantErr int
+	}{
+		{"no credential, no origin → error", func(m *models.PostgresServiceResourceModel) {}, 1},
+		{"password declared → ok", func(m *models.PostgresServiceResourceModel) {
+			m.Password = types.StringValue("TerraformE2E123")
+		}, 0},
+		{"password_wo declared → ok", func(m *models.PostgresServiceResourceModel) {
+			m.PasswordWO = types.StringValue("WriteOnly456xy")
+		}, 0},
+		{"replica origin → ok", func(m *models.PostgresServiceResourceModel) {
+			m.ReadReplicaOf = types.StringValue("primary-1")
+		}, 0},
+		{"restore origin → ok", func(m *models.PostgresServiceResourceModel) {
+			m.RestoreToPointInTime = setRestore
+		}, 0},
+		{"unknown password (interpolation) → deferred", func(m *models.PostgresServiceResourceModel) {
+			m.Password = types.StringUnknown()
+		}, 0},
+		{"unknown password_wo → deferred", func(m *models.PostgresServiceResourceModel) {
+			m.PasswordWO = types.StringUnknown()
+		}, 0},
+		{"unknown read_replica_of → deferred", func(m *models.PostgresServiceResourceModel) {
+			m.ReadReplicaOf = types.StringUnknown()
+		}, 0},
+		{"unknown restore block → deferred", func(m *models.PostgresServiceResourceModel) {
+			m.RestoreToPointInTime = types.ObjectUnknown(restoreType)
+		}, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := base()
+			c.mutate(&m)
+			if diags := requireDeclaredCredential(m); diags.ErrorsCount() != c.wantErr {
 				t.Errorf("want %d errors; got %d: %v", c.wantErr, diags.ErrorsCount(), diags)
 			}
 		})

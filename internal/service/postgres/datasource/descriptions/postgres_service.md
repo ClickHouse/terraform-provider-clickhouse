@@ -5,11 +5,12 @@ service by ID, including its current `pg_config` / `pgbouncer_config`.
 
 Returns the service's server-reported attributes: `cloud_provider`, `region`,
 `size`, `ha_type`, `postgres_version`, status (`state`, `created_at`,
-`is_primary`), connectivity (`hostname`, `username`, `connection_string`), and
+`is_primary`), connectivity (`hostname`, `port`, `username`), and
 `tags` / `pg_config` / `pgbouncer_config` (`port` is the fixed default 5432 —
-the server doesn't expose a per-instance port). It does not surface a standalone
-`password` field, but the returned `connection_string` (sensitive) embeds the
-active password — so the credential is available here. The write-time create
+the server doesn't expose a per-instance port). The API returns no credentials:
+there is no password field and no connection string. Compose a connection URI
+from `hostname`, `port`, and `username`, plus the password declared on the
+managing `clickhouse_postgres_service` resource. The write-time create
 inputs — `read_replica_of`, `restore_to_point_in_time` — are not
 read back. `tags`, `pg_config`, and `pgbouncer_config` are read-only string maps.
 

@@ -28,18 +28,21 @@ type PostgresServiceResourceModel struct {
 	PgBouncerConfig types.Map `tfsdk:"pgbouncer_config"`
 
 	// Computed.
-	State            types.String `tfsdk:"state"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	IsPrimary        types.Bool   `tfsdk:"is_primary"`
-	Hostname         types.String `tfsdk:"hostname"`
-	Port             types.Int64  `tfsdk:"port"`
-	Username         types.String `tfsdk:"username"`
-	ConnectionString types.String `tfsdk:"connection_string"`
+	State     types.String `tfsdk:"state"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	IsPrimary types.Bool   `tfsdk:"is_primary"`
+	Hostname  types.String `tfsdk:"hostname"`
+	Port      types.Int64  `tfsdk:"port"`
+	Username  types.String `tfsdk:"username"`
 
 	// Sensitive.
-	// Password is Optional+Computed: user-supplied, or server-generated when
-	// omitted; always hydrated from the GET so it holds the live password.
-	Password types.String `tfsdk:"password"`
+	// Password is config-owned: Terraform manages exactly the declared value
+	// and never reads it back from the API (credential redaction means GET
+	// does not return it). PasswordWO is the write-only variant — applied but
+	// never persisted to state — rotated when PasswordWOVersion changes.
+	Password          types.String `tfsdk:"password"`
+	PasswordWO        types.String `tfsdk:"password_wo"`
+	PasswordWOVersion types.Int64  `tfsdk:"password_wo_version"`
 
 	// Provenance — create-time only, mutually exclusive. ReadReplicaOf holds the
 	// parent primary's ID for a read replica; changing/removing it replaces the
