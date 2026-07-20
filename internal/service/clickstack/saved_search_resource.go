@@ -64,7 +64,6 @@ func (r *savedSearchResource) Metadata(_ context.Context, req resource.MetadataR
 }
 
 func (r *savedSearchResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_saved_search", &resp.Diagnostics)
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickStack saved search: a named query over a source that alerts can " +
 			"target. The API PUT is a full replace, so every attribute is always sent; omitted " +
@@ -164,6 +163,7 @@ func (r *savedSearchResource) Configure(_ context.Context, req resource.Configur
 // ValidateConfig checks enum and JSON-shape constraints at plan time so invalid
 // values surface before apply rather than as opaque API errors.
 func (r *savedSearchResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_saved_search", &resp.Diagnostics)
 	var cfg savedSearchResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {
@@ -195,7 +195,6 @@ func (m *savedSearchResourceModel) validate() diag.Diagnostics {
 }
 
 func (r *savedSearchResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_saved_search", &resp.Diagnostics)
 	var plan savedSearchResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
