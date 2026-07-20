@@ -233,11 +233,21 @@ func TestDashboardResource_ValidateConfig(t *testing.T) {
 			resp := &fwresource.ValidateConfigResponse{}
 			r.ValidateConfig(context.Background(), dashboardValidateConfigRequest(t, tc.dashboardJSON), resp)
 
-			if len(resp.Diagnostics) != len(tc.want) {
-				t.Fatalf("got %d diagnostics, want %d: %s", len(resp.Diagnostics), len(tc.want), resp.Diagnostics)
+			// ValidateConfig also emits the alpha warning; drop it so these
+			// cases assert only the dashboard_json validation diagnostics.
+			var got diag.Diagnostics
+			for _, d := range resp.Diagnostics {
+				if d.Summary() == "Alpha Resource" {
+					continue
+				}
+				got = append(got, d)
+			}
+
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d diagnostics, want %d: %s", len(got), len(tc.want), got)
 			}
 			for i, w := range tc.want {
-				d := resp.Diagnostics[i]
+				d := got[i]
 				if d.Severity() != w.severity {
 					t.Errorf("diagnostic %d: severity = %v, want %v", i, d.Severity(), w.severity)
 				}
