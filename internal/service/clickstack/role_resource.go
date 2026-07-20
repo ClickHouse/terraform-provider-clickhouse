@@ -73,7 +73,6 @@ func (r *roleResource) Metadata(_ context.Context, req resource.MetadataRequest,
 }
 
 func (r *roleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_role", &resp.Diagnostics)
 	resp.Schema = schema.Schema{
 		Description: "Manages a custom RBAC role in ClickStack. " +
 			"**Note:** RBAC is only available on ClickStack Cloud and Enterprise deployments. " +
@@ -170,8 +169,11 @@ func (r *roleResource) Configure(_ context.Context, req resource.ConfigureReques
 	r.client = providerData.ClickStack
 }
 
-func (r *roleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *roleResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	utils.AlphaWarning("clickhouse_clickstack_role", &resp.Diagnostics)
+}
+
+func (r *roleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan roleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {

@@ -74,7 +74,6 @@ func (r *webhookResource) Metadata(_ context.Context, req resource.MetadataReque
 }
 
 func (r *webhookResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickStack notification webhook (Slack, generic HTTP, or incident.io), " +
 			"used as the notification channel for alerts.\n\n" +
@@ -182,6 +181,7 @@ func (r *webhookResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 func (r *webhookResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	utils.AlphaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
 	var cfg webhookResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {
@@ -223,7 +223,6 @@ func (m *webhookResourceModel) validate() diag.Diagnostics {
 }
 
 func (r *webhookResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
 	var plan webhookResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	// Write-only values live only in config, not plan.
