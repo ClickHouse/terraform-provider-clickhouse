@@ -1,23 +1,15 @@
 package registry
 
 import (
-	"context"
 	"testing"
-
-	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
-
-const providerTypeName = "clickhouse"
 
 // TestServicePackages asserts group names are unique and every registered
 // Terraform type name is globally unique and maps to exactly one group.
 func TestServicePackages(t *testing.T) {
 	t.Parallel()
-	groups := map[string]string{}   // group name -> owner
-	resTypes := map[string]string{} // resource type name -> group
-	dsTypes := map[string]string{}  // data source type name -> group
 
+	groups := map[string]string{} // group name -> owner
 	for _, sp := range ServicePackages() {
 		meta := sp.Meta()
 		if meta.Name == "" || meta.Owner == "" || meta.HumanName == "" {
@@ -27,23 +19,19 @@ func TestServicePackages(t *testing.T) {
 			t.Fatalf("duplicate group name %q", meta.Name)
 		}
 		groups[meta.Name] = meta.Owner
+	}
 
-		for _, f := range sp.Resources() {
-			var mr resource.MetadataResponse
-			f().Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: providerTypeName}, &mr)
-			if prev, dup := resTypes[mr.TypeName]; dup {
-				t.Fatalf("resource type %q registered by both %q and %q", mr.TypeName, prev, meta.Name)
-			}
-			resTypes[mr.TypeName] = meta.Name
+	resTypes := map[string]string{} // resource type name -> group
+	dsTypes := map[string]string{}  // data source type name -> group
+	for _, c := range Components() {
+		types, label := resTypes, "resource"
+		if c.Kind == KindDataSource {
+			types, label = dsTypes, "data source"
 		}
-		for _, f := range sp.DataSources() {
-			var mr datasource.MetadataResponse
-			f().Metadata(context.Background(), datasource.MetadataRequest{ProviderTypeName: providerTypeName}, &mr)
-			if prev, dup := dsTypes[mr.TypeName]; dup {
-				t.Fatalf("data source type %q registered by both %q and %q", mr.TypeName, prev, meta.Name)
-			}
-			dsTypes[mr.TypeName] = meta.Name
+		if prev, dup := types[c.TypeName]; dup {
+			t.Fatalf("%s type %q registered by both %q and %q", label, c.TypeName, prev, c.Group.Name)
 		}
+		types[c.TypeName] = c.Group.Name
 	}
 	if len(resTypes) == 0 || len(dsTypes) == 0 {
 		t.Fatal("registry returned no resources or no data sources")
@@ -56,7 +44,7 @@ func TestServicePackages(t *testing.T) {
 	// resource/data source.
 	const (
 		wantResources   = 23 // 13 clickhouse + 1 postgres + 9 clickstack
-		wantDataSources = 10 // 5 clickhouse + 3 postgres + 2 clickstack
+		wantDataSources = 12 // 7 clickhouse + 3 postgres + 2 clickstack
 	)
 	if len(resTypes) != wantResources {
 		t.Errorf("registered resource count = %d, want %d (a factory was added or dropped?)", len(resTypes), wantResources)
