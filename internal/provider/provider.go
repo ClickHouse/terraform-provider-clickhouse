@@ -225,6 +225,18 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		clickstackServiceID = config.ClickStackServiceID.ValueString()
 	}
 
+	// Written config wins: when the provider block explicitly selects one
+	// ClickStack mode, ignore any stray CLICKSTACK_* environment variable for the
+	// other mode so it cannot manufacture a false "ambiguous configuration"
+	// conflict. Environment variables only fill gaps the config leaves open.
+	// A mode counts as chosen only when its attribute is set to a non-empty
+	// value: an attribute wired to an empty-defaulting variable (e.g.
+	// clickstack_endpoint = var.endpoint) is not null but selects nothing.
+	cloudInConfig := configSelected(config.ClickStackServiceID)
+	selfHostedInConfig := configSelected(config.ClickStackEndpoint) || configSelected(config.ClickStackAPIKey)
+	clickstackEndpoint, clickstackAPIKey, clickstackServiceID = resolveClickStackCreds(
+		clickstackEndpoint, clickstackAPIKey, clickstackServiceID, cloudInConfig, selfHostedInConfig)
+
 	if clickstackServiceID != "" && (clickstackAPIKey != "" || clickstackEndpoint != "") {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("clickstack_service_id"),
@@ -372,6 +384,34 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	// type Configure methods.
 	resp.DataSourceData = data
 	resp.ResourceData = data
+}
+
+// configSelected reports whether a provider attribute was explicitly set to a
+// non-empty value in the config. It is deliberately stricter than !IsNull():
+// terraform-plugin-framework reports an attribute wired to an empty-defaulting
+// variable as non-null with an empty string, which must not count as selecting
+// a ClickStack mode. Unknown values are handled earlier and read as unset here.
+func configSelected(v types.String) bool {
+	return !v.IsNull() && !v.IsUnknown() && v.ValueString() != ""
+}
+
+// resolveClickStackCreds applies "written config wins" to the already-merged
+// (config-over-environment) ClickStack credentials. When the provider config
+// explicitly names one mode, environment variables for the other mode are
+// dropped so a stray CLICKSTACK_* value cannot contradict the config. When the
+// config names neither mode (or both), the merged values pass through unchanged
+// and the caller's validation handles any genuine conflict.
+func resolveClickStackCreds(endpoint, apiKey, serviceID string, cloudInConfig, selfHostedInConfig bool) (string, string, string) {
+	switch {
+	case cloudInConfig && !selfHostedInConfig:
+		// Config chose Cloud; ignore stray self-hosted env values.
+		return "", "", serviceID
+	case selfHostedInConfig && !cloudInConfig:
+		// Config chose self-hosted; ignore a stray Cloud service-id env value.
+		return endpoint, apiKey, ""
+	default:
+		return endpoint, apiKey, serviceID
+	}
 }
 
 // DataSources defines the data sources implemented in the provider.
