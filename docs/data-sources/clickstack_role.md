@@ -3,12 +3,12 @@
 page_title: "clickhouse_clickstack_role Data Source - clickhouse"
 subcategory: "ClickStack"
 description: |-
-  Looks up an RBAC role by name, including predefined roles (Admin, Member, ReadOnly). Note: RBAC is only available on ClickStack Cloud and Enterprise deployments.
+  Looks up an RBAC role by name, including predefined roles (Admin, Member, ReadOnly). Note: RBAC is only available on self-hosted Enterprise (multi-team) ClickStack deployments; it is not currently exposed by ClickStack on ClickHouse Cloud (clickstack_service_id).
 ---
 
 # clickhouse_clickstack_role (Data Source)
 
-Looks up an RBAC role by name, including predefined roles (Admin, Member, ReadOnly). **Note:** RBAC is only available on ClickStack Cloud and Enterprise deployments.
+Looks up an RBAC role by name, including predefined roles (Admin, Member, ReadOnly). **Note:** RBAC is only available on self-hosted Enterprise (multi-team) ClickStack deployments; it is not currently exposed by ClickStack on ClickHouse Cloud (`clickstack_service_id`).
 
 ## Example Usage
 

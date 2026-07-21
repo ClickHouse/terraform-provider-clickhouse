@@ -151,8 +151,22 @@ func (c *Client) CreateSource(ctx context.Context, input Source) (*Source, error
 }
 
 // GetSource fetches a source by ID. It returns an error wrapping ErrNotFound
-// when the source does not exist.
+// when the source does not exist. The Cloud API has no GET-by-id endpoint for
+// sources, so cloud mode lists and filters instead.
 func (c *Client) GetSource(ctx context.Context, id string) (*Source, error) {
+	if c.cloud {
+		sources, err := c.ListSources(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for i := range sources {
+			if sources[i].ID == id {
+				return &sources[i], nil
+			}
+		}
+		return nil, fmt.Errorf("get source %s: %w", id, ErrNotFound)
+	}
+
 	raw, err := c.do(ctx, http.MethodGet, sourcesPath+"/"+url.PathEscape(id), nil)
 	if err != nil {
 		return nil, err

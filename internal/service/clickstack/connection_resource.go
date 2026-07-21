@@ -124,8 +124,10 @@ func (r *connectionResource) Configure(_ context.Context, req resource.Configure
 
 	if providerData.ClickStack == nil {
 		resp.Diagnostics.AddError("ClickStack not configured",
-			"This resource requires ClickStack credentials. Set clickstack_api_key on the "+
-				"provider (or the CLICKSTACK_API_KEY environment variable), and clickstack_endpoint if not using ClickHouse Cloud.")
+			"This resource requires ClickStack credentials. For self-hosted ClickStack, set clickstack_endpoint and "+
+				"clickstack_api_key on the provider (or the CLICKSTACK_ENDPOINT / CLICKSTACK_API_KEY environment variables). "+
+				"For ClickStack on ClickHouse Cloud, set clickstack_service_id (or CLICKSTACK_SERVICE_ID) together with "+
+				"the ClickHouse Cloud credentials (organization_id, token_key, token_secret).")
 		return
 	}
 	r.client = providerData.ClickStack

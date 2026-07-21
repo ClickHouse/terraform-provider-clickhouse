@@ -43,13 +43,14 @@ type clickhouseProvider struct {
 }
 
 type clickhouseProviderModel struct {
-	ApiUrl             types.String `tfsdk:"api_url"`
-	OrganizationID     types.String `tfsdk:"organization_id"`
-	TokenKey           types.String `tfsdk:"token_key"`
-	TokenSecret        types.String `tfsdk:"token_secret"`
-	TimeoutSeconds     types.Int32  `tfsdk:"timeout_seconds"`
-	ClickStackEndpoint types.String `tfsdk:"clickstack_endpoint"`
-	ClickStackAPIKey   types.String `tfsdk:"clickstack_api_key"`
+	ApiUrl              types.String `tfsdk:"api_url"`
+	OrganizationID      types.String `tfsdk:"organization_id"`
+	TokenKey            types.String `tfsdk:"token_key"`
+	TokenSecret         types.String `tfsdk:"token_secret"`
+	TimeoutSeconds      types.Int32  `tfsdk:"timeout_seconds"`
+	ClickStackEndpoint  types.String `tfsdk:"clickstack_endpoint"`
+	ClickStackAPIKey    types.String `tfsdk:"clickstack_api_key"`
+	ClickStackServiceID types.String `tfsdk:"clickstack_service_id"`
 }
 
 // Metadata returns the provider type name.
@@ -83,13 +84,17 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 				Optional:    true,
 			},
 			"clickstack_endpoint": schema.StringAttribute{
-				Description: "Endpoint of the ClickStack API used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_ENDPOINT` environment variable. Defaults to https://hyperdx-api.clickhouse.cloud.",
+				Description: "Endpoint of a self-hosted ClickStack API used by clickhouse_clickstack_* resources, e.g. http://localhost:8000. Required together with `clickstack_api_key`. Alternatively use the `CLICKSTACK_ENDPOINT` environment variable. For ClickStack on ClickHouse Cloud, leave unset and use `clickstack_service_id` instead.",
 				Optional:    true,
 			},
 			"clickstack_api_key": schema.StringAttribute{
-				Description: "API key for the ClickStack API used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_API_KEY` environment variable.",
+				Description: "Personal API access key for a self-hosted ClickStack API, used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_API_KEY` environment variable. ClickStack on ClickHouse Cloud does not accept API keys; use `clickstack_service_id` with the Cloud credentials instead.",
 				Optional:    true,
 				Sensitive:   true,
+			},
+			"clickstack_service_id": schema.StringAttribute{
+				Description: "ID of the ClickHouse Cloud service running managed ClickStack. When set, clickhouse_clickstack_* resources are served through the ClickHouse Cloud API, authenticating with `organization_id`, `token_key` and `token_secret`. Alternatively use the `CLICKSTACK_SERVICE_ID` environment variable. Mutually exclusive with `clickstack_api_key` and `clickstack_endpoint`.",
+				Optional:    true,
 			},
 		},
 		MarkdownDescription: providerDescription,
@@ -145,6 +150,24 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		)
 	}
 
+	// Unknown ClickStack values (e.g. clickstack_service_id referencing a
+	// not-yet-created service) would otherwise read as empty strings and
+	// silently disable or misconfigure the ClickStack client.
+	for attr, value := range map[string]types.String{
+		"clickstack_endpoint":   config.ClickStackEndpoint,
+		"clickstack_api_key":    config.ClickStackAPIKey,
+		"clickstack_service_id": config.ClickStackServiceID,
+	} {
+		if value.IsUnknown() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root(attr),
+				"Unknown ClickStack configuration value",
+				"The provider cannot configure the ClickStack client as there is an unknown configuration value for "+attr+". "+
+					"Either target apply the source of the value first, set the value statically in the configuration, or use the corresponding CLICKSTACK_* environment variable.",
+			)
+		}
+	}
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -186,20 +209,58 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	}
 
 	// Resolve ClickStack credentials (configuration overrides environment).
+	// Self-hosted ClickStack authenticates with an endpoint + API key; ClickStack
+	// on ClickHouse Cloud is served through the Cloud OpenAPI and authenticates
+	// with the Cloud credentials plus the ID of the service running it.
 	clickstackEndpoint := os.Getenv("CLICKSTACK_ENDPOINT")
 	clickstackAPIKey := os.Getenv("CLICKSTACK_API_KEY")
+	clickstackServiceID := os.Getenv("CLICKSTACK_SERVICE_ID")
 	if !config.ClickStackEndpoint.IsNull() {
 		clickstackEndpoint = config.ClickStackEndpoint.ValueString()
 	}
 	if !config.ClickStackAPIKey.IsNull() {
 		clickstackAPIKey = config.ClickStackAPIKey.ValueString()
 	}
-	if clickstackEndpoint == "" {
-		clickstackEndpoint = "https://hyperdx-api.clickhouse.cloud"
+	if !config.ClickStackServiceID.IsNull() {
+		clickstackServiceID = config.ClickStackServiceID.ValueString()
 	}
 
-	cloudConfigured := organizationId != "" || tokenKey != "" || tokenSecret != ""
-	clickstackConfigured := clickstackAPIKey != ""
+	if clickstackServiceID != "" && (clickstackAPIKey != "" || clickstackEndpoint != "") {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("clickstack_service_id"),
+			"Ambiguous ClickStack configuration",
+			"clickstack_service_id selects ClickStack on ClickHouse Cloud and cannot be combined with "+
+				"clickstack_api_key or clickstack_endpoint, which select a self-hosted ClickStack deployment. "+
+				"Set one or the other (also check the CLICKSTACK_* environment variables).",
+		)
+		return
+	}
+	if clickstackAPIKey != "" && clickstackEndpoint == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("clickstack_endpoint"),
+			"Missing ClickStack endpoint",
+			"clickstack_api_key authenticates a self-hosted ClickStack deployment; set clickstack_endpoint "+
+				"(or the CLICKSTACK_ENDPOINT environment variable) to its API base URL. "+
+				"For ClickStack on ClickHouse Cloud, set clickstack_service_id instead — the Cloud API "+
+				"authenticates with organization_id, token_key and token_secret, not a ClickStack API key.",
+		)
+		return
+	}
+	if clickstackEndpoint != "" && clickstackAPIKey == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("clickstack_api_key"),
+			"Missing ClickStack API key",
+			"clickstack_endpoint points at a self-hosted ClickStack deployment, which also needs "+
+				"clickstack_api_key (or the CLICKSTACK_API_KEY environment variable) to authenticate. "+
+				"Without it the endpoint would be silently ignored.",
+		)
+		return
+	}
+
+	// A ClickStack service ID requires the Cloud credentials, so it also drives
+	// the cloud credential validation below.
+	cloudConfigured := organizationId != "" || tokenKey != "" || tokenSecret != "" || clickstackServiceID != ""
+	clickstackConfigured := clickstackAPIKey != "" || clickstackServiceID != ""
 
 	data := &service.ProviderData{}
 
@@ -273,20 +334,38 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 		data.API = client
 	}
 
-	// Build the ClickStack client when a ClickStack API key is configured.
+	// Build the ClickStack client: self-hosted (endpoint + API key) or
+	// ClickHouse Cloud (Cloud credentials + service ID).
 	if clickstackConfigured {
 		retryClient := retryablehttp.NewClient()
 		retryClient.Logger = nil
-		csClient, err := clickstackclient.New(clickstackEndpoint, clickstackAPIKey, retryClient.StandardClient())
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("clickstack_endpoint"),
-				"Invalid ClickStack endpoint",
-				err.Error(),
-			)
-			return
+		if !config.TimeoutSeconds.IsUnknown() && !config.TimeoutSeconds.IsNull() {
+			retryClient.HTTPClient.Timeout = time.Second * time.Duration(config.TimeoutSeconds.ValueInt32())
 		}
-		data.ClickStack = csClient
+
+		if clickstackServiceID != "" {
+			csClient, err := clickstackclient.NewCloud(apiUrl, organizationId, clickstackServiceID, tokenKey, tokenSecret, retryClient.StandardClient())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("api_url"),
+					"Invalid ClickHouse API URL for ClickStack",
+					err.Error(),
+				)
+				return
+			}
+			data.ClickStack = csClient
+		} else {
+			csClient, err := clickstackclient.New(clickstackEndpoint, clickstackAPIKey, retryClient.StandardClient())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("clickstack_endpoint"),
+					"Invalid ClickStack endpoint",
+					err.Error(),
+				)
+				return
+			}
+			data.ClickStack = csClient
+		}
 	}
 
 	// Make the client container available during DataSource and Resource
