@@ -52,7 +52,10 @@ func (r *teamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 	resp.Schema = schema.Schema{
 		Description: "Manages settings for an existing ClickStack team. The team is provisioned " +
 			"out-of-band; this resource adopts it on create and manages its settings. Destroying " +
-			"this resource does not delete the team or reset its settings.",
+			"this resource does not delete the team or reset its settings. " +
+			"**Note:** on ClickHouse Cloud, teams and members are managed through ClickHouse Cloud (the " +
+			"`clickhouse_role` and `clickhouse_role_assignment` resources), not the ClickStack API; " +
+			"this resource is for self-hosted ClickStack.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed:    true,

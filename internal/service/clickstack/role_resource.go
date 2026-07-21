@@ -75,8 +75,8 @@ func (r *roleResource) Metadata(_ context.Context, req resource.MetadataRequest,
 func (r *roleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a custom RBAC role in ClickStack. " +
-			"**Note:** RBAC is only available on self-hosted Enterprise (multi-team) ClickStack deployments; " +
-			"it is not currently exposed by ClickStack on ClickHouse Cloud (`clickstack_service_id`). " +
+			"**Note:** on ClickHouse Cloud, roles are managed through ClickHouse Cloud (the `clickhouse_role` " +
+			"resource), not ClickStack; this resource is for self-hosted ClickStack Enterprise (multi-team) deployments. " +
 			"Predefined roles (Admin, Member, " +
 			"ReadOnly) are not managed by this resource; reference them with the `clickstack_role` " +
 			"data source instead. Note: the API always ensures a `read` permission on `Connection` " +

@@ -61,7 +61,7 @@ provider "clickhouse" {
 }
 ```
 
-The Cloud API is still rolling out full coverage of the ClickStack API. Dashboards, alerts and webhooks are manageable today; sources are read-only for now (the platform provisions them — an imported source can be read but not updated or destroyed, so use `terraform state rm` to detach one); endpoints not yet exposed (connections, saved searches, roles) fail with a route-not-found error from the API. Capability checks are server-side, so endpoints gain support without a provider upgrade. The `team` attribute is not applicable on Cloud — a service is a single ClickStack team — and is rejected.
+On ClickHouse Cloud, ClickStack manages connections, sources, dashboards, alerts, saved searches and webhooks. Sources are read-only — the platform provisions them, so an imported source can be read but not updated or destroyed (use `terraform state rm` to detach one). Roles, teams and team membership are managed through ClickHouse Cloud, not ClickStack — use the `clickhouse_role` and `clickhouse_role_assignment` resources — so the `clickhouse_clickstack_role`, `clickhouse_clickstack_team` and `clickhouse_clickstack_team_member` resources (and the `clickstack_role` data source) are for self-hosted ClickStack only. The `team` attribute on other resources is likewise not applicable on Cloud — a service is a single ClickStack team — and is rejected. Capability checks are server-side: an endpoint the Cloud API does not serve returns a route-not-found error, and newly exposed endpoints work without a provider upgrade.
 
 **Self-hosted ClickStack** (open source or EE) authenticates with its own credentials, separate from the ClickHouse Cloud credentials above:
 
