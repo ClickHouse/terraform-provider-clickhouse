@@ -1,12 +1,22 @@
-# This is the official provider for ClickHouse Cloud.
+# ClickHouse Cloud Terraform Provider
 
-With this provider you can deploy a ClickHouse instance on AWS, Google Cloud or Azure Cloud.
+This is the official Terraform provider for [ClickHouse Cloud](https://clickhouse.com/docs/en/about-us/cloud). The provider allows you to safely and predictably manage ClickHouse Cloud resources in a declarative configuration language (i.e., "Infrastructure-as-Code").
 
-To use this provider, you need to [Sign In](https://clickhouse.cloud/signIn) for a ClickHouse Cloud account and generate an [API key](https://clickhouse.com/docs/en/cloud/manage/openapi).
+The following service groups can be managed using the ClickHouse Cloud Terraform provider:
 
-You can find more example on how to use this provider on [Github](https://github.com/ClickHouse/terraform-provider-clickhouse/tree/main/examples/full).
+| Service group | What you can manage |
+|---|---|
+| **ClickHouse Cloud** | Cloud services and their lifecycle (e.g., auto-scaling, scheduled scaling, upgrade windows), SQL console access control (e.g., organization members, custom roles, API keys), **[ClickPipes](https://clickhouse.com/docs/integrations/clickpipes)**, and other resources. |
+| **ClickStack** | [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) observability resources (e.g., connections, sources, dashboards, alerts, saved searches, teams, roles, webhooks). |
+| **Postgres** | [Managed Postgres](https://clickhouse.com/docs/cloud/postgres) services and their lifecycle. |
 
-Visit [https://clickhouse.com/docs/en/cloud-quick-start](https://clickhouse.com/docs/en/cloud-quick-start) now to get started using ClickHouse Cloud.
+> This provider allows managing **SQL console-level** access control (i.e., organization roles and permissions). To manage **database-level** access control (i.e., database users, roles, grants), use the separate [`clickhousedbops`](https://github.com/ClickHouse/terraform-provider-clickhousedbops) provider.
+
+For examples on how to use this provider, see the [Github repository](https://github.com/ClickHouse/terraform-provider-clickhouse/tree/main/examples/).
+
+## Authentication
+
+To use this provider, you need a ClickHouse Cloud account. Once you have [signed up for an account](https://console.clickhouse.cloud/signUp), you can [sign in](https://clickhouse.cloud/signIn) and generate an [API key](https://clickhouse.com/docs/en/cloud/manage/openapi) for authentication.
 
 ## Breaking changes
 
