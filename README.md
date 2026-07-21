@@ -1,16 +1,30 @@
-# ClickHouse Terraform Provider
+# ClickHouse Cloud Terraform Provider
 
 [![Docs](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/docs.yaml)
 [![Dependabot Updates](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/dependabot/dependabot-updates)
 [![Unit tests](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml/badge.svg)](https://github.com/ClickHouse/terraform-provider-clickhouse/actions/workflows/test.yaml)
 
-This is the official terraform provider for [ClickHouse Cloud](https://clickhouse.com/docs/en/about-us/cloud).
+This is the official Terraform provider for [ClickHouse Cloud](https://clickhouse.com/docs/en/about-us/cloud). The provider allows you to safely and predictably manage ClickHouse Cloud resources in a declarative configuration language (i.e., "Infrastructure-as-Code").
+
+The following service groups can be managed using the ClickHouse Cloud Terraform provider:
+
+| Service group | What you can manage |
+|---|---|
+| **ClickHouse Cloud** | Cloud services and their lifecycle (e.g., auto-scaling, scheduled scaling, upgrade windows), SQL console access control (e.g., organization members, custom roles, API keys), **[ClickPipes](https://clickhouse.com/docs/integrations/clickpipes)**, and other resources. |
+| **ClickStack** | [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) observability resources (e.g., connections, sources, dashboards, alerts, saved searches, teams, roles, webhooks). |
+| **Postgres** | [Managed Postgres](https://clickhouse.com/docs/cloud/postgres) services and their lifecycle. |
+
+> This provider allows managing **SQL console-level** access control (i.e., organization roles and permissions). To manage **database-level** access control (i.e., database users, roles, grants), use the separate [`clickhousedbops`](https://github.com/ClickHouse/terraform-provider-clickhousedbops) provider.
+
+## Authentication
+
+To use this provider, you need a ClickHouse Cloud account. Once you have [signed up for an account](https://console.clickhouse.cloud/signUp), you can [sign in](https://clickhouse.cloud/signIn) and generate an [API key](https://clickhouse.com/docs/en/cloud/manage/openapi) for authentication.
 
 ## Usage
 
-You can find examples in the [examples/full](https://github.com/ClickHouse/terraform-provider-clickhouse/tree/main/examples/full) directory.
+For examples on how to use the ClickHouse Cloud Terraform provider, see the [`examples`](https://github.com/ClickHouse/terraform-provider-clickhouse/tree/main/examples/) directory.
 
-Please refer to the [official docs](https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs) for more details.
+Check out the [documentation](https://registry.terraform.io/providers/ClickHouse/clickhouse/latest/docs) in the Terraform Registry for resource-specific guidance.
 
 ## Breaking changes and deprecations
 
