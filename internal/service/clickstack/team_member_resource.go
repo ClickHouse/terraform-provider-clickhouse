@@ -64,7 +64,9 @@ func (r *teamMemberResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	resp.Schema = schema.Schema{
 		Description: "Manages a team member and their RBAC role. On create the member is invited: " +
 			"existing accounts are assigned the role immediately (`status` = `active`), otherwise a " +
-			"pending invitation is created (`status` = `pending`) and `invite_url` is populated.",
+			"pending invitation is created (`status` = `pending`) and `invite_url` is populated. " +
+			"**Note:** on ClickHouse Cloud, team membership is managed through ClickHouse Cloud (the " +
+			"`clickhouse_role_assignment` resource), not the ClickStack API; this resource is for self-hosted ClickStack.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed: true,
@@ -135,9 +137,7 @@ func (r *teamMemberResource) Configure(_ context.Context, req resource.Configure
 	}
 
 	if providerData.ClickStack == nil {
-		resp.Diagnostics.AddError("ClickStack not configured",
-			"This resource requires ClickStack credentials. Set clickstack_api_key on the "+
-				"provider (or the CLICKSTACK_API_KEY environment variable), and clickstack_endpoint if not using ClickHouse Cloud.")
+		addNotConfiguredError(&resp.Diagnostics, "resource")
 		return
 	}
 	r.client = providerData.ClickStack

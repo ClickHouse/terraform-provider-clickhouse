@@ -110,9 +110,7 @@ func (r *dashboardResource) Configure(_ context.Context, req resource.ConfigureR
 	}
 
 	if providerData.ClickStack == nil {
-		resp.Diagnostics.AddError("ClickStack not configured",
-			"This resource requires ClickStack credentials. Set clickstack_api_key on the "+
-				"provider (or the CLICKSTACK_API_KEY environment variable), and clickstack_endpoint if not using ClickHouse Cloud.")
+		addNotConfiguredError(&resp.Diagnostics, "resource")
 		return
 	}
 	r.client = providerData.ClickStack
@@ -191,16 +189,25 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	// Carry the server-assigned tile IDs forward into the authored body so a tile
-	// that survives the update keeps its identity. Without this the server mints
-	// fresh tile IDs and deletes any UI-created tile alert on the old id. Best
-	// effort: on any failure, send the authored body unchanged.
+	// Prepare tile and filter IDs for the update. Tiles carry their
+	// server-assigned id forward so UI-created tile alerts survive (the server
+	// otherwise mints fresh ids and drops the alerts). Filters must carry an id
+	// on update too — the Cloud API requires one on every filter (it rejects it
+	// on create), so mergeFilterIDs carries existing ids forward and mints
+	// placeholders for new ones. Each step is best effort: if it fails, that
+	// step's ids are left as authored and only that transformation is skipped.
 	body := json.RawMessage(plan.DashboardJSON.ValueString())
 	if !state.NormalizedJSON.IsNull() && !state.NormalizedJSON.IsUnknown() {
-		if merged, err := mergeTileIDs(body, json.RawMessage(state.NormalizedJSON.ValueString())); err == nil {
+		prior := json.RawMessage(state.NormalizedJSON.ValueString())
+		if merged, err := mergeTileIDs(body, prior); err == nil {
 			body = merged
 		} else {
-			tflog.Warn(ctx, "could not merge server tile IDs into dashboard update; sending authored body as-is: "+err.Error())
+			tflog.Warn(ctx, "could not merge server tile IDs into dashboard update; sending authored tiles as-is: "+err.Error())
+		}
+		if merged, err := mergeFilterIDs(body, prior); err == nil {
+			body = merged
+		} else {
+			tflog.Warn(ctx, "could not prepare filter IDs for dashboard update; sending authored filters as-is: "+err.Error())
 		}
 	}
 

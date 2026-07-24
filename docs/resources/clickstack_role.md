@@ -3,12 +3,12 @@
 page_title: "clickhouse_clickstack_role Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
-  Manages a custom RBAC role in ClickStack. Note: RBAC is only available on ClickStack Cloud and Enterprise deployments. Predefined roles (Admin, Member, ReadOnly) are not managed by this resource; reference them with the clickstack_role data source instead. Note: the API always ensures a read permission on Connection is present; the provider reconciles this automatically so it does not appear as drift.
+  Manages a custom RBAC role in ClickStack. Note: on ClickHouse Cloud, roles are managed through ClickHouse Cloud (the clickhouse_role resource), not ClickStack; this resource is for self-hosted ClickStack Enterprise (multi-team) deployments. Predefined roles (Admin, Member, ReadOnly) are not managed by this resource; reference them with the clickstack_role data source instead. Note: the API always ensures a read permission on Connection is present; the provider reconciles this automatically so it does not appear as drift.
 ---
 
 # clickhouse_clickstack_role (Resource)
 
-Manages a custom RBAC role in ClickStack. **Note:** RBAC is only available on ClickStack Cloud and Enterprise deployments. Predefined roles (Admin, Member, ReadOnly) are not managed by this resource; reference them with the `clickstack_role` data source instead. Note: the API always ensures a `read` permission on `Connection` is present; the provider reconciles this automatically so it does not appear as drift.
+Manages a custom RBAC role in ClickStack. **Note:** on ClickHouse Cloud, roles are managed through ClickHouse Cloud (the `clickhouse_role` resource), not ClickStack; this resource is for self-hosted ClickStack Enterprise (multi-team) deployments. Predefined roles (Admin, Member, ReadOnly) are not managed by this resource; reference them with the `clickstack_role` data source instead. Note: the API always ensures a `read` permission on `Connection` is present; the provider reconciles this automatically so it does not appear as drift.
 
 ## Example Usage
 

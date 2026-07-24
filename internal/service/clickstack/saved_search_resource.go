@@ -152,9 +152,7 @@ func (r *savedSearchResource) Configure(_ context.Context, req resource.Configur
 		return
 	}
 	if providerData.ClickStack == nil {
-		resp.Diagnostics.AddError("ClickStack not configured",
-			"This resource requires ClickStack credentials. Set clickstack_api_key on the "+
-				"provider (or the CLICKSTACK_API_KEY environment variable), and clickstack_endpoint if not using ClickHouse Cloud.")
+		addNotConfiguredError(&resp.Diagnostics, "resource")
 		return
 	}
 	r.client = providerData.ClickStack

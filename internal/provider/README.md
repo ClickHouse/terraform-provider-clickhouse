@@ -48,23 +48,38 @@ then a manual process is required after the upgrade. Please visit [https://githu
 
 This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) resources via the `clickhouse_clickstack_*` resources and data sources. These are in **alpha**: they emit an alpha warning at plan/apply time and their behavior may change in future releases.
 
-ClickStack uses its own credentials, separate from the ClickHouse Cloud credentials above:
+How the `clickhouse_clickstack_*` resources authenticate depends on where ClickStack runs:
 
-- `clickstack_api_key` (or the `CLICKSTACK_API_KEY` environment variable) — required to use any `clickhouse_clickstack_*` resource.
-- `clickstack_endpoint` (or `CLICKSTACK_ENDPOINT`) — defaults to `https://hyperdx-api.clickhouse.cloud` (ClickStack Cloud); set it to point at a self-hosted ClickStack/HyperDX instance.
-
-Cloud and ClickStack credentials are independent. You can configure only one set: a provider block with just ClickStack credentials is valid (Cloud resources then error if used, and vice versa). To manage both from one configuration, use an aliased provider:
+**ClickStack on ClickHouse Cloud** is served through the [ClickHouse Cloud API](https://clickhouse.com/docs/use-cases/observability/clickstack/api-reference) and authenticates with the same Cloud credentials as the rest of the provider (`organization_id`, `token_key`, `token_secret`). Set `clickstack_service_id` (or the `CLICKSTACK_SERVICE_ID` environment variable) to the ID of the Cloud service running ClickStack:
 
 ```hcl
-provider "clickhouse" { # ClickHouse Cloud
+provider "clickhouse" {
+  organization_id       = var.organization_id
+  token_key             = var.token_key
+  token_secret          = var.token_secret
+  clickstack_service_id = var.clickstack_service_id
+}
+```
+
+On ClickHouse Cloud, ClickStack manages connections, sources, dashboards, alerts, saved searches and webhooks. Connections are read-only — the platform provisions them, so an imported connection can be read but not updated or destroyed (use `terraform state rm` to detach one). Roles, teams and team membership are managed through ClickHouse Cloud, not ClickStack — use the `clickhouse_role` and `clickhouse_role_assignment` resources — so the `clickhouse_clickstack_role`, `clickhouse_clickstack_team` and `clickhouse_clickstack_team_member` resources (and the `clickstack_role` data source) are for self-hosted ClickStack only. The `team` attribute on other resources is likewise not applicable on Cloud — a service is a single ClickStack team — and is rejected. Capability checks are server-side: an endpoint the Cloud API does not serve returns a route-not-found error, and newly exposed endpoints work without a provider upgrade.
+
+**Self-hosted ClickStack** (open source or EE) authenticates with its own credentials, separate from the ClickHouse Cloud credentials above:
+
+- `clickstack_api_key` (or the `CLICKSTACK_API_KEY` environment variable) — a personal API access key from the HyperDX UI.
+- `clickstack_endpoint` (or `CLICKSTACK_ENDPOINT`) — the API base URL of the deployment, e.g. `http://localhost:8000`. Required together with `clickstack_api_key`.
+
+Cloud and self-hosted ClickStack credentials are independent. You can configure only one set: a provider block with just self-hosted ClickStack credentials is valid (Cloud resources then error if used, and vice versa). To manage both from one configuration, use an aliased provider:
+
+```hcl
+provider "clickhouse" { # ClickHouse Cloud (optionally including managed ClickStack)
   organization_id = var.organization_id
   token_key       = var.token_key
   token_secret    = var.token_secret
 }
 
-provider "clickhouse" { # ClickStack (OSS or Cloud)
-  alias              = "clickstack"
-  clickstack_api_key = var.clickstack_api_key
-  # clickstack_endpoint defaults to https://hyperdx-api.clickhouse.cloud
+provider "clickhouse" { # self-hosted ClickStack
+  alias               = "clickstack"
+  clickstack_endpoint = var.clickstack_endpoint
+  clickstack_api_key  = var.clickstack_api_key
 }
 ```
