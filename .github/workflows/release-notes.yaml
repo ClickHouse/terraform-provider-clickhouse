@@ -64,7 +64,7 @@ jobs:
           /tmp/langfuse-venv/bin/pip install langfuse
 
       - name: Generate release notes with Claude
-        uses: anthropics/claude-code-action@af0559ee4f514d1ef21826982bed13f7edc3c35e # v1.0.178
+        uses: anthropics/claude-code-action@44423bdec74b97d67543eb16c110546762c110b2 # v1.0.181
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           settings: |
