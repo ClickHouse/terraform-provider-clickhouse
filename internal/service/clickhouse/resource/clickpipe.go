@@ -886,16 +886,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Required:    true,
 							},
 							"authentication": schema.StringAttribute{
-								MarkdownDescription: "Authentication method for Postgres connection. Supported values: `basic`, `iam_role`. Default is `basic`.",
+								MarkdownDescription: "Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.",
 								Optional:            true,
 								Computed:            true,
 								Default:             stringdefault.StaticString(clickPipeAuthBasic),
 								Validators: []validator.String{
-									stringvalidator.OneOf(clickPipeAuthBasic, "iam_role"),
+									stringvalidator.OneOf(api.ClickPipePostgresAuthenticationMethods...),
 								},
 							},
 							"iam_role": schema.StringAttribute{
-								Description: "IAM role ARN for IAM authentication. Required when authentication is set to `iam_role`.",
+								Description: "IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.",
 								Optional:    true,
 							},
 							"tls_host": schema.StringAttribute{
@@ -907,7 +907,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Optional:    true,
 							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `iam_role` authentication, password is optional.",
+								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
 								Required:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
@@ -3318,17 +3318,17 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			}
 		}
 
-		if authentication == "iam_role" {
+		if authentication == api.ClickPipeAuthenticationIAMRole {
 			if postgresModel.IAMRole.IsNull() {
 				diagnostics.AddError(
 					"Missing required attribute",
-					"IAM role is required when authentication is set to 'iam_role'.",
+					"IAM role is required when authentication is set to 'IAM_ROLE'.",
 				)
 			}
 			if credentialsKnown && !credentialsModel.Password.IsNull() && !credentialsModel.Password.IsUnknown() {
 				diagnostics.AddError(
 					"Invalid attribute combination",
-					"Password (or `password_wo`) should not be set when authentication is set to 'iam_role'.",
+					"Password (or `password_wo`) should not be set when authentication is set to 'IAM_ROLE'.",
 				)
 			}
 		}

@@ -281,6 +281,11 @@ var ClickPipeMySQLAuthenticationMethods = []string{
 	"IAM_ROLE",
 }
 
+var ClickPipePostgresAuthenticationMethods = []string{
+	"basic",
+	"IAM_ROLE",
+}
+
 const (
 	ClickPipeMySQLSourceTypeMySQL            = "mysql"
 	ClickPipeMySQLSourceTypeRDSMySQL         = "rdsmysql"
