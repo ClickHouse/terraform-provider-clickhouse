@@ -312,8 +312,121 @@ func TestCloudErrorBody(t *testing.T) {
 	}
 }
 
-// TestCloudValidateDegrades guards that plan-time dashboard validation, which
-// has no Cloud endpoint, degrades to ErrValidateUnsupported via the 404 path.
+// TestCloudValidateEnvelope guards against the Cloud {"result":...} envelope —
+// which do() rewraps to {"data":...} — being decoded as a bare ValidateResult.
+// That yields the zero value, reporting every valid dashboard as invalid with
+// no error details.
+func TestCloudValidateEnvelope(t *testing.T) {
+	t.Parallel()
+
+	c := newCloudTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/organizations/org1/services/svc1/clickstack/dashboards/validate" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"status":200,"requestId":"r1","result":{"valid":true,"errors":[],"normalized":{"name":"d"}}}`)
+	})
+
+	res, err := c.ValidateDashboard(context.Background(), json.RawMessage(`{"name":"d","tiles":[]}`))
+	if err != nil {
+		t.Fatalf("ValidateDashboard: %v", err)
+	}
+	if !res.Valid {
+		t.Errorf("expected valid=true, got %+v", res)
+	}
+}
+
+// TestCloudValidateEnvelopeErrors checks the failure direction too: the
+// per-error details the API reports must survive the envelope unwrap, so the
+// user sees why the dashboard was rejected.
+func TestCloudValidateEnvelopeErrors(t *testing.T) {
+	t.Parallel()
+
+	c := newCloudTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"status":200,"requestId":"r1","result":{"valid":false,"errors":[{"path":"tiles.0","message":"Could not find source"}]}}`)
+	})
+
+	res, err := c.ValidateDashboard(context.Background(), json.RawMessage(`{"name":"d","tiles":[]}`))
+	if err != nil {
+		t.Fatalf("ValidateDashboard: %v", err)
+	}
+	if res.Valid {
+		t.Fatal("expected valid=false")
+	}
+	if len(res.Errors) != 1 || res.Errors[0].Message != "Could not find source" || res.Errors[0].Path != "tiles.0" {
+		t.Errorf("error details lost through envelope unwrap: %+v", res.Errors)
+	}
+}
+
+// TestValidateNoVerdictErrors covers the response shapes that carry no
+// "valid" field. Each must return an error — ValidateConfig renders an error
+// as a "validation unavailable" warning and defers to apply, but a zero
+// ValidateResult as a hard "invalid dashboard" plan failure with nothing to
+// act on. Failing loudly is the only safe default for a verdict-less body.
+func TestValidateNoVerdictErrors(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"null result":      `{"status":200,"requestId":"r1","result":null}`,
+		"result omitted":   `{"status":200,"requestId":"r1"}`,
+		"empty object":     `{}`,
+		"envelope of null": `{"data":null}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			c := newCloudTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.WriteString(w, body)
+			})
+
+			res, err := c.ValidateDashboard(context.Background(), json.RawMessage(`{"name":"d","tiles":[]}`))
+			if err == nil {
+				t.Fatalf("expected an error for a verdict-less body, got %+v", res)
+			}
+		})
+	}
+}
+
+// TestValidateBareResultWithDataField pins that the envelope unwrap keys on a
+// missing verdict, not on the presence of a "data" key: a bare result that
+// carries its own "data" field must keep its verdict and error details rather
+// than being unwrapped into the nested value.
+func TestValidateBareResultWithDataField(t *testing.T) {
+	t.Parallel()
+
+	c := newSelfHostedValidateClient(t, `{"valid":false,"errors":[{"path":"tiles.0","message":"bad tile"}],"data":{"unrelated":1}}`)
+
+	res, err := c.ValidateDashboard(context.Background(), json.RawMessage(`{"name":"d","tiles":[]}`))
+	if err != nil {
+		t.Fatalf("ValidateDashboard: %v", err)
+	}
+	if res.Valid {
+		t.Fatal("expected valid=false")
+	}
+	if len(res.Errors) != 1 || res.Errors[0].Message != "bad tile" {
+		t.Errorf("verdict lost to a spurious envelope unwrap: %+v", res.Errors)
+	}
+}
+
+// newSelfHostedValidateClient returns a self-hosted (non-cloud) client whose
+// /validate endpoint replies with body, so tests can exercise the bare
+// response shape without do()'s cloud envelope rewrap.
+func newSelfHostedValidateClient(t *testing.T, body string) *Client {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, body)
+	}))
+	t.Cleanup(srv.Close)
+
+	c, err := New(srv.URL, "key", srv.Client())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return c
+}
+
+// TestCloudValidateDegrades guards that a Cloud deployment not serving
+// /validate degrades to ErrValidateUnsupported via the 404 path.
 func TestCloudValidateDegrades(t *testing.T) {
 	t.Parallel()
 
