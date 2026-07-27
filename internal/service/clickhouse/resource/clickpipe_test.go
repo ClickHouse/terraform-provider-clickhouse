@@ -873,6 +873,93 @@ func TestExtractSourceFromPlan_PostgresWriteOnlyPassword(t *testing.T) {
 	})
 }
 
+// buildPostgresIAMRolePlan returns plan/config models for Postgres with the given authentication
+// and iam_role values, and a null password (IAM_ROLE authentication doesn't require one).
+func buildPostgresIAMRolePlan(authentication, iamRole types.String) (plan, config models.ClickPipeResourceModel) {
+	credAttrs := map[string]attr.Value{
+		"username":            types.StringValue("user"),
+		"password":            types.StringNull(),
+		"password_wo":         types.StringNull(),
+		"password_wo_version": types.Int64Null(),
+	}
+	settingsAttrs := map[string]attr.Value{
+		"replication_mode":                   types.StringValue("cdc"),
+		"sync_interval_seconds":              types.Int64Null(),
+		"pull_batch_size":                    types.Int64Null(),
+		"publication_name":                   types.StringNull(),
+		"replication_slot_name":              types.StringNull(),
+		"allow_nullable_columns":             types.BoolNull(),
+		"initial_load_parallelism":           types.Int64Null(),
+		"snapshot_num_rows_per_partition":    types.Int64Null(),
+		"snapshot_number_of_parallel_tables": types.Int64Null(),
+		"enable_failover_slots":              types.BoolNull(),
+		"delete_on_merge":                    types.BoolNull(),
+	}
+	pgAttrs := map[string]attr.Value{
+		"type":           types.StringValue("aurorapostgres"),
+		"host":           types.StringValue("postgres.example.com"),
+		"port":           types.Int64Value(5432),
+		"database":       types.StringValue("mydb"),
+		"authentication": authentication,
+		"iam_role":       iamRole,
+		"tls_host":       types.StringNull(),
+		"ca_certificate": types.StringNull(),
+		"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+		"settings":       types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+		"table_mappings": types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{}),
+	}
+	sourceModel := models.ClickPipeSourceModel{
+		Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
+		ObjectStorage: types.ObjectNull(models.ClickPipeObjectStorageSourceModel{}.ObjectType().AttrTypes),
+		Kinesis:       types.ObjectNull(models.ClickPipeKinesisSourceModel{}.ObjectType().AttrTypes),
+		PubSub:        types.ObjectNull(models.ClickPipePubSubSourceModel{}.ObjectType().AttrTypes),
+		Postgres:      types.ObjectValueMust(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes, pgAttrs),
+		MySQL:         types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes),
+		BigQuery:      types.ObjectNull(models.ClickPipeBigQuerySourceModel{}.ObjectType().AttrTypes),
+		MongoDB:       types.ObjectNull(models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes),
+	}
+	model := models.ClickPipeResourceModel{
+		ID:        types.StringValue("test-pipe-id"),
+		ServiceID: types.StringValue("service-123"),
+		Name:      types.StringValue("test-pg-pipe"),
+		Source:    sourceModel.ObjectValue(),
+	}
+	return model, model
+}
+
+// TestExtractSourceFromPlan_PostgresIAMRoleAuthentication guards against regressing issue #639,
+// where the provider sent the API the lowercase "iam_role" it validated instead of the
+// uppercase "IAM_ROLE" the ClickPipes API actually accepts for Postgres sources.
+func TestExtractSourceFromPlan_PostgresIAMRoleAuthentication(t *testing.T) {
+	ctx := context.Background()
+	resource := &ClickPipeResource{}
+
+	t.Run("IAM_ROLE authentication with iam_role set succeeds and is passed through verbatim", func(t *testing.T) {
+		plan, config := buildPostgresIAMRolePlan(types.StringValue(api.ClickPipeAuthenticationIAMRole), types.StringValue("arn:aws:iam::123456789012:role/MyRole"))
+		diagnostics := diag.Diagnostics{}
+		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+		assert.NotNil(t, source)
+		assert.NotNil(t, source.Postgres)
+		assert.NotNil(t, source.Postgres.Authentication)
+		assert.Equal(t, api.ClickPipeAuthenticationIAMRole, *source.Postgres.Authentication)
+		assert.NotNil(t, source.Postgres.IAMRole)
+		assert.Equal(t, "arn:aws:iam::123456789012:role/MyRole", *source.Postgres.IAMRole)
+	})
+
+	t.Run("IAM_ROLE authentication without iam_role errors", func(t *testing.T) {
+		plan, config := buildPostgresIAMRolePlan(types.StringValue(api.ClickPipeAuthenticationIAMRole), types.StringNull())
+		diagnostics := diag.Diagnostics{}
+		resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
+
+		assert.True(t, diagnostics.HasError(), "expected error when iam_role is unset for IAM_ROLE auth")
+	})
+
+	assert.Equal(t, []string{clickPipeAuthBasic, api.ClickPipeAuthenticationIAMRole}, api.ClickPipePostgresAuthenticationMethods,
+		"Postgres authentication enum must match the ClickPipes API contract, not the schema's old lowercase iam_role")
+}
+
 // buildKafkaCredentialsPlan returns plan/config models for PLAIN-authenticated Kafka; see buildPostgresCredentialsPlan for the plan-vs-config asymmetry.
 func buildKafkaCredentialsPlan(password, passwordWO types.String, passwordWOVersion types.Int64) (plan, config models.ClickPipeResourceModel) {
 	build := func(pw, pwWO types.String) models.ClickPipeResourceModel {
