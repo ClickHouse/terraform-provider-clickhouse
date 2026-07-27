@@ -496,7 +496,7 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `iam_role` authentication, password is optional. (see [below for nested schema](#nestedatt--source--postgres--credentials))
+- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. (see [below for nested schema](#nestedatt--source--postgres--credentials))
 - `database` (String) The database name of the Postgres instance.
 - `host` (String) The hostname of the Postgres instance.
 - `settings` (Attributes) Settings for the Postgres CDC pipe. (see [below for nested schema](#nestedatt--source--postgres--settings))
@@ -504,9 +504,9 @@ Required:
 
 Optional:
 
-- `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `iam_role`. Default is `basic`.
+- `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the Postgres server certificate.
-- `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `iam_role`.
+- `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the Postgres instance. Default is 5432.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of the Postgres source. (`postgres`, `supabase`, `neon`, `alloydb`, `planetscale`, `rdspostgres`, `aurorapostgres`, `cloudsqlpostgres`, `azurepostgres`, `crunchybridge`, `tigerdata`). Default is `postgres`.
