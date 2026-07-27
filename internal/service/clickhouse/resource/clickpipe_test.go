@@ -935,7 +935,7 @@ func TestExtractSourceFromPlan_PostgresIAMRoleAuthentication(t *testing.T) {
 	resource := &ClickPipeResource{}
 
 	t.Run("IAM_ROLE authentication with iam_role set succeeds and is passed through verbatim", func(t *testing.T) {
-		plan, config := buildPostgresIAMRolePlan(types.StringValue("IAM_ROLE"), types.StringValue("arn:aws:iam::123456789012:role/MyRole"))
+		plan, config := buildPostgresIAMRolePlan(types.StringValue(api.ClickPipeAuthenticationIAMRole), types.StringValue("arn:aws:iam::123456789012:role/MyRole"))
 		diagnostics := diag.Diagnostics{}
 		source := resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
 
@@ -943,20 +943,20 @@ func TestExtractSourceFromPlan_PostgresIAMRoleAuthentication(t *testing.T) {
 		assert.NotNil(t, source)
 		assert.NotNil(t, source.Postgres)
 		assert.NotNil(t, source.Postgres.Authentication)
-		assert.Equal(t, "IAM_ROLE", *source.Postgres.Authentication)
+		assert.Equal(t, api.ClickPipeAuthenticationIAMRole, *source.Postgres.Authentication)
 		assert.NotNil(t, source.Postgres.IAMRole)
 		assert.Equal(t, "arn:aws:iam::123456789012:role/MyRole", *source.Postgres.IAMRole)
 	})
 
 	t.Run("IAM_ROLE authentication without iam_role errors", func(t *testing.T) {
-		plan, config := buildPostgresIAMRolePlan(types.StringValue("IAM_ROLE"), types.StringNull())
+		plan, config := buildPostgresIAMRolePlan(types.StringValue(api.ClickPipeAuthenticationIAMRole), types.StringNull())
 		diagnostics := diag.Diagnostics{}
 		resource.extractSourceFromPlan(ctx, &diagnostics, plan, &config, false)
 
 		assert.True(t, diagnostics.HasError(), "expected error when iam_role is unset for IAM_ROLE auth")
 	})
 
-	assert.Equal(t, []string{"basic", "IAM_ROLE"}, api.ClickPipePostgresAuthenticationMethods,
+	assert.Equal(t, []string{clickPipeAuthBasic, api.ClickPipeAuthenticationIAMRole}, api.ClickPipePostgresAuthenticationMethods,
 		"Postgres authentication enum must match the ClickPipes API contract, not the schema's old lowercase iam_role")
 }
 
