@@ -14,7 +14,7 @@ require (
 	github.com/hashicorp/terraform-plugin-log v0.10.0
 	github.com/hashicorp/terraform-plugin-testing v1.16.0
 	github.com/stretchr/testify v1.11.1
-	k8s.io/apimachinery v0.36.2
+	k8s.io/apimachinery v0.36.3
 )
 
 require (

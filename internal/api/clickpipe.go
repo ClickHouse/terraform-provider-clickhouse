@@ -248,6 +248,14 @@ var ClickPipePostgresTableEngines = []string{
 	ClickPipeTableEngineNull,
 }
 
+// ClickPipePostgresAuthenticationMethods lists the values accepted by the API for
+// source.postgres.authentication. The API's `basic` value stays lowercase, but `IAM_ROLE`
+// must be uppercase like every other ClickPipe authentication enum (see #639).
+var ClickPipePostgresAuthenticationMethods = []string{
+	"basic",
+	ClickPipeAuthenticationIAMRole,
+}
+
 var ClickPipeBigQueryTableEngines = []string{
 	ClickPipeTableEngineMergeTree,
 	ClickPipeTableEngineReplacingMergeTree,
