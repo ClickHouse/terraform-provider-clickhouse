@@ -3,12 +3,12 @@
 page_title: "clickhouse_clickstack_team Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
-  Manages settings for an existing ClickStack team. The team is provisioned out-of-band; this resource adopts it on create and manages its settings. Destroying this resource does not delete the team or reset its settings.
+  Manages settings for an existing ClickStack team. The team is provisioned out-of-band; this resource adopts it on create and manages its settings. Destroying this resource does not delete the team or reset its settings. Note: on ClickHouse Cloud, teams and members are managed through ClickHouse Cloud (the clickhouse_role and clickhouse_role_assignment resources), not the ClickStack API; this resource is for self-hosted ClickStack.
 ---
 
 # clickhouse_clickstack_team (Resource)
 
-Manages settings for an existing ClickStack team. The team is provisioned out-of-band; this resource adopts it on create and manages its settings. Destroying this resource does not delete the team or reset its settings.
+Manages settings for an existing ClickStack team. The team is provisioned out-of-band; this resource adopts it on create and manages its settings. Destroying this resource does not delete the team or reset its settings. **Note:** on ClickHouse Cloud, teams and members are managed through ClickHouse Cloud (the `clickhouse_role` and `clickhouse_role_assignment` resources), not the ClickStack API; this resource is for self-hosted ClickStack.
 
 ## Example Usage
 

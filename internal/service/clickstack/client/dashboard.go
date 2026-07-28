@@ -96,7 +96,9 @@ func (c *Client) DeleteDashboard(ctx context.Context, id string) error {
 func (c *Client) ValidateDashboard(ctx context.Context, body json.RawMessage) (*ValidateResult, error) {
 	raw, err := c.do(ctx, http.MethodPost, dashboardsPath+"/validate", body)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		// Both 404 flavors mean the endpoint is absent: ErrNotFound
+		// (self-hosted older API) and errRouteNotFound (Cloud gateway).
+		if errors.Is(err, ErrNotFound) || errors.Is(err, errRouteNotFound) {
 			return nil, ErrValidateUnsupported
 		}
 		return nil, err

@@ -75,7 +75,8 @@ func (r *roleResource) Metadata(_ context.Context, req resource.MetadataRequest,
 func (r *roleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a custom RBAC role in ClickStack. " +
-			"**Note:** RBAC is only available on ClickStack Cloud and Enterprise deployments. " +
+			"**Note:** on ClickHouse Cloud, roles are managed through ClickHouse Cloud (the `clickhouse_role` " +
+			"resource), not ClickStack; this resource is for self-hosted ClickStack Enterprise (multi-team) deployments. " +
 			"Predefined roles (Admin, Member, " +
 			"ReadOnly) are not managed by this resource; reference them with the `clickstack_role` " +
 			"data source instead. Note: the API always ensures a `read` permission on `Connection` " +
@@ -161,9 +162,7 @@ func (r *roleResource) Configure(_ context.Context, req resource.ConfigureReques
 	}
 
 	if providerData.ClickStack == nil {
-		resp.Diagnostics.AddError("ClickStack not configured",
-			"This resource requires ClickStack credentials. Set clickstack_api_key on the "+
-				"provider (or the CLICKSTACK_API_KEY environment variable), and clickstack_endpoint if not using ClickHouse Cloud.")
+		addNotConfiguredError(&resp.Diagnostics, "resource")
 		return
 	}
 	r.client = providerData.ClickStack

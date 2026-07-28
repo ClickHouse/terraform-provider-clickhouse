@@ -80,9 +80,7 @@ func (d *dashboardDataSource) Configure(_ context.Context, req datasource.Config
 	}
 
 	if providerData.ClickStack == nil {
-		resp.Diagnostics.AddError("ClickStack not configured",
-			"This data source requires ClickStack credentials. Set clickstack_api_key on the "+
-				"provider (or the CLICKSTACK_API_KEY environment variable), and clickstack_endpoint if not using ClickHouse Cloud.")
+		addNotConfiguredError(&resp.Diagnostics, "data source")
 		return
 	}
 	d.client = providerData.ClickStack

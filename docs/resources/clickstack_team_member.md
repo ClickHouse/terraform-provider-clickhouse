@@ -3,12 +3,12 @@
 page_title: "clickhouse_clickstack_team_member Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
-  Manages a team member and their RBAC role. On create the member is invited: existing accounts are assigned the role immediately (status = active), otherwise a pending invitation is created (status = pending) and invite_url is populated.
+  Manages a team member and their RBAC role. On create the member is invited: existing accounts are assigned the role immediately (status = active), otherwise a pending invitation is created (status = pending) and invite_url is populated. Note: on ClickHouse Cloud, team membership is managed through ClickHouse Cloud (the clickhouse_role_assignment resource), not the ClickStack API; this resource is for self-hosted ClickStack.
 ---
 
 # clickhouse_clickstack_team_member (Resource)
 
-Manages a team member and their RBAC role. On create the member is invited: existing accounts are assigned the role immediately (`status` = `active`), otherwise a pending invitation is created (`status` = `pending`) and `invite_url` is populated.
+Manages a team member and their RBAC role. On create the member is invited: existing accounts are assigned the role immediately (`status` = `active`), otherwise a pending invitation is created (`status` = `pending`) and `invite_url` is populated. **Note:** on ClickHouse Cloud, team membership is managed through ClickHouse Cloud (the `clickhouse_role_assignment` resource), not the ClickStack API; this resource is for self-hosted ClickStack.
 
 ## Example Usage
 

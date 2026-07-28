@@ -1,6 +1,7 @@
 package clickstack
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"testing"
 )
@@ -22,6 +23,104 @@ func tileID(t *testing.T, body json.RawMessage, name string) string {
 		}
 	}
 	return ""
+}
+
+// filterID extracts the id of the filter named name from a dashboard body.
+func filterID(t *testing.T, body json.RawMessage, name string) string {
+	t.Helper()
+	var doc struct {
+		Filters []map[string]any `json:"filters"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, f := range doc.Filters {
+		if n, _ := f["name"].(string); n == name {
+			id, _ := f["id"].(string)
+			return id
+		}
+	}
+	return ""
+}
+
+// TestMergeFilterIDs_NameMatch guards the Cloud update path: authored bodies
+// omit filter ids (create rejects them) but update requires them, so the
+// server-assigned id must be carried forward by name.
+func TestMergeFilterIDs_NameMatch(t *testing.T) {
+	t.Parallel()
+	authored := json.RawMessage(`{"name":"D","filters":[{"name":"Machine","sourceId":"s1"}]}`)
+	prior := json.RawMessage(`{"name":"D","filters":[{"id":"f-1","name":"Machine","sourceId":"s1"}]}`)
+
+	merged, err := mergeFilterIDs(authored, prior)
+	if err != nil {
+		t.Fatalf("mergeFilterIDs: %v", err)
+	}
+	if got := filterID(t, merged, "Machine"); got != "f-1" {
+		t.Errorf("filter Machine id = %q, want f-1", got)
+	}
+}
+
+// TestMergeFilterIDs_NoFiltersUnchanged guards that a dashboard without filters
+// (the common case) is passed through untouched, so create bodies stay id-free.
+func TestMergeFilterIDs_NoFiltersUnchanged(t *testing.T) {
+	t.Parallel()
+	authored := json.RawMessage(`{"name":"D","tiles":[{"name":"A"}]}`)
+	merged, err := mergeFilterIDs(authored, json.RawMessage(`{"name":"D","filters":[{"id":"f-1","name":"Machine"}]}`))
+	if err != nil {
+		t.Fatalf("mergeFilterIDs: %v", err)
+	}
+	if string(merged) != string(authored) {
+		t.Errorf("expected authored body unchanged, got %s", merged)
+	}
+}
+
+// isObjectID reports whether s is a 24-hex-character id (the shape the API
+// requires on every filter of an update).
+func isObjectID(s string) bool {
+	if len(s) != 24 {
+		return false
+	}
+	_, err := hex.DecodeString(s)
+	return err == nil
+}
+
+// TestMergeFilterIDs_NewFilterGetsMintedID guards the add/rename-on-update case
+// the Cloud API rejects without an id on every filter: a filter with no prior
+// match must be minted a valid id rather than left id-less.
+func TestMergeFilterIDs_NewFilterGetsMintedID(t *testing.T) {
+	t.Parallel()
+	// "Machine" exists in prior (carried forward); "Env" is new (must be minted).
+	authored := json.RawMessage(`{"name":"D","filters":[{"name":"Machine","sourceId":"s1"},{"name":"Env","sourceId":"s1"}]}`)
+	prior := json.RawMessage(`{"name":"D","filters":[{"id":"f-machine","name":"Machine","sourceId":"s1"}]}`)
+
+	merged, err := mergeFilterIDs(authored, prior)
+	if err != nil {
+		t.Fatalf("mergeFilterIDs: %v", err)
+	}
+	if got := filterID(t, merged, "Machine"); got != "f-machine" {
+		t.Errorf("Machine id = %q, want carried-forward f-machine", got)
+	}
+	env := filterID(t, merged, "Env")
+	if !isObjectID(env) {
+		t.Errorf("Env id = %q, want a minted 24-hex ObjectId", env)
+	}
+	if env == filterID(t, merged, "Machine") {
+		t.Error("minted Env id collided with Machine id")
+	}
+}
+
+// TestMergeFilterIDs_AllNewWhenNoPrior guards a first update after a create with
+// no filters: with no prior filters array, every authored filter is minted an id.
+func TestMergeFilterIDs_AllNewWhenNoPrior(t *testing.T) {
+	t.Parallel()
+	authored := json.RawMessage(`{"name":"D","filters":[{"name":"Machine","sourceId":"s1"}]}`)
+	merged, err := mergeFilterIDs(authored, json.RawMessage(`{"name":"D"}`))
+	if err != nil {
+		t.Fatalf("mergeFilterIDs: %v", err)
+	}
+	if !isObjectID(filterID(t, merged, "Machine")) {
+		t.Errorf("Machine id = %q, want a minted 24-hex ObjectId", filterID(t, merged, "Machine"))
+	}
 }
 
 func TestMergeTileIDs_NameMatch(t *testing.T) {
