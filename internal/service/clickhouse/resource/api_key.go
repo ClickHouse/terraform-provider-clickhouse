@@ -3,8 +3,10 @@ package resource
 import (
 	"context"
 	_ "embed"
+	"fmt"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -117,16 +119,18 @@ func (r *ApiKeyResource) Configure(_ context.Context, req resource.ConfigureRequ
 		return
 	}
 
-	client, ok := req.ProviderData.(api.Client)
+	providerData, ok := req.ProviderData.(*service.ProviderData)
 	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
-			"Expected api.Client, got something else. Please report this issue to the provider developers.",
-		)
+		resp.Diagnostics.AddError("Unexpected provider data",
+			fmt.Sprintf("expected *service.ProviderData, got %T. This is a bug in the provider.", req.ProviderData))
 		return
 	}
-
-	r.client = client
+	if providerData.API == nil {
+		resp.Diagnostics.AddError("ClickHouse Cloud API not configured",
+			"This resource requires ClickHouse Cloud credentials. Set organization_id, token_key and token_secret on the provider (or the corresponding CLICKHOUSE_* environment variables).")
+		return
+	}
+	r.client = providerData.API
 }
 
 func (r *ApiKeyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
