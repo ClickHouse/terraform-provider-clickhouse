@@ -5482,6 +5482,13 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				if !credentialsObjectChanged(planKafkaModel.Credentials, stateKafkaModel.Credentials) {
 					source.Kafka.Credentials = nil
 				}
+				// Omit all immutable fields from update payload
+				source.Kafka.Type = ""
+				source.Kafka.Format = ""
+				source.Kafka.Brokers = ""
+				source.Kafka.Topics = ""
+				source.Kafka.ConsumerGroup = nil
+				source.Kafka.Offset = nil
 				source.Kafka.SchemaRegistry = nil
 			}
 
