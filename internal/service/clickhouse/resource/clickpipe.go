@@ -292,8 +292,11 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"schema_registry": schema.SingleNestedAttribute{
-								MarkdownDescription: "The schema registry for the Kafka source.",
+								MarkdownDescription: "The schema registry for the Kafka source. Immutable: any change forces pipe replacement.",
 								Optional:            true,
+								PlanModifiers: []planmodifier.Object{
+									requiresReplaceIfSchemaRegistryChanges{},
+								},
 								Attributes: map[string]schema.Attribute{
 									"url": schema.StringAttribute{
 										Description: "The URL of the schema registry.",
@@ -311,7 +314,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									// Other sources (Kafka, Postgres, MySQL, MongoDB) defer this requirement to runtime
 									// validation in extractSourceFromPlan because it's conditional on the `authentication` field.
 									"credentials": schema.SingleNestedAttribute{
-										MarkdownDescription: "The credentials for the Schema Registry.",
+										MarkdownDescription: "The credentials for the Schema Registry. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement.",
 										Required:            true,
 										Sensitive:           true,
 										Attributes: map[string]schema.Attribute{
@@ -338,7 +341,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												},
 											},
 											"password_wo": schema.StringAttribute{
-												Description: "Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version` to trigger updates.",
+												Description: "Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version`; changing schema registry credentials forces pipe replacement.",
 												Optional:    true,
 												Sensitive:   true,
 												WriteOnly:   true,
@@ -347,7 +350,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												},
 											},
 											"password_wo_version": schema.Int64Attribute{
-												Description: "Version trigger for `password_wo`. Increment to push a new password to the API.",
+												Description: "Version trigger for `password_wo`. Incrementing signals a new password, which forces pipe replacement - schema registry credentials cannot be updated in place.",
 												Optional:    true,
 												Validators: []validator.Int64{
 													int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo")),
@@ -5479,9 +5482,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				if !credentialsObjectChanged(planKafkaModel.Credentials, stateKafkaModel.Credentials) {
 					source.Kafka.Credentials = nil
 				}
-				if planKafkaModel.SchemaRegistry.Equal(stateKafkaModel.SchemaRegistry) && source.Kafka.SchemaRegistry != nil {
-					source.Kafka.SchemaRegistry.Credentials = nil
-				}
+				source.Kafka.SchemaRegistry = nil
 			}
 
 			// For Pub/Sub, only re-send the service_account_key when it changed
@@ -5817,7 +5818,7 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 	}
 }
 
-// ImportState imports a ClickPipe reverse private endpoint into the state.
+// ImportState imports a ClickPipe into the state.
 // We don't have access to configuration/plan, so service id is required
 // to be provided as a part of the import id.
 func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -5838,10 +5839,10 @@ func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.Import
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), endpointID)...)
 
 	resp.Diagnostics.AddWarning(
-		"Credentials state diverge",
-		"Importing a ClickPipe will not persist credentials into your state.\n"+
-			"Sensitive values are only stored in your state and provider is not able to import them.\n"+
-			"Run a `terraform apply` to ensure sensitive values state is up to date with a ClickPipe.\n"+
-			"Important: your configuration (in *.tf files) has to provide valid credentials.",
+		"Credentials are not imported",
+		"The API never returns sensitive values, so importing a ClickPipe cannot persist credentials into your state.\n"+
+			"Your configuration (in *.tf files) must provide valid credentials.\n"+
+			"The first `terraform apply` after import sends the source credentials to the ClickPipe and records them in state.\n"+
+			"Schema registry credentials are immutable and never sent on update: the apply records your configured values in state without server-side verification, so ensure they match the registry credentials the pipe already uses.",
 	)
 }

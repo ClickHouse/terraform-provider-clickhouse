@@ -42,6 +42,65 @@ func (r requiresReplaceIfSourceTypeChanges) PlanModifyObject(ctx context.Context
 	// If both are null (staying null), no replacement needed
 }
 
+type requiresReplaceIfSchemaRegistryChanges struct{}
+
+func (r requiresReplaceIfSchemaRegistryChanges) Description(_ context.Context) string {
+	return "Requires replacement if the schema registry changes (it is immutable after creation). " +
+		"Credential differences are ignored while the state holds no credentials (fresh import)."
+}
+
+func (r requiresReplaceIfSchemaRegistryChanges) MarkdownDescription(ctx context.Context) string {
+	return r.Description(ctx)
+}
+
+func (r requiresReplaceIfSchemaRegistryChanges) PlanModifyObject(_ context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
+	// If we're creating or destroying the entire resource, don't need to check
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	state, plan := req.StateValue, req.PlanValue
+	// Unknown values cannot prove a change; never plan a destructive replacement on a guess.
+	if state.IsUnknown() || plan.IsUnknown() {
+		return
+	}
+	if state.IsNull() && plan.IsNull() {
+		return
+	}
+	// Adding a registry to a pipe without one (or removing it) is an immutable change.
+	if state.IsNull() != plan.IsNull() {
+		resp.RequiresReplace = true
+		return
+	}
+
+	stateAttrs, planAttrs := state.Attributes(), plan.Attributes()
+	for name, stateVal := range stateAttrs {
+		if name == "credentials" {
+			continue
+		}
+		planVal, ok := planAttrs[name]
+		if !ok || !planVal.Equal(stateVal) {
+			resp.RequiresReplace = true
+			return
+		}
+	}
+
+	// Credentials: compare only once state holds them.
+	// `terraform import` cannot read credentials, so the first post-import plan sees config
+	// credentials against null state credentials; that difference alone must not force a replacement.
+	stateCreds, ok := stateAttrs["credentials"].(types.Object)
+	if !ok || stateCreds.IsNull() || stateCreds.IsUnknown() {
+		return
+	}
+	planCreds, ok := planAttrs["credentials"].(types.Object)
+	if !ok || planCreds.IsUnknown() {
+		return
+	}
+	if credentialsObjectChanged(planCreds, stateCreds) {
+		resp.RequiresReplace = true
+	}
+}
+
 // planStateAttribute decides the planned `state` and must run as ModifyPlan's
 // final step: the framework marks `state` Unknown whenever the proposed plan
 // differs from prior state, even when ModifyPlan's repairs resolve the
