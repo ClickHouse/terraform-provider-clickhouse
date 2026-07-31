@@ -80,7 +80,17 @@ func (r requiresReplaceIfSchemaRegistryChanges) PlanModifyObject(_ context.Conte
 			continue
 		}
 		planVal, ok := planAttrs[name]
-		if !ok || !planVal.Equal(stateVal) {
+		if !ok {
+			resp.RequiresReplace = true
+			return
+		}
+		// A value not known until apply (e.g. url from another resource's output) can't
+		// prove a change; warn rather than force a destructive replacement on a guess.
+		if planVal.IsUnknown() {
+			addUnknownSchemaRegistryWarning(req.Path, resp)
+			return
+		}
+		if !planVal.Equal(stateVal) {
 			resp.RequiresReplace = true
 			return
 		}
@@ -112,10 +122,8 @@ func addUnknownSchemaRegistryWarning(p path.Path, resp *planmodifier.ObjectRespo
 		"Schema registry change cannot be determined",
 		"The planned schema registry value is not known until apply, so the provider cannot tell "+
 			"whether it differs from the pipe's immutable schema registry. Unknown values are recorded "+
-			"in state but never sent to the API, so the live pipe keeps its current schema registry. "+
-			"To rotate schema registry credentials, replace the pipe: run `terraform apply -replace=...` "+
-			"with this pipe's resource address, or bump `password_wo_version`, which forces replacement "+
-			"at plan time.",
+			"in state but are never sent to the API, so the live pipe keeps its current schema registry. "+
+			"To change the schema registry, recreate the pipe.",
 	)
 }
 

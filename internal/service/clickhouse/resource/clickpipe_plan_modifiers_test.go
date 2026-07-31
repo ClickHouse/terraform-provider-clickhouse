@@ -237,6 +237,18 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 			expectedRequiresReplace: false,
 			expectedWarning:         true,
 		},
+		"plan-url-unknown": {
+			stateRaw:   updateRaw,
+			planRaw:    updateRaw,
+			stateValue: sr("https://sr.example", "PLAIN", knownCreds),
+			planValue: types.ObjectValueMust(srType, map[string]attr.Value{
+				"url":            types.StringUnknown(),
+				"authentication": types.StringValue("PLAIN"),
+				"credentials":    knownCreds,
+			}),
+			expectedRequiresReplace: false,
+			expectedWarning:         true,
+		},
 		"plan-password-attribute-unknown": {
 			stateRaw:                updateRaw,
 			planRaw:                 updateRaw,
