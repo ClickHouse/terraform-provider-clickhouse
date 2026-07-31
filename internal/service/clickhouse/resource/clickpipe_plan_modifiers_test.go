@@ -163,6 +163,7 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 		stateValue              types.Object
 		planValue               types.Object
 		expectedRequiresReplace bool
+		expectedWarning         bool
 	}{
 		"null-to-null": {
 			stateRaw:                updateRaw,
@@ -226,6 +227,22 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 			stateValue:              sr("https://sr.example", "PLAIN", knownCreds),
 			planValue:               sr("https://sr.example", "PLAIN", types.ObjectUnknown(credsType)),
 			expectedRequiresReplace: false,
+			expectedWarning:         true,
+		},
+		"plan-registry-unknown": {
+			stateRaw:                updateRaw,
+			planRaw:                 updateRaw,
+			stateValue:              sr("https://sr.example", "PLAIN", knownCreds),
+			planValue:               types.ObjectUnknown(srType),
+			expectedRequiresReplace: false,
+			expectedWarning:         true,
+		},
+		"plan-password-attribute-unknown": {
+			stateRaw:                updateRaw,
+			planRaw:                 updateRaw,
+			stateValue:              sr("https://sr.example", "PLAIN", knownCreds),
+			planValue:               sr("https://sr.example", "PLAIN", creds(types.StringValue("sr-user"), types.StringUnknown(), types.Int64Null())),
+			expectedRequiresReplace: true,
 		},
 		"creating-resource": {
 			stateRaw:                tftypes.NewValue(tftypes.Object{}, nil),
@@ -264,6 +281,9 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 
 			if resp.RequiresReplace != testCase.expectedRequiresReplace {
 				t.Errorf("expected RequiresReplace to be %v, got %v", testCase.expectedRequiresReplace, resp.RequiresReplace)
+			}
+			if hasWarning := resp.Diagnostics.WarningsCount() > 0; hasWarning != testCase.expectedWarning {
+				t.Errorf("expected warning presence to be %v, got diagnostics: %v", testCase.expectedWarning, resp.Diagnostics)
 			}
 		})
 	}

@@ -60,8 +60,9 @@ func (r requiresReplaceIfSchemaRegistryChanges) PlanModifyObject(_ context.Conte
 	}
 
 	state, plan := req.StateValue, req.PlanValue
-	// Unknown values cannot prove a change; never plan a destructive replacement on a guess.
-	if state.IsUnknown() || plan.IsUnknown() {
+	// Never plan a destructive replacement on an unknown value, but warn
+	if plan.IsUnknown() {
+		addUnknownSchemaRegistryWarning(req.Path, resp)
 		return
 	}
 	if state.IsNull() && plan.IsNull() {
@@ -89,16 +90,33 @@ func (r requiresReplaceIfSchemaRegistryChanges) PlanModifyObject(_ context.Conte
 	// `terraform import` cannot read credentials, so the first post-import plan sees config
 	// credentials against null state credentials; that difference alone must not force a replacement.
 	stateCreds, ok := stateAttrs["credentials"].(types.Object)
-	if !ok || stateCreds.IsNull() || stateCreds.IsUnknown() {
+	if !ok || stateCreds.IsNull() {
 		return
 	}
 	planCreds, ok := planAttrs["credentials"].(types.Object)
-	if !ok || planCreds.IsUnknown() {
+	if !ok {
+		return
+	}
+	if planCreds.IsUnknown() {
+		addUnknownSchemaRegistryWarning(req.Path, resp)
 		return
 	}
 	if credentialsObjectChanged(planCreds, stateCreds) {
 		resp.RequiresReplace = true
 	}
+}
+
+func addUnknownSchemaRegistryWarning(p path.Path, resp *planmodifier.ObjectResponse) {
+	resp.Diagnostics.AddAttributeWarning(
+		p,
+		"Schema registry change cannot be determined",
+		"The planned schema registry value is not known until apply, so the provider cannot tell "+
+			"whether it differs from the pipe's immutable schema registry. Unknown values are recorded "+
+			"in state but never sent to the API, so the live pipe keeps its current schema registry. "+
+			"To rotate schema registry credentials, replace the pipe: run `terraform apply -replace=...` "+
+			"with this pipe's resource address, or bump `password_wo_version`, which forces replacement "+
+			"at plan time.",
+	)
 }
 
 // planStateAttribute decides the planned `state` and must run as ModifyPlan's
