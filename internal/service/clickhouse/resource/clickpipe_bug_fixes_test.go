@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"testing"
 
@@ -106,6 +107,7 @@ func buildPostgresPlanWithCredentials(credentials types.Object) models.ClickPipe
 		"sorting_keys":           types.ListNull(types.StringType),
 		"table_engine":           types.StringNull(),
 		"partition_key":          types.StringNull(),
+		"partition_by_expr":      types.StringNull(),
 	}
 	pgAttrs := map[string]attr.Value{
 		"type":           types.StringValue("postgres"),
@@ -599,6 +601,7 @@ func postgresPlanWithExcludedColumns(ctx context.Context, excludedColumns []stri
 		"sorting_keys":           types.ListNull(types.StringType), // sorting_keys stays an ordered List
 		"table_engine":           types.StringNull(),
 		"partition_key":          types.StringNull(),
+		"partition_by_expr":      types.StringNull(),
 	}
 
 	var src models.ClickPipeSourceModel
@@ -616,8 +619,11 @@ func postgresPlanWithExcludedColumns(ctx context.Context, excludedColumns []stri
 	return state
 }
 
-func TestClickPipeResource_ModifyPlan_ExcludedColumnsReorder_Issue558(t *testing.T) {
-	ctx := context.Background()
+// driveClickPipeModifyPlan encodes the given state/plan models against the
+// resource schema and drives ModifyPlan for an update (non-null state + plan),
+// returning the resulting diagnostics.
+func driveClickPipeModifyPlan(ctx context.Context, t *testing.T, stateModel, planModel models.ClickPipeResourceModel) diag.Diagnostics {
+	t.Helper()
 	r := &ClickPipeResource{}
 
 	schemaResp := &resource.SchemaResponse{}
@@ -627,39 +633,43 @@ func TestClickPipeResource_ModifyPlan_ExcludedColumnsReorder_Issue558(t *testing
 	}
 	sch := schemaResp.Schema
 
-	// run drives ModifyPlan for an update (non-null state + plan) and returns the
-	// resulting diagnostics.
-	run := func(t *testing.T, stateModel, planModel models.ClickPipeResourceModel) diag.Diagnostics {
-		t.Helper()
-		stateVal := tfsdk.State{Schema: sch}
-		if d := stateVal.Set(ctx, &stateModel); d.HasError() {
-			t.Fatalf("encoding prior state failed: %v", d.Errors())
-		}
-		planVal := tfsdk.Plan{Schema: sch}
-		if d := planVal.Set(ctx, &planModel); d.HasError() {
-			t.Fatalf("encoding plan failed: %v", d.Errors())
-		}
-		req := resource.ModifyPlanRequest{
-			State:  stateVal,
-			Plan:   planVal,
-			Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
-		}
-		resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
-		r.ModifyPlan(ctx, req, resp)
-		return resp.Diagnostics
+	stateVal := tfsdk.State{Schema: sch}
+	if d := stateVal.Set(ctx, &stateModel); d.HasError() {
+		t.Fatalf("encoding prior state failed: %v", d.Errors())
 	}
+	planVal := tfsdk.Plan{Schema: sch}
+	if d := planVal.Set(ctx, &planModel); d.HasError() {
+		t.Fatalf("encoding plan failed: %v", d.Errors())
+	}
+	req := resource.ModifyPlanRequest{
+		State:  stateVal,
+		Plan:   planVal,
+		Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+	}
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
+	r.ModifyPlan(ctx, req, resp)
+	return resp.Diagnostics
+}
 
-	// detailContains reports whether any error diagnostic's detail contains substr.
-	// We assert on the specific immutability message rather than HasError() so the
-	// test is robust against unrelated ModifyPlan diagnostics.
-	detailContains := func(diags diag.Diagnostics, substr string) bool {
-		for _, d := range diags.Errors() {
-			if strings.Contains(d.Detail(), substr) {
-				return true
-			}
+// errorDetailContains reports whether any error diagnostic's detail contains
+// substr. Tests assert on the specific immutability message rather than
+// HasError() so they are robust against unrelated ModifyPlan diagnostics.
+func errorDetailContains(diags diag.Diagnostics, substr string) bool {
+	for _, d := range diags.Errors() {
+		if strings.Contains(d.Detail(), substr) {
+			return true
 		}
-		return false
 	}
+	return false
+}
+
+func TestClickPipeResource_ModifyPlan_ExcludedColumnsReorder_Issue558(t *testing.T) {
+	ctx := context.Background()
+
+	run := func(t *testing.T, stateModel, planModel models.ClickPipeResourceModel) diag.Diagnostics {
+		return driveClickPipeModifyPlan(ctx, t, stateModel, planModel)
+	}
+	detailContains := errorDetailContains
 
 	t.Run("reordered excluded_columns is not a forbidden modification", func(t *testing.T) {
 		// state = order a refresh wrote (API order); plan = config order. Same set.
@@ -681,6 +691,73 @@ func TestClickPipeResource_ModifyPlan_ExcludedColumnsReorder_Issue558(t *testing
 
 		assert.True(t, detailContains(diags, "Cannot modify target_table"),
 			"a real target_table change on an existing mapping must still be rejected; got: %v", diags.Errors())
+	})
+}
+
+// setPostgresMappingAttr rebuilds the model's single Postgres table mapping with
+// one attribute replaced.
+func setPostgresMappingAttr(ctx context.Context, t *testing.T, m *models.ClickPipeResourceModel, field string, v attr.Value) {
+	t.Helper()
+	var src models.ClickPipeSourceModel
+	if d := m.Source.As(ctx, &src, basetypes.ObjectAsOptions{}); d.HasError() {
+		t.Fatalf("decoding source failed: %v", d.Errors())
+	}
+	var pg models.ClickPipePostgresSourceModel
+	if d := src.Postgres.As(ctx, &pg, basetypes.ObjectAsOptions{}); d.HasError() {
+		t.Fatalf("decoding postgres source failed: %v", d.Errors())
+	}
+
+	elems := pg.TableMappings.Elements()
+	if len(elems) != 1 {
+		t.Fatalf("fixture must have exactly one table mapping, got %d", len(elems))
+	}
+	attrs := maps.Clone(elems[0].(types.Object).Attributes())
+	attrs[field] = v
+	pg.TableMappings = types.SetValueMust(
+		models.ClickPipePostgresTableMappingModel{}.ObjectType(),
+		[]attr.Value{types.ObjectValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType().AttrTypes, attrs)},
+	)
+	src.Postgres = pg.ObjectValue()
+	m.Source = src.ObjectValue()
+}
+
+// Issue #648 — table_engine, partition_key, and partition_by_expr were missing
+// from ModifyPlan's mapping-immutability checklist, so changing one on an
+// existing mapping slipped past the plan and silently no-op'd in Update. The
+// API rejects add+remove of the same source table in one PATCH by design
+// (a re-add would re-snapshot into the populated destination table), so there
+// is no in-place edit to fall back on: the plan-time error is the contract.
+func TestClickPipeResource_ModifyPlan_MappingValueFieldsImmutable_Issue648(t *testing.T) {
+	ctx := context.Background()
+
+	valueFields := map[string]attr.Value{
+		"table_engine":      types.StringValue("Null"),
+		"partition_key":     types.StringValue("id"),
+		"partition_by_expr": types.StringValue("toYYYYMM(created_at)"),
+	}
+	for field, newValue := range valueFields {
+		t.Run("changing "+field+" is rejected at plan time", func(t *testing.T) {
+			state := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+			plan := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+			setPostgresMappingAttr(ctx, t, &plan, field, newValue)
+
+			diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+			assert.True(t, errorDetailContains(diags, "Cannot modify "+field),
+				"a %s change on an existing mapping must be rejected at plan time; got: %v", field, diags.Errors())
+		})
+	}
+
+	t.Run("identical value fields do not trip the guard", func(t *testing.T) {
+		state := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+		plan := postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+		setPostgresMappingAttr(ctx, t, &state, "partition_by_expr", types.StringValue("toYYYYMM(created_at)"))
+		setPostgresMappingAttr(ctx, t, &plan, "partition_by_expr", types.StringValue("toYYYYMM(created_at)"))
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.False(t, errorDetailContains(diags, "Cannot modify"),
+			"an unchanged mapping must not be flagged; got: %v", diags.Errors())
 	})
 }
 
