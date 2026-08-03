@@ -1121,6 +1121,15 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										"partition_by_expr": schema.StringAttribute{
 											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping: remove the mapping in one apply, then re-add it with the new value in a subsequent apply (re-adding re-snapshots the table).",
 											Optional:    true,
+											Validators: []validator.String{
+												// The API stores a blank expression as unset, which reads
+												// back as null and would produce "inconsistent result
+												// after apply". Omit the attribute instead of blanking it.
+												stringvalidator.RegexMatches(
+													regexp.MustCompile(`\S`),
+													"must not be empty or whitespace-only; omit the attribute instead",
+												),
+											},
 										},
 									},
 								},
