@@ -2,18 +2,20 @@ You can use the *clickhouse_udf* resource to create and manage User Defined Func
 
 ~> **Note:** This resource is in alpha. Its behavior may change in future provider versions.
 
-Point `source_archive_path` at a ZIP of your function source, and set `source_archive_hash` with `filebase64sha256(...)` so Terraform notices when the zip changes. Apply uploads the archive and waits for the build to finish.
+Point `source_archive_path` at a ZIP of your function source, and set `source_archive_hash` to `filebase64sha256(...)` of that same file so Terraform knows when to publish a new version. On apply, the provider uploads the archive and waits for the build to finish.
 
-If Terraform cannot confirm that a publish completed, it stops instead of risking a duplicate version. Refresh the UDF and verify its latest version and settings before trying again.
+### If a build fails
 
-`function_name` cannot reuse a built-in ClickHouse function name (for example, `sum`); the API rejects reserved names.
+By default, a failed build fails the apply (`fail_on_build_error = true`). Set it to `false` if you'd rather get a warning and move on. Either way, the failed version stays in state, and applying again with the same source won't retry the build — you'll need to fix the source and give `source_archive_hash` a new value first.
 
-If a build fails, Terraform keeps the failed version in state. Fix the source, update `source_archive_hash`, and apply again. Applying with the same source will not retry the build.
+On create, a failed build also taints the resource, so the next apply replaces it from scratch. On update, the previous, working version keeps running while you sort things out.
 
-By default, a failed build fails the apply (`fail_on_build_error = true`). Set it to `false` to get a warning instead. Changing this setting alone does not create a new version.
+### If Terraform loses track mid-build
 
-When build polling times out, Terraform saves the last observed status in state. Refresh or run plan to check the status before applying again.
+Occasionally Terraform can't confirm a publish went through, or polling for the build status times out. Either way, it stops rather than risk creating a duplicate version, and saves the last known status in state. A `terraform plan` (or `refresh`) will pick up the real status, so it's worth doing that before applying again.
 
-On create, a failed build also marks the resource as tainted so the next apply replaces it. On later updates, the previous version keeps running on your services.
+### A couple of things to know
 
-Deleting this resource removes all versions and detaches the UDF from every service.
+`function_name` can't reuse a built-in ClickHouse function name (like `sum`) — the API rejects reserved names.
+
+Deleting this resource removes all versions of the UDF and detaches it from every service that uses it.
