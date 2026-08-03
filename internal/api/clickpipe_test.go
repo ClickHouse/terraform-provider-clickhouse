@@ -49,7 +49,7 @@ func TestCreateClickPipe_WakesIdleServiceAndRetries(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&stateUpdate); err != nil {
 				t.Errorf("decoding state update body: %v", err)
 			}
-			if stateUpdate.Command != "awake" {
+			if stateUpdate.Command != serviceStateCommandAwake {
 				t.Errorf("state command = %q; want awake", stateUpdate.Command)
 			}
 			_, _ = w.Write([]byte(`{}`))

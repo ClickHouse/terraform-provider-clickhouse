@@ -19,6 +19,13 @@ type ClientMock struct {
 	t          minimock.Tester
 	finishOnce sync.Once
 
+	funcAttachUDF          func(ctx context.Context, functionName string, serviceID string, request UDFAttachRequest) (up1 *UDFAttachment, err error)
+	funcAttachUDFOrigin    string
+	inspectFuncAttachUDF   func(ctx context.Context, functionName string, serviceID string, request UDFAttachRequest)
+	afterAttachUDFCounter  uint64
+	beforeAttachUDFCounter uint64
+	AttachUDFMock          mClientMockAttachUDF
+
 	funcChangeClickPipeState          func(ctx context.Context, serviceId string, clickPipeId string, command string) (cp1 *ClickPipe, err error)
 	funcChangeClickPipeStateOrigin    string
 	inspectFuncChangeClickPipeState   func(ctx context.Context, serviceId string, clickPipeId string, command string)
@@ -75,6 +82,27 @@ type ClientMock struct {
 	beforeCreateServiceCounter uint64
 	CreateServiceMock          mClientMockCreateService
 
+	funcCreateUDF          func(ctx context.Context, request UDFCreateRequest) (up1 *UDF, err error)
+	funcCreateUDFOrigin    string
+	inspectFuncCreateUDF   func(ctx context.Context, request UDFCreateRequest)
+	afterCreateUDFCounter  uint64
+	beforeCreateUDFCounter uint64
+	CreateUDFMock          mClientMockCreateUDF
+
+	funcCreateUDFUploadSession          func(ctx context.Context) (up1 *UDFUploadSession, err error)
+	funcCreateUDFUploadSessionOrigin    string
+	inspectFuncCreateUDFUploadSession   func(ctx context.Context)
+	afterCreateUDFUploadSessionCounter  uint64
+	beforeCreateUDFUploadSessionCounter uint64
+	CreateUDFUploadSessionMock          mClientMockCreateUDFUploadSession
+
+	funcCreateUDFVersion          func(ctx context.Context, functionName string, request UDFVersionCreateRequest) (up1 *UDF, err error)
+	funcCreateUDFVersionOrigin    string
+	inspectFuncCreateUDFVersion   func(ctx context.Context, functionName string, request UDFVersionCreateRequest)
+	afterCreateUDFVersionCounter  uint64
+	beforeCreateUDFVersionCounter uint64
+	CreateUDFVersionMock          mClientMockCreateUDFVersion
+
 	funcDeleteClickPipe          func(ctx context.Context, serviceId string, clickPipeId string) (err error)
 	funcDeleteClickPipeOrigin    string
 	inspectFuncDeleteClickPipe   func(ctx context.Context, serviceId string, clickPipeId string)
@@ -124,12 +152,26 @@ type ClientMock struct {
 	beforeDeleteServiceCounter uint64
 	DeleteServiceMock          mClientMockDeleteService
 
+	funcDeleteUDF          func(ctx context.Context, functionName string) (err error)
+	funcDeleteUDFOrigin    string
+	inspectFuncDeleteUDF   func(ctx context.Context, functionName string)
+	afterDeleteUDFCounter  uint64
+	beforeDeleteUDFCounter uint64
+	DeleteUDFMock          mClientMockDeleteUDF
+
 	funcDeleteUpgradeWindow          func(ctx context.Context, serviceId string) (err error)
 	funcDeleteUpgradeWindowOrigin    string
 	inspectFuncDeleteUpgradeWindow   func(ctx context.Context, serviceId string)
 	afterDeleteUpgradeWindowCounter  uint64
 	beforeDeleteUpgradeWindowCounter uint64
 	DeleteUpgradeWindowMock          mClientMockDeleteUpgradeWindow
+
+	funcDetachUDF          func(ctx context.Context, functionName string, serviceID string) (err error)
+	funcDetachUDFOrigin    string
+	inspectFuncDetachUDF   func(ctx context.Context, functionName string, serviceID string)
+	afterDetachUDFCounter  uint64
+	beforeDetachUDFCounter uint64
+	DetachUDFMock          mClientMockDetachUDF
 
 	funcGetApiKeyID          func(ctx context.Context, name *string) (ap1 *ApiKey, err error)
 	funcGetApiKeyIDOrigin    string
@@ -263,6 +305,20 @@ type ClientMock struct {
 	afterGetServiceBaseCounter  uint64
 	beforeGetServiceBaseCounter uint64
 	GetServiceBaseMock          mClientMockGetServiceBase
+
+	funcGetUDF          func(ctx context.Context, functionName string) (up1 *UDF, err error)
+	funcGetUDFOrigin    string
+	inspectFuncGetUDF   func(ctx context.Context, functionName string)
+	afterGetUDFCounter  uint64
+	beforeGetUDFCounter uint64
+	GetUDFMock          mClientMockGetUDF
+
+	funcGetUDFAttachment          func(ctx context.Context, functionName string, serviceID string) (up1 *UDFAttachment, err error)
+	funcGetUDFAttachmentOrigin    string
+	inspectFuncGetUDFAttachment   func(ctx context.Context, functionName string, serviceID string)
+	afterGetUDFAttachmentCounter  uint64
+	beforeGetUDFAttachmentCounter uint64
+	GetUDFAttachmentMock          mClientMockGetUDFAttachment
 
 	funcGetUpgradeWindow          func(ctx context.Context, serviceId string) (up1 *UpgradeWindow, err error)
 	funcGetUpgradeWindowOrigin    string
@@ -432,6 +488,13 @@ type ClientMock struct {
 	beforeUpdateUpgradeWindowCounter uint64
 	UpdateUpgradeWindowMock          mClientMockUpdateUpgradeWindow
 
+	funcUploadUDFArchive          func(ctx context.Context, uploadURL string, archive []byte) (err error)
+	funcUploadUDFArchiveOrigin    string
+	inspectFuncUploadUDFArchive   func(ctx context.Context, uploadURL string, archive []byte)
+	afterUploadUDFArchiveCounter  uint64
+	beforeUploadUDFArchiveCounter uint64
+	UploadUDFArchiveMock          mClientMockUploadUDFArchive
+
 	funcWaitForClickPipeCdcScaling          func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (cp1 *ClickPipeCdcScaling, err error)
 	funcWaitForClickPipeCdcScalingOrigin    string
 	inspectFuncWaitForClickPipeCdcScaling   func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration)
@@ -473,6 +536,13 @@ type ClientMock struct {
 	afterWaitForServiceStateCounter  uint64
 	beforeWaitForServiceStateCounter uint64
 	WaitForServiceStateMock          mClientMockWaitForServiceState
+
+	funcWakeService          func(ctx context.Context, serviceID string) (err error)
+	funcWakeServiceOrigin    string
+	inspectFuncWakeService   func(ctx context.Context, serviceID string)
+	afterWakeServiceCounter  uint64
+	beforeWakeServiceCounter uint64
+	WakeServiceMock          mClientMockWakeService
 }
 
 // NewClientMock returns a mock for Client
@@ -482,6 +552,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	if controller, ok := t.(minimock.MockController); ok {
 		controller.RegisterMocker(m)
 	}
+
+	m.AttachUDFMock = mClientMockAttachUDF{mock: m}
+	m.AttachUDFMock.callArgs = []*ClientMockAttachUDFParams{}
 
 	m.ChangeClickPipeStateMock = mClientMockChangeClickPipeState{mock: m}
 	m.ChangeClickPipeStateMock.callArgs = []*ClientMockChangeClickPipeStateParams{}
@@ -507,6 +580,15 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateServiceMock = mClientMockCreateService{mock: m}
 	m.CreateServiceMock.callArgs = []*ClientMockCreateServiceParams{}
 
+	m.CreateUDFMock = mClientMockCreateUDF{mock: m}
+	m.CreateUDFMock.callArgs = []*ClientMockCreateUDFParams{}
+
+	m.CreateUDFUploadSessionMock = mClientMockCreateUDFUploadSession{mock: m}
+	m.CreateUDFUploadSessionMock.callArgs = []*ClientMockCreateUDFUploadSessionParams{}
+
+	m.CreateUDFVersionMock = mClientMockCreateUDFVersion{mock: m}
+	m.CreateUDFVersionMock.callArgs = []*ClientMockCreateUDFVersionParams{}
+
 	m.DeleteClickPipeMock = mClientMockDeleteClickPipe{mock: m}
 	m.DeleteClickPipeMock.callArgs = []*ClientMockDeleteClickPipeParams{}
 
@@ -528,8 +610,14 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.DeleteServiceMock = mClientMockDeleteService{mock: m}
 	m.DeleteServiceMock.callArgs = []*ClientMockDeleteServiceParams{}
 
+	m.DeleteUDFMock = mClientMockDeleteUDF{mock: m}
+	m.DeleteUDFMock.callArgs = []*ClientMockDeleteUDFParams{}
+
 	m.DeleteUpgradeWindowMock = mClientMockDeleteUpgradeWindow{mock: m}
 	m.DeleteUpgradeWindowMock.callArgs = []*ClientMockDeleteUpgradeWindowParams{}
+
+	m.DetachUDFMock = mClientMockDetachUDF{mock: m}
+	m.DetachUDFMock.callArgs = []*ClientMockDetachUDFParams{}
 
 	m.GetApiKeyIDMock = mClientMockGetApiKeyID{mock: m}
 	m.GetApiKeyIDMock.callArgs = []*ClientMockGetApiKeyIDParams{}
@@ -587,6 +675,12 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetServiceBaseMock = mClientMockGetServiceBase{mock: m}
 	m.GetServiceBaseMock.callArgs = []*ClientMockGetServiceBaseParams{}
+
+	m.GetUDFMock = mClientMockGetUDF{mock: m}
+	m.GetUDFMock.callArgs = []*ClientMockGetUDFParams{}
+
+	m.GetUDFAttachmentMock = mClientMockGetUDFAttachment{mock: m}
+	m.GetUDFAttachmentMock.callArgs = []*ClientMockGetUDFAttachmentParams{}
 
 	m.GetUpgradeWindowMock = mClientMockGetUpgradeWindow{mock: m}
 	m.GetUpgradeWindowMock.callArgs = []*ClientMockGetUpgradeWindowParams{}
@@ -660,6 +754,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.UpdateUpgradeWindowMock = mClientMockUpdateUpgradeWindow{mock: m}
 	m.UpdateUpgradeWindowMock.callArgs = []*ClientMockUpdateUpgradeWindowParams{}
 
+	m.UploadUDFArchiveMock = mClientMockUploadUDFArchive{mock: m}
+	m.UploadUDFArchiveMock.callArgs = []*ClientMockUploadUDFArchiveParams{}
+
 	m.WaitForClickPipeCdcScalingMock = mClientMockWaitForClickPipeCdcScaling{mock: m}
 	m.WaitForClickPipeCdcScalingMock.callArgs = []*ClientMockWaitForClickPipeCdcScalingParams{}
 
@@ -678,9 +775,417 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.WaitForServiceStateMock = mClientMockWaitForServiceState{mock: m}
 	m.WaitForServiceStateMock.callArgs = []*ClientMockWaitForServiceStateParams{}
 
+	m.WakeServiceMock = mClientMockWakeService{mock: m}
+	m.WakeServiceMock.callArgs = []*ClientMockWakeServiceParams{}
+
 	t.Cleanup(m.MinimockFinish)
 
 	return m
+}
+
+type mClientMockAttachUDF struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockAttachUDFExpectation
+	expectations       []*ClientMockAttachUDFExpectation
+
+	callArgs []*ClientMockAttachUDFParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockAttachUDFExpectation specifies expectation struct of the Client.AttachUDF
+type ClientMockAttachUDFExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockAttachUDFParams
+	paramPtrs          *ClientMockAttachUDFParamPtrs
+	expectationOrigins ClientMockAttachUDFExpectationOrigins
+	results            *ClientMockAttachUDFResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockAttachUDFParams contains parameters of the Client.AttachUDF
+type ClientMockAttachUDFParams struct {
+	ctx          context.Context
+	functionName string
+	serviceID    string
+	request      UDFAttachRequest
+}
+
+// ClientMockAttachUDFParamPtrs contains pointers to parameters of the Client.AttachUDF
+type ClientMockAttachUDFParamPtrs struct {
+	ctx          *context.Context
+	functionName *string
+	serviceID    *string
+	request      *UDFAttachRequest
+}
+
+// ClientMockAttachUDFResults contains results of the Client.AttachUDF
+type ClientMockAttachUDFResults struct {
+	up1 *UDFAttachment
+	err error
+}
+
+// ClientMockAttachUDFOrigins contains origins of expectations of the Client.AttachUDF
+type ClientMockAttachUDFExpectationOrigins struct {
+	origin             string
+	originCtx          string
+	originFunctionName string
+	originServiceID    string
+	originRequest      string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmAttachUDF *mClientMockAttachUDF) Optional() *mClientMockAttachUDF {
+	mmAttachUDF.optional = true
+	return mmAttachUDF
+}
+
+// Expect sets up expected params for Client.AttachUDF
+func (mmAttachUDF *mClientMockAttachUDF) Expect(ctx context.Context, functionName string, serviceID string, request UDFAttachRequest) *mClientMockAttachUDF {
+	if mmAttachUDF.mock.funcAttachUDF != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Set")
+	}
+
+	if mmAttachUDF.defaultExpectation == nil {
+		mmAttachUDF.defaultExpectation = &ClientMockAttachUDFExpectation{}
+	}
+
+	if mmAttachUDF.defaultExpectation.paramPtrs != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by ExpectParams functions")
+	}
+
+	mmAttachUDF.defaultExpectation.params = &ClientMockAttachUDFParams{ctx, functionName, serviceID, request}
+	mmAttachUDF.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmAttachUDF.expectations {
+		if minimock.Equal(e.params, mmAttachUDF.defaultExpectation.params) {
+			mmAttachUDF.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmAttachUDF.defaultExpectation.params)
+		}
+	}
+
+	return mmAttachUDF
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.AttachUDF
+func (mmAttachUDF *mClientMockAttachUDF) ExpectCtxParam1(ctx context.Context) *mClientMockAttachUDF {
+	if mmAttachUDF.mock.funcAttachUDF != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Set")
+	}
+
+	if mmAttachUDF.defaultExpectation == nil {
+		mmAttachUDF.defaultExpectation = &ClientMockAttachUDFExpectation{}
+	}
+
+	if mmAttachUDF.defaultExpectation.params != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Expect")
+	}
+
+	if mmAttachUDF.defaultExpectation.paramPtrs == nil {
+		mmAttachUDF.defaultExpectation.paramPtrs = &ClientMockAttachUDFParamPtrs{}
+	}
+	mmAttachUDF.defaultExpectation.paramPtrs.ctx = &ctx
+	mmAttachUDF.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmAttachUDF
+}
+
+// ExpectFunctionNameParam2 sets up expected param functionName for Client.AttachUDF
+func (mmAttachUDF *mClientMockAttachUDF) ExpectFunctionNameParam2(functionName string) *mClientMockAttachUDF {
+	if mmAttachUDF.mock.funcAttachUDF != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Set")
+	}
+
+	if mmAttachUDF.defaultExpectation == nil {
+		mmAttachUDF.defaultExpectation = &ClientMockAttachUDFExpectation{}
+	}
+
+	if mmAttachUDF.defaultExpectation.params != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Expect")
+	}
+
+	if mmAttachUDF.defaultExpectation.paramPtrs == nil {
+		mmAttachUDF.defaultExpectation.paramPtrs = &ClientMockAttachUDFParamPtrs{}
+	}
+	mmAttachUDF.defaultExpectation.paramPtrs.functionName = &functionName
+	mmAttachUDF.defaultExpectation.expectationOrigins.originFunctionName = minimock.CallerInfo(1)
+
+	return mmAttachUDF
+}
+
+// ExpectServiceIDParam3 sets up expected param serviceID for Client.AttachUDF
+func (mmAttachUDF *mClientMockAttachUDF) ExpectServiceIDParam3(serviceID string) *mClientMockAttachUDF {
+	if mmAttachUDF.mock.funcAttachUDF != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Set")
+	}
+
+	if mmAttachUDF.defaultExpectation == nil {
+		mmAttachUDF.defaultExpectation = &ClientMockAttachUDFExpectation{}
+	}
+
+	if mmAttachUDF.defaultExpectation.params != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Expect")
+	}
+
+	if mmAttachUDF.defaultExpectation.paramPtrs == nil {
+		mmAttachUDF.defaultExpectation.paramPtrs = &ClientMockAttachUDFParamPtrs{}
+	}
+	mmAttachUDF.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmAttachUDF.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmAttachUDF
+}
+
+// ExpectRequestParam4 sets up expected param request for Client.AttachUDF
+func (mmAttachUDF *mClientMockAttachUDF) ExpectRequestParam4(request UDFAttachRequest) *mClientMockAttachUDF {
+	if mmAttachUDF.mock.funcAttachUDF != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Set")
+	}
+
+	if mmAttachUDF.defaultExpectation == nil {
+		mmAttachUDF.defaultExpectation = &ClientMockAttachUDFExpectation{}
+	}
+
+	if mmAttachUDF.defaultExpectation.params != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Expect")
+	}
+
+	if mmAttachUDF.defaultExpectation.paramPtrs == nil {
+		mmAttachUDF.defaultExpectation.paramPtrs = &ClientMockAttachUDFParamPtrs{}
+	}
+	mmAttachUDF.defaultExpectation.paramPtrs.request = &request
+	mmAttachUDF.defaultExpectation.expectationOrigins.originRequest = minimock.CallerInfo(1)
+
+	return mmAttachUDF
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.AttachUDF
+func (mmAttachUDF *mClientMockAttachUDF) Inspect(f func(ctx context.Context, functionName string, serviceID string, request UDFAttachRequest)) *mClientMockAttachUDF {
+	if mmAttachUDF.mock.inspectFuncAttachUDF != nil {
+		mmAttachUDF.mock.t.Fatalf("Inspect function is already set for ClientMock.AttachUDF")
+	}
+
+	mmAttachUDF.mock.inspectFuncAttachUDF = f
+
+	return mmAttachUDF
+}
+
+// Return sets up results that will be returned by Client.AttachUDF
+func (mmAttachUDF *mClientMockAttachUDF) Return(up1 *UDFAttachment, err error) *ClientMock {
+	if mmAttachUDF.mock.funcAttachUDF != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Set")
+	}
+
+	if mmAttachUDF.defaultExpectation == nil {
+		mmAttachUDF.defaultExpectation = &ClientMockAttachUDFExpectation{mock: mmAttachUDF.mock}
+	}
+	mmAttachUDF.defaultExpectation.results = &ClientMockAttachUDFResults{up1, err}
+	mmAttachUDF.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmAttachUDF.mock
+}
+
+// Set uses given function f to mock the Client.AttachUDF method
+func (mmAttachUDF *mClientMockAttachUDF) Set(f func(ctx context.Context, functionName string, serviceID string, request UDFAttachRequest) (up1 *UDFAttachment, err error)) *ClientMock {
+	if mmAttachUDF.defaultExpectation != nil {
+		mmAttachUDF.mock.t.Fatalf("Default expectation is already set for the Client.AttachUDF method")
+	}
+
+	if len(mmAttachUDF.expectations) > 0 {
+		mmAttachUDF.mock.t.Fatalf("Some expectations are already set for the Client.AttachUDF method")
+	}
+
+	mmAttachUDF.mock.funcAttachUDF = f
+	mmAttachUDF.mock.funcAttachUDFOrigin = minimock.CallerInfo(1)
+	return mmAttachUDF.mock
+}
+
+// When sets expectation for the Client.AttachUDF which will trigger the result defined by the following
+// Then helper
+func (mmAttachUDF *mClientMockAttachUDF) When(ctx context.Context, functionName string, serviceID string, request UDFAttachRequest) *ClientMockAttachUDFExpectation {
+	if mmAttachUDF.mock.funcAttachUDF != nil {
+		mmAttachUDF.mock.t.Fatalf("ClientMock.AttachUDF mock is already set by Set")
+	}
+
+	expectation := &ClientMockAttachUDFExpectation{
+		mock:               mmAttachUDF.mock,
+		params:             &ClientMockAttachUDFParams{ctx, functionName, serviceID, request},
+		expectationOrigins: ClientMockAttachUDFExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmAttachUDF.expectations = append(mmAttachUDF.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.AttachUDF return parameters for the expectation previously defined by the When method
+func (e *ClientMockAttachUDFExpectation) Then(up1 *UDFAttachment, err error) *ClientMock {
+	e.results = &ClientMockAttachUDFResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.AttachUDF should be invoked
+func (mmAttachUDF *mClientMockAttachUDF) Times(n uint64) *mClientMockAttachUDF {
+	if n == 0 {
+		mmAttachUDF.mock.t.Fatalf("Times of ClientMock.AttachUDF mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmAttachUDF.expectedInvocations, n)
+	mmAttachUDF.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmAttachUDF
+}
+
+func (mmAttachUDF *mClientMockAttachUDF) invocationsDone() bool {
+	if len(mmAttachUDF.expectations) == 0 && mmAttachUDF.defaultExpectation == nil && mmAttachUDF.mock.funcAttachUDF == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmAttachUDF.mock.afterAttachUDFCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmAttachUDF.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// AttachUDF implements Client
+func (mmAttachUDF *ClientMock) AttachUDF(ctx context.Context, functionName string, serviceID string, request UDFAttachRequest) (up1 *UDFAttachment, err error) {
+	mm_atomic.AddUint64(&mmAttachUDF.beforeAttachUDFCounter, 1)
+	defer mm_atomic.AddUint64(&mmAttachUDF.afterAttachUDFCounter, 1)
+
+	mmAttachUDF.t.Helper()
+
+	if mmAttachUDF.inspectFuncAttachUDF != nil {
+		mmAttachUDF.inspectFuncAttachUDF(ctx, functionName, serviceID, request)
+	}
+
+	mm_params := ClientMockAttachUDFParams{ctx, functionName, serviceID, request}
+
+	// Record call args
+	mmAttachUDF.AttachUDFMock.mutex.Lock()
+	mmAttachUDF.AttachUDFMock.callArgs = append(mmAttachUDF.AttachUDFMock.callArgs, &mm_params)
+	mmAttachUDF.AttachUDFMock.mutex.Unlock()
+
+	for _, e := range mmAttachUDF.AttachUDFMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmAttachUDF.AttachUDFMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmAttachUDF.AttachUDFMock.defaultExpectation.Counter, 1)
+		mm_want := mmAttachUDF.AttachUDFMock.defaultExpectation.params
+		mm_want_ptrs := mmAttachUDF.AttachUDFMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockAttachUDFParams{ctx, functionName, serviceID, request}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmAttachUDF.t.Errorf("ClientMock.AttachUDF got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmAttachUDF.AttachUDFMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.functionName != nil && !minimock.Equal(*mm_want_ptrs.functionName, mm_got.functionName) {
+				mmAttachUDF.t.Errorf("ClientMock.AttachUDF got unexpected parameter functionName, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmAttachUDF.AttachUDFMock.defaultExpectation.expectationOrigins.originFunctionName, *mm_want_ptrs.functionName, mm_got.functionName, minimock.Diff(*mm_want_ptrs.functionName, mm_got.functionName))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmAttachUDF.t.Errorf("ClientMock.AttachUDF got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmAttachUDF.AttachUDFMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.request != nil && !minimock.Equal(*mm_want_ptrs.request, mm_got.request) {
+				mmAttachUDF.t.Errorf("ClientMock.AttachUDF got unexpected parameter request, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmAttachUDF.AttachUDFMock.defaultExpectation.expectationOrigins.originRequest, *mm_want_ptrs.request, mm_got.request, minimock.Diff(*mm_want_ptrs.request, mm_got.request))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmAttachUDF.t.Errorf("ClientMock.AttachUDF got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmAttachUDF.AttachUDFMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmAttachUDF.AttachUDFMock.defaultExpectation.results
+		if mm_results == nil {
+			mmAttachUDF.t.Fatal("No results are set for the ClientMock.AttachUDF")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmAttachUDF.funcAttachUDF != nil {
+		return mmAttachUDF.funcAttachUDF(ctx, functionName, serviceID, request)
+	}
+	mmAttachUDF.t.Fatalf("Unexpected call to ClientMock.AttachUDF. %v %v %v %v", ctx, functionName, serviceID, request)
+	return
+}
+
+// AttachUDFAfterCounter returns a count of finished ClientMock.AttachUDF invocations
+func (mmAttachUDF *ClientMock) AttachUDFAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmAttachUDF.afterAttachUDFCounter)
+}
+
+// AttachUDFBeforeCounter returns a count of ClientMock.AttachUDF invocations
+func (mmAttachUDF *ClientMock) AttachUDFBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmAttachUDF.beforeAttachUDFCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.AttachUDF.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmAttachUDF *mClientMockAttachUDF) Calls() []*ClientMockAttachUDFParams {
+	mmAttachUDF.mutex.RLock()
+
+	argCopy := make([]*ClientMockAttachUDFParams, len(mmAttachUDF.callArgs))
+	copy(argCopy, mmAttachUDF.callArgs)
+
+	mmAttachUDF.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockAttachUDFDone returns true if the count of the AttachUDF invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockAttachUDFDone() bool {
+	if m.AttachUDFMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.AttachUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.AttachUDFMock.invocationsDone()
+}
+
+// MinimockAttachUDFInspect logs each unmet expectation
+func (m *ClientMock) MinimockAttachUDFInspect() {
+	for _, e := range m.AttachUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.AttachUDF at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterAttachUDFCounter := mm_atomic.LoadUint64(&m.afterAttachUDFCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.AttachUDFMock.defaultExpectation != nil && afterAttachUDFCounter < 1 {
+		if m.AttachUDFMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.AttachUDF at\n%s", m.AttachUDFMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.AttachUDF at\n%s with params: %#v", m.AttachUDFMock.defaultExpectation.expectationOrigins.origin, *m.AttachUDFMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcAttachUDF != nil && afterAttachUDFCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.AttachUDF at\n%s", m.funcAttachUDFOrigin)
+	}
+
+	if !m.AttachUDFMock.invocationsDone() && afterAttachUDFCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.AttachUDF at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.AttachUDFMock.expectedInvocations), m.AttachUDFMock.expectedInvocationsOrigin, afterAttachUDFCounter)
+	}
 }
 
 type mClientMockChangeClickPipeState struct {
@@ -3615,6 +4120,1035 @@ func (m *ClientMock) MinimockCreateServiceInspect() {
 	}
 }
 
+type mClientMockCreateUDF struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateUDFExpectation
+	expectations       []*ClientMockCreateUDFExpectation
+
+	callArgs []*ClientMockCreateUDFParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateUDFExpectation specifies expectation struct of the Client.CreateUDF
+type ClientMockCreateUDFExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateUDFParams
+	paramPtrs          *ClientMockCreateUDFParamPtrs
+	expectationOrigins ClientMockCreateUDFExpectationOrigins
+	results            *ClientMockCreateUDFResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateUDFParams contains parameters of the Client.CreateUDF
+type ClientMockCreateUDFParams struct {
+	ctx     context.Context
+	request UDFCreateRequest
+}
+
+// ClientMockCreateUDFParamPtrs contains pointers to parameters of the Client.CreateUDF
+type ClientMockCreateUDFParamPtrs struct {
+	ctx     *context.Context
+	request *UDFCreateRequest
+}
+
+// ClientMockCreateUDFResults contains results of the Client.CreateUDF
+type ClientMockCreateUDFResults struct {
+	up1 *UDF
+	err error
+}
+
+// ClientMockCreateUDFOrigins contains origins of expectations of the Client.CreateUDF
+type ClientMockCreateUDFExpectationOrigins struct {
+	origin        string
+	originCtx     string
+	originRequest string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateUDF *mClientMockCreateUDF) Optional() *mClientMockCreateUDF {
+	mmCreateUDF.optional = true
+	return mmCreateUDF
+}
+
+// Expect sets up expected params for Client.CreateUDF
+func (mmCreateUDF *mClientMockCreateUDF) Expect(ctx context.Context, request UDFCreateRequest) *mClientMockCreateUDF {
+	if mmCreateUDF.mock.funcCreateUDF != nil {
+		mmCreateUDF.mock.t.Fatalf("ClientMock.CreateUDF mock is already set by Set")
+	}
+
+	if mmCreateUDF.defaultExpectation == nil {
+		mmCreateUDF.defaultExpectation = &ClientMockCreateUDFExpectation{}
+	}
+
+	if mmCreateUDF.defaultExpectation.paramPtrs != nil {
+		mmCreateUDF.mock.t.Fatalf("ClientMock.CreateUDF mock is already set by ExpectParams functions")
+	}
+
+	mmCreateUDF.defaultExpectation.params = &ClientMockCreateUDFParams{ctx, request}
+	mmCreateUDF.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateUDF.expectations {
+		if minimock.Equal(e.params, mmCreateUDF.defaultExpectation.params) {
+			mmCreateUDF.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateUDF.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateUDF
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateUDF
+func (mmCreateUDF *mClientMockCreateUDF) ExpectCtxParam1(ctx context.Context) *mClientMockCreateUDF {
+	if mmCreateUDF.mock.funcCreateUDF != nil {
+		mmCreateUDF.mock.t.Fatalf("ClientMock.CreateUDF mock is already set by Set")
+	}
+
+	if mmCreateUDF.defaultExpectation == nil {
+		mmCreateUDF.defaultExpectation = &ClientMockCreateUDFExpectation{}
+	}
+
+	if mmCreateUDF.defaultExpectation.params != nil {
+		mmCreateUDF.mock.t.Fatalf("ClientMock.CreateUDF mock is already set by Expect")
+	}
+
+	if mmCreateUDF.defaultExpectation.paramPtrs == nil {
+		mmCreateUDF.defaultExpectation.paramPtrs = &ClientMockCreateUDFParamPtrs{}
+	}
+	mmCreateUDF.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateUDF.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateUDF
+}
+
+// ExpectRequestParam2 sets up expected param request for Client.CreateUDF
+func (mmCreateUDF *mClientMockCreateUDF) ExpectRequestParam2(request UDFCreateRequest) *mClientMockCreateUDF {
+	if mmCreateUDF.mock.funcCreateUDF != nil {
+		mmCreateUDF.mock.t.Fatalf("ClientMock.CreateUDF mock is already set by Set")
+	}
+
+	if mmCreateUDF.defaultExpectation == nil {
+		mmCreateUDF.defaultExpectation = &ClientMockCreateUDFExpectation{}
+	}
+
+	if mmCreateUDF.defaultExpectation.params != nil {
+		mmCreateUDF.mock.t.Fatalf("ClientMock.CreateUDF mock is already set by Expect")
+	}
+
+	if mmCreateUDF.defaultExpectation.paramPtrs == nil {
+		mmCreateUDF.defaultExpectation.paramPtrs = &ClientMockCreateUDFParamPtrs{}
+	}
+	mmCreateUDF.defaultExpectation.paramPtrs.request = &request
+	mmCreateUDF.defaultExpectation.expectationOrigins.originRequest = minimock.CallerInfo(1)
+
+	return mmCreateUDF
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateUDF
+func (mmCreateUDF *mClientMockCreateUDF) Inspect(f func(ctx context.Context, request UDFCreateRequest)) *mClientMockCreateUDF {
+	if mmCreateUDF.mock.inspectFuncCreateUDF != nil {
+		mmCreateUDF.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateUDF")
+	}
+
+	mmCreateUDF.mock.inspectFuncCreateUDF = f
+
+	return mmCreateUDF
+}
+
+// Return sets up results that will be returned by Client.CreateUDF
+func (mmCreateUDF *mClientMockCreateUDF) Return(up1 *UDF, err error) *ClientMock {
+	if mmCreateUDF.mock.funcCreateUDF != nil {
+		mmCreateUDF.mock.t.Fatalf("ClientMock.CreateUDF mock is already set by Set")
+	}
+
+	if mmCreateUDF.defaultExpectation == nil {
+		mmCreateUDF.defaultExpectation = &ClientMockCreateUDFExpectation{mock: mmCreateUDF.mock}
+	}
+	mmCreateUDF.defaultExpectation.results = &ClientMockCreateUDFResults{up1, err}
+	mmCreateUDF.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateUDF.mock
+}
+
+// Set uses given function f to mock the Client.CreateUDF method
+func (mmCreateUDF *mClientMockCreateUDF) Set(f func(ctx context.Context, request UDFCreateRequest) (up1 *UDF, err error)) *ClientMock {
+	if mmCreateUDF.defaultExpectation != nil {
+		mmCreateUDF.mock.t.Fatalf("Default expectation is already set for the Client.CreateUDF method")
+	}
+
+	if len(mmCreateUDF.expectations) > 0 {
+		mmCreateUDF.mock.t.Fatalf("Some expectations are already set for the Client.CreateUDF method")
+	}
+
+	mmCreateUDF.mock.funcCreateUDF = f
+	mmCreateUDF.mock.funcCreateUDFOrigin = minimock.CallerInfo(1)
+	return mmCreateUDF.mock
+}
+
+// When sets expectation for the Client.CreateUDF which will trigger the result defined by the following
+// Then helper
+func (mmCreateUDF *mClientMockCreateUDF) When(ctx context.Context, request UDFCreateRequest) *ClientMockCreateUDFExpectation {
+	if mmCreateUDF.mock.funcCreateUDF != nil {
+		mmCreateUDF.mock.t.Fatalf("ClientMock.CreateUDF mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateUDFExpectation{
+		mock:               mmCreateUDF.mock,
+		params:             &ClientMockCreateUDFParams{ctx, request},
+		expectationOrigins: ClientMockCreateUDFExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateUDF.expectations = append(mmCreateUDF.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateUDF return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateUDFExpectation) Then(up1 *UDF, err error) *ClientMock {
+	e.results = &ClientMockCreateUDFResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateUDF should be invoked
+func (mmCreateUDF *mClientMockCreateUDF) Times(n uint64) *mClientMockCreateUDF {
+	if n == 0 {
+		mmCreateUDF.mock.t.Fatalf("Times of ClientMock.CreateUDF mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateUDF.expectedInvocations, n)
+	mmCreateUDF.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateUDF
+}
+
+func (mmCreateUDF *mClientMockCreateUDF) invocationsDone() bool {
+	if len(mmCreateUDF.expectations) == 0 && mmCreateUDF.defaultExpectation == nil && mmCreateUDF.mock.funcCreateUDF == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateUDF.mock.afterCreateUDFCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateUDF.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateUDF implements Client
+func (mmCreateUDF *ClientMock) CreateUDF(ctx context.Context, request UDFCreateRequest) (up1 *UDF, err error) {
+	mm_atomic.AddUint64(&mmCreateUDF.beforeCreateUDFCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateUDF.afterCreateUDFCounter, 1)
+
+	mmCreateUDF.t.Helper()
+
+	if mmCreateUDF.inspectFuncCreateUDF != nil {
+		mmCreateUDF.inspectFuncCreateUDF(ctx, request)
+	}
+
+	mm_params := ClientMockCreateUDFParams{ctx, request}
+
+	// Record call args
+	mmCreateUDF.CreateUDFMock.mutex.Lock()
+	mmCreateUDF.CreateUDFMock.callArgs = append(mmCreateUDF.CreateUDFMock.callArgs, &mm_params)
+	mmCreateUDF.CreateUDFMock.mutex.Unlock()
+
+	for _, e := range mmCreateUDF.CreateUDFMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmCreateUDF.CreateUDFMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateUDF.CreateUDFMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateUDF.CreateUDFMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateUDF.CreateUDFMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateUDFParams{ctx, request}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateUDF.t.Errorf("ClientMock.CreateUDF got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateUDF.CreateUDFMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.request != nil && !minimock.Equal(*mm_want_ptrs.request, mm_got.request) {
+				mmCreateUDF.t.Errorf("ClientMock.CreateUDF got unexpected parameter request, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateUDF.CreateUDFMock.defaultExpectation.expectationOrigins.originRequest, *mm_want_ptrs.request, mm_got.request, minimock.Diff(*mm_want_ptrs.request, mm_got.request))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateUDF.t.Errorf("ClientMock.CreateUDF got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateUDF.CreateUDFMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateUDF.CreateUDFMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateUDF.t.Fatal("No results are set for the ClientMock.CreateUDF")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmCreateUDF.funcCreateUDF != nil {
+		return mmCreateUDF.funcCreateUDF(ctx, request)
+	}
+	mmCreateUDF.t.Fatalf("Unexpected call to ClientMock.CreateUDF. %v %v", ctx, request)
+	return
+}
+
+// CreateUDFAfterCounter returns a count of finished ClientMock.CreateUDF invocations
+func (mmCreateUDF *ClientMock) CreateUDFAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateUDF.afterCreateUDFCounter)
+}
+
+// CreateUDFBeforeCounter returns a count of ClientMock.CreateUDF invocations
+func (mmCreateUDF *ClientMock) CreateUDFBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateUDF.beforeCreateUDFCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateUDF.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateUDF *mClientMockCreateUDF) Calls() []*ClientMockCreateUDFParams {
+	mmCreateUDF.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateUDFParams, len(mmCreateUDF.callArgs))
+	copy(argCopy, mmCreateUDF.callArgs)
+
+	mmCreateUDF.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateUDFDone returns true if the count of the CreateUDF invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateUDFDone() bool {
+	if m.CreateUDFMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateUDFMock.invocationsDone()
+}
+
+// MinimockCreateUDFInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateUDFInspect() {
+	for _, e := range m.CreateUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateUDF at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateUDFCounter := mm_atomic.LoadUint64(&m.afterCreateUDFCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateUDFMock.defaultExpectation != nil && afterCreateUDFCounter < 1 {
+		if m.CreateUDFMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateUDF at\n%s", m.CreateUDFMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateUDF at\n%s with params: %#v", m.CreateUDFMock.defaultExpectation.expectationOrigins.origin, *m.CreateUDFMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateUDF != nil && afterCreateUDFCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateUDF at\n%s", m.funcCreateUDFOrigin)
+	}
+
+	if !m.CreateUDFMock.invocationsDone() && afterCreateUDFCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateUDF at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateUDFMock.expectedInvocations), m.CreateUDFMock.expectedInvocationsOrigin, afterCreateUDFCounter)
+	}
+}
+
+type mClientMockCreateUDFUploadSession struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateUDFUploadSessionExpectation
+	expectations       []*ClientMockCreateUDFUploadSessionExpectation
+
+	callArgs []*ClientMockCreateUDFUploadSessionParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateUDFUploadSessionExpectation specifies expectation struct of the Client.CreateUDFUploadSession
+type ClientMockCreateUDFUploadSessionExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateUDFUploadSessionParams
+	paramPtrs          *ClientMockCreateUDFUploadSessionParamPtrs
+	expectationOrigins ClientMockCreateUDFUploadSessionExpectationOrigins
+	results            *ClientMockCreateUDFUploadSessionResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateUDFUploadSessionParams contains parameters of the Client.CreateUDFUploadSession
+type ClientMockCreateUDFUploadSessionParams struct {
+	ctx context.Context
+}
+
+// ClientMockCreateUDFUploadSessionParamPtrs contains pointers to parameters of the Client.CreateUDFUploadSession
+type ClientMockCreateUDFUploadSessionParamPtrs struct {
+	ctx *context.Context
+}
+
+// ClientMockCreateUDFUploadSessionResults contains results of the Client.CreateUDFUploadSession
+type ClientMockCreateUDFUploadSessionResults struct {
+	up1 *UDFUploadSession
+	err error
+}
+
+// ClientMockCreateUDFUploadSessionOrigins contains origins of expectations of the Client.CreateUDFUploadSession
+type ClientMockCreateUDFUploadSessionExpectationOrigins struct {
+	origin    string
+	originCtx string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) Optional() *mClientMockCreateUDFUploadSession {
+	mmCreateUDFUploadSession.optional = true
+	return mmCreateUDFUploadSession
+}
+
+// Expect sets up expected params for Client.CreateUDFUploadSession
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) Expect(ctx context.Context) *mClientMockCreateUDFUploadSession {
+	if mmCreateUDFUploadSession.mock.funcCreateUDFUploadSession != nil {
+		mmCreateUDFUploadSession.mock.t.Fatalf("ClientMock.CreateUDFUploadSession mock is already set by Set")
+	}
+
+	if mmCreateUDFUploadSession.defaultExpectation == nil {
+		mmCreateUDFUploadSession.defaultExpectation = &ClientMockCreateUDFUploadSessionExpectation{}
+	}
+
+	if mmCreateUDFUploadSession.defaultExpectation.paramPtrs != nil {
+		mmCreateUDFUploadSession.mock.t.Fatalf("ClientMock.CreateUDFUploadSession mock is already set by ExpectParams functions")
+	}
+
+	mmCreateUDFUploadSession.defaultExpectation.params = &ClientMockCreateUDFUploadSessionParams{ctx}
+	mmCreateUDFUploadSession.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateUDFUploadSession.expectations {
+		if minimock.Equal(e.params, mmCreateUDFUploadSession.defaultExpectation.params) {
+			mmCreateUDFUploadSession.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateUDFUploadSession.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateUDFUploadSession
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateUDFUploadSession
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) ExpectCtxParam1(ctx context.Context) *mClientMockCreateUDFUploadSession {
+	if mmCreateUDFUploadSession.mock.funcCreateUDFUploadSession != nil {
+		mmCreateUDFUploadSession.mock.t.Fatalf("ClientMock.CreateUDFUploadSession mock is already set by Set")
+	}
+
+	if mmCreateUDFUploadSession.defaultExpectation == nil {
+		mmCreateUDFUploadSession.defaultExpectation = &ClientMockCreateUDFUploadSessionExpectation{}
+	}
+
+	if mmCreateUDFUploadSession.defaultExpectation.params != nil {
+		mmCreateUDFUploadSession.mock.t.Fatalf("ClientMock.CreateUDFUploadSession mock is already set by Expect")
+	}
+
+	if mmCreateUDFUploadSession.defaultExpectation.paramPtrs == nil {
+		mmCreateUDFUploadSession.defaultExpectation.paramPtrs = &ClientMockCreateUDFUploadSessionParamPtrs{}
+	}
+	mmCreateUDFUploadSession.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateUDFUploadSession.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateUDFUploadSession
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateUDFUploadSession
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) Inspect(f func(ctx context.Context)) *mClientMockCreateUDFUploadSession {
+	if mmCreateUDFUploadSession.mock.inspectFuncCreateUDFUploadSession != nil {
+		mmCreateUDFUploadSession.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateUDFUploadSession")
+	}
+
+	mmCreateUDFUploadSession.mock.inspectFuncCreateUDFUploadSession = f
+
+	return mmCreateUDFUploadSession
+}
+
+// Return sets up results that will be returned by Client.CreateUDFUploadSession
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) Return(up1 *UDFUploadSession, err error) *ClientMock {
+	if mmCreateUDFUploadSession.mock.funcCreateUDFUploadSession != nil {
+		mmCreateUDFUploadSession.mock.t.Fatalf("ClientMock.CreateUDFUploadSession mock is already set by Set")
+	}
+
+	if mmCreateUDFUploadSession.defaultExpectation == nil {
+		mmCreateUDFUploadSession.defaultExpectation = &ClientMockCreateUDFUploadSessionExpectation{mock: mmCreateUDFUploadSession.mock}
+	}
+	mmCreateUDFUploadSession.defaultExpectation.results = &ClientMockCreateUDFUploadSessionResults{up1, err}
+	mmCreateUDFUploadSession.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateUDFUploadSession.mock
+}
+
+// Set uses given function f to mock the Client.CreateUDFUploadSession method
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) Set(f func(ctx context.Context) (up1 *UDFUploadSession, err error)) *ClientMock {
+	if mmCreateUDFUploadSession.defaultExpectation != nil {
+		mmCreateUDFUploadSession.mock.t.Fatalf("Default expectation is already set for the Client.CreateUDFUploadSession method")
+	}
+
+	if len(mmCreateUDFUploadSession.expectations) > 0 {
+		mmCreateUDFUploadSession.mock.t.Fatalf("Some expectations are already set for the Client.CreateUDFUploadSession method")
+	}
+
+	mmCreateUDFUploadSession.mock.funcCreateUDFUploadSession = f
+	mmCreateUDFUploadSession.mock.funcCreateUDFUploadSessionOrigin = minimock.CallerInfo(1)
+	return mmCreateUDFUploadSession.mock
+}
+
+// When sets expectation for the Client.CreateUDFUploadSession which will trigger the result defined by the following
+// Then helper
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) When(ctx context.Context) *ClientMockCreateUDFUploadSessionExpectation {
+	if mmCreateUDFUploadSession.mock.funcCreateUDFUploadSession != nil {
+		mmCreateUDFUploadSession.mock.t.Fatalf("ClientMock.CreateUDFUploadSession mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateUDFUploadSessionExpectation{
+		mock:               mmCreateUDFUploadSession.mock,
+		params:             &ClientMockCreateUDFUploadSessionParams{ctx},
+		expectationOrigins: ClientMockCreateUDFUploadSessionExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateUDFUploadSession.expectations = append(mmCreateUDFUploadSession.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateUDFUploadSession return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateUDFUploadSessionExpectation) Then(up1 *UDFUploadSession, err error) *ClientMock {
+	e.results = &ClientMockCreateUDFUploadSessionResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateUDFUploadSession should be invoked
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) Times(n uint64) *mClientMockCreateUDFUploadSession {
+	if n == 0 {
+		mmCreateUDFUploadSession.mock.t.Fatalf("Times of ClientMock.CreateUDFUploadSession mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateUDFUploadSession.expectedInvocations, n)
+	mmCreateUDFUploadSession.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateUDFUploadSession
+}
+
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) invocationsDone() bool {
+	if len(mmCreateUDFUploadSession.expectations) == 0 && mmCreateUDFUploadSession.defaultExpectation == nil && mmCreateUDFUploadSession.mock.funcCreateUDFUploadSession == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateUDFUploadSession.mock.afterCreateUDFUploadSessionCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateUDFUploadSession.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateUDFUploadSession implements Client
+func (mmCreateUDFUploadSession *ClientMock) CreateUDFUploadSession(ctx context.Context) (up1 *UDFUploadSession, err error) {
+	mm_atomic.AddUint64(&mmCreateUDFUploadSession.beforeCreateUDFUploadSessionCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateUDFUploadSession.afterCreateUDFUploadSessionCounter, 1)
+
+	mmCreateUDFUploadSession.t.Helper()
+
+	if mmCreateUDFUploadSession.inspectFuncCreateUDFUploadSession != nil {
+		mmCreateUDFUploadSession.inspectFuncCreateUDFUploadSession(ctx)
+	}
+
+	mm_params := ClientMockCreateUDFUploadSessionParams{ctx}
+
+	// Record call args
+	mmCreateUDFUploadSession.CreateUDFUploadSessionMock.mutex.Lock()
+	mmCreateUDFUploadSession.CreateUDFUploadSessionMock.callArgs = append(mmCreateUDFUploadSession.CreateUDFUploadSessionMock.callArgs, &mm_params)
+	mmCreateUDFUploadSession.CreateUDFUploadSessionMock.mutex.Unlock()
+
+	for _, e := range mmCreateUDFUploadSession.CreateUDFUploadSessionMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmCreateUDFUploadSession.CreateUDFUploadSessionMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateUDFUploadSession.CreateUDFUploadSessionMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateUDFUploadSession.CreateUDFUploadSessionMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateUDFUploadSession.CreateUDFUploadSessionMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateUDFUploadSessionParams{ctx}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateUDFUploadSession.t.Errorf("ClientMock.CreateUDFUploadSession got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateUDFUploadSession.CreateUDFUploadSessionMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateUDFUploadSession.t.Errorf("ClientMock.CreateUDFUploadSession got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateUDFUploadSession.CreateUDFUploadSessionMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateUDFUploadSession.CreateUDFUploadSessionMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateUDFUploadSession.t.Fatal("No results are set for the ClientMock.CreateUDFUploadSession")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmCreateUDFUploadSession.funcCreateUDFUploadSession != nil {
+		return mmCreateUDFUploadSession.funcCreateUDFUploadSession(ctx)
+	}
+	mmCreateUDFUploadSession.t.Fatalf("Unexpected call to ClientMock.CreateUDFUploadSession. %v", ctx)
+	return
+}
+
+// CreateUDFUploadSessionAfterCounter returns a count of finished ClientMock.CreateUDFUploadSession invocations
+func (mmCreateUDFUploadSession *ClientMock) CreateUDFUploadSessionAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateUDFUploadSession.afterCreateUDFUploadSessionCounter)
+}
+
+// CreateUDFUploadSessionBeforeCounter returns a count of ClientMock.CreateUDFUploadSession invocations
+func (mmCreateUDFUploadSession *ClientMock) CreateUDFUploadSessionBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateUDFUploadSession.beforeCreateUDFUploadSessionCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateUDFUploadSession.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateUDFUploadSession *mClientMockCreateUDFUploadSession) Calls() []*ClientMockCreateUDFUploadSessionParams {
+	mmCreateUDFUploadSession.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateUDFUploadSessionParams, len(mmCreateUDFUploadSession.callArgs))
+	copy(argCopy, mmCreateUDFUploadSession.callArgs)
+
+	mmCreateUDFUploadSession.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateUDFUploadSessionDone returns true if the count of the CreateUDFUploadSession invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateUDFUploadSessionDone() bool {
+	if m.CreateUDFUploadSessionMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateUDFUploadSessionMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateUDFUploadSessionMock.invocationsDone()
+}
+
+// MinimockCreateUDFUploadSessionInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateUDFUploadSessionInspect() {
+	for _, e := range m.CreateUDFUploadSessionMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateUDFUploadSession at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateUDFUploadSessionCounter := mm_atomic.LoadUint64(&m.afterCreateUDFUploadSessionCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateUDFUploadSessionMock.defaultExpectation != nil && afterCreateUDFUploadSessionCounter < 1 {
+		if m.CreateUDFUploadSessionMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateUDFUploadSession at\n%s", m.CreateUDFUploadSessionMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateUDFUploadSession at\n%s with params: %#v", m.CreateUDFUploadSessionMock.defaultExpectation.expectationOrigins.origin, *m.CreateUDFUploadSessionMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateUDFUploadSession != nil && afterCreateUDFUploadSessionCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateUDFUploadSession at\n%s", m.funcCreateUDFUploadSessionOrigin)
+	}
+
+	if !m.CreateUDFUploadSessionMock.invocationsDone() && afterCreateUDFUploadSessionCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateUDFUploadSession at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateUDFUploadSessionMock.expectedInvocations), m.CreateUDFUploadSessionMock.expectedInvocationsOrigin, afterCreateUDFUploadSessionCounter)
+	}
+}
+
+type mClientMockCreateUDFVersion struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateUDFVersionExpectation
+	expectations       []*ClientMockCreateUDFVersionExpectation
+
+	callArgs []*ClientMockCreateUDFVersionParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateUDFVersionExpectation specifies expectation struct of the Client.CreateUDFVersion
+type ClientMockCreateUDFVersionExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateUDFVersionParams
+	paramPtrs          *ClientMockCreateUDFVersionParamPtrs
+	expectationOrigins ClientMockCreateUDFVersionExpectationOrigins
+	results            *ClientMockCreateUDFVersionResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateUDFVersionParams contains parameters of the Client.CreateUDFVersion
+type ClientMockCreateUDFVersionParams struct {
+	ctx          context.Context
+	functionName string
+	request      UDFVersionCreateRequest
+}
+
+// ClientMockCreateUDFVersionParamPtrs contains pointers to parameters of the Client.CreateUDFVersion
+type ClientMockCreateUDFVersionParamPtrs struct {
+	ctx          *context.Context
+	functionName *string
+	request      *UDFVersionCreateRequest
+}
+
+// ClientMockCreateUDFVersionResults contains results of the Client.CreateUDFVersion
+type ClientMockCreateUDFVersionResults struct {
+	up1 *UDF
+	err error
+}
+
+// ClientMockCreateUDFVersionOrigins contains origins of expectations of the Client.CreateUDFVersion
+type ClientMockCreateUDFVersionExpectationOrigins struct {
+	origin             string
+	originCtx          string
+	originFunctionName string
+	originRequest      string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) Optional() *mClientMockCreateUDFVersion {
+	mmCreateUDFVersion.optional = true
+	return mmCreateUDFVersion
+}
+
+// Expect sets up expected params for Client.CreateUDFVersion
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) Expect(ctx context.Context, functionName string, request UDFVersionCreateRequest) *mClientMockCreateUDFVersion {
+	if mmCreateUDFVersion.mock.funcCreateUDFVersion != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by Set")
+	}
+
+	if mmCreateUDFVersion.defaultExpectation == nil {
+		mmCreateUDFVersion.defaultExpectation = &ClientMockCreateUDFVersionExpectation{}
+	}
+
+	if mmCreateUDFVersion.defaultExpectation.paramPtrs != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by ExpectParams functions")
+	}
+
+	mmCreateUDFVersion.defaultExpectation.params = &ClientMockCreateUDFVersionParams{ctx, functionName, request}
+	mmCreateUDFVersion.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateUDFVersion.expectations {
+		if minimock.Equal(e.params, mmCreateUDFVersion.defaultExpectation.params) {
+			mmCreateUDFVersion.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateUDFVersion.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateUDFVersion
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateUDFVersion
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) ExpectCtxParam1(ctx context.Context) *mClientMockCreateUDFVersion {
+	if mmCreateUDFVersion.mock.funcCreateUDFVersion != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by Set")
+	}
+
+	if mmCreateUDFVersion.defaultExpectation == nil {
+		mmCreateUDFVersion.defaultExpectation = &ClientMockCreateUDFVersionExpectation{}
+	}
+
+	if mmCreateUDFVersion.defaultExpectation.params != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by Expect")
+	}
+
+	if mmCreateUDFVersion.defaultExpectation.paramPtrs == nil {
+		mmCreateUDFVersion.defaultExpectation.paramPtrs = &ClientMockCreateUDFVersionParamPtrs{}
+	}
+	mmCreateUDFVersion.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateUDFVersion.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateUDFVersion
+}
+
+// ExpectFunctionNameParam2 sets up expected param functionName for Client.CreateUDFVersion
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) ExpectFunctionNameParam2(functionName string) *mClientMockCreateUDFVersion {
+	if mmCreateUDFVersion.mock.funcCreateUDFVersion != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by Set")
+	}
+
+	if mmCreateUDFVersion.defaultExpectation == nil {
+		mmCreateUDFVersion.defaultExpectation = &ClientMockCreateUDFVersionExpectation{}
+	}
+
+	if mmCreateUDFVersion.defaultExpectation.params != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by Expect")
+	}
+
+	if mmCreateUDFVersion.defaultExpectation.paramPtrs == nil {
+		mmCreateUDFVersion.defaultExpectation.paramPtrs = &ClientMockCreateUDFVersionParamPtrs{}
+	}
+	mmCreateUDFVersion.defaultExpectation.paramPtrs.functionName = &functionName
+	mmCreateUDFVersion.defaultExpectation.expectationOrigins.originFunctionName = minimock.CallerInfo(1)
+
+	return mmCreateUDFVersion
+}
+
+// ExpectRequestParam3 sets up expected param request for Client.CreateUDFVersion
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) ExpectRequestParam3(request UDFVersionCreateRequest) *mClientMockCreateUDFVersion {
+	if mmCreateUDFVersion.mock.funcCreateUDFVersion != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by Set")
+	}
+
+	if mmCreateUDFVersion.defaultExpectation == nil {
+		mmCreateUDFVersion.defaultExpectation = &ClientMockCreateUDFVersionExpectation{}
+	}
+
+	if mmCreateUDFVersion.defaultExpectation.params != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by Expect")
+	}
+
+	if mmCreateUDFVersion.defaultExpectation.paramPtrs == nil {
+		mmCreateUDFVersion.defaultExpectation.paramPtrs = &ClientMockCreateUDFVersionParamPtrs{}
+	}
+	mmCreateUDFVersion.defaultExpectation.paramPtrs.request = &request
+	mmCreateUDFVersion.defaultExpectation.expectationOrigins.originRequest = minimock.CallerInfo(1)
+
+	return mmCreateUDFVersion
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateUDFVersion
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) Inspect(f func(ctx context.Context, functionName string, request UDFVersionCreateRequest)) *mClientMockCreateUDFVersion {
+	if mmCreateUDFVersion.mock.inspectFuncCreateUDFVersion != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateUDFVersion")
+	}
+
+	mmCreateUDFVersion.mock.inspectFuncCreateUDFVersion = f
+
+	return mmCreateUDFVersion
+}
+
+// Return sets up results that will be returned by Client.CreateUDFVersion
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) Return(up1 *UDF, err error) *ClientMock {
+	if mmCreateUDFVersion.mock.funcCreateUDFVersion != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by Set")
+	}
+
+	if mmCreateUDFVersion.defaultExpectation == nil {
+		mmCreateUDFVersion.defaultExpectation = &ClientMockCreateUDFVersionExpectation{mock: mmCreateUDFVersion.mock}
+	}
+	mmCreateUDFVersion.defaultExpectation.results = &ClientMockCreateUDFVersionResults{up1, err}
+	mmCreateUDFVersion.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateUDFVersion.mock
+}
+
+// Set uses given function f to mock the Client.CreateUDFVersion method
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) Set(f func(ctx context.Context, functionName string, request UDFVersionCreateRequest) (up1 *UDF, err error)) *ClientMock {
+	if mmCreateUDFVersion.defaultExpectation != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("Default expectation is already set for the Client.CreateUDFVersion method")
+	}
+
+	if len(mmCreateUDFVersion.expectations) > 0 {
+		mmCreateUDFVersion.mock.t.Fatalf("Some expectations are already set for the Client.CreateUDFVersion method")
+	}
+
+	mmCreateUDFVersion.mock.funcCreateUDFVersion = f
+	mmCreateUDFVersion.mock.funcCreateUDFVersionOrigin = minimock.CallerInfo(1)
+	return mmCreateUDFVersion.mock
+}
+
+// When sets expectation for the Client.CreateUDFVersion which will trigger the result defined by the following
+// Then helper
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) When(ctx context.Context, functionName string, request UDFVersionCreateRequest) *ClientMockCreateUDFVersionExpectation {
+	if mmCreateUDFVersion.mock.funcCreateUDFVersion != nil {
+		mmCreateUDFVersion.mock.t.Fatalf("ClientMock.CreateUDFVersion mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateUDFVersionExpectation{
+		mock:               mmCreateUDFVersion.mock,
+		params:             &ClientMockCreateUDFVersionParams{ctx, functionName, request},
+		expectationOrigins: ClientMockCreateUDFVersionExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateUDFVersion.expectations = append(mmCreateUDFVersion.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateUDFVersion return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateUDFVersionExpectation) Then(up1 *UDF, err error) *ClientMock {
+	e.results = &ClientMockCreateUDFVersionResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateUDFVersion should be invoked
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) Times(n uint64) *mClientMockCreateUDFVersion {
+	if n == 0 {
+		mmCreateUDFVersion.mock.t.Fatalf("Times of ClientMock.CreateUDFVersion mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateUDFVersion.expectedInvocations, n)
+	mmCreateUDFVersion.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateUDFVersion
+}
+
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) invocationsDone() bool {
+	if len(mmCreateUDFVersion.expectations) == 0 && mmCreateUDFVersion.defaultExpectation == nil && mmCreateUDFVersion.mock.funcCreateUDFVersion == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateUDFVersion.mock.afterCreateUDFVersionCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateUDFVersion.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateUDFVersion implements Client
+func (mmCreateUDFVersion *ClientMock) CreateUDFVersion(ctx context.Context, functionName string, request UDFVersionCreateRequest) (up1 *UDF, err error) {
+	mm_atomic.AddUint64(&mmCreateUDFVersion.beforeCreateUDFVersionCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateUDFVersion.afterCreateUDFVersionCounter, 1)
+
+	mmCreateUDFVersion.t.Helper()
+
+	if mmCreateUDFVersion.inspectFuncCreateUDFVersion != nil {
+		mmCreateUDFVersion.inspectFuncCreateUDFVersion(ctx, functionName, request)
+	}
+
+	mm_params := ClientMockCreateUDFVersionParams{ctx, functionName, request}
+
+	// Record call args
+	mmCreateUDFVersion.CreateUDFVersionMock.mutex.Lock()
+	mmCreateUDFVersion.CreateUDFVersionMock.callArgs = append(mmCreateUDFVersion.CreateUDFVersionMock.callArgs, &mm_params)
+	mmCreateUDFVersion.CreateUDFVersionMock.mutex.Unlock()
+
+	for _, e := range mmCreateUDFVersion.CreateUDFVersionMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmCreateUDFVersion.CreateUDFVersionMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateUDFVersion.CreateUDFVersionMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateUDFVersion.CreateUDFVersionMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateUDFVersion.CreateUDFVersionMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateUDFVersionParams{ctx, functionName, request}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateUDFVersion.t.Errorf("ClientMock.CreateUDFVersion got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateUDFVersion.CreateUDFVersionMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.functionName != nil && !minimock.Equal(*mm_want_ptrs.functionName, mm_got.functionName) {
+				mmCreateUDFVersion.t.Errorf("ClientMock.CreateUDFVersion got unexpected parameter functionName, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateUDFVersion.CreateUDFVersionMock.defaultExpectation.expectationOrigins.originFunctionName, *mm_want_ptrs.functionName, mm_got.functionName, minimock.Diff(*mm_want_ptrs.functionName, mm_got.functionName))
+			}
+
+			if mm_want_ptrs.request != nil && !minimock.Equal(*mm_want_ptrs.request, mm_got.request) {
+				mmCreateUDFVersion.t.Errorf("ClientMock.CreateUDFVersion got unexpected parameter request, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateUDFVersion.CreateUDFVersionMock.defaultExpectation.expectationOrigins.originRequest, *mm_want_ptrs.request, mm_got.request, minimock.Diff(*mm_want_ptrs.request, mm_got.request))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateUDFVersion.t.Errorf("ClientMock.CreateUDFVersion got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateUDFVersion.CreateUDFVersionMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateUDFVersion.CreateUDFVersionMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateUDFVersion.t.Fatal("No results are set for the ClientMock.CreateUDFVersion")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmCreateUDFVersion.funcCreateUDFVersion != nil {
+		return mmCreateUDFVersion.funcCreateUDFVersion(ctx, functionName, request)
+	}
+	mmCreateUDFVersion.t.Fatalf("Unexpected call to ClientMock.CreateUDFVersion. %v %v %v", ctx, functionName, request)
+	return
+}
+
+// CreateUDFVersionAfterCounter returns a count of finished ClientMock.CreateUDFVersion invocations
+func (mmCreateUDFVersion *ClientMock) CreateUDFVersionAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateUDFVersion.afterCreateUDFVersionCounter)
+}
+
+// CreateUDFVersionBeforeCounter returns a count of ClientMock.CreateUDFVersion invocations
+func (mmCreateUDFVersion *ClientMock) CreateUDFVersionBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateUDFVersion.beforeCreateUDFVersionCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateUDFVersion.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateUDFVersion *mClientMockCreateUDFVersion) Calls() []*ClientMockCreateUDFVersionParams {
+	mmCreateUDFVersion.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateUDFVersionParams, len(mmCreateUDFVersion.callArgs))
+	copy(argCopy, mmCreateUDFVersion.callArgs)
+
+	mmCreateUDFVersion.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateUDFVersionDone returns true if the count of the CreateUDFVersion invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateUDFVersionDone() bool {
+	if m.CreateUDFVersionMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateUDFVersionMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateUDFVersionMock.invocationsDone()
+}
+
+// MinimockCreateUDFVersionInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateUDFVersionInspect() {
+	for _, e := range m.CreateUDFVersionMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateUDFVersion at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateUDFVersionCounter := mm_atomic.LoadUint64(&m.afterCreateUDFVersionCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateUDFVersionMock.defaultExpectation != nil && afterCreateUDFVersionCounter < 1 {
+		if m.CreateUDFVersionMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateUDFVersion at\n%s", m.CreateUDFVersionMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateUDFVersion at\n%s with params: %#v", m.CreateUDFVersionMock.defaultExpectation.expectationOrigins.origin, *m.CreateUDFVersionMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateUDFVersion != nil && afterCreateUDFVersionCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateUDFVersion at\n%s", m.funcCreateUDFVersionOrigin)
+	}
+
+	if !m.CreateUDFVersionMock.invocationsDone() && afterCreateUDFVersionCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateUDFVersion at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateUDFVersionMock.expectedInvocations), m.CreateUDFVersionMock.expectedInvocationsOrigin, afterCreateUDFVersionCounter)
+	}
+}
+
 type mClientMockDeleteClickPipe struct {
 	optional           bool
 	mock               *ClientMock
@@ -6072,6 +7606,348 @@ func (m *ClientMock) MinimockDeleteServiceInspect() {
 	}
 }
 
+type mClientMockDeleteUDF struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteUDFExpectation
+	expectations       []*ClientMockDeleteUDFExpectation
+
+	callArgs []*ClientMockDeleteUDFParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteUDFExpectation specifies expectation struct of the Client.DeleteUDF
+type ClientMockDeleteUDFExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteUDFParams
+	paramPtrs          *ClientMockDeleteUDFParamPtrs
+	expectationOrigins ClientMockDeleteUDFExpectationOrigins
+	results            *ClientMockDeleteUDFResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteUDFParams contains parameters of the Client.DeleteUDF
+type ClientMockDeleteUDFParams struct {
+	ctx          context.Context
+	functionName string
+}
+
+// ClientMockDeleteUDFParamPtrs contains pointers to parameters of the Client.DeleteUDF
+type ClientMockDeleteUDFParamPtrs struct {
+	ctx          *context.Context
+	functionName *string
+}
+
+// ClientMockDeleteUDFResults contains results of the Client.DeleteUDF
+type ClientMockDeleteUDFResults struct {
+	err error
+}
+
+// ClientMockDeleteUDFOrigins contains origins of expectations of the Client.DeleteUDF
+type ClientMockDeleteUDFExpectationOrigins struct {
+	origin             string
+	originCtx          string
+	originFunctionName string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteUDF *mClientMockDeleteUDF) Optional() *mClientMockDeleteUDF {
+	mmDeleteUDF.optional = true
+	return mmDeleteUDF
+}
+
+// Expect sets up expected params for Client.DeleteUDF
+func (mmDeleteUDF *mClientMockDeleteUDF) Expect(ctx context.Context, functionName string) *mClientMockDeleteUDF {
+	if mmDeleteUDF.mock.funcDeleteUDF != nil {
+		mmDeleteUDF.mock.t.Fatalf("ClientMock.DeleteUDF mock is already set by Set")
+	}
+
+	if mmDeleteUDF.defaultExpectation == nil {
+		mmDeleteUDF.defaultExpectation = &ClientMockDeleteUDFExpectation{}
+	}
+
+	if mmDeleteUDF.defaultExpectation.paramPtrs != nil {
+		mmDeleteUDF.mock.t.Fatalf("ClientMock.DeleteUDF mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteUDF.defaultExpectation.params = &ClientMockDeleteUDFParams{ctx, functionName}
+	mmDeleteUDF.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteUDF.expectations {
+		if minimock.Equal(e.params, mmDeleteUDF.defaultExpectation.params) {
+			mmDeleteUDF.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteUDF.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteUDF
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteUDF
+func (mmDeleteUDF *mClientMockDeleteUDF) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteUDF {
+	if mmDeleteUDF.mock.funcDeleteUDF != nil {
+		mmDeleteUDF.mock.t.Fatalf("ClientMock.DeleteUDF mock is already set by Set")
+	}
+
+	if mmDeleteUDF.defaultExpectation == nil {
+		mmDeleteUDF.defaultExpectation = &ClientMockDeleteUDFExpectation{}
+	}
+
+	if mmDeleteUDF.defaultExpectation.params != nil {
+		mmDeleteUDF.mock.t.Fatalf("ClientMock.DeleteUDF mock is already set by Expect")
+	}
+
+	if mmDeleteUDF.defaultExpectation.paramPtrs == nil {
+		mmDeleteUDF.defaultExpectation.paramPtrs = &ClientMockDeleteUDFParamPtrs{}
+	}
+	mmDeleteUDF.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteUDF.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteUDF
+}
+
+// ExpectFunctionNameParam2 sets up expected param functionName for Client.DeleteUDF
+func (mmDeleteUDF *mClientMockDeleteUDF) ExpectFunctionNameParam2(functionName string) *mClientMockDeleteUDF {
+	if mmDeleteUDF.mock.funcDeleteUDF != nil {
+		mmDeleteUDF.mock.t.Fatalf("ClientMock.DeleteUDF mock is already set by Set")
+	}
+
+	if mmDeleteUDF.defaultExpectation == nil {
+		mmDeleteUDF.defaultExpectation = &ClientMockDeleteUDFExpectation{}
+	}
+
+	if mmDeleteUDF.defaultExpectation.params != nil {
+		mmDeleteUDF.mock.t.Fatalf("ClientMock.DeleteUDF mock is already set by Expect")
+	}
+
+	if mmDeleteUDF.defaultExpectation.paramPtrs == nil {
+		mmDeleteUDF.defaultExpectation.paramPtrs = &ClientMockDeleteUDFParamPtrs{}
+	}
+	mmDeleteUDF.defaultExpectation.paramPtrs.functionName = &functionName
+	mmDeleteUDF.defaultExpectation.expectationOrigins.originFunctionName = minimock.CallerInfo(1)
+
+	return mmDeleteUDF
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteUDF
+func (mmDeleteUDF *mClientMockDeleteUDF) Inspect(f func(ctx context.Context, functionName string)) *mClientMockDeleteUDF {
+	if mmDeleteUDF.mock.inspectFuncDeleteUDF != nil {
+		mmDeleteUDF.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteUDF")
+	}
+
+	mmDeleteUDF.mock.inspectFuncDeleteUDF = f
+
+	return mmDeleteUDF
+}
+
+// Return sets up results that will be returned by Client.DeleteUDF
+func (mmDeleteUDF *mClientMockDeleteUDF) Return(err error) *ClientMock {
+	if mmDeleteUDF.mock.funcDeleteUDF != nil {
+		mmDeleteUDF.mock.t.Fatalf("ClientMock.DeleteUDF mock is already set by Set")
+	}
+
+	if mmDeleteUDF.defaultExpectation == nil {
+		mmDeleteUDF.defaultExpectation = &ClientMockDeleteUDFExpectation{mock: mmDeleteUDF.mock}
+	}
+	mmDeleteUDF.defaultExpectation.results = &ClientMockDeleteUDFResults{err}
+	mmDeleteUDF.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteUDF.mock
+}
+
+// Set uses given function f to mock the Client.DeleteUDF method
+func (mmDeleteUDF *mClientMockDeleteUDF) Set(f func(ctx context.Context, functionName string) (err error)) *ClientMock {
+	if mmDeleteUDF.defaultExpectation != nil {
+		mmDeleteUDF.mock.t.Fatalf("Default expectation is already set for the Client.DeleteUDF method")
+	}
+
+	if len(mmDeleteUDF.expectations) > 0 {
+		mmDeleteUDF.mock.t.Fatalf("Some expectations are already set for the Client.DeleteUDF method")
+	}
+
+	mmDeleteUDF.mock.funcDeleteUDF = f
+	mmDeleteUDF.mock.funcDeleteUDFOrigin = minimock.CallerInfo(1)
+	return mmDeleteUDF.mock
+}
+
+// When sets expectation for the Client.DeleteUDF which will trigger the result defined by the following
+// Then helper
+func (mmDeleteUDF *mClientMockDeleteUDF) When(ctx context.Context, functionName string) *ClientMockDeleteUDFExpectation {
+	if mmDeleteUDF.mock.funcDeleteUDF != nil {
+		mmDeleteUDF.mock.t.Fatalf("ClientMock.DeleteUDF mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteUDFExpectation{
+		mock:               mmDeleteUDF.mock,
+		params:             &ClientMockDeleteUDFParams{ctx, functionName},
+		expectationOrigins: ClientMockDeleteUDFExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteUDF.expectations = append(mmDeleteUDF.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteUDF return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteUDFExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteUDFResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteUDF should be invoked
+func (mmDeleteUDF *mClientMockDeleteUDF) Times(n uint64) *mClientMockDeleteUDF {
+	if n == 0 {
+		mmDeleteUDF.mock.t.Fatalf("Times of ClientMock.DeleteUDF mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteUDF.expectedInvocations, n)
+	mmDeleteUDF.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteUDF
+}
+
+func (mmDeleteUDF *mClientMockDeleteUDF) invocationsDone() bool {
+	if len(mmDeleteUDF.expectations) == 0 && mmDeleteUDF.defaultExpectation == nil && mmDeleteUDF.mock.funcDeleteUDF == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteUDF.mock.afterDeleteUDFCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteUDF.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteUDF implements Client
+func (mmDeleteUDF *ClientMock) DeleteUDF(ctx context.Context, functionName string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteUDF.beforeDeleteUDFCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteUDF.afterDeleteUDFCounter, 1)
+
+	mmDeleteUDF.t.Helper()
+
+	if mmDeleteUDF.inspectFuncDeleteUDF != nil {
+		mmDeleteUDF.inspectFuncDeleteUDF(ctx, functionName)
+	}
+
+	mm_params := ClientMockDeleteUDFParams{ctx, functionName}
+
+	// Record call args
+	mmDeleteUDF.DeleteUDFMock.mutex.Lock()
+	mmDeleteUDF.DeleteUDFMock.callArgs = append(mmDeleteUDF.DeleteUDFMock.callArgs, &mm_params)
+	mmDeleteUDF.DeleteUDFMock.mutex.Unlock()
+
+	for _, e := range mmDeleteUDF.DeleteUDFMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteUDF.DeleteUDFMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteUDF.DeleteUDFMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteUDF.DeleteUDFMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteUDF.DeleteUDFMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteUDFParams{ctx, functionName}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteUDF.t.Errorf("ClientMock.DeleteUDF got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteUDF.DeleteUDFMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.functionName != nil && !minimock.Equal(*mm_want_ptrs.functionName, mm_got.functionName) {
+				mmDeleteUDF.t.Errorf("ClientMock.DeleteUDF got unexpected parameter functionName, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteUDF.DeleteUDFMock.defaultExpectation.expectationOrigins.originFunctionName, *mm_want_ptrs.functionName, mm_got.functionName, minimock.Diff(*mm_want_ptrs.functionName, mm_got.functionName))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteUDF.t.Errorf("ClientMock.DeleteUDF got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteUDF.DeleteUDFMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteUDF.DeleteUDFMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteUDF.t.Fatal("No results are set for the ClientMock.DeleteUDF")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteUDF.funcDeleteUDF != nil {
+		return mmDeleteUDF.funcDeleteUDF(ctx, functionName)
+	}
+	mmDeleteUDF.t.Fatalf("Unexpected call to ClientMock.DeleteUDF. %v %v", ctx, functionName)
+	return
+}
+
+// DeleteUDFAfterCounter returns a count of finished ClientMock.DeleteUDF invocations
+func (mmDeleteUDF *ClientMock) DeleteUDFAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteUDF.afterDeleteUDFCounter)
+}
+
+// DeleteUDFBeforeCounter returns a count of ClientMock.DeleteUDF invocations
+func (mmDeleteUDF *ClientMock) DeleteUDFBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteUDF.beforeDeleteUDFCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteUDF.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteUDF *mClientMockDeleteUDF) Calls() []*ClientMockDeleteUDFParams {
+	mmDeleteUDF.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteUDFParams, len(mmDeleteUDF.callArgs))
+	copy(argCopy, mmDeleteUDF.callArgs)
+
+	mmDeleteUDF.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteUDFDone returns true if the count of the DeleteUDF invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteUDFDone() bool {
+	if m.DeleteUDFMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteUDFMock.invocationsDone()
+}
+
+// MinimockDeleteUDFInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteUDFInspect() {
+	for _, e := range m.DeleteUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteUDF at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteUDFCounter := mm_atomic.LoadUint64(&m.afterDeleteUDFCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteUDFMock.defaultExpectation != nil && afterDeleteUDFCounter < 1 {
+		if m.DeleteUDFMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteUDF at\n%s", m.DeleteUDFMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteUDF at\n%s with params: %#v", m.DeleteUDFMock.defaultExpectation.expectationOrigins.origin, *m.DeleteUDFMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteUDF != nil && afterDeleteUDFCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteUDF at\n%s", m.funcDeleteUDFOrigin)
+	}
+
+	if !m.DeleteUDFMock.invocationsDone() && afterDeleteUDFCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteUDF at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteUDFMock.expectedInvocations), m.DeleteUDFMock.expectedInvocationsOrigin, afterDeleteUDFCounter)
+	}
+}
+
 type mClientMockDeleteUpgradeWindow struct {
 	optional           bool
 	mock               *ClientMock
@@ -6411,6 +8287,379 @@ func (m *ClientMock) MinimockDeleteUpgradeWindowInspect() {
 	if !m.DeleteUpgradeWindowMock.invocationsDone() && afterDeleteUpgradeWindowCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteUpgradeWindow at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteUpgradeWindowMock.expectedInvocations), m.DeleteUpgradeWindowMock.expectedInvocationsOrigin, afterDeleteUpgradeWindowCounter)
+	}
+}
+
+type mClientMockDetachUDF struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDetachUDFExpectation
+	expectations       []*ClientMockDetachUDFExpectation
+
+	callArgs []*ClientMockDetachUDFParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDetachUDFExpectation specifies expectation struct of the Client.DetachUDF
+type ClientMockDetachUDFExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDetachUDFParams
+	paramPtrs          *ClientMockDetachUDFParamPtrs
+	expectationOrigins ClientMockDetachUDFExpectationOrigins
+	results            *ClientMockDetachUDFResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDetachUDFParams contains parameters of the Client.DetachUDF
+type ClientMockDetachUDFParams struct {
+	ctx          context.Context
+	functionName string
+	serviceID    string
+}
+
+// ClientMockDetachUDFParamPtrs contains pointers to parameters of the Client.DetachUDF
+type ClientMockDetachUDFParamPtrs struct {
+	ctx          *context.Context
+	functionName *string
+	serviceID    *string
+}
+
+// ClientMockDetachUDFResults contains results of the Client.DetachUDF
+type ClientMockDetachUDFResults struct {
+	err error
+}
+
+// ClientMockDetachUDFOrigins contains origins of expectations of the Client.DetachUDF
+type ClientMockDetachUDFExpectationOrigins struct {
+	origin             string
+	originCtx          string
+	originFunctionName string
+	originServiceID    string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDetachUDF *mClientMockDetachUDF) Optional() *mClientMockDetachUDF {
+	mmDetachUDF.optional = true
+	return mmDetachUDF
+}
+
+// Expect sets up expected params for Client.DetachUDF
+func (mmDetachUDF *mClientMockDetachUDF) Expect(ctx context.Context, functionName string, serviceID string) *mClientMockDetachUDF {
+	if mmDetachUDF.mock.funcDetachUDF != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by Set")
+	}
+
+	if mmDetachUDF.defaultExpectation == nil {
+		mmDetachUDF.defaultExpectation = &ClientMockDetachUDFExpectation{}
+	}
+
+	if mmDetachUDF.defaultExpectation.paramPtrs != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by ExpectParams functions")
+	}
+
+	mmDetachUDF.defaultExpectation.params = &ClientMockDetachUDFParams{ctx, functionName, serviceID}
+	mmDetachUDF.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDetachUDF.expectations {
+		if minimock.Equal(e.params, mmDetachUDF.defaultExpectation.params) {
+			mmDetachUDF.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDetachUDF.defaultExpectation.params)
+		}
+	}
+
+	return mmDetachUDF
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DetachUDF
+func (mmDetachUDF *mClientMockDetachUDF) ExpectCtxParam1(ctx context.Context) *mClientMockDetachUDF {
+	if mmDetachUDF.mock.funcDetachUDF != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by Set")
+	}
+
+	if mmDetachUDF.defaultExpectation == nil {
+		mmDetachUDF.defaultExpectation = &ClientMockDetachUDFExpectation{}
+	}
+
+	if mmDetachUDF.defaultExpectation.params != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by Expect")
+	}
+
+	if mmDetachUDF.defaultExpectation.paramPtrs == nil {
+		mmDetachUDF.defaultExpectation.paramPtrs = &ClientMockDetachUDFParamPtrs{}
+	}
+	mmDetachUDF.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDetachUDF.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDetachUDF
+}
+
+// ExpectFunctionNameParam2 sets up expected param functionName for Client.DetachUDF
+func (mmDetachUDF *mClientMockDetachUDF) ExpectFunctionNameParam2(functionName string) *mClientMockDetachUDF {
+	if mmDetachUDF.mock.funcDetachUDF != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by Set")
+	}
+
+	if mmDetachUDF.defaultExpectation == nil {
+		mmDetachUDF.defaultExpectation = &ClientMockDetachUDFExpectation{}
+	}
+
+	if mmDetachUDF.defaultExpectation.params != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by Expect")
+	}
+
+	if mmDetachUDF.defaultExpectation.paramPtrs == nil {
+		mmDetachUDF.defaultExpectation.paramPtrs = &ClientMockDetachUDFParamPtrs{}
+	}
+	mmDetachUDF.defaultExpectation.paramPtrs.functionName = &functionName
+	mmDetachUDF.defaultExpectation.expectationOrigins.originFunctionName = minimock.CallerInfo(1)
+
+	return mmDetachUDF
+}
+
+// ExpectServiceIDParam3 sets up expected param serviceID for Client.DetachUDF
+func (mmDetachUDF *mClientMockDetachUDF) ExpectServiceIDParam3(serviceID string) *mClientMockDetachUDF {
+	if mmDetachUDF.mock.funcDetachUDF != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by Set")
+	}
+
+	if mmDetachUDF.defaultExpectation == nil {
+		mmDetachUDF.defaultExpectation = &ClientMockDetachUDFExpectation{}
+	}
+
+	if mmDetachUDF.defaultExpectation.params != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by Expect")
+	}
+
+	if mmDetachUDF.defaultExpectation.paramPtrs == nil {
+		mmDetachUDF.defaultExpectation.paramPtrs = &ClientMockDetachUDFParamPtrs{}
+	}
+	mmDetachUDF.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmDetachUDF.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmDetachUDF
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DetachUDF
+func (mmDetachUDF *mClientMockDetachUDF) Inspect(f func(ctx context.Context, functionName string, serviceID string)) *mClientMockDetachUDF {
+	if mmDetachUDF.mock.inspectFuncDetachUDF != nil {
+		mmDetachUDF.mock.t.Fatalf("Inspect function is already set for ClientMock.DetachUDF")
+	}
+
+	mmDetachUDF.mock.inspectFuncDetachUDF = f
+
+	return mmDetachUDF
+}
+
+// Return sets up results that will be returned by Client.DetachUDF
+func (mmDetachUDF *mClientMockDetachUDF) Return(err error) *ClientMock {
+	if mmDetachUDF.mock.funcDetachUDF != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by Set")
+	}
+
+	if mmDetachUDF.defaultExpectation == nil {
+		mmDetachUDF.defaultExpectation = &ClientMockDetachUDFExpectation{mock: mmDetachUDF.mock}
+	}
+	mmDetachUDF.defaultExpectation.results = &ClientMockDetachUDFResults{err}
+	mmDetachUDF.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDetachUDF.mock
+}
+
+// Set uses given function f to mock the Client.DetachUDF method
+func (mmDetachUDF *mClientMockDetachUDF) Set(f func(ctx context.Context, functionName string, serviceID string) (err error)) *ClientMock {
+	if mmDetachUDF.defaultExpectation != nil {
+		mmDetachUDF.mock.t.Fatalf("Default expectation is already set for the Client.DetachUDF method")
+	}
+
+	if len(mmDetachUDF.expectations) > 0 {
+		mmDetachUDF.mock.t.Fatalf("Some expectations are already set for the Client.DetachUDF method")
+	}
+
+	mmDetachUDF.mock.funcDetachUDF = f
+	mmDetachUDF.mock.funcDetachUDFOrigin = minimock.CallerInfo(1)
+	return mmDetachUDF.mock
+}
+
+// When sets expectation for the Client.DetachUDF which will trigger the result defined by the following
+// Then helper
+func (mmDetachUDF *mClientMockDetachUDF) When(ctx context.Context, functionName string, serviceID string) *ClientMockDetachUDFExpectation {
+	if mmDetachUDF.mock.funcDetachUDF != nil {
+		mmDetachUDF.mock.t.Fatalf("ClientMock.DetachUDF mock is already set by Set")
+	}
+
+	expectation := &ClientMockDetachUDFExpectation{
+		mock:               mmDetachUDF.mock,
+		params:             &ClientMockDetachUDFParams{ctx, functionName, serviceID},
+		expectationOrigins: ClientMockDetachUDFExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDetachUDF.expectations = append(mmDetachUDF.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DetachUDF return parameters for the expectation previously defined by the When method
+func (e *ClientMockDetachUDFExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDetachUDFResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DetachUDF should be invoked
+func (mmDetachUDF *mClientMockDetachUDF) Times(n uint64) *mClientMockDetachUDF {
+	if n == 0 {
+		mmDetachUDF.mock.t.Fatalf("Times of ClientMock.DetachUDF mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDetachUDF.expectedInvocations, n)
+	mmDetachUDF.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDetachUDF
+}
+
+func (mmDetachUDF *mClientMockDetachUDF) invocationsDone() bool {
+	if len(mmDetachUDF.expectations) == 0 && mmDetachUDF.defaultExpectation == nil && mmDetachUDF.mock.funcDetachUDF == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDetachUDF.mock.afterDetachUDFCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDetachUDF.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DetachUDF implements Client
+func (mmDetachUDF *ClientMock) DetachUDF(ctx context.Context, functionName string, serviceID string) (err error) {
+	mm_atomic.AddUint64(&mmDetachUDF.beforeDetachUDFCounter, 1)
+	defer mm_atomic.AddUint64(&mmDetachUDF.afterDetachUDFCounter, 1)
+
+	mmDetachUDF.t.Helper()
+
+	if mmDetachUDF.inspectFuncDetachUDF != nil {
+		mmDetachUDF.inspectFuncDetachUDF(ctx, functionName, serviceID)
+	}
+
+	mm_params := ClientMockDetachUDFParams{ctx, functionName, serviceID}
+
+	// Record call args
+	mmDetachUDF.DetachUDFMock.mutex.Lock()
+	mmDetachUDF.DetachUDFMock.callArgs = append(mmDetachUDF.DetachUDFMock.callArgs, &mm_params)
+	mmDetachUDF.DetachUDFMock.mutex.Unlock()
+
+	for _, e := range mmDetachUDF.DetachUDFMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDetachUDF.DetachUDFMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDetachUDF.DetachUDFMock.defaultExpectation.Counter, 1)
+		mm_want := mmDetachUDF.DetachUDFMock.defaultExpectation.params
+		mm_want_ptrs := mmDetachUDF.DetachUDFMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDetachUDFParams{ctx, functionName, serviceID}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDetachUDF.t.Errorf("ClientMock.DetachUDF got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDetachUDF.DetachUDFMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.functionName != nil && !minimock.Equal(*mm_want_ptrs.functionName, mm_got.functionName) {
+				mmDetachUDF.t.Errorf("ClientMock.DetachUDF got unexpected parameter functionName, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDetachUDF.DetachUDFMock.defaultExpectation.expectationOrigins.originFunctionName, *mm_want_ptrs.functionName, mm_got.functionName, minimock.Diff(*mm_want_ptrs.functionName, mm_got.functionName))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmDetachUDF.t.Errorf("ClientMock.DetachUDF got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDetachUDF.DetachUDFMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDetachUDF.t.Errorf("ClientMock.DetachUDF got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDetachUDF.DetachUDFMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDetachUDF.DetachUDFMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDetachUDF.t.Fatal("No results are set for the ClientMock.DetachUDF")
+		}
+		return (*mm_results).err
+	}
+	if mmDetachUDF.funcDetachUDF != nil {
+		return mmDetachUDF.funcDetachUDF(ctx, functionName, serviceID)
+	}
+	mmDetachUDF.t.Fatalf("Unexpected call to ClientMock.DetachUDF. %v %v %v", ctx, functionName, serviceID)
+	return
+}
+
+// DetachUDFAfterCounter returns a count of finished ClientMock.DetachUDF invocations
+func (mmDetachUDF *ClientMock) DetachUDFAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDetachUDF.afterDetachUDFCounter)
+}
+
+// DetachUDFBeforeCounter returns a count of ClientMock.DetachUDF invocations
+func (mmDetachUDF *ClientMock) DetachUDFBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDetachUDF.beforeDetachUDFCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DetachUDF.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDetachUDF *mClientMockDetachUDF) Calls() []*ClientMockDetachUDFParams {
+	mmDetachUDF.mutex.RLock()
+
+	argCopy := make([]*ClientMockDetachUDFParams, len(mmDetachUDF.callArgs))
+	copy(argCopy, mmDetachUDF.callArgs)
+
+	mmDetachUDF.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDetachUDFDone returns true if the count of the DetachUDF invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDetachUDFDone() bool {
+	if m.DetachUDFMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DetachUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DetachUDFMock.invocationsDone()
+}
+
+// MinimockDetachUDFInspect logs each unmet expectation
+func (m *ClientMock) MinimockDetachUDFInspect() {
+	for _, e := range m.DetachUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DetachUDF at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDetachUDFCounter := mm_atomic.LoadUint64(&m.afterDetachUDFCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DetachUDFMock.defaultExpectation != nil && afterDetachUDFCounter < 1 {
+		if m.DetachUDFMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DetachUDF at\n%s", m.DetachUDFMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DetachUDF at\n%s with params: %#v", m.DetachUDFMock.defaultExpectation.expectationOrigins.origin, *m.DetachUDFMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDetachUDF != nil && afterDetachUDFCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DetachUDF at\n%s", m.funcDetachUDFOrigin)
+	}
+
+	if !m.DetachUDFMock.invocationsDone() && afterDetachUDFCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DetachUDF at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DetachUDFMock.expectedInvocations), m.DetachUDFMock.expectedInvocationsOrigin, afterDetachUDFCounter)
 	}
 }
 
@@ -12989,6 +15238,723 @@ func (m *ClientMock) MinimockGetServiceBaseInspect() {
 	if !m.GetServiceBaseMock.invocationsDone() && afterGetServiceBaseCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetServiceBase at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetServiceBaseMock.expectedInvocations), m.GetServiceBaseMock.expectedInvocationsOrigin, afterGetServiceBaseCounter)
+	}
+}
+
+type mClientMockGetUDF struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetUDFExpectation
+	expectations       []*ClientMockGetUDFExpectation
+
+	callArgs []*ClientMockGetUDFParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetUDFExpectation specifies expectation struct of the Client.GetUDF
+type ClientMockGetUDFExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetUDFParams
+	paramPtrs          *ClientMockGetUDFParamPtrs
+	expectationOrigins ClientMockGetUDFExpectationOrigins
+	results            *ClientMockGetUDFResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetUDFParams contains parameters of the Client.GetUDF
+type ClientMockGetUDFParams struct {
+	ctx          context.Context
+	functionName string
+}
+
+// ClientMockGetUDFParamPtrs contains pointers to parameters of the Client.GetUDF
+type ClientMockGetUDFParamPtrs struct {
+	ctx          *context.Context
+	functionName *string
+}
+
+// ClientMockGetUDFResults contains results of the Client.GetUDF
+type ClientMockGetUDFResults struct {
+	up1 *UDF
+	err error
+}
+
+// ClientMockGetUDFOrigins contains origins of expectations of the Client.GetUDF
+type ClientMockGetUDFExpectationOrigins struct {
+	origin             string
+	originCtx          string
+	originFunctionName string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetUDF *mClientMockGetUDF) Optional() *mClientMockGetUDF {
+	mmGetUDF.optional = true
+	return mmGetUDF
+}
+
+// Expect sets up expected params for Client.GetUDF
+func (mmGetUDF *mClientMockGetUDF) Expect(ctx context.Context, functionName string) *mClientMockGetUDF {
+	if mmGetUDF.mock.funcGetUDF != nil {
+		mmGetUDF.mock.t.Fatalf("ClientMock.GetUDF mock is already set by Set")
+	}
+
+	if mmGetUDF.defaultExpectation == nil {
+		mmGetUDF.defaultExpectation = &ClientMockGetUDFExpectation{}
+	}
+
+	if mmGetUDF.defaultExpectation.paramPtrs != nil {
+		mmGetUDF.mock.t.Fatalf("ClientMock.GetUDF mock is already set by ExpectParams functions")
+	}
+
+	mmGetUDF.defaultExpectation.params = &ClientMockGetUDFParams{ctx, functionName}
+	mmGetUDF.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetUDF.expectations {
+		if minimock.Equal(e.params, mmGetUDF.defaultExpectation.params) {
+			mmGetUDF.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetUDF.defaultExpectation.params)
+		}
+	}
+
+	return mmGetUDF
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetUDF
+func (mmGetUDF *mClientMockGetUDF) ExpectCtxParam1(ctx context.Context) *mClientMockGetUDF {
+	if mmGetUDF.mock.funcGetUDF != nil {
+		mmGetUDF.mock.t.Fatalf("ClientMock.GetUDF mock is already set by Set")
+	}
+
+	if mmGetUDF.defaultExpectation == nil {
+		mmGetUDF.defaultExpectation = &ClientMockGetUDFExpectation{}
+	}
+
+	if mmGetUDF.defaultExpectation.params != nil {
+		mmGetUDF.mock.t.Fatalf("ClientMock.GetUDF mock is already set by Expect")
+	}
+
+	if mmGetUDF.defaultExpectation.paramPtrs == nil {
+		mmGetUDF.defaultExpectation.paramPtrs = &ClientMockGetUDFParamPtrs{}
+	}
+	mmGetUDF.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetUDF.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetUDF
+}
+
+// ExpectFunctionNameParam2 sets up expected param functionName for Client.GetUDF
+func (mmGetUDF *mClientMockGetUDF) ExpectFunctionNameParam2(functionName string) *mClientMockGetUDF {
+	if mmGetUDF.mock.funcGetUDF != nil {
+		mmGetUDF.mock.t.Fatalf("ClientMock.GetUDF mock is already set by Set")
+	}
+
+	if mmGetUDF.defaultExpectation == nil {
+		mmGetUDF.defaultExpectation = &ClientMockGetUDFExpectation{}
+	}
+
+	if mmGetUDF.defaultExpectation.params != nil {
+		mmGetUDF.mock.t.Fatalf("ClientMock.GetUDF mock is already set by Expect")
+	}
+
+	if mmGetUDF.defaultExpectation.paramPtrs == nil {
+		mmGetUDF.defaultExpectation.paramPtrs = &ClientMockGetUDFParamPtrs{}
+	}
+	mmGetUDF.defaultExpectation.paramPtrs.functionName = &functionName
+	mmGetUDF.defaultExpectation.expectationOrigins.originFunctionName = minimock.CallerInfo(1)
+
+	return mmGetUDF
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetUDF
+func (mmGetUDF *mClientMockGetUDF) Inspect(f func(ctx context.Context, functionName string)) *mClientMockGetUDF {
+	if mmGetUDF.mock.inspectFuncGetUDF != nil {
+		mmGetUDF.mock.t.Fatalf("Inspect function is already set for ClientMock.GetUDF")
+	}
+
+	mmGetUDF.mock.inspectFuncGetUDF = f
+
+	return mmGetUDF
+}
+
+// Return sets up results that will be returned by Client.GetUDF
+func (mmGetUDF *mClientMockGetUDF) Return(up1 *UDF, err error) *ClientMock {
+	if mmGetUDF.mock.funcGetUDF != nil {
+		mmGetUDF.mock.t.Fatalf("ClientMock.GetUDF mock is already set by Set")
+	}
+
+	if mmGetUDF.defaultExpectation == nil {
+		mmGetUDF.defaultExpectation = &ClientMockGetUDFExpectation{mock: mmGetUDF.mock}
+	}
+	mmGetUDF.defaultExpectation.results = &ClientMockGetUDFResults{up1, err}
+	mmGetUDF.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetUDF.mock
+}
+
+// Set uses given function f to mock the Client.GetUDF method
+func (mmGetUDF *mClientMockGetUDF) Set(f func(ctx context.Context, functionName string) (up1 *UDF, err error)) *ClientMock {
+	if mmGetUDF.defaultExpectation != nil {
+		mmGetUDF.mock.t.Fatalf("Default expectation is already set for the Client.GetUDF method")
+	}
+
+	if len(mmGetUDF.expectations) > 0 {
+		mmGetUDF.mock.t.Fatalf("Some expectations are already set for the Client.GetUDF method")
+	}
+
+	mmGetUDF.mock.funcGetUDF = f
+	mmGetUDF.mock.funcGetUDFOrigin = minimock.CallerInfo(1)
+	return mmGetUDF.mock
+}
+
+// When sets expectation for the Client.GetUDF which will trigger the result defined by the following
+// Then helper
+func (mmGetUDF *mClientMockGetUDF) When(ctx context.Context, functionName string) *ClientMockGetUDFExpectation {
+	if mmGetUDF.mock.funcGetUDF != nil {
+		mmGetUDF.mock.t.Fatalf("ClientMock.GetUDF mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetUDFExpectation{
+		mock:               mmGetUDF.mock,
+		params:             &ClientMockGetUDFParams{ctx, functionName},
+		expectationOrigins: ClientMockGetUDFExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetUDF.expectations = append(mmGetUDF.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetUDF return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetUDFExpectation) Then(up1 *UDF, err error) *ClientMock {
+	e.results = &ClientMockGetUDFResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetUDF should be invoked
+func (mmGetUDF *mClientMockGetUDF) Times(n uint64) *mClientMockGetUDF {
+	if n == 0 {
+		mmGetUDF.mock.t.Fatalf("Times of ClientMock.GetUDF mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetUDF.expectedInvocations, n)
+	mmGetUDF.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetUDF
+}
+
+func (mmGetUDF *mClientMockGetUDF) invocationsDone() bool {
+	if len(mmGetUDF.expectations) == 0 && mmGetUDF.defaultExpectation == nil && mmGetUDF.mock.funcGetUDF == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetUDF.mock.afterGetUDFCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetUDF.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetUDF implements Client
+func (mmGetUDF *ClientMock) GetUDF(ctx context.Context, functionName string) (up1 *UDF, err error) {
+	mm_atomic.AddUint64(&mmGetUDF.beforeGetUDFCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetUDF.afterGetUDFCounter, 1)
+
+	mmGetUDF.t.Helper()
+
+	if mmGetUDF.inspectFuncGetUDF != nil {
+		mmGetUDF.inspectFuncGetUDF(ctx, functionName)
+	}
+
+	mm_params := ClientMockGetUDFParams{ctx, functionName}
+
+	// Record call args
+	mmGetUDF.GetUDFMock.mutex.Lock()
+	mmGetUDF.GetUDFMock.callArgs = append(mmGetUDF.GetUDFMock.callArgs, &mm_params)
+	mmGetUDF.GetUDFMock.mutex.Unlock()
+
+	for _, e := range mmGetUDF.GetUDFMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmGetUDF.GetUDFMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetUDF.GetUDFMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetUDF.GetUDFMock.defaultExpectation.params
+		mm_want_ptrs := mmGetUDF.GetUDFMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetUDFParams{ctx, functionName}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetUDF.t.Errorf("ClientMock.GetUDF got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetUDF.GetUDFMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.functionName != nil && !minimock.Equal(*mm_want_ptrs.functionName, mm_got.functionName) {
+				mmGetUDF.t.Errorf("ClientMock.GetUDF got unexpected parameter functionName, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetUDF.GetUDFMock.defaultExpectation.expectationOrigins.originFunctionName, *mm_want_ptrs.functionName, mm_got.functionName, minimock.Diff(*mm_want_ptrs.functionName, mm_got.functionName))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetUDF.t.Errorf("ClientMock.GetUDF got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetUDF.GetUDFMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetUDF.GetUDFMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetUDF.t.Fatal("No results are set for the ClientMock.GetUDF")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmGetUDF.funcGetUDF != nil {
+		return mmGetUDF.funcGetUDF(ctx, functionName)
+	}
+	mmGetUDF.t.Fatalf("Unexpected call to ClientMock.GetUDF. %v %v", ctx, functionName)
+	return
+}
+
+// GetUDFAfterCounter returns a count of finished ClientMock.GetUDF invocations
+func (mmGetUDF *ClientMock) GetUDFAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUDF.afterGetUDFCounter)
+}
+
+// GetUDFBeforeCounter returns a count of ClientMock.GetUDF invocations
+func (mmGetUDF *ClientMock) GetUDFBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUDF.beforeGetUDFCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetUDF.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetUDF *mClientMockGetUDF) Calls() []*ClientMockGetUDFParams {
+	mmGetUDF.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetUDFParams, len(mmGetUDF.callArgs))
+	copy(argCopy, mmGetUDF.callArgs)
+
+	mmGetUDF.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetUDFDone returns true if the count of the GetUDF invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetUDFDone() bool {
+	if m.GetUDFMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetUDFMock.invocationsDone()
+}
+
+// MinimockGetUDFInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetUDFInspect() {
+	for _, e := range m.GetUDFMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetUDF at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetUDFCounter := mm_atomic.LoadUint64(&m.afterGetUDFCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetUDFMock.defaultExpectation != nil && afterGetUDFCounter < 1 {
+		if m.GetUDFMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetUDF at\n%s", m.GetUDFMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetUDF at\n%s with params: %#v", m.GetUDFMock.defaultExpectation.expectationOrigins.origin, *m.GetUDFMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetUDF != nil && afterGetUDFCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetUDF at\n%s", m.funcGetUDFOrigin)
+	}
+
+	if !m.GetUDFMock.invocationsDone() && afterGetUDFCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetUDF at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetUDFMock.expectedInvocations), m.GetUDFMock.expectedInvocationsOrigin, afterGetUDFCounter)
+	}
+}
+
+type mClientMockGetUDFAttachment struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetUDFAttachmentExpectation
+	expectations       []*ClientMockGetUDFAttachmentExpectation
+
+	callArgs []*ClientMockGetUDFAttachmentParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetUDFAttachmentExpectation specifies expectation struct of the Client.GetUDFAttachment
+type ClientMockGetUDFAttachmentExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetUDFAttachmentParams
+	paramPtrs          *ClientMockGetUDFAttachmentParamPtrs
+	expectationOrigins ClientMockGetUDFAttachmentExpectationOrigins
+	results            *ClientMockGetUDFAttachmentResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetUDFAttachmentParams contains parameters of the Client.GetUDFAttachment
+type ClientMockGetUDFAttachmentParams struct {
+	ctx          context.Context
+	functionName string
+	serviceID    string
+}
+
+// ClientMockGetUDFAttachmentParamPtrs contains pointers to parameters of the Client.GetUDFAttachment
+type ClientMockGetUDFAttachmentParamPtrs struct {
+	ctx          *context.Context
+	functionName *string
+	serviceID    *string
+}
+
+// ClientMockGetUDFAttachmentResults contains results of the Client.GetUDFAttachment
+type ClientMockGetUDFAttachmentResults struct {
+	up1 *UDFAttachment
+	err error
+}
+
+// ClientMockGetUDFAttachmentOrigins contains origins of expectations of the Client.GetUDFAttachment
+type ClientMockGetUDFAttachmentExpectationOrigins struct {
+	origin             string
+	originCtx          string
+	originFunctionName string
+	originServiceID    string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) Optional() *mClientMockGetUDFAttachment {
+	mmGetUDFAttachment.optional = true
+	return mmGetUDFAttachment
+}
+
+// Expect sets up expected params for Client.GetUDFAttachment
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) Expect(ctx context.Context, functionName string, serviceID string) *mClientMockGetUDFAttachment {
+	if mmGetUDFAttachment.mock.funcGetUDFAttachment != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by Set")
+	}
+
+	if mmGetUDFAttachment.defaultExpectation == nil {
+		mmGetUDFAttachment.defaultExpectation = &ClientMockGetUDFAttachmentExpectation{}
+	}
+
+	if mmGetUDFAttachment.defaultExpectation.paramPtrs != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by ExpectParams functions")
+	}
+
+	mmGetUDFAttachment.defaultExpectation.params = &ClientMockGetUDFAttachmentParams{ctx, functionName, serviceID}
+	mmGetUDFAttachment.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetUDFAttachment.expectations {
+		if minimock.Equal(e.params, mmGetUDFAttachment.defaultExpectation.params) {
+			mmGetUDFAttachment.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetUDFAttachment.defaultExpectation.params)
+		}
+	}
+
+	return mmGetUDFAttachment
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetUDFAttachment
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) ExpectCtxParam1(ctx context.Context) *mClientMockGetUDFAttachment {
+	if mmGetUDFAttachment.mock.funcGetUDFAttachment != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by Set")
+	}
+
+	if mmGetUDFAttachment.defaultExpectation == nil {
+		mmGetUDFAttachment.defaultExpectation = &ClientMockGetUDFAttachmentExpectation{}
+	}
+
+	if mmGetUDFAttachment.defaultExpectation.params != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by Expect")
+	}
+
+	if mmGetUDFAttachment.defaultExpectation.paramPtrs == nil {
+		mmGetUDFAttachment.defaultExpectation.paramPtrs = &ClientMockGetUDFAttachmentParamPtrs{}
+	}
+	mmGetUDFAttachment.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetUDFAttachment.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetUDFAttachment
+}
+
+// ExpectFunctionNameParam2 sets up expected param functionName for Client.GetUDFAttachment
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) ExpectFunctionNameParam2(functionName string) *mClientMockGetUDFAttachment {
+	if mmGetUDFAttachment.mock.funcGetUDFAttachment != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by Set")
+	}
+
+	if mmGetUDFAttachment.defaultExpectation == nil {
+		mmGetUDFAttachment.defaultExpectation = &ClientMockGetUDFAttachmentExpectation{}
+	}
+
+	if mmGetUDFAttachment.defaultExpectation.params != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by Expect")
+	}
+
+	if mmGetUDFAttachment.defaultExpectation.paramPtrs == nil {
+		mmGetUDFAttachment.defaultExpectation.paramPtrs = &ClientMockGetUDFAttachmentParamPtrs{}
+	}
+	mmGetUDFAttachment.defaultExpectation.paramPtrs.functionName = &functionName
+	mmGetUDFAttachment.defaultExpectation.expectationOrigins.originFunctionName = minimock.CallerInfo(1)
+
+	return mmGetUDFAttachment
+}
+
+// ExpectServiceIDParam3 sets up expected param serviceID for Client.GetUDFAttachment
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) ExpectServiceIDParam3(serviceID string) *mClientMockGetUDFAttachment {
+	if mmGetUDFAttachment.mock.funcGetUDFAttachment != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by Set")
+	}
+
+	if mmGetUDFAttachment.defaultExpectation == nil {
+		mmGetUDFAttachment.defaultExpectation = &ClientMockGetUDFAttachmentExpectation{}
+	}
+
+	if mmGetUDFAttachment.defaultExpectation.params != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by Expect")
+	}
+
+	if mmGetUDFAttachment.defaultExpectation.paramPtrs == nil {
+		mmGetUDFAttachment.defaultExpectation.paramPtrs = &ClientMockGetUDFAttachmentParamPtrs{}
+	}
+	mmGetUDFAttachment.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmGetUDFAttachment.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmGetUDFAttachment
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetUDFAttachment
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) Inspect(f func(ctx context.Context, functionName string, serviceID string)) *mClientMockGetUDFAttachment {
+	if mmGetUDFAttachment.mock.inspectFuncGetUDFAttachment != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("Inspect function is already set for ClientMock.GetUDFAttachment")
+	}
+
+	mmGetUDFAttachment.mock.inspectFuncGetUDFAttachment = f
+
+	return mmGetUDFAttachment
+}
+
+// Return sets up results that will be returned by Client.GetUDFAttachment
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) Return(up1 *UDFAttachment, err error) *ClientMock {
+	if mmGetUDFAttachment.mock.funcGetUDFAttachment != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by Set")
+	}
+
+	if mmGetUDFAttachment.defaultExpectation == nil {
+		mmGetUDFAttachment.defaultExpectation = &ClientMockGetUDFAttachmentExpectation{mock: mmGetUDFAttachment.mock}
+	}
+	mmGetUDFAttachment.defaultExpectation.results = &ClientMockGetUDFAttachmentResults{up1, err}
+	mmGetUDFAttachment.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetUDFAttachment.mock
+}
+
+// Set uses given function f to mock the Client.GetUDFAttachment method
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) Set(f func(ctx context.Context, functionName string, serviceID string) (up1 *UDFAttachment, err error)) *ClientMock {
+	if mmGetUDFAttachment.defaultExpectation != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("Default expectation is already set for the Client.GetUDFAttachment method")
+	}
+
+	if len(mmGetUDFAttachment.expectations) > 0 {
+		mmGetUDFAttachment.mock.t.Fatalf("Some expectations are already set for the Client.GetUDFAttachment method")
+	}
+
+	mmGetUDFAttachment.mock.funcGetUDFAttachment = f
+	mmGetUDFAttachment.mock.funcGetUDFAttachmentOrigin = minimock.CallerInfo(1)
+	return mmGetUDFAttachment.mock
+}
+
+// When sets expectation for the Client.GetUDFAttachment which will trigger the result defined by the following
+// Then helper
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) When(ctx context.Context, functionName string, serviceID string) *ClientMockGetUDFAttachmentExpectation {
+	if mmGetUDFAttachment.mock.funcGetUDFAttachment != nil {
+		mmGetUDFAttachment.mock.t.Fatalf("ClientMock.GetUDFAttachment mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetUDFAttachmentExpectation{
+		mock:               mmGetUDFAttachment.mock,
+		params:             &ClientMockGetUDFAttachmentParams{ctx, functionName, serviceID},
+		expectationOrigins: ClientMockGetUDFAttachmentExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetUDFAttachment.expectations = append(mmGetUDFAttachment.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetUDFAttachment return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetUDFAttachmentExpectation) Then(up1 *UDFAttachment, err error) *ClientMock {
+	e.results = &ClientMockGetUDFAttachmentResults{up1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetUDFAttachment should be invoked
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) Times(n uint64) *mClientMockGetUDFAttachment {
+	if n == 0 {
+		mmGetUDFAttachment.mock.t.Fatalf("Times of ClientMock.GetUDFAttachment mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetUDFAttachment.expectedInvocations, n)
+	mmGetUDFAttachment.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetUDFAttachment
+}
+
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) invocationsDone() bool {
+	if len(mmGetUDFAttachment.expectations) == 0 && mmGetUDFAttachment.defaultExpectation == nil && mmGetUDFAttachment.mock.funcGetUDFAttachment == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetUDFAttachment.mock.afterGetUDFAttachmentCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetUDFAttachment.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetUDFAttachment implements Client
+func (mmGetUDFAttachment *ClientMock) GetUDFAttachment(ctx context.Context, functionName string, serviceID string) (up1 *UDFAttachment, err error) {
+	mm_atomic.AddUint64(&mmGetUDFAttachment.beforeGetUDFAttachmentCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetUDFAttachment.afterGetUDFAttachmentCounter, 1)
+
+	mmGetUDFAttachment.t.Helper()
+
+	if mmGetUDFAttachment.inspectFuncGetUDFAttachment != nil {
+		mmGetUDFAttachment.inspectFuncGetUDFAttachment(ctx, functionName, serviceID)
+	}
+
+	mm_params := ClientMockGetUDFAttachmentParams{ctx, functionName, serviceID}
+
+	// Record call args
+	mmGetUDFAttachment.GetUDFAttachmentMock.mutex.Lock()
+	mmGetUDFAttachment.GetUDFAttachmentMock.callArgs = append(mmGetUDFAttachment.GetUDFAttachmentMock.callArgs, &mm_params)
+	mmGetUDFAttachment.GetUDFAttachmentMock.mutex.Unlock()
+
+	for _, e := range mmGetUDFAttachment.GetUDFAttachmentMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.up1, e.results.err
+		}
+	}
+
+	if mmGetUDFAttachment.GetUDFAttachmentMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetUDFAttachment.GetUDFAttachmentMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetUDFAttachment.GetUDFAttachmentMock.defaultExpectation.params
+		mm_want_ptrs := mmGetUDFAttachment.GetUDFAttachmentMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetUDFAttachmentParams{ctx, functionName, serviceID}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetUDFAttachment.t.Errorf("ClientMock.GetUDFAttachment got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetUDFAttachment.GetUDFAttachmentMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.functionName != nil && !minimock.Equal(*mm_want_ptrs.functionName, mm_got.functionName) {
+				mmGetUDFAttachment.t.Errorf("ClientMock.GetUDFAttachment got unexpected parameter functionName, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetUDFAttachment.GetUDFAttachmentMock.defaultExpectation.expectationOrigins.originFunctionName, *mm_want_ptrs.functionName, mm_got.functionName, minimock.Diff(*mm_want_ptrs.functionName, mm_got.functionName))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmGetUDFAttachment.t.Errorf("ClientMock.GetUDFAttachment got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetUDFAttachment.GetUDFAttachmentMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetUDFAttachment.t.Errorf("ClientMock.GetUDFAttachment got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetUDFAttachment.GetUDFAttachmentMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetUDFAttachment.GetUDFAttachmentMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetUDFAttachment.t.Fatal("No results are set for the ClientMock.GetUDFAttachment")
+		}
+		return (*mm_results).up1, (*mm_results).err
+	}
+	if mmGetUDFAttachment.funcGetUDFAttachment != nil {
+		return mmGetUDFAttachment.funcGetUDFAttachment(ctx, functionName, serviceID)
+	}
+	mmGetUDFAttachment.t.Fatalf("Unexpected call to ClientMock.GetUDFAttachment. %v %v %v", ctx, functionName, serviceID)
+	return
+}
+
+// GetUDFAttachmentAfterCounter returns a count of finished ClientMock.GetUDFAttachment invocations
+func (mmGetUDFAttachment *ClientMock) GetUDFAttachmentAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUDFAttachment.afterGetUDFAttachmentCounter)
+}
+
+// GetUDFAttachmentBeforeCounter returns a count of ClientMock.GetUDFAttachment invocations
+func (mmGetUDFAttachment *ClientMock) GetUDFAttachmentBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetUDFAttachment.beforeGetUDFAttachmentCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetUDFAttachment.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetUDFAttachment *mClientMockGetUDFAttachment) Calls() []*ClientMockGetUDFAttachmentParams {
+	mmGetUDFAttachment.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetUDFAttachmentParams, len(mmGetUDFAttachment.callArgs))
+	copy(argCopy, mmGetUDFAttachment.callArgs)
+
+	mmGetUDFAttachment.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetUDFAttachmentDone returns true if the count of the GetUDFAttachment invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetUDFAttachmentDone() bool {
+	if m.GetUDFAttachmentMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetUDFAttachmentMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetUDFAttachmentMock.invocationsDone()
+}
+
+// MinimockGetUDFAttachmentInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetUDFAttachmentInspect() {
+	for _, e := range m.GetUDFAttachmentMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetUDFAttachment at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetUDFAttachmentCounter := mm_atomic.LoadUint64(&m.afterGetUDFAttachmentCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetUDFAttachmentMock.defaultExpectation != nil && afterGetUDFAttachmentCounter < 1 {
+		if m.GetUDFAttachmentMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetUDFAttachment at\n%s", m.GetUDFAttachmentMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetUDFAttachment at\n%s with params: %#v", m.GetUDFAttachmentMock.defaultExpectation.expectationOrigins.origin, *m.GetUDFAttachmentMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetUDFAttachment != nil && afterGetUDFAttachmentCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetUDFAttachment at\n%s", m.funcGetUDFAttachmentOrigin)
+	}
+
+	if !m.GetUDFAttachmentMock.invocationsDone() && afterGetUDFAttachmentCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetUDFAttachment at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetUDFAttachmentMock.expectedInvocations), m.GetUDFAttachmentMock.expectedInvocationsOrigin, afterGetUDFAttachmentCounter)
 	}
 }
 
@@ -21719,6 +24685,379 @@ func (m *ClientMock) MinimockUpdateUpgradeWindowInspect() {
 	}
 }
 
+type mClientMockUploadUDFArchive struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUploadUDFArchiveExpectation
+	expectations       []*ClientMockUploadUDFArchiveExpectation
+
+	callArgs []*ClientMockUploadUDFArchiveParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUploadUDFArchiveExpectation specifies expectation struct of the Client.UploadUDFArchive
+type ClientMockUploadUDFArchiveExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUploadUDFArchiveParams
+	paramPtrs          *ClientMockUploadUDFArchiveParamPtrs
+	expectationOrigins ClientMockUploadUDFArchiveExpectationOrigins
+	results            *ClientMockUploadUDFArchiveResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUploadUDFArchiveParams contains parameters of the Client.UploadUDFArchive
+type ClientMockUploadUDFArchiveParams struct {
+	ctx       context.Context
+	uploadURL string
+	archive   []byte
+}
+
+// ClientMockUploadUDFArchiveParamPtrs contains pointers to parameters of the Client.UploadUDFArchive
+type ClientMockUploadUDFArchiveParamPtrs struct {
+	ctx       *context.Context
+	uploadURL *string
+	archive   *[]byte
+}
+
+// ClientMockUploadUDFArchiveResults contains results of the Client.UploadUDFArchive
+type ClientMockUploadUDFArchiveResults struct {
+	err error
+}
+
+// ClientMockUploadUDFArchiveOrigins contains origins of expectations of the Client.UploadUDFArchive
+type ClientMockUploadUDFArchiveExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originUploadURL string
+	originArchive   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) Optional() *mClientMockUploadUDFArchive {
+	mmUploadUDFArchive.optional = true
+	return mmUploadUDFArchive
+}
+
+// Expect sets up expected params for Client.UploadUDFArchive
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) Expect(ctx context.Context, uploadURL string, archive []byte) *mClientMockUploadUDFArchive {
+	if mmUploadUDFArchive.mock.funcUploadUDFArchive != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by Set")
+	}
+
+	if mmUploadUDFArchive.defaultExpectation == nil {
+		mmUploadUDFArchive.defaultExpectation = &ClientMockUploadUDFArchiveExpectation{}
+	}
+
+	if mmUploadUDFArchive.defaultExpectation.paramPtrs != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by ExpectParams functions")
+	}
+
+	mmUploadUDFArchive.defaultExpectation.params = &ClientMockUploadUDFArchiveParams{ctx, uploadURL, archive}
+	mmUploadUDFArchive.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUploadUDFArchive.expectations {
+		if minimock.Equal(e.params, mmUploadUDFArchive.defaultExpectation.params) {
+			mmUploadUDFArchive.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUploadUDFArchive.defaultExpectation.params)
+		}
+	}
+
+	return mmUploadUDFArchive
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UploadUDFArchive
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) ExpectCtxParam1(ctx context.Context) *mClientMockUploadUDFArchive {
+	if mmUploadUDFArchive.mock.funcUploadUDFArchive != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by Set")
+	}
+
+	if mmUploadUDFArchive.defaultExpectation == nil {
+		mmUploadUDFArchive.defaultExpectation = &ClientMockUploadUDFArchiveExpectation{}
+	}
+
+	if mmUploadUDFArchive.defaultExpectation.params != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by Expect")
+	}
+
+	if mmUploadUDFArchive.defaultExpectation.paramPtrs == nil {
+		mmUploadUDFArchive.defaultExpectation.paramPtrs = &ClientMockUploadUDFArchiveParamPtrs{}
+	}
+	mmUploadUDFArchive.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUploadUDFArchive.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUploadUDFArchive
+}
+
+// ExpectUploadURLParam2 sets up expected param uploadURL for Client.UploadUDFArchive
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) ExpectUploadURLParam2(uploadURL string) *mClientMockUploadUDFArchive {
+	if mmUploadUDFArchive.mock.funcUploadUDFArchive != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by Set")
+	}
+
+	if mmUploadUDFArchive.defaultExpectation == nil {
+		mmUploadUDFArchive.defaultExpectation = &ClientMockUploadUDFArchiveExpectation{}
+	}
+
+	if mmUploadUDFArchive.defaultExpectation.params != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by Expect")
+	}
+
+	if mmUploadUDFArchive.defaultExpectation.paramPtrs == nil {
+		mmUploadUDFArchive.defaultExpectation.paramPtrs = &ClientMockUploadUDFArchiveParamPtrs{}
+	}
+	mmUploadUDFArchive.defaultExpectation.paramPtrs.uploadURL = &uploadURL
+	mmUploadUDFArchive.defaultExpectation.expectationOrigins.originUploadURL = minimock.CallerInfo(1)
+
+	return mmUploadUDFArchive
+}
+
+// ExpectArchiveParam3 sets up expected param archive for Client.UploadUDFArchive
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) ExpectArchiveParam3(archive []byte) *mClientMockUploadUDFArchive {
+	if mmUploadUDFArchive.mock.funcUploadUDFArchive != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by Set")
+	}
+
+	if mmUploadUDFArchive.defaultExpectation == nil {
+		mmUploadUDFArchive.defaultExpectation = &ClientMockUploadUDFArchiveExpectation{}
+	}
+
+	if mmUploadUDFArchive.defaultExpectation.params != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by Expect")
+	}
+
+	if mmUploadUDFArchive.defaultExpectation.paramPtrs == nil {
+		mmUploadUDFArchive.defaultExpectation.paramPtrs = &ClientMockUploadUDFArchiveParamPtrs{}
+	}
+	mmUploadUDFArchive.defaultExpectation.paramPtrs.archive = &archive
+	mmUploadUDFArchive.defaultExpectation.expectationOrigins.originArchive = minimock.CallerInfo(1)
+
+	return mmUploadUDFArchive
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UploadUDFArchive
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) Inspect(f func(ctx context.Context, uploadURL string, archive []byte)) *mClientMockUploadUDFArchive {
+	if mmUploadUDFArchive.mock.inspectFuncUploadUDFArchive != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("Inspect function is already set for ClientMock.UploadUDFArchive")
+	}
+
+	mmUploadUDFArchive.mock.inspectFuncUploadUDFArchive = f
+
+	return mmUploadUDFArchive
+}
+
+// Return sets up results that will be returned by Client.UploadUDFArchive
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) Return(err error) *ClientMock {
+	if mmUploadUDFArchive.mock.funcUploadUDFArchive != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by Set")
+	}
+
+	if mmUploadUDFArchive.defaultExpectation == nil {
+		mmUploadUDFArchive.defaultExpectation = &ClientMockUploadUDFArchiveExpectation{mock: mmUploadUDFArchive.mock}
+	}
+	mmUploadUDFArchive.defaultExpectation.results = &ClientMockUploadUDFArchiveResults{err}
+	mmUploadUDFArchive.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUploadUDFArchive.mock
+}
+
+// Set uses given function f to mock the Client.UploadUDFArchive method
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) Set(f func(ctx context.Context, uploadURL string, archive []byte) (err error)) *ClientMock {
+	if mmUploadUDFArchive.defaultExpectation != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("Default expectation is already set for the Client.UploadUDFArchive method")
+	}
+
+	if len(mmUploadUDFArchive.expectations) > 0 {
+		mmUploadUDFArchive.mock.t.Fatalf("Some expectations are already set for the Client.UploadUDFArchive method")
+	}
+
+	mmUploadUDFArchive.mock.funcUploadUDFArchive = f
+	mmUploadUDFArchive.mock.funcUploadUDFArchiveOrigin = minimock.CallerInfo(1)
+	return mmUploadUDFArchive.mock
+}
+
+// When sets expectation for the Client.UploadUDFArchive which will trigger the result defined by the following
+// Then helper
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) When(ctx context.Context, uploadURL string, archive []byte) *ClientMockUploadUDFArchiveExpectation {
+	if mmUploadUDFArchive.mock.funcUploadUDFArchive != nil {
+		mmUploadUDFArchive.mock.t.Fatalf("ClientMock.UploadUDFArchive mock is already set by Set")
+	}
+
+	expectation := &ClientMockUploadUDFArchiveExpectation{
+		mock:               mmUploadUDFArchive.mock,
+		params:             &ClientMockUploadUDFArchiveParams{ctx, uploadURL, archive},
+		expectationOrigins: ClientMockUploadUDFArchiveExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUploadUDFArchive.expectations = append(mmUploadUDFArchive.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UploadUDFArchive return parameters for the expectation previously defined by the When method
+func (e *ClientMockUploadUDFArchiveExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockUploadUDFArchiveResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.UploadUDFArchive should be invoked
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) Times(n uint64) *mClientMockUploadUDFArchive {
+	if n == 0 {
+		mmUploadUDFArchive.mock.t.Fatalf("Times of ClientMock.UploadUDFArchive mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUploadUDFArchive.expectedInvocations, n)
+	mmUploadUDFArchive.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUploadUDFArchive
+}
+
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) invocationsDone() bool {
+	if len(mmUploadUDFArchive.expectations) == 0 && mmUploadUDFArchive.defaultExpectation == nil && mmUploadUDFArchive.mock.funcUploadUDFArchive == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUploadUDFArchive.mock.afterUploadUDFArchiveCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUploadUDFArchive.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UploadUDFArchive implements Client
+func (mmUploadUDFArchive *ClientMock) UploadUDFArchive(ctx context.Context, uploadURL string, archive []byte) (err error) {
+	mm_atomic.AddUint64(&mmUploadUDFArchive.beforeUploadUDFArchiveCounter, 1)
+	defer mm_atomic.AddUint64(&mmUploadUDFArchive.afterUploadUDFArchiveCounter, 1)
+
+	mmUploadUDFArchive.t.Helper()
+
+	if mmUploadUDFArchive.inspectFuncUploadUDFArchive != nil {
+		mmUploadUDFArchive.inspectFuncUploadUDFArchive(ctx, uploadURL, archive)
+	}
+
+	mm_params := ClientMockUploadUDFArchiveParams{ctx, uploadURL, archive}
+
+	// Record call args
+	mmUploadUDFArchive.UploadUDFArchiveMock.mutex.Lock()
+	mmUploadUDFArchive.UploadUDFArchiveMock.callArgs = append(mmUploadUDFArchive.UploadUDFArchiveMock.callArgs, &mm_params)
+	mmUploadUDFArchive.UploadUDFArchiveMock.mutex.Unlock()
+
+	for _, e := range mmUploadUDFArchive.UploadUDFArchiveMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmUploadUDFArchive.UploadUDFArchiveMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUploadUDFArchive.UploadUDFArchiveMock.defaultExpectation.Counter, 1)
+		mm_want := mmUploadUDFArchive.UploadUDFArchiveMock.defaultExpectation.params
+		mm_want_ptrs := mmUploadUDFArchive.UploadUDFArchiveMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUploadUDFArchiveParams{ctx, uploadURL, archive}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUploadUDFArchive.t.Errorf("ClientMock.UploadUDFArchive got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUploadUDFArchive.UploadUDFArchiveMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.uploadURL != nil && !minimock.Equal(*mm_want_ptrs.uploadURL, mm_got.uploadURL) {
+				mmUploadUDFArchive.t.Errorf("ClientMock.UploadUDFArchive got unexpected parameter uploadURL, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUploadUDFArchive.UploadUDFArchiveMock.defaultExpectation.expectationOrigins.originUploadURL, *mm_want_ptrs.uploadURL, mm_got.uploadURL, minimock.Diff(*mm_want_ptrs.uploadURL, mm_got.uploadURL))
+			}
+
+			if mm_want_ptrs.archive != nil && !minimock.Equal(*mm_want_ptrs.archive, mm_got.archive) {
+				mmUploadUDFArchive.t.Errorf("ClientMock.UploadUDFArchive got unexpected parameter archive, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUploadUDFArchive.UploadUDFArchiveMock.defaultExpectation.expectationOrigins.originArchive, *mm_want_ptrs.archive, mm_got.archive, minimock.Diff(*mm_want_ptrs.archive, mm_got.archive))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUploadUDFArchive.t.Errorf("ClientMock.UploadUDFArchive got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUploadUDFArchive.UploadUDFArchiveMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUploadUDFArchive.UploadUDFArchiveMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUploadUDFArchive.t.Fatal("No results are set for the ClientMock.UploadUDFArchive")
+		}
+		return (*mm_results).err
+	}
+	if mmUploadUDFArchive.funcUploadUDFArchive != nil {
+		return mmUploadUDFArchive.funcUploadUDFArchive(ctx, uploadURL, archive)
+	}
+	mmUploadUDFArchive.t.Fatalf("Unexpected call to ClientMock.UploadUDFArchive. %v %v %v", ctx, uploadURL, archive)
+	return
+}
+
+// UploadUDFArchiveAfterCounter returns a count of finished ClientMock.UploadUDFArchive invocations
+func (mmUploadUDFArchive *ClientMock) UploadUDFArchiveAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUploadUDFArchive.afterUploadUDFArchiveCounter)
+}
+
+// UploadUDFArchiveBeforeCounter returns a count of ClientMock.UploadUDFArchive invocations
+func (mmUploadUDFArchive *ClientMock) UploadUDFArchiveBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUploadUDFArchive.beforeUploadUDFArchiveCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UploadUDFArchive.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUploadUDFArchive *mClientMockUploadUDFArchive) Calls() []*ClientMockUploadUDFArchiveParams {
+	mmUploadUDFArchive.mutex.RLock()
+
+	argCopy := make([]*ClientMockUploadUDFArchiveParams, len(mmUploadUDFArchive.callArgs))
+	copy(argCopy, mmUploadUDFArchive.callArgs)
+
+	mmUploadUDFArchive.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUploadUDFArchiveDone returns true if the count of the UploadUDFArchive invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUploadUDFArchiveDone() bool {
+	if m.UploadUDFArchiveMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UploadUDFArchiveMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UploadUDFArchiveMock.invocationsDone()
+}
+
+// MinimockUploadUDFArchiveInspect logs each unmet expectation
+func (m *ClientMock) MinimockUploadUDFArchiveInspect() {
+	for _, e := range m.UploadUDFArchiveMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UploadUDFArchive at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUploadUDFArchiveCounter := mm_atomic.LoadUint64(&m.afterUploadUDFArchiveCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UploadUDFArchiveMock.defaultExpectation != nil && afterUploadUDFArchiveCounter < 1 {
+		if m.UploadUDFArchiveMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UploadUDFArchive at\n%s", m.UploadUDFArchiveMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UploadUDFArchive at\n%s with params: %#v", m.UploadUDFArchiveMock.defaultExpectation.expectationOrigins.origin, *m.UploadUDFArchiveMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUploadUDFArchive != nil && afterUploadUDFArchiveCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UploadUDFArchive at\n%s", m.funcUploadUDFArchiveOrigin)
+	}
+
+	if !m.UploadUDFArchiveMock.invocationsDone() && afterUploadUDFArchiveCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UploadUDFArchive at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UploadUDFArchiveMock.expectedInvocations), m.UploadUDFArchiveMock.expectedInvocationsOrigin, afterUploadUDFArchiveCounter)
+	}
+}
+
 type mClientMockWaitForClickPipeCdcScaling struct {
 	optional           bool
 	mock               *ClientMock
@@ -24239,10 +27578,354 @@ func (m *ClientMock) MinimockWaitForServiceStateInspect() {
 	}
 }
 
+type mClientMockWakeService struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWakeServiceExpectation
+	expectations       []*ClientMockWakeServiceExpectation
+
+	callArgs []*ClientMockWakeServiceParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWakeServiceExpectation specifies expectation struct of the Client.WakeService
+type ClientMockWakeServiceExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWakeServiceParams
+	paramPtrs          *ClientMockWakeServiceParamPtrs
+	expectationOrigins ClientMockWakeServiceExpectationOrigins
+	results            *ClientMockWakeServiceResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWakeServiceParams contains parameters of the Client.WakeService
+type ClientMockWakeServiceParams struct {
+	ctx       context.Context
+	serviceID string
+}
+
+// ClientMockWakeServiceParamPtrs contains pointers to parameters of the Client.WakeService
+type ClientMockWakeServiceParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+}
+
+// ClientMockWakeServiceResults contains results of the Client.WakeService
+type ClientMockWakeServiceResults struct {
+	err error
+}
+
+// ClientMockWakeServiceOrigins contains origins of expectations of the Client.WakeService
+type ClientMockWakeServiceExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWakeService *mClientMockWakeService) Optional() *mClientMockWakeService {
+	mmWakeService.optional = true
+	return mmWakeService
+}
+
+// Expect sets up expected params for Client.WakeService
+func (mmWakeService *mClientMockWakeService) Expect(ctx context.Context, serviceID string) *mClientMockWakeService {
+	if mmWakeService.mock.funcWakeService != nil {
+		mmWakeService.mock.t.Fatalf("ClientMock.WakeService mock is already set by Set")
+	}
+
+	if mmWakeService.defaultExpectation == nil {
+		mmWakeService.defaultExpectation = &ClientMockWakeServiceExpectation{}
+	}
+
+	if mmWakeService.defaultExpectation.paramPtrs != nil {
+		mmWakeService.mock.t.Fatalf("ClientMock.WakeService mock is already set by ExpectParams functions")
+	}
+
+	mmWakeService.defaultExpectation.params = &ClientMockWakeServiceParams{ctx, serviceID}
+	mmWakeService.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWakeService.expectations {
+		if minimock.Equal(e.params, mmWakeService.defaultExpectation.params) {
+			mmWakeService.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWakeService.defaultExpectation.params)
+		}
+	}
+
+	return mmWakeService
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WakeService
+func (mmWakeService *mClientMockWakeService) ExpectCtxParam1(ctx context.Context) *mClientMockWakeService {
+	if mmWakeService.mock.funcWakeService != nil {
+		mmWakeService.mock.t.Fatalf("ClientMock.WakeService mock is already set by Set")
+	}
+
+	if mmWakeService.defaultExpectation == nil {
+		mmWakeService.defaultExpectation = &ClientMockWakeServiceExpectation{}
+	}
+
+	if mmWakeService.defaultExpectation.params != nil {
+		mmWakeService.mock.t.Fatalf("ClientMock.WakeService mock is already set by Expect")
+	}
+
+	if mmWakeService.defaultExpectation.paramPtrs == nil {
+		mmWakeService.defaultExpectation.paramPtrs = &ClientMockWakeServiceParamPtrs{}
+	}
+	mmWakeService.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWakeService.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWakeService
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.WakeService
+func (mmWakeService *mClientMockWakeService) ExpectServiceIDParam2(serviceID string) *mClientMockWakeService {
+	if mmWakeService.mock.funcWakeService != nil {
+		mmWakeService.mock.t.Fatalf("ClientMock.WakeService mock is already set by Set")
+	}
+
+	if mmWakeService.defaultExpectation == nil {
+		mmWakeService.defaultExpectation = &ClientMockWakeServiceExpectation{}
+	}
+
+	if mmWakeService.defaultExpectation.params != nil {
+		mmWakeService.mock.t.Fatalf("ClientMock.WakeService mock is already set by Expect")
+	}
+
+	if mmWakeService.defaultExpectation.paramPtrs == nil {
+		mmWakeService.defaultExpectation.paramPtrs = &ClientMockWakeServiceParamPtrs{}
+	}
+	mmWakeService.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmWakeService.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmWakeService
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WakeService
+func (mmWakeService *mClientMockWakeService) Inspect(f func(ctx context.Context, serviceID string)) *mClientMockWakeService {
+	if mmWakeService.mock.inspectFuncWakeService != nil {
+		mmWakeService.mock.t.Fatalf("Inspect function is already set for ClientMock.WakeService")
+	}
+
+	mmWakeService.mock.inspectFuncWakeService = f
+
+	return mmWakeService
+}
+
+// Return sets up results that will be returned by Client.WakeService
+func (mmWakeService *mClientMockWakeService) Return(err error) *ClientMock {
+	if mmWakeService.mock.funcWakeService != nil {
+		mmWakeService.mock.t.Fatalf("ClientMock.WakeService mock is already set by Set")
+	}
+
+	if mmWakeService.defaultExpectation == nil {
+		mmWakeService.defaultExpectation = &ClientMockWakeServiceExpectation{mock: mmWakeService.mock}
+	}
+	mmWakeService.defaultExpectation.results = &ClientMockWakeServiceResults{err}
+	mmWakeService.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWakeService.mock
+}
+
+// Set uses given function f to mock the Client.WakeService method
+func (mmWakeService *mClientMockWakeService) Set(f func(ctx context.Context, serviceID string) (err error)) *ClientMock {
+	if mmWakeService.defaultExpectation != nil {
+		mmWakeService.mock.t.Fatalf("Default expectation is already set for the Client.WakeService method")
+	}
+
+	if len(mmWakeService.expectations) > 0 {
+		mmWakeService.mock.t.Fatalf("Some expectations are already set for the Client.WakeService method")
+	}
+
+	mmWakeService.mock.funcWakeService = f
+	mmWakeService.mock.funcWakeServiceOrigin = minimock.CallerInfo(1)
+	return mmWakeService.mock
+}
+
+// When sets expectation for the Client.WakeService which will trigger the result defined by the following
+// Then helper
+func (mmWakeService *mClientMockWakeService) When(ctx context.Context, serviceID string) *ClientMockWakeServiceExpectation {
+	if mmWakeService.mock.funcWakeService != nil {
+		mmWakeService.mock.t.Fatalf("ClientMock.WakeService mock is already set by Set")
+	}
+
+	expectation := &ClientMockWakeServiceExpectation{
+		mock:               mmWakeService.mock,
+		params:             &ClientMockWakeServiceParams{ctx, serviceID},
+		expectationOrigins: ClientMockWakeServiceExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWakeService.expectations = append(mmWakeService.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WakeService return parameters for the expectation previously defined by the When method
+func (e *ClientMockWakeServiceExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockWakeServiceResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.WakeService should be invoked
+func (mmWakeService *mClientMockWakeService) Times(n uint64) *mClientMockWakeService {
+	if n == 0 {
+		mmWakeService.mock.t.Fatalf("Times of ClientMock.WakeService mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWakeService.expectedInvocations, n)
+	mmWakeService.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWakeService
+}
+
+func (mmWakeService *mClientMockWakeService) invocationsDone() bool {
+	if len(mmWakeService.expectations) == 0 && mmWakeService.defaultExpectation == nil && mmWakeService.mock.funcWakeService == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWakeService.mock.afterWakeServiceCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWakeService.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WakeService implements Client
+func (mmWakeService *ClientMock) WakeService(ctx context.Context, serviceID string) (err error) {
+	mm_atomic.AddUint64(&mmWakeService.beforeWakeServiceCounter, 1)
+	defer mm_atomic.AddUint64(&mmWakeService.afterWakeServiceCounter, 1)
+
+	mmWakeService.t.Helper()
+
+	if mmWakeService.inspectFuncWakeService != nil {
+		mmWakeService.inspectFuncWakeService(ctx, serviceID)
+	}
+
+	mm_params := ClientMockWakeServiceParams{ctx, serviceID}
+
+	// Record call args
+	mmWakeService.WakeServiceMock.mutex.Lock()
+	mmWakeService.WakeServiceMock.callArgs = append(mmWakeService.WakeServiceMock.callArgs, &mm_params)
+	mmWakeService.WakeServiceMock.mutex.Unlock()
+
+	for _, e := range mmWakeService.WakeServiceMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmWakeService.WakeServiceMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWakeService.WakeServiceMock.defaultExpectation.Counter, 1)
+		mm_want := mmWakeService.WakeServiceMock.defaultExpectation.params
+		mm_want_ptrs := mmWakeService.WakeServiceMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWakeServiceParams{ctx, serviceID}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWakeService.t.Errorf("ClientMock.WakeService got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWakeService.WakeServiceMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmWakeService.t.Errorf("ClientMock.WakeService got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWakeService.WakeServiceMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWakeService.t.Errorf("ClientMock.WakeService got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWakeService.WakeServiceMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWakeService.WakeServiceMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWakeService.t.Fatal("No results are set for the ClientMock.WakeService")
+		}
+		return (*mm_results).err
+	}
+	if mmWakeService.funcWakeService != nil {
+		return mmWakeService.funcWakeService(ctx, serviceID)
+	}
+	mmWakeService.t.Fatalf("Unexpected call to ClientMock.WakeService. %v %v", ctx, serviceID)
+	return
+}
+
+// WakeServiceAfterCounter returns a count of finished ClientMock.WakeService invocations
+func (mmWakeService *ClientMock) WakeServiceAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWakeService.afterWakeServiceCounter)
+}
+
+// WakeServiceBeforeCounter returns a count of ClientMock.WakeService invocations
+func (mmWakeService *ClientMock) WakeServiceBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWakeService.beforeWakeServiceCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WakeService.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWakeService *mClientMockWakeService) Calls() []*ClientMockWakeServiceParams {
+	mmWakeService.mutex.RLock()
+
+	argCopy := make([]*ClientMockWakeServiceParams, len(mmWakeService.callArgs))
+	copy(argCopy, mmWakeService.callArgs)
+
+	mmWakeService.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWakeServiceDone returns true if the count of the WakeService invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWakeServiceDone() bool {
+	if m.WakeServiceMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WakeServiceMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WakeServiceMock.invocationsDone()
+}
+
+// MinimockWakeServiceInspect logs each unmet expectation
+func (m *ClientMock) MinimockWakeServiceInspect() {
+	for _, e := range m.WakeServiceMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WakeService at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWakeServiceCounter := mm_atomic.LoadUint64(&m.afterWakeServiceCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WakeServiceMock.defaultExpectation != nil && afterWakeServiceCounter < 1 {
+		if m.WakeServiceMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WakeService at\n%s", m.WakeServiceMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WakeService at\n%s with params: %#v", m.WakeServiceMock.defaultExpectation.expectationOrigins.origin, *m.WakeServiceMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWakeService != nil && afterWakeServiceCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WakeService at\n%s", m.funcWakeServiceOrigin)
+	}
+
+	if !m.WakeServiceMock.invocationsDone() && afterWakeServiceCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WakeService at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WakeServiceMock.expectedInvocations), m.WakeServiceMock.expectedInvocationsOrigin, afterWakeServiceCounter)
+	}
+}
+
 // MinimockFinish checks that all mocked methods have been called the expected number of times
 func (m *ClientMock) MinimockFinish() {
 	m.finishOnce.Do(func() {
 		if !m.minimockDone() {
+			m.MinimockAttachUDFInspect()
+
 			m.MinimockChangeClickPipeStateInspect()
 
 			m.MinimockCreateClickPipeInspect()
@@ -24259,6 +27942,12 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateServiceInspect()
 
+			m.MinimockCreateUDFInspect()
+
+			m.MinimockCreateUDFUploadSessionInspect()
+
+			m.MinimockCreateUDFVersionInspect()
+
 			m.MinimockDeleteClickPipeInspect()
 
 			m.MinimockDeletePostgresInspect()
@@ -24273,7 +27962,11 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockDeleteServiceInspect()
 
+			m.MinimockDeleteUDFInspect()
+
 			m.MinimockDeleteUpgradeWindowInspect()
+
+			m.MinimockDetachUDFInspect()
 
 			m.MinimockGetApiKeyIDInspect()
 
@@ -24312,6 +28005,10 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetServiceInspect()
 
 			m.MinimockGetServiceBaseInspect()
+
+			m.MinimockGetUDFInspect()
+
+			m.MinimockGetUDFAttachmentInspect()
 
 			m.MinimockGetUpgradeWindowInspect()
 
@@ -24361,6 +28058,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockUpdateUpgradeWindowInspect()
 
+			m.MinimockUploadUDFArchiveInspect()
+
 			m.MinimockWaitForClickPipeCdcScalingInspect()
 
 			m.MinimockWaitForClickPipeStateInspect()
@@ -24372,6 +28071,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockWaitForReversePrivateEndpointStateInspect()
 
 			m.MinimockWaitForServiceStateInspect()
+
+			m.MinimockWakeServiceInspect()
 		}
 	})
 }
@@ -24395,6 +28096,7 @@ func (m *ClientMock) MinimockWait(timeout mm_time.Duration) {
 func (m *ClientMock) minimockDone() bool {
 	done := true
 	return done &&
+		m.MinimockAttachUDFDone() &&
 		m.MinimockChangeClickPipeStateDone() &&
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreatePostgresDone() &&
@@ -24403,6 +28105,9 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateReversePrivateEndpointDone() &&
 		m.MinimockCreateRoleDone() &&
 		m.MinimockCreateServiceDone() &&
+		m.MinimockCreateUDFDone() &&
+		m.MinimockCreateUDFUploadSessionDone() &&
+		m.MinimockCreateUDFVersionDone() &&
 		m.MinimockDeleteClickPipeDone() &&
 		m.MinimockDeletePostgresDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
@@ -24410,7 +28115,9 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteRoleDone() &&
 		m.MinimockDeleteScheduledScalingDone() &&
 		m.MinimockDeleteServiceDone() &&
+		m.MinimockDeleteUDFDone() &&
 		m.MinimockDeleteUpgradeWindowDone() &&
+		m.MinimockDetachUDFDone() &&
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetClickPipeDone() &&
@@ -24430,6 +28137,8 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockGetServiceBaseDone() &&
+		m.MinimockGetUDFDone() &&
+		m.MinimockGetUDFAttachmentDone() &&
 		m.MinimockGetUpgradeWindowDone() &&
 		m.MinimockListMembersDone() &&
 		m.MinimockListPostgresDone() &&
@@ -24454,10 +28163,12 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
 		m.MinimockUpdateUpgradeWindowDone() &&
+		m.MinimockUploadUDFArchiveDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
 		m.MinimockWaitForClickPipeStateDone() &&
 		m.MinimockWaitForPostgresMatchDone() &&
 		m.MinimockWaitForPostgresStateDone() &&
 		m.MinimockWaitForReversePrivateEndpointStateDone() &&
-		m.MinimockWaitForServiceStateDone()
+		m.MinimockWaitForServiceStateDone() &&
+		m.MinimockWakeServiceDone()
 }

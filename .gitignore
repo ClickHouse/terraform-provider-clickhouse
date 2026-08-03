@@ -17,3 +17,6 @@ dev/
 dist/
 cover.out
 cover.html
+
+# UDF source archive zipped by the archive provider at plan time
+examples/full/udf/*/build/
