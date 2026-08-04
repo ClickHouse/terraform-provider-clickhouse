@@ -78,9 +78,8 @@ func (r *UDFAttachmentResource) Schema(_ context.Context, _ resource.SchemaReque
 				},
 			},
 			"version": schema.Int64Attribute{
-				Description: "Version to attach. When omitted, the latest ready version is attached.",
-				Optional:    true,
-				Computed:    true,
+				Description: "Version to attach.",
+				Required:    true,
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
 				},
@@ -403,15 +402,11 @@ func addUDFAttachmentWriteError(ctx context.Context, diags *diag.Diagnostics, op
 			),
 		)
 	case api.IsConflict(err):
-		requestedVersion := "the latest version"
-		if !plan.Version.IsNull() && !plan.Version.IsUnknown() {
-			requestedVersion = fmt.Sprintf("version %d", plan.Version.ValueInt64())
-		}
 		diags.AddError(
 			fmt.Sprintf("Error %s UDF attachment", operation),
 			fmt.Sprintf(
-				"Could not attach UDF %q (%s) to service %s: %s",
-				functionName, requestedVersion, serviceID, safeMessage,
+				"Could not attach UDF %q (version %d) to service %s: %s",
+				functionName, plan.Version.ValueInt64(), serviceID, safeMessage,
 			),
 		)
 	default:

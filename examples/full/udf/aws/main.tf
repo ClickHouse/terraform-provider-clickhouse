@@ -94,6 +94,7 @@ resource "clickhouse_udf" "echo_string" {
 resource "clickhouse_udf_attachment" "echo_string" {
   function_name = clickhouse_udf.echo_string.function_name
   service_id    = clickhouse_service.service.id
+  version       = clickhouse_udf.echo_string.version
 }
 
 output "service_endpoints" {
