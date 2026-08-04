@@ -94,15 +94,13 @@ resource "azurerm_private_dns_zone" "clickhouse_cloud_private_link_zone" {
 
 resource "azurerm_private_dns_a_record" "this" {
   name                = "*"
-  zone_name           = azurerm_private_dns_zone.clickhouse_cloud_private_link_zone.name
-  resource_group_name = azurerm_resource_group.this.name
+  private_dns_zone_id = azurerm_private_dns_zone.clickhouse_cloud_private_link_zone.id
   ttl                 = 300
   records             = azurerm_private_endpoint.this.private_service_connection[*].private_ip_address
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "this" {
-  name                  = "clickhouse-private-link"
-  resource_group_name   = azurerm_resource_group.this.name
-  private_dns_zone_name = azurerm_private_dns_zone.clickhouse_cloud_private_link_zone.name
-  virtual_network_id    = azurerm_virtual_network.this.id
+  name                = "clickhouse-private-link"
+  private_dns_zone_id = azurerm_private_dns_zone.clickhouse_cloud_private_link_zone.id
+  virtual_network_id  = azurerm_virtual_network.this.id
 }

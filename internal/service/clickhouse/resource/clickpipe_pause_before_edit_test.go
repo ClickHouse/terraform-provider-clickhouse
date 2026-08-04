@@ -88,6 +88,7 @@ func postgresUpdateModel(ctx context.Context, t *testing.T, tables ...string) mo
 			"sorting_keys":           types.ListNull(types.StringType),
 			"table_engine":           types.StringNull(),
 			"partition_key":          types.StringNull(),
+			"partition_by_expr":      types.StringNull(),
 		})
 	}
 
