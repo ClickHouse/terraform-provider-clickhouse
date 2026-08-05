@@ -32,6 +32,17 @@ type Client interface {
 	UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (*BackupConfiguration, error)
 	RotateTDEKey(ctx context.Context, serviceId string, keyId string) error
 
+	CreateUDFUploadSession(ctx context.Context) (*UDFUploadSession, error)
+	UploadUDFArchive(ctx context.Context, uploadURL string, archive []byte) error
+	CreateUDF(ctx context.Context, request UDFCreateRequest) (*UDF, error)
+	GetUDF(ctx context.Context, functionName string) (*UDF, error)
+	CreateUDFVersion(ctx context.Context, functionName string, request UDFVersionCreateRequest) (*UDF, error)
+	DeleteUDF(ctx context.Context, functionName string) error
+	AttachUDF(ctx context.Context, functionName, serviceID string, request UDFAttachRequest) (*UDFAttachment, error)
+	GetUDFAttachment(ctx context.Context, functionName, serviceID string) (*UDFAttachment, error)
+	DetachUDF(ctx context.Context, functionName, serviceID string) error
+	WakeService(ctx context.Context, serviceID string) error
+
 	GetQueryEndpoint(ctx context.Context, serviceID string) (*ServiceQueryEndpoint, error)
 	CreateQueryEndpoint(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint) (*ServiceQueryEndpoint, error)
 	DeleteQueryEndpoint(ctx context.Context, serviceID string) error

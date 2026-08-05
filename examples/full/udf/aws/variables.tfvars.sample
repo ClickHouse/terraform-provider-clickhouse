@@ -1,0 +1,4 @@
+# these keys are for example only and won't work when pointed to a deployed ClickHouse OpenAPI server
+organization_id = "<organization-id>"
+token_key       = "<token-key>"
+token_secret    = "<token-secret>"

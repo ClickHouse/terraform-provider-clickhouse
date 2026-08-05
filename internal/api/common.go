@@ -32,6 +32,10 @@ var sensitiveBodyKeys = map[string]struct{}{
 	"newDoubleSha1Hash": {},
 	"password_wo":       {},
 	"tokenSecret":       {},
+	"uploadUrl":         {},
+	"uploadURL":         {},
+	"presignedUrl":      {},
+	"presignedURL":      {},
 	// Postgres connection strings embed the generated password in the URI.
 	"connectionString":  {},
 	"connection_string": {},
@@ -140,6 +144,22 @@ func (c *ClientImpl) getQueryAPIPath(queryAPIBaseUrl string, serviceID string, f
 }
 
 func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([]byte, error) {
+	return c.doRequestWithAcceptedStatus(ctx, initialReq, http.StatusOK)
+}
+
+func (c *ClientImpl) doRequestWithAcceptedStatus(ctx context.Context, initialReq *http.Request, accepted ...int) ([]byte, error) {
+	return c.doRequestWithStatus(ctx, initialReq, true, accepted...)
+}
+
+func (c *ClientImpl) doRequestWithStatus(
+	ctx context.Context,
+	initialReq *http.Request,
+	retryOnFailure bool,
+	accepted ...int,
+) ([]byte, error) {
+	if len(accepted) == 0 {
+		accepted = []int{http.StatusOK}
+	}
 	debugctx := tflog.SetField(ctx, "request", fmt.Sprintf("%s %s", initialReq.Method, initialReq.URL.String()))
 	debugctx = tflog.SetField(debugctx, "clientTimeout", c.HttpClient.Timeout.String())
 
@@ -184,12 +204,18 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		if err != nil {
 			debugctx = tflog.SetField(debugctx, "error", err.Error())
 			tflog.Debug(debugctx, "API request failed")
+			if !retryOnFailure {
+				return nil, backoff.Permanent(err)
+			}
 			return nil, err
 		}
 		defer res.Body.Close()
 
 		body, err := io.ReadAll(res.Body)
 		if err != nil {
+			if !retryOnFailure {
+				return nil, backoff.Permanent(err)
+			}
 			return nil, err
 		}
 
@@ -202,7 +228,7 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 		debugctx = tflog.SetField(debugctx, "responseBody", formatLogBody(debugctx, body))
 		tflog.Debug(debugctx, "API request")
 
-		if res.StatusCode != http.StatusOK {
+		if !isAcceptedStatus(res.StatusCode, accepted) {
 			var resetSeconds float64
 			if res.StatusCode == http.StatusTooManyRequests { // 429
 				// Try to read rate limiting headers from the response.
@@ -220,6 +246,9 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 					}
 				}
 			} else if res.StatusCode >= http.StatusInternalServerError { // 500
+				if !retryOnFailure {
+					return nil, backoff.Permanent(fmt.Errorf("status: %d, body: %s", res.StatusCode, body))
+				}
 				resetSeconds = currentExponentialBackoff
 				tflog.Warn(ctx, fmt.Sprintf("Server side error (5xx): waiting %f.1 seconds before retrying", resetSeconds))
 			} else {
@@ -253,4 +282,13 @@ func (c *ClientImpl) doRequest(ctx context.Context, initialReq *http.Request) ([
 	body, err := backoff.RetryWithData[[]byte](makeRequest, withCtx)
 
 	return body, err
+}
+
+func isAcceptedStatus(status int, accepted []int) bool {
+	for _, code := range accepted {
+		if status == code {
+			return true
+		}
+	}
+	return false
 }
