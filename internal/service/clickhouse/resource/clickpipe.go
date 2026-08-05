@@ -292,8 +292,11 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"schema_registry": schema.SingleNestedAttribute{
-								MarkdownDescription: "The schema registry for the Kafka source.",
+								MarkdownDescription: "The schema registry for the Kafka source. Immutable: any change forces pipe replacement.",
 								Optional:            true,
+								PlanModifiers: []planmodifier.Object{
+									requiresReplaceIfSchemaRegistryChanges{},
+								},
 								Attributes: map[string]schema.Attribute{
 									"url": schema.StringAttribute{
 										Description: "The URL of the schema registry.",
@@ -311,7 +314,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									// Other sources (Kafka, Postgres, MySQL, MongoDB) defer this requirement to runtime
 									// validation in extractSourceFromPlan because it's conditional on the `authentication` field.
 									"credentials": schema.SingleNestedAttribute{
-										MarkdownDescription: "The credentials for the Schema Registry.",
+										MarkdownDescription: "The credentials for the Schema Registry. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement.",
 										Required:            true,
 										Sensitive:           true,
 										Attributes: map[string]schema.Attribute{
@@ -338,7 +341,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												},
 											},
 											"password_wo": schema.StringAttribute{
-												Description: "Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version` to trigger updates.",
+												Description: "Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version`; changing schema registry credentials forces pipe replacement.",
 												Optional:    true,
 												Sensitive:   true,
 												WriteOnly:   true,
@@ -347,7 +350,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												},
 											},
 											"password_wo_version": schema.Int64Attribute{
-												Description: "Version trigger for `password_wo`. Increment to push a new password to the API.",
+												Description: "Version trigger for `password_wo`. Incrementing signals a new password, which forces pipe replacement - schema registry credentials cannot be updated in place.",
 												Optional:    true,
 												Validators: []validator.Int64{
 													int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo")),
@@ -1114,6 +1117,19 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										"partition_key": schema.StringAttribute{
 											Description: "Custom partitioning column used for parallel snapshotting. Only beneficial for PostgreSQL 13 (no benefit for PG14+, which supports indexed ctid scans). Must be an indexed column of type: `smallint`, `integer`, `bigint`, `timestamp without time zone`, or `timestamp with time zone`. Unrelated to ClickHouse partitioning.",
 											Optional:    true,
+										},
+										"partition_by_expr": schema.StringAttribute{
+											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping: remove the mapping in one apply, then re-add it with the new value in a subsequent apply (re-adding re-snapshots the table).",
+											Optional:    true,
+											Validators: []validator.String{
+												// The API stores a blank expression as unset, which reads
+												// back as null and would produce "inconsistent result
+												// after apply". Omit the attribute instead of blanking it.
+												stringvalidator.RegexMatches(
+													regexp.MustCompile(`\S`),
+													"must not be empty or whitespace-only; omit the attribute instead",
+												),
+											},
 										},
 									},
 								},
@@ -2374,6 +2390,15 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 										} else if !stateMapping.UseCustomSortingKey.Equal(planMapping.UseCustomSortingKey) {
 											changed = true
 											changeDetail = "use_custom_sorting_key"
+										} else if !stateMapping.TableEngine.Equal(planMapping.TableEngine) {
+											changed = true
+											changeDetail = "table_engine"
+										} else if !stateMapping.PartitionKey.Equal(planMapping.PartitionKey) {
+											changed = true
+											changeDetail = "partition_key"
+										} else if !stateMapping.PartitionByExpr.Equal(planMapping.PartitionByExpr) {
+											changed = true
+											changeDetail = "partition_by_expr"
 										}
 
 										if changed {
@@ -3425,6 +3450,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 					mapping.PartitionKey = mappingModel.PartitionKey.ValueStringPointer()
 				}
 
+				if !mappingModel.PartitionByExpr.IsNull() {
+					mapping.PartitionByExpr = mappingModel.PartitionByExpr.ValueStringPointer()
+				}
+
 				tableMappings[i] = mapping
 			}
 		}
@@ -3761,6 +3790,10 @@ func (c *ClickPipeResource) convertTableMappingModelToAPI(ctx context.Context, d
 
 	if !mappingModel.PartitionKey.IsNull() {
 		mapping.PartitionKey = mappingModel.PartitionKey.ValueStringPointer()
+	}
+
+	if !mappingModel.PartitionByExpr.IsNull() {
+		mapping.PartitionByExpr = mappingModel.PartitionByExpr.ValueStringPointer()
 	}
 
 	return mapping
@@ -4399,6 +4432,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				tableMappingModel.PartitionKey = types.StringValue(*mapping.PartitionKey)
 			} else {
 				tableMappingModel.PartitionKey = types.StringNull()
+			}
+
+			if mapping.PartitionByExpr != nil && *mapping.PartitionByExpr != "" {
+				tableMappingModel.PartitionByExpr = types.StringValue(*mapping.PartitionByExpr)
+			} else {
+				tableMappingModel.PartitionByExpr = types.StringNull()
 			}
 
 			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
@@ -5278,6 +5317,11 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 						stateMappingsMap[key] = mapping
 					}
 
+					// Key-existence checks are sufficient here: in-place edits to an
+					// existing mapping (target_table, table_engine, partition_key,
+					// partition_by_expr, ...) are rejected at plan time by ModifyPlan's
+					// mapping-immutability guard, and the API refuses add+remove of the
+					// same source table in one PATCH anyway.
 					// Find mappings to add (in plan but not in state)
 					var tableMappingsToAdd []api.ClickPipePostgresTableMapping
 					for key, mapping := range planMappingsMap {
@@ -5479,9 +5523,14 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				if !credentialsObjectChanged(planKafkaModel.Credentials, stateKafkaModel.Credentials) {
 					source.Kafka.Credentials = nil
 				}
-				if planKafkaModel.SchemaRegistry.Equal(stateKafkaModel.SchemaRegistry) && source.Kafka.SchemaRegistry != nil {
-					source.Kafka.SchemaRegistry.Credentials = nil
-				}
+				// Omit all immutable fields from update payload
+				source.Kafka.Type = ""
+				source.Kafka.Format = ""
+				source.Kafka.Brokers = ""
+				source.Kafka.Topics = ""
+				source.Kafka.ConsumerGroup = nil
+				source.Kafka.Offset = nil
+				source.Kafka.SchemaRegistry = nil
 			}
 
 			// For Pub/Sub, only re-send the service_account_key when it changed
@@ -5817,7 +5866,7 @@ func (c *ClickPipeResource) Delete(ctx context.Context, request resource.DeleteR
 	}
 }
 
-// ImportState imports a ClickPipe reverse private endpoint into the state.
+// ImportState imports a ClickPipe into the state.
 // We don't have access to configuration/plan, so service id is required
 // to be provided as a part of the import id.
 func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -5838,10 +5887,10 @@ func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.Import
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), endpointID)...)
 
 	resp.Diagnostics.AddWarning(
-		"Credentials state diverge",
-		"Importing a ClickPipe will not persist credentials into your state.\n"+
-			"Sensitive values are only stored in your state and provider is not able to import them.\n"+
-			"Run a `terraform apply` to ensure sensitive values state is up to date with a ClickPipe.\n"+
-			"Important: your configuration (in *.tf files) has to provide valid credentials.",
+		"Credentials are not imported",
+		"The API never returns sensitive values, so importing a ClickPipe cannot persist credentials into your state.\n"+
+			"Your configuration (in *.tf files) must provide valid credentials.\n"+
+			"The first `terraform apply` after import sends the source credentials to the ClickPipe and records them in state.\n"+
+			"Schema registry credentials are immutable and never sent on update: the apply records your configured values in state without server-side verification, so ensure they match the registry credentials the pipe already uses.",
 	)
 }

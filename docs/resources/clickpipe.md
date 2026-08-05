@@ -235,7 +235,7 @@ Optional:
 - `iam_role` (String) The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
-- `schema_registry` (Attributes) The schema registry for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
+- `schema_registry` (Attributes) The schema registry for the Kafka source. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
 - `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.
 
 <a id="nestedatt--source--kafka--credentials"></a>
@@ -272,7 +272,7 @@ Optional:
 Required:
 
 - `authentication` (String) The authentication method for the Schema Registry. Only supported is `PLAIN`.
-- `credentials` (Attributes, Sensitive) The credentials for the Schema Registry. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--credentials))
+- `credentials` (Attributes, Sensitive) The credentials for the Schema Registry. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--credentials))
 - `url` (String) The URL of the schema registry.
 
 <a id="nestedatt--source--kafka--schema_registry--credentials"></a>
@@ -285,8 +285,8 @@ Required:
 Optional:
 
 - `password` (String, Sensitive) The password for the Schema Registry. Either `password` or `password_wo` must be provided.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version` to trigger updates.
-- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version`; changing schema registry credentials forces pipe replacement.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Incrementing signals a new password, which forces pipe replacement - schema registry credentials cannot be updated in place.
 
 
 
@@ -558,6 +558,7 @@ Required:
 Optional:
 
 - `excluded_columns` (Set of String) Columns to exclude from replication.
+- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping: remove the mapping in one apply, then re-add it with the new value in a subsequent apply (re-adding re-snapshots the table).
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Only beneficial for PostgreSQL 13 (no benefit for PG14+, which supports indexed ctid scans). Must be an indexed column of type: `smallint`, `integer`, `bigint`, `timestamp without time zone`, or `timestamp with time zone`. Unrelated to ClickHouse partitioning.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)

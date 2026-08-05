@@ -12,3 +12,4 @@
 **/clickpipe* @ClickHouse/clickpipes
 **/postgres* @ClickHouse/clickgres
 **/clickstack* @ClickHouse/clickstack
+**/*udf* @ClickHouse/sql-ui

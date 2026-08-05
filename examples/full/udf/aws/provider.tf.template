@@ -1,0 +1,18 @@
+terraform {
+  required_providers {
+    clickhouse = {
+      version = "${CLICKHOUSE_TERRAFORM_PROVIDER_VERSION}"
+      source  = "ClickHouse/clickhouse"
+    }
+    archive = {
+      version = "~> 2.4"
+      source  = "hashicorp/archive"
+    }
+  }
+}
+
+provider "clickhouse" {
+  organization_id = var.organization_id
+  token_key       = var.token_key
+  token_secret    = var.token_secret
+}

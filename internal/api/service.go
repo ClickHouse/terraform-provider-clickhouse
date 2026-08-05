@@ -194,7 +194,7 @@ func (c *ClientImpl) getServiceState(ctx context.Context, serviceId string) (str
 // no-op on a service that is already running or waking up.
 func (c *ClientImpl) wakeService(ctx context.Context, serviceId string) error {
 	rb, err := json.Marshal(ServiceStateUpdate{
-		Command: "awake",
+		Command: serviceStateCommandAwake,
 	})
 	if err != nil {
 		return err
