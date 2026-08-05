@@ -80,6 +80,16 @@ func TestRedactSensitiveBody(t *testing.T) {
 			want:  `{"tokenSecret":"REDACTED"}`,
 		},
 		{
+			name:  "presigned UDF upload URL redacted",
+			input: `{"uploadId":"id","uploadUrl":"https://object.example/archive?X-Amz-Signature=secret"}`,
+			want:  `{"uploadId":"id","uploadUrl":"REDACTED"}`,
+		},
+		{
+			name:  "presigned URL acronym casing redacted",
+			input: `{"uploadURL":"https://object.example/archive?X-Amz-Signature=secret"}`,
+			want:  `{"uploadURL":"REDACTED"}`,
+		},
+		{
 			name:  "top-level connectionString redacted (URI with embedded password)",
 			input: `{"connectionString":"postgresql://default:Secret123@host:5432/db?channel_binding=require"}`,
 			want:  `{"connectionString":"REDACTED"}`,
