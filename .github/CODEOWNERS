@@ -9,7 +9,7 @@
 # Component globs are intentionally LAST: CODEOWNERS gives the last matching
 # pattern precedence, so these keep routing e.g. ClickPipes reviews to their
 # team even though those files live inside the clickhouse service group.
-**/clickpipe* @ClickHouse/clickpipes
+**/*clickpipe* @ClickHouse/clickpipes
 **/postgres* @ClickHouse/clickgres
 **/clickstack* @ClickHouse/clickstack
 **/*udf* @ClickHouse/sql-ui
