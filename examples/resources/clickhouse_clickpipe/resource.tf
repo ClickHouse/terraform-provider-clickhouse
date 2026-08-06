@@ -24,6 +24,10 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
     }
   }
 
+  settings = {
+    kafka_read_committed = true
+  }
+
   destination {
     table         = "my_table"
     managed_table = true

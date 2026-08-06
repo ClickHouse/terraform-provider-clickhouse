@@ -143,3 +143,40 @@ func TestCreateClickPipe_WakeFails_ReturnsError(t *testing.T) {
 		t.Errorf("error = %v; want wake failure to be surfaced", err)
 	}
 }
+
+func TestUpdateClickPipeSettings_PreservesKafkaReadCommittedBoolean(t *testing.T) {
+	for _, value := range []bool{true, false} {
+		t.Run(fmt.Sprintf("%t", value), func(t *testing.T) {
+			client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPut || r.URL.Path != testClickPipesPath+"pipe-1/settings" {
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+
+				var settings map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+					t.Fatalf("decoding settings body: %v", err)
+				}
+				if got, ok := settings["kafka_read_committed"].(bool); !ok || got != value {
+					t.Errorf("kafka_read_committed = %#v; want boolean %t", settings["kafka_read_committed"], value)
+				}
+
+				_ = json.NewEncoder(w).Encode(ResponseWithResult[map[string]any]{Result: settings})
+			})
+
+			settings, err := client.UpdateClickPipeSettings(
+				context.Background(),
+				testServiceID,
+				"pipe-1",
+				map[string]any{"kafka_read_committed": value},
+			)
+			if err != nil {
+				t.Fatalf("UpdateClickPipeSettings: %v", err)
+			}
+			if got, ok := settings["kafka_read_committed"].(bool); !ok || got != value {
+				t.Errorf("response kafka_read_committed = %#v; want boolean %t", settings["kafka_read_committed"], value)
+			}
+		})
+	}
+}
