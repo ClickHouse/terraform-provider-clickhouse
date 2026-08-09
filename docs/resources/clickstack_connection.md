@@ -3,12 +3,12 @@
 page_title: "clickhouse_clickstack_connection Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
-  Manages a ClickHouse connection in ClickStack. Connections hold the credentials and endpoint used by sources to query ClickHouse. Note: on ClickHouse Cloud, connections are managed by ClickHouse Cloud and cannot be created, changed, or deleted through this resource; this resource is for self-hosted ClickStack. Reference an existing Cloud connection by its ID from clickhouse_clickstack_source.connection_id instead.
+  Manages a ClickHouse connection in ClickStack. Connections hold the credentials and endpoint used by sources to query ClickHouse. Note: on ClickHouse Cloud the connections endpoint is not exposed, and each service has a single connection to itself that the platform creates; this resource is for self-hosted ClickStack. To point a source at the Cloud connection, read its id from an existing source rather than creating one here.
 ---
 
 # clickhouse_clickstack_connection (Resource)
 
-Manages a ClickHouse connection in ClickStack. Connections hold the credentials and endpoint used by sources to query ClickHouse. **Note:** on ClickHouse Cloud, connections are managed by ClickHouse Cloud and cannot be created, changed, or deleted through this resource; this resource is for self-hosted ClickStack. Reference an existing Cloud connection by its ID from `clickhouse_clickstack_source.connection_id` instead.
+Manages a ClickHouse connection in ClickStack. Connections hold the credentials and endpoint used by sources to query ClickHouse. **Note:** on ClickHouse Cloud the connections endpoint is not exposed, and each service has a single connection to itself that the platform creates; this resource is for self-hosted ClickStack. To point a source at the Cloud connection, read its id from an existing source rather than creating one here.
 
 ## Example Usage
 
@@ -48,11 +48,10 @@ resource "clickhouse_clickstack_connection" "by_team" {
   password = var.clickhouse_passwords[each.key]
 }
 
-# On ClickHouse Cloud, connections are managed by ClickHouse Cloud: this
-# resource cannot create, change, or delete them, and applying it against a
-# Cloud service fails. Reference the existing connection by its ID instead —
-# copy it from the ClickStack UI, or list them with the curl snippet in the
-# import instructions below.
+# On ClickHouse Cloud the connections endpoint is not exposed, so this resource
+# cannot create, change, or delete connections there. Cloud gives each service a
+# single connection to itself; read its id off an existing source and reference
+# that instead.
 resource "clickhouse_clickstack_source" "logs" {
   name          = "Logs"
   kind          = "log"
@@ -94,8 +93,8 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 
 ```shell
 # Connections can be imported by their ID. Self-hosted ClickStack only: on
-# ClickHouse Cloud, connections are managed by ClickHouse Cloud, so there is
-# nothing for this resource to import or manage.
+# ClickHouse Cloud the connections endpoint is not exposed, so there is nothing
+# for this resource to import or manage.
 terraform import clickhouse_clickstack_connection.main 507f1f77bcf86cd799439012
 
 # For a connection in a non-default team (multi-team / EE deployments), prefix
