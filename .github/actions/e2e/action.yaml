@@ -109,6 +109,14 @@ inputs:
     required: false
     default: ""
     description: Postgres password for CDC ClickPipe
+  clickstack_service_id:
+    required: false
+    default: ""
+    description: ID of the long-lived Cloud service running managed ClickStack, for ClickStack tests
+  clickstack_connection_id:
+    required: false
+    default: ""
+    description: ID of that service's platform-created ClickStack connection
 runs:
   using: composite
   steps:
@@ -224,6 +232,19 @@ runs:
         s3_bucket_url            = "${{ inputs.s3_bucket_url }}"
         postgres_host            = "${{ inputs.postgres_host }}"
         postgres_password        = "${{ inputs.postgres_password }}"
+        EOF
+        fi
+
+        # The ClickStack test runs against a long-lived service that already has
+        # managed ClickStack onboarded, so both ids come from secrets rather than
+        # being created here. suffix above keeps concurrent runs from colliding on
+        # the shared service.
+        if [ -n "${{ inputs.clickstack_service_id }}" ]
+        then
+          cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
+
+        clickstack_service_id = "${{ inputs.clickstack_service_id }}"
+        connection_id         = "${{ inputs.clickstack_connection_id }}"
         EOF
         fi
 
