@@ -171,9 +171,16 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	// On import, dashboard_json is null/unknown because no config value exists
 	// yet. Populate it from the fetched body so the imported state is
-	// re-appliable without an immediate diff.
+	// re-appliable without an immediate diff. The dashboard id and filter ids
+	// are dropped: the API rejects them in an authored body.
 	if state.DashboardJSON.IsNull() || state.DashboardJSON.IsUnknown() {
-		state.DashboardJSON = types.StringValue(string(body))
+		authored := body
+		if stripped, err := stripServerIDs(body); err == nil {
+			authored = stripped
+		} else {
+			tflog.Warn(ctx, "could not strip server-assigned ids from the imported dashboard body: "+err.Error())
+		}
+		state.DashboardJSON = types.StringValue(string(authored))
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
