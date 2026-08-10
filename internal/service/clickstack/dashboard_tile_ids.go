@@ -88,6 +88,53 @@ func mintMissingFilterIDs(body json.RawMessage) (json.RawMessage, error) {
 	return out, nil
 }
 
+// stripServerIDs drops the ids that a fetched dashboard body carries but the
+// write path rejects: the dashboard's own "id" and the "id" on every filter.
+// It is for the import path — a dashboard_json synthesized from a fetched body
+// keeps neither, or every plan fails:
+//
+//	top-level id: the Cloud gateway 400s the request outright
+//	              ("request body property can't be validated: id")
+//	filter ids:   /dashboards/validate reports
+//	              "filters.N: Unrecognized key(s) in object: 'id'"
+//
+// Tile ids stay: the write path accepts them and they keep UI-created tile
+// alerts bound. Filter ids are re-injected on update from normalized_json via
+// mergeFilterIDs, which the Cloud API requires there.
+func stripServerIDs(body json.RawMessage) (json.RawMessage, error) {
+	var doc map[string]any //nolint:forbidigo // generic JSON handling needs dynamic typing
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("strip server ids: parse: %w", err)
+	}
+
+	changed := false
+	if _, has := doc["id"]; has {
+		delete(doc, "id")
+		changed = true
+	}
+	if filters, ok := jsonArray(doc["filters"]); ok {
+		for _, fe := range filters {
+			f, ok := fe.(map[string]any) //nolint:forbidigo // generic JSON handling needs dynamic typing
+			if !ok {
+				continue
+			}
+			if _, has := f["id"]; has {
+				delete(f, "id")
+				changed = true
+			}
+		}
+	}
+
+	if !changed {
+		return body, nil
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return nil, fmt.Errorf("strip server ids: marshal: %w", err)
+	}
+	return out, nil
+}
+
 // newObjectID returns a random 24-hex-character id (Mongo ObjectId shape, which
 // is what the ClickStack API issues) that is not already in seen.
 func newObjectID(seen map[string]bool) (string, error) {
