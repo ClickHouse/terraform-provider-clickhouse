@@ -42,6 +42,91 @@ func (r requiresReplaceIfSourceTypeChanges) PlanModifyObject(ctx context.Context
 	// If both are null (staying null), no replacement needed
 }
 
+type requiresReplaceIfSchemaRegistryChanges struct{}
+
+func (r requiresReplaceIfSchemaRegistryChanges) Description(_ context.Context) string {
+	return "Requires replacement if the schema registry changes (it is immutable after creation). " +
+		"Credential differences are ignored while the state holds no credentials (fresh import)."
+}
+
+func (r requiresReplaceIfSchemaRegistryChanges) MarkdownDescription(ctx context.Context) string {
+	return r.Description(ctx)
+}
+
+func (r requiresReplaceIfSchemaRegistryChanges) PlanModifyObject(_ context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
+	// If we're creating or destroying the entire resource, don't need to check
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	state, plan := req.StateValue, req.PlanValue
+	// Never plan a destructive replacement on an unknown value, but warn
+	if plan.IsUnknown() {
+		addUnknownSchemaRegistryWarning(req.Path, resp)
+		return
+	}
+	if state.IsNull() && plan.IsNull() {
+		return
+	}
+	// Adding a registry to a pipe without one (or removing it) is an immutable change.
+	if state.IsNull() != plan.IsNull() {
+		resp.RequiresReplace = true
+		return
+	}
+
+	stateAttrs, planAttrs := state.Attributes(), plan.Attributes()
+	for name, stateVal := range stateAttrs {
+		if name == "credentials" {
+			continue
+		}
+		planVal, ok := planAttrs[name]
+		if !ok {
+			resp.RequiresReplace = true
+			return
+		}
+		// A value not known until apply (e.g. url from another resource's output) can't
+		// prove a change; warn rather than force a destructive replacement on a guess.
+		if planVal.IsUnknown() {
+			addUnknownSchemaRegistryWarning(req.Path, resp)
+			return
+		}
+		if !planVal.Equal(stateVal) {
+			resp.RequiresReplace = true
+			return
+		}
+	}
+
+	// Credentials: compare only once state holds them.
+	// `terraform import` cannot read credentials, so the first post-import plan sees config
+	// credentials against null state credentials; that difference alone must not force a replacement.
+	stateCreds, ok := stateAttrs["credentials"].(types.Object)
+	if !ok || stateCreds.IsNull() {
+		return
+	}
+	planCreds, ok := planAttrs["credentials"].(types.Object)
+	if !ok {
+		return
+	}
+	if planCreds.IsUnknown() {
+		addUnknownSchemaRegistryWarning(req.Path, resp)
+		return
+	}
+	if credentialsObjectChanged(planCreds, stateCreds) {
+		resp.RequiresReplace = true
+	}
+}
+
+func addUnknownSchemaRegistryWarning(p path.Path, resp *planmodifier.ObjectResponse) {
+	resp.Diagnostics.AddAttributeWarning(
+		p,
+		"Schema registry change cannot be determined",
+		"The planned schema registry value is not known until apply, so the provider cannot tell "+
+			"whether it differs from the pipe's immutable schema registry. Unknown values are recorded "+
+			"in state but are never sent to the API, so the live pipe keeps its current schema registry. "+
+			"To change the schema registry, recreate the pipe.",
+	)
+}
+
 // planStateAttribute decides the planned `state` and must run as ModifyPlan's
 // final step: the framework marks `state` Unknown whenever the proposed plan
 // differs from prior state, even when ModifyPlan's repairs resolve the

@@ -13,6 +13,10 @@ const (
 	StateStopped      = "stopped"
 	StateStopping     = "stopping"
 	StateRunning      = "running"
+	StateIdle         = "idle"
+	StateAwaking      = "awaking"
+
+	serviceStateCommandAwake = "awake"
 
 	ResponseHeaderRateLimitReset = "X-RateLimit-Reset"
 
