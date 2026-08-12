@@ -346,3 +346,44 @@ func TestMergeTileIDs_MalformedPriorIsNoOp(t *testing.T) {
 		t.Error("expected no id merged from malformed prior")
 	}
 }
+
+// TestStripServerIDs guards the import path: the fetched body carries a
+// dashboard id and filter ids, and a dashboard_json that keeps either is
+// rejected on every plan (gateway 400 / "Unrecognized key(s) in object: 'id'").
+func TestStripServerIDs(t *testing.T) {
+	t.Parallel()
+	body := json.RawMessage(`{"id":"d-1","name":"D","filters":[{"id":"f-1","name":"Env","expression":"x"},{"name":"Pod"}],"tiles":[{"id":"t-1","name":"A"}]}`)
+
+	stripped, err := stripServerIDs(body)
+	if err != nil {
+		t.Fatalf("stripServerIDs: %v", err)
+	}
+	if got := filterID(t, stripped, "Env"); got != "" {
+		t.Errorf("filter Env id = %q, want it stripped", got)
+	}
+	// Tile ids stay: they keep UI-created tile alerts bound across updates.
+	if got := tileID(t, stripped, "A"); got != "t-1" {
+		t.Errorf("tile A id = %q, want t-1 (tile ids must survive)", got)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(stripped, &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, has := doc["id"]; has {
+		t.Errorf("dashboard id = %v, want it stripped", doc["id"])
+	}
+}
+
+// TestStripServerIDs_NoIDsUnchanged guards that a body with nothing to strip is
+// passed through byte-for-byte rather than re-marshalled.
+func TestStripServerIDs_NoIDsUnchanged(t *testing.T) {
+	t.Parallel()
+	body := json.RawMessage(`{"name":"D","tiles":[{"id":"t-1","name":"A"}]}`)
+	stripped, err := stripServerIDs(body)
+	if err != nil {
+		t.Fatalf("stripServerIDs: %v", err)
+	}
+	if string(stripped) != string(body) {
+		t.Errorf("expected body unchanged, got %s", stripped)
+	}
+}
