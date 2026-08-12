@@ -389,6 +389,8 @@ func TestDashboardResource_Read(t *testing.T) {
 		wantErr       bool
 		wantRemoved   bool
 		wantDashJSON  string
+		// wantNormalized defaults to serverBody when empty.
+		wantNormalized string
 	}{
 		{
 			name:          "success updates normalized_json and preserves dashboard_json",
@@ -397,10 +399,25 @@ func TestDashboardResource_Read(t *testing.T) {
 			wantDashJSON:  `{"name":"D","tiles":[]}`,
 		},
 		{
+			// The backfilled body drops the dashboard id (the write path rejects
+			// it) but keeps everything else the server returned.
 			name:          "import backfills dashboard_json from server body",
 			handler:       func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"data":` + serverBody + `}`)) },
 			stateDashJSON: nil,
-			wantDashJSON:  serverBody,
+			wantDashJSON:  `{"name":"D","tiles":[]}`,
+		},
+		{
+			// Filter ids go the same way as the dashboard id, and for the same
+			// reason: the write path refuses to take them back.
+			name: "import strips filter ids from the backfilled body",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(`{"data":{"id":"d1","name":"D","filters":[{"id":"f1","name":"Env"}],"tiles":[]}}`))
+			},
+			stateDashJSON: nil,
+			wantDashJSON:  `{"filters":[{"name":"Env"}],"name":"D","tiles":[]}`,
+			// normalized_json keeps the ids: update reads the filter ids back out
+			// of it, because the Cloud API demands one on every filter there.
+			wantNormalized: `{"id":"d1","name":"D","filters":[{"id":"f1","name":"Env"}],"tiles":[]}`,
 		},
 		{
 			name:          "not found removes resource from state",
@@ -445,8 +462,12 @@ func TestDashboardResource_Read(t *testing.T) {
 			if got.DashboardJSON.ValueString() != tc.wantDashJSON {
 				t.Errorf("dashboard_json=%q, want %q", got.DashboardJSON.ValueString(), tc.wantDashJSON)
 			}
-			if got.NormalizedJSON.ValueString() != serverBody {
-				t.Errorf("normalized_json=%q, want %q", got.NormalizedJSON.ValueString(), serverBody)
+			wantNormalized := tc.wantNormalized
+			if wantNormalized == "" {
+				wantNormalized = serverBody
+			}
+			if got.NormalizedJSON.ValueString() != wantNormalized {
+				t.Errorf("normalized_json=%q, want %q", got.NormalizedJSON.ValueString(), wantNormalized)
 			}
 		})
 	}
