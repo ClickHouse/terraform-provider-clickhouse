@@ -81,10 +81,12 @@ docs-check: docs ## Fail if generated docs are stale (mirrors docs.yaml)
 	git diff --exit-code docs/ || (echo "docs are stale: run 'make docs' and commit" && exit 1)
 
 .PHONY: goreleaser-check
-goreleaser-check: ## Validate both goreleaser configs and do a snapshot build
-	goreleaser check --config .goreleaser-stable.yml
-	goreleaser check --config .goreleaser-beta.yml
-	goreleaser build --config .goreleaser-stable.yml --snapshot --clean --single-target
+goreleaser-check: ## Validate the goreleaser config and do a snapshot build
+	# Always name the config. Bare `goreleaser check` warns and exits 0 when it
+	# finds no config, so a moved or renamed file would pass CI and then release
+	# against goreleaser's defaults.
+	goreleaser check --config .goreleaser.yml
+	goreleaser build --config .goreleaser.yml --snapshot --clean --single-target
 
 .PHONY: adr
 adr: ## Create an ADR: make adr title="..." statement="..."

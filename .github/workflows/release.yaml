@@ -30,14 +30,12 @@ jobs:
     runs-on: k8s-nano
     outputs:
       enable_beta: ${{ steps.check.outputs.enable_beta }}
-      goreleaser_config: ${{ steps.check.outputs.goreleaser_config }}
     steps:
       - name: Check input
         id: check
         run: |
           version="${{ inputs.version }}"
           enable_beta=""
-          goreleaser_config=""
 
           # validate semver.
           if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
@@ -46,11 +44,9 @@ jobs:
             if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
               # Release is something like x.y.z
               enable_beta="false"
-              goreleaser_config=".goreleaser-stable.yml"
             else
               # Release is something like x.y.z-something
               enable_beta="true"
-              goreleaser_config=".goreleaser-beta.yml"
             fi
           else
             echo "Invalid semver: \"$version\". Must be something like 1.2.3 without leading \"v\""
@@ -58,7 +54,6 @@ jobs:
           fi
 
           echo "enable_beta=${enable_beta}" >> "${GITHUB_OUTPUT}"
-          echo "goreleaser_config=${goreleaser_config}" >> "${GITHUB_OUTPUT}"
 
   # Generate a random token to tag the tests with
   token:
@@ -564,7 +559,7 @@ jobs:
           shell: bash
           command: |
             set -eo pipefail
-            goreleaser release --clean --config ${{ needs.validate.outputs.goreleaser_config }}
+            goreleaser release --clean --config .goreleaser.yml
         env:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
