@@ -243,16 +243,22 @@ runs:
 
           if [ "${{ inputs.upgrade_from }}" == "" ]
           then
-            # Get latest stable release
-            LATEST="$(curl -s -L -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/ClickHouse/terraform-provider-clickhouse/releases/latest | jq -r '.name')"
+            # Ask the registry, not the GitHub releases API: the registry is what
+            # `terraform init` installs from, so it can't name a version this test
+            # is unable to install. Releases sit as drafts for hours after the tag
+            # is pushed, so the two disagree. x.y.z filter drops alpha versions.
+            # `|| true` so a failed fetch reaches the error message below.
+            LATEST="$(curl -sfL https://registry.terraform.io/v1/providers/ClickHouse/clickhouse/versions \
+              | jq -r '.versions[].version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' \
+              | sort -V | tail -1)" || true
 
-            if [ "$LATEST" == "null" ]
+            if [ -z "$LATEST" ]
             then
-              echo "Error getting latest release"
+              echo "Error getting latest stable version from the Terraform registry"
               exit 1
             fi
 
-            echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
+            echo "tag=v$LATEST" >> "$GITHUB_OUTPUT"
           else
             echo "tag=${{ inputs.upgrade_from }}" >> "$GITHUB_OUTPUT"
           fi
