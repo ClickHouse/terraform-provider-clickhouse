@@ -300,7 +300,7 @@ func parseDashboardJSON(s string) error {
 }
 
 func (r *dashboardResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
 	var cfg dashboardResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {

@@ -341,7 +341,7 @@ func (r *sourceResource) Configure(_ context.Context, req resource.ConfigureRequ
 }
 
 func (r *sourceResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
 }
 
 func (r *sourceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

@@ -161,7 +161,7 @@ func (r *savedSearchResource) Configure(_ context.Context, req resource.Configur
 // ValidateConfig checks enum and JSON-shape constraints at plan time so invalid
 // values surface before apply rather than as opaque API errors.
 func (r *savedSearchResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_saved_search", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_saved_search", &resp.Diagnostics)
 	var cfg savedSearchResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {

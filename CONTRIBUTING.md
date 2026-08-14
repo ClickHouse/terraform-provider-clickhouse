@@ -143,6 +143,11 @@ go tool adr-tool supersede     --help
    composes its resources from the [`registry`](internal/service/registry/).
 3. Add an example under [`examples/`](examples/) and run `make docs-alpha`.
 4. Add acceptance tests and run `make testacc`.
+5. If it is not GA yet, mark it **beta**: call `utils.BetaWarning("<name>",
+   &resp.Diagnostics)` so users see it at plan time, and open its description
+   markdown with a `~> **Note:** This resource is in beta.` callout. "Beta" is
+   the only pre-GA word the provider uses — the `alpha` build tag and
+   `-alpha1` tags are the release channel, which is a separate thing.
 
 See [`GO_CONVENTIONS.md`](GO_CONVENTIONS.md) for package layout and naming, and
 [`decisions/0002-adopt-service-group-layout.md`](decisions/0002-adopt-service-group-layout.md)
