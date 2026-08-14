@@ -33,7 +33,7 @@ All commands are exposed through the [`Makefile`](Makefile) so that local runs m
 | `make test`             | Run unit tests.                                                |
 | `make testacc`          | Run acceptance tests (creates real resources).                 |
 | `make cover`            | Run tests and enforce coverage thresholds (`.testcoverage.yml`). |
-| `make docs-alpha`       | Regenerate registry documentation with `tfplugindocs`.         |
+| `make docs`             | Regenerate registry documentation with `tfplugindocs`.         |
 | `make docs-check`       | Fail if generated docs are out of date.                        |
 | `make goreleaser-check` | Validate both release configs and run a snapshot build.        |
 | `make adr`              | Create a new ADR (`title="..." statement="..."`).              |
@@ -141,13 +141,15 @@ go tool adr-tool supersede     --help
 2. Register it in the group's `ServicePackage` (`Resources()` / `DataSources()`
    in `internal/service/<group>/<group>.go`) — **never** in `provider.go`, which
    composes its resources from the [`registry`](internal/service/registry/).
-3. Add an example under [`examples/`](examples/) and run `make docs-alpha`.
+3. Add an example under [`examples/`](examples/) and run `make docs`.
 4. Add acceptance tests and run `make testacc`.
 5. If it is not GA yet, mark it **beta**: call `utils.BetaWarning("<name>",
    &resp.Diagnostics)` so users see it at plan time, and open its description
-   markdown with a `~> **Note:** This resource is in beta.` callout. "Beta" is
-   the only pre-GA word the provider uses — the `alpha` build tag and
-   `-alpha1` tags are the release channel, which is a separate thing.
+   markdown with a `~> **Note:** This resource is in beta.` callout. When a
+   whole service group is beta (as ClickStack is), one callout in
+   [`internal/provider/README.md`](internal/provider/README.md) covers the
+   group instead of repeating it per resource. Beta resources ship in the
+   normal build — there is no separate binary.
 
 See [`GO_CONVENTIONS.md`](GO_CONVENTIONS.md) for package layout and naming, and
 [`decisions/0002-adopt-service-group-layout.md`](decisions/0002-adopt-service-group-layout.md)
@@ -174,11 +176,11 @@ There are two GoReleaser configurations, selected by the shape of the release ta
 | Tag form                                 | Config                   | Used for                                              |
 | ---------------------------------------- | ------------------------ | ----------------------------------------------------- |
 | `vX.Y.Z` (e.g. `v1.2.3`)                 | `.goreleaser-stable.yml` | Stable releases. Published as a normal GitHub release. |
-| `vX.Y.Z-<suffix>` (e.g. `v1.2.3-alpha1`) | `.goreleaser-alpha.yml`  | Pre-release / alpha builds.                            |
+| `vX.Y.Z-<suffix>` (e.g. `v1.2.3-beta1`)  | `.goreleaser-beta.yml`   | Pre-releases.                                          |
 
-The **alpha** config compiles with the `alpha` Go build tag, so any code gated
-behind `//go:build alpha` is included, and its GitHub release is never served as
-the "latest" version — it must be requested explicitly by version.
+Both configs build the same code. The only difference is that a beta release is
+never served as the "latest" version — it must be requested explicitly by
+version. Pre-releases cut before this was renamed use `-alphaN` tags.
 
 Validate the configs locally before releasing with `make goreleaser-check`.
 

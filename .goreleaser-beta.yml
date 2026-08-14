@@ -29,8 +29,6 @@ builds:
     ignore:
       - goos: darwin
         goarch: '386'
-    tags:
-      - alpha
     binary: '{{ .ProjectName }}_v{{ .Version }}'
 archives:
   - formats: [ 'zip' ]

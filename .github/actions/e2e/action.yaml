@@ -283,9 +283,11 @@ runs:
             exit 0
           fi
 
-          # Skip if the test was alpha-only at this tag (no stable provider template).
-          # Alpha resources aren't in stable registry releases and alpha versions are
-          # not published to the Terraform registry, so the upgrade test can't run.
+          # Skip if the test was pre-release-only at this tag (no stable provider
+          # template), because there is no stable version to upgrade from.
+          # This inspects an older tag's checkout, so it keeps the historical
+          # .alpha suffix. Those files were dropped in #559, so this only still
+          # matches when upgrade_from points at a tag older than that.
           if [ ! -f "$test_dir/provider.tf.template" ] && [ -f "$test_dir/provider.tf.template.alpha" ]
           then
             echo "::group::Skipping upgrade E2E test as ${{ inputs.test_name }} was alpha-only in version ${{ steps.get_latest_stable_release.outputs.tag }}"
@@ -323,7 +325,7 @@ runs:
         git checkout ${{ github.ref }}
         echo "::group::Build provider from branch and create terraformrc to use it"
         go get
-        go build -tags alpha -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.commit=${{ github.sha }}'
+        go build -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.commit=${{ github.sha }}'
 
         cat <<EOF >$HOME/.terraformrc
         provider_installation {

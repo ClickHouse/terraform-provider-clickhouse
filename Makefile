@@ -38,13 +38,10 @@ enable_git_hooks: ## Add githooks for code validation before commit, as symlink 
 	cd .git/hooks && ln -fs ../../.githooks/* .
 	echo "Git hooks were updated from .githooks/ into .git/hooks/"
 
+.PHONY: docs
 docs: ensure-tfplugindocs
 	$(TFPLUGINDOCS) generate --provider-name=clickhouse
 	go run ./internal/tools/docsubcategory
-
-docs-alpha: ensure-tfplugindocs
-	$(TFPLUGINDOCS) generate --provider-name=clickhouse --additional-go-build-args="-tags alpha"
-	go run -tags alpha ./internal/tools/docsubcategory
 
 .PHONY: docs-validate
 docs-validate: ensure-tfplugindocs ## Validate generated docs and pin subcategories to the registry's group names
@@ -80,13 +77,13 @@ cover-html: cover-profile ## Open an HTML coverage report
 	go tool cover -html=cover.out -o=cover.html
 
 .PHONY: docs-check
-docs-check: docs-alpha ## Fail if generated docs are stale (mirrors docs.yaml)
-	git diff --exit-code docs/ || (echo "docs are stale: run 'make docs-alpha' and commit" && exit 1)
+docs-check: docs ## Fail if generated docs are stale (mirrors docs.yaml)
+	git diff --exit-code docs/ || (echo "docs are stale: run 'make docs' and commit" && exit 1)
 
 .PHONY: goreleaser-check
 goreleaser-check: ## Validate both goreleaser configs and do a snapshot build
 	goreleaser check --config .goreleaser-stable.yml
-	goreleaser check --config .goreleaser-alpha.yml
+	goreleaser check --config .goreleaser-beta.yml
 	goreleaser build --config .goreleaser-stable.yml --snapshot --clean --single-target
 
 .PHONY: adr
