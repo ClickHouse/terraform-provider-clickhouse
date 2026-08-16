@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
 )
@@ -92,6 +93,28 @@ func TestSourceResource_Schema(t *testing.T) {
 	} {
 		if _, ok := resp.Schema.Attributes[attr]; !ok {
 			t.Errorf("expected resource schema to contain attribute %q", attr)
+		}
+	}
+
+	// Optional expression attributes must treat the API's echoed "" as unset,
+	// otherwise an imported source plans a no-op update forever.
+	for _, attr := range []string{
+		"event_attributes_expression", "resource_attributes_expression",
+		"body_expression", "section",
+	} {
+		s, ok := resp.Schema.Attributes[attr].(schema.StringAttribute)
+		if !ok {
+			t.Errorf("attribute %q is not a string attribute", attr)
+			continue
+		}
+		found := false
+		for _, pm := range s.PlanModifiers {
+			if _, ok := pm.(emptyStringEqualsNullPlanModifier); ok {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("attribute %q is missing emptyStringEqualsNullPlanModifier", attr)
 		}
 	}
 }

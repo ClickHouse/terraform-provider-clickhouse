@@ -62,6 +62,34 @@ func TestRFC3339EqualPlanModifier(t *testing.T) {
 	}
 }
 
+func TestEmptyStringEqualsNullPlanModifier(t *testing.T) {
+	t.Parallel()
+	str := types.StringValue
+	cases := []struct {
+		name         string
+		state, cfg   types.String
+		wantSuppress bool // true => plan set to state (no diff)
+	}{
+		{"server-echoed empty against omitted config", str(""), types.StringNull(), true},
+		{"real value against omitted config", str("ResourceAttributes"), types.StringNull(), false},
+		{"empty state against a set config", str(""), str("ResourceAttributes"), false},
+		{"null state (create)", types.StringNull(), str("ResourceAttributes"), false},
+		{"unknown state", types.StringUnknown(), types.StringNull(), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			resp := planmodifier.StringResponse{PlanValue: tc.cfg}
+			emptyStringEqualsNullPlanModifier{}.PlanModifyString(context.Background(),
+				planmodifier.StringRequest{StateValue: tc.state, ConfigValue: tc.cfg}, &resp)
+			suppressed := resp.PlanValue.Equal(tc.state)
+			if suppressed != tc.wantSuppress {
+				t.Errorf("suppress=%v, want %v (plan=%v)", suppressed, tc.wantSuppress, resp.PlanValue)
+			}
+		})
+	}
+}
+
 func TestJSONEqualPlanModifier(t *testing.T) {
 	t.Parallel()
 	str := types.StringValue
