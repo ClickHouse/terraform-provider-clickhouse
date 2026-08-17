@@ -9,7 +9,20 @@
 # Component globs are intentionally LAST: CODEOWNERS gives the last matching
 # pattern precedence, so these keep routing e.g. ClickPipes reviews to their
 # team even though those files live inside the clickhouse service group.
-**/*clickpipe* @ClickHouse/clickpipes
-**/postgres* @ClickHouse/clickgres
-**/clickstack* @ClickHouse/clickstack
+#
+# Each component needs two patterns. The first matches files named after the
+# component (docs/resources/udf.md). The second matches everything inside a
+# directory named after it (examples/resources/clickhouse_udf/import.sh, whose
+# own name says nothing about the component) — without it those files fall
+# through to the catch-all above.
+**/*postgres* @ClickHouse/clickgres
+**/*postgres*/** @ClickHouse/clickgres
 **/*udf* @ClickHouse/sql-ui
+**/*udf*/** @ClickHouse/sql-ui
+**/*clickstack* @ClickHouse/clickstack
+**/*clickstack*/** @ClickHouse/clickstack
+# ClickPipes goes last on purpose: its examples are named after the systems they
+# connect to, so examples/clickpipe/cdc_postgres/ is ClickPipes' to review, not
+# ClickGres'.
+**/*clickpipe* @ClickHouse/clickpipes
+**/*clickpipe*/** @ClickHouse/clickpipes
