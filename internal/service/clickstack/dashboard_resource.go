@@ -172,13 +172,20 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// On import, dashboard_json is null/unknown because no config value exists
 	// yet. Populate it from the fetched body so the imported state is
 	// re-appliable without an immediate diff. The dashboard id and filter ids
-	// are dropped: the API rejects them in an authored body.
+	// are dropped: the API rejects them in an authored body. Select entries are
+	// cleaned up for the same reason — the API exports aggregation fields its own
+	// write schema rejects.
 	if state.DashboardJSON.IsNull() || state.DashboardJSON.IsUnknown() {
 		authored := body
-		if stripped, err := stripServerIDs(body); err == nil {
+		if stripped, err := stripServerIDs(authored); err == nil {
 			authored = stripped
 		} else {
 			tflog.Warn(ctx, "could not strip server-assigned ids from the imported dashboard body: "+err.Error())
+		}
+		if cleaned, err := dropInvalidSelectFields(authored); err == nil {
+			authored = cleaned
+		} else {
+			tflog.Warn(ctx, "could not drop invalid select fields from the imported dashboard body: "+err.Error())
 		}
 		state.DashboardJSON = types.StringValue(string(authored))
 	}

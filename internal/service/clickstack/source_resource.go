@@ -141,9 +141,16 @@ func (r *sourceResource) Metadata(_ context.Context, req resource.MetadataReques
 	resp.TypeName = req.ProviderTypeName + "_clickstack_source"
 }
 
-// optStr is a reusable optional string attribute.
+// optStr is a reusable optional string attribute. The API echoes an unset
+// expression back as "", so every one of these treats "" and unset as the same
+// value (see emptyStringEqualsNullPlanModifier) — otherwise an imported source
+// plans an endless no-op update.
 func optStr(desc string) schema.StringAttribute {
-	return schema.StringAttribute{Optional: true, Description: desc}
+	return schema.StringAttribute{
+		Optional:      true,
+		Description:   desc,
+		PlanModifiers: []planmodifier.String{emptyStringEqualsNullPlanModifier{}},
+	}
 }
 
 func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
