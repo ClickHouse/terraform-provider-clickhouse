@@ -10,10 +10,6 @@
 //     resource and data-source doc, and
 //   - writes the sorted list of allowed subcategories to allowedFile, which CI
 //     pins via `tfplugindocs validate --allowed-resource-subcategories-file`.
-//
-// Build tags must match the generator: `make docs-alpha` builds the provider
-// with `-tags alpha`, so it also runs this tool with `-tags alpha` to keep the
-// registry view (and thus the stamped set) in sync.
 package main
 
 import (

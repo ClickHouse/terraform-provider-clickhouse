@@ -142,11 +142,11 @@ func (r *ServiceUpgradeWindowResource) Create(ctx context.Context, req resource.
 }
 
 func (r *ServiceUpgradeWindowResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_service_upgrade_window", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_service_upgrade_window", &resp.Diagnostics)
 }
 
 func (r *ServiceUpgradeWindowResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_service_upgrade_window", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_service_upgrade_window", &resp.Diagnostics)
 	var state models.ServiceUpgradeWindowResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

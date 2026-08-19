@@ -96,7 +96,7 @@ func (d *roleDataSource) Configure(_ context.Context, req datasource.ConfigureRe
 }
 
 func (d *roleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_role", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_role", &resp.Diagnostics)
 	var config roleDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {

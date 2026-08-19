@@ -179,7 +179,7 @@ func (r *webhookResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 func (r *webhookResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
 	var cfg webhookResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {

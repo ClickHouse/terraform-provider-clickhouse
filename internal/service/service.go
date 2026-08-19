@@ -24,7 +24,7 @@ type Stability string
 
 const (
 	StabilityStable Stability = "stable"
-	StabilityAlpha  Stability = "alpha"
+	StabilityBeta   Stability = "beta"
 )
 
 // Metadata is the machine-readable definition of a group.

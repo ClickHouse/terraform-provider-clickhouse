@@ -3,7 +3,7 @@
 page_title: "clickhouse_postgres_services Data Source - clickhouse"
 subcategory: "Postgres"
 description: |-
-  ~> Note: This data source is in alpha and its behavior may change in future provider versions.
+  ~> Note: This data source is in beta and its behavior may change in future provider versions.
   Lists all ClickHouse Cloud Managed Postgres https://clickhouse.com/cloud/postgres
   services in the organization. Returns a services list of summary objects
   (id, name, cloud_provider, region, postgres_version, size,
@@ -22,7 +22,7 @@ description: |-
 
 # clickhouse_postgres_services (Data Source)
 
-~> **Note:** This data source is in alpha and its behavior may change in future provider versions.
+~> **Note:** This data source is in beta and its behavior may change in future provider versions.
 
 Lists all [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)
 services in the organization. Returns a `services` list of summary objects
