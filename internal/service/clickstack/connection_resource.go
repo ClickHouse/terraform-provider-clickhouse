@@ -130,7 +130,7 @@ func (r *connectionResource) Configure(_ context.Context, req resource.Configure
 }
 
 func (r *connectionResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
 }
 
 func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

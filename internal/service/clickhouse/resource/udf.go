@@ -267,7 +267,7 @@ func (r *UDFResource) Configure(_ context.Context, req resource.ConfigureRequest
 }
 
 func (r *UDFResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_udf", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_udf", &resp.Diagnostics)
 
 	var config models.UDFResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)

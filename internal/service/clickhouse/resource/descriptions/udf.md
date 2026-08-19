@@ -1,6 +1,6 @@
 You can use the *clickhouse_udf* resource to create and manage User Defined Functions (UDFs) in ClickHouse Cloud.
 
-~> **Note:** This resource is in alpha. Its behavior may change in future provider versions.
+~> **Note:** This resource is in beta. Its behavior may change in future provider versions.
 
 Point `source_archive_path` at a ZIP of your function source, and set `source_archive_hash` to `filebase64sha256(...)` of that same file so Terraform knows when to publish a new version. On apply, the provider uploads the archive and waits for the build to finish.
 

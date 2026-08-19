@@ -3,7 +3,7 @@
 page_title: "clickhouse_postgres_service Data Source - clickhouse"
 subcategory: "Postgres"
 description: |-
-  ~> Note: This data source is in alpha and its behavior may change in future provider versions.
+  ~> Note: This data source is in beta and its behavior may change in future provider versions.
   Fetches a single ClickHouse Cloud Managed Postgres https://clickhouse.com/cloud/postgres
   service by ID, including its current pg_config / pgbouncer_config.
   Returns the service's server-reported attributes: cloud_provider, region,
@@ -29,7 +29,7 @@ description: |-
 
 # clickhouse_postgres_service (Data Source)
 
-~> **Note:** This data source is in alpha and its behavior may change in future provider versions.
+~> **Note:** This data source is in beta and its behavior may change in future provider versions.
 
 Fetches a single [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)
 service by ID, including its current `pg_config` / `pgbouncer_config`.

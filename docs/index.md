@@ -28,8 +28,8 @@ description: |-
   Upgrading to version >= 1.0.0 of the Clickhouse Terraform Provider
   If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the clickhouse_private_endpoint_registration resource or the private_endpoint_ids attribute of the clickhouse_service resource,
   then a manual process is required after the upgrade. Please visit https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations for more details.
-  ClickStack (alpha)
-  This provider also manages ClickStack https://clickhouse.com/docs/use-cases/observability/clickstack (HyperDX) resources via the clickhouse_clickstack_* resources and data sources. These are in alpha: they emit an alpha warning at plan/apply time and their behavior may change in future releases.
+  ClickStack (beta)
+  This provider also manages ClickStack https://clickhouse.com/docs/use-cases/observability/clickstack (HyperDX) resources via the clickhouse_clickstack_* resources and data sources. These are in beta: they emit a beta warning at plan/apply time and their behavior may change in future releases.
   How the clickhouse_clickstack_* resources authenticate depends on where ClickStack runs:
   ClickStack on ClickHouse Cloud is served through the ClickHouse Cloud API https://clickhouse.com/docs/use-cases/observability/clickstack/api-reference and authenticates with the same Cloud credentials as the rest of the provider (organization_id, token_key, token_secret). Set clickstack_service_id (or the CLICKSTACK_SERVICE_ID environment variable) to the ID of the Cloud service running ClickStack:
   
@@ -106,9 +106,9 @@ Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaki
 If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the `clickhouse_private_endpoint_registration` resource or the `private_endpoint_ids` attribute of the `clickhouse_service` resource,
 then a manual process is required after the upgrade. Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations](https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations) for more details.
 
-## ClickStack (alpha)
+## ClickStack (beta)
 
-This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) resources via the `clickhouse_clickstack_*` resources and data sources. These are in **alpha**: they emit an alpha warning at plan/apply time and their behavior may change in future releases.
+This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) resources via the `clickhouse_clickstack_*` resources and data sources. These are in **beta**: they emit a beta warning at plan/apply time and their behavior may change in future releases.
 
 How the `clickhouse_clickstack_*` resources authenticate depends on where ClickStack runs:
 

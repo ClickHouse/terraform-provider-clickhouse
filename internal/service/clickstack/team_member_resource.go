@@ -144,7 +144,7 @@ func (r *teamMemberResource) Configure(_ context.Context, req resource.Configure
 }
 
 func (r *teamMemberResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
 }
 
 func (r *teamMemberResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

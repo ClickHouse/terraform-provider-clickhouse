@@ -169,7 +169,7 @@ func (r *roleResource) Configure(_ context.Context, req resource.ConfigureReques
 }
 
 func (r *roleResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_role", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_role", &resp.Diagnostics)
 }
 
 func (r *roleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

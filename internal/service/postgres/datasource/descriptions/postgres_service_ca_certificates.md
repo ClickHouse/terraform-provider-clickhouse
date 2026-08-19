@@ -1,4 +1,4 @@
-~> **Note:** This data source is in alpha and its behavior may change in future provider versions.
+~> **Note:** This data source is in beta and its behavior may change in future provider versions.
 
 Fetches the PEM-encoded CA certificate chain for a
 [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)

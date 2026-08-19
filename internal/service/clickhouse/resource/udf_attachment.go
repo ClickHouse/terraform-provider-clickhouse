@@ -115,7 +115,7 @@ func (r *UDFAttachmentResource) Configure(_ context.Context, req resource.Config
 }
 
 func (r *UDFAttachmentResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_udf_attachment", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_udf_attachment", &resp.Diagnostics)
 }
 
 func (r *UDFAttachmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
