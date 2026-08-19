@@ -420,6 +420,17 @@ func TestDashboardResource_Read(t *testing.T) {
 			wantNormalized: `{"id":"d1","name":"D","filters":[{"id":"f1","name":"Env"}],"tiles":[]}`,
 		},
 		{
+			// The API exports aggregation fields its own write schema rejects, so
+			// the backfilled body drops them or every plan fails validation.
+			name: "import drops select fields the write schema rejects",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(`{"data":{"id":"d1","name":"D","tiles":[{"name":"T","config":{"select":[{"aggFn":"count","level":0.9,"valueExpression":"Duration"}]}}]}}`))
+			},
+			stateDashJSON:  nil,
+			wantDashJSON:   `{"name":"D","tiles":[{"config":{"select":[{"aggFn":"count"}]},"name":"T"}]}`,
+			wantNormalized: `{"id":"d1","name":"D","tiles":[{"name":"T","config":{"select":[{"aggFn":"count","level":0.9,"valueExpression":"Duration"}]}}]}`,
+		},
+		{
 			name:          "not found removes resource from state",
 			handler:       func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) },
 			stateDashJSON: ptr(serverBody),
