@@ -912,6 +912,18 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Description: "PEM encoded CA certificate to validate the Postgres server certificate.",
 								Optional:    true,
 							},
+							"disable_tls": schema.BoolAttribute{
+								Description: "Disable TLS for the Postgres connection.",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+							},
+							"skip_cert_verification": schema.BoolAttribute{
+								Description: "Skip certificate verification for the Postgres connection.",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+							},
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
 								Required:            true,
@@ -3495,6 +3507,14 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !postgresModel.CACertificate.IsNull() {
 			postgresSource.CACertificate = postgresModel.CACertificate.ValueStringPointer()
 		}
+		if !postgresModel.DisableTLS.IsNull() && !postgresModel.DisableTLS.IsUnknown() {
+			val := postgresModel.DisableTLS.ValueBool()
+			postgresSource.DisableTLS = &val
+		}
+		if !postgresModel.SkipCertVerification.IsNull() && !postgresModel.SkipCertVerification.IsUnknown() {
+			val := postgresModel.SkipCertVerification.ValueBool()
+			postgresSource.SkipCertVerification = &val
+		}
 
 		source.Postgres = postgresSource
 	} else if !sourceModel.MySQL.IsNull() {
@@ -4481,6 +4501,18 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			postgresModel.CACertificate = types.StringValue(*clickPipe.Source.Postgres.CACertificate)
 		} else {
 			postgresModel.CACertificate = types.StringNull()
+		}
+
+		if clickPipe.Source.Postgres.DisableTLS != nil {
+			postgresModel.DisableTLS = types.BoolValue(*clickPipe.Source.Postgres.DisableTLS)
+		} else {
+			postgresModel.DisableTLS = types.BoolValue(false)
+		}
+
+		if clickPipe.Source.Postgres.SkipCertVerification != nil {
+			postgresModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.Postgres.SkipCertVerification)
+		} else {
+			postgresModel.SkipCertVerification = types.BoolValue(false)
 		}
 
 		if len(tableMappingList) > 0 {

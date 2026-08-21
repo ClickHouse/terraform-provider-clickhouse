@@ -510,8 +510,10 @@ Optional:
 
 - `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the Postgres server certificate.
+- `disable_tls` (Boolean) Disable TLS for the Postgres connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the Postgres instance. Default is 5432.
+- `skip_cert_verification` (Boolean) Skip certificate verification for the Postgres connection.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of the Postgres source. (`postgres`, `supabase`, `neon`, `alloydb`, `planetscale`, `rdspostgres`, `aurorapostgres`, `cloudsqlpostgres`, `azurepostgres`, `crunchybridge`, `tigerdata`). Default is `postgres`.
 

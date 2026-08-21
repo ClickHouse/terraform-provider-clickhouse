@@ -180,6 +180,8 @@ type ClickPipePostgresSource struct {
 	IAMRole               *string                         `json:"iamRole,omitempty"`
 	TLSHost               *string                         `json:"tlsHost,omitempty"`
 	CACertificate         *string                         `json:"caCertificate,omitempty"`
+	DisableTLS            *bool                           `json:"disableTls,omitempty"`
+	SkipCertVerification  *bool                           `json:"skipCertVerification,omitempty"`
 	Credentials           *ClickPipeSourceCredentials     `json:"credentials,omitempty"`
 	Settings              *ClickPipePostgresSettings      `json:"settings,omitempty"`
 	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings,omitempty"`
