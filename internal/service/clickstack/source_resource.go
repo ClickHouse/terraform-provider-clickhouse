@@ -142,15 +142,10 @@ func (r *sourceResource) Metadata(_ context.Context, req resource.MetadataReques
 }
 
 // optStr is a reusable optional string attribute. The API echoes an unset
-// expression back as "", so every one of these treats "" and unset as the same
-// value (see emptyStringEqualsNullPlanModifier) — otherwise an imported source
-// plans an endless no-op update.
+// expression back as "" rather than omitting it; keepUnset collapses that on the
+// way into state, so an imported source does not plan an endless no-op update.
 func optStr(desc string) schema.StringAttribute {
-	return schema.StringAttribute{
-		Optional:      true,
-		Description:   desc,
-		PlanModifiers: []planmodifier.String{emptyStringEqualsNullPlanModifier{}},
-	}
+	return schema.StringAttribute{Optional: true, Description: desc}
 }
 
 func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -454,6 +449,19 @@ func emptyToNull(s string) types.String {
 	return types.StringValue(s)
 }
 
+// keepUnset collapses the API's echoed "" back to null, unless the config asked
+// for "" itself. cur is the planned value (create/update) or the prior state
+// value (read), so an omitted attribute stays omitted and an explicit "" is
+// preserved. A plan modifier cannot do this: these attributes are optional and
+// not computed, so planning "" against a null config is rejected by Terraform as
+// an invalid plan.
+func keepUnset(cur types.String, v *string) types.String {
+	if cur.IsNull() && v != nil && *v == "" {
+		return cur
+	}
+	return types.StringPointerValue(v)
+}
+
 func (m *sourceResourceModel) toClient() client.Source {
 	src := client.Source{
 		Name:                     m.Name.ValueString(),
@@ -582,47 +590,51 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 	m.Kind = types.StringValue(src.Kind)
 	m.Connection = types.StringValue(src.Connection)
 	m.TimestampValueExpression = types.StringValue(src.TimestampValueExpression)
-	m.Section = types.StringPointerValue(src.Section)
+	m.Section = keepUnset(m.Section, src.Section)
 	m.Disabled = types.BoolPointerValue(src.Disabled)
 
+	var curFrom sourceFromModel
+	if m.From != nil {
+		curFrom = *m.From
+	}
 	m.From = &sourceFromModel{
 		DatabaseName: types.StringValue(src.From.DatabaseName),
 		// Collapse the always-sent "" back to null so a metric source that
 		// omitted table_name stays null in state (no inconsistent-result error).
-		TableName: emptyToNull(src.From.TableName),
+		TableName: keepUnset(curFrom.TableName, &src.From.TableName),
 	}
 
-	m.DefaultTableSelectExpression = types.StringPointerValue(src.DefaultTableSelectExpression)
-	m.ServiceNameExpression = types.StringPointerValue(src.ServiceNameExpression)
-	m.SeverityTextExpression = types.StringPointerValue(src.SeverityTextExpression)
-	m.BodyExpression = types.StringPointerValue(src.BodyExpression)
-	m.EventAttributesExpression = types.StringPointerValue(src.EventAttributesExpression)
-	m.ResourceAttributesExpression = types.StringPointerValue(src.ResourceAttributesExpression)
-	m.DisplayedTimestampValueExpression = types.StringPointerValue(src.DisplayedTimestampValueExpression)
-	m.MetricSourceID = types.StringPointerValue(src.MetricSourceID)
-	m.TraceSourceID = types.StringPointerValue(src.TraceSourceID)
-	m.LogSourceID = types.StringPointerValue(src.LogSourceID)
-	m.SessionSourceID = types.StringPointerValue(src.SessionSourceID)
-	m.TraceIDExpression = types.StringPointerValue(src.TraceIDExpression)
-	m.SpanIDExpression = types.StringPointerValue(src.SpanIDExpression)
-	m.ImplicitColumnExpression = types.StringPointerValue(src.ImplicitColumnExpression)
-	m.KnownColumnsListExpression = types.StringPointerValue(src.KnownColumnsListExpression)
-	m.OrderByExpression = types.StringPointerValue(src.OrderByExpression)
-	m.UseTextIndexForImplicitColumn = types.StringPointerValue(src.UseTextIndexForImplicitColumn)
+	m.DefaultTableSelectExpression = keepUnset(m.DefaultTableSelectExpression, src.DefaultTableSelectExpression)
+	m.ServiceNameExpression = keepUnset(m.ServiceNameExpression, src.ServiceNameExpression)
+	m.SeverityTextExpression = keepUnset(m.SeverityTextExpression, src.SeverityTextExpression)
+	m.BodyExpression = keepUnset(m.BodyExpression, src.BodyExpression)
+	m.EventAttributesExpression = keepUnset(m.EventAttributesExpression, src.EventAttributesExpression)
+	m.ResourceAttributesExpression = keepUnset(m.ResourceAttributesExpression, src.ResourceAttributesExpression)
+	m.DisplayedTimestampValueExpression = keepUnset(m.DisplayedTimestampValueExpression, src.DisplayedTimestampValueExpression)
+	m.MetricSourceID = keepUnset(m.MetricSourceID, src.MetricSourceID)
+	m.TraceSourceID = keepUnset(m.TraceSourceID, src.TraceSourceID)
+	m.LogSourceID = keepUnset(m.LogSourceID, src.LogSourceID)
+	m.SessionSourceID = keepUnset(m.SessionSourceID, src.SessionSourceID)
+	m.TraceIDExpression = keepUnset(m.TraceIDExpression, src.TraceIDExpression)
+	m.SpanIDExpression = keepUnset(m.SpanIDExpression, src.SpanIDExpression)
+	m.ImplicitColumnExpression = keepUnset(m.ImplicitColumnExpression, src.ImplicitColumnExpression)
+	m.KnownColumnsListExpression = keepUnset(m.KnownColumnsListExpression, src.KnownColumnsListExpression)
+	m.OrderByExpression = keepUnset(m.OrderByExpression, src.OrderByExpression)
+	m.UseTextIndexForImplicitColumn = keepUnset(m.UseTextIndexForImplicitColumn, src.UseTextIndexForImplicitColumn)
 
-	m.DurationExpression = types.StringPointerValue(src.DurationExpression)
+	m.DurationExpression = keepUnset(m.DurationExpression, src.DurationExpression)
 	if src.DurationPrecision != nil {
 		m.DurationPrecision = types.Int64Value(int64(*src.DurationPrecision))
 	} else {
 		m.DurationPrecision = types.Int64Null()
 	}
-	m.ParentSpanIDExpression = types.StringPointerValue(src.ParentSpanIDExpression)
-	m.SpanNameExpression = types.StringPointerValue(src.SpanNameExpression)
-	m.SpanKindExpression = types.StringPointerValue(src.SpanKindExpression)
-	m.SampleRateExpression = types.StringPointerValue(src.SampleRateExpression)
-	m.StatusCodeExpression = types.StringPointerValue(src.StatusCodeExpression)
-	m.StatusMessageExpression = types.StringPointerValue(src.StatusMessageExpression)
-	m.SpanEventsValueExpression = types.StringPointerValue(src.SpanEventsValueExpression)
+	m.ParentSpanIDExpression = keepUnset(m.ParentSpanIDExpression, src.ParentSpanIDExpression)
+	m.SpanNameExpression = keepUnset(m.SpanNameExpression, src.SpanNameExpression)
+	m.SpanKindExpression = keepUnset(m.SpanKindExpression, src.SpanKindExpression)
+	m.SampleRateExpression = keepUnset(m.SampleRateExpression, src.SampleRateExpression)
+	m.StatusCodeExpression = keepUnset(m.StatusCodeExpression, src.StatusCodeExpression)
+	m.StatusMessageExpression = keepUnset(m.StatusMessageExpression, src.StatusMessageExpression)
+	m.SpanEventsValueExpression = keepUnset(m.SpanEventsValueExpression, src.SpanEventsValueExpression)
 
 	if len(src.QuerySettings) > 0 {
 		m.QuerySettings = make([]querySettingModel, 0, len(src.QuerySettings))
@@ -637,34 +649,50 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 	}
 
 	if src.MetricTables != nil {
+		var cur metricTablesModel
+		if m.MetricTables != nil {
+			cur = *m.MetricTables
+		}
 		m.MetricTables = &metricTablesModel{
-			Gauge:                types.StringPointerValue(src.MetricTables.Gauge),
-			Histogram:            types.StringPointerValue(src.MetricTables.Histogram),
-			Sum:                  types.StringPointerValue(src.MetricTables.Sum),
-			Summary:              types.StringPointerValue(src.MetricTables.Summary),
-			ExponentialHistogram: types.StringPointerValue(src.MetricTables.ExponentialHistogram),
+			Gauge:                keepUnset(cur.Gauge, src.MetricTables.Gauge),
+			Histogram:            keepUnset(cur.Histogram, src.MetricTables.Histogram),
+			Sum:                  keepUnset(cur.Sum, src.MetricTables.Sum),
+			Summary:              keepUnset(cur.Summary, src.MetricTables.Summary),
+			ExponentialHistogram: keepUnset(cur.ExponentialHistogram, src.MetricTables.ExponentialHistogram),
 		}
 	} else {
 		m.MetricTables = nil
 	}
 
-	m.HighlightedTraceAttributeExpressions = fromClientHighlighted(src.HighlightedTraceAttributeExpressions)
-	m.HighlightedRowAttributeExpressions = fromClientHighlighted(src.HighlightedRowAttributeExpressions)
+	m.HighlightedTraceAttributeExpressions = fromClientHighlighted(m.HighlightedTraceAttributeExpressions, src.HighlightedTraceAttributeExpressions)
+	m.HighlightedRowAttributeExpressions = fromClientHighlighted(m.HighlightedRowAttributeExpressions, src.HighlightedRowAttributeExpressions)
 
 	if len(src.MaterializedViews) > 0 {
+		// The API returns list elements in the order they were sent, so the
+		// prior element at the same index is the right keepUnset baseline. If it
+		// ever reorders, the whole list diffs anyway.
+		curMVs := m.MaterializedViews
 		m.MaterializedViews = make([]materializedViewModel, 0, len(src.MaterializedViews))
-		for _, mv := range src.MaterializedViews {
+		for i, mv := range src.MaterializedViews {
+			var cur materializedViewModel
+			if i < len(curMVs) {
+				cur = curMVs[i]
+			}
 			mvm := materializedViewModel{
 				DatabaseName:     types.StringValue(mv.DatabaseName),
 				TableName:        types.StringValue(mv.TableName),
 				DimensionColumns: types.StringValue(mv.DimensionColumns),
 				MinGranularity:   types.StringValue(mv.MinGranularity),
-				MinDate:          types.StringPointerValue(mv.MinDate),
+				MinDate:          keepUnset(cur.MinDate, mv.MinDate),
 				TimestampColumn:  types.StringValue(mv.TimestampColumn),
 			}
-			for _, ac := range mv.AggregatedColumns {
+			for j, ac := range mv.AggregatedColumns {
+				var curAC aggregatedColumnModel
+				if j < len(cur.AggregatedColumns) {
+					curAC = cur.AggregatedColumns[j]
+				}
 				mvm.AggregatedColumns = append(mvm.AggregatedColumns, aggregatedColumnModel{
-					SourceColumn: types.StringPointerValue(ac.SourceColumn),
+					SourceColumn: keepUnset(curAC.SourceColumn, ac.SourceColumn),
 					AggFn:        types.StringValue(ac.AggFn),
 					MVColumn:     types.StringValue(ac.MVColumn),
 				})
@@ -686,16 +714,20 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 	}
 }
 
-func fromClientHighlighted(in []client.HighlightedAttributeExpression) []highlightedAttrModel {
+func fromClientHighlighted(cur []highlightedAttrModel, in []client.HighlightedAttributeExpression) []highlightedAttrModel {
 	if len(in) == 0 {
 		return nil
 	}
 	out := make([]highlightedAttrModel, 0, len(in))
-	for _, h := range in {
+	for i, h := range in {
+		var prev highlightedAttrModel
+		if i < len(cur) {
+			prev = cur[i]
+		}
 		out = append(out, highlightedAttrModel{
 			SQLExpression:    types.StringValue(h.SQLExpression),
-			LuceneExpression: types.StringPointerValue(h.LuceneExpression),
-			Alias:            types.StringPointerValue(h.Alias),
+			LuceneExpression: keepUnset(prev.LuceneExpression, h.LuceneExpression),
+			Alias:            keepUnset(prev.Alias, h.Alias),
 		})
 	}
 	return out
