@@ -218,7 +218,7 @@ func (r *alertResource) Configure(_ context.Context, req resource.ConfigureReque
 // short-circuits when an operand is null or unknown, mirroring the guard in the
 // dashboard resource's ValidateConfig.
 func (r *alertResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
 	var cfg alertResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {

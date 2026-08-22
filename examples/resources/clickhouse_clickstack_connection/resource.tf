@@ -32,3 +32,20 @@ resource "clickhouse_clickstack_connection" "by_team" {
   username = each.value.username
   password = var.clickhouse_passwords[each.key]
 }
+
+# On ClickHouse Cloud, connections are managed by ClickHouse Cloud: this
+# resource cannot create, change, or delete them, and applying it against a
+# Cloud service fails. Reference the existing connection by its ID instead —
+# copy it from the ClickStack UI, or list them with the curl snippet in the
+# import instructions below.
+resource "clickhouse_clickstack_source" "logs" {
+  name          = "Logs"
+  kind          = "log"
+  connection_id = "507f1f77bcf86cd799439012"
+
+  from = {
+    database_name = "otel"
+    table_name    = "otel_logs"
+  }
+  timestamp_value_expression = "Timestamp"
+}

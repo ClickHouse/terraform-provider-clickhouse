@@ -56,5 +56,9 @@ release:
     - glob: 'terraform-registry-manifest.json'
       name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
   draft: true
+  # Beta resources ship in every build, so there is one config. A pre-release
+  # tag (vX.Y.Z-betaN) only changes how GitHub serves the release: `auto` flags
+  # it from the semver suffix, and GitHub never serves a prerelease as "latest".
+  prerelease: auto
 changelog:
   # skip: true

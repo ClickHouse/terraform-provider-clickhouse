@@ -16,7 +16,7 @@ func (servicePackage) Meta() service.Metadata {
 		Name:      "clickstack",
 		HumanName: "ClickStack",
 		Owner:     "@ClickHouse/clickstack",
-		Stability: service.StabilityAlpha,
+		Stability: service.StabilityBeta,
 	}
 }
 

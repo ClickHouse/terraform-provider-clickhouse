@@ -18,7 +18,7 @@ func (servicePackage) Meta() service.Metadata {
 		Name:      "postgres",
 		HumanName: "Postgres",
 		Owner:     "@ClickHouse/clickgres",
-		Stability: service.StabilityStable, // resource-level alpha warnings are unchanged
+		Stability: service.StabilityStable, // resource-level beta warnings are unchanged
 	}
 }
 

@@ -3,7 +3,7 @@
 page_title: "clickhouse_postgres_service_ca_certificates Data Source - clickhouse"
 subcategory: "Postgres"
 description: |-
-  ~> Note: This data source is in alpha and its behavior may change in future provider versions.
+  ~> Note: This data source is in beta and its behavior may change in future provider versions.
   Fetches the PEM-encoded CA certificate chain for a
   ClickHouse Cloud Managed Postgres https://clickhouse.com/cloud/postgres
   service. Use it to pin the CA when connecting with sslmode=verify-full.
@@ -22,7 +22,7 @@ description: |-
 
 # clickhouse_postgres_service_ca_certificates (Data Source)
 
-~> **Note:** This data source is in alpha and its behavior may change in future provider versions.
+~> **Note:** This data source is in beta and its behavior may change in future provider versions.
 
 Fetches the PEM-encoded CA certificate chain for a
 [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)

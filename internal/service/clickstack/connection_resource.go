@@ -55,7 +55,11 @@ func (r *connectionResource) Metadata(_ context.Context, req resource.MetadataRe
 func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickHouse connection in ClickStack. Connections hold the " +
-			"credentials and endpoint used by sources to query ClickHouse.",
+			"credentials and endpoint used by sources to query ClickHouse. " +
+			"**Note:** on ClickHouse Cloud, connections are managed by ClickHouse Cloud and cannot be " +
+			"created, changed, or deleted through this resource; this resource is for self-hosted " +
+			"ClickStack. Reference an existing Cloud connection by its ID from " +
+			"`clickhouse_clickstack_source.connection_id` instead.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed:    true,
@@ -130,7 +134,7 @@ func (r *connectionResource) Configure(_ context.Context, req resource.Configure
 }
 
 func (r *connectionResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
 }
 
 func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
