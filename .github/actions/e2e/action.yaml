@@ -227,68 +227,34 @@ runs:
         EOF
         fi
 
-        # The ClickStack test runs against a long-lived service that already has
-        # managed ClickStack onboarded — it is not created here, because onboarding
-        # is a console step and clickstack_service_id configures the provider, which
-        # is evaluated before any resource is applied. Both ids are discovered rather
-        # than held as secrets: the connection id is minted per service by the
-        # platform, so a secret would go stale the moment the service is recreated.
-        # suffix above keeps concurrent runs from colliding on the shared service.
-        if grep -rqs 'variable "clickstack_service_id"' "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"/*.tf
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Discover ClickStack service and connection
+      # Runs before the upgrade test on purpose: that job applies with the same
+      # variables.tfvars, so the ids have to be in it by then.
+      #
+      # Credentials come in through env rather than ${{ }} interpolation, so a
+      # secret containing a quote or $( ) is data to bash, never script. This is
+      # also the only step that needs CLICKHOUSE_API_URL at this point -- every
+      # other one exports it inside its own run block, and those do not carry.
+      if: ${{ steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
+      env:
+        ORGANIZATION_ID: ${{ inputs.organization_id }}
+        TOKEN_KEY: ${{ inputs.token_key }}
+        TOKEN_SECRET: ${{ inputs.token_secret }}
+        CLICKHOUSE_API_URL: ${{ inputs.api_url }}
+      run: |
+        EXAMPLE_DIR="examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+
+        if ! grep -rqs 'variable "clickstack_service_id"' "$EXAMPLE_DIR"/*.tf
         then
-          clickstack_api="${CLICKHOUSE_API_URL:-https://api.clickhouse.cloud/v1}"
-          clickstack_auth="${{ inputs.token_key }}:${{ inputs.token_secret }}"
-          clickstack_org="${{ inputs.organization_id }}"
-
-          # Identify the service by asking which one answers on the ClickStack
-          # route, not by name or id. A stopped service is skipped: the proxy does
-          # not serve it, and it would look like "not onboarded".
-          clickstack_service=""
-          while IFS=$'\t' read -r svc_id svc_name
-          do
-            code=$(curl -sS -o /dev/null -w "%{http_code}" --user "$clickstack_auth" \
-              "$clickstack_api/organizations/$clickstack_org/services/$svc_id/clickstack/sources")
-            if [ "$code" = "200" ]
-            then
-              if [ -n "$clickstack_service" ]
-              then
-                echo "::error::More than one running service has ClickStack onboarded ('$svc_name' and an earlier one). The e2e run cannot pick between them." >&2
-                exit 1
-              fi
-              clickstack_service="$svc_id"
-            fi
-          done < <(curl -sS --user "$clickstack_auth" \
-                     "$clickstack_api/organizations/$clickstack_org/services" \
-                   | jq -r '.result[] | select(.state != "stopped") | "\(.id)\t\(.name)"')
-
-          if [ -z "$clickstack_service" ]
-          then
-            echo "::error::No running service in this organization has ClickStack onboarded. Onboard one in the console (it is not something the provider can do)." >&2
-            exit 1
-          fi
-
-          # Connections are not exposed on Cloud. The platform creates exactly one
-          # per service pointing at itself, so read its id off the sources the
-          # onboarding created.
-          clickstack_connection=$(curl -sS --user "$clickstack_auth" \
-            "$clickstack_api/organizations/$clickstack_org/services/$clickstack_service/clickstack/sources" \
-            | jq -r '[.result[].connection] | unique | if length == 1 then .[0] else "" end')
-
-          if [ -z "$clickstack_connection" ]
-          then
-            echo "::error::Could not read a single connection id off the service's sources. ClickStack creates its default sources once telemetry arrives, so this usually means the service has never ingested anything." >&2
-            exit 1
-          fi
-
-          echo "Using ClickStack service $clickstack_service (connection $clickstack_connection)"
-
-          cat <<EOF >>examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}/variables.tfvars
-
-        clickstack_service_id = "$clickstack_service"
-        connection_id         = "$clickstack_connection"
-        EOF
+          echo "not a ClickStack example, skipping discovery"
+          exit 0
         fi
 
+        echo "::group::Discover ClickStack service and connection"
+        bash ./.github/scripts/discover_clickstack_ids.sh "$EXAMPLE_DIR/variables.tfvars"
         echo "::endgroup::"
 
     - id: get_latest_stable_release
@@ -460,7 +426,7 @@ runs:
       run: |
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
 
-        if [ ! -x e2e-import.sh ]
+        if [ ! -f e2e-import.sh ]
         then
           echo "no e2e-import.sh in this example, skipping the import test"
           exit 0
@@ -473,7 +439,7 @@ runs:
           export CLICKHOUSE_API_URL="${{inputs.api_url}}"
         fi
 
-        ./e2e-import.sh variables.tfvars
+        bash ./e2e-import.sh variables.tfvars
 
         echo "::endgroup::"
 
@@ -510,7 +476,12 @@ runs:
 
     - shell: bash
       name: Terraform destroy
-      if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
+      # !cancelled() rather than the plain guard: the import and update steps are
+      # assertions, so the first time one legitimately fails it would otherwise
+      # skip teardown. Most examples get swept by the service delete afterwards,
+      # but ClickStack objects live on a shared long-lived service that nothing
+      # sweeps, so a skipped destroy strands them.
+      if: ${{ !cancelled() && steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
       run: |
         echo "::group::Run terraform destroy"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"

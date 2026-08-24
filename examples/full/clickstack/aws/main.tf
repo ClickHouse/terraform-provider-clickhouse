@@ -106,8 +106,8 @@ resource "clickhouse_clickstack_saved_search" "errors" {
 resource "clickhouse_clickstack_webhook" "alerts" {
   name    = "tf-e2e${var.suffix}"
   service = "generic"
-  url     = "https://example.com/hooks/tf-e2e"
-  body    = jsonencode({ text = "tf e2e" })
+  url     = var.update_pass ? "https://example.com/hooks/tf-e2e-updated" : "https://example.com/hooks/tf-e2e"
+  body    = jsonencode({ text = var.update_pass ? "tf e2e updated" : "tf e2e" })
 }
 
 resource "clickhouse_clickstack_alert" "too_many_errors" {

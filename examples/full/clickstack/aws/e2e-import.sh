@@ -17,6 +17,25 @@ VAR_FILE="${1:-variables.tfvars}"
 tf() { terraform "$@" -no-color; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
+# Every check here removes a resource from state before importing it back. If the
+# import fails in between, the object still exists on the shared ClickStack
+# service but Terraform no longer knows about it, so destroy cannot clean it up
+# and nothing else sweeps it. Restore the pre-run state on any non-zero exit.
+STATE_BACKUP=$(mktemp)
+
+restore_state_on_failure() {
+  local rc=$?
+  if [ "$rc" -ne 0 ] && [ -s "$STATE_BACKUP" ]; then
+    echo "restoring pre-import state so destroy can still tear down" >&2
+    cp "$STATE_BACKUP" terraform.tfstate
+  fi
+  rm -f "$STATE_BACKUP"
+  exit "$rc"
+}
+trap restore_state_on_failure EXIT
+
+cp terraform.tfstate "$STATE_BACKUP"
+
 resource_id() {
   tf state show "$1" | awk '$1=="id"{gsub(/"/,"",$3); print $3; exit}'
 }
@@ -48,7 +67,8 @@ reimport clickhouse_clickstack_role.readonly
 
 echo "--- plan after import (expecting no changes)"
 set +e
-tf plan -detailed-exitcode -var-file="$VAR_FILE" >/tmp/e2e-import-plan.txt 2>&1
+PLAN_OUT=$(mktemp)
+tf plan -detailed-exitcode -var-file="$VAR_FILE" >"$PLAN_OUT" 2>&1
 plan_rc=$?
 set -e
 
@@ -56,11 +76,11 @@ case "$plan_rc" in
   0) ;;
   2)
     echo "the imported state does not match the configuration:" >&2
-    sed -n '/will be updated/,/^Plan:/p' /tmp/e2e-import-plan.txt >&2
+    cat "$PLAN_OUT" >&2
     fail "import produced a dirty plan"
     ;;
   *)
-    cat /tmp/e2e-import-plan.txt >&2
+    cat "$PLAN_OUT" >&2
     fail "plan errored after import (exit $plan_rc)"
     ;;
 esac
