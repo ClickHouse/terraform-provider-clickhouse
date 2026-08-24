@@ -44,7 +44,7 @@ reimport() {
   local addr id
   addr="$1"
   id=$(resource_id "$addr")
-  [ -n "$id" ] || fail "$addr: no id in state"
+  if [ -z "$id" ]; then fail "$addr: no id in state"; fi
   echo "--- re-importing $addr ($id)"
   tf state rm "$addr" >/dev/null
   tf import -var-file="$VAR_FILE" "$addr" "$id" >/dev/null
@@ -100,7 +100,9 @@ body=$(tf show -json | jq -r '
   .values.root_module.resources[]
   | select(.address == "clickhouse_clickstack_dashboard.e2e")
   | .values.dashboard_json')
-[ -n "$body" ] && [ "$body" != "null" ] || fail "dashboard: dashboard_json empty after import"
+if [ -z "$body" ] || [ "$body" = "null" ]; then
+  fail "dashboard: dashboard_json empty after import"
+fi
 
 echo "$body" | jq -e 'has("id") | not' >/dev/null \
   || fail "dashboard: imported body kept the top-level id (the gateway 400s on write)"
