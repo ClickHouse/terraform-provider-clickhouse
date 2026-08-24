@@ -173,8 +173,6 @@ jobs:
           s3_bucket_url: ${{ matrix.test.name == 'clickpipes' && secrets.S3_BUCKET_URL || '' }}
           postgres_host: ${{ matrix.test.name == 'clickpipes' && secrets.POSTGRES_HOST || '' }}
           postgres_password: ${{ matrix.test.name == 'clickpipes' && secrets.POSTGRES_PASSWORD || '' }}
-          clickstack_service_id: ${{ matrix.test.name == 'clickstack' && secrets.CLICKSTACK_SERVICE_ID || '' }}
-          clickstack_connection_id: ${{ matrix.test.name == 'clickstack' && secrets.CLICKSTACK_CONNECTION_ID || '' }}
 
       - name: Cleanup Cloud
         if: always()
@@ -263,8 +261,6 @@ jobs:
           s3_bucket_url: ${{ matrix.test.name == 'clickpipes' && secrets.S3_BUCKET_URL || '' }}
           postgres_host: ${{ matrix.test.name == 'clickpipes' && secrets.POSTGRES_HOST || '' }}
           postgres_password: ${{ matrix.test.name == 'clickpipes' && secrets.POSTGRES_PASSWORD || '' }}
-          clickstack_service_id: ${{ matrix.test.name == 'clickstack' && secrets.CLICKSTACK_SERVICE_ID || '' }}
-          clickstack_connection_id: ${{ matrix.test.name == 'clickstack' && secrets.CLICKSTACK_CONNECTION_ID || '' }}
 
       - name: Cleanup Cloud
         if: always()

@@ -14,10 +14,10 @@
 # so the client never sends the x-hdx-team header and rejects a `team` attribute
 # outright (internal/service/clickstack/client/client.go).
 #
-# Roles and teams are deliberately absent. On Cloud they are managed through
-# ClickHouse Cloud (clickhouse_role / clickhouse_role_assignment), not
-# ClickStack, so clickhouse_clickstack_{role,team,team_member} are self-hosted
-# only and their endpoints 404 here by design.
+# Teams are deliberately absent: the ClickStack team endpoints 404 on Cloud by
+# design, so clickhouse_clickstack_{team,team_member} are self-hosted only.
+# Roles are not — ClickStack RBAC is its own system, separate from Cloud's, and
+# serves full CRUD here.
 
 variable "organization_id" {
   type = string
@@ -50,6 +50,17 @@ variable "suffix" {
   default = ""
 }
 
+# The e2e run applies twice: once with this false, once true. Without it the run
+# only ever covers create and destroy, and every in-place update path (the API's
+# PUT routes) goes untested. The dashboard changes are the ones that matter:
+# renaming a tile exercises the tile-id carry-forward that keeps UI-created tile
+# alerts bound, and adding a filter exercises the filter-id minting the Cloud API
+# requires on update but rejects on create.
+variable "update_pass" {
+  type    = bool
+  default = false
+}
+
 resource "clickhouse_clickstack_source" "logs" {
   name          = "tf-e2e-logs${var.suffix}"
   kind          = "log"
@@ -71,7 +82,10 @@ resource "clickhouse_clickstack_source" "logs" {
 
   # Nested list blocks, so refresh round-trips the nested mappers rather than
   # scalar fields only.
-  query_settings = [
+  query_settings = var.update_pass ? [
+    { setting = "max_threads", value = "8" },
+    { setting = "max_execution_time", value = "30" },
+    ] : [
     { setting = "max_threads", value = "4" },
   ]
 
@@ -84,7 +98,7 @@ resource "clickhouse_clickstack_saved_search" "errors" {
   name           = "tf-e2e-errors${var.suffix}"
   source_id      = clickhouse_clickstack_source.logs.id
   select         = "Timestamp, ServiceName, Body"
-  where          = "SeverityText = 'ERROR'"
+  where          = var.update_pass ? "SeverityText IN ('ERROR', 'FATAL')" : "SeverityText = 'ERROR'"
   where_language = "sql"
   tags           = ["terraform", "e2e"]
 }
@@ -104,7 +118,7 @@ resource "clickhouse_clickstack_alert" "too_many_errors" {
     webhook_id = clickhouse_clickstack_webhook.alerts.id
   }
 
-  threshold      = 100
+  threshold      = var.update_pass ? 200 : 100
   threshold_type = "above"
 
   # Longest supported window, deliberately. CRUD coverage is identical at any
@@ -116,15 +130,51 @@ resource "clickhouse_clickstack_alert" "too_many_errors" {
   message = "Error volume exceeded threshold"
 }
 
+# Custom RBAC role. ClickStack RBAC is its own system: it governs ClickStack
+# objects, and a role created here does not appear in Cloud's role list, so
+# clickhouse_role is not a substitute. Covered because nothing else exercises the
+# permission round-trip against Cloud — the API auto-injects a `read Connection`
+# rule the config never asked for, and the resource has to filter it back out or
+# every plan drifts.
+resource "clickhouse_clickstack_role" "readonly" {
+  name        = "tf-e2e-readonly${var.suffix}"
+  description = var.update_pass ? "Read-only, plus alerts" : "Read-only e2e role"
+
+  permissions = var.update_pass ? [
+    { action = "read", subject = "Dashboard" },
+    { action = "read", subject = "Source" },
+    { action = "manage", subject = "Alert" },
+    ] : [
+    { action = "read", subject = "Dashboard" },
+    { action = "read", subject = "Source" },
+  ]
+}
+
 # Covers both tile shapes, and with them POST /dashboards/validate: one tile
 # driven by a ClickStack source, one by a raw SQL query on the connection.
 resource "clickhouse_clickstack_dashboard" "e2e" {
   dashboard_json = jsonencode({
     name = "tf-e2e${var.suffix}"
     tags = ["terraform", "e2e"]
+
+    # Filters are absent on the create pass and present on the update pass. The
+    # asymmetry is the point: POST rejects a filter carrying an id, PUT requires
+    # one on every filter, so the provider has to mint them on update.
+    filters = var.update_pass ? [
+      {
+        type       = "QUERY_EXPRESSION"
+        name       = "errors-only"
+        expression = "SeverityText = 'ERROR'"
+        sourceId   = clickhouse_clickstack_source.logs.id
+      }
+    ] : []
+
     tiles = [
       {
-        name = "Log volume"
+        # Renamed on the update pass. Tile-id carry-forward matches on name, so
+        # a rename forces the positional fallback — the path that would silently
+        # drop a UI-created tile alert if it regressed.
+        name = var.update_pass ? "Log volume (renamed)" : "Log volume"
         x    = 0
         y    = 0
         w    = 6
@@ -176,4 +226,8 @@ output "alert_id" {
 
 output "dashboard_id" {
   value = clickhouse_clickstack_dashboard.e2e.id
+}
+
+output "role_id" {
+  value = clickhouse_clickstack_role.readonly.id
 }

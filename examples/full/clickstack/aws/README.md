@@ -54,11 +54,15 @@ Connections. On Cloud the connections endpoint is not exposed: the platform
 creates a single connection per service, pointing at itself, so
 `clickhouse_clickstack_connection` is self-hosted only.
 
-`clickhouse_clickstack_role`, `clickhouse_clickstack_team` and
-`clickhouse_clickstack_team_member`, likewise. On Cloud, roles and teams are
-managed through ClickHouse Cloud (`clickhouse_role`,
-`clickhouse_role_assignment`) and the ClickStack team endpoints 404 by design.
-Covering all of these needs a self-hosted (Docker) harness, not this one.
+`clickhouse_clickstack_team` and `clickhouse_clickstack_team_member`: the
+ClickStack team endpoints 404 on Cloud by design (see below). Covering them needs
+a self-hosted (Docker) harness, not this one.
+
+Roles *are* covered. ClickStack RBAC is a separate system from ClickHouse Cloud's
+own RBAC — it governs ClickStack objects (dashboards, saved searches, sources,
+webhooks, alerts, notebooks) and a role created through it does not show up in
+Cloud's role list. `clickhouse_role` manages Cloud organization RBAC and grants
+nothing in ClickStack, so it is not a substitute.
 
 There is no team id to fetch or pass: on Cloud a service *is* the ClickStack
 team, so the client never sends the `x-hdx-team` header and errors if a `team`
