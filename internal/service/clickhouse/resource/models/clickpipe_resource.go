@@ -836,41 +836,44 @@ func (m ClickPipeMongoDBTableMappingModel) ObjectValue() types.Object {
 }
 
 type ClickPipeMongoDBSourceModel struct {
-	URI            types.String `tfsdk:"uri"`
-	ReadPreference types.String `tfsdk:"read_preference"`
-	TLSHost        types.String `tfsdk:"tls_host"`
-	CACertificate  types.String `tfsdk:"ca_certificate"`
-	DisableTLS     types.Bool   `tfsdk:"disable_tls"`
-	Credentials    types.Object `tfsdk:"credentials"`
-	Settings       types.Object `tfsdk:"settings"`
-	TableMappings  types.Set    `tfsdk:"table_mappings"`
+	URI                  types.String `tfsdk:"uri"`
+	ReadPreference       types.String `tfsdk:"read_preference"`
+	TLSHost              types.String `tfsdk:"tls_host"`
+	CACertificate        types.String `tfsdk:"ca_certificate"`
+	DisableTLS           types.Bool   `tfsdk:"disable_tls"`
+	SkipCertVerification types.Bool   `tfsdk:"skip_cert_verification"`
+	Credentials          types.Object `tfsdk:"credentials"`
+	Settings             types.Object `tfsdk:"settings"`
+	TableMappings        types.Set    `tfsdk:"table_mappings"`
 }
 
 func (m ClickPipeMongoDBSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"uri":             types.StringType,
-			"read_preference": types.StringType,
-			"tls_host":        types.StringType,
-			"ca_certificate":  types.StringType,
-			"disable_tls":     types.BoolType,
-			"credentials":     ClickPipeSourceCredentialsModel{}.ObjectType(),
-			"settings":        ClickPipeMongoDBSettingsModel{}.ObjectType(),
-			"table_mappings":  types.SetType{ElemType: ClickPipeMongoDBTableMappingModel{}.ObjectType()},
+			"uri":                    types.StringType,
+			"read_preference":        types.StringType,
+			"tls_host":               types.StringType,
+			"ca_certificate":         types.StringType,
+			"disable_tls":            types.BoolType,
+			"skip_cert_verification": types.BoolType,
+			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"settings":               ClickPipeMongoDBSettingsModel{}.ObjectType(),
+			"table_mappings":         types.SetType{ElemType: ClickPipeMongoDBTableMappingModel{}.ObjectType()},
 		},
 	}
 }
 
 func (m ClickPipeMongoDBSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"uri":             m.URI,
-		"read_preference": m.ReadPreference,
-		"tls_host":        m.TLSHost,
-		"ca_certificate":  m.CACertificate,
-		"disable_tls":     m.DisableTLS,
-		"credentials":     m.Credentials,
-		"settings":        m.Settings,
-		"table_mappings":  m.TableMappings,
+		"uri":                    m.URI,
+		"read_preference":        m.ReadPreference,
+		"tls_host":               m.TLSHost,
+		"ca_certificate":         m.CACertificate,
+		"disable_tls":            m.DisableTLS,
+		"skip_cert_verification": m.SkipCertVerification,
+		"credentials":            m.Credentials,
+		"settings":               m.Settings,
+		"table_mappings":         m.TableMappings,
 	})
 }
 

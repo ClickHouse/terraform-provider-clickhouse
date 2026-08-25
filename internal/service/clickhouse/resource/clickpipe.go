@@ -1605,6 +1605,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Computed:    true,
 								Default:     booldefault.StaticBool(false),
 							},
+							"skip_cert_verification": schema.BoolAttribute{
+								Description: "Skip certificate verification for the MongoDB connection.",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+							},
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI.",
 								Optional:            true,
@@ -3764,6 +3770,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			v := mongodbModel.DisableTLS.ValueBool()
 			mongodbSource.DisableTLS = &v
 		}
+		if !mongodbModel.SkipCertVerification.IsNull() && !mongodbModel.SkipCertVerification.IsUnknown() {
+			v := mongodbModel.SkipCertVerification.ValueBool()
+			mongodbSource.SkipCertVerification = &v
+		}
 
 		source.MongoDB = mongodbSource
 	} else {
@@ -4893,6 +4903,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			mongodbModel.DisableTLS = types.BoolValue(*clickPipe.Source.MongoDB.DisableTLS)
 		} else {
 			mongodbModel.DisableTLS = stateMongoDBModel.DisableTLS
+		}
+
+		if clickPipe.Source.MongoDB.SkipCertVerification != nil {
+			mongodbModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.MongoDB.SkipCertVerification)
+		} else {
+			mongodbModel.SkipCertVerification = types.BoolValue(false)
 		}
 
 		if len(tableMappingList) > 0 {

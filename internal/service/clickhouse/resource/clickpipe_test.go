@@ -1265,14 +1265,15 @@ func buildMongoDBCredentialsPlan(password, passwordWO types.String, passwordWOVe
 			"use_json_native_format":             types.BoolNull(),
 		}
 		mongoAttrs := map[string]attr.Value{
-			"uri":             types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
-			"read_preference": types.StringValue("secondaryPreferred"),
-			"tls_host":        types.StringNull(),
-			"ca_certificate":  types.StringNull(),
-			"disable_tls":     types.BoolNull(),
-			"credentials":     types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
-			"settings":        types.ObjectValueMust(models.ClickPipeMongoDBSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
-			"table_mappings":  types.SetValueMust(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), []attr.Value{}),
+			"uri":                    types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
+			"read_preference":        types.StringValue("secondaryPreferred"),
+			"tls_host":               types.StringNull(),
+			"ca_certificate":         types.StringNull(),
+			"disable_tls":            types.BoolNull(),
+			"skip_cert_verification": types.BoolNull(),
+			"credentials":            types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":               types.ObjectValueMust(models.ClickPipeMongoDBSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings":         types.SetValueMust(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), []attr.Value{}),
 		}
 		sourceModel := models.ClickPipeSourceModel{
 			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
@@ -1570,11 +1571,12 @@ func getMongoDBInitialState() models.ClickPipeResourceModel {
 			MongoDB: types.ObjectValueMust(
 				models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes,
 				map[string]attr.Value{
-					"uri":             types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
-					"read_preference": types.StringValue("secondaryPreferred"),
-					"tls_host":        types.StringNull(),
-					"ca_certificate":  types.StringNull(),
-					"disable_tls":     types.BoolValue(false),
+					"uri":                    types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
+					"read_preference":        types.StringValue("secondaryPreferred"),
+					"tls_host":               types.StringNull(),
+					"ca_certificate":         types.StringNull(),
+					"disable_tls":            types.BoolValue(false),
+					"skip_cert_verification": types.BoolValue(false),
 					"credentials": types.ObjectValueMust(
 						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
 						map[string]attr.Value{

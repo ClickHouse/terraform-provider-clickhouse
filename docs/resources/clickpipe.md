@@ -338,6 +338,7 @@ Optional:
 - `ca_certificate` (String) PEM encoded CA certificate to validate the MongoDB server certificate.
 - `credentials` (Attributes, Sensitive) The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI. (see [below for nested schema](#nestedatt--source--mongodb--credentials))
 - `disable_tls` (Boolean) Disable TLS for the MongoDB connection. Defaults to false (TLS enabled).
+- `skip_cert_verification` (Boolean) Skip certificate verification for the MongoDB connection.
 - `tls_host` (String) TLS/SSL host for secure connections.
 
 <a id="nestedatt--source--mongodb--settings"></a>
