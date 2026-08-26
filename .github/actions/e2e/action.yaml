@@ -486,6 +486,16 @@ runs:
         echo "::group::Run terraform destroy"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
 
+        # Since destroy runs on failure too, it can now be reached before init
+        # ran or before anything was applied. Without this it fails on its own
+        # terms -- missing variables, no provider -- and buries the real error.
+        if [ ! -d .terraform ] || [ ! -s terraform.tfstate ]
+        then
+          echo "nothing applied, skipping destroy"
+          echo "::endgroup::"
+          exit 0
+        fi
+
         if [ "${{inputs.api_url}}" != "" ]
         then
           export CLICKHOUSE_API_URL="${{inputs.api_url}}"
