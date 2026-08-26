@@ -404,14 +404,15 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 			Postgres: types.ObjectValueMust(
 				models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes,
 				map[string]attr.Value{
-					"type":           types.StringValue("postgres"),
-					"host":           types.StringValue("postgres.example.com"),
-					"port":           types.Int64Value(5432),
-					"database":       types.StringValue("mydb"),
-					"authentication": types.StringNull(),
-					"iam_role":       types.StringNull(),
-					"tls_host":       types.StringNull(),
-					"ca_certificate": types.StringNull(),
+					"type":                types.StringValue("postgres"),
+					"host":                types.StringValue("postgres.example.com"),
+					"port":                types.Int64Value(5432),
+					"database":            types.StringValue("mydb"),
+					"ssh_key_resource_id": types.StringNull(),
+					"authentication":      types.StringNull(),
+					"iam_role":            types.StringNull(),
+					"tls_host":            types.StringNull(),
+					"ca_certificate":      types.StringNull(),
 					"credentials": types.ObjectValueMust(
 						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
 						map[string]attr.Value{
@@ -520,6 +521,7 @@ func buildKafkaMutualTLSPlan(certificate, privateKey types.String) models.ClickP
 		"ca_certificate":               types.StringNull(),
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 types.BoolNull(),
+		"ssh_key_resource_id":          types.StringNull(),
 	}
 
 	sourceModel := models.ClickPipeSourceModel{
@@ -615,17 +617,18 @@ func buildPostgresCredentialsPlan(password, passwordWO types.String, passwordWOV
 			"delete_on_merge":                    types.BoolNull(),
 		}
 		pgAttrs := map[string]attr.Value{
-			"type":           types.StringValue("postgres"),
-			"host":           types.StringValue("postgres.example.com"),
-			"port":           types.Int64Value(5432),
-			"database":       types.StringValue("mydb"),
-			"authentication": types.StringNull(),
-			"iam_role":       types.StringNull(),
-			"tls_host":       types.StringNull(),
-			"ca_certificate": types.StringNull(),
-			"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
-			"settings":       types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
-			"table_mappings": types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{}),
+			"type":                types.StringValue("postgres"),
+			"host":                types.StringValue("postgres.example.com"),
+			"port":                types.Int64Value(5432),
+			"database":            types.StringValue("mydb"),
+			"ssh_key_resource_id": types.StringNull(),
+			"authentication":      types.StringNull(),
+			"iam_role":            types.StringNull(),
+			"tls_host":            types.StringNull(),
+			"ca_certificate":      types.StringNull(),
+			"credentials":         types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":            types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings":      types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{}),
 		}
 		sourceModel := models.ClickPipeSourceModel{
 			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
@@ -722,6 +725,7 @@ func buildKafkaCredentialsPlan(password, passwordWO types.String, passwordWOVers
 			"ca_certificate":               types.StringNull(),
 			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 			"exactly_once":                 types.BoolNull(),
+			"ssh_key_resource_id":          types.StringNull(),
 		}
 		sourceModel := models.ClickPipeSourceModel{
 			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
@@ -820,6 +824,7 @@ func buildKafkaSchemaRegistryCredentialsPlan(password, passwordWO types.String, 
 			"ca_certificate":               types.StringNull(),
 			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 			"exactly_once":                 types.BoolNull(),
+			"ssh_key_resource_id":          types.StringNull(),
 		}
 		sourceModel := models.ClickPipeSourceModel{
 			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
@@ -912,6 +917,7 @@ func buildMySQLCredentialsPlan(password, passwordWO types.String, passwordWOVers
 			"ca_certificate":         types.StringNull(),
 			"disable_tls":            types.BoolNull(),
 			"skip_cert_verification": types.BoolNull(),
+			"ssh_key_resource_id":    types.StringNull(),
 			"credentials":            types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
 			"settings":               types.ObjectValueMust(models.ClickPipeMySQLSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
 			"table_mappings":         types.SetValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType(), []attr.Value{}),
@@ -992,14 +998,15 @@ func buildMongoDBCredentialsPlan(password, passwordWO types.String, passwordWOVe
 			"use_json_native_format":             types.BoolNull(),
 		}
 		mongoAttrs := map[string]attr.Value{
-			"uri":             types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
-			"read_preference": types.StringValue("secondaryPreferred"),
-			"tls_host":        types.StringNull(),
-			"ca_certificate":  types.StringNull(),
-			"disable_tls":     types.BoolNull(),
-			"credentials":     types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
-			"settings":        types.ObjectValueMust(models.ClickPipeMongoDBSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
-			"table_mappings":  types.SetValueMust(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), []attr.Value{}),
+			"uri":                 types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
+			"read_preference":     types.StringValue("secondaryPreferred"),
+			"tls_host":            types.StringNull(),
+			"ca_certificate":      types.StringNull(),
+			"disable_tls":         types.BoolNull(),
+			"ssh_key_resource_id": types.StringNull(),
+			"credentials":         types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"settings":            types.ObjectValueMust(models.ClickPipeMongoDBSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
+			"table_mappings":      types.SetValueMust(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), []attr.Value{}),
 		}
 		sourceModel := models.ClickPipeSourceModel{
 			Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
@@ -1297,11 +1304,12 @@ func getMongoDBInitialState() models.ClickPipeResourceModel {
 			MongoDB: types.ObjectValueMust(
 				models.ClickPipeMongoDBSourceModel{}.ObjectType().AttrTypes,
 				map[string]attr.Value{
-					"uri":             types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
-					"read_preference": types.StringValue("secondaryPreferred"),
-					"tls_host":        types.StringNull(),
-					"ca_certificate":  types.StringNull(),
-					"disable_tls":     types.BoolValue(false),
+					"uri":                 types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
+					"read_preference":     types.StringValue("secondaryPreferred"),
+					"tls_host":            types.StringNull(),
+					"ca_certificate":      types.StringNull(),
+					"disable_tls":         types.BoolValue(false),
+					"ssh_key_resource_id": types.StringNull(),
 					"credentials": types.ObjectValueMust(
 						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
 						map[string]attr.Value{

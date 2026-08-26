@@ -30,6 +30,7 @@ func buildKafkaExactlyOncePlan(exactlyOnce types.Bool) models.ClickPipeResourceM
 		"ca_certificate":               types.StringNull(),
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 exactlyOnce,
+		"ssh_key_resource_id":          types.StringNull(),
 	}
 	sourceModel := models.ClickPipeSourceModel{
 		Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
