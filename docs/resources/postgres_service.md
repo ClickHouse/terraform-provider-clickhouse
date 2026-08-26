@@ -3,7 +3,7 @@
 page_title: "clickhouse_postgres_service Resource - clickhouse"
 subcategory: "Postgres"
 description: |-
-  ~> Note: This resource is in alpha and its behavior may change in future provider versions.
+  ~> Note: This resource is in beta and its behavior may change in future provider versions.
   Manages a ClickHouse Cloud Managed Postgres https://clickhouse.com/cloud/postgres
   service. A Managed Postgres service is a fully-managed Postgres instance
   provisioned in the ClickHouse Cloud control plane.
@@ -11,7 +11,7 @@ description: |-
   Create — standard, as a read replica (read_replica_of), or by
   point-in-time restore (restore_to_point_in_time)ReadUpdate — size, ha_type, tags, pg_config, pgbouncer_config,
   password rotationDeleteImport
-  Three companion data sources are also provided (alpha):
+  Three companion data sources are also provided (beta):
   clickhouse_postgres_service, clickhouse_postgres_services, and
   clickhouse_postgres_service_ca_certificates.
   Unsupported attributes
@@ -156,7 +156,7 @@ description: |-
 
 # clickhouse_postgres_service (Resource)
 
-~> **Note:** This resource is in alpha and its behavior may change in future provider versions.
+~> **Note:** This resource is in beta and its behavior may change in future provider versions.
 
 Manages a [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)
 service. A Managed Postgres service is a fully-managed Postgres instance
@@ -172,7 +172,7 @@ provisioned in the ClickHouse Cloud control plane.
 - Delete
 - Import
 
-Three companion data sources are also provided (alpha):
+Three companion data sources are also provided (beta):
 `clickhouse_postgres_service`, `clickhouse_postgres_services`, and
 `clickhouse_postgres_service_ca_certificates`.
 

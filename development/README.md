@@ -85,7 +85,7 @@ Code will be formatted and docs generated before each commit.
 To run the provider with debug logging enabled:
 
 ```bash
-go run -tags alpha main.go --debug
+go run main.go --debug
 ```
 
 For more information on debugging Terraform providers, see the [official debugging guide](https://developer.hashicorp.com/terraform/plugin/framework/debugging).

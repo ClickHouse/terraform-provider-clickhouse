@@ -29,15 +29,13 @@ jobs:
   validate:
     runs-on: k8s-nano
     outputs:
-      enable_alpha: ${{ steps.check.outputs.enable_alpha }}
-      goreleaser_config: ${{ steps.check.outputs.goreleaser_config }}
+      enable_beta: ${{ steps.check.outputs.enable_beta }}
     steps:
       - name: Check input
         id: check
         run: |
           version="${{ inputs.version }}"
-          enable_alpha=""
-          goreleaser_config=""
+          enable_beta=""
 
           # validate semver.
           if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
@@ -45,20 +43,17 @@ jobs:
 
             if [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
               # Release is something like x.y.z
-              enable_alpha="false"
-              goreleaser_config=".goreleaser-stable.yml"
+              enable_beta="false"
             else
               # Release is something like x.y.z-something
-              enable_alpha="true"
-              goreleaser_config=".goreleaser-alpha.yml"
+              enable_beta="true"
             fi
           else
             echo "Invalid semver: \"$version\". Must be something like 1.2.3 without leading \"v\""
             exit 1
           fi
 
-          echo "enable_alpha=${enable_alpha}" >> "${GITHUB_OUTPUT}"
-          echo "goreleaser_config=${goreleaser_config}" >> "${GITHUB_OUTPUT}"
+          echo "enable_beta=${enable_beta}" >> "${GITHUB_OUTPUT}"
 
   # Generate a random token to tag the tests with
   token:
@@ -423,7 +418,7 @@ jobs:
           cache: true
 
       - name: Bump provider version in examples for stable version
-        if: ${{ needs.validate.outputs.enable_alpha == 'false' }}
+        if: ${{ needs.validate.outputs.enable_beta == 'false' }}
         run: |
           version="${{ inputs.version }}"
 
@@ -432,21 +427,6 @@ jobs:
           for f in `find . -name provider.tf.template`
           do
             dst="${f%.template}"
-            cat $f | envsubst > $dst
-
-            sed -i '1s/^/# This file is generated automatically please do not edit\n/' $dst
-          done
-
-      - name: Bump provider version in examples for alpha version
-        if: ${{ needs.validate.outputs.enable_alpha == 'true' }}
-        run: |
-          version="${{ inputs.version }}"
-
-          # Bump semver in examples
-          export CLICKHOUSE_TERRAFORM_PROVIDER_VERSION="$version"
-          for f in `find . -name provider.tf.template.alpha`
-          do
-            dst="${f%.template.alpha}"
             cat $f | envsubst > $dst
 
             sed -i '1s/^/# This file is generated automatically please do not edit\n/' $dst
@@ -464,15 +444,9 @@ jobs:
           terraform_version: "1.11.4"
           terraform_wrapper: false
 
-      - name: Build docs for stable release
-        if: ${{ needs.validate.outputs.enable_alpha == 'false' }}
+      - name: Build docs
         run: |
           make docs
-
-      - name: Build docs for alpha release
-        if: ${{ needs.validate.outputs.enable_alpha == 'true' }}
-        run: |
-          make docs-alpha
 
       - name: Commit
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
@@ -554,7 +528,7 @@ jobs:
 
       - name: Get previous stable tag
         id: prev_tag
-        if: ${{ needs.validate.outputs.enable_alpha == 'false' }}
+        if: ${{ needs.validate.outputs.enable_beta == 'false' }}
         run: |
           current="v${{ inputs.version }}"
           # Find the most recent stable tag (no pre-release suffix) before the current one
@@ -585,55 +559,10 @@ jobs:
           shell: bash
           command: |
             set -eo pipefail
-            goreleaser release --clean --config ${{ needs.validate.outputs.goreleaser_config }}
+            goreleaser release --clean --config .goreleaser.yml
         env:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GORELEASER_PREVIOUS_TAG: ${{ steps.prev_tag.outputs.tag }}
 
-  # After an alpha release, remove the alpha docs from main branch
-  cleanup-alpha-examples:
-    needs: [ "validate", "goreleaser" ]
-    if: ${{ github.ref_name == 'main' && needs.validate.outputs.enable_alpha == 'true' }}
-    runs-on: k8s-small
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ssh-key: ${{secrets.DEPLOY_SSH_PRIVATE_KEY }}
-          ref: "main"
-
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: 'go.mod'
-          cache: true
-
-      - name: Build docs for stable release
-        run: |
-          make docs
-
-      - name: Commit
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          retry_wait_seconds: 15
-          shell: bash
-          command: |
-            set -eo pipefail
-            git add docs/resources/
-            if git diff --quiet --exit-code; then
-              echo "No changes detected"
-              exit 0
-            fi
-            git config --global user.name "Release Github Action"
-            git config --global user.email "bot@users.noreply.github.com"
-
-            # `|| true` lets a retry that already committed locally still push.
-            git commit -a -m "Remove alpha docs from main branch" || true
-            git push

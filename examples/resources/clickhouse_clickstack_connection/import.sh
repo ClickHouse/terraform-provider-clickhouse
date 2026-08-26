@@ -1,4 +1,6 @@
-# Connections can be imported by their ID.
+# Connections can be imported by their ID. Self-hosted ClickStack only: on
+# ClickHouse Cloud the connections endpoint is not exposed, so there is nothing
+# for this resource to import or manage.
 terraform import clickhouse_clickstack_connection.main 507f1f77bcf86cd799439012
 
 # For a connection in a non-default team (multi-team / EE deployments), prefix

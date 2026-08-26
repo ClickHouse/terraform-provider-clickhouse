@@ -58,8 +58,8 @@ func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.Metad
 	resp.TypeName = req.ProviderTypeName + "_postgres_service"
 }
 
-// ValidateConfig surfaces the alpha warning at plan time, matching the other
-// alpha resources (clickhouse_service_upgrade_window, …).
+// ValidateConfig surfaces the beta warning at plan time, matching the other
+// beta resources (clickhouse_service_upgrade_window, …).
 //
 // State-dependent rules are NOT enforced here: ValidateConfig is stateless, so
 // it can't tell a create from an update or read prior state. That covers the
@@ -69,7 +69,7 @@ func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.Metad
 // block (which needs is_primary from prior state). All of these live in
 // ModifyPlan, which has prior state.
 func (r *PostgresServiceResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.AlphaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
 }
 
 // configIsOrigin reports whether the config declares a read replica or restore.
@@ -679,7 +679,7 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 }
 
 func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
 
 	var state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)

@@ -87,7 +87,7 @@ func (d *dashboardDataSource) Configure(_ context.Context, req datasource.Config
 }
 
 func (d *dashboardDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	utils.AlphaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
+	utils.BetaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
 	var config dashboardDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {

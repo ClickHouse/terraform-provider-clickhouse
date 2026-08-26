@@ -5,7 +5,7 @@ The Terraform code deploys following resources:
 - 1 read replica of the primary
 - 3 data sources reading the primary back (by ID, all services, CA certificates)
 
-NOTE: `clickhouse_postgres_service` is an alpha resource — it ships in the regular provider build but its behavior may change in future provider versions.
+NOTE: `clickhouse_postgres_service` is a beta resource — it ships in the regular provider build but its behavior may change in future provider versions.
 
 ## How to run
 

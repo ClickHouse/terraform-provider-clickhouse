@@ -44,9 +44,9 @@ Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaki
 If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the `clickhouse_private_endpoint_registration` resource or the `private_endpoint_ids` attribute of the `clickhouse_service` resource,
 then a manual process is required after the upgrade. Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations](https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations) for more details.
 
-## ClickStack (alpha)
+## ClickStack (beta)
 
-This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) resources via the `clickhouse_clickstack_*` resources and data sources. These are in **alpha**: they emit an alpha warning at plan/apply time and their behavior may change in future releases.
+This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) resources via the `clickhouse_clickstack_*` resources and data sources. These are in **beta**: they emit a beta warning at plan/apply time and their behavior may change in future releases.
 
 How the `clickhouse_clickstack_*` resources authenticate depends on where ClickStack runs:
 
@@ -61,7 +61,7 @@ provider "clickhouse" {
 }
 ```
 
-On ClickHouse Cloud, ClickStack manages connections, sources, dashboards, alerts, saved searches and webhooks. Connections are read-only — the platform provisions them, so an imported connection can be read but not updated or destroyed (use `terraform state rm` to detach one). Roles, teams and team membership are managed through ClickHouse Cloud, not ClickStack — use the `clickhouse_role` and `clickhouse_role_assignment` resources — so the `clickhouse_clickstack_role`, `clickhouse_clickstack_team` and `clickhouse_clickstack_team_member` resources (and the `clickstack_role` data source) are for self-hosted ClickStack only. The `team` attribute on other resources is likewise not applicable on Cloud — a service is a single ClickStack team — and is rejected. Capability checks are server-side: an endpoint the Cloud API does not serve returns a route-not-found error, and newly exposed endpoints work without a provider upgrade.
+On ClickHouse Cloud, ClickStack manages sources, dashboards, alerts, saved searches, webhooks and roles. Connections are not exposed at all — the Cloud API does not serve the endpoint, and the platform creates a single connection per service pointing at itself, so `clickhouse_clickstack_connection` is for self-hosted ClickStack only; reference the Cloud connection by reading its id from an existing source. ClickStack RBAC is its own system, separate from ClickHouse Cloud's: `clickhouse_clickstack_role` governs ClickStack objects (dashboards, saved searches, sources, webhooks, alerts, notebooks) and works on Cloud as well as self-hosted. It is not interchangeable with `clickhouse_role`, which manages Cloud organization RBAC and grants nothing in ClickStack. Teams are the exception: the ClickStack team endpoints are not served on Cloud, so `clickhouse_clickstack_team` and `clickhouse_clickstack_team_member` are self-hosted only, and the `team` attribute on other resources is rejected there — a Cloud service is a single ClickStack team. Capability checks are server-side: an endpoint the Cloud API does not serve returns a route-not-found error, and newly exposed endpoints work without a provider upgrade.
 
 **Self-hosted ClickStack** (open source or EE) authenticates with its own credentials, separate from the ClickHouse Cloud credentials above:
 

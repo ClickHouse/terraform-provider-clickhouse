@@ -229,6 +229,34 @@ runs:
 
         echo "::endgroup::"
 
+    - shell: bash
+      name: Discover ClickStack service and connection
+      # Runs before the upgrade test on purpose: that job applies with the same
+      # variables.tfvars, so the ids have to be in it by then.
+      #
+      # Credentials come in through env rather than ${{ }} interpolation, so a
+      # secret containing a quote or $( ) is data to bash, never script. This is
+      # also the only step that needs CLICKHOUSE_API_URL at this point -- every
+      # other one exports it inside its own run block, and those do not carry.
+      if: ${{ steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
+      env:
+        ORGANIZATION_ID: ${{ inputs.organization_id }}
+        TOKEN_KEY: ${{ inputs.token_key }}
+        TOKEN_SECRET: ${{ inputs.token_secret }}
+        CLICKHOUSE_API_URL: ${{ inputs.api_url }}
+      run: |
+        EXAMPLE_DIR="examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+
+        if ! grep -rqs 'variable "clickstack_service_id"' "$EXAMPLE_DIR"/*.tf
+        then
+          echo "not a ClickStack example, skipping discovery"
+          exit 0
+        fi
+
+        echo "::group::Discover ClickStack service and connection"
+        bash ./.github/scripts/discover_clickstack_ids.sh "$EXAMPLE_DIR/variables.tfvars"
+        echo "::endgroup::"
+
     - id: get_latest_stable_release
       if: ${{ inputs.upgrade_test == 'true' && steps.defined.outputs.defined == 'true' }}
       name: Upgrade test - Retrieve latest stable version
@@ -243,16 +271,22 @@ runs:
 
           if [ "${{ inputs.upgrade_from }}" == "" ]
           then
-            # Get latest stable release
-            LATEST="$(curl -s -L -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/ClickHouse/terraform-provider-clickhouse/releases/latest | jq -r '.name')"
+            # Ask the registry, not the GitHub releases API: the registry is what
+            # `terraform init` installs from, so it can't name a version this test
+            # is unable to install. Releases sit as drafts for hours after the tag
+            # is pushed, so the two disagree. x.y.z filter drops alpha versions.
+            # `|| true` so a failed fetch reaches the error message below.
+            LATEST="$(curl -sfL https://registry.terraform.io/v1/providers/ClickHouse/clickhouse/versions \
+              | jq -r '.versions[].version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' \
+              | sort -V | tail -1)" || true
 
-            if [ "$LATEST" == "null" ]
+            if [ -z "$LATEST" ]
             then
-              echo "Error getting latest release"
+              echo "Error getting latest stable version from the Terraform registry"
               exit 1
             fi
 
-            echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
+            echo "tag=v$LATEST" >> "$GITHUB_OUTPUT"
           else
             echo "tag=${{ inputs.upgrade_from }}" >> "$GITHUB_OUTPUT"
           fi
@@ -283,9 +317,11 @@ runs:
             exit 0
           fi
 
-          # Skip if the test was alpha-only at this tag (no stable provider template).
-          # Alpha resources aren't in stable registry releases and alpha versions are
-          # not published to the Terraform registry, so the upgrade test can't run.
+          # Skip if the test was pre-release-only at this tag (no stable provider
+          # template), because there is no stable version to upgrade from.
+          # This inspects an older tag's checkout, so it keeps the historical
+          # .alpha suffix. Those files were dropped in #559, so this only still
+          # matches when upgrade_from points at a tag older than that.
           if [ ! -f "$test_dir/provider.tf.template" ] && [ -f "$test_dir/provider.tf.template.alpha" ]
           then
             echo "::group::Skipping upgrade E2E test as ${{ inputs.test_name }} was alpha-only in version ${{ steps.get_latest_stable_release.outputs.tag }}"
@@ -323,7 +359,7 @@ runs:
         git checkout ${{ github.ref }}
         echo "::group::Build provider from branch and create terraformrc to use it"
         go get
-        go build -tags alpha -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.commit=${{ github.sha }}'
+        go build -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.commit=${{ github.sha }}'
 
         cat <<EOF >$HOME/.terraformrc
         provider_installation {
@@ -378,8 +414,74 @@ runs:
           echo "::endgroup::"
 
     - shell: bash
-      name: Terraform destroy
+      name: Terraform import test
+      # Opt-in: runs the example's own e2e-import.sh, which re-imports what the
+      # apply created and checks the imported state is usable. Most of the bugs
+      # the ClickStack resources have shipped were import bugs, and nothing else
+      # in this workflow touches the import path.
+      #
+      # Runs before the update test on purpose: the import check asserts a clean
+      # plan, which only holds while the config still matches what was applied.
       if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
+      run: |
+        cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+
+        if [ ! -f e2e-import.sh ]
+        then
+          echo "no e2e-import.sh in this example, skipping the import test"
+          exit 0
+        fi
+
+        echo "::group::Run terraform import test"
+
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+        fi
+
+        bash ./e2e-import.sh variables.tfvars
+
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Terraform update test
+      # Opt-in: any example that declares an `update_pass` variable gets a second
+      # apply with it flipped on. Without this the run only ever covers create and
+      # destroy, so every in-place update (the API's PUT routes) goes untested.
+      if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
+      run: |
+        cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+
+        if ! grep -rqs 'variable "update_pass"' ./*.tf
+        then
+          echo "no update_pass variable in this example, skipping the update test"
+          exit 0
+        fi
+
+        echo "::group::Run terraform update test"
+
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+        fi
+
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+          export TF_LOG=debug
+        fi
+
+        terraform plan -no-color -var-file=variables.tfvars -var update_pass=true
+        terraform apply -no-color -auto-approve -var-file=variables.tfvars -var update_pass=true
+
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Terraform destroy
+      # !cancelled() rather than the plain guard: the import and update steps are
+      # assertions, so the first time one legitimately fails it would otherwise
+      # skip teardown. Most examples get swept by the service delete afterwards,
+      # but ClickStack objects live on a shared long-lived service that nothing
+      # sweeps, so a skipped destroy strands them.
+      if: ${{ !cancelled() && steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
       run: |
         echo "::group::Run terraform destroy"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
