@@ -102,35 +102,6 @@ func (m rfc3339EqualPlanModifier) PlanModifyString(_ context.Context, req planmo
 	}
 }
 
-// emptyStringEqualsNullPlanModifier treats an unset attribute and an empty
-// string as the same value: when the config omits the attribute and state holds
-// "", the state value is kept so no diff is produced.
-//
-// The ClickStack API echoes an unset optional expression back as "" rather than
-// omitting it, so an imported source whose config leaves those fields out would
-// otherwise show `- event_attributes_expression = "" -> null` as an
-// update-in-place on every plan. Sending "" and sending nothing are equivalent
-// to the API, so keeping "" loses nothing.
-type emptyStringEqualsNullPlanModifier struct{}
-
-func (m emptyStringEqualsNullPlanModifier) Description(_ context.Context) string {
-	return "Treats an omitted attribute and an empty string as equal, so a server-echoed \"\" does not show as a diff."
-}
-
-func (m emptyStringEqualsNullPlanModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (m emptyStringEqualsNullPlanModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	if !req.ConfigValue.IsNull() {
-		return
-	}
-	if req.StateValue.IsNull() || req.StateValue.IsUnknown() || req.StateValue.ValueString() != "" {
-		return
-	}
-	resp.PlanValue = req.StateValue
-}
-
 // jsonEqualPlanModifier suppresses a spurious diff on a JSON-string attribute
 // when the config and stored state are semantically equal (same JSON, possibly
 // reformatted or with reordered object keys).

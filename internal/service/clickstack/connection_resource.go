@@ -55,7 +55,11 @@ func (r *connectionResource) Metadata(_ context.Context, req resource.MetadataRe
 func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickHouse connection in ClickStack. Connections hold the " +
-			"credentials and endpoint used by sources to query ClickHouse.",
+			"credentials and endpoint used by sources to query ClickHouse. " +
+			"**Note:** on ClickHouse Cloud the connections endpoint is not exposed, and each " +
+			"service has a single connection to itself that the platform creates; this resource " +
+			"is for self-hosted ClickStack. To point a source at the Cloud connection, read its " +
+			"id from an existing source rather than creating one here.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed:    true,

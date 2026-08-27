@@ -5,15 +5,12 @@ terraform {
       version = "3.25.3"
       source  = "ClickHouse/clickhouse"
     }
-    archive = {
-      version = "~> 2.4"
-      source  = "hashicorp/archive"
-    }
   }
 }
 
 provider "clickhouse" {
-  organization_id = var.organization_id
-  token_key       = var.token_key
-  token_secret    = var.token_secret
+  organization_id       = var.organization_id
+  token_key             = var.token_key
+  token_secret          = var.token_secret
+  clickstack_service_id = var.clickstack_service_id
 }
