@@ -229,6 +229,34 @@ runs:
 
         echo "::endgroup::"
 
+    - shell: bash
+      name: Discover ClickStack service and connection
+      # Runs before the upgrade test on purpose: that job applies with the same
+      # variables.tfvars, so the ids have to be in it by then.
+      #
+      # Credentials come in through env rather than ${{ }} interpolation, so a
+      # secret containing a quote or $( ) is data to bash, never script. This is
+      # also the only step that needs CLICKHOUSE_API_URL at this point -- every
+      # other one exports it inside its own run block, and those do not carry.
+      if: ${{ steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
+      env:
+        ORGANIZATION_ID: ${{ inputs.organization_id }}
+        TOKEN_KEY: ${{ inputs.token_key }}
+        TOKEN_SECRET: ${{ inputs.token_secret }}
+        CLICKHOUSE_API_URL: ${{ inputs.api_url }}
+      run: |
+        EXAMPLE_DIR="examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+
+        if ! grep -rqs 'variable "clickstack_service_id"' "$EXAMPLE_DIR"/*.tf
+        then
+          echo "not a ClickStack example, skipping discovery"
+          exit 0
+        fi
+
+        echo "::group::Discover ClickStack service and connection"
+        bash ./.github/scripts/discover_clickstack_ids.sh "$EXAMPLE_DIR/variables.tfvars"
+        echo "::endgroup::"
+
     - id: get_latest_stable_release
       if: ${{ inputs.upgrade_test == 'true' && steps.defined.outputs.defined == 'true' }}
       name: Upgrade test - Retrieve latest stable version
@@ -386,11 +414,100 @@ runs:
           echo "::endgroup::"
 
     - shell: bash
-      name: Terraform destroy
+      name: Terraform import test
+      # Opt-in: runs the example's own e2e-import.sh, which re-imports what the
+      # apply created and checks the imported state is usable. Most of the bugs
+      # the ClickStack resources have shipped were import bugs, and nothing else
+      # in this workflow touches the import path.
+      #
+      # Runs before the update test on purpose: the import check asserts a clean
+      # plan, which only holds while the config still matches what was applied.
       if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
+      run: |
+        cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+
+        if [ ! -f e2e-import.sh ]
+        then
+          echo "no e2e-import.sh in this example, skipping the import test"
+          exit 0
+        fi
+
+        echo "::group::Run terraform import test"
+
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+        fi
+
+        bash ./e2e-import.sh variables.tfvars
+
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Terraform update test
+      # Opt-in: any example that declares an `update_pass` variable gets a second
+      # apply with it flipped on. Without this the run only ever covers create and
+      # destroy, so every in-place update (the API's PUT routes) goes untested.
+      if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
+      run: |
+        cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+
+        if ! grep -rqs 'variable "update_pass"' ./*.tf
+        then
+          echo "no update_pass variable in this example, skipping the update test"
+          exit 0
+        fi
+
+        echo "::group::Run terraform update test"
+
+        if [ "${{inputs.api_url}}" != "" ]
+        then
+          export CLICKHOUSE_API_URL="${{inputs.api_url}}"
+        fi
+
+        if [[ "${ACTIONS_RUNNER_DEBUG:-}" == "true" ]] || [[ "${ACTIONS_STEP_DEBUG:-}" == "true" ]]; then
+          export TF_LOG=debug
+        fi
+
+        terraform plan -no-color -var-file=variables.tfvars -var update_pass=true
+        terraform apply -no-color -auto-approve -var-file=variables.tfvars -var update_pass=true
+
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Terraform destroy
+      # !cancelled() rather than the plain guard: the import and update steps are
+      # assertions, so the first time one legitimately fails it would otherwise
+      # skip teardown. Most examples get swept by the service delete afterwards,
+      # but ClickStack objects live on a shared long-lived service that nothing
+      # sweeps, so a skipped destroy strands them.
+      if: ${{ !cancelled() && steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
       run: |
         echo "::group::Run terraform destroy"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
+
+        # Since destroy runs on failure too, it can now be reached before
+        # anything was applied. Without this it fails on its own terms -- missing
+        # variables, no provider -- and buries the real error.
+        #
+        # Keyed on state holding resources, NOT on .terraform existing: an
+        # example whose only provider is dev-overridden has nothing for init to
+        # install, so no .terraform directory is ever created and that test would
+        # skip its own teardown on every run.
+        # Only skip on a positive count of zero. Unreadable state means resources
+        # probably do exist, so attempt the destroy and let terraform say why.
+        resource_count="unknown"
+        if [ -s terraform.tfstate ]
+        then
+          resource_count="$(jq -r '.resources | length' terraform.tfstate 2>/dev/null || echo unknown)"
+        fi
+
+        if [ ! -s terraform.tfstate ] || [ "$resource_count" = "0" ]
+        then
+          echo "nothing applied, skipping destroy"
+          echo "::endgroup::"
+          exit 0
+        fi
 
         if [ "${{inputs.api_url}}" != "" ]
         then

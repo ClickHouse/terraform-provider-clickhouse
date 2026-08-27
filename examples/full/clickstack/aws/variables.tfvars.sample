@@ -1,0 +1,12 @@
+organization_id = "your-org-id"
+token_key       = "your-token-key"
+token_secret    = "your-token-secret"
+
+# The long-lived service with ClickStack onboarded, and its platform-created
+# connection. See the README for how to find both.
+clickstack_service_id = "your-service-id"
+connection_id         = "your-connection-id"
+
+# Appended to the ClickStack object names so runs don't collide on the shared
+# service.
+suffix = "-local"
