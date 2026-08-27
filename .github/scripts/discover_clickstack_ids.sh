@@ -15,11 +15,32 @@ VAR_FILE="${1:?usage: discover_clickstack_ids.sh <path-to-variables.tfvars>}"
 API_URL="${CLICKHOUSE_API_URL:-https://api.clickhouse.cloud/v1}"
 ORG_URL="${API_URL}/organizations/${ORGANIZATION_ID}"
 
-# Bounded and retried: a flaky probe would otherwise abort the whole e2e run,
-# and this step is not inside the retry wrapper the terraform steps use.
-CURL_OPTS=(-sS --connect-timeout 10 --max-time 60 --retry 3 --retry-delay 2 --retry-all-errors)
+# Bounded and retried: a flaky call would otherwise abort the whole e2e run, and
+# this step is not inside the retry wrapper the terraform steps use.
+# No --retry-all-errors, and no `-o /dev/null` on the probe below. That pair made
+# curl exit 23 (write error) on the runner while passing locally; whether the
+# trigger was the option combination or a retry against a transient gateway error
+# was never pinned down, so both went. Nothing here needs retries on
+# non-transient errors regardless.
+CURL_OPTS=(-sS --connect-timeout 10 --max-time 60 --retry 3 --retry-delay 2)
 
 api() { curl "${CURL_OPTS[@]}" --user "${TOKEN_KEY}:${TOKEN_SECRET}" "$@"; }
+
+# Returns the response body on stdout and the status code in http_code. Every
+# caller checks the curl exit status: an unguarded call under `set -e` kills the
+# script with curl's numeric exit and no message, which is exactly how the
+# original probe failed silently.
+http_code=""
+api_probe() {
+  local url="$1" out rc
+  if ! out=$(api -w '\n%{http_code}' "$url"); then
+    rc=$?
+    echo "::error::curl failed (exit ${rc}) requesting ${url}" >&2
+    return "$rc"
+  fi
+  http_code=$(printf '%s' "$out" | tail -n1)
+  printf '%s' "$out" | sed '$d'
+}
 
 services=$(api "${ORG_URL}/services") || {
   echo "::error::Could not list services in organization ${ORGANIZATION_ID}." >&2
@@ -39,12 +60,12 @@ jq -e 'has("result")' <<<"$services" >/dev/null || {
 service_id=""
 while IFS=$'\t' read -r id name; do
   [ -n "$id" ] || continue
-  code=$(api -o /dev/null -w '%{http_code}' "${ORG_URL}/services/${id}/clickstack/sources")
-  case "$code" in
+  api_probe "${ORG_URL}/services/${id}/clickstack/sources" >/dev/null || exit 1
+  case "$http_code" in
     200) ;;
     403) continue ;;
     *)
-      echo "::error::Probing service ${name} (${id}) returned ${code}; expected 200 (onboarded) or 403 (not onboarded)." >&2
+      echo "::error::Probing service ${name} (${id}) returned ${http_code}; expected 200 (onboarded) or 403 (not onboarded)." >&2
       exit 1
       ;;
   esac
