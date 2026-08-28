@@ -252,6 +252,7 @@ type ClickPipeMySQLTableMapping struct {
 	SortingKeys         []string `json:"sortingKeys,omitempty"`
 	TableEngine         *string  `json:"tableEngine,omitempty"`
 	PartitionKey        *string  `json:"partitionKey,omitempty"`
+	PartitionByExpr     *string  `json:"partitionByExpr,omitempty"`
 }
 
 type ClickPipeMongoDBSettings struct {

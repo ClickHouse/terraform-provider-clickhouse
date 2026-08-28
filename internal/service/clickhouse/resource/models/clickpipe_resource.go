@@ -685,6 +685,7 @@ type ClickPipeMySQLTableMappingModel struct {
 	SortingKeys         types.List   `tfsdk:"sorting_keys"`
 	TableEngine         types.String `tfsdk:"table_engine"`
 	PartitionKey        types.String `tfsdk:"partition_key"`
+	PartitionByExpr     types.String `tfsdk:"partition_by_expr"`
 }
 
 func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
@@ -698,6 +699,7 @@ func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
 			"sorting_keys":           types.ListType{ElemType: types.StringType},
 			"table_engine":           types.StringType,
 			"partition_key":          types.StringType,
+			"partition_by_expr":      types.StringType,
 		},
 	}
 }
@@ -712,6 +714,7 @@ func (m ClickPipeMySQLTableMappingModel) ObjectValue() types.Object {
 		"sorting_keys":           m.SortingKeys,
 		"table_engine":           m.TableEngine,
 		"partition_key":          m.PartitionKey,
+		"partition_by_expr":      m.PartitionByExpr,
 	})
 }
 

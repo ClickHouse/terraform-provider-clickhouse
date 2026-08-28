@@ -1412,6 +1412,19 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Description: "Custom partitioning column used for parallel snapshotting. Must be an indexed column of integer, date, datetime, or timestamp type.",
 											Optional:    true,
 										},
+										"partition_by_expr": schema.StringAttribute{
+											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping: remove the mapping in one apply, then re-add it with the new value in a subsequent apply (re-adding re-snapshots the table).",
+											Optional:    true,
+											Validators: []validator.String{
+												// The API stores a blank expression as unset, which reads
+												// back as null and would produce "inconsistent result
+												// after apply". Omit the attribute instead of blanking it.
+												stringvalidator.RegexMatches(
+													regexp.MustCompile(`\S`),
+													"must not be empty or whitespace-only; omit the attribute instead",
+												),
+											},
+										},
 									},
 								},
 							},
@@ -2480,6 +2493,15 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 										} else if !stateMapping.UseCustomSortingKey.Equal(planMapping.UseCustomSortingKey) {
 											changed = true
 											changeDetail = "use_custom_sorting_key"
+										} else if !stateMapping.TableEngine.Equal(planMapping.TableEngine) {
+											changed = true
+											changeDetail = "table_engine"
+										} else if !stateMapping.PartitionKey.Equal(planMapping.PartitionKey) {
+											changed = true
+											changeDetail = "partition_key"
+										} else if !stateMapping.PartitionByExpr.Equal(planMapping.PartitionByExpr) {
+											changed = true
+											changeDetail = "partition_by_expr"
 										}
 
 										if changed {
@@ -3834,6 +3856,10 @@ func convertMySQLTableMappingModelToAPI(ctx context.Context, diagnostics *diag.D
 		mapping.PartitionKey = mappingModel.PartitionKey.ValueStringPointer()
 	}
 
+	if !mappingModel.PartitionByExpr.IsNull() {
+		mapping.PartitionByExpr = mappingModel.PartitionByExpr.ValueStringPointer()
+	}
+
 	return mapping
 }
 
@@ -4660,6 +4686,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				tableMappingModel.PartitionKey = types.StringValue(*mapping.PartitionKey)
 			} else {
 				tableMappingModel.PartitionKey = types.StringNull()
+			}
+
+			if mapping.PartitionByExpr != nil && *mapping.PartitionByExpr != "" {
+				tableMappingModel.PartitionByExpr = types.StringValue(*mapping.PartitionByExpr)
+			} else {
+				tableMappingModel.PartitionByExpr = types.StringNull()
 			}
 
 			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
