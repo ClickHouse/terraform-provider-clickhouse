@@ -188,10 +188,15 @@ func TestWaitForServiceState_failsFastOn403(t *testing.T) {
 	}
 }
 
-// A 429 is transient (server-side rate limiting), unlike the 4xx client
-// errors WaitForServiceState now fails fast on. It must not be treated as
-// permanent — the request should keep being retried until it succeeds.
-func TestWaitForServiceState_retriesOn429(t *testing.T) {
+// Transient 429s are absorbed by doRequest's own retry (within its
+// 61-second budget) and never reach the poll loop's error handling, so the
+// wait still succeeds rather than failing fast the way a 403 does.
+//
+// Note this does NOT exercise the 429 exclusion in is4xxPermanent: that
+// only matters for 429s sustained past doRequest's MaxElapsedTime, which
+// isn't reachable here without making that budget injectable.
+// TestIs4xxPermanent is what guards the exclusion itself.
+func TestWaitForServiceState_transient429IsAbsorbedByDoRequest(t *testing.T) {
 	var calls int32
 	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		n := atomic.AddInt32(&calls, 1)

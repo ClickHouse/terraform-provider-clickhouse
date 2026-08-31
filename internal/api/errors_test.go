@@ -104,8 +104,8 @@ func TestIs4xxPermanent(t *testing.T) {
 		{name: "403 is permanent", err: errors.New("status: 403, body: forbidden"), want: true},
 		{name: "400 is permanent", err: errors.New("status: 400, body: bad request"), want: true},
 		{name: "404 is permanent", err: errors.New("status: 404, body: not found"), want: true},
-		{name: "429 is NOT permanent - rate limiting is transient", err: errors.New("status: 429, body: too many requests"), want: false},
-		{name: "408 is NOT permanent - request timeout is transient", err: errors.New("status: 408, body: request timeout"), want: false},
+		{name: "429 is NOT permanent - rate limiting is transient and doRequest retries it", err: errors.New("status: 429, body: too many requests"), want: false},
+		{name: "408 is permanent - doRequest wraps it in backoff.Permanent, so both layers agree", err: errors.New("status: 408, body: request timeout"), want: true},
 		{name: "5xx is not a 4xx at all", err: errors.New("status: 503, body: unavailable"), want: false},
 		{name: "non-status error", err: errors.New("connection refused"), want: false},
 	}

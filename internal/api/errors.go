@@ -66,18 +66,21 @@ func is5xx(err error) bool {
 // etc.). Callers polling for a resource to reach some state should treat
 // this as terminal, not as "not there yet".
 //
-// 429 (rate limited) and 408 (request timeout) are excluded: both are
-// transient by definition. doRequest already retries a 429 internally
-// (honoring X-RateLimit-Reset) within its own bounded window
-// (backoff.WithMaxElapsedTime(61*time.Second) in doRequestWithStatus) — if
-// that budget is exhausted and a plain "status: 429" error reaches here,
-// it should still be retried by the caller's own backoff, not treated as
-// permanent.
+// 429 (rate limited) is excluded: it is transient by definition, and it is
+// the one 4xx doRequest itself retries rather than wrapping in
+// backoff.Permanent (honoring X-RateLimit-Reset, within its own bounded
+// backoff.WithMaxElapsedTime(61*time.Second) budget in
+// doRequestWithStatus). If that budget is exhausted and a bare
+// "status: 429" surfaces here, the caller's own backoff should keep
+// retrying it rather than failing outright.
+//
+// Every other 4xx — 408 included — is wrapped in backoff.Permanent by
+// doRequest's dispatch, so treating them as permanent here keeps both
+// layers agreeing about the same status.
 func is4xxPermanent(err error) bool {
 	if err == nil || !strings.HasPrefix(err.Error(), "status: 4") {
 		return false
 	}
 
-	msg := err.Error()
-	return !strings.HasPrefix(msg, "status: 429") && !strings.HasPrefix(msg, "status: 408")
+	return !strings.HasPrefix(err.Error(), "status: 429")
 }
