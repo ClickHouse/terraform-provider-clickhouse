@@ -141,20 +141,32 @@ func (c *ClientImpl) CreateService(ctx context.Context, s Service) (*Service, st
 func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error {
 	// Wait until service is in desired state
 	checkState := func() error {
-		service, err := c.GetService(ctx, serviceId)
+		// Only the state field is needed here, so poll the lightweight
+		// getServiceState instead of the full GetService — this also
+		// avoids requiring permissions on the private endpoint config,
+		// backup configuration, and query endpoints sub-resources just to
+		// wait for a state transition (e.g. right after creating a
+		// service with a token scoped to only that one instance).
+		state, err := c.getServiceState(ctx, serviceId)
 		if is5xx(err) {
-			// 500s are automatically retried in `GetService`.
+			// 500s are automatically retried in `doRequest`.
 			// If we get it here, we consider it an unrecoverable error.
+			return backoff.Permanent(err)
+		} else if is4xx(err) {
+			// A 4xx (e.g. a missing permission) will never resolve by
+			// retrying, and would otherwise be indistinguishable from
+			// "still provisioning" for the full duration of
+			// maxWaitSeconds. Fail immediately instead.
 			return backoff.Permanent(err)
 		} else if err != nil {
 			return err
 		}
 
-		if stateChecker(service.State) {
+		if stateChecker(state) {
 			return nil
 		}
 
-		return fmt.Errorf("service %s is in state %s", serviceId, service.State)
+		return fmt.Errorf("service %s is in state %s", serviceId, state)
 	}
 
 	if maxWaitSeconds < 5 {

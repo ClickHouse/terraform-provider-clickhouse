@@ -142,3 +142,48 @@ func TestGetServiceBase_SingleRequestNoEnrichment(t *testing.T) {
 		t.Errorf("GetServiceBase made %d HTTP calls; want exactly 1 (no enrichment)", n)
 	}
 }
+
+// WaitForServiceState only needs the service's state field, so it must poll
+// the lightweight base endpoint and never fan out to the private endpoint
+// config, backup configuration, or query endpoints sub-resources — those
+// require extra permissions that a caller polling right after creating a
+// service may not have.
+func TestWaitForServiceState_pollsLightweightEndpointOnly(t *testing.T) {
+	var calls int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		if r.URL.Path != "/organizations/org-1/services/svc-1" {
+			t.Errorf("unexpected request to %q; WaitForServiceState should only poll the base service endpoint", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: StateRunning}})
+	})
+
+	err := client.WaitForServiceState(context.Background(), "svc-1", func(state string) bool { return state == StateRunning }, 10)
+	if err != nil {
+		t.Fatalf("WaitForServiceState: %v", err)
+	}
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("WaitForServiceState made %d HTTP calls; want exactly 1", n)
+	}
+}
+
+// A 4xx (e.g. a permission the caller doesn't have) can never resolve by
+// retrying. WaitForServiceState must fail immediately instead of retrying it
+// for the full maxWaitSeconds, indistinguishable from the service genuinely
+// still being in its starting state.
+func TestWaitForServiceState_failsFastOn403(t *testing.T) {
+	var calls int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error":"FORBIDDEN","status":403}`))
+	})
+
+	err := client.WaitForServiceState(context.Background(), "svc-1", func(state string) bool { return state == StateRunning }, 25)
+	if err == nil {
+		t.Fatal("WaitForServiceState: want error, got nil")
+	}
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("WaitForServiceState made %d HTTP calls on a 403; want exactly 1 (no retries)", n)
+	}
+}

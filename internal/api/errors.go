@@ -60,3 +60,16 @@ func is5xx(err error) bool {
 
 	return strings.HasPrefix(err.Error(), "status: 5")
 }
+
+// is4xx reports whether err is any 4xx client error (bad request, unauthorized,
+// forbidden, not found, etc.). Unlike a 5xx, a 4xx is never transient — the
+// request itself is wrong or not permitted, and retrying it unchanged will
+// never succeed. Callers polling for a resource to reach some state should
+// treat a 4xx as terminal, not as "not there yet".
+func is4xx(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.HasPrefix(err.Error(), "status: 4")
+}
