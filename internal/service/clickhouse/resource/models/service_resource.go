@@ -214,6 +214,7 @@ type ServiceResourceModel struct {
 	DoubleSha1PasswordHash          types.String `tfsdk:"double_sha1_password_hash"`
 	PasswordWO                      types.String `tfsdk:"password_wo"`
 	PasswordWOVersion               types.Int64  `tfsdk:"password_wo_version"`
+	GeneratedPassword               types.String `tfsdk:"generated_password"`
 	Endpoints                       types.Object `tfsdk:"endpoints"`
 	CloudProvider                   types.String `tfsdk:"cloud_provider"`
 	Region                          types.String `tfsdk:"region"`

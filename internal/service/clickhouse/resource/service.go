@@ -190,6 +190,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					int64validator.AlsoRequires(path.Expressions{path.MatchRoot("password_wo")}...),
 				},
 			},
+			"generated_password": schema.StringAttribute{
+				Description: "The password the API assigned to the default user at creation time, when no `password`, `password_hash`, or non-empty `password_wo` was supplied. Only populated on create; if the password is changed afterward (via this provider or otherwise), this value is not updated and no longer reflects the current password. Useful for a one-time handoff — e.g. a caller that can create a service but has no permission to reset its password later.",
+				Computed:    true,
+				Sensitive:   true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"cloud_provider": schema.StringAttribute{
 				Description: "Cloud provider ('aws', 'gcp', or 'azure') in which the service is deployed in.",
 				Required:    true,
@@ -1427,7 +1435,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Create new service
-	s, _, err := r.client.CreateService(ctx, service)
+	s, generatedPassword, err := r.client.CreateService(ctx, service)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating service",
@@ -1435,6 +1443,11 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		)
 		return
 	}
+
+	// Set unless an explicit password is supplied below, in which case the
+	// API-assigned one this create call returned is immediately overwritten
+	// and never took effect.
+	plan.GeneratedPassword = types.StringValue(generatedPassword)
 
 	err = r.client.WaitForServiceState(ctx, s.Id, func(state string) bool { return state != api.StateProvisioning }, 90*60)
 	if err != nil {
@@ -1460,6 +1473,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				)
 				return
 			}
+			plan.GeneratedPassword = types.StringNull()
 		}
 
 		// Update hashed service password if provided explicitly
@@ -1480,6 +1494,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				)
 				return
 			}
+			plan.GeneratedPassword = types.StringNull()
 		}
 
 		// Set backup settings.
@@ -1511,6 +1526,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				return
 			}
 		}
+	} else {
+		// Secondary/hydra services share the parent instance's default user
+		// and never get their own password, generated or otherwise.
+		plan.GeneratedPassword = types.StringNull()
 	}
 
 	// Set query api endpoints

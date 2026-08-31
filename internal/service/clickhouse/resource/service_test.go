@@ -1819,3 +1819,98 @@ func TestServiceResource_Update_horizontal(t *testing.T) {
 		})
 	}
 }
+
+// When no password/password_hash/non-empty password_wo is supplied, Create must surface the
+// API-assigned password via generated_password. When an explicit password IS supplied, the
+// API-assigned one from the create call is immediately overwritten and generated_password must
+// stay null — it never took effect and would be misleading to expose.
+func TestServiceResource_Create_generatedPassword(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	createResp := getBaseResponse("svc-new")
+	createResp.State = api.StateRunning
+	syncResp := createResp
+
+	tests := []struct {
+		name           string
+		plan           models.ServiceResourceModel
+		expectPassword bool // whether UpdateServicePassword must be called
+		wantGenerated  string
+	}{
+		{
+			name: "no password supplied: generated_password is populated from the create response",
+			plan: test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+				s.Password = types.StringNull()
+				s.PasswordHash = types.StringNull()
+				s.DoubleSha1PasswordHash = types.StringNull()
+				s.PasswordWO = types.StringNull()
+				s.PasswordWOVersion = types.Int64Null()
+				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+			}).Get(),
+			expectPassword: false,
+			wantGenerated:  "api-generated-secret",
+		},
+		{
+			name: "explicit password supplied: generated_password stays null",
+			plan: test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+				s.Password = types.StringValue("hunter2")
+				s.PasswordHash = types.StringNull()
+				s.DoubleSha1PasswordHash = types.StringNull()
+				s.PasswordWO = types.StringNull()
+				s.PasswordWOVersion = types.Int64Null()
+				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+			}).Get(),
+			expectPassword: true,
+			wantGenerated:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+			var passwordCalled bool
+			apiClientMock := api.NewClientMock(mc).
+				CreateServiceMock.Return(&createResp, "api-generated-secret", nil).
+				WaitForServiceStateMock.Return(nil).
+				GetServiceMock.Return(&syncResp, nil).
+				UpdateServicePasswordMock.Optional().Set(func(_ context.Context, _ string, _ api.ServicePasswordUpdate) (*api.ServicePasswordUpdateResult, error) {
+				passwordCalled = true
+				return &api.ServicePasswordUpdateResult{}, nil
+			})
+
+			r.client = apiClientMock
+
+			planVal := tfsdk.Plan{Schema: sch}
+			if d := planVal.Set(ctx, &tt.plan); d.HasError() {
+				t.Fatalf("encoding plan: %v", d.Errors())
+			}
+			req := resource.CreateRequest{
+				Plan:   planVal,
+				Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+			}
+			resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+			r.Create(ctx, req, resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("Create returned errors: %v", resp.Diagnostics.Errors())
+			}
+
+			if passwordCalled != tt.expectPassword {
+				t.Errorf("UpdateServicePassword called = %v, want %v", passwordCalled, tt.expectPassword)
+			}
+
+			var out models.ServiceResourceModel
+			if d := resp.State.Get(ctx, &out); d.HasError() {
+				t.Fatalf("decoding post-apply state: %v", d.Errors())
+			}
+			if tt.wantGenerated == "" {
+				if !out.GeneratedPassword.IsNull() {
+					t.Errorf("generated_password = %q, want null", out.GeneratedPassword.ValueString())
+				}
+			} else if out.GeneratedPassword.ValueString() != tt.wantGenerated {
+				t.Errorf("generated_password = %q, want %q", out.GeneratedPassword.ValueString(), tt.wantGenerated)
+			}
+		})
+	}
+}
