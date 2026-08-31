@@ -1848,6 +1848,8 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 				s.PasswordWO = types.StringNull()
 				s.PasswordWOVersion = types.Int64Null()
 				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+				// Computed with no prior state: the framework plans this as unknown.
+				s.GeneratedPassword = types.StringUnknown()
 			}).Get(),
 			expectPassword: false,
 			wantGenerated:  "api-generated-secret",
@@ -1861,6 +1863,8 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 				s.PasswordWO = types.StringNull()
 				s.PasswordWOVersion = types.Int64Null()
 				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+				// Computed with no prior state: the framework plans this as unknown.
+				s.GeneratedPassword = types.StringUnknown()
 			}).Get(),
 			expectPassword: true,
 			wantGenerated:  "",
@@ -1877,6 +1881,8 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 				s.PasswordWO = types.StringValue("hunter2")
 				s.PasswordWOVersion = types.Int64Value(1)
 				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+				// Computed with no prior state: the framework plans this as unknown.
+				s.GeneratedPassword = types.StringUnknown()
 			}).Get(),
 			expectPassword: true,
 			wantGenerated:  "",
@@ -1892,6 +1898,8 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 				s.PasswordWO = types.StringNull()
 				s.PasswordWOVersion = types.Int64Null()
 				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+				// Computed with no prior state: the framework plans this as unknown.
+				s.GeneratedPassword = types.StringUnknown()
 			}).Get(),
 			expectPassword: true,
 			wantGenerated:  "",
@@ -1910,6 +1918,8 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 				s.PasswordWO = types.StringNull()
 				s.PasswordWOVersion = types.Int64Null()
 				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+				// Computed with no prior state: the framework plans this as unknown.
+				s.GeneratedPassword = types.StringUnknown()
 			}).Get(),
 			expectPassword: false,
 			wantGenerated:  "",
@@ -1953,6 +1963,10 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 			if d := resp.State.Get(ctx, &out); d.HasError() {
 				t.Fatalf("decoding post-apply state: %v", d.Errors())
 			}
+			// Computed: must always settle to a known value, never stay unknown.
+			if out.GeneratedPassword.IsUnknown() {
+				t.Error("generated_password is still unknown after apply")
+			}
 			if tt.wantGenerated == "" {
 				if !out.GeneratedPassword.IsNull() {
 					t.Errorf("generated_password = %q, want null", out.GeneratedPassword.ValueString())
@@ -1984,6 +1998,8 @@ func TestServiceResource_Create_generatedPassword_emptyResponseStaysNull(t *test
 		s.PasswordWO = types.StringNull()
 		s.PasswordWOVersion = types.Int64Null()
 		s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+		// Computed with no prior state: the framework plans this as unknown.
+		s.GeneratedPassword = types.StringUnknown()
 	}).Get()
 
 	mc := minimock.NewController(t)
@@ -2012,6 +2028,9 @@ func TestServiceResource_Create_generatedPassword_emptyResponseStaysNull(t *test
 	var out models.ServiceResourceModel
 	if d := resp.State.Get(ctx, &out); d.HasError() {
 		t.Fatalf("decoding post-apply state: %v", d.Errors())
+	}
+	if out.GeneratedPassword.IsUnknown() {
+		t.Fatal("generated_password is still unknown after apply")
 	}
 	if !out.GeneratedPassword.IsNull() {
 		t.Errorf("generated_password = %q, want null (not empty string)", out.GeneratedPassword.ValueString())
