@@ -191,7 +191,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"generated_password": schema.StringAttribute{
-				Description: "The password the API assigned to the default user at creation time, when no `password`/`password_hash` was supplied and `password_wo` was set to an empty string (one of `password`, `password_hash`, or `password_wo` must still be present per the schema's validation — omitting all three is rejected at plan time, so set `password_wo = \"\"` explicitly; `password_wo_version` must also be set, e.g. to `1`, since `password_wo` requires it whenever it has any non-null value, including an empty string). Only populated on create; if the password is changed afterward (via this provider or otherwise), this value is not updated and no longer reflects the current password. Useful for a one-time handoff — e.g. a caller that can create a service but has no permission to reset its password later.",
+				Description: "The password the API assigned to the default user at creation time, when no `password`/`password_hash` was supplied and `password_wo` was set to an empty string (one of `password`, `password_hash`, or `password_wo` must still be present per the schema's validation — omitting all three is rejected at plan time, so set `password_wo = \"\"` explicitly; `password_wo_version` must also be set, e.g. to `1`, since `password_wo` requires it whenever it has any non-null value, including an empty string). Only populated on create, and cleared again if a later apply changes the password through this provider. It is *not* tracked if the password is changed outside Terraform, in which case it goes stale and no longer reflects the current password. Useful for a one-time handoff — e.g. a caller that can create a service but has no permission to reset its password later.",
 				Computed:    true,
 				Sensitive:   true,
 				PlanModifiers: []planmodifier.String{
@@ -670,6 +670,30 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 
 	if hasState {
+		// Update may clear generated_password when it changes the password
+		// itself. UseStateForUnknown has already copied the prior value into
+		// the plan by this point, and Terraform rejects an applied value that
+		// differs from a known planned one, so mark it unknown whenever a
+		// password change is possible. This condition is deliberately a
+		// superset of the ones Update acts on: unknown accepts whatever apply
+		// settles on, so erring wide is safe, while erring narrow is not.
+		if !state.GeneratedPassword.IsNull() &&
+			(plan.Password != state.Password ||
+				plan.PasswordHash != state.PasswordHash ||
+				plan.DoubleSha1PasswordHash != state.DoubleSha1PasswordHash ||
+				plan.PasswordWOVersion != state.PasswordWOVersion ||
+				!plan.PasswordHash.IsNull() ||
+				!plan.DoubleSha1PasswordHash.IsNull()) {
+			// Mutate the local model as well as the response: the blocks below
+			// write the whole struct back with resp.Plan.Set(ctx, plan), which
+			// would otherwise restore the value this just cleared.
+			plan.GeneratedPassword = types.StringUnknown()
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("generated_password"), types.StringUnknown())...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+		}
+
 		// Validations for updates.
 		if !plan.BYOCID.IsNull() && !plan.BYOCID.IsUnknown() && plan.BYOCID != state.BYOCID {
 			resp.Diagnostics.AddAttributeError(
@@ -1945,6 +1969,11 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	if passwordChanged {
 		plan.GeneratedPassword = types.StringNull()
+	} else if plan.GeneratedPassword.IsUnknown() {
+		// ModifyPlan marks this unknown whenever a password change is
+		// possible; if none actually happened, settle it back to the prior
+		// value rather than leaving it unknown after apply.
+		plan.GeneratedPassword = state.GeneratedPassword
 	}
 
 	// Update Query API endpoints settings.

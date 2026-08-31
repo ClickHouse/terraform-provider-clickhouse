@@ -2108,3 +2108,113 @@ func TestServiceResource_Update_generatedPasswordClearedOnPasswordChange(t *test
 		})
 	}
 }
+
+// Terraform rejects an applied value that differs from a known planned one.
+// UseStateForUnknown copies the prior generated_password into the plan, so
+// any apply that clears it must be preceded by ModifyPlan marking it unknown
+// — otherwise the provider produces an inconsistent result after apply. This
+// runs the two phases in order and asserts the applied value is legal for the
+// planned one.
+func TestServiceResource_generatedPassword_planApplyConsistency(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	syncResp := getBaseResponse(encodableInitialState().ID.ValueString())
+	syncResp.State = api.StateRunning
+
+	priorState := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.GeneratedPassword = types.StringValue("api-generated-secret")
+		s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+	}).Get()
+
+	tests := []struct {
+		name    string
+		mutate  func(s *models.ServiceResourceModel)
+		wantNil bool // expected applied value: null (cleared) vs preserved
+	}{
+		{
+			name:    "password change clears it",
+			mutate:  func(s *models.ServiceResourceModel) { s.Password = types.StringValue("new-password") },
+			wantNil: true,
+		},
+		{
+			name:    "unrelated change preserves it",
+			mutate:  func(s *models.ServiceResourceModel) { s.Name = types.StringValue("renamed") },
+			wantNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// The framework marks unconfigured Computed attributes unknown on
+			// update; UseStateForUnknown then copies the prior value in. Model
+			// that starting point explicitly.
+			proposed := test.NewUpdater(priorState).Update(tt.mutate).Get()
+
+			stateVal := tfsdk.State{Schema: sch}
+			if d := stateVal.Set(ctx, &priorState); d.HasError() {
+				t.Fatalf("encoding state: %v", d.Errors())
+			}
+			planVal := tfsdk.Plan{Schema: sch}
+			if d := planVal.Set(ctx, &proposed); d.HasError() {
+				t.Fatalf("encoding plan: %v", d.Errors())
+			}
+
+			planResp := &resource.ModifyPlanResponse{Plan: planVal}
+			r.ModifyPlan(ctx, resource.ModifyPlanRequest{
+				State:  stateVal,
+				Plan:   planVal,
+				Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+			}, planResp)
+			if planResp.Diagnostics.HasError() {
+				t.Fatalf("ModifyPlan returned errors: %v", planResp.Diagnostics.Errors())
+			}
+
+			var planned models.ServiceResourceModel
+			if d := planResp.Plan.Get(ctx, &planned); d.HasError() {
+				t.Fatalf("decoding plan: %v", d.Errors())
+			}
+
+			mc := minimock.NewController(t)
+			apiClientMock := api.NewClientMock(mc).
+				UpdateServiceMock.Optional().Return(&syncResp, nil).
+				UpdateReplicaScalingMock.Optional().Return(&syncResp, nil).
+				GetServiceMock.Return(&syncResp, nil).
+				UpdateServicePasswordMock.Optional().Return(&api.ServicePasswordUpdateResult{}, nil)
+			r.client = apiClientMock
+
+			applyResp := &resource.UpdateResponse{State: tfsdk.State{Schema: sch}}
+			r.Update(ctx, resource.UpdateRequest{
+				State:  stateVal,
+				Plan:   planResp.Plan,
+				Config: tfsdk.Config{Schema: sch, Raw: planResp.Plan.Raw},
+			}, applyResp)
+			if applyResp.Diagnostics.HasError() {
+				t.Fatalf("Update returned errors: %v", applyResp.Diagnostics.Errors())
+			}
+
+			var applied models.ServiceResourceModel
+			if d := applyResp.State.Get(ctx, &applied); d.HasError() {
+				t.Fatalf("decoding applied state: %v", d.Errors())
+			}
+
+			// The contract: an applied value may only differ from the planned
+			// one if the plan was unknown. It must also never stay unknown.
+			if applied.GeneratedPassword.IsUnknown() {
+				t.Error("generated_password is still unknown after apply")
+			}
+			if !planned.GeneratedPassword.IsUnknown() && !applied.GeneratedPassword.Equal(planned.GeneratedPassword) {
+				t.Errorf("inconsistent result after apply: planned %v (known), applied %v",
+					planned.GeneratedPassword, applied.GeneratedPassword)
+			}
+
+			if tt.wantNil && !applied.GeneratedPassword.IsNull() {
+				t.Errorf("generated_password = %v, want null", applied.GeneratedPassword)
+			}
+			if !tt.wantNil && applied.GeneratedPassword.ValueString() != "api-generated-secret" {
+				t.Errorf("generated_password = %v, want it preserved", applied.GeneratedPassword)
+			}
+		})
+	}
+}
