@@ -48,6 +48,8 @@ type Client interface {
 	DeleteQueryEndpoint(ctx context.Context, serviceID string) error
 
 	GetClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
+	GetClickPipesServiceContext(ctx context.Context, serviceId string) (*ClickPipesServiceContext, error)
+	WaitForClickPipesGCPWorkloadIdentity(ctx context.Context, serviceId string, maxWait time.Duration) (*ClickPipesGCPWorkloadIdentityContext, error)
 	CreateClickPipe(ctx context.Context, serviceId string, clickPipe ClickPipe) (*ClickPipe, error)
 	UpdateClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeUpdate) (*ClickPipe, error)
 	WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWait time.Duration) (*ClickPipe, error)

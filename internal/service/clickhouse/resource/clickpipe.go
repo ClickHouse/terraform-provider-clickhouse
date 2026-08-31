@@ -65,7 +65,8 @@ const (
 )
 
 const (
-	clickPipeStateChangeMaxWait = time.Second * 60 * 2
+	clickPipeStateChangeMaxWait               = time.Second * 60 * 2
+	clickPipesGCPWorkloadIdentityReadyTimeout = 30 * time.Second
 
 	// clickPipeMustBePausedError identifies the 400 the ClickPipes API returns
 	// for a pause-required edit, e.g. "BAD_REQUEST: Postgres ClickPipe must be
@@ -362,7 +363,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							},
 							"authentication": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
-									"The authentication method for the Kafka source. (%s). Default is `%s`.",
+									"The authentication method for the Kafka source. (%s). Default is `%s`. `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview and is supported only for GCMK.",
 									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKafkaAuthenticationMethods),
 									api.ClickPipeKafkaAuthenticationPlain,
 								),
@@ -575,7 +576,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"authentication": schema.StringAttribute{
-								MarkdownDescription: "CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER and SERVICE_ACCOUNT are for GCS. If not provided, no authentication is used",
+								MarkdownDescription: "CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER, SERVICE_ACCOUNT, and the Private Preview SERVICE_ACCOUNT_WORKLOAD_IDENTITY are for GCS. If not provided, no authentication is used.",
 								Optional:            true,
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeObjectStorageAuthenticationMethods...),
@@ -780,8 +781,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							},
 							"authentication": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
-									"The authentication method for the Pub/Sub source. Currently only `%s` is supported.",
-									api.ClickPipeAuthenticationServiceAccount,
+									"The authentication method for the Pub/Sub source. (%s). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipePubSubAuthenticationMethods),
 								),
 								Required: true,
 								Validators: []validator.String{
@@ -836,8 +837,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"service_account_key": schema.SingleNestedAttribute{
-								MarkdownDescription: "GCP service account credentials. Required on create; provide a new value on update to rotate the key.",
-								Required:            true,
+								MarkdownDescription: "GCP service account credentials. Required with `SERVICE_ACCOUNT` and prohibited with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`; provide a new value on update to rotate the key.",
+								Optional:            true,
 								Attributes: map[string]schema.Attribute{
 									"service_account_file": schema.StringAttribute{
 										MarkdownDescription: "Base64-encoded GCP service account JSON key file contents.",
@@ -1898,6 +1899,14 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 	if !request.Config.Raw.IsNull() {
 		response.Diagnostics.Append(request.Config.Get(ctx, &config)...)
 	}
+	if response.Diagnostics.HasError() {
+		return
+	}
+
+	validateGCPWorkloadIdentityConfiguration(ctx, plan.Source, &response.Diagnostics)
+	if response.Diagnostics.HasError() {
+		return
+	}
 
 	// Reject `stopped = true` on creation. The API does not support provisioning a pipe
 	// in a stopped state; the pipe must be created running and then stopped via update.
@@ -2053,10 +2062,10 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 						)
 					}
 				case api.ClickPipeObjectStorageGCSType:
-					if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationServiceAccount {
+					if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationServiceAccount && authType != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
 						response.Diagnostics.AddError(
 							"Invalid Configuration",
-							"queue_url with GCS requires authentication type to be either IAM_USER or SERVICE_ACCOUNT",
+							"queue_url with GCS requires authentication type to be IAM_USER, SERVICE_ACCOUNT, or SERVICE_ACCOUNT_WORKLOAD_IDENTITY",
 						)
 					}
 				}
@@ -2126,7 +2135,9 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 						response.Diagnostics.Append(stateSourceModel.ObjectStorage.As(ctx, &stateObjModel, basetypes.ObjectAsOptions{})...)
 
 						stateAuthType := stateObjModel.Authentication.ValueString()
-						if stateObjModel.Type.ValueString() == api.ClickPipeObjectStorageGCSType {
+						if stateObjModel.Type.ValueString() == api.ClickPipeObjectStorageGCSType &&
+							stateAuthType != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity &&
+							authType != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
 							if stateAuthType == api.ClickPipeAuthenticationServiceAccount && authType != api.ClickPipeAuthenticationServiceAccount {
 								response.Diagnostics.AddError(
 									"Invalid Configuration",
@@ -2749,6 +2760,16 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 	}
 
+	if clickPipeSourceUsesGCPWorkloadIdentity(&clickPipe.Source) {
+		if _, err := c.client.WaitForClickPipesGCPWorkloadIdentity(ctx, serviceID, clickPipesGCPWorkloadIdentityReadyTimeout); err != nil {
+			response.Diagnostics.AddError(
+				"GCP workload identity is not ready",
+				"Could not create ClickPipe until the service workload identity is ready: "+err.Error(),
+			)
+			return
+		}
+	}
+
 	createdClickPipe, err := c.client.CreateClickPipe(ctx, serviceID, clickPipe)
 	if err != nil {
 		response.Diagnostics.AddError(
@@ -2864,6 +2885,86 @@ func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 	return SourceTypeUnknown
 }
 
+func validateGCPWorkloadIdentityConfiguration(ctx context.Context, sourceValue types.Object, diagnostics *diag.Diagnostics) {
+	if sourceValue.IsNull() || sourceValue.IsUnknown() {
+		return
+	}
+
+	var source models.ClickPipeSourceModel
+	diagnostics.Append(sourceValue.As(ctx, &source, basetypes.ObjectAsOptions{})...)
+	if diagnostics.HasError() {
+		return
+	}
+
+	if !source.Kafka.IsNull() && !source.Kafka.IsUnknown() {
+		var kafka models.ClickPipeKafkaSourceModel
+		diagnostics.Append(source.Kafka.As(ctx, &kafka, basetypes.ObjectAsOptions{})...)
+		if !kafka.Authentication.IsUnknown() && kafka.Authentication.ValueString() == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			if !kafka.Type.IsUnknown() && kafka.Type.ValueString() != api.ClickPipeKafkaGCMKSourceType {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication is only supported for GCMK Kafka sources")
+			}
+			if !kafka.Credentials.IsNull() && !kafka.Credentials.IsUnknown() {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Kafka credentials must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+			if !kafka.IAMRole.IsNull() && !kafka.IAMRole.IsUnknown() && kafka.IAMRole.ValueString() != "" {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Kafka iam_role must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+		}
+	}
+
+	if !source.ObjectStorage.IsNull() && !source.ObjectStorage.IsUnknown() {
+		var objectStorage models.ClickPipeObjectStorageSourceModel
+		diagnostics.Append(source.ObjectStorage.As(ctx, &objectStorage, basetypes.ObjectAsOptions{})...)
+		if !objectStorage.Authentication.IsUnknown() && objectStorage.Authentication.ValueString() == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			if !objectStorage.Type.IsUnknown() && objectStorage.Type.ValueString() != api.ClickPipeObjectStorageGCSType {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication is only supported for GCS object storage sources")
+			}
+			if !objectStorage.AccessKey.IsNull() && !objectStorage.AccessKey.IsUnknown() {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Object storage access_key must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+			if !objectStorage.IAMRole.IsNull() && !objectStorage.IAMRole.IsUnknown() && objectStorage.IAMRole.ValueString() != "" {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Object storage iam_role must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+			if !objectStorage.ConnectionString.IsNull() && !objectStorage.ConnectionString.IsUnknown() && objectStorage.ConnectionString.ValueString() != "" {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Object storage connection_string must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+			if !objectStorage.ServiceAccountKey.IsNull() && !objectStorage.ServiceAccountKey.IsUnknown() && objectStorage.ServiceAccountKey.ValueString() != "" {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Object storage service_account_key must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+		}
+	}
+
+	if !source.PubSub.IsNull() && !source.PubSub.IsUnknown() {
+		var pubsub models.ClickPipePubSubSourceModel
+		diagnostics.Append(source.PubSub.As(ctx, &pubsub, basetypes.ObjectAsOptions{})...)
+		if !pubsub.Authentication.IsUnknown() {
+			switch pubsub.Authentication.ValueString() {
+			case api.ClickPipeAuthenticationServiceAccount:
+				if pubsub.ServiceAccountKey.IsNull() {
+					diagnostics.AddError("Invalid Pub/Sub authentication configuration", "service_account_key is required with SERVICE_ACCOUNT authentication")
+				}
+			case api.ClickPipeAuthenticationServiceAccountWorkloadIdentity:
+				if !pubsub.ServiceAccountKey.IsNull() && !pubsub.ServiceAccountKey.IsUnknown() {
+					diagnostics.AddError("Invalid GCP workload identity configuration", "Pub/Sub service_account_key must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+				}
+			}
+		}
+	}
+}
+
+func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
+	if source == nil {
+		return false
+	}
+	if source.Kafka != nil && source.Kafka.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	if source.ObjectStorage != nil && source.ObjectStorage.Authentication != nil && *source.ObjectStorage.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	return source.PubSub != nil && source.PubSub.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity
+}
+
 // overlayPasswordWO returns the write-only password from config when set, else the plan password. The framework leaves write-only attrs in req.Plan and req.Config, but nulls them in req.State; we read from config to keep the source of truth explicit.
 func overlayPasswordWO(planPassword, configPasswordWO types.String) types.String {
 	if !configPasswordWO.IsNull() && !configPasswordWO.IsUnknown() {
@@ -2936,6 +3037,10 @@ func sourceFieldsChangedIgnoringMappings(planObj, stateObj types.Object) bool {
 // extractSourceFromPlan builds the API source from plan. config supplies write-only credentials stripped from plan; pass nil in unit tests not exercising write-only behavior.
 func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics *diag.Diagnostics, plan models.ClickPipeResourceModel, config *models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
 	source := &api.ClickPipeSource{}
+	validateGCPWorkloadIdentityConfiguration(ctx, plan.Source, diagnostics)
+	if diagnostics.HasError() {
+		return nil
+	}
 
 	sourceModel := models.ClickPipeSourceModel{}
 	diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
@@ -2969,7 +3074,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			source.Kafka.ExactlyOnce = kafkaModel.ExactlyOnce.ValueBoolPointer()
 		}
 
-		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
+		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole && kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
 			if !kafkaModel.Credentials.IsNull() {
 				credentialsModel := models.ClickPipeKafkaSourceCredentialsModel{}
 				diagnostics.Append(kafkaModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
@@ -5643,6 +5748,16 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	// when certain fields change — in which case we must trust the UpdateClickPipe
 	// response, not the stale prior state, to decide whether to issue stop/start.
 	liveState := state.State.ValueString()
+
+	if pipeChanged && clickPipeUpdate.Source != nil && clickPipeSourceUsesGCPWorkloadIdentity(clickPipeUpdate.Source) {
+		if _, err := c.client.WaitForClickPipesGCPWorkloadIdentity(ctx, state.ServiceID.ValueString(), clickPipesGCPWorkloadIdentityReadyTimeout); err != nil {
+			response.Diagnostics.AddError(
+				"GCP workload identity is not ready",
+				"Could not update ClickPipe until the service workload identity is ready: "+err.Error(),
+			)
+			return
+		}
+	}
 
 	// CDC sources (Postgres/MySQL/MongoDB) reject table_mappings edits unless the
 	// pipe is paused (the API returns "ClickPipe must be paused to edit"). When such

@@ -208,6 +208,13 @@ type ClientMock struct {
 	beforeGetClickPipeSettingsCounter uint64
 	GetClickPipeSettingsMock          mClientMockGetClickPipeSettings
 
+	funcGetClickPipesServiceContext          func(ctx context.Context, serviceId string) (cp1 *ClickPipesServiceContext, err error)
+	funcGetClickPipesServiceContextOrigin    string
+	inspectFuncGetClickPipesServiceContext   func(ctx context.Context, serviceId string)
+	afterGetClickPipesServiceContextCounter  uint64
+	beforeGetClickPipesServiceContextCounter uint64
+	GetClickPipesServiceContextMock          mClientMockGetClickPipesServiceContext
+
 	funcGetMember          func(ctx context.Context, userID string) (mp1 *Member, err error)
 	funcGetMemberOrigin    string
 	inspectFuncGetMember   func(ctx context.Context, userID string)
@@ -509,6 +516,13 @@ type ClientMock struct {
 	beforeWaitForClickPipeStateCounter uint64
 	WaitForClickPipeStateMock          mClientMockWaitForClickPipeState
 
+	funcWaitForClickPipesGCPWorkloadIdentity          func(ctx context.Context, serviceId string, maxWait time.Duration) (cp1 *ClickPipesGCPWorkloadIdentityContext, err error)
+	funcWaitForClickPipesGCPWorkloadIdentityOrigin    string
+	inspectFuncWaitForClickPipesGCPWorkloadIdentity   func(ctx context.Context, serviceId string, maxWait time.Duration)
+	afterWaitForClickPipesGCPWorkloadIdentityCounter  uint64
+	beforeWaitForClickPipesGCPWorkloadIdentityCounter uint64
+	WaitForClickPipesGCPWorkloadIdentityMock          mClientMockWaitForClickPipesGCPWorkloadIdentity
+
 	funcWaitForPostgresMatch          func(ctx context.Context, postgresId string, predicate func(*Postgres) bool, maxWaitSeconds int) (err error)
 	funcWaitForPostgresMatchOrigin    string
 	inspectFuncWaitForPostgresMatch   func(ctx context.Context, postgresId string, predicate func(*Postgres) bool, maxWaitSeconds int)
@@ -633,6 +647,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetClickPipeSettingsMock = mClientMockGetClickPipeSettings{mock: m}
 	m.GetClickPipeSettingsMock.callArgs = []*ClientMockGetClickPipeSettingsParams{}
+
+	m.GetClickPipesServiceContextMock = mClientMockGetClickPipesServiceContext{mock: m}
+	m.GetClickPipesServiceContextMock.callArgs = []*ClientMockGetClickPipesServiceContextParams{}
 
 	m.GetMemberMock = mClientMockGetMember{mock: m}
 	m.GetMemberMock.callArgs = []*ClientMockGetMemberParams{}
@@ -762,6 +779,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.WaitForClickPipeStateMock = mClientMockWaitForClickPipeState{mock: m}
 	m.WaitForClickPipeStateMock.callArgs = []*ClientMockWaitForClickPipeStateParams{}
+
+	m.WaitForClickPipesGCPWorkloadIdentityMock = mClientMockWaitForClickPipesGCPWorkloadIdentity{mock: m}
+	m.WaitForClickPipesGCPWorkloadIdentityMock.callArgs = []*ClientMockWaitForClickPipesGCPWorkloadIdentityParams{}
 
 	m.WaitForPostgresMatchMock = mClientMockWaitForPostgresMatch{mock: m}
 	m.WaitForPostgresMatchMock.callArgs = []*ClientMockWaitForPostgresMatchParams{}
@@ -10437,6 +10457,349 @@ func (m *ClientMock) MinimockGetClickPipeSettingsInspect() {
 	if !m.GetClickPipeSettingsMock.invocationsDone() && afterGetClickPipeSettingsCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetClickPipeSettings at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetClickPipeSettingsMock.expectedInvocations), m.GetClickPipeSettingsMock.expectedInvocationsOrigin, afterGetClickPipeSettingsCounter)
+	}
+}
+
+type mClientMockGetClickPipesServiceContext struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetClickPipesServiceContextExpectation
+	expectations       []*ClientMockGetClickPipesServiceContextExpectation
+
+	callArgs []*ClientMockGetClickPipesServiceContextParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetClickPipesServiceContextExpectation specifies expectation struct of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetClickPipesServiceContextParams
+	paramPtrs          *ClientMockGetClickPipesServiceContextParamPtrs
+	expectationOrigins ClientMockGetClickPipesServiceContextExpectationOrigins
+	results            *ClientMockGetClickPipesServiceContextResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetClickPipesServiceContextParams contains parameters of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetClickPipesServiceContextParamPtrs contains pointers to parameters of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetClickPipesServiceContextResults contains results of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextResults struct {
+	cp1 *ClickPipesServiceContext
+	err error
+}
+
+// ClientMockGetClickPipesServiceContextOrigins contains origins of expectations of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Optional() *mClientMockGetClickPipesServiceContext {
+	mmGetClickPipesServiceContext.optional = true
+	return mmGetClickPipesServiceContext
+}
+
+// Expect sets up expected params for Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Expect(ctx context.Context, serviceId string) *mClientMockGetClickPipesServiceContext {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation == nil {
+		mmGetClickPipesServiceContext.defaultExpectation = &ClientMockGetClickPipesServiceContextExpectation{}
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.paramPtrs != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by ExpectParams functions")
+	}
+
+	mmGetClickPipesServiceContext.defaultExpectation.params = &ClientMockGetClickPipesServiceContextParams{ctx, serviceId}
+	mmGetClickPipesServiceContext.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetClickPipesServiceContext.expectations {
+		if minimock.Equal(e.params, mmGetClickPipesServiceContext.defaultExpectation.params) {
+			mmGetClickPipesServiceContext.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetClickPipesServiceContext.defaultExpectation.params)
+		}
+	}
+
+	return mmGetClickPipesServiceContext
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) ExpectCtxParam1(ctx context.Context) *mClientMockGetClickPipesServiceContext {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation == nil {
+		mmGetClickPipesServiceContext.defaultExpectation = &ClientMockGetClickPipesServiceContextExpectation{}
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.params != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Expect")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.paramPtrs == nil {
+		mmGetClickPipesServiceContext.defaultExpectation.paramPtrs = &ClientMockGetClickPipesServiceContextParamPtrs{}
+	}
+	mmGetClickPipesServiceContext.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetClickPipesServiceContext.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetClickPipesServiceContext
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) ExpectServiceIdParam2(serviceId string) *mClientMockGetClickPipesServiceContext {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation == nil {
+		mmGetClickPipesServiceContext.defaultExpectation = &ClientMockGetClickPipesServiceContextExpectation{}
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.params != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Expect")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.paramPtrs == nil {
+		mmGetClickPipesServiceContext.defaultExpectation.paramPtrs = &ClientMockGetClickPipesServiceContextParamPtrs{}
+	}
+	mmGetClickPipesServiceContext.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetClickPipesServiceContext.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetClickPipesServiceContext
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetClickPipesServiceContext {
+	if mmGetClickPipesServiceContext.mock.inspectFuncGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("Inspect function is already set for ClientMock.GetClickPipesServiceContext")
+	}
+
+	mmGetClickPipesServiceContext.mock.inspectFuncGetClickPipesServiceContext = f
+
+	return mmGetClickPipesServiceContext
+}
+
+// Return sets up results that will be returned by Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Return(cp1 *ClickPipesServiceContext, err error) *ClientMock {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation == nil {
+		mmGetClickPipesServiceContext.defaultExpectation = &ClientMockGetClickPipesServiceContextExpectation{mock: mmGetClickPipesServiceContext.mock}
+	}
+	mmGetClickPipesServiceContext.defaultExpectation.results = &ClientMockGetClickPipesServiceContextResults{cp1, err}
+	mmGetClickPipesServiceContext.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetClickPipesServiceContext.mock
+}
+
+// Set uses given function f to mock the Client.GetClickPipesServiceContext method
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Set(f func(ctx context.Context, serviceId string) (cp1 *ClickPipesServiceContext, err error)) *ClientMock {
+	if mmGetClickPipesServiceContext.defaultExpectation != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("Default expectation is already set for the Client.GetClickPipesServiceContext method")
+	}
+
+	if len(mmGetClickPipesServiceContext.expectations) > 0 {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("Some expectations are already set for the Client.GetClickPipesServiceContext method")
+	}
+
+	mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext = f
+	mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContextOrigin = minimock.CallerInfo(1)
+	return mmGetClickPipesServiceContext.mock
+}
+
+// When sets expectation for the Client.GetClickPipesServiceContext which will trigger the result defined by the following
+// Then helper
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) When(ctx context.Context, serviceId string) *ClientMockGetClickPipesServiceContextExpectation {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetClickPipesServiceContextExpectation{
+		mock:               mmGetClickPipesServiceContext.mock,
+		params:             &ClientMockGetClickPipesServiceContextParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetClickPipesServiceContextExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetClickPipesServiceContext.expectations = append(mmGetClickPipesServiceContext.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetClickPipesServiceContext return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetClickPipesServiceContextExpectation) Then(cp1 *ClickPipesServiceContext, err error) *ClientMock {
+	e.results = &ClientMockGetClickPipesServiceContextResults{cp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetClickPipesServiceContext should be invoked
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Times(n uint64) *mClientMockGetClickPipesServiceContext {
+	if n == 0 {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("Times of ClientMock.GetClickPipesServiceContext mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetClickPipesServiceContext.expectedInvocations, n)
+	mmGetClickPipesServiceContext.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetClickPipesServiceContext
+}
+
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) invocationsDone() bool {
+	if len(mmGetClickPipesServiceContext.expectations) == 0 && mmGetClickPipesServiceContext.defaultExpectation == nil && mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetClickPipesServiceContext.mock.afterGetClickPipesServiceContextCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetClickPipesServiceContext.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetClickPipesServiceContext implements Client
+func (mmGetClickPipesServiceContext *ClientMock) GetClickPipesServiceContext(ctx context.Context, serviceId string) (cp1 *ClickPipesServiceContext, err error) {
+	mm_atomic.AddUint64(&mmGetClickPipesServiceContext.beforeGetClickPipesServiceContextCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetClickPipesServiceContext.afterGetClickPipesServiceContextCounter, 1)
+
+	mmGetClickPipesServiceContext.t.Helper()
+
+	if mmGetClickPipesServiceContext.inspectFuncGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.inspectFuncGetClickPipesServiceContext(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetClickPipesServiceContextParams{ctx, serviceId}
+
+	// Record call args
+	mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.mutex.Lock()
+	mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.callArgs = append(mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.callArgs, &mm_params)
+	mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.mutex.Unlock()
+
+	for _, e := range mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.cp1, e.results.err
+		}
+	}
+
+	if mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.params
+		mm_want_ptrs := mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetClickPipesServiceContextParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetClickPipesServiceContext.t.Errorf("ClientMock.GetClickPipesServiceContext got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetClickPipesServiceContext.t.Errorf("ClientMock.GetClickPipesServiceContext got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetClickPipesServiceContext.t.Errorf("ClientMock.GetClickPipesServiceContext got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetClickPipesServiceContext.t.Fatal("No results are set for the ClientMock.GetClickPipesServiceContext")
+		}
+		return (*mm_results).cp1, (*mm_results).err
+	}
+	if mmGetClickPipesServiceContext.funcGetClickPipesServiceContext != nil {
+		return mmGetClickPipesServiceContext.funcGetClickPipesServiceContext(ctx, serviceId)
+	}
+	mmGetClickPipesServiceContext.t.Fatalf("Unexpected call to ClientMock.GetClickPipesServiceContext. %v %v", ctx, serviceId)
+	return
+}
+
+// GetClickPipesServiceContextAfterCounter returns a count of finished ClientMock.GetClickPipesServiceContext invocations
+func (mmGetClickPipesServiceContext *ClientMock) GetClickPipesServiceContextAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetClickPipesServiceContext.afterGetClickPipesServiceContextCounter)
+}
+
+// GetClickPipesServiceContextBeforeCounter returns a count of ClientMock.GetClickPipesServiceContext invocations
+func (mmGetClickPipesServiceContext *ClientMock) GetClickPipesServiceContextBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetClickPipesServiceContext.beforeGetClickPipesServiceContextCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetClickPipesServiceContext.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Calls() []*ClientMockGetClickPipesServiceContextParams {
+	mmGetClickPipesServiceContext.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetClickPipesServiceContextParams, len(mmGetClickPipesServiceContext.callArgs))
+	copy(argCopy, mmGetClickPipesServiceContext.callArgs)
+
+	mmGetClickPipesServiceContext.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetClickPipesServiceContextDone returns true if the count of the GetClickPipesServiceContext invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetClickPipesServiceContextDone() bool {
+	if m.GetClickPipesServiceContextMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetClickPipesServiceContextMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetClickPipesServiceContextMock.invocationsDone()
+}
+
+// MinimockGetClickPipesServiceContextInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetClickPipesServiceContextInspect() {
+	for _, e := range m.GetClickPipesServiceContextMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetClickPipesServiceContext at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetClickPipesServiceContextCounter := mm_atomic.LoadUint64(&m.afterGetClickPipesServiceContextCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetClickPipesServiceContextMock.defaultExpectation != nil && afterGetClickPipesServiceContextCounter < 1 {
+		if m.GetClickPipesServiceContextMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetClickPipesServiceContext at\n%s", m.GetClickPipesServiceContextMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetClickPipesServiceContext at\n%s with params: %#v", m.GetClickPipesServiceContextMock.defaultExpectation.expectationOrigins.origin, *m.GetClickPipesServiceContextMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetClickPipesServiceContext != nil && afterGetClickPipesServiceContextCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetClickPipesServiceContext at\n%s", m.funcGetClickPipesServiceContextOrigin)
+	}
+
+	if !m.GetClickPipesServiceContextMock.invocationsDone() && afterGetClickPipesServiceContextCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetClickPipesServiceContext at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetClickPipesServiceContextMock.expectedInvocations), m.GetClickPipesServiceContextMock.expectedInvocationsOrigin, afterGetClickPipesServiceContextCounter)
 	}
 }
 
@@ -25930,6 +26293,380 @@ func (m *ClientMock) MinimockWaitForClickPipeStateInspect() {
 	}
 }
 
+type mClientMockWaitForClickPipesGCPWorkloadIdentity struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation
+	expectations       []*ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation
+
+	callArgs []*ClientMockWaitForClickPipesGCPWorkloadIdentityParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation specifies expectation struct of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWaitForClickPipesGCPWorkloadIdentityParams
+	paramPtrs          *ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs
+	expectationOrigins ClientMockWaitForClickPipesGCPWorkloadIdentityExpectationOrigins
+	results            *ClientMockWaitForClickPipesGCPWorkloadIdentityResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityParams contains parameters of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityParams struct {
+	ctx       context.Context
+	serviceId string
+	maxWait   time.Duration
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs contains pointers to parameters of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	maxWait   *time.Duration
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityResults contains results of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityResults struct {
+	cp1 *ClickPipesGCPWorkloadIdentityContext
+	err error
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityOrigins contains origins of expectations of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originMaxWait   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Optional() *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	mmWaitForClickPipesGCPWorkloadIdentity.optional = true
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// Expect sets up expected params for Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Expect(ctx context.Context, serviceId string, maxWait time.Duration) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params = &ClientMockWaitForClickPipesGCPWorkloadIdentityParams{ctx, serviceId, maxWait}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWaitForClickPipesGCPWorkloadIdentity.expectations {
+		if minimock.Equal(e.params, mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params) {
+			mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs{}
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) ExpectServiceIdParam2(serviceId string) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs{}
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// ExpectMaxWaitParam3 sets up expected param maxWait for Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) ExpectMaxWaitParam3(maxWait time.Duration) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs{}
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs.maxWait = &maxWait
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.expectationOrigins.originMaxWait = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Inspect(f func(ctx context.Context, serviceId string, maxWait time.Duration)) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.inspectFuncWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForClickPipesGCPWorkloadIdentity")
+	}
+
+	mmWaitForClickPipesGCPWorkloadIdentity.mock.inspectFuncWaitForClickPipesGCPWorkloadIdentity = f
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// Return sets up results that will be returned by Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Return(cp1 *ClickPipesGCPWorkloadIdentityContext, err error) *ClientMock {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{mock: mmWaitForClickPipesGCPWorkloadIdentity.mock}
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.results = &ClientMockWaitForClickPipesGCPWorkloadIdentityResults{cp1, err}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWaitForClickPipesGCPWorkloadIdentity.mock
+}
+
+// Set uses given function f to mock the Client.WaitForClickPipesGCPWorkloadIdentity method
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Set(f func(ctx context.Context, serviceId string, maxWait time.Duration) (cp1 *ClickPipesGCPWorkloadIdentityContext, err error)) *ClientMock {
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Default expectation is already set for the Client.WaitForClickPipesGCPWorkloadIdentity method")
+	}
+
+	if len(mmWaitForClickPipesGCPWorkloadIdentity.expectations) > 0 {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Some expectations are already set for the Client.WaitForClickPipesGCPWorkloadIdentity method")
+	}
+
+	mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity = f
+	mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentityOrigin = minimock.CallerInfo(1)
+	return mmWaitForClickPipesGCPWorkloadIdentity.mock
+}
+
+// When sets expectation for the Client.WaitForClickPipesGCPWorkloadIdentity which will trigger the result defined by the following
+// Then helper
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) When(ctx context.Context, serviceId string, maxWait time.Duration) *ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{
+		mock:               mmWaitForClickPipesGCPWorkloadIdentity.mock,
+		params:             &ClientMockWaitForClickPipesGCPWorkloadIdentityParams{ctx, serviceId, maxWait},
+		expectationOrigins: ClientMockWaitForClickPipesGCPWorkloadIdentityExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.expectations = append(mmWaitForClickPipesGCPWorkloadIdentity.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForClickPipesGCPWorkloadIdentity return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation) Then(cp1 *ClickPipesGCPWorkloadIdentityContext, err error) *ClientMock {
+	e.results = &ClientMockWaitForClickPipesGCPWorkloadIdentityResults{cp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForClickPipesGCPWorkloadIdentity should be invoked
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Times(n uint64) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if n == 0 {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Times of ClientMock.WaitForClickPipesGCPWorkloadIdentity mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForClickPipesGCPWorkloadIdentity.expectedInvocations, n)
+	mmWaitForClickPipesGCPWorkloadIdentity.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) invocationsDone() bool {
+	if len(mmWaitForClickPipesGCPWorkloadIdentity.expectations) == 0 && mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil && mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForClickPipesGCPWorkloadIdentity.mock.afterWaitForClickPipesGCPWorkloadIdentityCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForClickPipesGCPWorkloadIdentity.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForClickPipesGCPWorkloadIdentity implements Client
+func (mmWaitForClickPipesGCPWorkloadIdentity *ClientMock) WaitForClickPipesGCPWorkloadIdentity(ctx context.Context, serviceId string, maxWait time.Duration) (cp1 *ClickPipesGCPWorkloadIdentityContext, err error) {
+	mm_atomic.AddUint64(&mmWaitForClickPipesGCPWorkloadIdentity.beforeWaitForClickPipesGCPWorkloadIdentityCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForClickPipesGCPWorkloadIdentity.afterWaitForClickPipesGCPWorkloadIdentityCounter, 1)
+
+	mmWaitForClickPipesGCPWorkloadIdentity.t.Helper()
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.inspectFuncWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.inspectFuncWaitForClickPipesGCPWorkloadIdentity(ctx, serviceId, maxWait)
+	}
+
+	mm_params := ClientMockWaitForClickPipesGCPWorkloadIdentityParams{ctx, serviceId, maxWait}
+
+	// Record call args
+	mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.mutex.Lock()
+	mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.callArgs = append(mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.callArgs, &mm_params)
+	mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.mutex.Unlock()
+
+	for _, e := range mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.cp1, e.results.err
+		}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForClickPipesGCPWorkloadIdentityParams{ctx, serviceId, maxWait}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForClickPipesGCPWorkloadIdentity.t.Errorf("ClientMock.WaitForClickPipesGCPWorkloadIdentity got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmWaitForClickPipesGCPWorkloadIdentity.t.Errorf("ClientMock.WaitForClickPipesGCPWorkloadIdentity got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.maxWait != nil && !minimock.Equal(*mm_want_ptrs.maxWait, mm_got.maxWait) {
+				mmWaitForClickPipesGCPWorkloadIdentity.t.Errorf("ClientMock.WaitForClickPipesGCPWorkloadIdentity got unexpected parameter maxWait, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.originMaxWait, *mm_want_ptrs.maxWait, mm_got.maxWait, minimock.Diff(*mm_want_ptrs.maxWait, mm_got.maxWait))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForClickPipesGCPWorkloadIdentity.t.Errorf("ClientMock.WaitForClickPipesGCPWorkloadIdentity got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForClickPipesGCPWorkloadIdentity.t.Fatal("No results are set for the ClientMock.WaitForClickPipesGCPWorkloadIdentity")
+		}
+		return (*mm_results).cp1, (*mm_results).err
+	}
+	if mmWaitForClickPipesGCPWorkloadIdentity.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		return mmWaitForClickPipesGCPWorkloadIdentity.funcWaitForClickPipesGCPWorkloadIdentity(ctx, serviceId, maxWait)
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.t.Fatalf("Unexpected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity. %v %v %v", ctx, serviceId, maxWait)
+	return
+}
+
+// WaitForClickPipesGCPWorkloadIdentityAfterCounter returns a count of finished ClientMock.WaitForClickPipesGCPWorkloadIdentity invocations
+func (mmWaitForClickPipesGCPWorkloadIdentity *ClientMock) WaitForClickPipesGCPWorkloadIdentityAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForClickPipesGCPWorkloadIdentity.afterWaitForClickPipesGCPWorkloadIdentityCounter)
+}
+
+// WaitForClickPipesGCPWorkloadIdentityBeforeCounter returns a count of ClientMock.WaitForClickPipesGCPWorkloadIdentity invocations
+func (mmWaitForClickPipesGCPWorkloadIdentity *ClientMock) WaitForClickPipesGCPWorkloadIdentityBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForClickPipesGCPWorkloadIdentity.beforeWaitForClickPipesGCPWorkloadIdentityCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForClickPipesGCPWorkloadIdentity.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Calls() []*ClientMockWaitForClickPipesGCPWorkloadIdentityParams {
+	mmWaitForClickPipesGCPWorkloadIdentity.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForClickPipesGCPWorkloadIdentityParams, len(mmWaitForClickPipesGCPWorkloadIdentity.callArgs))
+	copy(argCopy, mmWaitForClickPipesGCPWorkloadIdentity.callArgs)
+
+	mmWaitForClickPipesGCPWorkloadIdentity.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForClickPipesGCPWorkloadIdentityDone returns true if the count of the WaitForClickPipesGCPWorkloadIdentity invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForClickPipesGCPWorkloadIdentityDone() bool {
+	if m.WaitForClickPipesGCPWorkloadIdentityMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForClickPipesGCPWorkloadIdentityMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForClickPipesGCPWorkloadIdentityMock.invocationsDone()
+}
+
+// MinimockWaitForClickPipesGCPWorkloadIdentityInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForClickPipesGCPWorkloadIdentityInspect() {
+	for _, e := range m.WaitForClickPipesGCPWorkloadIdentityMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWaitForClickPipesGCPWorkloadIdentityCounter := mm_atomic.LoadUint64(&m.afterWaitForClickPipesGCPWorkloadIdentityCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation != nil && afterWaitForClickPipesGCPWorkloadIdentityCounter < 1 {
+		if m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s", m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s with params: %#v", m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.origin, *m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForClickPipesGCPWorkloadIdentity != nil && afterWaitForClickPipesGCPWorkloadIdentityCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s", m.funcWaitForClickPipesGCPWorkloadIdentityOrigin)
+	}
+
+	if !m.WaitForClickPipesGCPWorkloadIdentityMock.invocationsDone() && afterWaitForClickPipesGCPWorkloadIdentityCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForClickPipesGCPWorkloadIdentityMock.expectedInvocations), m.WaitForClickPipesGCPWorkloadIdentityMock.expectedInvocationsOrigin, afterWaitForClickPipesGCPWorkloadIdentityCounter)
+	}
+}
+
 type mClientMockWaitForPostgresMatch struct {
 	optional           bool
 	mock               *ClientMock
@@ -27978,6 +28715,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetClickPipeSettingsInspect()
 
+			m.MinimockGetClickPipesServiceContextInspect()
+
 			m.MinimockGetMemberInspect()
 
 			m.MinimockGetOrgPrivateEndpointConfigInspect()
@@ -28064,6 +28803,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockWaitForClickPipeStateInspect()
 
+			m.MinimockWaitForClickPipesGCPWorkloadIdentityInspect()
+
 			m.MinimockWaitForPostgresMatchInspect()
 
 			m.MinimockWaitForPostgresStateInspect()
@@ -28123,6 +28864,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetClickPipeDone() &&
 		m.MinimockGetClickPipeCdcScalingDone() &&
 		m.MinimockGetClickPipeSettingsDone() &&
+		m.MinimockGetClickPipesServiceContextDone() &&
 		m.MinimockGetMemberDone() &&
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationDone() &&
@@ -28166,6 +28908,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUploadUDFArchiveDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
 		m.MinimockWaitForClickPipeStateDone() &&
+		m.MinimockWaitForClickPipesGCPWorkloadIdentityDone() &&
 		m.MinimockWaitForPostgresMatchDone() &&
 		m.MinimockWaitForPostgresStateDone() &&
 		m.MinimockWaitForReversePrivateEndpointStateDone() &&
