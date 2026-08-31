@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -218,5 +219,28 @@ func TestWaitForServiceState_transient429IsAbsorbedByDoRequest(t *testing.T) {
 	}
 	if n := atomic.LoadInt32(&calls); n < 3 {
 		t.Errorf("server received %d calls; want at least 3 (2x 429 then success)", n)
+	}
+}
+
+// A cancelled context must stop the poll loop immediately rather than running
+// out the full maxWaitSeconds budget. Without backoff.WithContext the retry
+// loop ignores cancellation entirely.
+func TestWaitForServiceState_stopsOnContextCancel(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{
+			Result: Service{Id: "svc-1", State: StateProvisioning},
+		})
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := time.Now()
+	err := client.WaitForServiceState(ctx, "svc-1", func(s string) bool { return s == StateRunning }, 60)
+	if err == nil {
+		t.Fatal("want error from cancelled context, got nil")
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("took %s; want an immediate return on a cancelled context", elapsed)
 	}
 }
