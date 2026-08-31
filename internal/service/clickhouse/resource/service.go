@@ -1891,6 +1891,11 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	// Tracks whether this apply changed the password itself, in which case any
+	// generated_password carried forward from create is now known-wrong (as
+	// opposed to merely possibly-stale) and must be cleared.
+	passwordChanged := false
+
 	// Handle write-only password attribute (preferred) - update when version changes
 	if !plan.PasswordWOVersion.IsNull() && plan.PasswordWOVersion != state.PasswordWOVersion {
 		if passwordWO := config.PasswordWO.ValueString(); len(passwordWO) > 0 {
@@ -1902,6 +1907,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 				)
 				return
 			}
+			passwordChanged = true
 		}
 	} else if password := plan.Password.ValueString(); len(password) > 0 && plan.Password != state.Password {
 		_, err := r.client.UpdateServicePassword(ctx, serviceId, servicePasswordUpdateFromPlainPassword(password))
@@ -1912,6 +1918,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			)
 			return
 		}
+		passwordChanged = true
 	} else if !plan.PasswordHash.IsNull() || !plan.DoubleSha1PasswordHash.IsNull() {
 		passwordUpdate := api.ServicePasswordUpdate{}
 
@@ -1933,6 +1940,11 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			)
 			return
 		}
+		passwordChanged = true
+	}
+
+	if passwordChanged {
+		plan.GeneratedPassword = types.StringNull()
 	}
 
 	// Update Query API endpoints settings.

@@ -1882,6 +1882,21 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 			wantGenerated:  "",
 		},
 		{
+			// password_hash takes a separate branch from password/password_wo
+			// (its own UpdateServicePassword call), so it needs its own case.
+			name: "explicit password_hash supplied: generated_password stays null",
+			plan: test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+				s.Password = types.StringNull()
+				s.PasswordHash = types.StringValue("n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=")
+				s.DoubleSha1PasswordHash = types.StringNull()
+				s.PasswordWO = types.StringNull()
+				s.PasswordWOVersion = types.Int64Null()
+				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+			}).Get(),
+			expectPassword: true,
+			wantGenerated:  "",
+		},
+		{
 			// Secondary/hydra services (data_warehouse_id set) share the
 			// parent's default user and never get their own password -
 			// generated_password must be null even though CreateService's
@@ -2000,5 +2015,96 @@ func TestServiceResource_Create_generatedPassword_emptyResponseStaysNull(t *test
 	}
 	if !out.GeneratedPassword.IsNull() {
 		t.Errorf("generated_password = %q, want null (not empty string)", out.GeneratedPassword.ValueString())
+	}
+}
+
+// When Update itself changes the password, any generated_password carried
+// forward from create is known-wrong (not merely possibly-stale), so it must
+// be cleared rather than left in state via UseStateForUnknown.
+func TestServiceResource_Update_generatedPasswordClearedOnPasswordChange(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	syncResp := getBaseResponse(encodableInitialState().ID.ValueString())
+	syncResp.State = api.StateRunning
+
+	base := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.GeneratedPassword = types.StringValue("api-generated-secret")
+		s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+	}).Get()
+
+	tests := []struct {
+		name           string
+		plan           models.ServiceResourceModel
+		wantCleared    bool
+		expectPassword bool
+	}{
+		{
+			name: "password changed: generated_password is cleared",
+			plan: test.NewUpdater(base).Update(func(s *models.ServiceResourceModel) {
+				s.Password = types.StringValue("new-password")
+			}).Get(),
+			wantCleared:    true,
+			expectPassword: true,
+		},
+		{
+			name:           "nothing password-related changed: generated_password is preserved",
+			plan:           base,
+			wantCleared:    false,
+			expectPassword: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+			var passwordCalled bool
+			apiClientMock := api.NewClientMock(mc).
+				UpdateServiceMock.Optional().Return(&syncResp, nil).
+				UpdateReplicaScalingMock.Optional().Return(&syncResp, nil).
+				GetServiceMock.Return(&syncResp, nil).
+				UpdateServicePasswordMock.Optional().Set(func(_ context.Context, _ string, _ api.ServicePasswordUpdate) (*api.ServicePasswordUpdateResult, error) {
+				passwordCalled = true
+				return &api.ServicePasswordUpdateResult{}, nil
+			})
+
+			r.client = apiClientMock
+
+			stateVal := tfsdk.State{Schema: sch}
+			if d := stateVal.Set(ctx, &base); d.HasError() {
+				t.Fatalf("encoding state: %v", d.Errors())
+			}
+			planVal := tfsdk.Plan{Schema: sch}
+			if d := planVal.Set(ctx, &tt.plan); d.HasError() {
+				t.Fatalf("encoding plan: %v", d.Errors())
+			}
+			req := resource.UpdateRequest{
+				State:  stateVal,
+				Plan:   planVal,
+				Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+			}
+			resp := &resource.UpdateResponse{State: tfsdk.State{Schema: sch}}
+			r.Update(ctx, req, resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("Update returned errors: %v", resp.Diagnostics.Errors())
+			}
+
+			if passwordCalled != tt.expectPassword {
+				t.Errorf("UpdateServicePassword called = %v, want %v", passwordCalled, tt.expectPassword)
+			}
+
+			var out models.ServiceResourceModel
+			if d := resp.State.Get(ctx, &out); d.HasError() {
+				t.Fatalf("decoding post-apply state: %v", d.Errors())
+			}
+			if tt.wantCleared {
+				if !out.GeneratedPassword.IsNull() {
+					t.Errorf("generated_password = %q, want null after a password change", out.GeneratedPassword.ValueString())
+				}
+			} else if out.GeneratedPassword.ValueString() != "api-generated-secret" {
+				t.Errorf("generated_password = %v, want it preserved as %q", out.GeneratedPassword, "api-generated-secret")
+			}
+		})
 	}
 }
