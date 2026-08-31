@@ -42,16 +42,27 @@ api_probe() {
   printf '%s' "$out" | sed '$d'
 }
 
-services=$(api "${ORG_URL}/services") || {
+# --fail so a retried request cannot leave two response bodies in $services.
+# Without it a 429 followed by a successful retry concatenates the error body
+# and the list, and jq quietly reports on whichever one it read last.
+services=$(api --fail "${ORG_URL}/services") || {
   echo "::error::Could not list services in organization ${ORGANIZATION_ID}." >&2
   exit 1
 }
 # Distinguishes an auth/API failure from a genuinely empty org — without this the
 # loop below just sees no candidates and reports "nothing onboarded".
-jq -e 'has("result")' <<<"$services" >/dev/null || {
+jq -e '(.result | type) == "array"' <<<"$services" >/dev/null || {
   echo "::error::Unexpected response listing services: ${services}" >&2
   exit 1
 }
+
+# Skips the throwaway services the other test jobs are creating right now in
+# this same org. Onboarding ClickStack is a console step, so the service being
+# looked for is always long-lived. Probing the test ones also broke the scan:
+# the warehouse example's readonly secondary answers 404 here, not 403.
+candidates=$(jq -r '.result[]
+  | select(.name | test("^\\[?(e2e|upg|import)\\]?-") | not)
+  | "\(.id)\t\(.name)"' <<<"$services")
 
 # A service without ClickStack answers 403 ("ClickStack has not been setup for
 # this service"), so the status code is what identifies the right one. State is
@@ -75,7 +86,7 @@ while IFS=$'\t' read -r id name; do
   fi
   service_id="$id"
   service_name="$name"
-done < <(jq -r '.result[] | "\(.id)\t\(.name)"' <<<"$services")
+done <<<"$candidates"
 
 if [ -z "$service_id" ]; then
   echo "::error::No service in this organization has ClickStack onboarded. Onboarding is a console step the provider cannot do." >&2
@@ -86,8 +97,13 @@ fi
 # service pointing at itself, so read its id off the sources onboarding created.
 # `// empty` matters: jq -r prints a JSON null as the string "null", which would
 # sail past the emptiness check below and land "null" in variables.tfvars.
-connection_id=$(api "${ORG_URL}/services/${service_id}/clickstack/sources" \
-  | jq -r '[.result[].connection // empty] | unique | if length == 1 then .[0] else empty end')
+# Not piped straight into jq: pipefail would then kill the script on a failed
+# request with curl's bare exit status and no message.
+sources=$(api --fail "${ORG_URL}/services/${service_id}/clickstack/sources") || {
+  echo "::error::Could not read ${service_name}'s ClickStack sources." >&2
+  exit 1
+}
+connection_id=$(jq -r '[.result[].connection // empty] | unique | if length == 1 then .[0] else empty end' <<<"$sources")
 
 if [ -z "$connection_id" ]; then
   echo "::error::Could not read a single connection id off ${service_name}'s sources. ClickStack creates its default sources once telemetry arrives, so this usually means the service has never ingested anything." >&2
