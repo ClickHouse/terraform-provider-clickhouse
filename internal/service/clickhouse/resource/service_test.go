@@ -1865,6 +1865,40 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 			expectPassword: true,
 			wantGenerated:  "",
 		},
+		{
+			// The password_wo = "" workaround this attribute exists for -
+			// a real, non-empty password_wo must behave the same as the
+			// plain "password" field: overwrite the generated one.
+			name: "explicit non-empty password_wo supplied: generated_password stays null",
+			plan: test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+				s.Password = types.StringNull()
+				s.PasswordHash = types.StringNull()
+				s.DoubleSha1PasswordHash = types.StringNull()
+				s.PasswordWO = types.StringValue("hunter2")
+				s.PasswordWOVersion = types.Int64Value(1)
+				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+			}).Get(),
+			expectPassword: true,
+			wantGenerated:  "",
+		},
+		{
+			// Secondary/hydra services (data_warehouse_id set) share the
+			// parent's default user and never get their own password -
+			// generated_password must be null even though CreateService's
+			// mock still returns one.
+			name: "secondary service: generated_password is null, no password call at all",
+			plan: test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+				s.DataWarehouseID = types.StringValue("dwh-1")
+				s.Password = types.StringNull()
+				s.PasswordHash = types.StringNull()
+				s.DoubleSha1PasswordHash = types.StringNull()
+				s.PasswordWO = types.StringNull()
+				s.PasswordWOVersion = types.Int64Null()
+				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+			}).Get(),
+			expectPassword: false,
+			wantGenerated:  "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1912,5 +1946,59 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 				t.Errorf("generated_password = %q, want %q", out.GeneratedPassword.ValueString(), tt.wantGenerated)
 			}
 		})
+	}
+}
+
+// If CreateService's response carries an empty (rather than absent) password
+// - a tier that doesn't assign one, or a future API change - generated_password
+// must be stored as null, not as the empty string, which would be
+// indistinguishable in HCL from "the password really is empty".
+func TestServiceResource_Create_generatedPassword_emptyResponseStaysNull(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	createResp := getBaseResponse("svc-new")
+	createResp.State = api.StateRunning
+	syncResp := createResp
+
+	plan := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.Password = types.StringNull()
+		s.PasswordHash = types.StringNull()
+		s.DoubleSha1PasswordHash = types.StringNull()
+		s.PasswordWO = types.StringNull()
+		s.PasswordWOVersion = types.Int64Null()
+		s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+	}).Get()
+
+	mc := minimock.NewController(t)
+	apiClientMock := api.NewClientMock(mc).
+		CreateServiceMock.Return(&createResp, "", nil). // empty password in the create response
+		WaitForServiceStateMock.Return(nil).
+		GetServiceMock.Return(&syncResp, nil).
+		UpdateServicePasswordMock.Optional().Return(&api.ServicePasswordUpdateResult{}, nil)
+
+	r.client = apiClientMock
+
+	planVal := tfsdk.Plan{Schema: sch}
+	if d := planVal.Set(ctx, &plan); d.HasError() {
+		t.Fatalf("encoding plan: %v", d.Errors())
+	}
+	req := resource.CreateRequest{
+		Plan:   planVal,
+		Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+	}
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Create returned errors: %v", resp.Diagnostics.Errors())
+	}
+
+	var out models.ServiceResourceModel
+	if d := resp.State.Get(ctx, &out); d.HasError() {
+		t.Fatalf("decoding post-apply state: %v", d.Errors())
+	}
+	if !out.GeneratedPassword.IsNull() {
+		t.Errorf("generated_password = %q, want null (not empty string)", out.GeneratedPassword.ValueString())
 	}
 }

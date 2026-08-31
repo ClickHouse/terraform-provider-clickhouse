@@ -191,7 +191,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"generated_password": schema.StringAttribute{
-				Description: "The password the API assigned to the default user at creation time, when no `password`, `password_hash`, or non-empty `password_wo` was supplied. Only populated on create; if the password is changed afterward (via this provider or otherwise), this value is not updated and no longer reflects the current password. Useful for a one-time handoff — e.g. a caller that can create a service but has no permission to reset its password later.",
+				Description: "The password the API assigned to the default user at creation time, when no `password`/`password_hash` was supplied and `password_wo` was set to an empty string (one of `password`, `password_hash`, or `password_wo` must still be present per the schema's validation — set `password_wo = \"\"` explicitly, since omitting all three is rejected at plan time). Only populated on create; if the password is changed afterward (via this provider or otherwise), this value is not updated and no longer reflects the current password. Useful for a one-time handoff — e.g. a caller that can create a service but has no permission to reset its password later.",
 				Computed:    true,
 				Sensitive:   true,
 				PlanModifiers: []planmodifier.String{
@@ -1446,8 +1446,16 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Set unless an explicit password is supplied below, in which case the
 	// API-assigned one this create call returned is immediately overwritten
-	// and never took effect.
-	plan.GeneratedPassword = types.StringValue(generatedPassword)
+	// and never took effect. A blank string (rather than the field simply
+	// being absent from the response) is treated the same as "no password
+	// was assigned" and stored as null, not as an empty string — this is
+	// Computed, so it must resolve to a known value (null is fine) either
+	// way, it just can't stay Unknown.
+	if generatedPassword == "" {
+		plan.GeneratedPassword = types.StringNull()
+	} else {
+		plan.GeneratedPassword = types.StringValue(generatedPassword)
+	}
 
 	err = r.client.WaitForServiceState(ctx, s.Id, func(state string) bool { return state != api.StateProvisioning }, 90*60)
 	if err != nil {
