@@ -61,15 +61,23 @@ func is5xx(err error) bool {
 	return strings.HasPrefix(err.Error(), "status: 5")
 }
 
-// is4xx reports whether err is any 4xx client error (bad request, unauthorized,
-// forbidden, not found, etc.). Unlike a 5xx, a 4xx is never transient — the
-// request itself is wrong or not permitted, and retrying it unchanged will
-// never succeed. Callers polling for a resource to reach some state should
-// treat a 4xx as terminal, not as "not there yet".
-func is4xx(err error) bool {
-	if err == nil {
+// is4xxPermanent reports whether err is a 4xx client error that will never
+// resolve by retrying (bad request, unauthorized, forbidden, not found,
+// etc.). Callers polling for a resource to reach some state should treat
+// this as terminal, not as "not there yet".
+//
+// 429 (rate limited) and 408 (request timeout) are excluded: both are
+// transient by definition. doRequest already retries a 429 internally
+// (honoring X-RateLimit-Reset) within its own bounded window
+// (backoff.WithMaxElapsedTime(61*time.Second) in doRequestWithStatus) — if
+// that budget is exhausted and a plain "status: 429" error reaches here,
+// it should still be retried by the caller's own backoff, not treated as
+// permanent.
+func is4xxPermanent(err error) bool {
+	if err == nil || !strings.HasPrefix(err.Error(), "status: 4") {
 		return false
 	}
 
-	return strings.HasPrefix(err.Error(), "status: 4")
+	msg := err.Error()
+	return !strings.HasPrefix(msg, "status: 429") && !strings.HasPrefix(msg, "status: 408")
 }

@@ -187,3 +187,31 @@ func TestWaitForServiceState_failsFastOn403(t *testing.T) {
 		t.Errorf("WaitForServiceState made %d HTTP calls on a 403; want exactly 1 (no retries)", n)
 	}
 }
+
+// A 429 is transient (server-side rate limiting), unlike the 4xx client
+// errors WaitForServiceState now fails fast on. It must not be treated as
+// permanent — the request should keep being retried until it succeeds.
+func TestWaitForServiceState_retriesOn429(t *testing.T) {
+	var calls int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&calls, 1)
+		if n < 3 {
+			// No X-RateLimit-Reset header: doRequest's own retry falls back
+			// to an immediate retry (resetSeconds defaults to 0), so this
+			// test resolves quickly rather than waiting on real rate-limit
+			// timing.
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error":"TOO_MANY_REQUESTS","status":429}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: StateRunning}})
+	})
+
+	err := client.WaitForServiceState(context.Background(), "svc-1", func(state string) bool { return state == StateRunning }, 25)
+	if err != nil {
+		t.Fatalf("WaitForServiceState: want nil error after transient 429s, got %v", err)
+	}
+	if n := atomic.LoadInt32(&calls); n < 3 {
+		t.Errorf("server received %d calls; want at least 3 (2x 429 then success)", n)
+	}
+}

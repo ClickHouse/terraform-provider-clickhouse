@@ -148,15 +148,12 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 		// wait for a state transition (e.g. right after creating a
 		// service with a token scoped to only that one instance).
 		state, err := c.getServiceState(ctx, serviceId)
-		if is5xx(err) {
-			// 500s are automatically retried in `doRequest`.
-			// If we get it here, we consider it an unrecoverable error.
-			return backoff.Permanent(err)
-		} else if is4xx(err) {
-			// A 4xx (e.g. a missing permission) will never resolve by
-			// retrying, and would otherwise be indistinguishable from
+		if is5xx(err) || is4xxPermanent(err) {
+			// 500s are automatically retried in `doRequest`. A 4xx other
+			// than 429/408 (e.g. a missing permission) will never resolve
+			// by retrying, and would otherwise be indistinguishable from
 			// "still provisioning" for the full duration of
-			// maxWaitSeconds. Fail immediately instead.
+			// maxWaitSeconds. Either way, fail immediately instead.
 			return backoff.Permanent(err)
 		} else if err != nil {
 			return err
@@ -173,12 +170,7 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 		maxWaitSeconds = 5
 	}
 
-	err := backoff.Retry(checkState, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5))) //nolint:gosec
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return backoff.Retry(checkState, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)), ctx)) //nolint:gosec
 }
 
 // getServiceState returns just the service state. Unlike GetService it does
@@ -223,32 +215,10 @@ func (c *ClientImpl) wakeService(ctx context.Context, serviceId string) error {
 
 // waitForServiceRunning polls the service state until it is running — the
 // only state in which the ClickPipes API accepts creations and updates
-// (partially_running is NOT sufficient). It is a lightweight alternative to
-// WaitForServiceState for internal use (e.g. after wakeService), polling only
-// the state instead of the full GetService fan-out.
+// (partially_running is NOT sufficient). It is a thin wrapper around
+// WaitForServiceState for internal use (e.g. after wakeService).
 func (c *ClientImpl) waitForServiceRunning(ctx context.Context, serviceId string, maxWaitSeconds int) error {
-	checkState := func() error {
-		state, err := c.getServiceState(ctx, serviceId)
-		if is5xx(err) {
-			// 500s are automatically retried in `doRequest`.
-			// If we get it here, we consider it an unrecoverable error.
-			return backoff.Permanent(err)
-		} else if err != nil {
-			return err
-		}
-
-		if state == StateRunning {
-			return nil
-		}
-
-		return fmt.Errorf("service %s is in state %s", serviceId, state)
-	}
-
-	if maxWaitSeconds < 5 {
-		maxWaitSeconds = 5
-	}
-
-	return backoff.Retry(checkState, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)), ctx)) //nolint:gosec
+	return c.WaitForServiceState(ctx, serviceId, func(state string) bool { return state == StateRunning }, maxWaitSeconds)
 }
 
 func (c *ClientImpl) UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error) {
