@@ -191,7 +191,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"generated_password": schema.StringAttribute{
-				Description: "The password the API assigned to the default user at creation time, when no `password`/`password_hash` was supplied and `password_wo` was set to an empty string (one of `password`, `password_hash`, or `password_wo` must still be present per the schema's validation — set `password_wo = \"\"` explicitly, since omitting all three is rejected at plan time). Only populated on create; if the password is changed afterward (via this provider or otherwise), this value is not updated and no longer reflects the current password. Useful for a one-time handoff — e.g. a caller that can create a service but has no permission to reset its password later.",
+				Description: "The password the API assigned to the default user at creation time, when no `password`/`password_hash` was supplied and `password_wo` was set to an empty string (one of `password`, `password_hash`, or `password_wo` must still be present per the schema's validation — omitting all three is rejected at plan time, so set `password_wo = \"\"` explicitly; `password_wo_version` must also be set, e.g. to `1`, since `password_wo` requires it whenever it has any non-null value, including an empty string). Only populated on create; if the password is changed afterward (via this provider or otherwise), this value is not updated and no longer reflects the current password. Useful for a one-time handoff — e.g. a caller that can create a service but has no permission to reset its password later.",
 				Computed:    true,
 				Sensitive:   true,
 				PlanModifiers: []planmodifier.String{
