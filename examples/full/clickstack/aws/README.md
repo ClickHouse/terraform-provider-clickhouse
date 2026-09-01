@@ -17,36 +17,38 @@ Two reasons, both of which rule out creating it per run:
 
 ## One-time setup
 
-1. Create a small Cloud service and onboard managed ClickStack onto it.
-2. Note its service ID → `CLICKSTACK_SERVICE_ID` secret.
-3. Read the platform-created connection's id → `CLICKSTACK_CONNECTION_ID` secret.
-   Connections aren't exposed on Cloud, so take it off any source the onboarding
-   created:
+Once per org, by hand:
+
+1. Create a small Cloud service named **`[e2e]-clickstack-nightly`** via the
+   console. CI looks the service up by that exact name
+   (`.github/scripts/discover_clickstack_ids.sh`), and the name carries no
+   per-run token, so the cleanup job doesn't match it.
+2. Seed the schema and get some telemetry in, by running the ClickStack
+   collector against the service. It creates the otel tables itself, so don't
+   hand-roll them — the source below maps its schema, and a hand-made table
+   drifts from it:
 
    ```bash
-   curl -s --user "$TOKEN_KEY:$TOKEN_SECRET" \
-     "https://api.clickhouse.cloud/v1/organizations/$ORG_ID/services/$SERVICE_ID/clickstack/sources" \
-     | jq -r '.result[0].connection'
+   docker run -e CLICKHOUSE_ENDPOINT="https://<service-host>:8443" \
+     -e CLICKHOUSE_USER="default" \
+     -e CLICKHOUSE_PASSWORD="..." \
+     -p 4317:4317 -p 4318:4318 \
+     clickhouse/clickstack-otel-collector:latest
    ```
 
-4. Create the table the log source below maps. A service with no ingestion has
-   no otel tables — the OTel collector creates them when ingestion is enabled,
-   which this test deliberately doesn't do — so the source would not resolve and
-   the dashboard's `POST /dashboards/validate` would have no schema to validate
-   against. Column names and types match the collector's log schema, minus its
-   codecs:
+   Then send it anything over OTLP, e.g.:
 
-   ```sql
-   CREATE TABLE IF NOT EXISTS default.otel_logs (
-     Timestamp DateTime64(9),
-     TimestampTime DateTime DEFAULT toDateTime(Timestamp),
-     ServiceName LowCardinality(String),
-     SeverityText LowCardinality(String),
-     Body String,
-     ResourceAttributes Map(LowCardinality(String), String),
-     LogAttributes Map(LowCardinality(String), String)
-   ) ENGINE = MergeTree ORDER BY (ServiceName, TimestampTime)
+   ```bash
+   docker run --rm --network container:<collector> \
+     ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest \
+     logs --otlp-endpoint localhost:4317 --otlp-insecure --duration 8s
    ```
+
+   Onboarding needs data present: ClickStack creates its default sources once
+   telemetry arrives, and the connection id discovery reads comes off one of
+   those. `POST /dashboards/validate` also needs a schema to validate against.
+
+3. Finish onboarding managed ClickStack in the console.
 
 ## Not covered
 
@@ -83,6 +85,15 @@ Every run applies to the same service, so `suffix` is what keeps concurrent runs
 apart. CI sets it to the generated service name.
 
 ## Running locally
+
+Both ids come from the service. CI discovers them; for a local run, read them off
+any source the onboarding created:
+
+```bash
+curl -s --user "$TOKEN_KEY:$TOKEN_SECRET" \
+  "https://api.clickhouse.cloud/v1/organizations/$ORG_ID/services/$SERVICE_ID/clickstack/sources" \
+  | jq -r '.result[0].connection'
+```
 
 ```bash
 cat > variables.tfvars <<EOF

@@ -71,7 +71,7 @@ resource "clickhouse_clickstack_source" "logs" {
     table_name    = "otel_logs"
   }
 
-  timestamp_value_expression      = "TimestampTime"
+  timestamp_value_expression      = "Timestamp"
   default_table_select_expression = "Timestamp, ServiceName, SeverityText, Body"
 
   service_name_expression        = "ServiceName"
