@@ -182,6 +182,8 @@ type ClickPipePostgresSource struct {
 	IAMRole               *string                         `json:"iamRole,omitempty"`
 	TLSHost               *string                         `json:"tlsHost,omitempty"`
 	CACertificate         *string                         `json:"caCertificate,omitempty"`
+	DisableTLS            *bool                           `json:"disableTls,omitempty"`
+	SkipCertVerification  *bool                           `json:"skipCertVerification,omitempty"`
 	Credentials           *ClickPipeSourceCredentials     `json:"credentials,omitempty"`
 	Settings              *ClickPipePostgresSettings      `json:"settings,omitempty"`
 	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings,omitempty"`
@@ -280,6 +282,7 @@ type ClickPipeMongoDBSource struct {
 	ReadPreference        string                         `json:"readPreference,omitempty"`
 	TLSHost               *string                        `json:"tlsHost,omitempty"`
 	DisableTLS            *bool                          `json:"disableTls,omitempty"`
+	SkipCertVerification  *bool                          `json:"skipCertVerification,omitempty"`
 	CACertificate         *string                        `json:"caCertificate,omitempty"`
 	Credentials           *ClickPipeSourceCredentials    `json:"credentials,omitempty"`
 	Settings              *ClickPipeMongoDBSettings      `json:"settings,omitempty"`

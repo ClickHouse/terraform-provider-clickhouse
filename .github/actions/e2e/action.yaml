@@ -486,6 +486,29 @@ runs:
         echo "::group::Run terraform destroy"
         cd "examples/full/${{ inputs.test_name }}/${{ inputs.cloud_provider }}"
 
+        # Since destroy runs on failure too, it can now be reached before
+        # anything was applied. Without this it fails on its own terms -- missing
+        # variables, no provider -- and buries the real error.
+        #
+        # Keyed on state holding resources, NOT on .terraform existing: an
+        # example whose only provider is dev-overridden has nothing for init to
+        # install, so no .terraform directory is ever created and that test would
+        # skip its own teardown on every run.
+        # Only skip on a positive count of zero. Unreadable state means resources
+        # probably do exist, so attempt the destroy and let terraform say why.
+        resource_count="unknown"
+        if [ -s terraform.tfstate ]
+        then
+          resource_count="$(jq -r '.resources | length' terraform.tfstate 2>/dev/null || echo unknown)"
+        fi
+
+        if [ ! -s terraform.tfstate ] || [ "$resource_count" = "0" ]
+        then
+          echo "nothing applied, skipping destroy"
+          echo "::endgroup::"
+          exit 0
+        fi
+
         if [ "${{inputs.api_url}}" != "" ]
         then
           export CLICKHOUSE_API_URL="${{inputs.api_url}}"

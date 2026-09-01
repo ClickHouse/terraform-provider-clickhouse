@@ -102,15 +102,16 @@ func buildMongoDBSSHKeyResourcePlan(sshKeyResourceID types.String) models.ClickP
 		ReplicationMode: types.StringValue("cdc"),
 	}
 	mongoAttrs := map[string]attr.Value{
-		"uri":                 types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
-		"read_preference":     types.StringValue("secondaryPreferred"),
-		"tls_host":            types.StringNull(),
-		"ca_certificate":      types.StringNull(),
-		"disable_tls":         types.BoolNull(),
-		"credentials":         types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes),
-		"settings":            settingsModel.ObjectValue(),
-		"table_mappings":      types.SetValueMust(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), []attr.Value{}),
-		"ssh_key_resource_id": sshKeyResourceID,
+		"uri":                    types.StringValue("mongodb+srv://cluster0.example.mongodb.net/mydb"),
+		"read_preference":        types.StringValue("secondaryPreferred"),
+		"tls_host":               types.StringNull(),
+		"ca_certificate":         types.StringNull(),
+		"disable_tls":            types.BoolNull(),
+		"skip_cert_verification": types.BoolNull(),
+		"credentials":            types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes),
+		"settings":               settingsModel.ObjectValue(),
+		"table_mappings":         types.SetValueMust(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), []attr.Value{}),
+		"ssh_key_resource_id":    sshKeyResourceID,
 	}
 	sourceModel := models.ClickPipeSourceModel{
 		Kafka:         types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes),
