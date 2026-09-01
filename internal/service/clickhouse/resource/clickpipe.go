@@ -4908,7 +4908,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		if clickPipe.Source.MongoDB.SkipCertVerification != nil {
 			mongodbModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.MongoDB.SkipCertVerification)
 		} else {
-			mongodbModel.SkipCertVerification = types.BoolValue(false)
+			mongodbModel.SkipCertVerification = stateMongoDBModel.SkipCertVerification
 		}
 
 		if len(tableMappingList) > 0 {
