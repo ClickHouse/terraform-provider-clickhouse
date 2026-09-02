@@ -6,10 +6,14 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/defaults"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
 )
@@ -49,12 +53,40 @@ func TestAlertResource_Schema(t *testing.T) {
 			t.Errorf("%q must be Optional (not Computed) so mode switches clear it", attr)
 		}
 	}
+	for _, attr := range []string{"source", "dashboard_id", "tile_id"} {
+		if _, ok := resp.Schema.Attributes[attr]; !ok {
+			t.Errorf("expected attribute %q", attr)
+		}
+	}
+	// Tile alerts have no saved search, so saved_search_id can no longer be Required.
+	if a := resp.Schema.Attributes["saved_search_id"]; a != nil && a.IsRequired() {
+		t.Error("saved_search_id must be Optional now that tile alerts exist")
+	}
+	// source is Optional+Computed so the saved_search default applies at plan time
+	// and existing configs that never set it see no diff.
+	if a := resp.Schema.Attributes["source"]; a != nil && (!a.IsOptional() || !a.IsComputed()) {
+		t.Error("source must be Optional+Computed so the default applies")
+	}
+	// The default has to be saved_search: it is what an existing config that never
+	// mentioned source resolves to, so anything else would plan a change on upgrade.
+	if sa, ok := resp.Schema.Attributes["source"].(rschema.StringAttribute); !ok || sa.Default == nil {
+		t.Error("source must have a default")
+	} else {
+		dresp := &defaults.StringResponse{}
+		sa.Default.DefaultString(context.Background(), defaults.StringRequest{}, dresp)
+		if dresp.PlanValue.ValueString() != alertSourceSavedSearch {
+			t.Errorf("source default = %q, want %q", dresp.PlanValue.ValueString(), alertSourceSavedSearch)
+		}
+	}
 }
 
 // mkAlert builds a valid saved-search alert model; mods tweaks it per case.
 func mkAlert(mods func(*alertResourceModel)) alertResourceModel {
 	m := alertResourceModel{
+		Source:                types.StringValue(alertSourceSavedSearch),
 		SavedSearchID:         types.StringValue("ss1"),
+		DashboardID:           types.StringNull(),
+		TileID:                types.StringNull(),
 		GroupBy:               types.StringNull(),
 		Channel:               &alertChannelModel{Type: types.StringValue("webhook"), WebhookID: types.StringValue("wh1")},
 		Threshold:             types.Float64Value(100),
@@ -72,6 +104,50 @@ func mkAlert(mods func(*alertResourceModel)) alertResourceModel {
 		mods(&m)
 	}
 	return m
+}
+
+// asTile turns the mkAlert saved-search model into a valid tile alert.
+func asTile(m *alertResourceModel) {
+	m.Source = types.StringValue(alertSourceTile)
+	m.SavedSearchID = types.StringNull()
+	m.DashboardID = types.StringValue("d1")
+	m.TileID = types.StringValue("t1")
+}
+
+func TestAlertResource_SourceRequiresReplace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	// A non-null tftypes value stands in for "the resource exists" in both Plan
+	// and State, so the modifier does not short-circuit as create or destroy.
+	exists := tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{}}, map[string]tftypes.Value{})
+
+	cases := []struct {
+		name  string
+		state types.String
+		plan  types.String
+		want  bool
+	}{
+		{"legacy null state to default is an upgrade, not a change", types.StringNull(), types.StringValue(alertSourceSavedSearch), false},
+		{"unchanged source", types.StringValue(alertSourceSavedSearch), types.StringValue(alertSourceSavedSearch), false},
+		{"saved_search to tile replaces", types.StringValue(alertSourceSavedSearch), types.StringValue(alertSourceTile), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req := planmodifier.StringRequest{
+				Path:       path.Root("source"),
+				StateValue: tc.state,
+				PlanValue:  tc.plan,
+				State:      tfsdk.State{Raw: exists},
+				Plan:       tfsdk.Plan{Raw: exists},
+			}
+			resp := &planmodifier.StringResponse{PlanValue: tc.plan}
+			sourceRequiresReplace().PlanModifyString(ctx, req, resp)
+			if resp.RequiresReplace != tc.want {
+				t.Errorf("RequiresReplace=%v, want %v", resp.RequiresReplace, tc.want)
+			}
+		})
+	}
 }
 
 func TestAlertResource_Validate(t *testing.T) {

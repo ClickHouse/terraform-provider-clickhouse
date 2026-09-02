@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -57,6 +58,31 @@ const channelTypeWebhook = "webhook"
 // today; more are expected, at which point each adds its own required sub-field.
 var alertChannelTypes = []string{channelTypeWebhook}
 
+// Alert sources. Mirrors the client constants so the resource never spells the
+// API strings itself.
+const (
+	alertSourceSavedSearch = client.AlertSourceSavedSearch
+	alertSourceTile        = client.AlertSourceTile
+)
+
+// alertSources is the set of accepted alert sources.
+var alertSources = []string{alertSourceSavedSearch, alertSourceTile}
+
+// sourceRequiresReplace forces replacement when source changes, except from a
+// null prior value: state written before source existed has it null, and the
+// schema default then plans saved_search. That is an upgrade, not a change, so
+// it must not replace every existing alert (a plan with -refresh=false would
+// otherwise see null vs saved_search; a refreshed plan sees the server value).
+func sourceRequiresReplace() planmodifier.String {
+	return stringplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !req.StateValue.IsNull()
+		},
+		"Changing source forces replacement (a null prior source from an older provider version does not).",
+		"Changing `source` forces replacement (a null prior source from an older provider version does not).",
+	)
+}
+
 func isRangeThresholdType(t string) bool { return slices.Contains(alertRangeThresholdTypes, t) }
 
 // NewAlertResource is a helper to register the resource with the provider.
@@ -64,7 +90,7 @@ func NewAlertResource() resource.Resource {
 	return &alertResource{}
 }
 
-// alertResource manages a ClickStack alert (saved-search source only).
+// alertResource manages a ClickStack alert on a saved search or a dashboard tile.
 type alertResource struct {
 	client *client.Client
 }
@@ -81,7 +107,10 @@ type alertChannelModel struct {
 type alertResourceModel struct {
 	ID                    types.String       `tfsdk:"id"`
 	Team                  types.String       `tfsdk:"team"`
+	Source                types.String       `tfsdk:"source"`
 	SavedSearchID         types.String       `tfsdk:"saved_search_id"`
+	DashboardID           types.String       `tfsdk:"dashboard_id"`
+	TileID                types.String       `tfsdk:"tile_id"`
 	GroupBy               types.String       `tfsdk:"group_by"`
 	Channel               *alertChannelModel `tfsdk:"channel"`
 	Threshold             types.Float64      `tfsdk:"threshold"`
@@ -102,8 +131,16 @@ func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest
 
 func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a ClickStack alert that evaluates a saved search on a schedule and " +
-			"notifies through a channel when a threshold is crossed.\n\n" +
+		Description: "Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a " +
+			"schedule and notifies through a channel when a threshold is crossed.\n\n" +
+			"Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with " +
+			"`dashboard_id` and `tile_id`. A tile alert needs a stable tile id: pin `id` on the tile in " +
+			"the dashboard's `dashboard_json`, because the server assigns a fresh id to any tile that " +
+			"arrives without one and that detaches the alert. Only line, stacked bar, and number tiles " +
+			"can be alerted on. The server deletes a tile alert when its tile is removed or changed to an " +
+			"unsupported display type; Terraform then plans to recreate it.\n\n" +
+			"Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one " +
+			"resource). Import each alert separately by its own ID.\n\n" +
 			"Alerts are threshold-based (there is no anomaly mode). Configuration is validated at " +
 			"plan time; those rules mirror the ClickStack server contract on a best-effort basis, so " +
 			"a server-side rule change may make the plan-time checks slightly stale until a new " +
@@ -120,16 +157,37 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					"Changing this forces the alert to be replaced.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
+			"source": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString(alertSourceSavedSearch),
+				Description: "What the alert evaluates: `saved_search` (default, requires `saved_search_id`) " +
+					"or `tile` (requires `dashboard_id` and `tile_id`). Changing this forces replacement.",
+				PlanModifiers: []planmodifier.String{sourceRequiresReplace()},
+			},
 			"saved_search_id": schema.StringAttribute{
-				Required:    true,
-				Description: "ID of the saved search this alert evaluates.",
+				Optional:    true,
+				Description: "ID of the saved search this alert evaluates. Required when `source` is `saved_search`.",
+			},
+			"dashboard_id": schema.StringAttribute{
+				Optional: true,
+				Description: "ID of the dashboard that owns the tile. Required when `source` is `tile`. " +
+					"Changing this forces replacement.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+			},
+			"tile_id": schema.StringAttribute{
+				Optional: true,
+				Description: "ID of the tile to alert on, as pinned by `id` in the dashboard's `dashboard_json`. " +
+					"Required when `source` is `tile`. The tile must be a line, stacked bar, or number tile. " +
+					"Changing this forces replacement.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"group_by": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				Description: "Optional expression to evaluate the alert per group. Sticky once set: the " +
-					"API keeps the previous value when the field is omitted and cannot clear it, so " +
-					"removing it from config is a no-op (recreate the alert to fully reset it).",
+				Description: "Optional expression to evaluate the alert per group (saved-search alerts only). " +
+					"Sticky once set: the API keeps the previous value when the field is omitted and " +
+					"cannot clear it, so removing it from config is a no-op (recreate the alert to fully reset it).",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"channel": schema.SingleNestedAttribute{
