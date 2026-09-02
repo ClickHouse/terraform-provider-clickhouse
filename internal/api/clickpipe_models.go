@@ -92,6 +92,8 @@ type ClickPipeKafkaSchemaRegistry struct {
 type ClickPipeKafkaSource struct {
 	Type   string `json:"type,omitempty"`
 	Format string `json:"format,omitempty"`
+	// ProtobufSchema contains the base64-encoded schema used when no schema registry is configured.
+	ProtobufSchema *string `json:"protobufSchema,omitempty"`
 
 	Brokers string `json:"brokers,omitempty"`
 	Topics  string `json:"topics,omitempty"`

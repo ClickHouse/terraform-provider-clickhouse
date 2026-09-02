@@ -169,8 +169,9 @@ func (m ClickPipeKafkaSourceCredentialsModel) ObjectValue() types.Object {
 }
 
 type ClickPipeKafkaSourceModel struct {
-	Type   types.String `tfsdk:"type"`
-	Format types.String `tfsdk:"format"`
+	Type           types.String `tfsdk:"type"`
+	Format         types.String `tfsdk:"format"`
+	ProtobufSchema types.String `tfsdk:"protobuf_schema"`
 
 	Brokers types.String `tfsdk:"brokers"`
 	Topics  types.String `tfsdk:"topics"`
@@ -195,6 +196,7 @@ func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
 		AttrTypes: map[string]attr.Type{
 			"type":                         types.StringType,
 			"format":                       types.StringType,
+			"protobuf_schema":              types.StringType,
 			"brokers":                      types.StringType,
 			"topics":                       types.StringType,
 			"consumer_group":               types.StringType,
@@ -214,6 +216,7 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"type":                         m.Type,
 		"format":                       m.Format,
+		"protobuf_schema":              m.ProtobufSchema,
 		"brokers":                      m.Brokers,
 		"topics":                       m.Topics,
 		"consumer_group":               m.ConsumerGroup,

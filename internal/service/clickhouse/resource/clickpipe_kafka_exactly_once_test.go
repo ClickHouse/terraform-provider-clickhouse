@@ -24,6 +24,7 @@ func buildKafkaExactlyOncePlan(exactlyOnce types.Bool) models.ClickPipeResourceM
 		"consumer_group":               types.StringNull(),
 		"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
 		"schema_registry":              types.ObjectNull(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes),
+		"protobuf_schema":              types.StringNull(),
 		"authentication":               types.StringValue(api.ClickPipeAuthenticationIAMRole),
 		"credentials":                  types.ObjectNull(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes),
 		"iam_role":                     types.StringValue("arn:aws:iam::123456789012:role/MyRole"),
