@@ -912,6 +912,18 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Description: "PEM encoded CA certificate to validate the Postgres server certificate.",
 								Optional:    true,
 							},
+							"disable_tls": schema.BoolAttribute{
+								Description: "Disable TLS for the Postgres connection.",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+							},
+							"skip_cert_verification": schema.BoolAttribute{
+								Description: "Skip certificate verification for the Postgres connection.",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+							},
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
 								Required:            true,
@@ -1589,6 +1601,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							},
 							"disable_tls": schema.BoolAttribute{
 								Description: "Disable TLS for the MongoDB connection. Defaults to false (TLS enabled).",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+							},
+							"skip_cert_verification": schema.BoolAttribute{
+								Description: "Skip certificate verification for the MongoDB connection.",
 								Optional:    true,
 								Computed:    true,
 								Default:     booldefault.StaticBool(false),
@@ -3495,6 +3513,14 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !postgresModel.CACertificate.IsNull() {
 			postgresSource.CACertificate = postgresModel.CACertificate.ValueStringPointer()
 		}
+		if !postgresModel.DisableTLS.IsNull() && !postgresModel.DisableTLS.IsUnknown() {
+			val := postgresModel.DisableTLS.ValueBool()
+			postgresSource.DisableTLS = &val
+		}
+		if !postgresModel.SkipCertVerification.IsNull() && !postgresModel.SkipCertVerification.IsUnknown() {
+			val := postgresModel.SkipCertVerification.ValueBool()
+			postgresSource.SkipCertVerification = &val
+		}
 
 		source.Postgres = postgresSource
 	} else if !sourceModel.MySQL.IsNull() {
@@ -3743,6 +3769,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !mongodbModel.DisableTLS.IsNull() {
 			v := mongodbModel.DisableTLS.ValueBool()
 			mongodbSource.DisableTLS = &v
+		}
+		if !mongodbModel.SkipCertVerification.IsNull() && !mongodbModel.SkipCertVerification.IsUnknown() {
+			v := mongodbModel.SkipCertVerification.ValueBool()
+			mongodbSource.SkipCertVerification = &v
 		}
 
 		source.MongoDB = mongodbSource
@@ -4483,6 +4513,18 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			postgresModel.CACertificate = types.StringNull()
 		}
 
+		if clickPipe.Source.Postgres.DisableTLS != nil {
+			postgresModel.DisableTLS = types.BoolValue(*clickPipe.Source.Postgres.DisableTLS)
+		} else {
+			postgresModel.DisableTLS = types.BoolValue(false)
+		}
+
+		if clickPipe.Source.Postgres.SkipCertVerification != nil {
+			postgresModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.Postgres.SkipCertVerification)
+		} else {
+			postgresModel.SkipCertVerification = types.BoolValue(false)
+		}
+
 		if len(tableMappingList) > 0 {
 			postgresModel.TableMappings, _ = types.SetValue(models.ClickPipePostgresTableMappingModel{}.ObjectType(), tableMappingList)
 		}
@@ -4861,6 +4903,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			mongodbModel.DisableTLS = types.BoolValue(*clickPipe.Source.MongoDB.DisableTLS)
 		} else {
 			mongodbModel.DisableTLS = stateMongoDBModel.DisableTLS
+		}
+
+		if clickPipe.Source.MongoDB.SkipCertVerification != nil {
+			mongodbModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.MongoDB.SkipCertVerification)
+		} else {
+			mongodbModel.SkipCertVerification = stateMongoDBModel.SkipCertVerification
 		}
 
 		if len(tableMappingList) > 0 {
