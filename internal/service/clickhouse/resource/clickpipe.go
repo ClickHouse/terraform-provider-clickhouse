@@ -5951,6 +5951,6 @@ func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.Import
 			"Your configuration (in *.tf files) must provide valid credentials.\n"+
 			"The first `terraform apply` after import sends the source credentials to the ClickPipe and records them in state.\n"+
 			"Schema registry credentials are immutable and never sent on update: the apply records your configured values in state without server-side verification, so ensure they match the registry credentials the pipe already uses.\n"+
-			"Uploaded Protobuf schemas are also not returned by the API. Importing a direct-Protobuf ClickPipe cannot recover protobuf_schema, and configuring it after import forces replacement.",
+			"Protobuf schemas aren't imported. Adding `protobuf_schema` after import forces ClickPipe replacement.",
 	)
 }

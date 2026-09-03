@@ -393,6 +393,6 @@ func TestClickPipeResource_ImportWarnsAboutUnrecoverableProtobufSchema(t *testin
 	warnings := importResponse.Diagnostics.Warnings()
 	require.Len(t, warnings, 1)
 	assert.Equal(t, "Sensitive values are not imported", warnings[0].Summary())
-	assert.Contains(t, warnings[0].Detail(), "cannot recover protobuf_schema")
-	assert.Contains(t, warnings[0].Detail(), "configuring it after import forces replacement")
+	assert.Contains(t, warnings[0].Detail(), "Protobuf schemas aren't imported")
+	assert.Contains(t, warnings[0].Detail(), "Adding `protobuf_schema` after import forces ClickPipe replacement")
 }
