@@ -177,7 +177,7 @@ func TestMergeTileIDs_MiddleRemoved(t *testing.T) {
 	}
 }
 
-// TestMergeTileIDs_UnknownAuthoredIDReplacedByNameMatch pins the server rule:
+// TestMergeTileIDs_UnknownAuthoredIDReplacedByNameMatch locks in the server rule:
 // the API only keeps an authored tile id it already knows, and mints a fresh
 // one otherwise. An authored id the prior body does not contain is therefore
 // treated as absent so the name match can carry the real id forward.
@@ -358,10 +358,10 @@ func TestMergeTileIDs_AuthorDuplicateNamesNoDoubleStamp(t *testing.T) {
 	}
 }
 
-func TestMergeTileIDs_PinnedIDNotReusedByIndexFallback(t *testing.T) {
+func TestMergeTileIDs_AuthoredIDNotReusedByIndexFallback(t *testing.T) {
 	t.Parallel()
-	// An authored id the server knows (so the merge keeps it) must not be
-	// re-stamped onto a blank-named tile via the index fallback.
+	// An authored id the server already knows (so the merge keeps it) must not
+	// be re-stamped onto a blank-named tile via the index fallback.
 	authored := json.RawMessage(`{"tiles":[{"id":"id-a","name":"A"},{"name":""}]}`)
 	prior := json.RawMessage(`{"tiles":[{"id":"id-a","name":"A"},{"id":"id-a","name":"B"}]}`)
 
