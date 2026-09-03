@@ -43,7 +43,7 @@ func TestServicePackages(t *testing.T) {
 	// Bump these numbers deliberately when a group gains or loses a
 	// resource/data source.
 	const (
-		wantResources   = 25 // 15 clickhouse + 1 postgres + 9 clickstack
+		wantResources   = 26 // 16 clickhouse + 1 postgres + 9 clickstack
 		wantDataSources = 13 // 8 clickhouse + 3 postgres + 2 clickstack
 	)
 	if len(resTypes) != wantResources {

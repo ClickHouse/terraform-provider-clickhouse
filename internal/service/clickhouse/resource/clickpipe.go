@@ -214,6 +214,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							requiresReplaceIfSourceTypeChanges{},
 						},
 						Attributes: map[string]schema.Attribute{
+							"ssh_key_resource_id": schema.StringAttribute{
+								MarkdownDescription: "ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
 									"The type of the Kafka source. (%s). Default is `%s`.",
@@ -856,6 +863,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							requiresReplaceIfSourceTypeChanges{},
 						},
 						Attributes: map[string]schema.Attribute{
+							"ssh_key_resource_id": schema.StringAttribute{
+								MarkdownDescription: "ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
 									"The type of the Postgres source. (%s). Default is `%s`.",
@@ -912,6 +926,18 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"ca_certificate": schema.StringAttribute{
 								Description: "PEM encoded CA certificate to validate the Postgres server certificate.",
 								Optional:    true,
+							},
+							"disable_tls": schema.BoolAttribute{
+								Description: "Disable TLS for the Postgres connection.",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+							},
+							"skip_cert_verification": schema.BoolAttribute{
+								Description: "Skip certificate verification for the Postgres connection.",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
 							},
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
@@ -1144,6 +1170,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							requiresReplaceIfSourceTypeChanges{},
 						},
 						Attributes: map[string]schema.Attribute{
+							"ssh_key_resource_id": schema.StringAttribute{
+								MarkdownDescription: "ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
 									"The type of MySQL-compatible source. (%s). Default is `mysql`.",
@@ -1566,6 +1599,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							requiresReplaceIfSourceTypeChanges{},
 						},
 						Attributes: map[string]schema.Attribute{
+							"ssh_key_resource_id": schema.StringAttribute{
+								MarkdownDescription: "ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"uri": schema.StringAttribute{
 								Description: "MongoDB connection URI. Supports both standard URIs (mongodb://...) and SRV URIs (mongodb+srv://...).",
 								Required:    true,
@@ -1590,6 +1630,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							},
 							"disable_tls": schema.BoolAttribute{
 								Description: "Disable TLS for the MongoDB connection. Defaults to false (TLS enabled).",
+								Optional:    true,
+								Computed:    true,
+								Default:     booldefault.StaticBool(false),
+							},
+							"skip_cert_verification": schema.BoolAttribute{
+								Description: "Skip certificate verification for the MongoDB connection.",
 								Optional:    true,
 								Computed:    true,
 								Default:     booldefault.StaticBool(false),
@@ -3072,6 +3118,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			source.Kafka.Type = kafkaModel.Type.ValueString()
 			source.Kafka.Format = kafkaModel.Format.ValueString()
 			source.Kafka.ExactlyOnce = kafkaModel.ExactlyOnce.ValueBoolPointer()
+			source.Kafka.SSHKeyResourceID = kafkaModel.SSHKeyResourceID.ValueStringPointer()
 		}
 
 		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole && kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
@@ -3573,6 +3620,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 
 		if !isUpdate {
 			postgresSource.Type = postgresModel.Type.ValueString()
+			postgresSource.SSHKeyResourceID = postgresModel.SSHKeyResourceID.ValueStringPointer()
 		}
 
 		// Only attach a credentials block when the username is actually known.
@@ -3599,6 +3647,14 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		}
 		if !postgresModel.CACertificate.IsNull() {
 			postgresSource.CACertificate = postgresModel.CACertificate.ValueStringPointer()
+		}
+		if !postgresModel.DisableTLS.IsNull() && !postgresModel.DisableTLS.IsUnknown() {
+			val := postgresModel.DisableTLS.ValueBool()
+			postgresSource.DisableTLS = &val
+		}
+		if !postgresModel.SkipCertVerification.IsNull() && !postgresModel.SkipCertVerification.IsUnknown() {
+			val := postgresModel.SkipCertVerification.ValueBool()
+			postgresSource.SkipCertVerification = &val
 		}
 
 		source.Postgres = postgresSource
@@ -3759,6 +3815,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			val := mysqlModel.SkipCertVerification.ValueBool()
 			mysqlSource.SkipCertVerification = &val
 		}
+		if !isUpdate {
+			mysqlSource.SSHKeyResourceID = mysqlModel.SSHKeyResourceID.ValueStringPointer()
+		}
 
 		source.MySQL = mysqlSource
 	} else if !sourceModel.MongoDB.IsNull() {
@@ -3848,6 +3907,13 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !mongodbModel.DisableTLS.IsNull() {
 			v := mongodbModel.DisableTLS.ValueBool()
 			mongodbSource.DisableTLS = &v
+		}
+		if !mongodbModel.SkipCertVerification.IsNull() && !mongodbModel.SkipCertVerification.IsUnknown() {
+			v := mongodbModel.SkipCertVerification.ValueBool()
+			mongodbSource.SkipCertVerification = &v
+		}
+		if !isUpdate {
+			mongodbSource.SSHKeyResourceID = mongodbModel.SSHKeyResourceID.ValueStringPointer()
 		}
 
 		source.MongoDB = mongodbSource
@@ -4227,6 +4293,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			kafkaModel.ExactlyOnce = types.BoolNull()
 		}
 
+		if clickPipe.Source.Kafka.SSHKeyResourceID != nil {
+			kafkaModel.SSHKeyResourceID = types.StringValue(*clickPipe.Source.Kafka.SSHKeyResourceID)
+		} else if !stateKafkaModel.SSHKeyResourceID.IsNull() {
+			kafkaModel.SSHKeyResourceID = stateKafkaModel.SSHKeyResourceID
+		} else {
+			kafkaModel.SSHKeyResourceID = types.StringNull()
+		}
+
 		sourceModel.Kafka = kafkaModel.ObjectValue()
 	} else {
 		sourceModel.Kafka = types.ObjectNull(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes)
@@ -4588,6 +4662,18 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			postgresModel.CACertificate = types.StringNull()
 		}
 
+		if clickPipe.Source.Postgres.DisableTLS != nil {
+			postgresModel.DisableTLS = types.BoolValue(*clickPipe.Source.Postgres.DisableTLS)
+		} else {
+			postgresModel.DisableTLS = types.BoolValue(false)
+		}
+
+		if clickPipe.Source.Postgres.SkipCertVerification != nil {
+			postgresModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.Postgres.SkipCertVerification)
+		} else {
+			postgresModel.SkipCertVerification = types.BoolValue(false)
+		}
+
 		if len(tableMappingList) > 0 {
 			postgresModel.TableMappings, _ = types.SetValue(models.ClickPipePostgresTableMappingModel{}.ObjectType(), tableMappingList)
 		}
@@ -4601,6 +4687,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			postgresModel.Credentials = stateCredentialsModel.ObjectValue()
 		} else {
 			postgresModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		}
+
+		if clickPipe.Source.Postgres.SSHKeyResourceID != nil {
+			postgresModel.SSHKeyResourceID = types.StringValue(*clickPipe.Source.Postgres.SSHKeyResourceID)
+		} else if !statePostgresModel.SSHKeyResourceID.IsNull() {
+			postgresModel.SSHKeyResourceID = statePostgresModel.SSHKeyResourceID
+		} else {
+			postgresModel.SSHKeyResourceID = types.StringNull()
 		}
 
 		sourceModel.Postgres = postgresModel.ObjectValue()
@@ -4836,6 +4930,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			mysqlModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
 		}
 
+		if clickPipe.Source.MySQL.SSHKeyResourceID != nil {
+			mysqlModel.SSHKeyResourceID = types.StringValue(*clickPipe.Source.MySQL.SSHKeyResourceID)
+		} else if !stateMySQLModel.SSHKeyResourceID.IsNull() {
+			mysqlModel.SSHKeyResourceID = stateMySQLModel.SSHKeyResourceID
+		} else {
+			mysqlModel.SSHKeyResourceID = types.StringNull()
+		}
+
 		sourceModel.MySQL = mysqlModel.ObjectValue()
 	} else {
 		sourceModel.MySQL = types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes)
@@ -4968,6 +5070,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			mongodbModel.DisableTLS = stateMongoDBModel.DisableTLS
 		}
 
+		if clickPipe.Source.MongoDB.SkipCertVerification != nil {
+			mongodbModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.MongoDB.SkipCertVerification)
+		} else {
+			mongodbModel.SkipCertVerification = stateMongoDBModel.SkipCertVerification
+		}
+
 		if len(tableMappingList) > 0 {
 			mongodbModel.TableMappings, _ = types.SetValue(models.ClickPipeMongoDBTableMappingModel{}.ObjectType(), tableMappingList)
 		}
@@ -4984,6 +5092,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		}
 
 		mongodbModel.Settings = settingsModel.ObjectValue()
+
+		if clickPipe.Source.MongoDB.SSHKeyResourceID != nil {
+			mongodbModel.SSHKeyResourceID = types.StringValue(*clickPipe.Source.MongoDB.SSHKeyResourceID)
+		} else if !stateMongoDBModel.SSHKeyResourceID.IsNull() {
+			mongodbModel.SSHKeyResourceID = stateMongoDBModel.SSHKeyResourceID
+		} else {
+			mongodbModel.SSHKeyResourceID = types.StringNull()
+		}
 
 		sourceModel.MongoDB = mongodbModel.ObjectValue()
 	} else {

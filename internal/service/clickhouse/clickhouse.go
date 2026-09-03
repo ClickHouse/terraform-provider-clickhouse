@@ -29,6 +29,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		resource.NewClickPipeCdcInfrastructureResource,
 		resource.NewClickPipeReversePrivateEndpointResource,
 		resource.NewClickPipeReversePrivateEndpointCustomPrivateDNSResource,
+		resource.NewClickPipeSSHKeyResource,
 		resource.NewOrganizationSettingsResource,
 		resource.NewPrivateEndpointRegistrationResource,
 		resource.NewRoleResource,

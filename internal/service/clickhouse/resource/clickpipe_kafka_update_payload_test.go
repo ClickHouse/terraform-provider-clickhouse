@@ -39,6 +39,7 @@ func kafkaUpdateModel(caCertificate types.String, kafkaPassword string) models.C
 		"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, srCredAttrs),
 	}
 	kafkaAttrs := map[string]attr.Value{
+		"ssh_key_resource_id":          types.StringNull(),
 		"type":                         types.StringValue("kafka"),
 		"format":                       types.StringValue("AvroConfluent"),
 		"brokers":                      types.StringValue("broker:9092"),
