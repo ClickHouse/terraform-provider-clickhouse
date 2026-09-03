@@ -38,3 +38,54 @@ resource "clickhouse_clickstack_alert" "latency_band" {
 
   num_consecutive_windows = 2
 }
+
+# A tile alert on a dashboard chart. The alert references the dashboard's id and
+# the tile's id, so the tile must carry a pinned `id` in the dashboard JSON (the
+# server assigns a fresh id to any tile that arrives without one, which detaches
+# the alert). Only line, stacked bar, and number tiles can be alerted on.
+resource "clickhouse_clickstack_dashboard" "latency" {
+  dashboard_json = jsonencode({
+    name = "Latency"
+    tiles = [
+      {
+        id   = "p95-latency"
+        name = "p95 latency"
+        x    = 0
+        y    = 0
+        w    = 12
+        h    = 6
+        config = {
+          displayType = "line"
+          sourceId    = clickhouse_clickstack_source.traces.id
+          select = [
+            {
+              aggFn           = "quantile"
+              level           = 0.95
+              valueExpression = "Duration"
+            }
+          ]
+        }
+      }
+    ]
+  })
+}
+
+resource "clickhouse_clickstack_alert" "p95_latency" {
+  source       = "tile"
+  dashboard_id = clickhouse_clickstack_dashboard.latency.id
+  tile_id      = "p95-latency"
+
+  channel = {
+    type       = "webhook"
+    webhook_id = clickhouse_clickstack_webhook.slack.id
+  }
+
+  # Fire when the tile's p95 goes above 500 in a 5-minute window. The threshold is
+  # in the tile's own units: raw `Duration` here, which is nanoseconds when the
+  # source sets duration_precision = 9.
+  threshold      = 500
+  threshold_type = "above"
+  interval       = "5m"
+
+  name = "p95 latency too high"
+}

@@ -64,11 +64,12 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"`dashboard_json` value itself changes, at which point the entire dashboard is replaced and " +
 			"any manual edits are overwritten. Manage a dashboard either entirely in Terraform or " +
 			"entirely in the UI, not both.\n\n" +
-			"Tile alerts (alerts bound to a dashboard tile) are not managed by this resource. On " +
-			"update, Terraform carries each tile's server-assigned ID forward — matched by tile " +
-			"`name` — so a UI-created tile alert survives an apply. Tiles with duplicate or blank " +
-			"names, or renamed between applies, fall back to positional matching and may lose their " +
-			"alert; pin an explicit `id` on such tiles if you manage tile alerts in the UI.",
+			"Tile alerts are managed with `clickhouse_clickstack_alert` (`source = \"tile\"`), which " +
+			"references this dashboard's `id` and a tile `id`. Pin an explicit `id` on every tile you " +
+			"alert on: the server mints a fresh id for a tile that arrives without one, and Terraform's " +
+			"name-based id carry-forward (falling back to position for duplicate, blank, or renamed " +
+			"names) is best effort. Importing a dashboard does not import its tile alerts; import each " +
+			"alert separately.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed:      true,

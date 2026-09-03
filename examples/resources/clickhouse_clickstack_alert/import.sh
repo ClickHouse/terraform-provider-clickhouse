@@ -9,3 +9,10 @@ terraform import clickhouse_clickstack_alert.too_many_errors 65f0c0ffeecafef00db
 # form {"data": [{"id": "...", "name": "...", "savedSearchId": "...", ...}]}.
 curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
   "$CLICKSTACK_ENDPOINT/api/v2/alerts" | jq -r '.data[] | "\(.id)\t\(.name)"'
+
+# Tile alerts (source = "tile") are imported the same way, by the alert's own ID.
+# Importing a dashboard does not import its tile alerts: terraform import maps one
+# ID to one resource. List the tile alerts with their dashboard and tile ids:
+curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
+  "$CLICKSTACK_ENDPOINT/api/v2/alerts" \
+  | jq -r '.data[] | select(.source == "tile") | "\(.id)\t\(.dashboardId)\t\(.tileId)\t\(.name)"'
