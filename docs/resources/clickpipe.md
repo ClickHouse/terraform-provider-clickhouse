@@ -150,7 +150,7 @@ Required:
 Optional:
 
 - `column_ids` (List of String) Column IDs to sum for SummingMergeTree engine. Required when engine type is `SummingMergeTree`.
-- `version_column_id` (String) Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.
+- `version_column_id` (String) Optional column ID to use as version for ReplacingMergeTree engine. When omitted, the most recently inserted row is retained during merges.
 
 
 

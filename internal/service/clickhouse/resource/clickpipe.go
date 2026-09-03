@@ -1841,7 +1841,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 									},
 									"version_column_id": schema.StringAttribute{
-										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.",
+										MarkdownDescription: "Optional column ID to use as version for ReplacingMergeTree engine. When omitted, the most recently inserted row is retained during merges.",
 										Optional:            true,
 									},
 									"column_ids": schema.ListAttribute{
@@ -1979,14 +1979,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 				engineType := engineModel.Type.ValueString()
 
 				// Validate versionColumnId
-				if engineType == ClickPipeEngineReplacingMergeTree {
-					if engineModel.VersionColumnID.IsNull() {
-						response.Diagnostics.AddError(
-							"Invalid Configuration",
-							"version_column_id is required for ReplacingMergeTree engine",
-						)
-					}
-				} else {
+				if engineType != ClickPipeEngineReplacingMergeTree {
 					if !engineModel.VersionColumnID.IsNull() {
 						response.Diagnostics.AddError(
 							"Invalid Configuration",

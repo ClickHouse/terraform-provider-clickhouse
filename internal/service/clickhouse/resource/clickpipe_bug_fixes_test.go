@@ -856,6 +856,49 @@ func TestClickPipeResource_ModifyPlan_RejectsTableDefinitionForCDC_Issue571(t *t
 	})
 }
 
+// Issue #575: version_column_id is optional for ReplacingMergeTree. When it
+// is omitted, ClickHouse uses the most recently inserted row during merges.
+func TestClickPipeResource_ModifyPlan_ReplacingMergeTreeAllowsMissingVersionColumnID_Issue575(t *testing.T) {
+	ctx := context.Background()
+	r := &ClickPipeResource{}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("building resource schema failed: %v", schemaResp.Diagnostics.Errors())
+	}
+	sch := schemaResp.Schema
+
+	plan := buildObjectStoragePlan(types.BoolValue(false), types.StringNull())
+	destination := buildObjectStorageDestination()
+	destination.TableDefinition = models.ClickPipeDestinationTableDefinitionModel{
+		Engine: models.ClickPipeDestinationTableEngineModel{
+			Type:            types.StringValue(ClickPipeEngineReplacingMergeTree),
+			VersionColumnID: types.StringNull(),
+			ColumnIDs:       types.ListNull(types.StringType),
+		}.ObjectValue(),
+		SortingKey:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("id")}),
+		PartitionBy: types.StringNull(),
+		PrimaryKey:  types.StringNull(),
+	}.ObjectValue()
+	plan.Destination = destination.ObjectValue()
+
+	planVal := tfsdk.Plan{Schema: sch}
+	if d := planVal.Set(ctx, &plan); d.HasError() {
+		t.Fatalf("encoding plan failed: %v", d.Errors())
+	}
+
+	req := resource.ModifyPlanRequest{
+		State:  tfsdk.State{Schema: sch}, // null Raw => create
+		Plan:   planVal,
+		Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+	}
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
+	r.ModifyPlan(ctx, req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "ReplacingMergeTree without version_column_id should be valid: %v", resp.Diagnostics.Errors())
+}
+
 func TestClickPipeResource_ConfigValidators_RejectCDCScaling(t *testing.T) {
 	ctx := context.Background()
 	r := &ClickPipeResource{}
