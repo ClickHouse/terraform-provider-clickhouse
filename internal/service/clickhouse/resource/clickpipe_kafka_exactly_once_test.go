@@ -17,6 +17,7 @@ import (
 // with the given exactly_once value, so tests can exercise null vs. set behavior.
 func buildKafkaExactlyOncePlan(exactlyOnce types.Bool) models.ClickPipeResourceModel {
 	kafkaAttrs := map[string]attr.Value{
+		"ssh_key_resource_id":          types.StringNull(),
 		"type":                         types.StringValue("msk"),
 		"format":                       types.StringValue(api.ClickPipeJSONEachRowFormat),
 		"brokers":                      types.StringValue("broker:9092"),

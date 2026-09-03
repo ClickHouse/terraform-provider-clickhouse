@@ -112,6 +112,8 @@ type ClickPipeKafkaSource struct {
 	ReversePrivateEndpointIDs []string `json:"reversePrivateEndpointIds,omitempty"`
 
 	ExactlyOnce *bool `json:"exactlyOnce,omitempty"`
+
+	SSHKeyResourceID *string `json:"sshKeyResourceId,omitempty"`
 }
 
 type ClickPipeObjectStorageSource struct {
@@ -189,6 +191,7 @@ type ClickPipePostgresSource struct {
 	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipePostgresTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipePostgresTableMapping `json:"tableMappingsToAdd,omitempty"`
+	SSHKeyResourceID      *string                         `json:"sshKeyResourceId,omitempty"`
 }
 
 type ClickPipePostgresSettings struct {
@@ -232,6 +235,7 @@ type ClickPipeMySQLSource struct {
 	Mappings              []ClickPipeMySQLTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipeMySQLTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipeMySQLTableMapping `json:"tableMappingsToAdd,omitempty"`
+	SSHKeyResourceID      *string                      `json:"sshKeyResourceId,omitempty"`
 }
 
 type ClickPipeMySQLSettings struct {
@@ -287,6 +291,7 @@ type ClickPipeMongoDBSource struct {
 	Mappings              []ClickPipeMongoDBTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipeMongoDBTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipeMongoDBTableMapping `json:"tableMappingsToAdd,omitempty"`
+	SSHKeyResourceID      *string                        `json:"sshKeyResourceId,omitempty"`
 }
 
 type ClickPipeServiceAccount struct {

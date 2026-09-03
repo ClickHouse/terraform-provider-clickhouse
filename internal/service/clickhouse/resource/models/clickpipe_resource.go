@@ -189,6 +189,8 @@ type ClickPipeKafkaSourceModel struct {
 	ReversePrivateEndpointIDs types.List `tfsdk:"reverse_private_endpoint_ids"`
 
 	ExactlyOnce types.Bool `tfsdk:"exactly_once"`
+
+	SSHKeyResourceID types.String `tfsdk:"ssh_key_resource_id"`
 }
 
 func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
@@ -208,6 +210,7 @@ func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
 			"ca_certificate":               types.StringType,
 			"reverse_private_endpoint_ids": types.ListType{ElemType: types.StringType},
 			"exactly_once":                 types.BoolType,
+			"ssh_key_resource_id":          types.StringType,
 		},
 	}
 }
@@ -228,6 +231,7 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 		"ca_certificate":               m.CACertificate,
 		"reverse_private_endpoint_ids": m.ReversePrivateEndpointIDs,
 		"exactly_once":                 m.ExactlyOnce,
+		"ssh_key_resource_id":          m.SSHKeyResourceID,
 	})
 }
 
@@ -422,6 +426,7 @@ type ClickPipePostgresSourceModel struct {
 	Credentials          types.Object `tfsdk:"credentials"`
 	Settings             types.Object `tfsdk:"settings"`
 	TableMappings        types.Set    `tfsdk:"table_mappings"`
+	SSHKeyResourceID     types.String `tfsdk:"ssh_key_resource_id"`
 }
 
 func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
@@ -440,6 +445,7 @@ func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
 			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":               ClickPipePostgresSettingsModel{}.ObjectType(),
 			"table_mappings":         types.SetType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
+			"ssh_key_resource_id":    types.StringType,
 		},
 	}
 }
@@ -459,6 +465,7 @@ func (m ClickPipePostgresSourceModel) ObjectValue() types.Object {
 		"credentials":            m.Credentials,
 		"settings":               m.Settings,
 		"table_mappings":         m.TableMappings,
+		"ssh_key_resource_id":    m.SSHKeyResourceID,
 	})
 }
 
@@ -737,6 +744,7 @@ type ClickPipeMySQLSourceModel struct {
 	Credentials          types.Object `tfsdk:"credentials"`
 	Settings             types.Object `tfsdk:"settings"`
 	TableMappings        types.Set    `tfsdk:"table_mappings"`
+	SSHKeyResourceID     types.String `tfsdk:"ssh_key_resource_id"`
 }
 
 func (m ClickPipeMySQLSourceModel) ObjectType() types.ObjectType {
@@ -754,6 +762,7 @@ func (m ClickPipeMySQLSourceModel) ObjectType() types.ObjectType {
 			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":               ClickPipeMySQLSettingsModel{}.ObjectType(),
 			"table_mappings":         types.SetType{ElemType: ClickPipeMySQLTableMappingModel{}.ObjectType()},
+			"ssh_key_resource_id":    types.StringType,
 		},
 	}
 }
@@ -772,6 +781,7 @@ func (m ClickPipeMySQLSourceModel) ObjectValue() types.Object {
 		"credentials":            m.Credentials,
 		"settings":               m.Settings,
 		"table_mappings":         m.TableMappings,
+		"ssh_key_resource_id":    m.SSHKeyResourceID,
 	})
 }
 
@@ -848,6 +858,7 @@ type ClickPipeMongoDBSourceModel struct {
 	Credentials          types.Object `tfsdk:"credentials"`
 	Settings             types.Object `tfsdk:"settings"`
 	TableMappings        types.Set    `tfsdk:"table_mappings"`
+	SSHKeyResourceID     types.String `tfsdk:"ssh_key_resource_id"`
 }
 
 func (m ClickPipeMongoDBSourceModel) ObjectType() types.ObjectType {
@@ -862,6 +873,7 @@ func (m ClickPipeMongoDBSourceModel) ObjectType() types.ObjectType {
 			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":               ClickPipeMongoDBSettingsModel{}.ObjectType(),
 			"table_mappings":         types.SetType{ElemType: ClickPipeMongoDBTableMappingModel{}.ObjectType()},
+			"ssh_key_resource_id":    types.StringType,
 		},
 	}
 }
@@ -877,6 +889,7 @@ func (m ClickPipeMongoDBSourceModel) ObjectValue() types.Object {
 		"credentials":            m.Credentials,
 		"settings":               m.Settings,
 		"table_mappings":         m.TableMappings,
+		"ssh_key_resource_id":    m.SSHKeyResourceID,
 	})
 }
 
