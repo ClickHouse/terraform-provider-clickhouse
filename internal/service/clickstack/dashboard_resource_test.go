@@ -8,10 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
@@ -21,7 +25,7 @@ func TestApplyDashboardBody_EmptyID(t *testing.T) {
 	t.Parallel()
 	var m dashboardResourceModel
 	// Body has no "id" field; applyDashboardBody must return an error diagnostic.
-	if diags := m.applyDashboardBody([]byte(`{"name":"D"}`)); !diags.HasError() {
+	if diags := m.applyDashboardBody(context.Background(), []byte(`{"name":"D"}`)); !diags.HasError() {
 		t.Error("expected HasError() == true when API body has no id, got no error")
 	}
 }
@@ -30,7 +34,7 @@ func TestApplyDashboardBody(t *testing.T) {
 	t.Parallel()
 	var m dashboardResourceModel
 	body := []byte(`{"id":"d1","name":"D","tiles":[]}`)
-	if diags := m.applyDashboardBody(body); diags.HasError() {
+	if diags := m.applyDashboardBody(context.Background(), body); diags.HasError() {
 		t.Fatalf("applyDashboardBody: %s", diags)
 	}
 	if m.ID.ValueString() != "d1" {
@@ -95,10 +99,225 @@ func TestDashboardResource_Schema(t *testing.T) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected schema diagnostics: %s", resp.Diagnostics)
 	}
-	for _, attr := range []string{"id", "team", "dashboard_json", "normalized_json"} {
+	for _, attr := range []string{"id", "team", "dashboard_json", "normalized_json", "tile_ids"} {
 		if _, ok := resp.Schema.Attributes[attr]; !ok {
 			t.Errorf("expected attribute %q", attr)
 		}
+	}
+	if a, ok := resp.Schema.Attributes["tile_ids"]; ok && !a.IsComputed() {
+		t.Error("tile_ids must be computed: the server assigns tile ids, the author cannot")
+	}
+}
+
+func TestTileIDsByName(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{"id":"d1","tiles":[
+		{"id":"t1","name":"Errors"},
+		{"id":"t2","name":"Dup"},{"id":"t3","name":"Dup"},
+		{"id":"t4","name":""},
+		{"id":"t5"}
+	]}`)
+	got, err := tileIDsByName(body)
+	if err != nil {
+		t.Fatalf("tileIDsByName: %v", err)
+	}
+	if len(got) != 1 || got["Errors"] != "t1" {
+		t.Errorf("tileIDsByName = %v, want {Errors: t1} (duplicate and blank names excluded)", got)
+	}
+}
+
+func TestApplyDashboardBody_TileIDs(t *testing.T) {
+	t.Parallel()
+	var m dashboardResourceModel
+	if d := m.applyDashboardBody(context.Background(), []byte(`{"id":"d1","tiles":[{"id":"t1","name":"Errors"}]}`)); d.HasError() {
+		t.Fatalf("applyDashboardBody: %s", d)
+	}
+	elems := m.TileIDs.Elements()
+	v, ok := elems["Errors"]
+	if !ok || v.(types.String).ValueString() != "t1" {
+		t.Errorf("tile_ids = %v, want {Errors: t1}", elems)
+	}
+}
+
+// TestApplyDashboardBody_UnreadableTiles: the id decode reads only "id", so a
+// body with an unreadable tiles array still reaches the tile_ids step. It must
+// error — on update the plan has already promised known tile_ids entries, so an
+// empty map would come back as an "inconsistent result after apply" instead.
+func TestApplyDashboardBody_UnreadableTiles(t *testing.T) {
+	t.Parallel()
+	var m dashboardResourceModel
+	diags := m.applyDashboardBody(context.Background(), []byte(`{"id":"d1","tiles":{"nope":true}}`))
+	if !diags.HasError() {
+		t.Fatalf("applyDashboardBody = %s, want an error for an unreadable tiles array", diags)
+	}
+}
+
+func TestTileIDsPlanModifier(t *testing.T) {
+	t.Parallel()
+	// Prior server body: two named tiles with the ids the server assigned.
+	const prior = `{"id":"d1","tiles":[{"id":"srv-a","name":"A"},{"id":"srv-b","name":"B"}]}`
+	knownA := types.StringValue("srv-a")
+
+	cases := []struct {
+		name string
+		// prior is normalized_json in the prior state; nil models a create, where
+		// there is no prior state object at all.
+		prior *string
+		// priorAuthored is dashboard_json in the prior state; nil uses a body that
+		// differs from every plan below, so the "nothing authored changed" early
+		// return only fires in the case that sets it.
+		priorAuthored *string
+		// priorTileIDs is the tile_ids map in the prior state (req.StateValue).
+		priorTileIDs map[string]attr.Value
+		plan         string
+		// want is the expected planned map; nil means the modifier must leave the
+		// incoming plan value alone.
+		want map[string]attr.Value
+		// wantPriorMap asserts the modifier handed back req.StateValue verbatim.
+		wantPriorMap bool
+	}{
+		{
+			name:  "unchanged tile set keeps every id known",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"name":"A"},{"name":"B"}]}`,
+			want:  map[string]attr.Value{"A": knownA, "B": types.StringValue("srv-b")},
+		},
+		{
+			name:  "added tile is unknown while existing ids stay known",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"name":"A"},{"name":"B"},{"name":"C"}]}`,
+			want: map[string]attr.Value{
+				"A": knownA, "B": types.StringValue("srv-b"), "C": types.StringUnknown(),
+			},
+		},
+		{
+			name:  "renamed tile drops the old name and is unknown under the new one",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"name":"A"},{"name":"B2"}]}`,
+			want:  map[string]attr.Value{"A": knownA, "B2": types.StringUnknown()},
+		},
+		{
+			name:  "authored id the server knows is kept even under a new name",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"id":"srv-b","name":"Renamed"}]}`,
+			want:  map[string]attr.Value{"Renamed": types.StringValue("srv-b")},
+		},
+		{
+			name:  "unknown authored id yields to the name match",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"id":"nope","name":"A"}]}`,
+			want:  map[string]attr.Value{"A": knownA},
+		},
+		{
+			name:  "unknown authored id with no name match is unknown",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"id":"nope","name":"C"}]}`,
+			want:  map[string]attr.Value{"C": types.StringUnknown()},
+		},
+		{
+			name:  "duplicate planned names are excluded from the map",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"name":"A"},{"name":"dup"},{"name":"dup"}]}`,
+			want:  map[string]attr.Value{"A": knownA},
+		},
+		{
+			// A blank-named tile inserted above tile A must not take srv-a by
+			// position — the name match claims it first, so A keeps its known id.
+			name:  "a blank-named tile cannot take a named tile's id by position",
+			prior: ptr(`{"id":"d1","tiles":[{"id":"srv-a","name":"A"},{"id":"srv-b","name":""}]}`),
+			plan:  `{"tiles":[{"name":""},{"name":"A"}]}`,
+			want:  map[string]attr.Value{"A": knownA},
+		},
+		{
+			// Refreshed state: the UI added tile C, so normalized_json and tile_ids
+			// know it but the authored body does not. Nothing authored changed, so
+			// the prior map must survive verbatim and leave the UI edit undetected —
+			// recomputing would drop C and plan an update that deletes it.
+			name:          "no authored change keeps the prior map, UI drift and all",
+			prior:         ptr(`{"id":"d1","tiles":[{"id":"srv-a","name":"A"},{"id":"srv-c","name":"C"}]}`),
+			priorAuthored: ptr(`{ "tiles" : [ {"name":"A"} ] }`),
+			priorTileIDs:  map[string]attr.Value{"A": knownA, "C": types.StringValue("srv-c")},
+			plan:          `{"tiles":[{"name":"A"}]}`,
+			wantPriorMap:  true,
+		},
+		{
+			// Safety net in plannedTileIDs: with no prior tiles array the merge
+			// returns the authored body untouched, so an authored id nothing
+			// recognises must still plan as unknown.
+			name:  "authored id with no prior tiles array is unknown",
+			prior: ptr(`{"id":"d1"}`),
+			plan:  `{"tiles":[{"id":"stale","name":"A"}]}`,
+			want:  map[string]attr.Value{"A": types.StringUnknown()},
+		},
+		{
+			name:  "malformed planned body leaves the map unknown",
+			prior: ptr(prior),
+			plan:  `{bad`,
+			want:  nil,
+		},
+		{
+			name:  "create leaves the planned value untouched",
+			prior: nil,
+			plan:  `{"tiles":[{"name":"A"}]}`,
+			want:  nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sch := dashboardTestSchema(t)
+			priorAuthored := tc.priorAuthored
+			if priorAuthored == nil {
+				priorAuthored = ptr(`{"tiles":[]}`)
+			}
+			stateValue := types.MapNull(types.StringType)
+			if tc.priorTileIDs != nil {
+				stateValue = types.MapValueMust(types.StringType, tc.priorTileIDs)
+			}
+			stateRaw := dashboardObjectValue(ptr("d1"), nil, priorAuthored, tc.prior)
+			if tc.prior == nil {
+				stateRaw = tftypes.NewValue(dashboardObjectType, nil)
+			}
+			// tile_ids is unknown in the proposed plan, matching the PlanValue the
+			// framework hands the modifier.
+			planRaw := tftypes.NewValue(dashboardObjectType, map[string]tftypes.Value{
+				idAttr:             tftypes.NewValue(tftypes.String, "d1"),
+				teamAttr:           tftypes.NewValue(tftypes.String, nil),
+				dashboardJSONAttr:  tftypes.NewValue(tftypes.String, tc.plan),
+				normalizedJSONAttr: tftypes.NewValue(tftypes.String, nil),
+				tileIDsAttr:        tftypes.NewValue(tileIDsTFType, tftypes.UnknownValue),
+			})
+			req := planmodifier.MapRequest{
+				Path:       path.Root(tileIDsAttr),
+				StateValue: stateValue,
+				PlanValue:  types.MapUnknown(types.StringType),
+				State:      tfsdk.State{Schema: sch, Raw: stateRaw},
+				Plan:       tfsdk.Plan{Schema: sch, Raw: planRaw},
+			}
+			resp := &planmodifier.MapResponse{PlanValue: req.PlanValue}
+			tileIDsPlanModifier{}.PlanModifyMap(context.Background(), req, resp)
+
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("PlanModifyMap: %s", resp.Diagnostics)
+			}
+			if tc.wantPriorMap {
+				if !resp.PlanValue.Equal(req.StateValue) {
+					t.Errorf("plan value = %v, want the prior state map (%v)", resp.PlanValue, req.StateValue)
+				}
+				return
+			}
+			if tc.want == nil {
+				if !resp.PlanValue.Equal(req.PlanValue) {
+					t.Errorf("plan value = %v, want it left unmodified (%v)", resp.PlanValue, req.PlanValue)
+				}
+				return
+			}
+			want := types.MapValueMust(types.StringType, tc.want)
+			if !resp.PlanValue.Equal(want) {
+				t.Errorf("plan value = %v, want %v", resp.PlanValue, want)
+			}
+		})
 	}
 }
 
@@ -114,23 +333,31 @@ func dashboardValidateConfigRequest(t *testing.T, dashboardJSON string) fwresour
 		t.Fatalf("unexpected schema diagnostics: %s", schemaResp.Diagnostics)
 	}
 
-	objType := tftypes.Object{AttributeTypes: map[string]tftypes.Type{
-		idAttr:             tftypes.String,
-		teamAttr:           tftypes.String,
-		dashboardJSONAttr:  tftypes.String,
-		normalizedJSONAttr: tftypes.String,
-	}}
-	raw := tftypes.NewValue(objType, map[string]tftypes.Value{
+	raw := tftypes.NewValue(dashboardObjectType, map[string]tftypes.Value{
 		idAttr:             tftypes.NewValue(tftypes.String, nil),
 		teamAttr:           tftypes.NewValue(tftypes.String, nil),
 		dashboardJSONAttr:  tftypes.NewValue(tftypes.String, dashboardJSON),
 		normalizedJSONAttr: tftypes.NewValue(tftypes.String, nil),
+		tileIDsAttr:        tftypes.NewValue(tileIDsTFType, nil),
 	})
 
 	return fwresource.ValidateConfigRequest{
 		Config: tfsdk.Config{Raw: raw, Schema: schemaResp.Schema},
 	}
 }
+
+// tileIDsTFType and dashboardObjectType mirror the resource schema, so every
+// Config/Plan/State value built here has the exact shape the framework expects.
+var (
+	tileIDsTFType       = tftypes.Map{ElementType: tftypes.String}
+	dashboardObjectType = tftypes.Object{AttributeTypes: map[string]tftypes.Type{
+		idAttr:             tftypes.String,
+		teamAttr:           tftypes.String,
+		dashboardJSONAttr:  tftypes.String,
+		normalizedJSONAttr: tftypes.String,
+		tileIDsAttr:        tileIDsTFType,
+	}}
+)
 
 // validateEndpointHandler serves the given unenveloped /validate response body
 // (the endpoint returns {"valid":...,"errors":[...]} with no {"data":...} wrapper).
@@ -274,8 +501,10 @@ func dashboardTestSchema(t *testing.T) rschema.Schema {
 	return resp.Schema
 }
 
-// dashboardObjectValue builds a tftypes object value for the resource's four
-// attributes; a nil pointer produces a null attribute.
+// dashboardObjectValue builds a tftypes object value for the resource's
+// attributes; a nil pointer produces a null attribute. tile_ids is always null:
+// it is computed, and every code path under test recomputes it from the server
+// body rather than reading it.
 func dashboardObjectValue(id, team, dashJSON, normJSON *string) tftypes.Value {
 	str := func(p *string) tftypes.Value {
 		if p == nil {
@@ -283,17 +512,12 @@ func dashboardObjectValue(id, team, dashJSON, normJSON *string) tftypes.Value {
 		}
 		return tftypes.NewValue(tftypes.String, *p)
 	}
-	objType := tftypes.Object{AttributeTypes: map[string]tftypes.Type{
-		idAttr:             tftypes.String,
-		teamAttr:           tftypes.String,
-		dashboardJSONAttr:  tftypes.String,
-		normalizedJSONAttr: tftypes.String,
-	}}
-	return tftypes.NewValue(objType, map[string]tftypes.Value{
+	return tftypes.NewValue(dashboardObjectType, map[string]tftypes.Value{
 		idAttr:             str(id),
 		teamAttr:           str(team),
 		dashboardJSONAttr:  str(dashJSON),
 		normalizedJSONAttr: str(normJSON),
+		tileIDsAttr:        tftypes.NewValue(tileIDsTFType, nil),
 	})
 }
 
@@ -554,6 +778,11 @@ func TestDashboardResource_Update(t *testing.T) {
 			}
 			if got.DashboardJSON.ValueString() != body {
 				t.Errorf("dashboard_json=%q, want %q", got.DashboardJSON.ValueString(), body)
+			}
+			// tile_ids must survive the write into real schema-typed state — it is
+			// what dependent alerts read their tile_id from.
+			if v := got.TileIDs.Elements()["T"]; v == nil || !v.Equal(types.StringValue("srv-1")) {
+				t.Errorf("tile_ids=%v, want {T: srv-1}", got.TileIDs)
 			}
 		})
 	}

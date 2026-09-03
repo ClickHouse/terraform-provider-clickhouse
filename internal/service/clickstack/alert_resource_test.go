@@ -7,10 +7,14 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/defaults"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
 )
@@ -79,6 +83,31 @@ func TestAlertResource_Schema(t *testing.T) {
 			t.Errorf("%q must be Optional (not Computed) so mode switches clear it", attr)
 		}
 	}
+	for _, attr := range []string{"source", "dashboard_id", "tile_id"} {
+		if _, ok := resp.Schema.Attributes[attr]; !ok {
+			t.Errorf("expected attribute %q", attr)
+		}
+	}
+	// Tile alerts have no saved search, so saved_search_id can no longer be Required.
+	if a := resp.Schema.Attributes["saved_search_id"]; a != nil && a.IsRequired() {
+		t.Error("saved_search_id must be Optional now that tile alerts exist")
+	}
+	// source is Optional+Computed so the saved_search default applies at plan time
+	// and existing configs that never set it see no diff.
+	if a := resp.Schema.Attributes["source"]; a != nil && (!a.IsOptional() || !a.IsComputed()) {
+		t.Error("source must be Optional+Computed so the default applies")
+	}
+	// The default has to be saved_search: it is what an existing config that never
+	// mentioned source resolves to, so anything else would plan a change on upgrade.
+	if sa, ok := resp.Schema.Attributes["source"].(rschema.StringAttribute); !ok || sa.Default == nil {
+		t.Error("source must have a default")
+	} else {
+		dresp := &defaults.StringResponse{}
+		sa.Default.DefaultString(context.Background(), defaults.StringRequest{}, dresp)
+		if dresp.PlanValue.ValueString() != alertSourceSavedSearch {
+			t.Errorf("source default = %q, want %q", dresp.PlanValue.ValueString(), alertSourceSavedSearch)
+		}
+	}
 }
 
 // webhookChannel builds a valid webhook channel block.
@@ -137,7 +166,10 @@ func readChanList(t *testing.T, l types.List) []alertChannelModel {
 // mkAlert builds a valid saved-search alert model; mods tweaks it per case.
 func mkAlert(mods func(*alertResourceModel)) alertResourceModel {
 	m := alertResourceModel{
+		Source:                types.StringValue(alertSourceSavedSearch),
 		SavedSearchID:         types.StringValue("ss1"),
+		DashboardID:           types.StringNull(),
+		TileID:                types.StringNull(),
 		GroupBy:               types.StringNull(),
 		Channel:               chanObj(webhookChannel("wh1")),
 		Channels:              nullChanList(),
@@ -156,6 +188,90 @@ func mkAlert(mods func(*alertResourceModel)) alertResourceModel {
 		mods(&m)
 	}
 	return m
+}
+
+// asTile turns the mkAlert saved-search model into a valid tile alert.
+func asTile(m *alertResourceModel) {
+	m.Source = types.StringValue(alertSourceTile)
+	m.SavedSearchID = types.StringNull()
+	m.DashboardID = types.StringValue("d1")
+	m.TileID = types.StringValue("t1")
+}
+
+func TestAlertResource_SourceRequiresReplace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	// A non-null tftypes value stands in for "the resource exists" in both Plan
+	// and State, so the modifier does not short-circuit as create or destroy.
+	exists := tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{}}, map[string]tftypes.Value{})
+
+	cases := []struct {
+		name  string
+		state types.String
+		plan  types.String
+		want  bool
+	}{
+		{"legacy null state to default is an upgrade, not a change", types.StringNull(), types.StringValue(alertSourceSavedSearch), false},
+		{"unchanged source", types.StringValue(alertSourceSavedSearch), types.StringValue(alertSourceSavedSearch), false},
+		{"saved_search to tile replaces", types.StringValue(alertSourceSavedSearch), types.StringValue(alertSourceTile), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req := planmodifier.StringRequest{
+				Path:       path.Root("source"),
+				StateValue: tc.state,
+				PlanValue:  tc.plan,
+				State:      tfsdk.State{Raw: exists},
+				Plan:       tfsdk.Plan{Raw: exists},
+			}
+			resp := &planmodifier.StringResponse{PlanValue: tc.plan}
+			sourceRequiresReplace().PlanModifyString(ctx, req, resp)
+			if resp.RequiresReplace != tc.want {
+				t.Errorf("RequiresReplace=%v, want %v", resp.RequiresReplace, tc.want)
+			}
+		})
+	}
+}
+
+// TestAlertResource_TargetRequiresReplace: an unknown planned tile_id or
+// dashboard_id must not replace the alert. tile_ids goes unknown whenever the
+// dashboard body is unknown at plan, and replacing on that would destroy every
+// tile alert on the dashboard.
+func TestAlertResource_TargetRequiresReplace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	exists := tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{}}, map[string]tftypes.Value{})
+
+	cases := []struct {
+		name  string
+		state types.String
+		plan  types.String
+		want  bool
+	}{
+		{"different known id replaces", types.StringValue("t1"), types.StringValue("t2"), true},
+		{"same id does not replace", types.StringValue("t1"), types.StringValue("t1"), false},
+		{"unknown planned id does not replace", types.StringValue("t1"), types.StringUnknown(), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, attrName := range []string{tileIDAttr, dashboardIDAttr} {
+				req := planmodifier.StringRequest{
+					Path:       path.Root(attrName),
+					StateValue: tc.state,
+					PlanValue:  tc.plan,
+					State:      tfsdk.State{Raw: exists},
+					Plan:       tfsdk.Plan{Raw: exists},
+				}
+				resp := &planmodifier.StringResponse{PlanValue: tc.plan}
+				targetRequiresReplace(attrName).PlanModifyString(ctx, req, resp)
+				if resp.RequiresReplace != tc.want {
+					t.Errorf("%s: RequiresReplace=%v, want %v", attrName, resp.RequiresReplace, tc.want)
+				}
+			}
+		})
+	}
 }
 
 func TestAlertResource_Validate(t *testing.T) {
@@ -361,6 +477,25 @@ func TestAlertResource_Validate(t *testing.T) {
 			func(m *alertResourceModel) { m.Name = types.StringValue(string(make([]byte, 513))) },
 			true,
 		},
+		{"null source is treated as saved_search", func(m *alertResourceModel) { m.Source = types.StringNull() }, false},
+		{"unknown source skips the shape rules", func(m *alertResourceModel) { m.Source = types.StringUnknown() }, false},
+		{"invalid source", func(m *alertResourceModel) { m.Source = types.StringValue("inline") }, true},
+		{"saved_search without saved_search_id", func(m *alertResourceModel) { m.SavedSearchID = types.StringNull() }, true},
+		{"saved_search with empty saved_search_id", func(m *alertResourceModel) { m.SavedSearchID = types.StringValue("") }, true},
+		{"saved_search with dashboard_id", func(m *alertResourceModel) { m.DashboardID = types.StringValue("d1") }, true},
+		{"saved_search with tile_id", func(m *alertResourceModel) { m.TileID = types.StringValue("t1") }, true},
+		{"valid tile alert", asTile, false},
+		{
+			"tile with unknown dashboard_id is accepted at plan time",
+			func(m *alertResourceModel) { asTile(m); m.DashboardID = types.StringUnknown() },
+			false,
+		},
+		{"tile without dashboard_id", func(m *alertResourceModel) { asTile(m); m.DashboardID = types.StringNull() }, true},
+		{"tile with empty dashboard_id", func(m *alertResourceModel) { asTile(m); m.DashboardID = types.StringValue("") }, true},
+		{"tile without tile_id", func(m *alertResourceModel) { asTile(m); m.TileID = types.StringNull() }, true},
+		{"tile with empty tile_id", func(m *alertResourceModel) { asTile(m); m.TileID = types.StringValue("") }, true},
+		{"tile with saved_search_id", func(m *alertResourceModel) { asTile(m); m.SavedSearchID = types.StringValue("ss1") }, true},
+		{"tile with group_by", func(m *alertResourceModel) { asTile(m); m.GroupBy = types.StringValue("svc") }, true},
 	}
 
 	for _, tc := range cases {
@@ -412,6 +547,27 @@ func TestAlertResource_ToClient(t *testing.T) {
 		if al.GroupBy != nil || al.Name != nil || al.ScheduleStartAt != nil || al.NumConsecutiveWindows != nil {
 			t.Errorf("expected nil optional pointers, got groupBy=%v name=%v startAt=%v ncw=%v",
 				al.GroupBy, al.Name, al.ScheduleStartAt, al.NumConsecutiveWindows)
+		}
+	})
+
+	t.Run("tile alert sends dashboard and tile ids, no saved search", func(t *testing.T) {
+		t.Parallel()
+		m := mkAlert(asTile)
+		al, _ := m.toClient(context.Background())
+		if al.Source != client.AlertSourceTile || al.DashboardID != "d1" || al.TileID != "t1" {
+			t.Errorf("tile fields not sent: %+v", al)
+		}
+		if al.SavedSearchID != "" {
+			t.Errorf("expected empty savedSearchId for a tile alert, got %q", al.SavedSearchID)
+		}
+	})
+
+	t.Run("null source sends saved_search", func(t *testing.T) {
+		t.Parallel()
+		m := mkAlert(func(m *alertResourceModel) { m.Source = types.StringNull() })
+		al, _ := m.toClient(context.Background())
+		if al.Source != client.AlertSourceSavedSearch || al.SavedSearchID != "ss1" {
+			t.Errorf("null source must mean saved_search: %+v", al)
 		}
 	})
 }
@@ -469,6 +625,45 @@ func TestAlertResource_ApplyAlert(t *testing.T) {
 		m.applyAlert(context.Background(), &client.Alert{ThresholdType: thresholdTypeAbove, Channel: client.AlertChannel{Type: "webhook"}})
 		if !m.GroupBy.IsNull() || !m.Name.IsNull() || !m.ScheduleStartAt.IsNull() || !m.NumConsecutiveWindows.IsNull() {
 			t.Errorf("nil server optionals must map to null: %+v", m)
+		}
+	})
+
+	t.Run("tile response maps ids and nulls saved_search_id", func(t *testing.T) {
+		t.Parallel()
+		var m alertResourceModel
+		m.applyAlert(context.Background(), &client.Alert{
+			ID: "al2", Source: client.AlertSourceTile, DashboardID: "d1", TileID: "t1",
+			ThresholdType: thresholdTypeAbove, Channel: client.AlertChannel{Type: "webhook"},
+		})
+		if m.Source.ValueString() != alertSourceTile || m.DashboardID.ValueString() != "d1" || m.TileID.ValueString() != "t1" {
+			t.Errorf("tile fields not mapped: %+v", m)
+		}
+		if !m.SavedSearchID.IsNull() {
+			t.Errorf("saved_search_id must be null for a tile alert, got %q", m.SavedSearchID.ValueString())
+		}
+	})
+
+	t.Run("saved-search response nulls dashboard_id and tile_id", func(t *testing.T) {
+		t.Parallel()
+		var m alertResourceModel
+		m.applyAlert(context.Background(), &client.Alert{
+			ID: "al1", Source: client.AlertSourceSavedSearch, SavedSearchID: "ss1",
+			ThresholdType: thresholdTypeAbove, Channel: client.AlertChannel{Type: "webhook"},
+		})
+		if m.Source.ValueString() != alertSourceSavedSearch || m.SavedSearchID.ValueString() != "ss1" {
+			t.Errorf("saved-search fields not mapped: %+v", m)
+		}
+		if !m.DashboardID.IsNull() || !m.TileID.IsNull() {
+			t.Errorf("dashboard_id/tile_id must be null for a saved-search alert: %+v", m)
+		}
+	})
+
+	t.Run("empty source from server maps to saved_search", func(t *testing.T) {
+		t.Parallel()
+		var m alertResourceModel
+		m.applyAlert(context.Background(), &client.Alert{ThresholdType: thresholdTypeAbove, Channel: client.AlertChannel{Type: "webhook"}})
+		if m.Source.ValueString() != alertSourceSavedSearch {
+			t.Errorf("empty source must map to saved_search, got %q", m.Source.ValueString())
 		}
 	})
 }
@@ -568,6 +763,51 @@ func TestAlertResource_CRUD(t *testing.T) {
 		resp.State.Get(ctx, &got)
 		if got.ID.ValueString() != "al1" {
 			t.Errorf("id=%q, want al1", got.ID.ValueString())
+		}
+	})
+
+	t.Run("create tile alert maps ids into state", func(t *testing.T) {
+		t.Parallel()
+		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"data":{"id":"al2","source":"tile","dashboardId":"d1","tileId":"t1","interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
+		}))}
+		plan := tfsdk.Plan{Schema: sch}
+		if d := plan.Set(ctx, mkAlert(asTile)); d.HasError() {
+			t.Fatalf("plan.Set: %s", d)
+		}
+		resp := &fwresource.CreateResponse{State: tfsdk.State{Schema: sch}}
+		r.Create(ctx, fwresource.CreateRequest{Plan: plan}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Create: %s", resp.Diagnostics)
+		}
+		var got alertResourceModel
+		resp.State.Get(ctx, &got)
+		if got.ID.ValueString() != "al2" || got.Source.ValueString() != alertSourceTile ||
+			got.DashboardID.ValueString() != "d1" || got.TileID.ValueString() != "t1" || !got.SavedSearchID.IsNull() {
+			t.Errorf("tile alert state = %+v", got)
+		}
+	})
+
+	t.Run("read rejects an alert source the provider does not model", func(t *testing.T) {
+		t.Parallel()
+		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"data":{"id":"al3","source":"inline","interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
+		}))}
+		state := tfsdk.State{Schema: sch}
+		m := mkAlert(func(m *alertResourceModel) { m.ID = types.StringValue("al3") })
+		if d := state.Set(ctx, m); d.HasError() {
+			t.Fatalf("state.Set: %s", d)
+		}
+		resp := &fwresource.ReadResponse{State: state}
+		r.Read(ctx, fwresource.ReadRequest{State: state}, resp)
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("expected an error for source inline, got none")
+		}
+		// State is left as it was: the default would otherwise plan a replacement.
+		var got alertResourceModel
+		resp.State.Get(ctx, &got)
+		if got.Source.ValueString() != alertSourceSavedSearch {
+			t.Errorf("state source = %q, want the prior %q left untouched", got.Source.ValueString(), alertSourceSavedSearch)
 		}
 	})
 

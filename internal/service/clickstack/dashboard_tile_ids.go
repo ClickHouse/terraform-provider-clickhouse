@@ -10,13 +10,21 @@ import (
 // mergeTileIDs injects server-assigned tile IDs from a prior dashboard body
 // (priorNormalized) into the authored dashboard body for tiles that omit an id.
 //
-// It exists to stop the dashboard resource from silently deleting UI-created
-// tile alerts: the server's dashboard PUT deletes any tile alert whose tile id
-// is absent from the payload, and it mints a fresh id for every tile that
-// arrives without one. Hand-authored dashboards omit tile ids, so without this
-// merge the ids churn on every apply and the alerts are collateral.
+// It exists to stop the dashboard resource from deleting tile alerts: the
+// server's dashboard PUT deletes any tile alert whose tile id is absent from
+// the payload, and it mints a fresh id for every tile that arrives without one
+// or with one the server does not recognise. Tile ids therefore cannot be
+// authored at all, so without this merge the ids churn on every apply and the
+// alerts are collateral.
+//
+// tileIDsPlanModifier runs this same merge at plan time, so the planned
+// tile_ids map is whatever the apply will produce.
+//
+// dropUnknownIDs is true because a tile id the server does not recognise is
+// discarded and replaced on the server side anyway, so keeping it would only
+// block the name match from carrying the real id forward.
 func mergeTileIDs(authored, priorNormalized json.RawMessage) (json.RawMessage, error) {
-	return mergeArrayIDsByName(authored, priorNormalized, "tiles")
+	return mergeArrayIDsByName(authored, priorNormalized, "tiles", true)
 }
 
 // mergeFilterIDs does the same for dashboard filters, then mints ids for any
@@ -30,9 +38,11 @@ func mergeTileIDs(authored, priorNormalized json.RawMessage) (json.RawMessage, e
 //
 // The server does not preserve the submitted id — it assigns its own in the
 // response — so the carried/minted value only has to satisfy validation
-// (present, valid ObjectId shape, unique within the payload).
+// (present, valid ObjectId shape, unique within the payload). That is also why
+// dropUnknownIDs is false here: a filter keeps whatever id the update sends, so
+// there is nothing to gain from deleting an authored one.
 func mergeFilterIDs(authored, priorNormalized json.RawMessage) (json.RawMessage, error) {
-	merged, err := mergeArrayIDsByName(authored, priorNormalized, "filters")
+	merged, err := mergeArrayIDsByName(authored, priorNormalized, "filters", false)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +52,7 @@ func mergeFilterIDs(authored, priorNormalized json.RawMessage) (json.RawMessage,
 // mintMissingFilterIDs assigns a freshly generated ObjectId to every filter
 // that still lacks one, so a PUT that adds or renames a filter satisfies the
 // Cloud API's "id required on update" rule. Filters that already carry an id
-// (author-pinned or carried forward) are left untouched. See mergeFilterIDs
+// (carried forward from the prior body) are left untouched. See mergeFilterIDs
 // for why the value is throwaway.
 func mintMissingFilterIDs(body json.RawMessage) (json.RawMessage, error) {
 	var doc map[string]any //nolint:forbidigo // generic JSON handling needs dynamic typing
@@ -154,13 +164,23 @@ func newObjectID(seen map[string]bool) (string, error) {
 // mergeArrayIDsByName injects server-assigned ids from a prior dashboard body
 // into the authored body for elements of the array at key that omit an id.
 //
-// Matching is by element name first (which survives reordering and removal),
-// falling back to array index only when a name is absent or non-unique in the
-// prior body. An authored element whose name is present but not found in the
-// prior body is treated as new (left without an id for the caller to handle).
+// Matching is by element name (which survives reordering and removal), falling
+// back to array index only for an element a name cannot identify: one whose name
+// is blank, or non-unique in the prior body. Ids are assigned in two
+// passes so a unique name match always wins over position — otherwise a
+// blank-named element sitting at an alerted element's index would take its id
+// first and leave the alerted one to be minted a fresh id, dropping its alert.
+// An authored element whose name is present but not found in the prior body is
+// treated as new (left without an id for the caller to handle).
+//
+// dropUnknownIDs decides what happens to an id the authored element already
+// carries but the prior body does not have: true deletes it and treats the
+// element as id-less (see mergeTileIDs), false leaves it in place (see
+// mergeFilterIDs). An authored id the prior body does have is always kept.
+//
 // If either body has no usable array under key, the authored body is returned
 // unchanged.
-func mergeArrayIDsByName(authored, priorNormalized json.RawMessage, key string) (json.RawMessage, error) {
+func mergeArrayIDsByName(authored, priorNormalized json.RawMessage, key string, dropUnknownIDs bool) (json.RawMessage, error) {
 	// Dynamic typing is required: the dashboard body is an arbitrary
 	// user-supplied document whose schema is not fixed at this layer.
 	var authoredDoc map[string]any //nolint:forbidigo // generic JSON handling needs dynamic typing
@@ -188,6 +208,7 @@ func mergeArrayIDsByName(authored, priorNormalized json.RawMessage, key string) 
 	// non-unique names fall back to positional matching.
 	idByName := map[string]string{}
 	nameCount := map[string]int{}
+	priorIDs := map[string]bool{}
 	for _, pe := range priorElems {
 		e, ok := pe.(map[string]any) //nolint:forbidigo // generic JSON handling needs dynamic typing
 		if !ok {
@@ -195,6 +216,9 @@ func mergeArrayIDsByName(authored, priorNormalized json.RawMessage, key string) 
 		}
 		name := elemString(e, "name")
 		id := elemString(e, "id")
+		if id != "" {
+			priorIDs[id] = true
+		}
 		if name == "" || id == "" {
 			continue
 		}
@@ -202,12 +226,30 @@ func mergeArrayIDsByName(authored, priorNormalized json.RawMessage, key string) 
 		idByName[name] = id
 	}
 
-	// consumed tracks prior ids already assigned in this merge, including
-	// author-pinned ids, so no id is ever placed on two elements. A duplicate id
-	// in the payload would let the server bind two elements to one id and delete
-	// the shadowed one's alert — the exact corruption this fix exists to prevent.
-	// An element whose only candidate id is already consumed is left id-less (a
-	// new element), and the server assigns it a fresh one.
+	changed := false
+
+	// See dropUnknownIDs above: for tiles an id the prior body does not have
+	// counts as absent, so it is deleted and the name match below can carry the
+	// real id forward.
+	if dropUnknownIDs {
+		for _, ae := range authoredElems {
+			e, ok := ae.(map[string]any) //nolint:forbidigo // generic JSON handling needs dynamic typing
+			if !ok {
+				continue
+			}
+			if id := elemString(e, "id"); id != "" && !priorIDs[id] {
+				delete(e, "id")
+				changed = true
+			}
+		}
+	}
+
+	// consumed tracks prior ids already assigned in this merge, including the ids
+	// the authored body kept above, so no id is ever placed on two elements. A
+	// duplicate id in the payload would let the server bind two elements to one
+	// id and delete the shadowed one's alert — the exact corruption this fix
+	// exists to prevent. An element whose only candidate id is already consumed
+	// is left id-less (a new element), and the server assigns it a fresh one.
 	consumed := map[string]bool{}
 	for _, ae := range authoredElems {
 		if e, ok := ae.(map[string]any); ok { //nolint:forbidigo // generic JSON handling needs dynamic typing
@@ -217,29 +259,45 @@ func mergeArrayIDsByName(authored, priorNormalized json.RawMessage, key string) 
 		}
 	}
 
-	changed := false
+	// Pass 1: unique name matches only. These run first so a name match always
+	// beats the positional fallback below, whatever order the authored elements
+	// are in. A name present but absent from the prior body is a new or renamed
+	// element — no candidate, left id-less.
+	for _, ae := range authoredElems {
+		e, ok := ae.(map[string]any) //nolint:forbidigo // generic JSON handling needs dynamic typing
+		if !ok {
+			continue
+		}
+		if elemString(e, "id") != "" {
+			continue // an id the server knows; keep it
+		}
+		name := elemString(e, "name")
+		if name == "" || nameCount[name] != 1 {
+			continue
+		}
+		if candidate := idByName[name]; candidate != "" && !consumed[candidate] {
+			e["id"] = candidate
+			consumed[candidate] = true
+			changed = true
+		}
+	}
+
+	// Pass 2: positional fallback for the elements no name can identify — a blank
+	// name, or one the prior body has more than once. Ids pass 1 took are
+	// consumed, so such an element is left id-less rather than stealing one.
 	for i, ae := range authoredElems {
 		e, ok := ae.(map[string]any) //nolint:forbidigo // generic JSON handling needs dynamic typing
 		if !ok {
 			continue
 		}
 		if elemString(e, "id") != "" {
-			continue // already pinned by the author
+			continue
 		}
-
-		// Pick the candidate id: a unique name match, else the same-index prior id
-		// for absent/ambiguous names. A name present but absent from the prior body
-		// is a new or renamed element — no candidate, left id-less.
-		var candidate string
 		name := elemString(e, "name")
-		switch {
-		case name != "" && nameCount[name] == 1:
-			candidate = idByName[name]
-		case name == "" || nameCount[name] > 1:
-			candidate = priorIDAt(priorElems, i)
+		if name != "" && nameCount[name] <= 1 {
+			continue // pass 1's business, whether or not it found a match
 		}
-
-		if candidate != "" && !consumed[candidate] {
+		if candidate := priorIDAt(priorElems, i); candidate != "" && !consumed[candidate] {
 			e["id"] = candidate
 			consumed[candidate] = true
 			changed = true

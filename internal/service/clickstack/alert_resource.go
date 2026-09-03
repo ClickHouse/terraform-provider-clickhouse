@@ -1,6 +1,7 @@
 package clickstack
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -59,14 +61,74 @@ const channelTypeWebhook = "webhook"
 // today; more are expected, at which point each adds its own required sub-field.
 var alertChannelTypes = []string{channelTypeWebhook}
 
+// Alert sources. Mirrors the client constants so the resource never spells the
+// API strings itself.
+const (
+	alertSourceSavedSearch = client.AlertSourceSavedSearch
+	alertSourceTile        = client.AlertSourceTile
+)
+
+// alertSources is the set of accepted alert sources.
+var alertSources = []string{alertSourceSavedSearch, alertSourceTile}
+
+// sourceRequiresReplace forces replacement when source changes, except from a
+// null prior value: state written before source existed has it null, and the
+// schema default then plans saved_search. That is an upgrade, not a change, so
+// it must not replace every existing alert (a plan with -refresh=false would
+// otherwise see null vs saved_search; a refreshed plan sees the server value).
+func sourceRequiresReplace() planmodifier.String {
+	return stringplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !req.StateValue.IsNull()
+		},
+		"Changing source forces replacement (a null prior source from an older provider version does not).",
+		"Changing `source` forces replacement (a null prior source from an older provider version does not).",
+	)
+}
+
+// targetRequiresReplace forces replacement when the alert's target changes, but
+// not when the planned id is unknown. An unknown id usually resolves to the same
+// value (tile_ids goes unknown whenever the dashboard body is unknown at plan),
+// and the alert PUT is a partial $set that accepts the resolved ids, so
+// replacing on unknown would destroy every tile alert for nothing.
+func targetRequiresReplace(attrName string) planmodifier.String {
+	return stringplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !req.PlanValue.IsUnknown()
+		},
+		"Changing "+attrName+" forces replacement; an unknown planned value does not, the apply sends the resolved id in place.",
+		"Changing `"+attrName+"` forces replacement; an unknown planned value does not, the apply sends the resolved id in place.",
+	)
+}
+
 func isRangeThresholdType(t string) bool { return slices.Contains(alertRangeThresholdTypes, t) }
+
+// effectiveSource returns the alert source the config means. A null source is
+// the saved_search default (ValidateConfig runs on the raw config, before the
+// schema default is applied); an unknown source reports known=false so callers
+// skip rules that depend on it.
+func (m *alertResourceModel) effectiveSource() (string, bool) {
+	if m.Source.IsUnknown() {
+		return "", false
+	}
+	if m.Source.IsNull() {
+		return alertSourceSavedSearch, true
+	}
+	return m.Source.ValueString(), true
+}
+
+// missingID reports whether a required id is absent: null, or set to "". The
+// client marshals every id omitempty, so "" serializes as absent, and on the
+// partial-update PUT the server would keep the old target instead of failing.
+// Unknown counts as present: it is a reference that resolves at apply time.
+func missingID(v types.String) bool { return v.IsNull() || (known(v) && v.ValueString() == "") }
 
 // NewAlertResource is a helper to register the resource with the provider.
 func NewAlertResource() resource.Resource {
 	return &alertResource{}
 }
 
-// alertResource manages a ClickStack alert (saved-search source only).
+// alertResource manages a ClickStack alert on a saved search or a dashboard tile.
 type alertResource struct {
 	client *client.Client
 }
@@ -92,7 +154,10 @@ var alertChannelObjectType = types.ObjectType{AttrTypes: alertChannelAttrTypes}
 type alertResourceModel struct {
 	ID            types.String `tfsdk:"id"`
 	Team          types.String `tfsdk:"team"`
+	Source        types.String `tfsdk:"source"`
 	SavedSearchID types.String `tfsdk:"saved_search_id"`
+	DashboardID   types.String `tfsdk:"dashboard_id"`
+	TileID        types.String `tfsdk:"tile_id"`
 	GroupBy       types.String `tfsdk:"group_by"`
 	// Channel and Channels are framework types rather than a Go pointer/slice so
 	// they can hold a wholly-unknown value. A config that takes either from a
@@ -120,8 +185,20 @@ func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest
 
 func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a ClickStack alert that evaluates a saved search on a schedule and " +
-			"notifies one or more channels when a threshold is crossed.\n\n" +
+		Description: "Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a " +
+			"schedule and notifies one or more channels when a threshold is crossed.\n\n" +
+			"Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with " +
+			"`dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in " +
+			"`dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map " +
+			"(`tile_id = clickhouse_clickstack_dashboard.x.tile_ids[\"<tile name>\"]`). Keep the tile's " +
+			"name unique and stable: a rename mints a new id and detaches the alert, and the " +
+			"plan fails with an invalid `tile_ids` index until the reference is updated. Only line, stacked " +
+			"bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is " +
+			"removed or changed to an unsupported display type; Terraform then plans to recreate it, " +
+			"which fails with the server's \"Tile not found\" until the tile is restored.\n\n" +
+			"Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one " +
+			"resource). Import each alert separately by its own ID. An alert whose source this provider " +
+			"does not model (for example `inline`) fails to import with a clear error.\n\n" +
 			"Alerts are threshold-based (there is no anomaly mode). Configuration is validated at " +
 			"plan time; those rules mirror the ClickStack server contract on a best-effort basis, so " +
 			"a server-side rule change may make the plan-time checks slightly stale until a new " +
@@ -138,16 +215,41 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					"Changing this forces the alert to be replaced.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
-			"saved_search_id": schema.StringAttribute{
-				Required:    true,
-				Description: "ID of the saved search this alert evaluates.",
+			sourceAttr: schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString(alertSourceSavedSearch),
+				Description: "What the alert evaluates: `saved_search` (default, requires `saved_search_id`) " +
+					"or `tile` (requires `dashboard_id` and `tile_id`). Changing this forces replacement.",
+				PlanModifiers: []planmodifier.String{sourceRequiresReplace()},
+			},
+			savedSearchIDAttr: schema.StringAttribute{
+				Optional:    true,
+				Description: "ID of the saved search this alert evaluates. Required when `source` is `saved_search`.",
+			},
+			dashboardIDAttr: schema.StringAttribute{
+				Optional: true,
+				Description: "ID of the dashboard that owns the tile. Required together with `tile_id` when " +
+					"`source` is `tile`: a tile lives inside its dashboard document, so it can only be " +
+					"looked up through the dashboard. Changing this to a different known value forces replacement.",
+				PlanModifiers: []planmodifier.String{targetRequiresReplace(dashboardIDAttr)},
+			},
+			tileIDAttr: schema.StringAttribute{
+				Optional: true,
+				Description: "Server-assigned ID of the tile to alert on. Take it from the dashboard's " +
+					"`tile_ids` map by tile name; ids cannot be chosen in `dashboard_json`. " +
+					"Required together with `dashboard_id` when `source` is `tile`. The alert has no query of " +
+					"its own: the server reads the tile's chart config from the dashboard on every evaluation. " +
+					"The tile must be a line, stacked bar, or number tile. Changing this to a different known " +
+					"value forces replacement.",
+				PlanModifiers: []planmodifier.String{targetRequiresReplace(tileIDAttr)},
 			},
 			"group_by": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				Description: "Optional expression to evaluate the alert per group. Sticky once set: the " +
-					"API keeps the previous value when the field is omitted and cannot clear it, so " +
-					"removing it from config is a no-op (recreate the alert to fully reset it).",
+				Description: "Optional expression to evaluate the alert per group (saved-search alerts only). " +
+					"Sticky once set: the API keeps the previous value when the field is omitted and " +
+					"cannot clear it, so removing it from config is a no-op (recreate the alert to fully reset it).",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"channel": schema.SingleNestedAttribute{
@@ -301,6 +403,50 @@ func (r *alertResource) ValidateConfig(ctx context.Context, req resource.Validat
 // operand is null or unknown.
 func (m *alertResourceModel) validate(ctx context.Context) diag.Diagnostics {
 	var diags diag.Diagnostics
+
+	// Exactly one target, matching source. An unknown id counts as set: it is a
+	// reference to a resource that does not exist yet, so it cannot be checked
+	// here and must not fail the plan.
+	if src, ok := m.effectiveSource(); ok {
+		switch src {
+		case alertSourceSavedSearch:
+			if missingID(m.SavedSearchID) {
+				diags.AddAttributeError(path.Root(savedSearchIDAttr), "saved_search_id required",
+					"saved_search_id is required and must be non-empty when source is \"saved_search\"")
+			}
+			for _, p := range []struct {
+				name string
+				v    types.String
+			}{{dashboardIDAttr, m.DashboardID}, {tileIDAttr, m.TileID}} {
+				if !p.v.IsNull() {
+					diags.AddAttributeError(path.Root(p.name), "Not valid for saved_search alerts",
+						p.name+" is only valid when source is \"tile\"")
+				}
+			}
+		case alertSourceTile:
+			if missingID(m.DashboardID) {
+				diags.AddAttributeError(path.Root(dashboardIDAttr), "dashboard_id required",
+					"dashboard_id is required and must be non-empty when source is \"tile\"")
+			}
+			if missingID(m.TileID) {
+				diags.AddAttributeError(path.Root(tileIDAttr), "tile_id required",
+					"tile_id is required and must be non-empty when source is \"tile\"")
+			}
+			if !m.SavedSearchID.IsNull() {
+				diags.AddAttributeError(path.Root(savedSearchIDAttr), "Not valid for tile alerts",
+					"saved_search_id is only valid when source is \"saved_search\"")
+			}
+			// The API's tile branch has no groupBy and silently drops it, which
+			// Terraform would then report as an inconsistent result after apply.
+			if !m.GroupBy.IsNull() {
+				diags.AddAttributeError(path.Root("group_by"), "Not valid for tile alerts",
+					"group_by is only valid when source is \"saved_search\"")
+			}
+		default:
+			diags.AddAttributeError(path.Root(sourceAttr), "Invalid source",
+				fmt.Sprintf("source must be one of %s, got %q", strings.Join(alertSources, ", "), src))
+		}
+	}
 
 	tt := m.ThresholdType
 	if known(tt) && !slices.Contains(alertThresholdTypes, tt.ValueString()) {
@@ -491,6 +637,18 @@ func (r *alertResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
+	// The API has sources this resource does not model (e.g. "inline", which
+	// carries its own chart config). Storing one would make the next plan
+	// default source to saved_search and replace the alert; fail the read
+	// instead so an import of such an alert stops here with a clear message.
+	if al.Source != "" && !slices.Contains(alertSources, al.Source) {
+		resp.Diagnostics.AddError("Unsupported alert source",
+			fmt.Sprintf("alert %s has source %q, which this provider does not manage (supported: %s); "+
+				"manage it outside Terraform or remove it from state", state.ID.ValueString(), al.Source,
+				strings.Join(alertSources, ", ")))
+		return
+	}
+
 	resp.Diagnostics.Append(state.applyAlert(ctx, al)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -555,12 +713,17 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 		Threshold:       m.Threshold.ValueFloat64(),
 		ThresholdType:   m.ThresholdType.ValueString(),
 		SavedSearchID:   m.SavedSearchID.ValueString(),
+		DashboardID:     m.DashboardID.ValueString(),
+		TileID:          m.TileID.ValueString(),
 		GroupBy:         optStringPtr(m.GroupBy),
 		Name:            optStringPtr(m.Name),
 		Message:         optStringPtr(m.Message),
 		Note:            optStringPtr(m.Note),
 		ScheduleStartAt: optStringPtr(m.ScheduleStartAt),
 	}
+	// Null source only happens off the plan path (unit tests, legacy state); the
+	// schema default makes it saved_search everywhere else.
+	al.Source, _ = m.effectiveSource()
 	// Only one of the two is ever set (ValidateConfig rejects both). The client
 	// mirrors `channel` from `channels[0]` before sending. Both values are known
 	// by the time this runs — Terraform resolves the plan before apply — so the
@@ -617,7 +780,13 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) diag.Diagnostics {
 	var diags diag.Diagnostics
 	m.ID = types.StringValue(al.ID)
-	m.SavedSearchID = types.StringValue(al.SavedSearchID)
+	// An empty source is a pre-tile-alerts server; it only ever meant saved_search.
+	m.Source = types.StringValue(cmp.Or(al.Source, alertSourceSavedSearch))
+	// The server returns only the target that matches the source; the other
+	// pair comes back absent and must be null in state, not "".
+	m.SavedSearchID = emptyToNull(al.SavedSearchID)
+	m.DashboardID = emptyToNull(al.DashboardID)
+	m.TileID = emptyToNull(al.TileID)
 	m.GroupBy = types.StringPointerValue(al.GroupBy)
 	// Responses carry both `channel` and `channels`. Mirror back only the field
 	// the config used, leaving the other null — writing both would show a
