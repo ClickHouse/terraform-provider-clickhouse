@@ -69,3 +69,92 @@ resource "clickhouse_clickstack_alert" "test" {
 }
 `, os.Getenv("CLICKSTACK_SOURCE_ID"), threshold)
 }
+
+// TestAccAlertResource_Tile exercises create + update + import for a tile alert.
+// The dashboard pins the tile id the alert references; the webhook and dashboard
+// are stood up in the same config so the dependency ordering on create and
+// destroy is exercised. A destroy still succeeds if the server already
+// cascade-deleted the alert with its dashboard, because the provider treats the
+// 404 as a no-op. Requires TF_ACC, CLICKSTACK_API_KEY, and CLICKSTACK_SOURCE_ID.
+func TestAccAlertResource_Tile(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccSourceChainPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccTileAlertResourceConfig(100),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("clickhouse_clickstack_alert.tile", "id"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.tile", "source", "tile"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.tile", "tile_id", "tf-acc-tile"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.tile", "threshold", "100"),
+					resource.TestCheckResourceAttrPair("clickhouse_clickstack_alert.tile", "dashboard_id", "clickhouse_clickstack_dashboard.tile", "id"),
+					resource.TestCheckNoResourceAttr("clickhouse_clickstack_alert.tile", "saved_search_id"),
+				),
+			},
+			{
+				Config: testAccTileAlertResourceConfig(250),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.tile", "threshold", "250"),
+				),
+			},
+			{
+				ResourceName:            "clickhouse_clickstack_alert.tile",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"team"},
+			},
+		},
+	})
+}
+
+func testAccTileAlertResourceConfig(threshold int) string {
+	return fmt.Sprintf(`
+resource "clickhouse_clickstack_webhook" "tile" {
+  name    = "tf-acc-tile-alert-webhook"
+  service = "generic"
+  url     = "https://example.com/hook"
+}
+
+resource "clickhouse_clickstack_dashboard" "tile" {
+  dashboard_json = jsonencode({
+    name = "tf-acc-tile-alert"
+    tiles = [
+      {
+        id   = "tf-acc-tile"
+        name = "spans"
+        x    = 0
+        y    = 0
+        w    = 6
+        h    = 3
+        config = {
+          displayType = "line"
+          sourceId    = %q
+          select = [
+            {
+              aggFn = "count"
+              alias = "count"
+            }
+          ]
+        }
+      }
+    ]
+  })
+}
+
+resource "clickhouse_clickstack_alert" "tile" {
+  source       = "tile"
+  dashboard_id = clickhouse_clickstack_dashboard.tile.id
+  tile_id      = "tf-acc-tile"
+
+  channel = {
+    type       = "webhook"
+    webhook_id = clickhouse_clickstack_webhook.tile.id
+  }
+
+  threshold      = %d
+  threshold_type = "above"
+  interval       = "5m"
+}
+`, os.Getenv("CLICKSTACK_SOURCE_ID"), threshold)
+}
