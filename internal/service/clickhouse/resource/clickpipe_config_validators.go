@@ -19,14 +19,18 @@ const maxClickPipeProtobufSchemaEncodedSize = 1 << 20 // 1 MiB in bytes
 // kafkaProtobufSchemaValidator enforces the Kafka Protobuf schema rules exposed by the OpenAPI.
 type kafkaProtobufSchemaValidator struct{}
 
+// Description returns a plain-text summary of the Kafka Protobuf schema validation.
 func (v kafkaProtobufSchemaValidator) Description(_ context.Context) string {
 	return "Validates direct Kafka Protobuf schema configuration."
 }
 
+// MarkdownDescription returns the Kafka Protobuf schema validation summary as Markdown.
 func (v kafkaProtobufSchemaValidator) MarkdownDescription(ctx context.Context) string {
 	return v.Description(ctx)
 }
 
+// ValidateResource validates the uploaded schema and its relationship with the Kafka format and schema registry.
+// Validation is deferred when Terraform has not resolved the relevant configuration values.
 func (v kafkaProtobufSchemaValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var data models.ClickPipeResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
@@ -95,7 +99,7 @@ func (v kafkaProtobufSchemaValidator) ValidateResource(ctx context.Context, req 
 	}
 }
 
-// isValidProtobufSchemaBase64 reports whether a schema is canonical padded or unpadded base64 within the API limit.
+// isValidProtobufSchemaBase64 reports whether a non-empty schema is canonical padded or unpadded base64 within the API limit.
 func isValidProtobufSchemaBase64(encodedSchema string) bool {
 	if encodedSchema == "" || len(encodedSchema) > maxClickPipeProtobufSchemaEncodedSize {
 		return false
