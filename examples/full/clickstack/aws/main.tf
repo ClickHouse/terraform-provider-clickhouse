@@ -130,6 +130,25 @@ resource "clickhouse_clickstack_alert" "too_many_errors" {
   message = "Error volume exceeded threshold"
 }
 
+# Tile alert on the pinned "error-count" tile. Same 1d interval as the
+# saved-search alert, for the same cost reason.
+resource "clickhouse_clickstack_alert" "error_count_tile" {
+  source       = "tile"
+  dashboard_id = clickhouse_clickstack_dashboard.e2e.id
+  tile_id      = "error-count"
+
+  channel = {
+    type       = "webhook"
+    webhook_id = clickhouse_clickstack_webhook.alerts.id
+  }
+
+  threshold      = var.update_pass ? 50 : 25
+  threshold_type = "above"
+  interval       = "1d"
+
+  name = "tf-e2e-tile${var.suffix}"
+}
+
 # Custom RBAC role. ClickStack RBAC is its own system: it governs ClickStack
 # objects, and a role created here does not appear in Cloud's role list, so
 # clickhouse_role is not a substitute. Covered because nothing else exercises the
@@ -203,6 +222,28 @@ resource "clickhouse_clickstack_dashboard" "e2e" {
           connectionId = var.connection_id
           sqlTemplate  = "SELECT ServiceName, count() AS logs FROM default.otel_logs GROUP BY ServiceName ORDER BY logs DESC LIMIT 20"
         }
+      },
+      {
+        # Pinned id: clickhouse_clickstack_alert.error_count_tile references it.
+        # Without a pinned id the server mints a fresh one on every write and
+        # detaches the alert.
+        id   = "error-count"
+        name = "Error count"
+        x    = 0
+        y    = 3
+        w    = 6
+        h    = 3
+        config = {
+          displayType   = "number"
+          sourceId      = clickhouse_clickstack_source.logs.id
+          where         = "SeverityText = 'ERROR'"
+          whereLanguage = "sql"
+          select = [{
+            aggFn           = "count"
+            valueExpression = ""
+            alias           = "Errors"
+          }]
+        }
       }
     ]
   })
@@ -222,6 +263,10 @@ output "webhook_id" {
 
 output "alert_id" {
   value = clickhouse_clickstack_alert.too_many_errors.id
+}
+
+output "tile_alert_id" {
+  value = clickhouse_clickstack_alert.error_count_tile.id
 }
 
 output "dashboard_id" {
