@@ -127,7 +127,7 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
 
 ### Optional
 
-- `dashboard_id` (String) ID of the dashboard that owns the tile. Required when `source` is `tile`. Changing this forces replacement.
+- `dashboard_id` (String) ID of the dashboard that owns the tile. Required together with `tile_id` when `source` is `tile`: tile ids are only unique within one dashboard, so the pair is what identifies the tile. Changing this forces replacement.
 - `group_by` (String) Optional expression to evaluate the alert per group (saved-search alerts only). Sticky once set: the API keeps the previous value when the field is omitted and cannot clear it, so removing it from config is a no-op (recreate the alert to fully reset it).
 - `message` (String) Optional notification message template (1-4096 characters).
 - `name` (String) Optional alert name (1-512 characters).
@@ -139,7 +139,7 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
 - `source` (String) What the alert evaluates: `saved_search` (default, requires `saved_search_id`) or `tile` (requires `dashboard_id` and `tile_id`). Changing this forces replacement.
 - `team` (String) Team ID to manage this alert under (`x-hdx-team`). Changing this forces the alert to be replaced.
 - `threshold_max` (Number) Upper bound, required for `between`/`not_between` and ignored otherwise. Must be >= `threshold`.
-- `tile_id` (String) ID of the tile to alert on, as pinned by `id` in the dashboard's `dashboard_json`. Required when `source` is `tile`. The tile must be a line, stacked bar, or number tile. Changing this forces replacement.
+- `tile_id` (String) ID of the tile to alert on, as pinned by `id` in the dashboard's `dashboard_json`. Required together with `dashboard_id` when `source` is `tile`. The alert has no query of its own: the server reads the tile's chart config from the dashboard on every evaluation, which is why the tile must keep a stable id. The tile must be a line, stacked bar, or number tile. Changing this forces replacement.
 
 ### Read-Only
 

@@ -193,15 +193,18 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			},
 			dashboardIDAttr: schema.StringAttribute{
 				Optional: true,
-				Description: "ID of the dashboard that owns the tile. Required when `source` is `tile`. " +
-					"Changing this forces replacement.",
+				Description: "ID of the dashboard that owns the tile. Required together with `tile_id` when " +
+					"`source` is `tile`: tile ids are only unique within one dashboard, so the pair is what " +
+					"identifies the tile. Changing this forces replacement.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			tileIDAttr: schema.StringAttribute{
 				Optional: true,
 				Description: "ID of the tile to alert on, as pinned by `id` in the dashboard's `dashboard_json`. " +
-					"Required when `source` is `tile`. The tile must be a line, stacked bar, or number tile. " +
-					"Changing this forces replacement.",
+					"Required together with `dashboard_id` when `source` is `tile`. The alert has no query of " +
+					"its own: the server reads the tile's chart config from the dashboard on every evaluation, " +
+					"which is why the tile must keep a stable id. The tile must be a line, stacked bar, or " +
+					"number tile. Changing this forces replacement.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"group_by": schema.StringAttribute{
