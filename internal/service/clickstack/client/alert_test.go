@@ -250,3 +250,87 @@ func TestDeleteAlert_NotFound(t *testing.T) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
+
+// The API accepts channel and channels together only when they agree, so the
+// client mirrors channel from channels[0] on every write.
+func TestCreateAlertMirrorsChannelFromChannels(t *testing.T) {
+	t.Parallel()
+
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		ch, ok := body["channel"].(map[string]any)
+		if !ok || ch["webhookId"] != "wh1" {
+			t.Errorf("expected channel mirrored from channels[0], got %v", body["channel"])
+		}
+		chans, ok := body["channels"].([]any)
+		if !ok || len(chans) != 2 {
+			t.Fatalf("expected 2 channels, got %v", body["channels"])
+		}
+		if second, ok := chans[1].(map[string]any); !ok || second["webhookId"] != "wh2" {
+			t.Errorf("unexpected channels[1]: %v", chans[1])
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":{"id":"al1","channel":{"type":"webhook","webhookId":"wh1"},"channels":[{"type":"webhook","webhookId":"wh1"},{"type":"webhook","webhookId":"wh2"}]}}`)
+	})
+
+	al, err := c.CreateAlert(context.Background(), Alert{
+		// Channel deliberately left zero: the client fills it in.
+		Channels: []AlertChannel{
+			{Type: AlertChannelWebhook, WebhookID: "wh1"},
+			{Type: AlertChannelWebhook, WebhookID: "wh2"},
+		},
+		Interval:      "5m",
+		Threshold:     100,
+		ThresholdType: "above",
+		SavedSearchID: "ss1",
+	})
+	if err != nil {
+		t.Fatalf("CreateAlert: %v", err)
+	}
+	if len(al.Channels) != 2 {
+		t.Errorf("expected 2 channels back, got %+v", al.Channels)
+	}
+}
+
+// UpdateAlert mirrors channel from channels[0] just like CreateAlert; an update
+// that let the two disagree would be rejected by the API.
+func TestUpdateAlertMirrorsChannelFromChannels(t *testing.T) {
+	t.Parallel()
+
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Errorf("expected PUT, got %s", r.Method)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		ch, ok := body["channel"].(map[string]any)
+		if !ok || ch["webhookId"] != "wh1" {
+			t.Errorf("expected channel mirrored from channels[0], got %v", body["channel"])
+		}
+		if chans, ok := body["channels"].([]any); !ok || len(chans) != 2 {
+			t.Errorf("expected 2 channels, got %v", body["channels"])
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":{"id":"al1","channel":{"type":"webhook","webhookId":"wh1"},"channels":[{"type":"webhook","webhookId":"wh1"},{"type":"webhook","webhookId":"wh2"}]}}`)
+	})
+
+	if _, err := c.UpdateAlert(context.Background(), "al1", Alert{
+		Channels: []AlertChannel{
+			{Type: AlertChannelWebhook, WebhookID: "wh1"},
+			{Type: AlertChannelWebhook, WebhookID: "wh2"},
+		},
+		Interval:      "5m",
+		Threshold:     100,
+		ThresholdType: "above",
+		SavedSearchID: "ss1",
+	}); err != nil {
+		t.Fatalf("UpdateAlert: %v", err)
+	}
+}

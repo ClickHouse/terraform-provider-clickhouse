@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -16,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
@@ -137,28 +139,44 @@ type alertChannelModel struct {
 	WebhookID types.String `tfsdk:"webhook_id"`
 }
 
+// alertChannelAttrTypes mirrors alertChannelAttributes() for the framework-typed
+// channel/channels model fields; the two must be kept in step.
+var alertChannelAttrTypes = map[string]attr.Type{
+	"type":       types.StringType,
+	"webhook_id": types.StringType,
+}
+
+var alertChannelObjectType = types.ObjectType{AttrTypes: alertChannelAttrTypes}
+
 // alertResourceModel maps the resource schema data. Server-managed transient
 // fields (state, silenced, execution_errors) are intentionally not modeled: they
 // are never sent, and the API's partial-update PUT preserves them (KTD8).
 type alertResourceModel struct {
-	ID                    types.String       `tfsdk:"id"`
-	Team                  types.String       `tfsdk:"team"`
-	Source                types.String       `tfsdk:"source"`
-	SavedSearchID         types.String       `tfsdk:"saved_search_id"`
-	DashboardID           types.String       `tfsdk:"dashboard_id"`
-	TileID                types.String       `tfsdk:"tile_id"`
-	GroupBy               types.String       `tfsdk:"group_by"`
-	Channel               *alertChannelModel `tfsdk:"channel"`
-	Threshold             types.Float64      `tfsdk:"threshold"`
-	ThresholdType         types.String       `tfsdk:"threshold_type"`
-	ThresholdMax          types.Float64      `tfsdk:"threshold_max"`
-	Interval              types.String       `tfsdk:"interval"`
-	NumConsecutiveWindows types.Int64        `tfsdk:"num_consecutive_windows"`
-	ScheduleOffsetMinutes types.Int64        `tfsdk:"schedule_offset_minutes"`
-	ScheduleStartAt       types.String       `tfsdk:"schedule_start_at"`
-	Name                  types.String       `tfsdk:"name"`
-	Message               types.String       `tfsdk:"message"`
-	Note                  types.String       `tfsdk:"note"`
+	ID            types.String `tfsdk:"id"`
+	Team          types.String `tfsdk:"team"`
+	Source        types.String `tfsdk:"source"`
+	SavedSearchID types.String `tfsdk:"saved_search_id"`
+	DashboardID   types.String `tfsdk:"dashboard_id"`
+	TileID        types.String `tfsdk:"tile_id"`
+	GroupBy       types.String `tfsdk:"group_by"`
+	// Channel and Channels are framework types rather than a Go pointer/slice so
+	// they can hold a wholly-unknown value. A config that takes either from a
+	// module output or a data source leaves the whole attribute unknown until
+	// Terraform resolves it, and reflecting that into *alertChannelModel or
+	// []alertChannelModel fails Config.Get with a "this is always an error in
+	// the provider" diagnostic (see asChannel/asChannels).
+	Channel               types.Object  `tfsdk:"channel"`
+	Channels              types.List    `tfsdk:"channels"`
+	Threshold             types.Float64 `tfsdk:"threshold"`
+	ThresholdType         types.String  `tfsdk:"threshold_type"`
+	ThresholdMax          types.Float64 `tfsdk:"threshold_max"`
+	Interval              types.String  `tfsdk:"interval"`
+	NumConsecutiveWindows types.Int64   `tfsdk:"num_consecutive_windows"`
+	ScheduleOffsetMinutes types.Int64   `tfsdk:"schedule_offset_minutes"`
+	ScheduleStartAt       types.String  `tfsdk:"schedule_start_at"`
+	Name                  types.String  `tfsdk:"name"`
+	Message               types.String  `tfsdk:"message"`
+	Note                  types.String  `tfsdk:"note"`
 }
 
 func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -168,7 +186,7 @@ func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest
 func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a " +
-			"schedule and notifies through a channel when a threshold is crossed.\n\n" +
+			"schedule and notifies one or more channels when a threshold is crossed.\n\n" +
 			"Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with " +
 			"`dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in " +
 			"`dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map " +
@@ -235,18 +253,22 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"channel": schema.SingleNestedAttribute{
-				Required:    true,
-				Description: "Notification channel for the alert.",
-				Attributes: map[string]schema.Attribute{
-					"type": schema.StringAttribute{
-						Required:    true,
-						Description: "Channel type. Currently only `webhook` is supported.",
-					},
-					"webhook_id": schema.StringAttribute{
-						Optional:    true,
-						Description: "ID of the webhook to notify. Required when `type` is `webhook`.",
-					},
-				},
+				Optional: true,
+				DeprecationMessage: "Use channels instead. channel notifies a single target; " +
+					"channels takes a list and is the only way to notify more than one. See " +
+					"[the docs](https://github.com/ClickHouse/terraform-provider-clickhouse?tab=readme-ov-file#breaking-changes-and-deprecations) " +
+					"for migration steps.",
+				Description: "Single notification channel for the alert. Deprecated: use `channels`. " +
+					"Exactly one of `channel` or `channels` must be set. Importing an alert always " +
+					"populates `channels`, so a config still on `channel` shows a diff after import.",
+				Attributes: alertChannelAttributes(),
+			},
+			"channels": schema.ListNestedAttribute{
+				Optional: true,
+				Description: fmt.Sprintf(
+					"Notification channels for the alert, in order. Between 1 and %d entries, no duplicates. "+
+						"Exactly one of `channel` or `channels` must be set.", client.MaxAlertChannels),
+				NestedObject: schema.NestedAttributeObject{Attributes: alertChannelAttributes()},
 			},
 			"threshold": schema.Float64Attribute{
 				Required:    true,
@@ -297,6 +319,53 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 	}
 }
 
+// alertChannelAttributes is the attribute set of a single channel, shared by the
+// deprecated `channel` object and each entry of `channels`.
+func alertChannelAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"type": schema.StringAttribute{
+			Required:    true,
+			Description: "Channel type. Currently only `webhook` is supported.",
+		},
+		"webhook_id": schema.StringAttribute{
+			Optional:    true,
+			Description: "ID of the webhook to notify. Required when `type` is `webhook`.",
+		},
+	}
+}
+
+// asChannel decodes the deprecated single `channel`. The returned pointer is nil
+// when the attribute is unset. ok is false when the value is unknown as a whole,
+// i.e. Terraform has not resolved it yet and no rule can inspect it.
+func asChannel(ctx context.Context, o types.Object) (*alertChannelModel, bool, diag.Diagnostics) {
+	if o.IsNull() {
+		return nil, true, nil
+	}
+	if o.IsUnknown() {
+		return nil, false, nil
+	}
+	var c alertChannelModel
+	d := o.As(ctx, &c, basetypes.ObjectAsOptions{})
+	return &c, true, d
+}
+
+// asChannels decodes `channels`. A null attribute yields a nil slice and an
+// explicit `channels = []` yields a non-nil empty one, so callers can still tell
+// "unset" from "set to empty". ok is false when the list is unknown as a whole;
+// an unknown *element* field (a webhook_id referencing a webhook created in the
+// same apply) decodes fine, since types.String holds unknown.
+func asChannels(ctx context.Context, l types.List) ([]alertChannelModel, bool, diag.Diagnostics) {
+	if l.IsNull() {
+		return nil, true, nil
+	}
+	if l.IsUnknown() {
+		return nil, false, nil
+	}
+	out := make([]alertChannelModel, 0, len(l.Elements()))
+	d := l.ElementsAs(ctx, &out, false)
+	return out, true, d
+}
+
 func (r *alertResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -326,13 +395,13 @@ func (r *alertResource) ValidateConfig(ctx context.Context, req resource.Validat
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	resp.Diagnostics.Append(cfg.validate()...)
+	resp.Diagnostics.Append(cfg.validate(ctx)...)
 }
 
 // validate holds the alert's cross-field rules. It is a pure function of the
 // model so it can be unit-tested directly. Every rule short-circuits when an
 // operand is null or unknown.
-func (m *alertResourceModel) validate() diag.Diagnostics {
+func (m *alertResourceModel) validate(ctx context.Context) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Exactly one target, matching source. An unknown id counts as set: it is a
@@ -436,20 +505,95 @@ func (m *alertResourceModel) validate() diag.Diagnostics {
 	validateLen(&diags, path.Root("message"), m.Message, 4096)
 	validateLen(&diags, path.Root("note"), m.Note, 4096)
 
-	// Channel: type must be known, and webhook channels require a webhook_id.
-	if m.Channel != nil {
-		ct := m.Channel.Type
-		if known(ct) && !slices.Contains(alertChannelTypes, ct.ValueString()) {
-			diags.AddAttributeError(path.Root("channel").AtName("type"), "Invalid channel type",
-				fmt.Sprintf("channel type must be one of %s, got %q", strings.Join(alertChannelTypes, ", "), ct.ValueString()))
-		}
-		if known(ct) && ct.ValueString() == channelTypeWebhook && missingID(m.Channel.WebhookID) {
-			diags.AddAttributeError(path.Root("channel").AtName("webhook_id"), "webhook_id required",
-				"channel.webhook_id is required and must be non-empty when channel.type is \"webhook\"")
-		}
-	}
+	m.validateChannels(ctx, &diags)
 
 	return diags
+}
+
+// validateChannels enforces the channel/channels selection rules: exactly one of
+// the two, a list within the API's size limit, no duplicates, and a valid type
+// with its required sub-field on every entry.
+func (m *alertResourceModel) validateChannels(ctx context.Context, diags *diag.Diagnostics) {
+	// Presence is decided on null alone, before any decoding: an attribute set to
+	// a value Terraform has not resolved yet is still set, so the exactly-one-of
+	// rule holds even when the value itself cannot be inspected.
+	switch {
+	case m.Channel.IsNull() && m.Channels.IsNull():
+		diags.AddAttributeError(path.Root("channels"), "Notification channel required",
+			"set channels, or the deprecated channel for a single target")
+		return
+	case !m.Channel.IsNull() && !m.Channels.IsNull():
+		diags.AddAttributeError(path.Root("channels"), "Conflicting channel configuration",
+			"set either channels or the deprecated channel, not both")
+		return
+	}
+
+	single, singleOK, d := asChannel(ctx, m.Channel)
+	diags.Append(d...)
+	list, listOK, d := asChannels(ctx, m.Channels)
+	diags.Append(d...)
+	// Exactly one of the two is set by this point. Every remaining rule needs its
+	// value, so an unresolved reference defers to the server and the post-apply
+	// plan rather than guessing.
+	if !singleOK || !listOK {
+		return
+	}
+
+	if single != nil {
+		validateAlertChannel(diags, path.Root("channel"), *single)
+	}
+	if list == nil {
+		return
+	}
+	if len(list) == 0 || len(list) > client.MaxAlertChannels {
+		diags.AddAttributeError(path.Root("channels"), "Invalid channels",
+			fmt.Sprintf("channels must contain between 1 and %d entries, got %d", client.MaxAlertChannels, len(list)))
+	}
+	// The API rejects duplicates; catching them here names the offending index
+	// instead of surfacing an opaque 400.
+	seen := make(map[string]int, len(list))
+	for i, c := range list {
+		p := path.Root("channels").AtListIndex(i)
+		validateAlertChannel(diags, p, c)
+		// An unknown webhook_id — one referencing a webhook created in the same
+		// apply — reads back as "", so every unresolved entry would key
+		// identically and the second would be reported as a duplicate of the
+		// first. Those can only be compared once Terraform resolves them; the
+		// API's own duplicate check is the backstop. A null webhook_id stays in
+		// the key on purpose, so a future channel type that has none still
+		// dedupes correctly.
+		if !known(c.Type) || c.WebhookID.IsUnknown() {
+			continue
+		}
+		key := c.Type.ValueString() + "\x00" + c.WebhookID.ValueString()
+		if first, dup := seen[key]; dup {
+			diags.AddAttributeError(p, "Duplicate channel",
+				fmt.Sprintf("channels[%d] duplicates channels[%d]: same type and webhook_id", i, first))
+			continue
+		}
+		seen[key] = i
+	}
+}
+
+// validateAlertChannel checks one channel block: a known type, and the sub-field
+// that type requires.
+func validateAlertChannel(diags *diag.Diagnostics, p path.Path, c alertChannelModel) {
+	ct := c.Type
+	if !known(ct) {
+		return
+	}
+	if !slices.Contains(alertChannelTypes, ct.ValueString()) {
+		diags.AddAttributeError(p.AtName("type"), "Invalid channel type",
+			fmt.Sprintf("channel type must be one of %s, got %q", strings.Join(alertChannelTypes, ", "), ct.ValueString()))
+		return
+	}
+	// An empty webhook_id is caught here rather than as an opaque API 400: the
+	// client's webhookId is omitempty, so "" would serialize as absent.
+	if ct.ValueString() == channelTypeWebhook &&
+		(c.WebhookID.IsNull() || (known(c.WebhookID) && c.WebhookID.ValueString() == "")) {
+		diags.AddAttributeError(p.AtName("webhook_id"), "webhook_id required",
+			"webhook_id is required and must be non-empty when type is \"webhook\"")
+	}
 }
 
 func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -459,13 +603,19 @@ func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	al, err := r.client.WithTeam(plan.Team.ValueString()).CreateAlert(ctx, plan.toClient())
+	in, d := plan.toClient(ctx)
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	al, err := r.client.WithTeam(plan.Team.ValueString()).CreateAlert(ctx, in)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Creating Alert", err.Error())
 		return
 	}
 
-	plan.applyAlert(al)
+	resp.Diagnostics.Append(plan.applyAlert(ctx, al)...)
 	tflog.Trace(ctx, "created alert resource")
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -499,7 +649,7 @@ func (r *alertResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	state.applyAlert(al)
+	resp.Diagnostics.Append(state.applyAlert(ctx, al)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -510,7 +660,13 @@ func (r *alertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	al, err := r.client.WithTeam(plan.Team.ValueString()).UpdateAlert(ctx, plan.ID.ValueString(), plan.toClient())
+	in, d := plan.toClient(ctx)
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	al, err := r.client.WithTeam(plan.Team.ValueString()).UpdateAlert(ctx, plan.ID.ValueString(), in)
 	if err != nil {
 		if errors.Is(err, client.ErrNotFound) {
 			resp.State.RemoveResource(ctx)
@@ -520,7 +676,7 @@ func (r *alertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	plan.applyAlert(al)
+	resp.Diagnostics.Append(plan.applyAlert(ctx, al)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -550,7 +706,8 @@ func (r *alertResource) ImportState(ctx context.Context, req resource.ImportStat
 
 // --- conversion helpers ---
 
-func (m *alertResourceModel) toClient() client.Alert {
+func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	al := client.Alert{
 		Interval:        m.Interval.ValueString(),
 		Threshold:       m.Threshold.ValueFloat64(),
@@ -567,10 +724,35 @@ func (m *alertResourceModel) toClient() client.Alert {
 	// Null source only happens off the plan path (unit tests, legacy state); the
 	// schema default makes it saved_search everywhere else.
 	al.Source, _ = m.effectiveSource()
-	if m.Channel != nil {
+	// Only one of the two is ever set (ValidateConfig rejects both). The client
+	// mirrors `channel` from `channels[0]` before sending. Both values are known
+	// by the time this runs — Terraform resolves the plan before apply — so the
+	// unknown case asChannel/asChannels guard against cannot reach here.
+	single, singleOK, d := asChannel(ctx, m.Channel)
+	diags.Append(d...)
+	list, listOK, d := asChannels(ctx, m.Channels)
+	diags.Append(d...)
+	if !singleOK || !listOK {
+		// Unreachable: Terraform resolves the plan before apply. Reported rather
+		// than ignored so a future caller that does reach it gets this instead of
+		// a request with no channel and an opaque API 400.
+		diags.AddError("Unresolved notification channel",
+			"the alert's channel configuration was still unknown at apply time. This is a bug in the provider.")
+		return al, diags
+	}
+	switch {
+	case list != nil:
+		al.Channels = make([]client.AlertChannel, 0, len(list))
+		for _, c := range list {
+			al.Channels = append(al.Channels, client.AlertChannel{
+				Type:      c.Type.ValueString(),
+				WebhookID: c.WebhookID.ValueString(),
+			})
+		}
+	case single != nil:
 		al.Channel = client.AlertChannel{
-			Type:      m.Channel.Type.ValueString(),
-			WebhookID: m.Channel.WebhookID.ValueString(),
+			Type:      single.Type.ValueString(),
+			WebhookID: single.WebhookID.ValueString(),
 		}
 	}
 	// threshold_max is only meaningful for range types; ignore it otherwise.
@@ -592,10 +774,11 @@ func (m *alertResourceModel) toClient() client.Alert {
 		v := int(m.ScheduleOffsetMinutes.ValueInt64())
 		al.ScheduleOffsetMinutes = &v
 	}
-	return al
+	return al, diags
 }
 
-func (m *alertResourceModel) applyAlert(al *client.Alert) {
+func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) diag.Diagnostics {
+	var diags diag.Diagnostics
 	m.ID = types.StringValue(al.ID)
 	// An empty source is a pre-tile-alerts server; it only ever meant saved_search.
 	m.Source = types.StringValue(cmp.Or(al.Source, alertSourceSavedSearch))
@@ -605,9 +788,25 @@ func (m *alertResourceModel) applyAlert(al *client.Alert) {
 	m.DashboardID = emptyToNull(al.DashboardID)
 	m.TileID = emptyToNull(al.TileID)
 	m.GroupBy = types.StringPointerValue(al.GroupBy)
-	m.Channel = &alertChannelModel{
-		Type:      types.StringValue(al.Channel.Type),
-		WebhookID: emptyToNull(al.Channel.WebhookID),
+	// Responses carry both `channel` and `channels`. Mirror back only the field
+	// the config used, leaving the other null — writing both would show a
+	// permanent diff against a config that sets one of them.
+	chans := al.Channels
+	if len(chans) == 0 {
+		chans = []client.AlertChannel{al.Channel}
+	}
+	if !m.Channel.IsNull() {
+		obj, d := types.ObjectValueFrom(ctx, alertChannelAttrTypes, alertChannelFromClient(chans[0]))
+		diags.Append(d...)
+		m.Channel, m.Channels = obj, types.ListNull(alertChannelObjectType)
+	} else {
+		models := make([]alertChannelModel, 0, len(chans))
+		for _, c := range chans {
+			models = append(models, alertChannelFromClient(c))
+		}
+		lst, d := types.ListValueFrom(ctx, alertChannelObjectType, models)
+		diags.Append(d...)
+		m.Channel, m.Channels = types.ObjectNull(alertChannelAttrTypes), lst
 	}
 	m.Threshold = types.Float64Value(al.Threshold)
 	m.ThresholdType = types.StringValue(al.ThresholdType)
@@ -655,6 +854,11 @@ func (m *alertResourceModel) applyAlert(al *client.Alert) {
 	m.Name = types.StringPointerValue(al.Name)
 	m.Message = types.StringPointerValue(al.Message)
 	m.Note = types.StringPointerValue(al.Note)
+	return diags
+}
+
+func alertChannelFromClient(c client.AlertChannel) alertChannelModel {
+	return alertChannelModel{Type: types.StringValue(c.Type), WebhookID: emptyToNull(c.WebhookID)}
 }
 
 // nullUnknown is satisfied by every basetypes value (types.String, types.Int64,

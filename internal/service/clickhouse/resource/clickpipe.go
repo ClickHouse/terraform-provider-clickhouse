@@ -249,6 +249,14 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									stringplanmodifier.RequiresReplace(),
 								},
 							},
+							"protobuf_schema": schema.StringAttribute{
+								MarkdownDescription: "Base64-encoded Protobuf schema used instead of `schema_registry`. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Requires `format = \"Protobuf\"` and forces replacement when changed.",
+								Optional:            true,
+								Sensitive:           true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"brokers": schema.StringAttribute{
 								Description: "The list of Kafka bootstrap brokers. (comma separated)",
 								Required:    true,
@@ -3012,6 +3020,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !isUpdate {
 			source.Kafka.Type = kafkaModel.Type.ValueString()
 			source.Kafka.Format = kafkaModel.Format.ValueString()
+			source.Kafka.ProtobufSchema = kafkaModel.ProtobufSchema.ValueStringPointer()
 			source.Kafka.ExactlyOnce = kafkaModel.ExactlyOnce.ValueBoolPointer()
 			source.Kafka.SSHKeyResourceID = kafkaModel.SSHKeyResourceID.ValueStringPointer()
 		}
@@ -4122,6 +4131,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		kafkaModel := models.ClickPipeKafkaSourceModel{
 			Type:           types.StringValue(clickPipe.Source.Kafka.Type),
 			Format:         types.StringValue(clickPipe.Source.Kafka.Format),
+			ProtobufSchema: stateKafkaModel.ProtobufSchema,
 			Brokers:        types.StringValue(clickPipe.Source.Kafka.Brokers),
 			Topics:         types.StringValue(clickPipe.Source.Kafka.Topics),
 			ConsumerGroup:  types.StringValue(consumerGroup),
@@ -5647,6 +5657,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				source.Kafka.ConsumerGroup = nil
 				source.Kafka.Offset = nil
 				source.Kafka.SchemaRegistry = nil
+				source.Kafka.ProtobufSchema = nil
 			}
 
 			// For Pub/Sub, only re-send the service_account_key when it changed
@@ -6003,10 +6014,11 @@ func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.Import
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), endpointID)...)
 
 	resp.Diagnostics.AddWarning(
-		"Credentials are not imported",
+		"Sensitive values are not imported",
 		"The API never returns sensitive values, so importing a ClickPipe cannot persist credentials into your state.\n"+
 			"Your configuration (in *.tf files) must provide valid credentials.\n"+
 			"The first `terraform apply` after import sends the source credentials to the ClickPipe and records them in state.\n"+
-			"Schema registry credentials are immutable and never sent on update: the apply records your configured values in state without server-side verification, so ensure they match the registry credentials the pipe already uses.",
+			"Schema registry credentials are immutable and never sent on update: the apply records your configured values in state without server-side verification, so ensure they match the registry credentials the pipe already uses.\n"+
+			"Protobuf schemas aren't imported. Adding `protobuf_schema` after import forces ClickPipe replacement.",
 	)
 }

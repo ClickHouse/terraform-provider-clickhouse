@@ -3,7 +3,7 @@
 page_title: "clickhouse_clickstack_alert Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
-  Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies through a channel when a threshold is crossed.
+  Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies one or more channels when a threshold is crossed.
   Set source to saved_search (the default) with saved_search_id, or to tile with dashboard_id and tile_id. Tile ids are assigned by the server and cannot be set in dashboard_json; reference the tile through the dashboard's computed tile_ids map (tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert, and the plan fails with an invalid tile_ids index until the reference is updated. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
   Importing a dashboard does not import its tile alerts (terraform import maps one ID to one resource). Import each alert separately by its own ID. An alert whose source this provider does not model (for example inline) fails to import with a clear error.
   Alerts are threshold-based (there is no anomaly mode). Configuration is validated at plan time; those rules mirror the ClickStack server contract on a best-effort basis, so a server-side rule change may make the plan-time checks slightly stale until a new provider release.
@@ -11,7 +11,7 @@ description: |-
 
 # clickhouse_clickstack_alert (Resource)
 
-Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies through a channel when a threshold is crossed.
+Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies one or more channels when a threshold is crossed.
 
 Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with `dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in `dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map (`tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]`). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert, and the plan fails with an invalid `tile_ids` index until the reference is updated. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
 
@@ -22,18 +22,25 @@ Alerts are threshold-based (there is no anomaly mode). Configuration is validate
 ## Example Usage
 
 ```terraform
-# A threshold alert on a saved search, notifying a webhook.
+# A threshold alert on a saved search, notifying two webhooks.
 #
-# The alert references its saved search and webhook by id, so Terraform creates
+# The alert references its saved search and webhooks by id, so Terraform creates
 # them first and destroys the alert before them (a webhook cannot be deleted
 # while an alert still references it).
 resource "clickhouse_clickstack_alert" "too_many_errors" {
   saved_search_id = clickhouse_clickstack_saved_search.errors.id
 
-  channel = {
-    type       = "webhook"
-    webhook_id = clickhouse_clickstack_webhook.slack.id
-  }
+  # Up to 10 channels, notified in order. Duplicates are rejected.
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.slack.id
+    },
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.pagerduty.id
+    },
+  ]
 
   # Fire when the saved search returns more than 100 rows in a 5-minute window.
   threshold      = 100
@@ -49,10 +56,10 @@ resource "clickhouse_clickstack_alert" "latency_band" {
   saved_search_id = clickhouse_clickstack_saved_search.errors.id
   group_by        = "ServiceName"
 
-  channel = {
+  channels = [{
     type       = "webhook"
     webhook_id = clickhouse_clickstack_webhook.generic.id
-  }
+  }]
 
   # between/not_between require threshold_max (>= threshold).
   threshold      = 200
@@ -99,10 +106,12 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
   dashboard_id = clickhouse_clickstack_dashboard.latency.id
   tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
 
-  channel = {
-    type       = "webhook"
-    webhook_id = clickhouse_clickstack_webhook.slack.id
-  }
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.slack.id
+    },
+  ]
 
   # Fire when the tile's p95 goes above 500 in a 5-minute window. The threshold is
   # in the tile's own units: raw `Duration` here, which is nanoseconds when the
@@ -113,6 +122,21 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
 
   name = "p95 latency too high"
 }
+
+# The pre-multi-channel `channel` form still applies, but it is deprecated and
+# can only ever notify one target. Switch it to a single-entry `channels` list.
+resource "clickhouse_clickstack_alert" "legacy_single_channel" {
+  saved_search_id = clickhouse_clickstack_saved_search.errors.id
+
+  channel = {
+    type       = "webhook"
+    webhook_id = clickhouse_clickstack_webhook.generic.id
+  }
+
+  threshold      = 50
+  threshold_type = "above"
+  interval       = "1h"
+}
 ```
 
 <!-- schema generated by tfplugindocs -->
@@ -120,13 +144,14 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
 
 ### Required
 
-- `channel` (Attributes) Notification channel for the alert. (see [below for nested schema](#nestedatt--channel))
 - `interval` (String) Evaluation window: one of `1m`, `5m`, `15m`, `30m`, `1h`, `6h`, `12h`, `1d`.
 - `threshold` (Number) Threshold value the alert compares against. For range types (`between`/`not_between`) this is the lower bound.
 - `threshold_type` (String) Comparison type: one of `above`, `below`, `above_exclusive`, `below_or_equal`, `equal`, `not_equal`, `between`, `not_between`.
 
 ### Optional
 
+- `channel` (Attributes, Deprecated) Single notification channel for the alert. Deprecated: use `channels`. Exactly one of `channel` or `channels` must be set. Importing an alert always populates `channels`, so a config still on `channel` shows a diff after import. (see [below for nested schema](#nestedatt--channel))
+- `channels` (Attributes List) Notification channels for the alert, in order. Between 1 and 10 entries, no duplicates. Exactly one of `channel` or `channels` must be set. (see [below for nested schema](#nestedatt--channels))
 - `dashboard_id` (String) ID of the dashboard that owns the tile. Required together with `tile_id` when `source` is `tile`: a tile lives inside its dashboard document, so it can only be looked up through the dashboard. Changing this to a different known value forces replacement.
 - `group_by` (String) Optional expression to evaluate the alert per group (saved-search alerts only). Sticky once set: the API keeps the previous value when the field is omitted and cannot clear it, so removing it from config is a no-op (recreate the alert to fully reset it).
 - `message` (String) Optional notification message template (1-4096 characters).
@@ -147,6 +172,18 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
 
 <a id="nestedatt--channel"></a>
 ### Nested Schema for `channel`
+
+Required:
+
+- `type` (String) Channel type. Currently only `webhook` is supported.
+
+Optional:
+
+- `webhook_id` (String) ID of the webhook to notify. Required when `type` is `webhook`.
+
+
+<a id="nestedatt--channels"></a>
+### Nested Schema for `channels`
 
 Required:
 
@@ -183,11 +220,12 @@ curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
   | jq -r '.data[] | select(.source == "tile") | "\(.id)\t\(.dashboardId)\t\(.tileId)\t\(.name)"'
 
 # `terraform plan -generate-config-out=...` writes the alert with literal ids for
-# dashboard_id, tile_id and channel.webhook_id. Terraform generates config from
-# state alone and cannot know those ids belong to other resources, so replace
-# them by hand to link the alert to its dashboard tile and webhook:
+# dashboard_id, tile_id and the webhook_id inside channels. Terraform generates
+# config from state alone and cannot know those ids belong to other resources, so
+# replace them by hand to link the alert to its dashboard tile and webhook:
 #   dashboard_id = clickhouse_clickstack_dashboard.latency.id
 #   tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
-#   webhook_id   = clickhouse_clickstack_webhook.slack.id
-# The generated `= null` lines can be deleted.
+#   channels     = [{ type = "webhook", webhook_id = clickhouse_clickstack_webhook.slack.id }]
+# Import always populates channels, never the deprecated channel, whatever the
+# alert was created with. The generated `= null` lines can be deleted.
 ```

@@ -22,6 +22,9 @@ const (
 // AlertChannelWebhook is the webhook channel type.
 const AlertChannelWebhook = "webhook"
 
+// MaxAlertChannels is the API's per-alert channel limit.
+const MaxAlertChannels = 10
+
 // AlertChannel is an alert's notification channel. Only the webhook type exists
 // today; the shape mirrors the API so additional channel types slot in later.
 type AlertChannel struct {
@@ -55,13 +58,18 @@ type AlertChannel struct {
 //   - savedSearchId, dashboardId, tileId: an omitted id keeps the current target,
 //     which is why the resource rejects "" at plan time instead of sending it.
 type Alert struct {
-	ID            string       `json:"id,omitempty"`
-	Source        string       `json:"source"`
-	Channel       AlertChannel `json:"channel"`
-	Interval      string       `json:"interval"`
-	Threshold     float64      `json:"threshold"`
-	ThresholdType string       `json:"thresholdType"`
-	ThresholdMax  *float64     `json:"thresholdMax,omitempty"`
+	ID     string `json:"id,omitempty"`
+	Source string `json:"source"`
+	// Channel is the pre-multi-channel single target. The API mirrors it from
+	// Channels[0] on read and accepts both fields on write only when they agree,
+	// so mirrorChannel keeps them in sync before every request. Sending it keeps
+	// single-channel writes working against deployments that predate Channels.
+	Channel       AlertChannel   `json:"channel"`
+	Channels      []AlertChannel `json:"channels,omitempty"`
+	Interval      string         `json:"interval"`
+	Threshold     float64        `json:"threshold"`
+	ThresholdType string         `json:"thresholdType"`
+	ThresholdMax  *float64       `json:"thresholdMax,omitempty"`
 	// Exactly one target is set, matching Source. All three are omitempty so the
 	// unused pair is never sent; the API strips keys outside the chosen source's
 	// branch, so sending them would only mislead a reader of the request.
@@ -81,6 +89,15 @@ type Alert struct {
 	ScheduleStartAt *string `json:"scheduleStartAt"`
 }
 
+// mirrorChannel points Channel at Channels[0]. The API rejects a request that
+// sends both fields with different values, and an update replaces the channel
+// list rather than merging it, so the two must never disagree on the wire.
+func (a *Alert) mirrorChannel() {
+	if len(a.Channels) > 0 {
+		a.Channel = a.Channels[0]
+	}
+}
+
 // alertEnvelope wraps single-alert API responses.
 type alertEnvelope struct {
 	Data Alert `json:"data"`
@@ -90,6 +107,7 @@ type alertEnvelope struct {
 // defaults to saved_search when unset.
 func (c *Client) CreateAlert(ctx context.Context, input Alert) (*Alert, error) {
 	input.Source = defaultSource(input.Source)
+	input.mirrorChannel()
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, fmt.Errorf("encode alert: %w", err)
@@ -129,6 +147,7 @@ func (c *Client) GetAlert(ctx context.Context, id string) (*Alert, error) {
 // when the alert does not exist.
 func (c *Client) UpdateAlert(ctx context.Context, id string, input Alert) (*Alert, error) {
 	input.Source = defaultSource(input.Source)
+	input.mirrorChannel()
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, fmt.Errorf("encode alert: %w", err)
