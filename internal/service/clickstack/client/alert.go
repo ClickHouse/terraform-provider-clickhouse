@@ -17,6 +17,9 @@ const AlertSourceSavedSearch = "saved_search"
 // AlertChannelWebhook is the webhook channel type.
 const AlertChannelWebhook = "webhook"
 
+// MaxAlertChannels is the API's per-alert channel limit.
+const MaxAlertChannels = 10
+
 // AlertChannel is an alert's notification channel. Only the webhook type exists
 // today; the shape mirrors the API so additional channel types slot in later.
 type AlertChannel struct {
@@ -48,25 +51,39 @@ type AlertChannel struct {
 //   - thresholdMax: kept when omitted and rejects null; only sent for range
 //     threshold types (and applyAlert does not reconcile it for other types).
 type Alert struct {
-	ID                    string       `json:"id,omitempty"`
-	Source                string       `json:"source"`
-	Channel               AlertChannel `json:"channel"`
-	Interval              string       `json:"interval"`
-	Threshold             float64      `json:"threshold"`
-	ThresholdType         string       `json:"thresholdType"`
-	ThresholdMax          *float64     `json:"thresholdMax,omitempty"`
-	SavedSearchID         string       `json:"savedSearchId"`
-	GroupBy               *string      `json:"groupBy,omitempty"`
-	Name                  *string      `json:"name,omitempty"`
-	Message               *string      `json:"message,omitempty"`
-	Note                  *string      `json:"note,omitempty"`
-	NumConsecutiveWindows *int         `json:"numConsecutiveWindows,omitempty"`
-	ScheduleOffsetMinutes *int         `json:"scheduleOffsetMinutes,omitempty"`
+	ID     string `json:"id,omitempty"`
+	Source string `json:"source"`
+	// Channel is the pre-multi-channel single target. The API mirrors it from
+	// Channels[0] on read and accepts both fields on write only when they agree,
+	// so mirrorChannel keeps them in sync before every request. Sending it keeps
+	// single-channel writes working against deployments that predate Channels.
+	Channel               AlertChannel   `json:"channel"`
+	Channels              []AlertChannel `json:"channels,omitempty"`
+	Interval              string         `json:"interval"`
+	Threshold             float64        `json:"threshold"`
+	ThresholdType         string         `json:"thresholdType"`
+	ThresholdMax          *float64       `json:"thresholdMax,omitempty"`
+	SavedSearchID         string         `json:"savedSearchId"`
+	GroupBy               *string        `json:"groupBy,omitempty"`
+	Name                  *string        `json:"name,omitempty"`
+	Message               *string        `json:"message,omitempty"`
+	Note                  *string        `json:"note,omitempty"`
+	NumConsecutiveWindows *int           `json:"numConsecutiveWindows,omitempty"`
+	ScheduleOffsetMinutes *int           `json:"scheduleOffsetMinutes,omitempty"`
 	// ScheduleStartAt is always serialized (no omitempty): a nil pointer sends
 	// JSON null, which the API treats as "clear" (and then forces the offset to
 	// 0). Omitting it would instead preserve the previous value. The provider
 	// always sends it so removing schedule_start_at from config propagates.
 	ScheduleStartAt *string `json:"scheduleStartAt"`
+}
+
+// mirrorChannel points Channel at Channels[0]. The API rejects a request that
+// sends both fields with different values, and an update replaces the channel
+// list rather than merging it, so the two must never disagree on the wire.
+func (a *Alert) mirrorChannel() {
+	if len(a.Channels) > 0 {
+		a.Channel = a.Channels[0]
+	}
 }
 
 // alertEnvelope wraps single-alert API responses.
@@ -78,6 +95,7 @@ type alertEnvelope struct {
 // forced to saved_search regardless of the input.
 func (c *Client) CreateAlert(ctx context.Context, input Alert) (*Alert, error) {
 	input.Source = AlertSourceSavedSearch
+	input.mirrorChannel()
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, fmt.Errorf("encode alert: %w", err)
@@ -116,6 +134,7 @@ func (c *Client) GetAlert(ctx context.Context, id string) (*Alert, error) {
 // error wrapping ErrNotFound when the alert does not exist.
 func (c *Client) UpdateAlert(ctx context.Context, id string, input Alert) (*Alert, error) {
 	input.Source = AlertSourceSavedSearch
+	input.mirrorChannel()
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, fmt.Errorf("encode alert: %w", err)
