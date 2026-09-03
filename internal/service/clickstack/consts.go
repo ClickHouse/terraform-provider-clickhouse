@@ -15,4 +15,6 @@ const (
 	roleIDAttr         = "role_id"
 	statusAttr         = "status"
 	inviteURLAttr      = "invite_url"
+	dashboardIDAttr    = "dashboard_id"
+	tileIDAttr         = "tile_id"
 )

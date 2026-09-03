@@ -189,13 +189,13 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:    true,
 				Description: "ID of the saved search this alert evaluates. Required when `source` is `saved_search`.",
 			},
-			"dashboard_id": schema.StringAttribute{
+			dashboardIDAttr: schema.StringAttribute{
 				Optional: true,
 				Description: "ID of the dashboard that owns the tile. Required when `source` is `tile`. " +
 					"Changing this forces replacement.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
-			"tile_id": schema.StringAttribute{
+			tileIDAttr: schema.StringAttribute{
 				Optional: true,
 				Description: "ID of the tile to alert on, as pinned by `id` in the dashboard's `dashboard_json`. " +
 					"Required when `source` is `tile`. The tile must be a line, stacked bar, or number tile. " +
@@ -324,7 +324,7 @@ func (m *alertResourceModel) validate() diag.Diagnostics {
 			for _, p := range []struct {
 				name string
 				v    types.String
-			}{{"dashboard_id", m.DashboardID}, {"tile_id", m.TileID}} {
+			}{{dashboardIDAttr, m.DashboardID}, {tileIDAttr, m.TileID}} {
 				if !p.v.IsNull() {
 					diags.AddAttributeError(path.Root(p.name), "Not valid for saved_search alerts",
 						p.name+" is only valid when source is \"tile\"")
@@ -332,11 +332,11 @@ func (m *alertResourceModel) validate() diag.Diagnostics {
 			}
 		case alertSourceTile:
 			if missingID(m.DashboardID) {
-				diags.AddAttributeError(path.Root("dashboard_id"), "dashboard_id required",
+				diags.AddAttributeError(path.Root(dashboardIDAttr), "dashboard_id required",
 					"dashboard_id is required and must be non-empty when source is \"tile\"")
 			}
 			if missingID(m.TileID) {
-				diags.AddAttributeError(path.Root("tile_id"), "tile_id required",
+				diags.AddAttributeError(path.Root(tileIDAttr), "tile_id required",
 					"tile_id is required and must be non-empty when source is \"tile\"")
 			}
 			if !m.SavedSearchID.IsNull() {
