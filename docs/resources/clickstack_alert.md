@@ -127,7 +127,7 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
 
 ### Optional
 
-- `dashboard_id` (String) ID of the dashboard that owns the tile. Required together with `tile_id` when `source` is `tile`: a tile lives inside its dashboard document, so it can only be looked up through the dashboard. Changing this forces replacement.
+- `dashboard_id` (String) ID of the dashboard that owns the tile. Required together with `tile_id` when `source` is `tile`: a tile lives inside its dashboard document, so it can only be looked up through the dashboard. Changing this to a different known value forces replacement.
 - `group_by` (String) Optional expression to evaluate the alert per group (saved-search alerts only). Sticky once set: the API keeps the previous value when the field is omitted and cannot clear it, so removing it from config is a no-op (recreate the alert to fully reset it).
 - `message` (String) Optional notification message template (1-4096 characters).
 - `name` (String) Optional alert name (1-512 characters).
@@ -139,7 +139,7 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
 - `source` (String) What the alert evaluates: `saved_search` (default, requires `saved_search_id`) or `tile` (requires `dashboard_id` and `tile_id`). Changing this forces replacement.
 - `team` (String) Team ID to manage this alert under (`x-hdx-team`). Changing this forces the alert to be replaced.
 - `threshold_max` (Number) Upper bound, required for `between`/`not_between` and ignored otherwise. Must be >= `threshold`.
-- `tile_id` (String) Server-assigned ID of the tile to alert on. Take it from the dashboard's `tile_ids` map by tile name; ids cannot be chosen in `dashboard_json`. Required together with `dashboard_id` when `source` is `tile`. The alert has no query of its own: the server reads the tile's chart config from the dashboard on every evaluation. The tile must be a line, stacked bar, or number tile. Changing this forces replacement.
+- `tile_id` (String) Server-assigned ID of the tile to alert on. Take it from the dashboard's `tile_ids` map by tile name; ids cannot be chosen in `dashboard_json`. Required together with `dashboard_id` when `source` is `tile`. The alert has no query of its own: the server reads the tile's chart config from the dashboard on every evaluation. The tile must be a line, stacked bar, or number tile. Changing this to a different known value forces replacement.
 
 ### Read-Only
 

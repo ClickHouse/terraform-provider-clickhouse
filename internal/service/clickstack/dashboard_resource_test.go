@@ -163,10 +163,18 @@ func TestTileIDsPlanModifier(t *testing.T) {
 		// prior is normalized_json in the prior state; nil models a create, where
 		// there is no prior state object at all.
 		prior *string
-		plan  string
+		// priorAuthored is dashboard_json in the prior state; nil uses a body that
+		// differs from every plan below, so the "nothing authored changed" early
+		// return only fires in the case that sets it.
+		priorAuthored *string
+		// priorTileIDs is the tile_ids map in the prior state (req.StateValue).
+		priorTileIDs map[string]attr.Value
+		plan         string
 		// want is the expected planned map; nil means the modifier must leave the
 		// incoming plan value alone.
 		want map[string]attr.Value
+		// wantPriorMap asserts the modifier handed back req.StateValue verbatim.
+		wantPriorMap bool
 	}{
 		{
 			name:  "unchanged tile set keeps every id known",
@@ -213,12 +221,32 @@ func TestTileIDsPlanModifier(t *testing.T) {
 			want:  map[string]attr.Value{"A": knownA},
 		},
 		{
-			// The blank-named tile takes srv-a through the merge's index fallback,
-			// so tile A is left id-less and the server mints it a new id. The plan
-			// must say unknown, not srv-a, or apply contradicts it.
-			name:  "id consumed by the index fallback is unknown, not carried forward",
+			// A blank-named tile inserted above tile A must not take srv-a by
+			// position — the name match claims it first, so A keeps its known id.
+			name:  "a blank-named tile cannot take a named tile's id by position",
 			prior: ptr(`{"id":"d1","tiles":[{"id":"srv-a","name":"A"},{"id":"srv-b","name":""}]}`),
 			plan:  `{"tiles":[{"name":""},{"name":"A"}]}`,
+			want:  map[string]attr.Value{"A": knownA},
+		},
+		{
+			// Refreshed state: the UI added tile C, so normalized_json and tile_ids
+			// know it but the authored body does not. Nothing authored changed, so
+			// the prior map must survive verbatim and leave the UI edit undetected —
+			// recomputing would drop C and plan an update that deletes it.
+			name:          "no authored change keeps the prior map, UI drift and all",
+			prior:         ptr(`{"id":"d1","tiles":[{"id":"srv-a","name":"A"},{"id":"srv-c","name":"C"}]}`),
+			priorAuthored: ptr(`{ "tiles" : [ {"name":"A"} ] }`),
+			priorTileIDs:  map[string]attr.Value{"A": knownA, "C": types.StringValue("srv-c")},
+			plan:          `{"tiles":[{"name":"A"}]}`,
+			wantPriorMap:  true,
+		},
+		{
+			// Safety net in plannedTileIDs: with no prior tiles array the merge
+			// returns the authored body untouched, so an authored id nothing
+			// recognises must still plan as unknown.
+			name:  "authored id with no prior tiles array is unknown",
+			prior: ptr(`{"id":"d1"}`),
+			plan:  `{"tiles":[{"id":"stale","name":"A"}]}`,
 			want:  map[string]attr.Value{"A": types.StringUnknown()},
 		},
 		{
@@ -239,7 +267,15 @@ func TestTileIDsPlanModifier(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			sch := dashboardTestSchema(t)
-			stateRaw := dashboardObjectValue(ptr("d1"), nil, ptr(`{"tiles":[]}`), tc.prior)
+			priorAuthored := tc.priorAuthored
+			if priorAuthored == nil {
+				priorAuthored = ptr(`{"tiles":[]}`)
+			}
+			stateValue := types.MapNull(types.StringType)
+			if tc.priorTileIDs != nil {
+				stateValue = types.MapValueMust(types.StringType, tc.priorTileIDs)
+			}
+			stateRaw := dashboardObjectValue(ptr("d1"), nil, priorAuthored, tc.prior)
 			if tc.prior == nil {
 				stateRaw = tftypes.NewValue(dashboardObjectType, nil)
 			}
@@ -254,7 +290,7 @@ func TestTileIDsPlanModifier(t *testing.T) {
 			})
 			req := planmodifier.MapRequest{
 				Path:       path.Root(tileIDsAttr),
-				StateValue: types.MapNull(types.StringType),
+				StateValue: stateValue,
 				PlanValue:  types.MapUnknown(types.StringType),
 				State:      tfsdk.State{Schema: sch, Raw: stateRaw},
 				Plan:       tfsdk.Plan{Schema: sch, Raw: planRaw},
@@ -264,6 +300,12 @@ func TestTileIDsPlanModifier(t *testing.T) {
 
 			if resp.Diagnostics.HasError() {
 				t.Fatalf("PlanModifyMap: %s", resp.Diagnostics)
+			}
+			if tc.wantPriorMap {
+				if !resp.PlanValue.Equal(req.StateValue) {
+					t.Errorf("plan value = %v, want the prior state map (%v)", resp.PlanValue, req.StateValue)
+				}
+				return
 			}
 			if tc.want == nil {
 				if !resp.PlanValue.Equal(req.PlanValue) {

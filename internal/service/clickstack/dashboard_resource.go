@@ -71,8 +71,10 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"cannot be set in `dashboard_json` (an authored `id` is ignored on create and replaced on " +
 			"update unless the server already has it). Use the computed `tile_ids` map to reference a " +
 			"tile by name from `clickhouse_clickstack_alert`, and keep alerted tiles' names unique and " +
-			"stable: Terraform carries each tile's id forward by name across updates, so a rename mints " +
-			"a new id and drops the tile's alert. Importing a dashboard does not import its tile alerts; " +
+			"stable: Terraform carries each tile's id forward by name across updates, so a tile that keeps " +
+			"its unique name keeps its id wherever it moves in the array, while a rename mints a new id " +
+			"and drops the tile's alert. Position only decides ids among blank- or duplicate-named tiles. " +
+			"Importing a dashboard does not import its tile alerts; " +
 			"import each alert separately.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
@@ -103,10 +105,11 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"unique within the dashboard. Reference these from `clickhouse_clickstack_alert` " +
 					"(`source = \"tile\"`): `tile_id = clickhouse_clickstack_dashboard.x.tile_ids[\"<tile name>\"]`. " +
 					"Tile ids cannot be chosen in `dashboard_json`; the server assigns them and keeps them across " +
-					"updates for tiles that keep their name, unless a blank- or duplicate-named tile claims the " +
-					"id by position. A tile that keeps its name usually keeps its id at plan time; a new or " +
-					"renamed tile's id is known only after apply, and a name that disappears leaves the map, " +
-					"so an alert still referencing it fails at plan time with an invalid index.",
+					"updates for tiles that keep their unique name. Position only decides which id a " +
+					"blank- or duplicate-named tile gets, and only among those tiles: a named tile's id is " +
+					"never taken by position. A tile that keeps its unique name keeps its id at plan time; a " +
+					"new or renamed tile's id is known only after apply, and a name that disappears leaves the " +
+					"map, so an alert still referencing it fails at plan time with an invalid index.",
 				PlanModifiers: []planmodifier.Map{tileIDsPlanModifier{}},
 			},
 		},
@@ -137,19 +140,38 @@ func (m tileIDsPlanModifier) MarkdownDescription(ctx context.Context) string {
 // whenever the proposed plan differs from prior state, and unknown is always
 // safe because apply overwrites it. On a no-op plan the framework instead hands
 // over the prior map unchanged, which is equally safe: nothing applies.
+//
+// A plan with no authored change keeps the prior map verbatim, so an out-of-band
+// UI edit stays undetected as the resource documents. Recomputing the map from
+// the authored body would omit a UI-added tile, and the resulting diff would
+// plan an update that PUTs the authored body and deletes that tile.
 func (m tileIDsPlanModifier) PlanModifyMap(ctx context.Context, req planmodifier.MapRequest, resp *planmodifier.MapResponse) {
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return // create (nothing to carry forward) or destroy
 	}
 
-	var planned, prior types.String
+	var planned, priorAuthored, prior types.String
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root(dashboardJSONAttr), &planned)...)
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(dashboardJSONAttr), &priorAuthored)...)
 	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(normalizedJSONAttr), &prior)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	if planned.IsNull() || planned.IsUnknown() || prior.IsNull() || prior.IsUnknown() {
 		return
+	}
+
+	// Nothing authored changed: hand the prior map back. Setting it explicitly
+	// matters — the framework may already have marked the attribute unknown
+	// because the config text differed, and an unknown tile_ids would itself plan
+	// an update.
+	if known(priorAuthored) {
+		plannedCanon, plannedErr := canonicalizeDashboardJSON(planned.ValueString())
+		priorCanon, priorErr := canonicalizeDashboardJSON(priorAuthored.ValueString())
+		if plannedErr == nil && priorErr == nil && plannedCanon == priorCanon {
+			resp.PlanValue = req.StateValue
+			return
+		}
 	}
 
 	elems, err := plannedTileIDs([]byte(planned.ValueString()), []byte(prior.ValueString()))

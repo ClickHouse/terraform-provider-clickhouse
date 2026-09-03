@@ -150,6 +150,46 @@ func TestAlertResource_SourceRequiresReplace(t *testing.T) {
 	}
 }
 
+// TestAlertResource_TargetRequiresReplace: an unknown planned tile_id or
+// dashboard_id must not replace the alert. tile_ids goes unknown whenever the
+// dashboard body is unknown at plan, and replacing on that would destroy every
+// tile alert on the dashboard.
+func TestAlertResource_TargetRequiresReplace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	exists := tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{}}, map[string]tftypes.Value{})
+
+	cases := []struct {
+		name  string
+		state types.String
+		plan  types.String
+		want  bool
+	}{
+		{"different known id replaces", types.StringValue("t1"), types.StringValue("t2"), true},
+		{"same id does not replace", types.StringValue("t1"), types.StringValue("t1"), false},
+		{"unknown planned id does not replace", types.StringValue("t1"), types.StringUnknown(), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, attrName := range []string{tileIDAttr, dashboardIDAttr} {
+				req := planmodifier.StringRequest{
+					Path:       path.Root(attrName),
+					StateValue: tc.state,
+					PlanValue:  tc.plan,
+					State:      tfsdk.State{Raw: exists},
+					Plan:       tfsdk.Plan{Raw: exists},
+				}
+				resp := &planmodifier.StringResponse{PlanValue: tc.plan}
+				targetRequiresReplace(attrName).PlanModifyString(ctx, req, resp)
+				if resp.RequiresReplace != tc.want {
+					t.Errorf("%s: RequiresReplace=%v, want %v", attrName, resp.RequiresReplace, tc.want)
+				}
+			}
+		})
+	}
+}
+
 func TestAlertResource_Validate(t *testing.T) {
 	t.Parallel()
 

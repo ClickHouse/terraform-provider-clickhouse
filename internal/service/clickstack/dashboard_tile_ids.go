@@ -164,10 +164,14 @@ func newObjectID(seen map[string]bool) (string, error) {
 // mergeArrayIDsByName injects server-assigned ids from a prior dashboard body
 // into the authored body for elements of the array at key that omit an id.
 //
-// Matching is by element name first (which survives reordering and removal),
-// falling back to array index only when a name is absent or non-unique in the
-// prior body. An authored element whose name is present but not found in the
-// prior body is treated as new (left without an id for the caller to handle).
+// Matching is by element name (which survives reordering and removal), falling
+// back to array index only for an element a name cannot identify: one whose name
+// is blank, or non-unique in the prior body. Ids are assigned in two
+// passes so a unique name match always wins over position — otherwise a
+// blank-named element sitting at an alerted element's index would take its id
+// first and leave the alerted one to be minted a fresh id, dropping its alert.
+// An authored element whose name is present but not found in the prior body is
+// treated as new (left without an id for the caller to handle).
 //
 // dropUnknownIDs decides what happens to an id the authored element already
 // carries but the prior body does not have: true deletes it and treats the
@@ -255,7 +259,11 @@ func mergeArrayIDsByName(authored, priorNormalized json.RawMessage, key string, 
 		}
 	}
 
-	for i, ae := range authoredElems {
+	// Pass 1: unique name matches only. These run first so a name match always
+	// beats the positional fallback below, whatever order the authored elements
+	// are in. A name present but absent from the prior body is a new or renamed
+	// element — no candidate, left id-less.
+	for _, ae := range authoredElems {
 		e, ok := ae.(map[string]any) //nolint:forbidigo // generic JSON handling needs dynamic typing
 		if !ok {
 			continue
@@ -263,20 +271,33 @@ func mergeArrayIDsByName(authored, priorNormalized json.RawMessage, key string, 
 		if elemString(e, "id") != "" {
 			continue // an id the server knows; keep it
 		}
-
-		// Pick the candidate id: a unique name match, else the same-index prior id
-		// for absent/ambiguous names. A name present but absent from the prior body
-		// is a new or renamed element — no candidate, left id-less.
-		var candidate string
 		name := elemString(e, "name")
-		switch {
-		case name != "" && nameCount[name] == 1:
-			candidate = idByName[name]
-		case name == "" || nameCount[name] > 1:
-			candidate = priorIDAt(priorElems, i)
+		if name == "" || nameCount[name] != 1 {
+			continue
 		}
+		if candidate := idByName[name]; candidate != "" && !consumed[candidate] {
+			e["id"] = candidate
+			consumed[candidate] = true
+			changed = true
+		}
+	}
 
-		if candidate != "" && !consumed[candidate] {
+	// Pass 2: positional fallback for the elements no name can identify — a blank
+	// name, or one the prior body has more than once. Ids pass 1 took are
+	// consumed, so such an element is left id-less rather than stealing one.
+	for i, ae := range authoredElems {
+		e, ok := ae.(map[string]any) //nolint:forbidigo // generic JSON handling needs dynamic typing
+		if !ok {
+			continue
+		}
+		if elemString(e, "id") != "" {
+			continue
+		}
+		name := elemString(e, "name")
+		if name != "" && nameCount[name] <= 1 {
+			continue // pass 1's business, whether or not it found a match
+		}
+		if candidate := priorIDAt(priorElems, i); candidate != "" && !consumed[candidate] {
 			e["id"] = candidate
 			consumed[candidate] = true
 			changed = true

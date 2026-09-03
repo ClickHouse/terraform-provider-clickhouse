@@ -390,6 +390,27 @@ func TestMergeTileIDs_AuthoredIDNotReusedByIndexFallback(t *testing.T) {
 	assertNoDuplicateIDs(t, merged)
 }
 
+// TestMergeTileIDs_UniqueNameBeatsPositionalFallback: a blank-named tile
+// inserted above an alerted tile must not take its id. Assigning in authored
+// order would let the blank tile claim srv-a positionally before A's name match
+// ran, leaving A to be minted a new id and its alert cascade-deleted.
+func TestMergeTileIDs_UniqueNameBeatsPositionalFallback(t *testing.T) {
+	t.Parallel()
+	authored := json.RawMessage(`{"tiles":[{"name":""},{"name":"A"}]}`)
+	prior := json.RawMessage(`{"tiles":[{"id":"srv-a","name":"A"}]}`)
+
+	merged, err := mergeTileIDs(authored, prior)
+	if err != nil {
+		t.Fatalf("mergeTileIDs: %v", err)
+	}
+	if got := tileID(t, merged, "A"); got != "srv-a" {
+		t.Errorf("tile A id = %q, want srv-a (a unique name match beats position)", got)
+	}
+	if got := tileIDs(t, merged); got[0] != "" {
+		t.Errorf("blank-named tile id = %q, want none", got[0])
+	}
+}
+
 func TestMergeTileIDs_MalformedPriorIsNoOp(t *testing.T) {
 	t.Parallel()
 	authored := json.RawMessage(`{"tiles":[{"name":"A"}]}`)
