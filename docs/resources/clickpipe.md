@@ -6,7 +6,7 @@ description: |-
   You can use the clickhouse_clickpipe resource to create and manage ClickPipes data ingestion pipelines in ClickHouse Cloud.
   Supported source types: Kafka (Confluent, MSK, Azure Event Hubs, Redpanda, WarpStream), Object Storage (S3, GCS, Azure Blob), Kinesis, Postgres CDC, MySQL CDC, BigQuery, and MongoDB CDC.
   Known limitations:
-  ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.Changing the source type of an existing ClickPipe will force replacement (destroy and recreate).The API does not return uploaded Protobuf schemas. Importing a direct-Protobuf ClickPipe cannot recover protobuf_schema, and configuring it after import forces replacement.
+  ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.Changing the source type of an existing ClickPipe will force replacement (destroy and recreate).
 ---
 
 # clickhouse_clickpipe (Resource)
@@ -19,7 +19,6 @@ Known limitations:
 
 - ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
 - Changing the source type of an existing ClickPipe will force replacement (destroy and recreate).
-- The API does not return uploaded Protobuf schemas. Importing a direct-Protobuf ClickPipe cannot recover `protobuf_schema`, and configuring it after import forces replacement.
 
 ## Example Usage
 
@@ -239,7 +238,7 @@ Optional:
 - `exactly_once` (Boolean) Enable exactly-once delivery. Guarantees every Kafka record is inserted exactly once across restarts and rebalances.
 - `iam_role` (String) The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
-- `protobuf_schema` (String, Sensitive) Base64-encoded `.proto` source or serialized `FileDescriptorSet` used instead of a schema registry. Use Terraform's `filebase64()` function to encode a schema file no larger than 768 KiB; the encoded value must not exceed 1 MiB. Supported only with `format = "Protobuf"` and cannot be combined with `schema_registry`. Immutable: any change forces pipe replacement. The value is hidden from normal CLI output but stored in Terraform state; use an encrypted, access-controlled state backend. The API does not return uploaded schemas, so importing a direct-Protobuf ClickPipe cannot recover this value and configuring it after import forces replacement.
+- `protobuf_schema` (String, Sensitive) Base64-encoded Protobuf schema used instead of `schema_registry`. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Requires `format = "Protobuf"` and forces replacement when changed.
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
 - `schema_registry` (Attributes) The schema registry for the Kafka source. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
 - `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.

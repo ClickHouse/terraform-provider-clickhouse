@@ -243,7 +243,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"protobuf_schema": schema.StringAttribute{
-								MarkdownDescription: "Base64-encoded `.proto` source or serialized `FileDescriptorSet` used instead of a schema registry. Use Terraform's `filebase64()` function to encode a schema file no larger than 768 KiB; the encoded value must not exceed 1 MiB. Supported only with `format = \"Protobuf\"` and cannot be combined with `schema_registry`. Immutable: any change forces pipe replacement. The value is hidden from normal CLI output but stored in Terraform state; use an encrypted, access-controlled state backend. The API does not return uploaded schemas, so importing a direct-Protobuf ClickPipe cannot recover this value and configuring it after import forces replacement.",
+								MarkdownDescription: "Base64-encoded Protobuf schema used instead of `schema_registry`. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Requires `format = \"Protobuf\"` and forces replacement when changed.",
 								Optional:            true,
 								Sensitive:           true,
 								PlanModifiers: []planmodifier.String{

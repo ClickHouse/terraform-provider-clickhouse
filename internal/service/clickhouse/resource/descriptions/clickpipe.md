@@ -6,4 +6,3 @@ Known limitations:
 
 - ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
 - Changing the source type of an existing ClickPipe will force replacement (destroy and recreate).
-- The API does not return uploaded Protobuf schemas. Importing a direct-Protobuf ClickPipe cannot recover `protobuf_schema`, and configuring it after import forces replacement.
