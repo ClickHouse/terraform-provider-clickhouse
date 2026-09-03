@@ -8,9 +8,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -151,6 +154,124 @@ func TestApplyDashboardBody_UnreadableTiles(t *testing.T) {
 	}
 	if m.TileIDs.IsNull() || m.TileIDs.IsUnknown() || len(m.TileIDs.Elements()) != 0 {
 		t.Errorf("tile_ids = %v, want a known empty map", m.TileIDs)
+	}
+}
+
+func TestTileIDsPlanModifier(t *testing.T) {
+	t.Parallel()
+	// Prior server body: two named tiles with the ids the server assigned.
+	const prior = `{"id":"d1","tiles":[{"id":"srv-a","name":"A"},{"id":"srv-b","name":"B"}]}`
+	knownA := types.StringValue("srv-a")
+
+	cases := []struct {
+		name string
+		// prior is normalized_json in the prior state; nil models a create, where
+		// there is no prior state object at all.
+		prior *string
+		plan  string
+		// want is the expected planned map; nil means the planned value must be
+		// left unknown.
+		want map[string]attr.Value
+	}{
+		{
+			name:  "unchanged tile set keeps every id known",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"name":"A"},{"name":"B"}]}`,
+			want:  map[string]attr.Value{"A": knownA, "B": types.StringValue("srv-b")},
+		},
+		{
+			name:  "added tile is unknown while existing ids stay known",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"name":"A"},{"name":"B"},{"name":"C"}]}`,
+			want: map[string]attr.Value{
+				"A": knownA, "B": types.StringValue("srv-b"), "C": types.StringUnknown(),
+			},
+		},
+		{
+			name:  "renamed tile drops the old name and is unknown under the new one",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"name":"A"},{"name":"B2"}]}`,
+			want:  map[string]attr.Value{"A": knownA, "B2": types.StringUnknown()},
+		},
+		{
+			name:  "authored id the server knows is kept even under a new name",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"id":"srv-b","name":"Renamed"}]}`,
+			want:  map[string]attr.Value{"Renamed": types.StringValue("srv-b")},
+		},
+		{
+			name:  "unknown authored id yields to the name match",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"id":"nope","name":"A"}]}`,
+			want:  map[string]attr.Value{"A": knownA},
+		},
+		{
+			name:  "unknown authored id with no name match is unknown",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"id":"nope","name":"C"}]}`,
+			want:  map[string]attr.Value{"C": types.StringUnknown()},
+		},
+		{
+			name:  "duplicate planned names are excluded from the map",
+			prior: ptr(prior),
+			plan:  `{"tiles":[{"name":"A"},{"name":"dup"},{"name":"dup"}]}`,
+			want:  map[string]attr.Value{"A": knownA},
+		},
+		{
+			// The blank-named tile takes srv-a through the merge's index fallback,
+			// so tile A is left id-less and the server mints it a new id. The plan
+			// must say unknown, not srv-a, or apply contradicts it.
+			name:  "id consumed by the index fallback is unknown, not carried forward",
+			prior: ptr(`{"id":"d1","tiles":[{"id":"srv-a","name":"A"},{"id":"srv-b","name":""}]}`),
+			plan:  `{"tiles":[{"name":""},{"name":"A"}]}`,
+			want:  map[string]attr.Value{"A": types.StringUnknown()},
+		},
+		{
+			name:  "malformed planned body leaves the map unknown",
+			prior: ptr(prior),
+			plan:  `{bad`,
+			want:  nil,
+		},
+		{
+			name:  "create leaves the planned value untouched",
+			prior: nil,
+			plan:  `{"tiles":[{"name":"A"}]}`,
+			want:  nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sch := dashboardTestSchema(t)
+			stateRaw := dashboardObjectValue(ptr("d1"), nil, ptr(`{"tiles":[]}`), tc.prior)
+			if tc.prior == nil {
+				stateRaw = tftypes.NewValue(dashboardObjectType, nil)
+			}
+			req := planmodifier.MapRequest{
+				Path:       path.Root(tileIDsAttr),
+				StateValue: types.MapNull(types.StringType),
+				PlanValue:  types.MapUnknown(types.StringType),
+				State:      tfsdk.State{Schema: sch, Raw: stateRaw},
+				Plan:       tfsdk.Plan{Schema: sch, Raw: dashboardObjectValue(ptr("d1"), nil, ptr(tc.plan), nil)},
+			}
+			resp := &planmodifier.MapResponse{PlanValue: req.PlanValue}
+			tileIDsPlanModifier{}.PlanModifyMap(context.Background(), req, resp)
+
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("PlanModifyMap: %s", resp.Diagnostics)
+			}
+			if tc.want == nil {
+				if !resp.PlanValue.IsUnknown() {
+					t.Errorf("plan value = %v, want it left unknown", resp.PlanValue)
+				}
+				return
+			}
+			want := types.MapValueMust(types.StringType, tc.want)
+			if !resp.PlanValue.Equal(want) {
+				t.Errorf("plan value = %v, want %v", resp.PlanValue, want)
+			}
+		})
 	}
 }
 

@@ -16,6 +16,9 @@ import (
 // or with one the server does not recognise. Tile ids therefore cannot be
 // authored at all, so without this merge the ids churn on every apply and the
 // alerts are collateral.
+//
+// tileIDsPlanModifier runs this same merge at plan time, so the planned
+// tile_ids map is whatever the apply will produce.
 func mergeTileIDs(authored, priorNormalized json.RawMessage) (json.RawMessage, error) {
 	return mergeArrayIDsByName(authored, priorNormalized, "tiles")
 }

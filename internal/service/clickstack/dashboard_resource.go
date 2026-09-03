@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -103,14 +103,108 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"unique within the dashboard. Reference these from `clickhouse_clickstack_alert` " +
 					"(`source = \"tile\"`): `tile_id = clickhouse_clickstack_dashboard.x.tile_ids[\"<tile name>\"]`. " +
 					"Tile ids cannot be chosen in `dashboard_json`; the server assigns them and keeps them across " +
-					"updates for tiles that keep their name.",
-				// Without this, a dashboard update makes tile_ids unknown at plan time,
-				// which makes every dependent alert's tile_id unknown and forces the
-				// alerts to be replaced.
-				PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
+					"updates for tiles that keep their name. A tile that keeps its name keeps its id at plan " +
+					"time; a new or renamed tile's id is known only after apply, and a name that disappears " +
+					"leaves the map, so an alert still referencing it fails at plan time with an invalid index.",
+				PlanModifiers: []planmodifier.Map{tileIDsPlanModifier{}},
 			},
 		},
 	}
+}
+
+// tileIDsPlanModifier plans tile_ids one element at a time instead of pinning
+// the whole map to prior state. Pinning the map (UseStateForUnknown) plans a
+// value that apply then contradicts as soon as a tile is added, removed or
+// renamed — Terraform rejects that as an inconsistent result. Planning per
+// element keeps a surviving tile's id known, so a dependent alert's tile_id
+// does not go unknown and force the alert to be replaced.
+type tileIDsPlanModifier struct{}
+
+// Description returns a plain-text description of the modifier.
+func (m tileIDsPlanModifier) Description(_ context.Context) string {
+	return "Plans each tile_ids element from the tile-id carry-forward: a tile keeping its unique name keeps its id, a new or renamed tile's id is known only after apply."
+}
+
+// MarkdownDescription returns a markdown description of the modifier.
+func (m tileIDsPlanModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+// PlanModifyMap fills in the tile ids the update will carry forward and leaves
+// the rest unknown. Any obstacle — create, destroy, an unknown body, a parse
+// failure — leaves the framework's value alone, which is the unknown map, and
+// unknown is always safe because apply overwrites it.
+func (m tileIDsPlanModifier) PlanModifyMap(ctx context.Context, req planmodifier.MapRequest, resp *planmodifier.MapResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return // create (nothing to carry forward) or destroy
+	}
+
+	var planned, prior types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root(dashboardJSONAttr), &planned)...)
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(normalizedJSONAttr), &prior)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if planned.IsNull() || planned.IsUnknown() || prior.IsNull() || prior.IsUnknown() {
+		return
+	}
+
+	elems, err := plannedTileIDs([]byte(planned.ValueString()), []byte(prior.ValueString()))
+	if err != nil {
+		tflog.Warn(ctx, "could not plan tile_ids from the dashboard bodies; leaving them unknown: "+err.Error())
+		return
+	}
+
+	value, diags := types.MapValue(types.StringType, elems)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+	resp.PlanValue = value
+}
+
+// plannedTileIDs predicts the tile_ids map an apply will produce, by running
+// the same merge the update will run rather than re-deriving its rules: any id
+// the merge keeps is one the server already has, so the server keeps it too,
+// and any tile the merge leaves id-less is minted a fresh id on apply. Keys are
+// the uniquely named tiles, the rule tileIDsByName applies to the response.
+func plannedTileIDs(planned, prior []byte) (map[string]attr.Value, error) {
+	merged, err := mergeTileIDs(planned, prior)
+	if err != nil {
+		return nil, err
+	}
+	tiles, err := parseDashboardTiles(merged)
+	if err != nil {
+		return nil, err
+	}
+	priorTiles, err := parseDashboardTiles(prior)
+	if err != nil {
+		return nil, err
+	}
+
+	// An id is only kept by the server if the server issued it. The merge drops
+	// ids the prior body does not have, but it also returns the authored body
+	// untouched when there is nothing to merge from, so check here too.
+	priorIDs := map[string]bool{}
+	for _, tile := range priorTiles {
+		if tile.ID != "" {
+			priorIDs[tile.ID] = true
+		}
+	}
+
+	count := tileNameCount(tiles)
+	elems := make(map[string]attr.Value, len(tiles))
+	for _, tile := range tiles {
+		if tile.Name == "" || count[tile.Name] > 1 {
+			continue
+		}
+		if tile.ID != "" && priorIDs[tile.ID] {
+			elems[tile.Name] = types.StringValue(tile.ID)
+			continue
+		}
+		elems[tile.Name] = types.StringUnknown()
+	}
+	return elems, nil
 }
 
 func (r *dashboardResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -413,29 +507,46 @@ func (m *dashboardResourceModel) applyDashboardBody(ctx context.Context, body []
 	return diags
 }
 
+// dashboardTile is the part of a tile this resource reads: the name callers
+// reference it by and its server-assigned id.
+type dashboardTile struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// parseDashboardTiles decodes just the tiles array of a dashboard body.
+func parseDashboardTiles(body []byte) ([]dashboardTile, error) {
+	var doc struct {
+		Tiles []dashboardTile `json:"tiles"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("read tiles: %w", err)
+	}
+	return doc.Tiles, nil
+}
+
+// tileNameCount counts how many tiles share each name.
+func tileNameCount(tiles []dashboardTile) map[string]int {
+	count := map[string]int{}
+	for _, tile := range tiles {
+		count[tile.Name]++
+	}
+	return count
+}
+
 // tileIDsByName maps tile name to server-assigned tile id for every tile whose
 // name is non-empty and unique within the dashboard body. Blank and duplicate
 // names are left out: they cannot identify a single tile, so an alert could not
 // reference them unambiguously.
 func tileIDsByName(body []byte) (map[string]string, error) {
-	var doc struct {
-		Tiles []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"tiles"`
+	tiles, err := parseDashboardTiles(body)
+	if err != nil {
+		return nil, err
 	}
-	if err := json.Unmarshal(body, &doc); err != nil {
-		return nil, fmt.Errorf("read tile ids: %w", err)
-	}
-
-	nameCount := map[string]int{}
-	for _, tile := range doc.Tiles {
-		nameCount[tile.Name]++
-	}
-
+	count := tileNameCount(tiles)
 	byName := map[string]string{}
-	for _, tile := range doc.Tiles {
-		if tile.Name == "" || tile.ID == "" || nameCount[tile.Name] > 1 {
+	for _, tile := range tiles {
+		if tile.Name == "" || tile.ID == "" || count[tile.Name] > 1 {
 			continue
 		}
 		byName[tile.Name] = tile.ID
