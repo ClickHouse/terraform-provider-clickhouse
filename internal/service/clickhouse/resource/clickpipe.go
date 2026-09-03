@@ -213,6 +213,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							requiresReplaceIfSourceTypeChanges{},
 						},
 						Attributes: map[string]schema.Attribute{
+							"ssh_key_resource_id": schema.StringAttribute{
+								MarkdownDescription: "ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
 									"The type of the Kafka source. (%s). Default is `%s`.",
@@ -855,6 +862,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							requiresReplaceIfSourceTypeChanges{},
 						},
 						Attributes: map[string]schema.Attribute{
+							"ssh_key_resource_id": schema.StringAttribute{
+								MarkdownDescription: "ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
 									"The type of the Postgres source. (%s). Default is `%s`.",
@@ -1155,6 +1169,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							requiresReplaceIfSourceTypeChanges{},
 						},
 						Attributes: map[string]schema.Attribute{
+							"ssh_key_resource_id": schema.StringAttribute{
+								MarkdownDescription: "ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"type": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
 									"The type of MySQL-compatible source. (%s). Default is `mysql`.",
@@ -1577,6 +1598,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							requiresReplaceIfSourceTypeChanges{},
 						},
 						Attributes: map[string]schema.Attribute{
+							"ssh_key_resource_id": schema.StringAttribute{
+								MarkdownDescription: "ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.",
+								Optional:            true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"uri": schema.StringAttribute{
 								Description: "MongoDB connection URI. Supports both standard URIs (mongodb://...) and SRV URIs (mongodb+srv://...).",
 								Required:    true,
@@ -2985,6 +3013,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			source.Kafka.Type = kafkaModel.Type.ValueString()
 			source.Kafka.Format = kafkaModel.Format.ValueString()
 			source.Kafka.ExactlyOnce = kafkaModel.ExactlyOnce.ValueBoolPointer()
+			source.Kafka.SSHKeyResourceID = kafkaModel.SSHKeyResourceID.ValueStringPointer()
 		}
 
 		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
@@ -3486,6 +3515,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 
 		if !isUpdate {
 			postgresSource.Type = postgresModel.Type.ValueString()
+			postgresSource.SSHKeyResourceID = postgresModel.SSHKeyResourceID.ValueStringPointer()
 		}
 
 		// Only attach a credentials block when the username is actually known.
@@ -3680,6 +3710,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			val := mysqlModel.SkipCertVerification.ValueBool()
 			mysqlSource.SkipCertVerification = &val
 		}
+		if !isUpdate {
+			mysqlSource.SSHKeyResourceID = mysqlModel.SSHKeyResourceID.ValueStringPointer()
+		}
 
 		source.MySQL = mysqlSource
 	} else if !sourceModel.MongoDB.IsNull() {
@@ -3773,6 +3806,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !mongodbModel.SkipCertVerification.IsNull() && !mongodbModel.SkipCertVerification.IsUnknown() {
 			v := mongodbModel.SkipCertVerification.ValueBool()
 			mongodbSource.SkipCertVerification = &v
+		}
+		if !isUpdate {
+			mongodbSource.SSHKeyResourceID = mongodbModel.SSHKeyResourceID.ValueStringPointer()
 		}
 
 		source.MongoDB = mongodbSource
@@ -4150,6 +4186,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			kafkaModel.ExactlyOnce = types.BoolValue(*clickPipe.Source.Kafka.ExactlyOnce)
 		} else {
 			kafkaModel.ExactlyOnce = types.BoolNull()
+		}
+
+		if clickPipe.Source.Kafka.SSHKeyResourceID != nil {
+			kafkaModel.SSHKeyResourceID = types.StringValue(*clickPipe.Source.Kafka.SSHKeyResourceID)
+		} else if !stateKafkaModel.SSHKeyResourceID.IsNull() {
+			kafkaModel.SSHKeyResourceID = stateKafkaModel.SSHKeyResourceID
+		} else {
+			kafkaModel.SSHKeyResourceID = types.StringNull()
 		}
 
 		sourceModel.Kafka = kafkaModel.ObjectValue()
@@ -4540,6 +4584,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			postgresModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
 		}
 
+		if clickPipe.Source.Postgres.SSHKeyResourceID != nil {
+			postgresModel.SSHKeyResourceID = types.StringValue(*clickPipe.Source.Postgres.SSHKeyResourceID)
+		} else if !statePostgresModel.SSHKeyResourceID.IsNull() {
+			postgresModel.SSHKeyResourceID = statePostgresModel.SSHKeyResourceID
+		} else {
+			postgresModel.SSHKeyResourceID = types.StringNull()
+		}
+
 		sourceModel.Postgres = postgresModel.ObjectValue()
 	} else {
 		sourceModel.Postgres = types.ObjectNull(models.ClickPipePostgresSourceModel{}.ObjectType().AttrTypes)
@@ -4773,6 +4825,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			mysqlModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
 		}
 
+		if clickPipe.Source.MySQL.SSHKeyResourceID != nil {
+			mysqlModel.SSHKeyResourceID = types.StringValue(*clickPipe.Source.MySQL.SSHKeyResourceID)
+		} else if !stateMySQLModel.SSHKeyResourceID.IsNull() {
+			mysqlModel.SSHKeyResourceID = stateMySQLModel.SSHKeyResourceID
+		} else {
+			mysqlModel.SSHKeyResourceID = types.StringNull()
+		}
+
 		sourceModel.MySQL = mysqlModel.ObjectValue()
 	} else {
 		sourceModel.MySQL = types.ObjectNull(models.ClickPipeMySQLSourceModel{}.ObjectType().AttrTypes)
@@ -4927,6 +4987,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		}
 
 		mongodbModel.Settings = settingsModel.ObjectValue()
+
+		if clickPipe.Source.MongoDB.SSHKeyResourceID != nil {
+			mongodbModel.SSHKeyResourceID = types.StringValue(*clickPipe.Source.MongoDB.SSHKeyResourceID)
+		} else if !stateMongoDBModel.SSHKeyResourceID.IsNull() {
+			mongodbModel.SSHKeyResourceID = stateMongoDBModel.SSHKeyResourceID
+		} else {
+			mongodbModel.SSHKeyResourceID = types.StringNull()
+		}
 
 		sourceModel.MongoDB = mongodbModel.ObjectValue()
 	} else {

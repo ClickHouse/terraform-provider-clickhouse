@@ -240,6 +240,7 @@ Optional:
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
 - `schema_registry` (Attributes) The schema registry for the Kafka source. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
+- `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.
 
 <a id="nestedatt--source--kafka--credentials"></a>
@@ -339,6 +340,7 @@ Optional:
 - `credentials` (Attributes, Sensitive) The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI. (see [below for nested schema](#nestedatt--source--mongodb--credentials))
 - `disable_tls` (Boolean) Disable TLS for the MongoDB connection. Defaults to false (TLS enabled).
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MongoDB connection.
+- `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections.
 
 <a id="nestedatt--source--mongodb--settings"></a>
@@ -405,6 +407,7 @@ Optional:
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the MySQL instance. Default is 3306.
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MySQL connection.
+- `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
 
@@ -515,6 +518,7 @@ Optional:
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the Postgres instance. Default is 5432.
 - `skip_cert_verification` (Boolean) Skip certificate verification for the Postgres connection.
+- `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of the Postgres source. (`postgres`, `supabase`, `neon`, `alloydb`, `planetscale`, `rdspostgres`, `aurorapostgres`, `cloudsqlpostgres`, `azurepostgres`, `crunchybridge`, `tigerdata`). Default is `postgres`.
 
