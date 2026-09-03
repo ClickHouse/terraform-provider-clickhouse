@@ -179,7 +179,8 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"removed or changed to an unsupported display type; Terraform then plans to recreate it, " +
 			"which fails with the server's \"Tile not found\" until the tile is restored.\n\n" +
 			"Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one " +
-			"resource). Import each alert separately by its own ID.\n\n" +
+			"resource). Import each alert separately by its own ID. An alert whose source this provider " +
+			"does not model (for example `inline`) fails to import with a clear error.\n\n" +
 			"Alerts are threshold-based (there is no anomaly mode). Configuration is validated at " +
 			"plan time; those rules mirror the ClickStack server contract on a best-effort basis, so " +
 			"a server-side rule change may make the plan-time checks slightly stale until a new " +
@@ -483,6 +484,18 @@ func (r *alertResource) Read(ctx context.Context, req resource.ReadRequest, resp
 			return
 		}
 		resp.Diagnostics.AddError("Error Reading Alert", err.Error())
+		return
+	}
+
+	// The API has sources this resource does not model (e.g. "inline", which
+	// carries its own chart config). Storing one would make the next plan
+	// default source to saved_search and replace the alert; fail the read
+	// instead so an import of such an alert stops here with a clear message.
+	if al.Source != "" && !slices.Contains(alertSources, al.Source) {
+		resp.Diagnostics.AddError("Unsupported alert source",
+			fmt.Sprintf("alert %s has source %q, which this provider does not manage (supported: %s); "+
+				"manage it outside Terraform or remove it from state", state.ID.ValueString(), al.Source,
+				strings.Join(alertSources, ", ")))
 		return
 	}
 

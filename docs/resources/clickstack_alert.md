@@ -5,7 +5,7 @@ subcategory: "ClickStack"
 description: |-
   Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies through a channel when a threshold is crossed.
   Set source to saved_search (the default) with saved_search_id, or to tile with dashboard_id and tile_id. Tile ids are assigned by the server and cannot be set in dashboard_json; reference the tile through the dashboard's computed tile_ids map (tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert, and the plan fails with an invalid tile_ids index until the reference is updated. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
-  Importing a dashboard does not import its tile alerts (terraform import maps one ID to one resource). Import each alert separately by its own ID.
+  Importing a dashboard does not import its tile alerts (terraform import maps one ID to one resource). Import each alert separately by its own ID. An alert whose source this provider does not model (for example inline) fails to import with a clear error.
   Alerts are threshold-based (there is no anomaly mode). Configuration is validated at plan time; those rules mirror the ClickStack server contract on a best-effort basis, so a server-side rule change may make the plan-time checks slightly stale until a new provider release.
 ---
 
@@ -15,7 +15,7 @@ Manages a ClickStack alert that evaluates a saved search or a dashboard tile on 
 
 Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with `dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in `dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map (`tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]`). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert, and the plan fails with an invalid `tile_ids` index until the reference is updated. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
 
-Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one resource). Import each alert separately by its own ID.
+Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one resource). Import each alert separately by its own ID. An alert whose source this provider does not model (for example `inline`) fails to import with a clear error.
 
 Alerts are threshold-based (there is no anomaly mode). Configuration is validated at plan time; those rules mirror the ClickStack server contract on a best-effort basis, so a server-side rule change may make the plan-time checks slightly stale until a new provider release.
 

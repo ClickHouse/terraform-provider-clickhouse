@@ -592,6 +592,29 @@ func TestAlertResource_CRUD(t *testing.T) {
 		}
 	})
 
+	t.Run("read rejects an alert source the provider does not model", func(t *testing.T) {
+		t.Parallel()
+		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"data":{"id":"al3","source":"inline","interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
+		}))}
+		state := tfsdk.State{Schema: sch}
+		m := mkAlert(func(m *alertResourceModel) { m.ID = types.StringValue("al3") })
+		if d := state.Set(ctx, m); d.HasError() {
+			t.Fatalf("state.Set: %s", d)
+		}
+		resp := &fwresource.ReadResponse{State: state}
+		r.Read(ctx, fwresource.ReadRequest{State: state}, resp)
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("expected an error for source inline, got none")
+		}
+		// State is left as it was: the default would otherwise plan a replacement.
+		var got alertResourceModel
+		resp.State.Get(ctx, &got)
+		if got.Source.ValueString() != alertSourceSavedSearch {
+			t.Errorf("state source = %q, want the prior %q left untouched", got.Source.ValueString(), alertSourceSavedSearch)
+		}
+	})
+
 	t.Run("read removes resource on cascade-delete 404", func(t *testing.T) {
 		t.Parallel()
 		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
