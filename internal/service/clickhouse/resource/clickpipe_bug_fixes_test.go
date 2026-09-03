@@ -110,6 +110,7 @@ func buildPostgresPlanWithCredentials(credentials types.Object) models.ClickPipe
 		"partition_by_expr":      types.StringNull(),
 	}
 	pgAttrs := map[string]attr.Value{
+		"ssh_key_resource_id":    types.StringNull(),
 		"type":                   types.StringValue("postgres"),
 		"host":                   types.StringValue("postgres.example.com"),
 		"port":                   types.Int64Value(5432),
@@ -235,6 +236,7 @@ func buildMySQLPlanWithCredentials(credentials types.Object) models.ClickPipeRes
 		"partition_key":          types.StringNull(),
 	}
 	mysqlAttrs := map[string]attr.Value{
+		"ssh_key_resource_id":    types.StringNull(),
 		"type":                   types.StringValue("mysql"),
 		"host":                   types.StringValue("mysql.example.com"),
 		"port":                   types.Int64Value(3306),
