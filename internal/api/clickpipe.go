@@ -247,6 +247,11 @@ var ClickPipeBigQueryReplicationModes = []string{
 	ClickPipeReplicationModeSnapshot,
 }
 
+var ClickPipeBigQueryAuthenticationMethods = []string{
+	ClickPipeAuthenticationServiceAccount,
+	ClickPipeAuthenticationServiceAccountWorkloadIdentity,
+}
+
 var ClickPipePostgresTableEngines = []string{
 	ClickPipeTableEngineMergeTree,
 	ClickPipeTableEngineReplacingMergeTree,

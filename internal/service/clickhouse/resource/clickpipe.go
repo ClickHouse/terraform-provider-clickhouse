@@ -1459,9 +1459,31 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Description: "GCS bucket path for staging snapshot data (e.g., gs://my-bucket/staging/). Data will be automatically cleaned up after initial load.",
 								Required:    true,
 							},
+							"authentication": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"Authentication method for the BigQuery source. (%s). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryAuthenticationMethods),
+								),
+								Optional: true,
+								Computed: true,
+								Default:  stringdefault.StaticString(api.ClickPipeAuthenticationServiceAccount),
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeBigQueryAuthenticationMethods...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"project_id": schema.StringAttribute{
+								Description: "GCP project ID that owns the BigQuery resources. Required with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication.",
+								Optional:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for BigQuery access.",
-								Required:            true,
+								MarkdownDescription: "The credentials for BigQuery access. Required with `SERVICE_ACCOUNT` authentication and must be omitted with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`.",
+								Optional:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"service_account_file": schema.StringAttribute{
@@ -2996,6 +3018,26 @@ func validateGCPWorkloadIdentityConfiguration(ctx context.Context, sourceValue t
 			}
 		}
 	}
+
+	if !source.BigQuery.IsNull() && !source.BigQuery.IsUnknown() {
+		var bigQuery models.ClickPipeBigQuerySourceModel
+		diagnostics.Append(source.BigQuery.As(ctx, &bigQuery, basetypes.ObjectAsOptions{})...)
+		if !bigQuery.Authentication.IsUnknown() {
+			switch bigQuery.Authentication.ValueString() {
+			case api.ClickPipeAuthenticationServiceAccount:
+				if bigQuery.Credentials.IsNull() {
+					diagnostics.AddError("Invalid BigQuery authentication configuration", "credentials are required with SERVICE_ACCOUNT authentication")
+				}
+			case api.ClickPipeAuthenticationServiceAccountWorkloadIdentity:
+				if !bigQuery.Credentials.IsNull() && !bigQuery.Credentials.IsUnknown() {
+					diagnostics.AddError("Invalid GCP workload identity configuration", "BigQuery credentials must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+				}
+				if bigQuery.ProjectID.IsNull() || (!bigQuery.ProjectID.IsUnknown() && strings.TrimSpace(bigQuery.ProjectID.ValueString()) == "") {
+					diagnostics.AddError("Invalid GCP workload identity configuration", "BigQuery project_id is required with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+				}
+			}
+		}
+	}
 }
 
 func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
@@ -3008,7 +3050,10 @@ func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
 	if source.ObjectStorage != nil && source.ObjectStorage.Authentication != nil && *source.ObjectStorage.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
 		return true
 	}
-	return source.PubSub != nil && source.PubSub.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity
+	if source.PubSub != nil && source.PubSub.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	return source.BigQuery != nil && source.BigQuery.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity
 }
 
 // overlayPasswordWO returns the write-only password from config when set, else the plan password. The framework leaves write-only attrs in req.Plan and req.Config, but nulls them in req.State; we read from config to keep the source of truth explicit.
@@ -3380,10 +3425,6 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		bigQueryModel := models.ClickPipeBigQuerySourceModel{}
 		diagnostics.Append(sourceModel.BigQuery.As(ctx, &bigQueryModel, basetypes.ObjectAsOptions{})...)
 
-		// Extract credentials
-		credentialsModel := models.ClickPipeServiceAccountModel{}
-		diagnostics.Append(bigQueryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
-
 		// Extract settings
 		settingsModel := models.ClickPipeBigQuerySettingsModel{}
 		diagnostics.Append(bigQueryModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
@@ -3445,14 +3486,23 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			tableMappings[i] = mapping
 		}
 
-		source.BigQuery = &api.ClickPipeBigQuerySource{
+		bigQuery := &api.ClickPipeBigQuerySource{
 			SnapshotStagingPath: bigQueryModel.SnapshotStagingPath.ValueString(),
+			Authentication:      bigQueryModel.Authentication.ValueString(),
 			Settings:            settings,
 			Mappings:            tableMappings,
-			Credentials: &api.ClickPipeServiceAccount{
-				ServiceAccountFile: credentialsModel.ServiceAccountFile.ValueString(),
-			},
 		}
+		if !bigQueryModel.ProjectID.IsNull() && !bigQueryModel.ProjectID.IsUnknown() {
+			bigQuery.ProjectID = bigQueryModel.ProjectID.ValueStringPointer()
+		}
+		if !bigQueryModel.Credentials.IsNull() && !bigQueryModel.Credentials.IsUnknown() {
+			credentialsModel := models.ClickPipeServiceAccountModel{}
+			diagnostics.Append(bigQueryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+			bigQuery.Credentials = &api.ClickPipeServiceAccount{
+				ServiceAccountFile: credentialsModel.ServiceAccountFile.ValueString(),
+			}
+		}
+		source.BigQuery = bigQuery
 	} else if !sourceModel.Postgres.IsNull() {
 		postgresModel := models.ClickPipePostgresSourceModel{}
 		diagnostics.Append(sourceModel.Postgres.As(ctx, &postgresModel, basetypes.ObjectAsOptions{})...)
@@ -5215,8 +5265,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			tableMappingList[i] = tableMappingModel.ObjectValue()
 		}
 
+		authentication := clickPipe.Source.BigQuery.Authentication
+		if authentication == "" {
+			authentication = api.ClickPipeAuthenticationServiceAccount
+		}
 		bigQueryModel := models.ClickPipeBigQuerySourceModel{
 			SnapshotStagingPath: types.StringValue(clickPipe.Source.BigQuery.SnapshotStagingPath),
+			Authentication:      types.StringValue(authentication),
+			ProjectID:           types.StringPointerValue(clickPipe.Source.BigQuery.ProjectID),
 			Settings:            settingsModel.ObjectValue(),
 			TableMappings:       types.ListNull(models.ClickPipeBigQueryTableMappingModel{}.ObjectType()),
 		}

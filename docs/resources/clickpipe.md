@@ -174,18 +174,15 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for BigQuery access. (see [below for nested schema](#nestedatt--source--bigquery--credentials))
 - `settings` (Attributes) Settings for the BigQuery pipe. (see [below for nested schema](#nestedatt--source--bigquery--settings))
 - `snapshot_staging_path` (String) GCS bucket path for staging snapshot data (e.g., gs://my-bucket/staging/). Data will be automatically cleaned up after initial load.
 - `table_mappings` (Attributes List) Table mappings from BigQuery source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--bigquery--table_mappings))
 
-<a id="nestedatt--source--bigquery--credentials"></a>
-### Nested Schema for `source.bigquery.credentials`
+Optional:
 
-Required:
-
-- `service_account_file` (String, Sensitive) Google Cloud service account JSON key file content, base64 encoded.
-
+- `authentication` (String) Authentication method for the BigQuery source. (`SERVICE_ACCOUNT`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.
+- `credentials` (Attributes, Sensitive) The credentials for BigQuery access. Required with `SERVICE_ACCOUNT` authentication and must be omitted with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. (see [below for nested schema](#nestedatt--source--bigquery--credentials))
+- `project_id` (String) GCP project ID that owns the BigQuery resources. Required with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication.
 
 <a id="nestedatt--source--bigquery--settings"></a>
 ### Nested Schema for `source.bigquery.settings`
@@ -217,6 +214,14 @@ Optional:
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
+
+
+<a id="nestedatt--source--bigquery--credentials"></a>
+### Nested Schema for `source.bigquery.credentials`
+
+Required:
+
+- `service_account_file` (String, Sensitive) Google Cloud service account JSON key file content, base64 encoded.
 
 
 

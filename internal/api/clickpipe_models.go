@@ -328,6 +328,8 @@ type ClickPipeBigQueryTableMapping struct {
 
 type ClickPipeBigQuerySource struct {
 	SnapshotStagingPath   string                          `json:"snapshotStagingPath,omitempty"`
+	Authentication        string                          `json:"authentication,omitempty"`
+	ProjectID             *string                         `json:"projectId,omitempty"`
 	Settings              ClickPipeBigQuerySettings       `json:"settings"`
 	Mappings              []ClickPipeBigQueryTableMapping `json:"tableMappings"`
 	TableMappingsToRemove []ClickPipeBigQueryTableMapping `json:"tableMappingsToRemove,omitempty"`

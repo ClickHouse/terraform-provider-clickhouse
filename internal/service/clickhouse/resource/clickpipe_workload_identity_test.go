@@ -4,9 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
@@ -27,6 +29,7 @@ func workloadIdentitySourceModel() models.ClickPipeSourceModel {
 
 func workloadIdentityKafka(sourceType string, credentials types.Object, iamRole types.String) types.Object {
 	return types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, map[string]attr.Value{
+		"ssh_key_resource_id":          types.StringNull(),
 		"type":                         types.StringValue(sourceType),
 		"format":                       types.StringValue(api.ClickPipeJSONEachRowFormat),
 		"brokers":                      types.StringValue("broker:9092"),
@@ -195,4 +198,183 @@ func TestValidateGCPWorkloadIdentityConfiguration_PubSubCredentialRules(t *testi
 			t.Fatal("expected missing service account key error")
 		}
 	})
+}
+
+func workloadIdentityBigQuery(authentication string, projectID types.String, credentials types.Object) types.Object {
+	settings := models.ClickPipeBigQuerySettingsModel{
+		ReplicationMode:                types.StringValue(api.ClickPipeReplicationModeSnapshot),
+		AllowNullableColumns:           types.BoolValue(false),
+		InitialLoadParallelism:         types.Int64Value(4),
+		SnapshotNumRowsPerPartition:    types.Int64Value(100_000),
+		SnapshotNumberOfParallelTables: types.Int64Value(1),
+	}
+	mapping := models.ClickPipeBigQueryTableMappingModel{
+		SourceDatasetName:   types.StringValue("events"),
+		SourceTable:         types.StringValue("source"),
+		TargetTable:         types.StringValue("target"),
+		ExcludedColumns:     types.SetNull(types.StringType),
+		UseCustomSortingKey: types.BoolValue(false),
+		SortingKeys:         types.ListNull(types.StringType),
+		TableEngine:         types.StringNull(),
+	}
+	model := models.ClickPipeBigQuerySourceModel{
+		SnapshotStagingPath: types.StringValue("gs://staging-bucket/clickpipes/"),
+		Authentication:      types.StringValue(authentication),
+		ProjectID:           projectID,
+		Settings:            settings.ObjectValue(),
+		TableMappings:       types.ListValueMust(models.ClickPipeBigQueryTableMappingModel{}.ObjectType(), []attr.Value{mapping.ObjectValue()}),
+		Credentials:         credentials,
+	}
+	return model.ObjectValue()
+}
+
+func TestValidateGCPWorkloadIdentityConfiguration_BigQueryCredentialRules(t *testing.T) {
+	nullCredentials := types.ObjectNull(models.ClickPipeServiceAccountModel{}.ObjectType().AttrTypes)
+	credentials := models.ClickPipeServiceAccountModel{ServiceAccountFile: types.StringValue("base64-key")}.ObjectValue()
+
+	t.Run("accepts credentialless workload identity", func(t *testing.T) {
+		source := workloadIdentitySourceModel()
+		source.BigQuery = workloadIdentityBigQuery(api.ClickPipeAuthenticationServiceAccountWorkloadIdentity, types.StringValue("my-gcp-project"), nullCredentials)
+		diagnostics := diag.Diagnostics{}
+		plan := models.ClickPipeResourceModel{Source: source.ObjectValue()}
+
+		got := (&ClickPipeResource{}).extractSourceFromPlan(context.Background(), &diagnostics, plan, nil, false)
+
+		if diagnostics.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diagnostics.Errors())
+		}
+		if got.BigQuery == nil || got.BigQuery.Authentication != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			t.Fatalf("unexpected BigQuery source: %+v", got.BigQuery)
+		}
+		if got.BigQuery.ProjectID == nil || *got.BigQuery.ProjectID != "my-gcp-project" {
+			t.Fatalf("unexpected BigQuery project ID: %+v", got.BigQuery.ProjectID)
+		}
+		if got.BigQuery.Credentials != nil {
+			t.Errorf("workload identity source included customer credentials: %+v", got.BigQuery)
+		}
+		if !clickPipeSourceUsesGCPWorkloadIdentity(got) {
+			t.Error("source was not detected as using workload identity")
+		}
+	})
+
+	t.Run("rejects credentials for workload identity", func(t *testing.T) {
+		source := workloadIdentitySourceModel()
+		source.BigQuery = workloadIdentityBigQuery(api.ClickPipeAuthenticationServiceAccountWorkloadIdentity, types.StringValue("my-gcp-project"), credentials)
+		diagnostics := diag.Diagnostics{}
+
+		validateGCPWorkloadIdentityConfiguration(context.Background(), source.ObjectValue(), &diagnostics)
+
+		if !diagnostics.HasError() {
+			t.Fatal("expected conflicting credentials error")
+		}
+	})
+
+	t.Run("requires project ID for workload identity", func(t *testing.T) {
+		source := workloadIdentitySourceModel()
+		source.BigQuery = workloadIdentityBigQuery(api.ClickPipeAuthenticationServiceAccountWorkloadIdentity, types.StringNull(), nullCredentials)
+		diagnostics := diag.Diagnostics{}
+
+		validateGCPWorkloadIdentityConfiguration(context.Background(), source.ObjectValue(), &diagnostics)
+
+		if !diagnostics.HasError() {
+			t.Fatal("expected missing project_id error")
+		}
+	})
+
+	t.Run("requires credentials for service account", func(t *testing.T) {
+		source := workloadIdentitySourceModel()
+		source.BigQuery = workloadIdentityBigQuery(api.ClickPipeAuthenticationServiceAccount, types.StringNull(), nullCredentials)
+		diagnostics := diag.Diagnostics{}
+
+		validateGCPWorkloadIdentityConfiguration(context.Background(), source.ObjectValue(), &diagnostics)
+
+		if !diagnostics.HasError() {
+			t.Fatal("expected missing credentials error")
+		}
+	})
+
+	t.Run("keeps service account credentials", func(t *testing.T) {
+		source := workloadIdentitySourceModel()
+		source.BigQuery = workloadIdentityBigQuery(api.ClickPipeAuthenticationServiceAccount, types.StringNull(), credentials)
+		diagnostics := diag.Diagnostics{}
+		plan := models.ClickPipeResourceModel{Source: source.ObjectValue()}
+
+		got := (&ClickPipeResource{}).extractSourceFromPlan(context.Background(), &diagnostics, plan, nil, false)
+
+		if diagnostics.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diagnostics.Errors())
+		}
+		if got.BigQuery == nil || got.BigQuery.Authentication != api.ClickPipeAuthenticationServiceAccount || got.BigQuery.Credentials == nil {
+			t.Fatalf("unexpected BigQuery service account source: %+v", got.BigQuery)
+		}
+	})
+}
+
+func TestSyncClickPipeState_BigQueryWorkloadIdentity(t *testing.T) {
+	ctx := context.Background()
+	nullCredentials := types.ObjectNull(models.ClickPipeServiceAccountModel{}.ObjectType().AttrTypes)
+	source := workloadIdentitySourceModel()
+	source.BigQuery = workloadIdentityBigQuery(api.ClickPipeAuthenticationServiceAccountWorkloadIdentity, types.StringValue("my-gcp-project"), nullCredentials)
+	state := models.ClickPipeResourceModel{
+		ID:        types.StringValue("pipe-id"),
+		ServiceID: types.StringValue("service-id"),
+		Name:      types.StringValue("BigQuery workload identity"),
+		State:     types.StringValue("provisioning"),
+		Source:    source.ObjectValue(),
+		Destination: types.ObjectValueMust(models.ClickPipeDestinationModel{}.ObjectType().AttrTypes, map[string]attr.Value{
+			"database":         types.StringValue("default"),
+			"table":            types.StringNull(),
+			"managed_table":    types.BoolNull(),
+			"table_definition": types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes),
+			"columns":          types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType()),
+			"roles":            types.ListNull(types.StringType),
+		}),
+	}
+	projectID := "my-gcp-project"
+	response := &api.ClickPipe{
+		ID:    "pipe-id",
+		Name:  "BigQuery workload identity",
+		State: "running",
+		Source: api.ClickPipeSource{BigQuery: &api.ClickPipeBigQuerySource{
+			SnapshotStagingPath: "gs://staging-bucket/clickpipes/",
+			Authentication:      api.ClickPipeAuthenticationServiceAccountWorkloadIdentity,
+			ProjectID:           &projectID,
+			Settings: api.ClickPipeBigQuerySettings{
+				ReplicationMode: api.ClickPipeReplicationModeSnapshot,
+			},
+			Mappings: []api.ClickPipeBigQueryTableMapping{{
+				SourceDatasetName: "events",
+				SourceTable:       "source",
+				TargetTable:       "target",
+			}},
+		}},
+		Destination: api.ClickPipeDestination{Database: "default"},
+	}
+	mc := minimock.NewController(t)
+	client := api.NewClientMock(mc).
+		GetClickPipeMock.
+		Expect(ctx, "service-id", "pipe-id").
+		Return(response, nil)
+
+	err := (&ClickPipeResource{client: client}).syncClickPipeState(ctx, &state)
+	if err != nil {
+		t.Fatalf("sync state: %v", err)
+	}
+	var syncedSource models.ClickPipeSourceModel
+	if diagnostics := state.Source.As(ctx, &syncedSource, basetypes.ObjectAsOptions{}); diagnostics.HasError() {
+		t.Fatalf("read source state: %v", diagnostics.Errors())
+	}
+	var bigQuery models.ClickPipeBigQuerySourceModel
+	if diagnostics := syncedSource.BigQuery.As(ctx, &bigQuery, basetypes.ObjectAsOptions{}); diagnostics.HasError() {
+		t.Fatalf("read BigQuery state: %v", diagnostics.Errors())
+	}
+	if bigQuery.Authentication.ValueString() != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		t.Errorf("authentication = %q", bigQuery.Authentication.ValueString())
+	}
+	if bigQuery.ProjectID.ValueString() != projectID {
+		t.Errorf("project_id = %q", bigQuery.ProjectID.ValueString())
+	}
+	if !bigQuery.Credentials.IsNull() {
+		t.Error("credentials must remain null for workload identity")
+	}
 }
