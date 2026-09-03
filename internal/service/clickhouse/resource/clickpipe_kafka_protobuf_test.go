@@ -52,6 +52,7 @@ func buildKafkaProtobufPlan(format string, protobufSchema types.String, schemaRe
 		"ca_certificate":               types.StringNull(),
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 types.BoolNull(),
+		"ssh_key_resource_id":          types.StringNull(),
 	}
 	sourceModel := models.ClickPipeSourceModel{
 		Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
