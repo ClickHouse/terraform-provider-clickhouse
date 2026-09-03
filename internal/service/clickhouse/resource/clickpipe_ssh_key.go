@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -74,10 +75,15 @@ func (r *ClickPipeSSHKeyResource) Schema(ctx context.Context, req resource.Schem
 			"description": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Description of the SSH key resource. Immutable; changing it forces resource replacement (the public API has no update operation for SSH key resources).",
+				MarkdownDescription: "Description of the SSH key resource, at most 255 characters. Immutable; changing it forces resource replacement (the public API has no update operation for SSH key resources).",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					// The API caps description at 255 characters and rejects longer values
+					// with a 400; catching it at plan time is friendlier than at apply time.
+					stringvalidator.LengthAtMost(255),
 				},
 			},
 			"host": schema.StringAttribute{

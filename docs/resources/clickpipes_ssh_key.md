@@ -80,7 +80,7 @@ resource "clickhouse_clickpipe" "postgres_via_bastion" {
 
 ### Optional
 
-- `description` (String) Description of the SSH key resource. Immutable; changing it forces resource replacement (the public API has no update operation for SSH key resources).
+- `description` (String) Description of the SSH key resource, at most 255 characters. Immutable; changing it forces resource replacement (the public API has no update operation for SSH key resources).
 - `port` (Number) Port of the SSH bastion. Defaults to 22. Immutable; changing it forces resource replacement.
 
 ### Read-Only
