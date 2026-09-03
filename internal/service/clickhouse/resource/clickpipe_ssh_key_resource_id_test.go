@@ -21,6 +21,7 @@ func buildKafkaSSHKeyResourcePlan(sshKeyResourceID types.String) models.ClickPip
 	kafkaAttrs := map[string]attr.Value{
 		"type":                         types.StringValue("msk"),
 		"format":                       types.StringValue(api.ClickPipeJSONEachRowFormat),
+		"protobuf_schema":              types.StringNull(),
 		"brokers":                      types.StringValue("broker:9092"),
 		"topics":                       types.StringValue("test-topic"),
 		"consumer_group":               types.StringNull(),
