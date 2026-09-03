@@ -520,12 +520,17 @@ func (m *alertResourceModel) toClient() client.Alert {
 		Threshold:       m.Threshold.ValueFloat64(),
 		ThresholdType:   m.ThresholdType.ValueString(),
 		SavedSearchID:   m.SavedSearchID.ValueString(),
+		DashboardID:     m.DashboardID.ValueString(),
+		TileID:          m.TileID.ValueString(),
 		GroupBy:         optStringPtr(m.GroupBy),
 		Name:            optStringPtr(m.Name),
 		Message:         optStringPtr(m.Message),
 		Note:            optStringPtr(m.Note),
 		ScheduleStartAt: optStringPtr(m.ScheduleStartAt),
 	}
+	// Null source only happens off the plan path (unit tests, legacy state); the
+	// schema default makes it saved_search everywhere else.
+	al.Source, _ = m.effectiveSource()
 	if m.Channel != nil {
 		al.Channel = client.AlertChannel{
 			Type:      m.Channel.Type.ValueString(),
@@ -556,7 +561,15 @@ func (m *alertResourceModel) toClient() client.Alert {
 
 func (m *alertResourceModel) applyAlert(al *client.Alert) {
 	m.ID = types.StringValue(al.ID)
-	m.SavedSearchID = types.StringValue(al.SavedSearchID)
+	// The server returns only the target that matches the source; the other
+	// pair comes back absent and must be null in state, not "".
+	m.Source = types.StringValue(al.Source)
+	if al.Source == "" {
+		m.Source = types.StringValue(alertSourceSavedSearch)
+	}
+	m.SavedSearchID = emptyToNull(al.SavedSearchID)
+	m.DashboardID = emptyToNull(al.DashboardID)
+	m.TileID = emptyToNull(al.TileID)
 	m.GroupBy = types.StringPointerValue(al.GroupBy)
 	m.Channel = &alertChannelModel{
 		Type:      types.StringValue(al.Channel.Type),

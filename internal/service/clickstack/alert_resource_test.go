@@ -316,6 +316,27 @@ func TestAlertResource_ToClient(t *testing.T) {
 				al.GroupBy, al.Name, al.ScheduleStartAt, al.NumConsecutiveWindows)
 		}
 	})
+
+	t.Run("tile alert sends dashboard and tile ids, no saved search", func(t *testing.T) {
+		t.Parallel()
+		m := mkAlert(asTile)
+		al := m.toClient()
+		if al.Source != client.AlertSourceTile || al.DashboardID != "d1" || al.TileID != "t1" {
+			t.Errorf("tile fields not sent: %+v", al)
+		}
+		if al.SavedSearchID != "" {
+			t.Errorf("expected empty savedSearchId for a tile alert, got %q", al.SavedSearchID)
+		}
+	})
+
+	t.Run("null source sends saved_search", func(t *testing.T) {
+		t.Parallel()
+		m := mkAlert(func(m *alertResourceModel) { m.Source = types.StringNull() })
+		al := m.toClient()
+		if al.Source != client.AlertSourceSavedSearch || al.SavedSearchID != "ss1" {
+			t.Errorf("null source must mean saved_search: %+v", al)
+		}
+	})
 }
 
 func TestAlertResource_ApplyAlert(t *testing.T) {
@@ -368,6 +389,45 @@ func TestAlertResource_ApplyAlert(t *testing.T) {
 		m.applyAlert(&client.Alert{ThresholdType: thresholdTypeAbove, Channel: client.AlertChannel{Type: "webhook"}})
 		if !m.GroupBy.IsNull() || !m.Name.IsNull() || !m.ScheduleStartAt.IsNull() || !m.NumConsecutiveWindows.IsNull() {
 			t.Errorf("nil server optionals must map to null: %+v", m)
+		}
+	})
+
+	t.Run("tile response maps ids and nulls saved_search_id", func(t *testing.T) {
+		t.Parallel()
+		var m alertResourceModel
+		m.applyAlert(&client.Alert{
+			ID: "al2", Source: client.AlertSourceTile, DashboardID: "d1", TileID: "t1",
+			ThresholdType: thresholdTypeAbove, Channel: client.AlertChannel{Type: "webhook"},
+		})
+		if m.Source.ValueString() != alertSourceTile || m.DashboardID.ValueString() != "d1" || m.TileID.ValueString() != "t1" {
+			t.Errorf("tile fields not mapped: %+v", m)
+		}
+		if !m.SavedSearchID.IsNull() {
+			t.Errorf("saved_search_id must be null for a tile alert, got %q", m.SavedSearchID.ValueString())
+		}
+	})
+
+	t.Run("saved-search response nulls dashboard_id and tile_id", func(t *testing.T) {
+		t.Parallel()
+		var m alertResourceModel
+		m.applyAlert(&client.Alert{
+			ID: "al1", Source: client.AlertSourceSavedSearch, SavedSearchID: "ss1",
+			ThresholdType: thresholdTypeAbove, Channel: client.AlertChannel{Type: "webhook"},
+		})
+		if m.Source.ValueString() != alertSourceSavedSearch || m.SavedSearchID.ValueString() != "ss1" {
+			t.Errorf("saved-search fields not mapped: %+v", m)
+		}
+		if !m.DashboardID.IsNull() || !m.TileID.IsNull() {
+			t.Errorf("dashboard_id/tile_id must be null for a saved-search alert: %+v", m)
+		}
+	})
+
+	t.Run("empty source from server maps to saved_search", func(t *testing.T) {
+		t.Parallel()
+		var m alertResourceModel
+		m.applyAlert(&client.Alert{ThresholdType: thresholdTypeAbove, Channel: client.AlertChannel{Type: "webhook"}})
+		if m.Source.ValueString() != alertSourceSavedSearch {
+			t.Errorf("empty source must map to saved_search, got %q", m.Source.ValueString())
 		}
 	})
 }
@@ -467,6 +527,28 @@ func TestAlertResource_CRUD(t *testing.T) {
 		resp.State.Get(ctx, &got)
 		if got.ID.ValueString() != "al1" {
 			t.Errorf("id=%q, want al1", got.ID.ValueString())
+		}
+	})
+
+	t.Run("create tile alert maps ids into state", func(t *testing.T) {
+		t.Parallel()
+		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"data":{"id":"al2","source":"tile","dashboardId":"d1","tileId":"t1","interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
+		}))}
+		plan := tfsdk.Plan{Schema: sch}
+		if d := plan.Set(ctx, mkAlert(asTile)); d.HasError() {
+			t.Fatalf("plan.Set: %s", d)
+		}
+		resp := &fwresource.CreateResponse{State: tfsdk.State{Schema: sch}}
+		r.Create(ctx, fwresource.CreateRequest{Plan: plan}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Create: %s", resp.Diagnostics)
+		}
+		var got alertResourceModel
+		resp.State.Get(ctx, &got)
+		if got.ID.ValueString() != "al2" || got.Source.ValueString() != alertSourceTile ||
+			got.DashboardID.ValueString() != "d1" || got.TileID.ValueString() != "t1" || !got.SavedSearchID.IsNull() {
+			t.Errorf("tile alert state = %+v", got)
 		}
 	})
 
