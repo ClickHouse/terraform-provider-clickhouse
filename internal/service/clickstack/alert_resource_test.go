@@ -244,6 +244,25 @@ func TestAlertResource_Validate(t *testing.T) {
 			func(m *alertResourceModel) { m.Name = types.StringValue(string(make([]byte, 513))) },
 			true,
 		},
+		{"null source is treated as saved_search", func(m *alertResourceModel) { m.Source = types.StringNull() }, false},
+		{"unknown source skips the shape rules", func(m *alertResourceModel) { m.Source = types.StringUnknown() }, false},
+		{"invalid source", func(m *alertResourceModel) { m.Source = types.StringValue("inline") }, true},
+		{"saved_search without saved_search_id", func(m *alertResourceModel) { m.SavedSearchID = types.StringNull() }, true},
+		{"saved_search with empty saved_search_id", func(m *alertResourceModel) { m.SavedSearchID = types.StringValue("") }, true},
+		{"saved_search with dashboard_id", func(m *alertResourceModel) { m.DashboardID = types.StringValue("d1") }, true},
+		{"saved_search with tile_id", func(m *alertResourceModel) { m.TileID = types.StringValue("t1") }, true},
+		{"valid tile alert", asTile, false},
+		{
+			"tile with unknown dashboard_id is accepted at plan time",
+			func(m *alertResourceModel) { asTile(m); m.DashboardID = types.StringUnknown() },
+			false,
+		},
+		{"tile without dashboard_id", func(m *alertResourceModel) { asTile(m); m.DashboardID = types.StringNull() }, true},
+		{"tile with empty dashboard_id", func(m *alertResourceModel) { asTile(m); m.DashboardID = types.StringValue("") }, true},
+		{"tile without tile_id", func(m *alertResourceModel) { asTile(m); m.TileID = types.StringNull() }, true},
+		{"tile with empty tile_id", func(m *alertResourceModel) { asTile(m); m.TileID = types.StringValue("") }, true},
+		{"tile with saved_search_id", func(m *alertResourceModel) { asTile(m); m.SavedSearchID = types.StringValue("ss1") }, true},
+		{"tile with group_by", func(m *alertResourceModel) { asTile(m); m.GroupBy = types.StringValue("svc") }, true},
 	}
 
 	for _, tc := range cases {

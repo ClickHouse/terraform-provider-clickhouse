@@ -85,6 +85,26 @@ func sourceRequiresReplace() planmodifier.String {
 
 func isRangeThresholdType(t string) bool { return slices.Contains(alertRangeThresholdTypes, t) }
 
+// effectiveSource returns the alert source the config means. A null source is
+// the saved_search default (ValidateConfig runs on the raw config, before the
+// schema default is applied); an unknown source reports known=false so callers
+// skip rules that depend on it.
+func (m *alertResourceModel) effectiveSource() (string, bool) {
+	if m.Source.IsUnknown() {
+		return "", false
+	}
+	if m.Source.IsNull() {
+		return alertSourceSavedSearch, true
+	}
+	return m.Source.ValueString(), true
+}
+
+// missingID reports whether a required id is absent: null, or set to "". The
+// client marshals every id omitempty, so "" serializes as absent, and on the
+// partial-update PUT the server would keep the old target instead of failing.
+// Unknown counts as present: it is a reference that resolves at apply time.
+func missingID(v types.String) bool { return v.IsNull() || (known(v) && v.ValueString() == "") }
+
 // NewAlertResource is a helper to register the resource with the provider.
 func NewAlertResource() resource.Resource {
 	return &alertResource{}
@@ -291,6 +311,50 @@ func (r *alertResource) ValidateConfig(ctx context.Context, req resource.Validat
 func (m *alertResourceModel) validate() diag.Diagnostics {
 	var diags diag.Diagnostics
 
+	// Exactly one target, matching source. An unknown id counts as set: it is a
+	// reference to a resource that does not exist yet, so it cannot be checked
+	// here and must not fail the plan.
+	if src, ok := m.effectiveSource(); ok {
+		switch src {
+		case alertSourceSavedSearch:
+			if missingID(m.SavedSearchID) {
+				diags.AddAttributeError(path.Root("saved_search_id"), "saved_search_id required",
+					"saved_search_id is required and must be non-empty when source is \"saved_search\"")
+			}
+			for _, p := range []struct {
+				name string
+				v    types.String
+			}{{"dashboard_id", m.DashboardID}, {"tile_id", m.TileID}} {
+				if !p.v.IsNull() {
+					diags.AddAttributeError(path.Root(p.name), "Not valid for saved_search alerts",
+						p.name+" is only valid when source is \"tile\"")
+				}
+			}
+		case alertSourceTile:
+			if missingID(m.DashboardID) {
+				diags.AddAttributeError(path.Root("dashboard_id"), "dashboard_id required",
+					"dashboard_id is required and must be non-empty when source is \"tile\"")
+			}
+			if missingID(m.TileID) {
+				diags.AddAttributeError(path.Root("tile_id"), "tile_id required",
+					"tile_id is required and must be non-empty when source is \"tile\"")
+			}
+			if !m.SavedSearchID.IsNull() {
+				diags.AddAttributeError(path.Root("saved_search_id"), "Not valid for tile alerts",
+					"saved_search_id is only valid when source is \"saved_search\"")
+			}
+			// The API's tile branch has no groupBy and silently drops it, which
+			// Terraform would then report as an inconsistent result after apply.
+			if !m.GroupBy.IsNull() {
+				diags.AddAttributeError(path.Root("group_by"), "Not valid for tile alerts",
+					"group_by is only valid when source is \"saved_search\"")
+			}
+		default:
+			diags.AddAttributeError(path.Root("source"), "Invalid source",
+				fmt.Sprintf("source must be one of %s, got %q", strings.Join(alertSources, ", "), src))
+		}
+	}
+
 	tt := m.ThresholdType
 	if known(tt) && !slices.Contains(alertThresholdTypes, tt.ValueString()) {
 		diags.AddAttributeError(path.Root("threshold_type"), "Invalid threshold_type",
@@ -355,10 +419,7 @@ func (m *alertResourceModel) validate() diag.Diagnostics {
 			diags.AddAttributeError(path.Root("channel").AtName("type"), "Invalid channel type",
 				fmt.Sprintf("channel type must be one of %s, got %q", strings.Join(alertChannelTypes, ", "), ct.ValueString()))
 		}
-		// An empty webhook_id is caught here rather than as an opaque API 400: the
-		// client's webhookId is omitempty, so "" would serialize as absent.
-		if known(ct) && ct.ValueString() == channelTypeWebhook &&
-			(m.Channel.WebhookID.IsNull() || (known(m.Channel.WebhookID) && m.Channel.WebhookID.ValueString() == "")) {
+		if known(ct) && ct.ValueString() == channelTypeWebhook && missingID(m.Channel.WebhookID) {
 			diags.AddAttributeError(path.Root("channel").AtName("webhook_id"), "webhook_id required",
 				"channel.webhook_id is required and must be non-empty when channel.type is \"webhook\"")
 		}
