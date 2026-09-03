@@ -158,7 +158,8 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"`dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in " +
 			"`dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map " +
 			"(`tile_id = clickhouse_clickstack_dashboard.x.tile_ids[\"<tile name>\"]`). Keep the tile's " +
-			"name unique and stable: a rename mints a new id and detaches the alert. Only line, stacked " +
+			"name unique and stable: a rename mints a new id and detaches the alert, and the " +
+			"plan fails with an invalid `tile_ids` index until the reference is updated. Only line, stacked " +
 			"bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is " +
 			"removed or changed to an unsupported display type; Terraform then plans to recreate it, " +
 			"which fails with the server's \"Tile not found\" until the tile is restored.\n\n" +
@@ -195,8 +196,8 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			dashboardIDAttr: schema.StringAttribute{
 				Optional: true,
 				Description: "ID of the dashboard that owns the tile. Required together with `tile_id` when " +
-					"`source` is `tile`: tile ids are only unique within one dashboard, so the pair is what " +
-					"identifies the tile. Changing this forces replacement.",
+					"`source` is `tile`: a tile lives inside its dashboard document, so it can only be " +
+					"looked up through the dashboard. Changing this forces replacement.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			tileIDAttr: schema.StringAttribute{

@@ -133,8 +133,10 @@ func (m tileIDsPlanModifier) MarkdownDescription(ctx context.Context) string {
 
 // PlanModifyMap fills in the tile ids the update will carry forward and leaves
 // the rest unknown. Any obstacle — create, destroy, an unknown body, a parse
-// failure — leaves the framework's value alone, which is the unknown map, and
-// unknown is always safe because apply overwrites it.
+// failure — leaves the framework's value alone. That value is the unknown map
+// whenever the proposed plan differs from prior state, and unknown is always
+// safe because apply overwrites it. On a no-op plan the framework instead hands
+// over the prior map unchanged, which is equally safe: nothing applies.
 func (m tileIDsPlanModifier) PlanModifyMap(ctx context.Context, req planmodifier.MapRequest, resp *planmodifier.MapResponse) {
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return // create (nothing to carry forward) or destroy
@@ -246,10 +248,11 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 	diags := plan.applyDashboardBody(ctx, body)
 	resp.Diagnostics.Append(diags...)
 	if diags.HasError() {
-		// applyDashboardBody fails only when the POST-success body carries no
-		// usable id, so there is no id to recover: the dashboard exists on the
-		// server but cannot be tracked in state. Surface the raw body so the
-		// operator can find and delete the now-unmanaged dashboard manually.
+		// applyDashboardBody fails only when the POST-success body cannot be read
+		// (no usable id, or an unreadable tiles array), so nothing can be recovered
+		// from it: the dashboard exists on the server but cannot be tracked in
+		// state. Surface the raw body so the operator can find and delete the
+		// now-unmanaged dashboard manually.
 		resp.Diagnostics.AddError("Orphaned Dashboard",
 			"A dashboard was created but could not be recorded in Terraform state and is now unmanaged. "+
 				"Delete it manually if it is not wanted. Server response: "+string(body))
@@ -490,16 +493,16 @@ func (m *dashboardResourceModel) applyDashboardBody(ctx context.Context, body []
 	m.ID = types.StringValue(id)
 	m.NormalizedJSON = types.StringValue(string(body))
 
-	// tile_ids is Computed, so it must always end up known — a zero-value
-	// types.Map cannot be written to state. The id decode above only reads
-	// "id", so an unreadable tiles array still lands here: leave tile_ids empty
-	// and warn rather than failing a write the server already accepted.
+	// Near-unreachable: the body already parsed above for its id, so its tiles
+	// array parses too unless the API returns something structurally new. It is
+	// still an error rather than a warning, because on update the plan has
+	// already promised known tile_ids entries and an empty map would resurface as
+	// Terraform's own "inconsistent result after apply" — the warning would never
+	// be read.
 	byName, err := tileIDsByName(body)
 	if err != nil {
-		diags.AddWarning("Could Not Read Tile IDs",
-			"The dashboard was written but its tile ids could not be read from the API response, "+
-				"so `tile_ids` is empty: "+err.Error())
-		byName = map[string]string{}
+		diags.AddError("Invalid Dashboard Response", "could not read tile ids from the dashboard body: "+err.Error())
+		return diags
 	}
 	tileIDs, d := types.MapValueFrom(ctx, types.StringType, byName)
 	diags.Append(d...)

@@ -141,19 +141,14 @@ func TestApplyDashboardBody_TileIDs(t *testing.T) {
 
 // TestApplyDashboardBody_UnreadableTiles: the id decode reads only "id", so a
 // body with an unreadable tiles array still reaches the tile_ids step. It must
-// leave a known empty map and a warning, not fail a write the server accepted.
+// error — on update the plan has already promised known tile_ids entries, so an
+// empty map would come back as an "inconsistent result after apply" instead.
 func TestApplyDashboardBody_UnreadableTiles(t *testing.T) {
 	t.Parallel()
 	var m dashboardResourceModel
 	diags := m.applyDashboardBody(context.Background(), []byte(`{"id":"d1","tiles":{"nope":true}}`))
-	if diags.HasError() {
-		t.Fatalf("applyDashboardBody: %s", diags)
-	}
-	if diags.WarningsCount() != 1 {
-		t.Errorf("warnings = %d, want 1: %s", diags.WarningsCount(), diags)
-	}
-	if m.TileIDs.IsNull() || m.TileIDs.IsUnknown() || len(m.TileIDs.Elements()) != 0 {
-		t.Errorf("tile_ids = %v, want a known empty map", m.TileIDs)
+	if !diags.HasError() {
+		t.Fatalf("applyDashboardBody = %s, want an error for an unreadable tiles array", diags)
 	}
 }
 
@@ -169,8 +164,8 @@ func TestTileIDsPlanModifier(t *testing.T) {
 		// there is no prior state object at all.
 		prior *string
 		plan  string
-		// want is the expected planned map; nil means the planned value must be
-		// left unknown.
+		// want is the expected planned map; nil means the modifier must leave the
+		// incoming plan value alone.
 		want map[string]attr.Value
 	}{
 		{
@@ -248,12 +243,21 @@ func TestTileIDsPlanModifier(t *testing.T) {
 			if tc.prior == nil {
 				stateRaw = tftypes.NewValue(dashboardObjectType, nil)
 			}
+			// tile_ids is unknown in the proposed plan, matching the PlanValue the
+			// framework hands the modifier.
+			planRaw := tftypes.NewValue(dashboardObjectType, map[string]tftypes.Value{
+				idAttr:             tftypes.NewValue(tftypes.String, "d1"),
+				teamAttr:           tftypes.NewValue(tftypes.String, nil),
+				dashboardJSONAttr:  tftypes.NewValue(tftypes.String, tc.plan),
+				normalizedJSONAttr: tftypes.NewValue(tftypes.String, nil),
+				tileIDsAttr:        tftypes.NewValue(tileIDsTFType, tftypes.UnknownValue),
+			})
 			req := planmodifier.MapRequest{
 				Path:       path.Root(tileIDsAttr),
 				StateValue: types.MapNull(types.StringType),
 				PlanValue:  types.MapUnknown(types.StringType),
 				State:      tfsdk.State{Schema: sch, Raw: stateRaw},
-				Plan:       tfsdk.Plan{Schema: sch, Raw: dashboardObjectValue(ptr("d1"), nil, ptr(tc.plan), nil)},
+				Plan:       tfsdk.Plan{Schema: sch, Raw: planRaw},
 			}
 			resp := &planmodifier.MapResponse{PlanValue: req.PlanValue}
 			tileIDsPlanModifier{}.PlanModifyMap(context.Background(), req, resp)
@@ -262,8 +266,8 @@ func TestTileIDsPlanModifier(t *testing.T) {
 				t.Fatalf("PlanModifyMap: %s", resp.Diagnostics)
 			}
 			if tc.want == nil {
-				if !resp.PlanValue.IsUnknown() {
-					t.Errorf("plan value = %v, want it left unknown", resp.PlanValue)
+				if !resp.PlanValue.Equal(req.PlanValue) {
+					t.Errorf("plan value = %v, want it left unmodified (%v)", resp.PlanValue, req.PlanValue)
 				}
 				return
 			}

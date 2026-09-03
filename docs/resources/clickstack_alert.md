@@ -4,7 +4,7 @@ page_title: "clickhouse_clickstack_alert Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
   Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies through a channel when a threshold is crossed.
-  Set source to saved_search (the default) with saved_search_id, or to tile with dashboard_id and tile_id. Tile ids are assigned by the server and cannot be set in dashboard_json; reference the tile through the dashboard's computed tile_ids map (tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
+  Set source to saved_search (the default) with saved_search_id, or to tile with dashboard_id and tile_id. Tile ids are assigned by the server and cannot be set in dashboard_json; reference the tile through the dashboard's computed tile_ids map (tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert, and the plan fails with an invalid tile_ids index until the reference is updated. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
   Importing a dashboard does not import its tile alerts (terraform import maps one ID to one resource). Import each alert separately by its own ID.
   Alerts are threshold-based (there is no anomaly mode). Configuration is validated at plan time; those rules mirror the ClickStack server contract on a best-effort basis, so a server-side rule change may make the plan-time checks slightly stale until a new provider release.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies through a channel when a threshold is crossed.
 
-Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with `dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in `dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map (`tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]`). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
+Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with `dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in `dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map (`tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]`). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert, and the plan fails with an invalid `tile_ids` index until the reference is updated. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
 
 Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one resource). Import each alert separately by its own ID.
 
@@ -127,7 +127,7 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
 
 ### Optional
 
-- `dashboard_id` (String) ID of the dashboard that owns the tile. Required together with `tile_id` when `source` is `tile`: tile ids are only unique within one dashboard, so the pair is what identifies the tile. Changing this forces replacement.
+- `dashboard_id` (String) ID of the dashboard that owns the tile. Required together with `tile_id` when `source` is `tile`: a tile lives inside its dashboard document, so it can only be looked up through the dashboard. Changing this forces replacement.
 - `group_by` (String) Optional expression to evaluate the alert per group (saved-search alerts only). Sticky once set: the API keeps the previous value when the field is omitted and cannot clear it, so removing it from config is a no-op (recreate the alert to fully reset it).
 - `message` (String) Optional notification message template (1-4096 characters).
 - `name` (String) Optional alert name (1-512 characters).

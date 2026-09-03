@@ -123,6 +123,24 @@ func TestMergeFilterIDs_AllNewWhenNoPrior(t *testing.T) {
 	}
 }
 
+// TestMergeFilterIDs_AuthoredIDPassesThrough: the drop-unknown-id pass belongs
+// to tiles only. A filter keeps whatever id the update sends, so an authored
+// filter id survives even when the prior body has a different one — deleting it
+// would re-mint a new id on every update.
+func TestMergeFilterIDs_AuthoredIDPassesThrough(t *testing.T) {
+	t.Parallel()
+	authored := json.RawMessage(`{"filters":[{"id":"f-custom","name":"Machine"}]}`)
+	prior := json.RawMessage(`{"filters":[{"id":"f-1","name":"Machine"}]}`)
+
+	merged, err := mergeFilterIDs(authored, prior)
+	if err != nil {
+		t.Fatalf("mergeFilterIDs: %v", err)
+	}
+	if got := filterID(t, merged, "Machine"); got != "f-custom" {
+		t.Errorf("Machine filter id = %q, want f-custom (authored filter ids are not dropped)", got)
+	}
+}
+
 func TestMergeTileIDs_NameMatch(t *testing.T) {
 	t.Parallel()
 	authored := json.RawMessage(`{"name":"D","tiles":[{"name":"A"},{"name":"B"}]}`)
@@ -183,7 +201,7 @@ func TestMergeTileIDs_MiddleRemoved(t *testing.T) {
 // treated as absent so the name match can carry the real id forward.
 func TestMergeTileIDs_UnknownAuthoredIDReplacedByNameMatch(t *testing.T) {
 	t.Parallel()
-	authored := json.RawMessage(`{"tiles":[{"id":"pinned","name":"A"}]}`)
+	authored := json.RawMessage(`{"tiles":[{"id":"not-a-server-id","name":"A"}]}`)
 	prior := json.RawMessage(`{"tiles":[{"id":"id-a","name":"A"}]}`)
 
 	merged, err := mergeTileIDs(authored, prior)
@@ -216,7 +234,7 @@ func TestMergeTileIDs_KnownAuthoredIDKept(t *testing.T) {
 // mint anyway; sending it only misleads the reader of the request).
 func TestMergeTileIDs_UnknownAuthoredIDNewTileLeftIDLess(t *testing.T) {
 	t.Parallel()
-	authored := json.RawMessage(`{"tiles":[{"id":"pinned","name":"New"}]}`)
+	authored := json.RawMessage(`{"tiles":[{"id":"not-a-server-id","name":"New"}]}`)
 	prior := json.RawMessage(`{"tiles":[{"id":"id-a","name":"A"}]}`)
 
 	merged, err := mergeTileIDs(authored, prior)
