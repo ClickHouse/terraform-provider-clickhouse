@@ -17,6 +17,7 @@ const (
 	inviteURLAttr      = "invite_url"
 	dashboardIDAttr    = "dashboard_id"
 	tileIDAttr         = "tile_id"
+	tileIDsAttr        = "tile_ids"
 	sourceAttr         = "source"
 	savedSearchIDAttr  = "saved_search_id"
 )

@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -45,6 +46,7 @@ type dashboardResourceModel struct {
 	Team           types.String `tfsdk:"team"`
 	DashboardJSON  types.String `tfsdk:"dashboard_json"`
 	NormalizedJSON types.String `tfsdk:"normalized_json"`
+	TileIDs        types.Map    `tfsdk:"tile_ids"`
 }
 
 func (r *dashboardResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -65,11 +67,13 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"any manual edits are overwritten. Manage a dashboard either entirely in Terraform or " +
 			"entirely in the UI, not both.\n\n" +
 			"Tile alerts are managed with `clickhouse_clickstack_alert` (`source = \"tile\"`), which " +
-			"references this dashboard's `id` and a tile `id`. Pin an explicit `id` on every tile you " +
-			"alert on: the server mints a fresh id for a tile that arrives without one, and Terraform's " +
-			"name-based id carry-forward (falling back to position only for duplicate or blank names; " +
-			"a renamed tile without a pinned id loses its id) is best effort. Importing a dashboard does " +
-			"not import its tile alerts; import each alert separately.",
+			"references this dashboard's `id` and a tile `id`. Tile ids are assigned by the server and " +
+			"cannot be set in `dashboard_json` (an authored `id` is ignored on create and replaced on " +
+			"update). Use the computed `tile_ids` map to reference a tile by name from " +
+			"`clickhouse_clickstack_alert`, and keep alerted tiles' names unique and stable: Terraform " +
+			"carries each tile's id forward by name across updates, so a rename mints a new id and drops " +
+			"the tile's alert. Importing a dashboard does not import its tile alerts; import each " +
+			"alert separately.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed:      true,
@@ -91,6 +95,19 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			normalizedJSONAttr: schema.StringAttribute{
 				Computed:    true,
 				Description: "Server-canonical dashboard body returned by the API (defaults applied, server-assigned tile IDs).",
+			},
+			tileIDsAttr: schema.MapAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "Server-assigned tile ids keyed by tile name, for tiles whose name is non-empty and " +
+					"unique within the dashboard. Reference these from `clickhouse_clickstack_alert` " +
+					"(`source = \"tile\"`): `tile_id = clickhouse_clickstack_dashboard.x.tile_ids[\"<tile name>\"]`. " +
+					"Tile ids cannot be chosen in `dashboard_json`; the server assigns them and keeps them across " +
+					"updates for tiles that keep their name.",
+				// Without this, a dashboard update makes tile_ids unknown at plan time,
+				// which makes every dependent alert's tile_id unknown and forces the
+				// alerts to be replaced.
+				PlanModifiers: []planmodifier.Map{mapplanmodifier.UseStateForUnknown()},
 			},
 		},
 	}
@@ -131,12 +148,13 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	if diags := plan.applyDashboardBody(body); diags.HasError() {
+	diags := plan.applyDashboardBody(ctx, body)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
 		// applyDashboardBody fails only when the POST-success body carries no
 		// usable id, so there is no id to recover: the dashboard exists on the
 		// server but cannot be tracked in state. Surface the raw body so the
 		// operator can find and delete the now-unmanaged dashboard manually.
-		resp.Diagnostics.Append(diags...)
 		resp.Diagnostics.AddError("Orphaned Dashboard",
 			"A dashboard was created but could not be recorded in Terraform state and is now unmanaged. "+
 				"Delete it manually if it is not wanted. Server response: "+string(body))
@@ -165,7 +183,7 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	resp.Diagnostics.Append(state.applyDashboardBody(body)...)
+	resp.Diagnostics.Append(state.applyDashboardBody(ctx, body)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -239,7 +257,7 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	resp.Diagnostics.Append(plan.applyDashboardBody(updated)...)
+	resp.Diagnostics.Append(plan.applyDashboardBody(ctx, updated)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -360,10 +378,10 @@ func (r *dashboardResource) ValidateConfig(ctx context.Context, req resource.Val
 	}
 }
 
-// applyDashboardBody records the server's returned dashboard body: it sets id
-// and normalized_json but does NOT touch dashboard_json (the user's authored
-// value is the source of truth for that attribute).
-func (m *dashboardResourceModel) applyDashboardBody(body []byte) diag.Diagnostics {
+// applyDashboardBody records the server's returned dashboard body: it sets id,
+// normalized_json and tile_ids but does NOT touch dashboard_json (the user's
+// authored value is the source of truth for that attribute).
+func (m *dashboardResourceModel) applyDashboardBody(ctx context.Context, body []byte) diag.Diagnostics {
 	var diags diag.Diagnostics
 	id, err := client.DashboardID(body)
 	if err != nil {
@@ -376,5 +394,51 @@ func (m *dashboardResourceModel) applyDashboardBody(body []byte) diag.Diagnostic
 	}
 	m.ID = types.StringValue(id)
 	m.NormalizedJSON = types.StringValue(string(body))
+
+	// tile_ids is Computed, so it must always end up known — a zero-value
+	// types.Map cannot be written to state. The id decode above only reads
+	// "id", so an unreadable tiles array still lands here: leave tile_ids empty
+	// and warn rather than failing a write the server already accepted.
+	byName, err := tileIDsByName(body)
+	if err != nil {
+		diags.AddWarning("Could Not Read Tile IDs",
+			"The dashboard was written but its tile ids could not be read from the API response, "+
+				"so `tile_ids` is empty: "+err.Error())
+		byName = map[string]string{}
+	}
+	tileIDs, d := types.MapValueFrom(ctx, types.StringType, byName)
+	diags.Append(d...)
+	m.TileIDs = tileIDs
+
 	return diags
+}
+
+// tileIDsByName maps tile name to server-assigned tile id for every tile whose
+// name is non-empty and unique within the dashboard body. Blank and duplicate
+// names are left out: they cannot identify a single tile, so an alert could not
+// reference them unambiguously.
+func tileIDsByName(body []byte) (map[string]string, error) {
+	var doc struct {
+		Tiles []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"tiles"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("read tile ids: %w", err)
+	}
+
+	nameCount := map[string]int{}
+	for _, tile := range doc.Tiles {
+		nameCount[tile.Name]++
+	}
+
+	byName := map[string]string{}
+	for _, tile := range doc.Tiles {
+		if tile.Name == "" || tile.ID == "" || nameCount[tile.Name] > 1 {
+			continue
+		}
+		byName[tile.Name] = tile.ID
+	}
+	return byName, nil
 }

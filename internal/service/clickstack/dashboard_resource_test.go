@@ -12,6 +12,7 @@ import (
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
@@ -21,7 +22,7 @@ func TestApplyDashboardBody_EmptyID(t *testing.T) {
 	t.Parallel()
 	var m dashboardResourceModel
 	// Body has no "id" field; applyDashboardBody must return an error diagnostic.
-	if diags := m.applyDashboardBody([]byte(`{"name":"D"}`)); !diags.HasError() {
+	if diags := m.applyDashboardBody(context.Background(), []byte(`{"name":"D"}`)); !diags.HasError() {
 		t.Error("expected HasError() == true when API body has no id, got no error")
 	}
 }
@@ -30,7 +31,7 @@ func TestApplyDashboardBody(t *testing.T) {
 	t.Parallel()
 	var m dashboardResourceModel
 	body := []byte(`{"id":"d1","name":"D","tiles":[]}`)
-	if diags := m.applyDashboardBody(body); diags.HasError() {
+	if diags := m.applyDashboardBody(context.Background(), body); diags.HasError() {
 		t.Fatalf("applyDashboardBody: %s", diags)
 	}
 	if m.ID.ValueString() != "d1" {
@@ -95,10 +96,61 @@ func TestDashboardResource_Schema(t *testing.T) {
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected schema diagnostics: %s", resp.Diagnostics)
 	}
-	for _, attr := range []string{"id", "team", "dashboard_json", "normalized_json"} {
+	for _, attr := range []string{"id", "team", "dashboard_json", "normalized_json", "tile_ids"} {
 		if _, ok := resp.Schema.Attributes[attr]; !ok {
 			t.Errorf("expected attribute %q", attr)
 		}
+	}
+	if a, ok := resp.Schema.Attributes["tile_ids"]; ok && !a.IsComputed() {
+		t.Error("tile_ids must be computed: the server assigns tile ids, the author cannot")
+	}
+}
+
+func TestTileIDsByName(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{"id":"d1","tiles":[
+		{"id":"t1","name":"Errors"},
+		{"id":"t2","name":"Dup"},{"id":"t3","name":"Dup"},
+		{"id":"t4","name":""},
+		{"id":"t5"}
+	]}`)
+	got, err := tileIDsByName(body)
+	if err != nil {
+		t.Fatalf("tileIDsByName: %v", err)
+	}
+	if len(got) != 1 || got["Errors"] != "t1" {
+		t.Errorf("tileIDsByName = %v, want {Errors: t1} (duplicate and blank names excluded)", got)
+	}
+}
+
+func TestApplyDashboardBody_TileIDs(t *testing.T) {
+	t.Parallel()
+	var m dashboardResourceModel
+	if d := m.applyDashboardBody(context.Background(), []byte(`{"id":"d1","tiles":[{"id":"t1","name":"Errors"}]}`)); d.HasError() {
+		t.Fatalf("applyDashboardBody: %s", d)
+	}
+	elems := m.TileIDs.Elements()
+	v, ok := elems["Errors"]
+	if !ok || v.(types.String).ValueString() != "t1" {
+		t.Errorf("tile_ids = %v, want {Errors: t1}", elems)
+	}
+}
+
+// TestApplyDashboardBody_UnreadableTiles: the id decode reads only "id", so a
+// body with an unreadable tiles array still reaches the tile_ids step. It must
+// leave a known empty map and a warning, not fail a write the server accepted.
+func TestApplyDashboardBody_UnreadableTiles(t *testing.T) {
+	t.Parallel()
+	var m dashboardResourceModel
+	diags := m.applyDashboardBody(context.Background(), []byte(`{"id":"d1","tiles":{"nope":true}}`))
+	if diags.HasError() {
+		t.Fatalf("applyDashboardBody: %s", diags)
+	}
+	if diags.WarningsCount() != 1 {
+		t.Errorf("warnings = %d, want 1: %s", diags.WarningsCount(), diags)
+	}
+	if m.TileIDs.IsNull() || m.TileIDs.IsUnknown() || len(m.TileIDs.Elements()) != 0 {
+		t.Errorf("tile_ids = %v, want a known empty map", m.TileIDs)
 	}
 }
 
@@ -114,23 +166,31 @@ func dashboardValidateConfigRequest(t *testing.T, dashboardJSON string) fwresour
 		t.Fatalf("unexpected schema diagnostics: %s", schemaResp.Diagnostics)
 	}
 
-	objType := tftypes.Object{AttributeTypes: map[string]tftypes.Type{
-		idAttr:             tftypes.String,
-		teamAttr:           tftypes.String,
-		dashboardJSONAttr:  tftypes.String,
-		normalizedJSONAttr: tftypes.String,
-	}}
-	raw := tftypes.NewValue(objType, map[string]tftypes.Value{
+	raw := tftypes.NewValue(dashboardObjectType, map[string]tftypes.Value{
 		idAttr:             tftypes.NewValue(tftypes.String, nil),
 		teamAttr:           tftypes.NewValue(tftypes.String, nil),
 		dashboardJSONAttr:  tftypes.NewValue(tftypes.String, dashboardJSON),
 		normalizedJSONAttr: tftypes.NewValue(tftypes.String, nil),
+		tileIDsAttr:        tftypes.NewValue(tileIDsTFType, nil),
 	})
 
 	return fwresource.ValidateConfigRequest{
 		Config: tfsdk.Config{Raw: raw, Schema: schemaResp.Schema},
 	}
 }
+
+// tileIDsTFType and dashboardObjectType mirror the resource schema, so every
+// Config/Plan/State value built here has the exact shape the framework expects.
+var (
+	tileIDsTFType       = tftypes.Map{ElementType: tftypes.String}
+	dashboardObjectType = tftypes.Object{AttributeTypes: map[string]tftypes.Type{
+		idAttr:             tftypes.String,
+		teamAttr:           tftypes.String,
+		dashboardJSONAttr:  tftypes.String,
+		normalizedJSONAttr: tftypes.String,
+		tileIDsAttr:        tileIDsTFType,
+	}}
+)
 
 // validateEndpointHandler serves the given unenveloped /validate response body
 // (the endpoint returns {"valid":...,"errors":[...]} with no {"data":...} wrapper).
@@ -274,8 +334,10 @@ func dashboardTestSchema(t *testing.T) rschema.Schema {
 	return resp.Schema
 }
 
-// dashboardObjectValue builds a tftypes object value for the resource's four
-// attributes; a nil pointer produces a null attribute.
+// dashboardObjectValue builds a tftypes object value for the resource's
+// attributes; a nil pointer produces a null attribute. tile_ids is always null:
+// it is computed, and every code path under test recomputes it from the server
+// body rather than reading it.
 func dashboardObjectValue(id, team, dashJSON, normJSON *string) tftypes.Value {
 	str := func(p *string) tftypes.Value {
 		if p == nil {
@@ -283,17 +345,12 @@ func dashboardObjectValue(id, team, dashJSON, normJSON *string) tftypes.Value {
 		}
 		return tftypes.NewValue(tftypes.String, *p)
 	}
-	objType := tftypes.Object{AttributeTypes: map[string]tftypes.Type{
-		idAttr:             tftypes.String,
-		teamAttr:           tftypes.String,
-		dashboardJSONAttr:  tftypes.String,
-		normalizedJSONAttr: tftypes.String,
-	}}
-	return tftypes.NewValue(objType, map[string]tftypes.Value{
+	return tftypes.NewValue(dashboardObjectType, map[string]tftypes.Value{
 		idAttr:             str(id),
 		teamAttr:           str(team),
 		dashboardJSONAttr:  str(dashJSON),
 		normalizedJSONAttr: str(normJSON),
+		tileIDsAttr:        tftypes.NewValue(tileIDsTFType, nil),
 	})
 }
 
@@ -554,6 +611,11 @@ func TestDashboardResource_Update(t *testing.T) {
 			}
 			if got.DashboardJSON.ValueString() != body {
 				t.Errorf("dashboard_json=%q, want %q", got.DashboardJSON.ValueString(), body)
+			}
+			// tile_ids must survive the write into real schema-typed state — it is
+			// what dependent alerts read their tile_id from.
+			if v := got.TileIDs.Elements()["T"]; v == nil || !v.Equal(types.StringValue("srv-1")) {
+				t.Errorf("tile_ids=%v, want {T: srv-1}", got.TileIDs)
 			}
 		})
 	}

@@ -177,7 +177,11 @@ func TestMergeTileIDs_MiddleRemoved(t *testing.T) {
 	}
 }
 
-func TestMergeTileIDs_AuthorPinnedIDUnchanged(t *testing.T) {
+// TestMergeTileIDs_UnknownAuthoredIDReplacedByNameMatch pins the server rule:
+// the API only keeps an authored tile id it already knows, and mints a fresh
+// one otherwise. An authored id the prior body does not contain is therefore
+// treated as absent so the name match can carry the real id forward.
+func TestMergeTileIDs_UnknownAuthoredIDReplacedByNameMatch(t *testing.T) {
 	t.Parallel()
 	authored := json.RawMessage(`{"tiles":[{"id":"pinned","name":"A"}]}`)
 	prior := json.RawMessage(`{"tiles":[{"id":"id-a","name":"A"}]}`)
@@ -186,8 +190,41 @@ func TestMergeTileIDs_AuthorPinnedIDUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mergeTileIDs: %v", err)
 	}
-	if got := tileID(t, merged, "A"); got != "pinned" {
-		t.Errorf("author-pinned id overwritten: got %q, want pinned", got)
+	if got := tileID(t, merged, "A"); got != "id-a" {
+		t.Errorf("tile A id = %q, want id-a (unknown authored id must yield to the server id)", got)
+	}
+}
+
+// TestMergeTileIDs_KnownAuthoredIDKept: an authored id the server already has
+// (e.g. copied from normalized_json) is left alone even when the name changed.
+func TestMergeTileIDs_KnownAuthoredIDKept(t *testing.T) {
+	t.Parallel()
+	authored := json.RawMessage(`{"tiles":[{"id":"id-a","name":"Renamed"}]}`)
+	prior := json.RawMessage(`{"tiles":[{"id":"id-a","name":"A"}]}`)
+
+	merged, err := mergeTileIDs(authored, prior)
+	if err != nil {
+		t.Fatalf("mergeTileIDs: %v", err)
+	}
+	if got := tileID(t, merged, "Renamed"); got != "id-a" {
+		t.Errorf("known authored id overwritten: got %q, want id-a", got)
+	}
+}
+
+// TestMergeTileIDs_UnknownAuthoredIDNewTileLeftIDLess: an unknown authored id
+// on a tile with no prior name match is dropped, not sent (the server would
+// mint anyway; sending it only misleads the reader of the request).
+func TestMergeTileIDs_UnknownAuthoredIDNewTileLeftIDLess(t *testing.T) {
+	t.Parallel()
+	authored := json.RawMessage(`{"tiles":[{"id":"pinned","name":"New"}]}`)
+	prior := json.RawMessage(`{"tiles":[{"id":"id-a","name":"A"}]}`)
+
+	merged, err := mergeTileIDs(authored, prior)
+	if err != nil {
+		t.Fatalf("mergeTileIDs: %v", err)
+	}
+	if got := tileID(t, merged, "New"); got != "" {
+		t.Errorf("tile New id = %q, want none", got)
 	}
 }
 
@@ -323,8 +360,8 @@ func TestMergeTileIDs_AuthorDuplicateNamesNoDoubleStamp(t *testing.T) {
 
 func TestMergeTileIDs_PinnedIDNotReusedByIndexFallback(t *testing.T) {
 	t.Parallel()
-	// An author-pinned id must not be re-stamped onto a blank-named tile via the
-	// index fallback.
+	// An authored id the server knows (so the merge keeps it) must not be
+	// re-stamped onto a blank-named tile via the index fallback.
 	authored := json.RawMessage(`{"tiles":[{"id":"id-a","name":"A"},{"name":""}]}`)
 	prior := json.RawMessage(`{"tiles":[{"id":"id-a","name":"A"},{"id":"id-a","name":"B"}]}`)
 
