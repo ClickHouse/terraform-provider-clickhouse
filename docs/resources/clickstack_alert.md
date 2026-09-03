@@ -4,7 +4,7 @@ page_title: "clickhouse_clickstack_alert Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
   Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies through a channel when a threshold is crossed.
-  Set source to saved_search (the default) with saved_search_id, or to tile with dashboard_id and tile_id. A tile alert needs a stable tile id: pin id on the tile in the dashboard's dashboard_json, because the server assigns a fresh id to any tile that arrives without one and that detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
+  Set source to saved_search (the default) with saved_search_id, or to tile with dashboard_id and tile_id. Tile ids are assigned by the server and cannot be set in dashboard_json; reference the tile through the dashboard's computed tile_ids map (tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
   Importing a dashboard does not import its tile alerts (terraform import maps one ID to one resource). Import each alert separately by its own ID.
   Alerts are threshold-based (there is no anomaly mode). Configuration is validated at plan time; those rules mirror the ClickStack server contract on a best-effort basis, so a server-side rule change may make the plan-time checks slightly stale until a new provider release.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies through a channel when a threshold is crossed.
 
-Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with `dashboard_id` and `tile_id`. A tile alert needs a stable tile id: pin `id` on the tile in the dashboard's `dashboard_json`, because the server assigns a fresh id to any tile that arrives without one and that detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
+Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with `dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in `dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map (`tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]`). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
 
 Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one resource). Import each alert separately by its own ID.
 
@@ -63,16 +63,16 @@ resource "clickhouse_clickstack_alert" "latency_band" {
   num_consecutive_windows = 2
 }
 
-# A tile alert on a dashboard chart. The alert references the dashboard's id and
-# the tile's id, so the tile must carry a pinned `id` in the dashboard JSON (the
-# server assigns a fresh id to any tile that arrives without one, which detaches
-# the alert). Only line, stacked bar, and number tiles can be alerted on.
+# A tile alert on a dashboard chart. Tile ids are assigned by the server, so the
+# alert takes the id from the dashboard's computed `tile_ids` map, keyed by tile
+# name. Keep the tile's name unique within the dashboard and unchanged: a rename
+# mints a new id and detaches the alert. Only line, stacked bar, and number tiles
+# can be alerted on.
 resource "clickhouse_clickstack_dashboard" "latency" {
   dashboard_json = jsonencode({
     name = "Latency"
     tiles = [
       {
-        id   = "p95-latency"
         name = "p95 latency"
         x    = 0
         y    = 0
@@ -97,7 +97,7 @@ resource "clickhouse_clickstack_dashboard" "latency" {
 resource "clickhouse_clickstack_alert" "p95_latency" {
   source       = "tile"
   dashboard_id = clickhouse_clickstack_dashboard.latency.id
-  tile_id      = "p95-latency"
+  tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
 
   channel = {
     type       = "webhook"
@@ -139,7 +139,7 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
 - `source` (String) What the alert evaluates: `saved_search` (default, requires `saved_search_id`) or `tile` (requires `dashboard_id` and `tile_id`). Changing this forces replacement.
 - `team` (String) Team ID to manage this alert under (`x-hdx-team`). Changing this forces the alert to be replaced.
 - `threshold_max` (Number) Upper bound, required for `between`/`not_between` and ignored otherwise. Must be >= `threshold`.
-- `tile_id` (String) ID of the tile to alert on, as pinned by `id` in the dashboard's `dashboard_json`. Required together with `dashboard_id` when `source` is `tile`. The alert has no query of its own: the server reads the tile's chart config from the dashboard on every evaluation, which is why the tile must keep a stable id. The tile must be a line, stacked bar, or number tile. Changing this forces replacement.
+- `tile_id` (String) Server-assigned ID of the tile to alert on. Take it from the dashboard's `tile_ids` map by tile name; ids cannot be chosen in `dashboard_json`. Required together with `dashboard_id` when `source` is `tile`. The alert has no query of its own: the server reads the tile's chart config from the dashboard on every evaluation. The tile must be a line, stacked bar, or number tile. Changing this forces replacement.
 
 ### Read-Only
 

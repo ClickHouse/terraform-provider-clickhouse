@@ -130,12 +130,13 @@ resource "clickhouse_clickstack_alert" "too_many_errors" {
   message = "Error volume exceeded threshold"
 }
 
-# Tile alert on the pinned "error-count" tile. Same 1d interval as the
-# saved-search alert, for the same cost reason.
+# Tile alert on the "Error count" tile, with the tile id read out of the
+# dashboard's tile_ids map. Same 1d interval as the saved-search alert, for the
+# same cost reason.
 resource "clickhouse_clickstack_alert" "error_count_tile" {
   source       = "tile"
   dashboard_id = clickhouse_clickstack_dashboard.e2e.id
-  tile_id      = "error-count"
+  tile_id      = clickhouse_clickstack_dashboard.e2e.tile_ids["Error count"]
 
   channel = {
     type       = "webhook"
@@ -190,9 +191,9 @@ resource "clickhouse_clickstack_dashboard" "e2e" {
 
     tiles = [
       {
-        # Renamed on the update pass. Tile-id carry-forward matches on name, so a rename
-        # leaves this tile id-less and the server mints a fresh id — the path that would
-        # silently drop a UI-created tile alert if the id-less case regressed.
+        # Renamed on the update pass. Tile-id carry-forward matches on name, so the
+        # rename sends this tile with no id and the server mints a fresh one. That is
+        # the path that would break a tile alert bound to the old name.
         name = var.update_pass ? "Log volume (renamed)" : "Log volume"
         x    = 0
         y    = 0
@@ -224,10 +225,8 @@ resource "clickhouse_clickstack_dashboard" "e2e" {
         }
       },
       {
-        # Pinned id: clickhouse_clickstack_alert.error_count_tile references it.
-        # Without a pinned id the server mints a fresh one on every write and
-        # detaches the alert.
-        id   = "error-count"
+        # The tile alert references this tile by name through tile_ids, so the
+        # name must stay unique and unchanged across the update pass.
         name = "Error count"
         x    = 0
         y    = 3

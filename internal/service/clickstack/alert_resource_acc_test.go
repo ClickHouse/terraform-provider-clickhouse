@@ -71,9 +71,9 @@ resource "clickhouse_clickstack_alert" "test" {
 }
 
 // TestAccAlertResource_Tile exercises create + update + import for a tile alert.
-// The dashboard pins the tile id the alert references; the webhook and dashboard
-// are stood up in the same config so the dependency ordering on create and
-// destroy is exercised. A destroy still succeeds if the server already
+// The alert takes the tile id from the dashboard's tile_ids map; the webhook and
+// dashboard are stood up in the same config so the dependency ordering on
+// create and destroy is exercised. A destroy still succeeds if the server already
 // cascade-deleted the alert with its dashboard, because the provider treats the
 // 404 as a no-op. Requires TF_ACC, CLICKSTACK_API_KEY, and CLICKSTACK_SOURCE_ID.
 func TestAccAlertResource_Tile(t *testing.T) {
@@ -86,7 +86,7 @@ func TestAccAlertResource_Tile(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("clickhouse_clickstack_alert.tile", "id"),
 					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.tile", "source", "tile"),
-					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.tile", "tile_id", "tf-acc-tile"),
+					resource.TestCheckResourceAttrPair("clickhouse_clickstack_alert.tile", "tile_id", "clickhouse_clickstack_dashboard.tile", "tile_ids.spans"),
 					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.tile", "threshold", "100"),
 					resource.TestCheckResourceAttrPair("clickhouse_clickstack_alert.tile", "dashboard_id", "clickhouse_clickstack_dashboard.tile", "id"),
 					resource.TestCheckNoResourceAttr("clickhouse_clickstack_alert.tile", "saved_search_id"),
@@ -121,7 +121,6 @@ resource "clickhouse_clickstack_dashboard" "tile" {
     name = "tf-acc-tile-alert"
     tiles = [
       {
-        id   = "tf-acc-tile"
         name = "spans"
         x    = 0
         y    = 0
@@ -145,7 +144,7 @@ resource "clickhouse_clickstack_dashboard" "tile" {
 resource "clickhouse_clickstack_alert" "tile" {
   source       = "tile"
   dashboard_id = clickhouse_clickstack_dashboard.tile.id
-  tile_id      = "tf-acc-tile"
+  tile_id      = clickhouse_clickstack_dashboard.tile.tile_ids["spans"]
 
   channel = {
     type       = "webhook"

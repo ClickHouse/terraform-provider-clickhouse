@@ -69,11 +69,11 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"Tile alerts are managed with `clickhouse_clickstack_alert` (`source = \"tile\"`), which " +
 			"references this dashboard's `id` and a tile `id`. Tile ids are assigned by the server and " +
 			"cannot be set in `dashboard_json` (an authored `id` is ignored on create and replaced on " +
-			"update). Use the computed `tile_ids` map to reference a tile by name from " +
-			"`clickhouse_clickstack_alert`, and keep alerted tiles' names unique and stable: Terraform " +
-			"carries each tile's id forward by name across updates, so a rename mints a new id and drops " +
-			"the tile's alert. Importing a dashboard does not import its tile alerts; import each " +
-			"alert separately.",
+			"update unless the server already has it). Use the computed `tile_ids` map to reference a " +
+			"tile by name from `clickhouse_clickstack_alert`, and keep alerted tiles' names unique and " +
+			"stable: Terraform carries each tile's id forward by name across updates, so a rename mints " +
+			"a new id and drops the tile's alert. Importing a dashboard does not import its tile alerts; " +
+			"import each alert separately.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed:      true,
@@ -103,9 +103,10 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"unique within the dashboard. Reference these from `clickhouse_clickstack_alert` " +
 					"(`source = \"tile\"`): `tile_id = clickhouse_clickstack_dashboard.x.tile_ids[\"<tile name>\"]`. " +
 					"Tile ids cannot be chosen in `dashboard_json`; the server assigns them and keeps them across " +
-					"updates for tiles that keep their name. A tile that keeps its name keeps its id at plan " +
-					"time; a new or renamed tile's id is known only after apply, and a name that disappears " +
-					"leaves the map, so an alert still referencing it fails at plan time with an invalid index.",
+					"updates for tiles that keep their name, unless a blank- or duplicate-named tile claims the " +
+					"id by position. A tile that keeps its name usually keeps its id at plan time; a new or " +
+					"renamed tile's id is known only after apply, and a name that disappears leaves the map, " +
+					"so an alert still referencing it fails at plan time with an invalid index.",
 				PlanModifiers: []planmodifier.Map{tileIDsPlanModifier{}},
 			},
 		},

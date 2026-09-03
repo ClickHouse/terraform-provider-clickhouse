@@ -39,16 +39,16 @@ resource "clickhouse_clickstack_alert" "latency_band" {
   num_consecutive_windows = 2
 }
 
-# A tile alert on a dashboard chart. The alert references the dashboard's id and
-# the tile's id, so the tile must carry a pinned `id` in the dashboard JSON (the
-# server assigns a fresh id to any tile that arrives without one, which detaches
-# the alert). Only line, stacked bar, and number tiles can be alerted on.
+# A tile alert on a dashboard chart. Tile ids are assigned by the server, so the
+# alert takes the id from the dashboard's computed `tile_ids` map, keyed by tile
+# name. Keep the tile's name unique within the dashboard and unchanged: a rename
+# mints a new id and detaches the alert. Only line, stacked bar, and number tiles
+# can be alerted on.
 resource "clickhouse_clickstack_dashboard" "latency" {
   dashboard_json = jsonencode({
     name = "Latency"
     tiles = [
       {
-        id   = "p95-latency"
         name = "p95 latency"
         x    = 0
         y    = 0
@@ -73,7 +73,7 @@ resource "clickhouse_clickstack_dashboard" "latency" {
 resource "clickhouse_clickstack_alert" "p95_latency" {
   source       = "tile"
   dashboard_id = clickhouse_clickstack_dashboard.latency.id
-  tile_id      = "p95-latency"
+  tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
 
   channel = {
     type       = "webhook"

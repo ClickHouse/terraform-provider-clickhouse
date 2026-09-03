@@ -155,12 +155,13 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 		Description: "Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a " +
 			"schedule and notifies through a channel when a threshold is crossed.\n\n" +
 			"Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with " +
-			"`dashboard_id` and `tile_id`. A tile alert needs a stable tile id: pin `id` on the tile in " +
-			"the dashboard's `dashboard_json`, because the server assigns a fresh id to any tile that " +
-			"arrives without one and that detaches the alert. Only line, stacked bar, and number tiles " +
-			"can be alerted on. The server deletes a tile alert when its tile is removed or changed to an " +
-			"unsupported display type; Terraform then plans to recreate it, which fails with the " +
-			"server's \"Tile not found\" until the tile is restored.\n\n" +
+			"`dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in " +
+			"`dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map " +
+			"(`tile_id = clickhouse_clickstack_dashboard.x.tile_ids[\"<tile name>\"]`). Keep the tile's " +
+			"name unique and stable: a rename mints a new id and detaches the alert. Only line, stacked " +
+			"bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is " +
+			"removed or changed to an unsupported display type; Terraform then plans to recreate it, " +
+			"which fails with the server's \"Tile not found\" until the tile is restored.\n\n" +
 			"Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one " +
 			"resource). Import each alert separately by its own ID.\n\n" +
 			"Alerts are threshold-based (there is no anomaly mode). Configuration is validated at " +
@@ -200,11 +201,11 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			},
 			tileIDAttr: schema.StringAttribute{
 				Optional: true,
-				Description: "ID of the tile to alert on, as pinned by `id` in the dashboard's `dashboard_json`. " +
+				Description: "Server-assigned ID of the tile to alert on. Take it from the dashboard's " +
+					"`tile_ids` map by tile name; ids cannot be chosen in `dashboard_json`. " +
 					"Required together with `dashboard_id` when `source` is `tile`. The alert has no query of " +
-					"its own: the server reads the tile's chart config from the dashboard on every evaluation, " +
-					"which is why the tile must keep a stable id. The tile must be a line, stacked bar, or " +
-					"number tile. Changing this forces replacement.",
+					"its own: the server reads the tile's chart config from the dashboard on every evaluation. " +
+					"The tile must be a line, stacked bar, or number tile. Changing this forces replacement.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"group_by": schema.StringAttribute{
