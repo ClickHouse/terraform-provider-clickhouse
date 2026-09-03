@@ -4,7 +4,7 @@ page_title: "clickhouse_clickstack_alert Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
   Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies through a channel when a threshold is crossed.
-  Set source to saved_search (the default) with saved_search_id, or to tile with dashboard_id and tile_id. A tile alert needs a stable tile id: pin id on the tile in the dashboard's dashboard_json, because the server assigns a fresh id to any tile that arrives without one and that detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it.
+  Set source to saved_search (the default) with saved_search_id, or to tile with dashboard_id and tile_id. A tile alert needs a stable tile id: pin id on the tile in the dashboard's dashboard_json, because the server assigns a fresh id to any tile that arrives without one and that detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
   Importing a dashboard does not import its tile alerts (terraform import maps one ID to one resource). Import each alert separately by its own ID.
   Alerts are threshold-based (there is no anomaly mode). Configuration is validated at plan time; those rules mirror the ClickStack server contract on a best-effort basis, so a server-side rule change may make the plan-time checks slightly stale until a new provider release.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a schedule and notifies through a channel when a threshold is crossed.
 
-Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with `dashboard_id` and `tile_id`. A tile alert needs a stable tile id: pin `id` on the tile in the dashboard's `dashboard_json`, because the server assigns a fresh id to any tile that arrives without one and that detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it.
+Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with `dashboard_id` and `tile_id`. A tile alert needs a stable tile id: pin `id` on the tile in the dashboard's `dashboard_json`, because the server assigns a fresh id to any tile that arrives without one and that detaches the alert. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
 
 Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one resource). Import each alert separately by its own ID.
 

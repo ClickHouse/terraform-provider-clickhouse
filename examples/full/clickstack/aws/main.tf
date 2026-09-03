@@ -190,9 +190,9 @@ resource "clickhouse_clickstack_dashboard" "e2e" {
 
     tiles = [
       {
-        # Renamed on the update pass. Tile-id carry-forward matches on name, so
-        # a rename forces the positional fallback — the path that would silently
-        # drop a UI-created tile alert if it regressed.
+        # Renamed on the update pass. Tile-id carry-forward matches on name, so a rename
+        # leaves this tile id-less and the server mints a fresh id — the path that would
+        # silently drop a UI-created tile alert if the id-less case regressed.
         name = var.update_pass ? "Log volume (renamed)" : "Log volume"
         x    = 0
         y    = 0

@@ -67,9 +67,9 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"Tile alerts are managed with `clickhouse_clickstack_alert` (`source = \"tile\"`), which " +
 			"references this dashboard's `id` and a tile `id`. Pin an explicit `id` on every tile you " +
 			"alert on: the server mints a fresh id for a tile that arrives without one, and Terraform's " +
-			"name-based id carry-forward (falling back to position for duplicate, blank, or renamed " +
-			"names) is best effort. Importing a dashboard does not import its tile alerts; import each " +
-			"alert separately.",
+			"name-based id carry-forward (falling back to position only for duplicate or blank names; " +
+			"a renamed tile without a pinned id loses its id) is best effort. Importing a dashboard does " +
+			"not import its tile alerts; import each alert separately.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed:      true,

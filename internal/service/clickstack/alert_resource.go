@@ -1,6 +1,7 @@
 package clickstack
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -158,7 +159,8 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"the dashboard's `dashboard_json`, because the server assigns a fresh id to any tile that " +
 			"arrives without one and that detaches the alert. Only line, stacked bar, and number tiles " +
 			"can be alerted on. The server deletes a tile alert when its tile is removed or changed to an " +
-			"unsupported display type; Terraform then plans to recreate it.\n\n" +
+			"unsupported display type; Terraform then plans to recreate it, which fails with the " +
+			"server's \"Tile not found\" until the tile is restored.\n\n" +
 			"Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one " +
 			"resource). Import each alert separately by its own ID.\n\n" +
 			"Alerts are threshold-based (there is no anomaly mode). Configuration is validated at " +
@@ -177,7 +179,7 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					"Changing this forces the alert to be replaced.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
-			"source": schema.StringAttribute{
+			sourceAttr: schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 				Default:  stringdefault.StaticString(alertSourceSavedSearch),
@@ -185,7 +187,7 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					"or `tile` (requires `dashboard_id` and `tile_id`). Changing this forces replacement.",
 				PlanModifiers: []planmodifier.String{sourceRequiresReplace()},
 			},
-			"saved_search_id": schema.StringAttribute{
+			savedSearchIDAttr: schema.StringAttribute{
 				Optional:    true,
 				Description: "ID of the saved search this alert evaluates. Required when `source` is `saved_search`.",
 			},
@@ -318,7 +320,7 @@ func (m *alertResourceModel) validate() diag.Diagnostics {
 		switch src {
 		case alertSourceSavedSearch:
 			if missingID(m.SavedSearchID) {
-				diags.AddAttributeError(path.Root("saved_search_id"), "saved_search_id required",
+				diags.AddAttributeError(path.Root(savedSearchIDAttr), "saved_search_id required",
 					"saved_search_id is required and must be non-empty when source is \"saved_search\"")
 			}
 			for _, p := range []struct {
@@ -340,7 +342,7 @@ func (m *alertResourceModel) validate() diag.Diagnostics {
 					"tile_id is required and must be non-empty when source is \"tile\"")
 			}
 			if !m.SavedSearchID.IsNull() {
-				diags.AddAttributeError(path.Root("saved_search_id"), "Not valid for tile alerts",
+				diags.AddAttributeError(path.Root(savedSearchIDAttr), "Not valid for tile alerts",
 					"saved_search_id is only valid when source is \"saved_search\"")
 			}
 			// The API's tile branch has no groupBy and silently drops it, which
@@ -350,7 +352,7 @@ func (m *alertResourceModel) validate() diag.Diagnostics {
 					"group_by is only valid when source is \"saved_search\"")
 			}
 		default:
-			diags.AddAttributeError(path.Root("source"), "Invalid source",
+			diags.AddAttributeError(path.Root(sourceAttr), "Invalid source",
 				fmt.Sprintf("source must be one of %s, got %q", strings.Join(alertSources, ", "), src))
 		}
 	}
@@ -561,12 +563,10 @@ func (m *alertResourceModel) toClient() client.Alert {
 
 func (m *alertResourceModel) applyAlert(al *client.Alert) {
 	m.ID = types.StringValue(al.ID)
+	// An empty source is a pre-tile-alerts server; it only ever meant saved_search.
+	m.Source = types.StringValue(cmp.Or(al.Source, alertSourceSavedSearch))
 	// The server returns only the target that matches the source; the other
 	// pair comes back absent and must be null in state, not "".
-	m.Source = types.StringValue(al.Source)
-	if al.Source == "" {
-		m.Source = types.StringValue(alertSourceSavedSearch)
-	}
 	m.SavedSearchID = emptyToNull(al.SavedSearchID)
 	m.DashboardID = emptyToNull(al.DashboardID)
 	m.TileID = emptyToNull(al.TileID)

@@ -52,6 +52,8 @@ type AlertChannel struct {
 //     removing it from config is a no-op (recreate to reset).
 //   - thresholdMax: kept when omitted and rejects null; only sent for range
 //     threshold types (and applyAlert does not reconcile it for other types).
+//   - savedSearchId, dashboardId, tileId: an omitted id keeps the current target,
+//     which is why the resource rejects "" at plan time instead of sending it.
 type Alert struct {
 	ID            string       `json:"id,omitempty"`
 	Source        string       `json:"source"`
