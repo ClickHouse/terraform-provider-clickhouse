@@ -16,3 +16,12 @@ curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
 curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
   "$CLICKSTACK_ENDPOINT/api/v2/alerts" \
   | jq -r '.data[] | select(.source == "tile") | "\(.id)\t\(.dashboardId)\t\(.tileId)\t\(.name)"'
+
+# `terraform plan -generate-config-out=...` writes the alert with literal ids for
+# dashboard_id, tile_id and channel.webhook_id. Terraform generates config from
+# state alone and cannot know those ids belong to other resources, so replace
+# them by hand to link the alert to its dashboard tile and webhook:
+#   dashboard_id = clickhouse_clickstack_dashboard.latency.id
+#   tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
+#   webhook_id   = clickhouse_clickstack_webhook.slack.id
+# The generated `= null` lines can be deleted.
