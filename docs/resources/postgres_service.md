@@ -8,11 +8,7 @@ description: |-
   service. A Managed Postgres service is a fully-managed Postgres instance
   provisioned in the ClickHouse Cloud control plane.
   Supports AWS (cloud_provider = "aws") and GCP (cloud_provider = "gcp").
-  ~> Private preview: Postgres on GCP is in private preview. Contact ClickHouse support to enable access for your organization and selected region before applying a GCP configuration.
-  For GCP, use a region such as us-west1 and a size such as c4a-highmem-4.
-  Use the region name without a gcp- prefix. Available sizes are listed in the
-  Postgres create API reference https://clickhouse.com/docs/products/cloud/api-reference/postgres/postgres-service-create#body-size.
-  The API validates size and region availability when creating the service.
+  ~> Note: Postgres on GCP is in private preview. Contact ClickHouse support to enable access for your organization and region.
   Supported lifecycle
   Create — standard, as a read replica (read_replica_of), or by
   point-in-time restore (restore_to_point_in_time)ReadUpdate — size, ha_type, tags, pg_config, pgbouncer_config,
@@ -170,12 +166,7 @@ provisioned in the ClickHouse Cloud control plane.
 
 Supports AWS (`cloud_provider = "aws"`) and GCP (`cloud_provider = "gcp"`).
 
-~> **Private preview:** Postgres on GCP is in private preview. Contact ClickHouse support to enable access for your organization and selected region before applying a GCP configuration.
-
-For GCP, use a region such as `us-west1` and a size such as `c4a-highmem-4`.
-Use the region name without a `gcp-` prefix. Available sizes are listed in the
-[Postgres create API reference](https://clickhouse.com/docs/products/cloud/api-reference/postgres/postgres-service-create#body-size).
-The API validates size and region availability when creating the service.
+~> **Note:** Postgres on GCP is in private preview. Contact ClickHouse support to enable access for your organization and region.
 
 ## Supported lifecycle
 
