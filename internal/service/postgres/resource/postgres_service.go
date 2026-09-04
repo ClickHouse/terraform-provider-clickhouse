@@ -68,8 +68,21 @@ func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.Metad
 // existing instance drops its origin block) and the live-replica modification
 // block (which needs is_primary from prior state). All of these live in
 // ModifyPlan, which has prior state.
-func (r *PostgresServiceResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+func (r *PostgresServiceResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+
+	var cloudProvider types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("cloud_provider"), &cloudProvider)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if cloudProvider.ValueString() == "gcp" {
+		resp.Diagnostics.AddAttributeWarning(
+			path.Root("cloud_provider"),
+			"Postgres on GCP is in private preview",
+			"Postgres on GCP is in private preview. Your organization must have access to GCP and the selected Postgres region. Contact ClickHouse support to request access.",
+		)
+	}
 }
 
 // configIsOrigin reports whether the config declares a read replica or restore.
@@ -311,7 +324,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"cloud_provider": schema.StringAttribute{
-				Description: "Cloud provider hosting the instance. Currently only 'aws' is supported. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).",
+				Description: "Cloud provider hosting the instance. Supported values are 'aws' and 'gcp'. Postgres on GCP is in private preview; contact ClickHouse support to enable access for your organization and region. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).",
 				Optional:    true,
 				Computed:    true,
 				Validators: []validator.String{
@@ -323,7 +336,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"region": schema.StringAttribute{
-				Description: "Cloud region (e.g. 'us-east-1'). No client-side validation; the server rejects unsupported regions. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).",
+				Description: "Cloud region (e.g. 'us-east-1' for AWS or 'us-west1' for GCP). No client-side validation; the server rejects unsupported regions. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
