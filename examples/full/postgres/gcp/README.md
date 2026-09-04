@@ -7,10 +7,7 @@ The Terraform code deploys following resources:
 
 NOTE: `clickhouse_postgres_service` is a beta resource — it ships in the regular provider build but its behavior may change in future provider versions.
 
-Postgres on GCP is in **private preview**. Contact ClickHouse support to enable
-access for your organization and selected region before running this example.
-The default region is `us-west1` and the instance size is `c4a-highmem-4`;
-size and region availability are validated by the API.
+NOTE: Postgres on GCP is in private preview. Contact ClickHouse support to enable access for your organization and region.
 
 ## How to run
 
