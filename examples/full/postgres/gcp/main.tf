@@ -28,10 +28,11 @@ variable "region" {
 # Primary: exercises explicit version, HA, runtime config (pg_config /
 # pgbouncer_config), tags, and a user-managed password.
 resource "clickhouse_postgres_service" "primary" {
+  # size = "c4a-highmem-4" # Requires access to the GCP ARM preview.
   name             = var.service_name
   cloud_provider   = "gcp"
   region           = var.region
-  size             = "c4a-highmem-4"
+  size             = "c4-highmem-4"
   postgres_version = "18"
   ha_type          = "async"
 
@@ -53,10 +54,11 @@ resource "clickhouse_postgres_service" "primary" {
 
 # Read replica of the primary (inherits the superuser, so no password here).
 resource "clickhouse_postgres_service" "replica" {
+  # size = "c4a-highmem-4" # Requires access to the GCP ARM preview.
   name            = "${var.service_name}-replica"
   cloud_provider  = "gcp"
   region          = var.region
-  size            = "c4a-highmem-4"
+  size            = "c4-highmem-4"
   read_replica_of = clickhouse_postgres_service.primary.id
 }
 
