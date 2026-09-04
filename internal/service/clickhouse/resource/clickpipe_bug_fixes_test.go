@@ -234,6 +234,7 @@ func buildMySQLPlanWithCredentials(credentials types.Object) models.ClickPipeRes
 		"sorting_keys":           types.ListNull(types.StringType),
 		"table_engine":           types.StringNull(),
 		"partition_key":          types.StringNull(),
+		"partition_by_expr":      types.StringNull(),
 	}
 	mysqlAttrs := map[string]attr.Value{
 		"ssh_key_resource_id":    types.StringNull(),
@@ -763,6 +764,132 @@ func TestClickPipeResource_ModifyPlan_MappingValueFieldsImmutable_Issue648(t *te
 		assert.False(t, errorDetailContains(diags, "Cannot modify"),
 			"an unchanged mapping must not be flagged; got: %v", diags.Errors())
 	})
+}
+
+// mysqlPlanForModifyPlan completes the minimal MySQL fixture so it encodes
+// cleanly against the resource schema for ModifyPlan (state and plan alike):
+// buildMySQLPlanWithCredentials leaves the complex-typed fields as zero values,
+// which carry no element/attribute types and are rejected by tfsdk.State.Set.
+func mysqlPlanForModifyPlan() models.ClickPipeResourceModel {
+	credentials := types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, map[string]attr.Value{
+		"username":            types.StringValue("user"),
+		"password":            types.StringValue("pass"),
+		"password_wo":         types.StringNull(),
+		"password_wo_version": types.Int64Null(),
+	})
+	m := buildMySQLPlanWithCredentials(credentials)
+
+	m.State = types.StringValue("provisioning")
+	m.Scaling = types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes)
+	m.FieldMappings = types.ListNull(models.ClickPipeFieldMappingModel{}.ObjectType())
+	m.Settings = types.DynamicNull()
+	m.Stopped = types.BoolNull()
+	m.TriggerResync = types.BoolNull()
+	m.Destination = types.ObjectValueMust(
+		models.ClickPipeDestinationModel{}.ObjectType().AttrTypes,
+		map[string]attr.Value{
+			"database":         types.StringValue("default"),
+			"table":            types.StringNull(),
+			"managed_table":    types.BoolNull(),
+			"table_definition": types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes),
+			"columns":          types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType()),
+			"roles":            types.ListNull(types.StringType),
+		},
+	)
+	return m
+}
+
+// setMySQLMappingAttr rebuilds the model's single MySQL table mapping with one
+// attribute replaced.
+func setMySQLMappingAttr(ctx context.Context, t *testing.T, m *models.ClickPipeResourceModel, field string, v attr.Value) {
+	t.Helper()
+	var src models.ClickPipeSourceModel
+	if d := m.Source.As(ctx, &src, basetypes.ObjectAsOptions{}); d.HasError() {
+		t.Fatalf("decoding source failed: %v", d.Errors())
+	}
+	var mysql models.ClickPipeMySQLSourceModel
+	if d := src.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{}); d.HasError() {
+		t.Fatalf("decoding mysql source failed: %v", d.Errors())
+	}
+
+	elems := mysql.TableMappings.Elements()
+	if len(elems) != 1 {
+		t.Fatalf("fixture must have exactly one table mapping, got %d", len(elems))
+	}
+	attrs := maps.Clone(elems[0].(types.Object).Attributes())
+	attrs[field] = v
+	mysql.TableMappings = types.SetValueMust(
+		models.ClickPipeMySQLTableMappingModel{}.ObjectType(),
+		[]attr.Value{types.ObjectValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType().AttrTypes, attrs)},
+	)
+	src.MySQL = mysql.ObjectValue()
+	m.Source = src.ObjectValue()
+}
+
+// MySQL mirror of the Postgres Issue #648 coverage, extended with
+// partition_by_expr (added to the API by control-plane#38962): table_engine,
+// partition_key, and partition_by_expr on an existing mapping cannot be edited
+// in place — the API rejects add+remove of the same source table in one PATCH,
+// so the plan-time error is the contract.
+func TestClickPipeResource_ModifyPlan_MySQLMappingValueFieldsImmutable(t *testing.T) {
+	ctx := context.Background()
+
+	valueFields := map[string]attr.Value{
+		"table_engine":      types.StringValue("Null"),
+		"partition_key":     types.StringValue("id"),
+		"partition_by_expr": types.StringValue("toYYYYMM(created_at)"),
+	}
+	for field, newValue := range valueFields {
+		t.Run("changing "+field+" is rejected at plan time", func(t *testing.T) {
+			state := mysqlPlanForModifyPlan()
+			plan := mysqlPlanForModifyPlan()
+			setMySQLMappingAttr(ctx, t, &plan, field, newValue)
+
+			diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+			assert.True(t, errorDetailContains(diags, "Cannot modify "+field),
+				"a %s change on an existing mapping must be rejected at plan time; got: %v", field, diags.Errors())
+		})
+	}
+
+	t.Run("identical value fields do not trip the guard", func(t *testing.T) {
+		state := mysqlPlanForModifyPlan()
+		plan := mysqlPlanForModifyPlan()
+		setMySQLMappingAttr(ctx, t, &state, "partition_by_expr", types.StringValue("toYYYYMM(created_at)"))
+		setMySQLMappingAttr(ctx, t, &plan, "partition_by_expr", types.StringValue("toYYYYMM(created_at)"))
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.False(t, errorDetailContains(diags, "Cannot modify"),
+			"an unchanged mapping must not be flagged; got: %v", diags.Errors())
+	})
+}
+
+// partition_by_expr must survive the model→API conversion shared by the create
+// (extractSourceFromPlan) and update (tableMappingsToAdd/Remove) payloads.
+func TestConvertMySQLTableMappingModelToAPI_PartitionByExpr(t *testing.T) {
+	ctx := context.Background()
+	diagnostics := diag.Diagnostics{}
+
+	mapping := convertMySQLTableMappingModelToAPI(ctx, &diagnostics, models.ClickPipeMySQLTableMappingModel{
+		SourceSchemaName:    types.StringValue("demo"),
+		SourceTable:         types.StringValue("events"),
+		TargetTable:         types.StringValue("events"),
+		ExcludedColumns:     types.SetNull(types.StringType),
+		UseCustomSortingKey: types.BoolNull(),
+		SortingKeys:         types.ListNull(types.StringType),
+		TableEngine:         types.StringNull(),
+		PartitionKey:        types.StringNull(),
+		PartitionByExpr:     types.StringValue("toYYYYMM(created_at)"),
+	})
+
+	assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+	if assert.NotNil(t, mapping.PartitionByExpr) {
+		assert.Equal(t, "toYYYYMM(created_at)", *mapping.PartitionByExpr)
+	}
+	// null model fields must stay omitted so the API doesn't see blanked-out values
+	assert.Nil(t, mapping.PartitionKey)
+	assert.Nil(t, mapping.TableEngine)
 }
 
 // Issue #571 — ModifyPlan must reject destination.table_definition on a CDC pipe (it caused "inconsistent result after apply"), and must not fire when it's omitted.
