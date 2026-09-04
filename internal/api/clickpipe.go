@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -59,10 +60,11 @@ var ClickPipeKafkaFormats = []string{
 var ClickPipeKinesisFormats = ClickPipeStreamingFormats
 
 const (
-	ClickPipeAuthenticationIAMRole          = "IAM_ROLE"
-	ClickPipeAuthenticationIAMUser          = "IAM_USER"
-	ClickPipeAuthenticationConnectionString = "CONNECTION_STRING"
-	ClickPipeAuthenticationServiceAccount   = "SERVICE_ACCOUNT"
+	ClickPipeAuthenticationIAMRole                        = "IAM_ROLE"
+	ClickPipeAuthenticationIAMUser                        = "IAM_USER"
+	ClickPipeAuthenticationConnectionString               = "CONNECTION_STRING"
+	ClickPipeAuthenticationServiceAccount                 = "SERVICE_ACCOUNT"
+	ClickPipeAuthenticationServiceAccountWorkloadIdentity = "SERVICE_ACCOUNT_WORKLOAD_IDENTITY"
 
 	ClickPipeKafkaAuthenticationPlain       = "PLAIN"
 	ClickPipeKafkaAuthenticationScramSha256 = "SCRAM-SHA-256"
@@ -77,6 +79,7 @@ var ClickPipeKafkaAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
 	ClickPipeKafkaAuthenticationMutualTLS,
+	ClickPipeAuthenticationServiceAccountWorkloadIdentity,
 }
 
 const (
@@ -132,6 +135,7 @@ var ClickPipeObjectStorageAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMUser,
 	ClickPipeAuthenticationConnectionString,
 	ClickPipeAuthenticationServiceAccount,
+	ClickPipeAuthenticationServiceAccountWorkloadIdentity,
 }
 
 var ClickPipeKinesisAuthenticationMethods = []string{
@@ -175,6 +179,7 @@ var ClickPipePubSubSeekTypes = []string{
 
 var ClickPipePubSubAuthenticationMethods = []string{
 	ClickPipeAuthenticationServiceAccount,
+	ClickPipeAuthenticationServiceAccountWorkloadIdentity,
 }
 
 var ClickPipeObjectStorageFormats = []string{
@@ -240,6 +245,11 @@ var ClickPipePostgresReplicationModes = []string{
 
 var ClickPipeBigQueryReplicationModes = []string{
 	ClickPipeReplicationModeSnapshot,
+}
+
+var ClickPipeBigQueryAuthenticationMethods = []string{
+	ClickPipeAuthenticationServiceAccount,
+	ClickPipeAuthenticationServiceAccountWorkloadIdentity,
 }
 
 var ClickPipePostgresTableEngines = []string{
@@ -419,6 +429,55 @@ func (c *ClientImpl) GetClickPipe(ctx context.Context, serviceId string, clickPi
 	}
 
 	return &clickPipeResponse.Result, nil
+}
+
+// GetClickPipesServiceContext returns service-level ClickPipes capabilities.
+func (c *ClientImpl) GetClickPipesServiceContext(ctx context.Context, serviceId string) (*ClickPipesServiceContext, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, "/clickpipes/context"), nil)
+	if err != nil {
+		return nil, err
+	}
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	contextResponse := ResponseWithResult[ClickPipesServiceContext]{}
+	if err := json.Unmarshal(body, &contextResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ClickPipes service context: %w", err)
+	}
+
+	return &contextResponse.Result, nil
+}
+
+// WaitForClickPipesGCPWorkloadIdentity waits until the tenant identity is ready and has a principal.
+func (c *ClientImpl) WaitForClickPipesGCPWorkloadIdentity(ctx context.Context, serviceId string, maxWait time.Duration) (*ClickPipesGCPWorkloadIdentityContext, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, maxWait)
+	defer cancel()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		serviceContext, err := c.GetClickPipesServiceContext(waitCtx, serviceId)
+		if err != nil {
+			return nil, fmt.Errorf("get ClickPipes service context: %w", err)
+		}
+
+		identity := &serviceContext.GCPWorkloadIdentity
+		if !identity.Supported {
+			return identity, fmt.Errorf("GCP workload identity is not supported for service %s", serviceId)
+		}
+		if identity.Ready != nil && *identity.Ready && identity.Principal != nil && strings.TrimSpace(*identity.Principal) != "" {
+			return identity, nil
+		}
+
+		select {
+		case <-waitCtx.Done():
+			return identity, fmt.Errorf("timed out after %s waiting for GCP workload identity for service %s to become ready: %w", maxWait, serviceId, waitCtx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 func (c *ClientImpl) CreateClickPipe(ctx context.Context, serviceId string, clickPipe ClickPipe) (*ClickPipe, error) {

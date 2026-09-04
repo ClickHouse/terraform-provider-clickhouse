@@ -67,6 +67,18 @@ type ClickPipeSourceAccessKey struct {
 	SecretKey   string `json:"secretKey,omitempty"`
 }
 
+// ClickPipesGCPWorkloadIdentityContext describes the tenant identity used to access customer GCP sources.
+type ClickPipesGCPWorkloadIdentityContext struct {
+	Supported bool    `json:"supported"`
+	Ready     *bool   `json:"ready,omitempty"`
+	Principal *string `json:"principal,omitempty"`
+}
+
+// ClickPipesServiceContext describes service-level ClickPipes capabilities.
+type ClickPipesServiceContext struct {
+	GCPWorkloadIdentity ClickPipesGCPWorkloadIdentityContext `json:"gcpWorkloadIdentity"`
+}
+
 type ClickPipeKafkaSourceCredentials struct {
 	*ClickPipeSourceCredentials
 	*ClickPipeSourceAccessKey
@@ -318,6 +330,8 @@ type ClickPipeBigQueryTableMapping struct {
 
 type ClickPipeBigQuerySource struct {
 	SnapshotStagingPath   string                          `json:"snapshotStagingPath,omitempty"`
+	Authentication        string                          `json:"authentication,omitempty"`
+	ProjectID             *string                         `json:"projectId,omitempty"`
 	Settings              ClickPipeBigQuerySettings       `json:"settings"`
 	Mappings              []ClickPipeBigQueryTableMapping `json:"tableMappings"`
 	TableMappingsToRemove []ClickPipeBigQueryTableMapping `json:"tableMappingsToRemove,omitempty"`

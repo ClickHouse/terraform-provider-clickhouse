@@ -174,18 +174,15 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for BigQuery access. (see [below for nested schema](#nestedatt--source--bigquery--credentials))
 - `settings` (Attributes) Settings for the BigQuery pipe. (see [below for nested schema](#nestedatt--source--bigquery--settings))
 - `snapshot_staging_path` (String) GCS bucket path for staging snapshot data (e.g., gs://my-bucket/staging/). Data will be automatically cleaned up after initial load.
 - `table_mappings` (Attributes List) Table mappings from BigQuery source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--bigquery--table_mappings))
 
-<a id="nestedatt--source--bigquery--credentials"></a>
-### Nested Schema for `source.bigquery.credentials`
+Optional:
 
-Required:
-
-- `service_account_file` (String, Sensitive) Google Cloud service account JSON key file content, base64 encoded.
-
+- `authentication` (String) Authentication method for the BigQuery source. (`SERVICE_ACCOUNT`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.
+- `credentials` (Attributes, Sensitive) The credentials for BigQuery access. Required with `SERVICE_ACCOUNT` authentication and must be omitted with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. (see [below for nested schema](#nestedatt--source--bigquery--credentials))
+- `project_id` (String) GCP project ID that owns the BigQuery resources. Required with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication.
 
 <a id="nestedatt--source--bigquery--settings"></a>
 ### Nested Schema for `source.bigquery.settings`
@@ -219,6 +216,14 @@ Optional:
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
 
 
+<a id="nestedatt--source--bigquery--credentials"></a>
+### Nested Schema for `source.bigquery.credentials`
+
+Required:
+
+- `service_account_file` (String, Sensitive) Google Cloud service account JSON key file content, base64 encoded.
+
+
 
 <a id="nestedatt--source--kafka"></a>
 ### Nested Schema for `source.kafka`
@@ -231,7 +236,7 @@ Required:
 
 Optional:
 
-- `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `IAM_ROLE`, `IAM_USER`, `MUTUAL_TLS`). Default is `PLAIN`.
+- `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `IAM_ROLE`, `IAM_USER`, `MUTUAL_TLS`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). Default is `PLAIN`. `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview and is supported only for GCMK.
 - `ca_certificate` (String) PEM encoded CA certificates to validate the broker's certificate.
 - `consumer_group` (String) Consumer group of the Kafka source. If not provided `clickpipes-<ID>` will be used.
 - `credentials` (Attributes) The credentials for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--credentials))
@@ -475,7 +480,7 @@ Required:
 Optional:
 
 - `access_key` (Attributes) Access key (see [below for nested schema](#nestedatt--source--object_storage--access_key))
-- `authentication` (String) CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER and SERVICE_ACCOUNT are for GCS. If not provided, no authentication is used
+- `authentication` (String) CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER, SERVICE_ACCOUNT, and the Private Preview SERVICE_ACCOUNT_WORKLOAD_IDENTITY are for GCS. If not provided, no authentication is used.
 - `azure_container_name` (String) Container name for Azure Blob Storage. Required when type is azureblobstorage. Example: `mycontainer`
 - `compression` (String) Compression algorithm used for the files.. (`none`, `auto`, `gzip`, `brotli`, `br`, `xz`, `LZMA`, `zstd`)
 - `connection_string` (String, Sensitive) Connection string for Azure Blob Storage authentication. Required when authentication is CONNECTION_STRING. Example: `DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=mykey;EndpointSuffix=core.windows.net`
@@ -583,11 +588,10 @@ Optional:
 
 Required:
 
-- `authentication` (String) The authentication method for the Pub/Sub source. Currently only `SERVICE_ACCOUNT` is supported.
+- `authentication` (String) The authentication method for the Pub/Sub source. (`SERVICE_ACCOUNT`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.
 - `format` (String) The message format of the Pub/Sub topic. (`JSONEachRow`, `Avro`, `Protobuf`)
 - `project_id` (String) The GCP project ID that owns the Pub/Sub topic.
 - `seek_type` (String) The starting position for consuming the subscription. (`latest`, `earliest`, `timestamp`)
-- `service_account_key` (Attributes) GCP service account credentials. Required on create; provide a new value on update to rotate the key. (see [below for nested schema](#nestedatt--source--pubsub--service_account_key))
 - `topic` (String) The Pub/Sub topic name (not the fully-qualified path).
 
 Optional:
@@ -596,6 +600,7 @@ Optional:
 - `enable_ordering` (Boolean) Whether to enable ordered message delivery. Immutable — changing it requires destroy+create because ordered delivery is a property of the subscription at creation time.
 - `filter` (String) Optional Pub/Sub subscription filter expression (CEL). Max 256 characters. Immutable — changing it requires destroy+create because the underlying subscription filter cannot be edited in place.
 - `seek_timestamp` (String) RFC 3339 timestamp (e.g. `2026-04-10T12:00:00Z`). Required when `seek_type = "timestamp"`; must be omitted otherwise.
+- `service_account_key` (Attributes) GCP service account credentials. Required with `SERVICE_ACCOUNT` and prohibited with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`; provide a new value on update to rotate the key. (see [below for nested schema](#nestedatt--source--pubsub--service_account_key))
 
 <a id="nestedatt--source--pubsub--service_account_key"></a>
 ### Nested Schema for `source.pubsub.service_account_key`
