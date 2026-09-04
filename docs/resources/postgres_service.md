@@ -7,6 +7,12 @@ description: |-
   Manages a ClickHouse Cloud Managed Postgres https://clickhouse.com/cloud/postgres
   service. A Managed Postgres service is a fully-managed Postgres instance
   provisioned in the ClickHouse Cloud control plane.
+  Supports AWS (cloud_provider = "aws") and GCP (cloud_provider = "gcp").
+  ~> Private preview: Postgres on GCP is in private preview. Contact ClickHouse support to enable access for your organization and selected region before applying a GCP configuration.
+  For GCP, use a region such as us-west1 and a size such as c4a-highmem-4.
+  Use the region name without a gcp- prefix. Available sizes are listed in the
+  Postgres create API reference https://clickhouse.com/docs/products/cloud/api-reference/postgres/postgres-service-create#body-size.
+  The API validates size and region availability when creating the service.
   Supported lifecycle
   Create — standard, as a read replica (read_replica_of), or by
   point-in-time restore (restore_to_point_in_time)ReadUpdate — size, ha_type, tags, pg_config, pgbouncer_config,
@@ -141,7 +147,7 @@ description: |-
   The size attribute is not validated client-side beyond non-empty.
   Invalid sizes surface as an HTTP 400 at apply time rather than a
   plan-time error. Pinning the list to a compile-time snapshot would
-  mean new AWS instance families require a provider patch release
+  mean new AWS or GCP instance families require a provider patch release
   before users can adopt them; size is the most frequently changed
   attribute, so the trade-off goes the other way here. The
   cloud_provider, ha_type, and postgres_version attributes
@@ -161,6 +167,15 @@ description: |-
 Manages a [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)
 service. A Managed Postgres service is a fully-managed Postgres instance
 provisioned in the ClickHouse Cloud control plane.
+
+Supports AWS (`cloud_provider = "aws"`) and GCP (`cloud_provider = "gcp"`).
+
+~> **Private preview:** Postgres on GCP is in private preview. Contact ClickHouse support to enable access for your organization and selected region before applying a GCP configuration.
+
+For GCP, use a region such as `us-west1` and a size such as `c4a-highmem-4`.
+Use the region name without a `gcp-` prefix. Available sizes are listed in the
+[Postgres create API reference](https://clickhouse.com/docs/products/cloud/api-reference/postgres/postgres-service-create#body-size).
+The API validates size and region availability when creating the service.
 
 ## Supported lifecycle
 
@@ -341,7 +356,7 @@ UI, or CLI directly.
 - The `size` attribute is not validated client-side beyond non-empty.
   Invalid sizes surface as an HTTP 400 at apply time rather than a
   plan-time error. Pinning the list to a compile-time snapshot would
-  mean new AWS instance families require a provider patch release
+  mean new AWS or GCP instance families require a provider patch release
   before users can adopt them; `size` is the most frequently changed
   attribute, so the trade-off goes the other way here. The
   `cloud_provider`, `ha_type`, and `postgres_version` attributes
@@ -394,7 +409,7 @@ resource "clickhouse_postgres_service" "example" {
 
 > **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
 
-- `cloud_provider` (String) Cloud provider hosting the instance. Currently only 'aws' is supported. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
+- `cloud_provider` (String) Cloud provider hosting the instance. Supported values are 'aws' and 'gcp'. Postgres on GCP is in private preview; contact ClickHouse support to enable access for your organization and region. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
 - `ha_type` (String) High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = "none"' explicitly. Omit for a read replica or point-in-time restore (inherited from the source).
 - `password` (String, Sensitive) Superuser password. Config-owned: the API does not return the password, so Terraform manages exactly the value declared here and never reads it back. One of `password` or `password_wo` is required for a standard service; forbidden for a read replica (it inherits the primary's superuser); optional for a point-in-time restore (omit to keep the source's password, which Terraform then does not track). Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Stored in (sensitive) state — prefer `password_wo` to keep it out of state. `terraform import` cannot recover the live password — the configured value is rotated in on the first apply after import.
 - `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Superuser password, write-only: applied to the service but never persisted to Terraform state (requires Terraform >= 1.11). Preferred over `password`. Requires `password_wo_version`; increment the version to rotate to the current `password_wo` value. Same complexity rules as `password`. Forbidden for a read replica.
@@ -403,7 +418,7 @@ resource "clickhouse_postgres_service" "example" {
 - `pgbouncer_config` (Map of String) PgBouncer connection-pooler parameters (pgBouncerConfig) as a key-value map. Same Optional+Computed semantics as pg_config; set `pgbouncer_config = {}` to clear.
 - `postgres_version` (String) Major Postgres version (e.g. '18'). The server picks the patch release within that major. Changing the major triggers destroy-and-recreate. Omit for a read replica or point-in-time restore (inherited from the source).
 - `read_replica_of` (String) ID of the primary instance to replicate. When set, this instance is created as a read replica (streaming replication) of that primary. Immutable for a live replica: changing or removing it destroys and recreates the instance as a standalone primary. The one exception is an out-of-band promotion — if you promote the replica via the API/UI (is_primary becomes true), changing or removing read_replica_of then reconciles state in place without destroying the promoted primary. Mutually exclusive with restore_to_point_in_time and with password/password_wo (a replica inherits the primary's superuser). After an out-of-band promotion, removing read_replica_of requires declaring password or password_wo, which rotates the promoted primary's superuser password.
-- `region` (String) Cloud region (e.g. 'us-east-1'). No client-side validation; the server rejects unsupported regions. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
+- `region` (String) Cloud region (e.g. 'us-east-1' for AWS or 'us-west1' for GCP). No client-side validation; the server rejects unsupported regions. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
 - `restore_to_point_in_time` (Attributes) Create this instance by restoring another Postgres instance's backup to a point in time. The whole block is create-time only: changing source_id / restore_target (re-restore to a new point) OR removing it both destroy and recreate the instance. The restored instance's name is this resource's top-level `name` and it is independent of its source. cloud_provider / region / postgres_version are inherited from the source — omit them, or set them to match (a mismatch is a plan-time error); size and ha_type must be omitted (the restored instance comes up at the backup's size and a server-assigned HA mode). Mutually exclusive with read_replica_of. (see [below for nested schema](#nestedatt--restore_to_point_in_time))
 - `size` (String) Instance size (VM SKU). See https://clickhouse.com/docs/cloud/managed-postgres/scaling for the supported instance families. No client-side enum; the server rejects unsupported sizes with HTTP 400 at apply time. Resizable in place. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
 - `tags` (Map of String) Resource tags as a key-value map. Values must be non-empty (server's PATCH returns 400 on omitted value). Set `tags = {}` to clear all tags; omit the attribute to preserve the prior value.

@@ -4,6 +4,15 @@ Manages a [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postg
 service. A Managed Postgres service is a fully-managed Postgres instance
 provisioned in the ClickHouse Cloud control plane.
 
+Supports AWS (`cloud_provider = "aws"`) and GCP (`cloud_provider = "gcp"`).
+
+~> **Private preview:** Postgres on GCP is in private preview. Contact ClickHouse support to enable access for your organization and selected region before applying a GCP configuration.
+
+For GCP, use a region such as `us-west1` and a size such as `c4a-highmem-4`.
+Use the region name without a `gcp-` prefix. Available sizes are listed in the
+[Postgres create API reference](https://clickhouse.com/docs/products/cloud/api-reference/postgres/postgres-service-create#body-size).
+The API validates size and region availability when creating the service.
+
 ## Supported lifecycle
 
 - Create — standard, as a read replica (`read_replica_of`), or by
@@ -183,7 +192,7 @@ UI, or CLI directly.
 - The `size` attribute is not validated client-side beyond non-empty.
   Invalid sizes surface as an HTTP 400 at apply time rather than a
   plan-time error. Pinning the list to a compile-time snapshot would
-  mean new AWS instance families require a provider patch release
+  mean new AWS or GCP instance families require a provider patch release
   before users can adopt them; `size` is the most frequently changed
   attribute, so the trade-off goes the other way here. The
   `cloud_provider`, `ha_type`, and `postgres_version` attributes
