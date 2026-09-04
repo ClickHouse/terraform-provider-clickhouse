@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -140,5 +141,106 @@ func TestGetServiceBase_SingleRequestNoEnrichment(t *testing.T) {
 	}
 	if n := atomic.LoadInt32(&calls); n != 1 {
 		t.Errorf("GetServiceBase made %d HTTP calls; want exactly 1 (no enrichment)", n)
+	}
+}
+
+// WaitForServiceState only needs the service's state field, so it must poll
+// the lightweight base endpoint and never fan out to the private endpoint
+// config, backup configuration, or query endpoints sub-resources — those
+// require extra permissions that a caller polling right after creating a
+// service may not have.
+func TestWaitForServiceState_pollsLightweightEndpointOnly(t *testing.T) {
+	var calls int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		if r.URL.Path != "/organizations/org-1/services/svc-1" {
+			t.Errorf("unexpected request to %q; WaitForServiceState should only poll the base service endpoint", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: StateRunning}})
+	})
+
+	err := client.WaitForServiceState(context.Background(), "svc-1", func(state string) bool { return state == StateRunning }, 10)
+	if err != nil {
+		t.Fatalf("WaitForServiceState: %v", err)
+	}
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("WaitForServiceState made %d HTTP calls; want exactly 1", n)
+	}
+}
+
+// A 4xx (e.g. a permission the caller doesn't have) can never resolve by
+// retrying. WaitForServiceState must fail immediately instead of retrying it
+// for the full maxWaitSeconds, indistinguishable from the service genuinely
+// still being in its starting state.
+func TestWaitForServiceState_failsFastOn403(t *testing.T) {
+	var calls int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error":"FORBIDDEN","status":403}`))
+	})
+
+	err := client.WaitForServiceState(context.Background(), "svc-1", func(state string) bool { return state == StateRunning }, 25)
+	if err == nil {
+		t.Fatal("WaitForServiceState: want error, got nil")
+	}
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("WaitForServiceState made %d HTTP calls on a 403; want exactly 1 (no retries)", n)
+	}
+}
+
+// Transient 429s are absorbed by doRequest's own retry (within its
+// 61-second budget) and never reach the poll loop's error handling, so the
+// wait still succeeds rather than failing fast the way a 403 does.
+//
+// Note this does NOT exercise the 429 exclusion in is4xxPermanent: that
+// only matters for 429s sustained past doRequest's MaxElapsedTime, which
+// isn't reachable here without making that budget injectable.
+// TestIs4xxPermanent is what guards the exclusion itself.
+func TestWaitForServiceState_transient429IsAbsorbedByDoRequest(t *testing.T) {
+	var calls int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&calls, 1)
+		if n < 3 {
+			// No X-RateLimit-Reset header: doRequest's own retry falls back
+			// to an immediate retry (resetSeconds defaults to 0), so this
+			// test resolves quickly rather than waiting on real rate-limit
+			// timing.
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error":"TOO_MANY_REQUESTS","status":429}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: StateRunning}})
+	})
+
+	err := client.WaitForServiceState(context.Background(), "svc-1", func(state string) bool { return state == StateRunning }, 25)
+	if err != nil {
+		t.Fatalf("WaitForServiceState: want nil error after transient 429s, got %v", err)
+	}
+	if n := atomic.LoadInt32(&calls); n < 3 {
+		t.Errorf("server received %d calls; want at least 3 (2x 429 then success)", n)
+	}
+}
+
+// A cancelled context must stop the poll loop immediately rather than running
+// out the full maxWaitSeconds budget. Without backoff.WithContext the retry
+// loop ignores cancellation entirely.
+func TestWaitForServiceState_stopsOnContextCancel(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{
+			Result: Service{Id: "svc-1", State: StateProvisioning},
+		})
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := time.Now()
+	err := client.WaitForServiceState(ctx, "svc-1", func(s string) bool { return s == StateRunning }, 60)
+	if err == nil {
+		t.Fatal("want error from cancelled context, got nil")
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("took %s; want an immediate return on a cancelled context", elapsed)
 	}
 }
