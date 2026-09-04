@@ -92,6 +92,8 @@ type ClickPipeKafkaSchemaRegistry struct {
 type ClickPipeKafkaSource struct {
 	Type   string `json:"type,omitempty"`
 	Format string `json:"format,omitempty"`
+	// ProtobufSchema contains the base64-encoded schema used when no schema registry is configured.
+	ProtobufSchema *string `json:"protobufSchema,omitempty"`
 
 	Brokers string `json:"brokers,omitempty"`
 	Topics  string `json:"topics,omitempty"`
@@ -110,6 +112,8 @@ type ClickPipeKafkaSource struct {
 	ReversePrivateEndpointIDs []string `json:"reversePrivateEndpointIds,omitempty"`
 
 	ExactlyOnce *bool `json:"exactlyOnce,omitempty"`
+
+	SSHKeyResourceID *string `json:"sshKeyResourceId,omitempty"`
 }
 
 type ClickPipeObjectStorageSource struct {
@@ -180,11 +184,14 @@ type ClickPipePostgresSource struct {
 	IAMRole               *string                         `json:"iamRole,omitempty"`
 	TLSHost               *string                         `json:"tlsHost,omitempty"`
 	CACertificate         *string                         `json:"caCertificate,omitempty"`
+	DisableTLS            *bool                           `json:"disableTls,omitempty"`
+	SkipCertVerification  *bool                           `json:"skipCertVerification,omitempty"`
 	Credentials           *ClickPipeSourceCredentials     `json:"credentials,omitempty"`
 	Settings              *ClickPipePostgresSettings      `json:"settings,omitempty"`
 	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipePostgresTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipePostgresTableMapping `json:"tableMappingsToAdd,omitempty"`
+	SSHKeyResourceID      *string                         `json:"sshKeyResourceId,omitempty"`
 }
 
 type ClickPipePostgresSettings struct {
@@ -228,6 +235,7 @@ type ClickPipeMySQLSource struct {
 	Mappings              []ClickPipeMySQLTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipeMySQLTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipeMySQLTableMapping `json:"tableMappingsToAdd,omitempty"`
+	SSHKeyResourceID      *string                      `json:"sshKeyResourceId,omitempty"`
 }
 
 type ClickPipeMySQLSettings struct {
@@ -277,12 +285,14 @@ type ClickPipeMongoDBSource struct {
 	ReadPreference        string                         `json:"readPreference,omitempty"`
 	TLSHost               *string                        `json:"tlsHost,omitempty"`
 	DisableTLS            *bool                          `json:"disableTls,omitempty"`
+	SkipCertVerification  *bool                          `json:"skipCertVerification,omitempty"`
 	CACertificate         *string                        `json:"caCertificate,omitempty"`
 	Credentials           *ClickPipeSourceCredentials    `json:"credentials,omitempty"`
 	Settings              *ClickPipeMongoDBSettings      `json:"settings,omitempty"`
 	Mappings              []ClickPipeMongoDBTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipeMongoDBTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipeMongoDBTableMapping `json:"tableMappingsToAdd,omitempty"`
+	SSHKeyResourceID      *string                        `json:"sshKeyResourceId,omitempty"`
 }
 
 type ClickPipeServiceAccount struct {

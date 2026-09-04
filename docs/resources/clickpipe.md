@@ -238,8 +238,10 @@ Optional:
 - `exactly_once` (Boolean) Enable exactly-once delivery. Guarantees every Kafka record is inserted exactly once across restarts and rebalances.
 - `iam_role` (String) The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
+- `protobuf_schema` (String, Sensitive) Base64-encoded Protobuf schema used instead of `schema_registry`. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Requires `format = "Protobuf"` and forces replacement when changed.
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
 - `schema_registry` (Attributes) The schema registry for the Kafka source. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
+- `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.
 
 <a id="nestedatt--source--kafka--credentials"></a>
@@ -338,6 +340,8 @@ Optional:
 - `ca_certificate` (String) PEM encoded CA certificate to validate the MongoDB server certificate.
 - `credentials` (Attributes, Sensitive) The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI. (see [below for nested schema](#nestedatt--source--mongodb--credentials))
 - `disable_tls` (Boolean) Disable TLS for the MongoDB connection. Defaults to false (TLS enabled).
+- `skip_cert_verification` (Boolean) Skip certificate verification for the MongoDB connection.
+- `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections.
 
 <a id="nestedatt--source--mongodb--settings"></a>
@@ -404,6 +408,7 @@ Optional:
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the MySQL instance. Default is 3306.
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MySQL connection.
+- `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
 
@@ -511,8 +516,11 @@ Optional:
 
 - `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the Postgres server certificate.
+- `disable_tls` (Boolean) Disable TLS for the Postgres connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the Postgres instance. Default is 5432.
+- `skip_cert_verification` (Boolean) Skip certificate verification for the Postgres connection.
+- `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of the Postgres source. (`postgres`, `supabase`, `neon`, `alloydb`, `planetscale`, `rdspostgres`, `aurorapostgres`, `cloudsqlpostgres`, `azurepostgres`, `crunchybridge`, `tigerdata`). Default is `postgres`.
 

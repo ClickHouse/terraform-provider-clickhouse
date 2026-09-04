@@ -39,6 +39,7 @@ func kafkaUpdateModel(caCertificate types.String, kafkaPassword string) models.C
 		"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, srCredAttrs),
 	}
 	kafkaAttrs := map[string]attr.Value{
+		"ssh_key_resource_id":          types.StringNull(),
 		"type":                         types.StringValue("kafka"),
 		"format":                       types.StringValue("AvroConfluent"),
 		"brokers":                      types.StringValue("broker:9092"),
@@ -46,6 +47,7 @@ func kafkaUpdateModel(caCertificate types.String, kafkaPassword string) models.C
 		"consumer_group":               types.StringValue("clickpipes-test"),
 		"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
 		"schema_registry":              types.ObjectValueMust(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes, srAttrs),
+		"protobuf_schema":              types.StringNull(),
 		"authentication":               types.StringValue("PLAIN"),
 		"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, mainCredAttrs),
 		"iam_role":                     types.StringNull(),
@@ -136,6 +138,7 @@ func TestClickPipeUpdate_KafkaOmitsImmutableFields(t *testing.T) {
 	require.NotNil(t, kafka, "update payload carries no kafka source")
 
 	assert.Nil(t, kafka.SchemaRegistry, "schema registry must never be sent on update")
+	assert.Nil(t, kafka.ProtobufSchema, "protobuf schema must never be sent on update")
 	assert.Nil(t, kafka.Credentials, "unchanged credentials must be omitted")
 	assert.Empty(t, kafka.Type, "immutable type must be omitted")
 	assert.Empty(t, kafka.Format, "immutable format must be omitted")
