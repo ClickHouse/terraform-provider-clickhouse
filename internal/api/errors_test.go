@@ -58,6 +58,63 @@ func TestIsServiceIdle(t *testing.T) {
 	}
 }
 
+func TestStatusFromMessage(t *testing.T) {
+	cases := []struct {
+		name    string
+		message string
+		want    int
+	}{
+		{name: "empty", message: "", want: 0},
+		{
+			name:    "raw client error",
+			message: `status: 404, body: {"error":"not found"}`,
+			want:    404,
+		},
+		{
+			// The client records the status at the front, but callers wrap
+			// errors with context before classifying them. The status must
+			// still be found once it is no longer a prefix.
+			name:    "wrapped with context",
+			message: `check whether UDF "f" already exists: status: 404, body: not found`,
+			want:    404,
+		},
+		{name: "server error", message: "status: 502, body: bad gateway", want: 502},
+		{name: "no space after colon", message: "status:410, body: gone", want: 410},
+		{name: "case insensitive", message: "STATUS: 422, body: unprocessable", want: 422},
+		{name: "no status present", message: "dial tcp: connection refused", want: 0},
+		{
+			name:    "unrelated number is not a status",
+			message: "gave up after 3 attempts",
+			want:    0,
+		},
+		{
+			// Guarded by the trailing word boundary, so a longer run of digits
+			// is not silently truncated to a plausible status.
+			name:    "four digits is not a status",
+			message: "status: 4041, body: nope",
+			want:    0,
+		},
+		{
+			// Guarded by the leading word boundary.
+			name:    "status must be its own word",
+			message: "httpstatus: 404, body: not found",
+			want:    0,
+		},
+		{
+			name:    "first status wins",
+			message: `status: 502, body: {"error":"upstream said status: 404"}`,
+			want:    502,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := StatusFromMessage(tc.message); got != tc.want {
+				t.Errorf("StatusFromMessage(%q) = %v; want %v", tc.message, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestIsBadRequestWith(t *testing.T) {
 	cases := []struct {
 		name   string

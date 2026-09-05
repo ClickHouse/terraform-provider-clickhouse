@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -1133,10 +1132,7 @@ type udfErrorMetadata struct {
 	requestID string
 }
 
-var (
-	udfStatusPattern    = regexp.MustCompile(`(?i)\bstatus:\s*(\d{3})\b`)
-	udfRequestIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$`)
-)
+var udfRequestIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$`)
 
 func udfErrorInfo(err error) (status int, code, message, requestID string) {
 	var metadataChain []udfErrorMetadata
@@ -1239,9 +1235,7 @@ func parseUDFErrorText(raw string) udfErrorMetadata {
 	if trimmed == "" {
 		return metadata
 	}
-	if match := udfStatusPattern.FindStringSubmatch(trimmed); len(match) == 2 {
-		metadata.status, _ = strconv.Atoi(match[1])
-	}
+	metadata.status = api.StatusFromMessage(trimmed)
 
 	if value, ok := parseEmbeddedUDFJSON(trimmed); ok {
 		metadata.code = jsonStringField(value, "code")
