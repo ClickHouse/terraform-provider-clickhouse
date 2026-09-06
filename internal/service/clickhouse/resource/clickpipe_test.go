@@ -1195,6 +1195,7 @@ func buildMySQLCredentialsPlan(password, passwordWO types.String, passwordWOVers
 			"ca_certificate":         types.StringNull(),
 			"disable_tls":            types.BoolNull(),
 			"skip_cert_verification": types.BoolNull(),
+			"server_id":              types.Int64Null(),
 			"credentials":            types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
 			"settings":               types.ObjectValueMust(models.ClickPipeMySQLSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
 			"table_mappings":         types.SetValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType(), []attr.Value{}),

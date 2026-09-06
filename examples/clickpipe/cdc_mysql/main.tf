@@ -60,6 +60,11 @@ resource "clickhouse_clickpipe" "mysql_cdc" {
       host = var.mysql_host
       port = var.mysql_port
 
+      # Optional: server_id the pipe declares itself as in the MySQL replication
+      # topology. Must be unique across replicas connected to the source. If
+      # omitted, one is assigned automatically.
+      # server_id = 4242
+
       credentials = {
         username = var.mysql_username
         password = var.mysql_password
