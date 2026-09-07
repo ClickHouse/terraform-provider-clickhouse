@@ -407,6 +407,7 @@ Optional:
 - `disable_tls` (Boolean) Disable TLS for the MySQL connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the MySQL instance. Default is 3306.
+- `server_id` (Number) Optional MySQL `server_id` the pipe declares itself as in the MySQL replication topology. Must be unique across replicas connected to the source. If omitted, one is assigned randomly. Must be a non-zero unsigned 32-bit integer (1 to 4294967295).
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MySQL connection.
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
