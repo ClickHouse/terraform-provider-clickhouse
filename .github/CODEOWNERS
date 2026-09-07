@@ -6,6 +6,11 @@
 /internal/service/postgres/   @ClickHouse/clickgres
 /internal/service/clickstack/ @ClickHouse/clickstack
 
+# The shared API client. Placed before the component globs below on purpose, so
+# component-specific files inside it (internal/api/postgres.go, udf.go,
+# clickpipe.go, ...) still route to the team that owns that component.
+/internal/api/ @rndD @mdevils @balanza
+
 # Component globs are intentionally LAST: CODEOWNERS gives the last matching
 # pattern precedence, so these keep routing e.g. ClickPipes reviews to their
 # team even though those files live inside the clickhouse service group.
