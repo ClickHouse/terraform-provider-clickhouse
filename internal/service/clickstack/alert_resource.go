@@ -676,8 +676,15 @@ func (r *alertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	al, err := r.client.WithTeam(plan.Team.ValueString()).UpdateAlert(ctx, plan.ID.ValueString(), in)
 	if err != nil {
+		// The framework rejects a state removal from Update ("Missing Resource
+		// State After Update"), so a vanished alert must error here, unlike Read
+		// where removal is legal. Reachable with no tile_id diff at all: the
+		// server deletes a tile alert once its tile stops being alertable.
 		if errors.Is(err, client.ErrNotFound) {
-			resp.State.RemoveResource(ctx)
+			resp.Diagnostics.AddError("Alert No Longer Exists",
+				fmt.Sprintf("alert %s no longer exists on the server: it was deleted directly, or "+
+					"along with the saved search or tile it watches. The next plan recreates it, "+
+					"which succeeds once its target exists again.", plan.ID.ValueString()))
 			return
 		}
 		resp.Diagnostics.AddError("Error Updating Alert", err.Error())

@@ -868,24 +868,56 @@ func TestAlertResource_CRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("update removes resource on 404", func(t *testing.T) {
-		t.Parallel()
-		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		}))}
-		plan := tfsdk.Plan{Schema: sch}
-		if d := plan.Set(ctx, mkAlert(func(m *alertResourceModel) { m.ID = types.StringValue("al1") })); d.HasError() {
-			t.Fatalf("plan.Set: %s", d)
-		}
-		resp := &fwresource.UpdateResponse{State: tfsdk.State{Schema: sch}}
-		r.Update(ctx, fwresource.UpdateRequest{Plan: plan}, resp)
-		if resp.Diagnostics.HasError() {
-			t.Fatalf("Update: %s", resp.Diagnostics)
-		}
-		if !resp.State.Raw.IsNull() {
-			t.Error("expected resource removed from state when update hits 404")
-		}
-	})
+	// Update must not clear state on a 404: the framework fails the apply with
+	// "Missing Resource State After Update" rather than accepting the removal.
+	// Prior state has to survive so the next refresh converges through Read.
+	// Both sources are covered: the tile flavor is what the server cascade-deletes,
+	// the saved-search flavor is what an out-of-band delete hits.
+	for _, tc := range []struct {
+		name string
+		mods func(*alertResourceModel)
+	}{
+		{"saved_search", nil},
+		{"tile", asTile},
+	} {
+		t.Run("update errors on 404 and keeps state ("+tc.name+")", func(t *testing.T) {
+			t.Parallel()
+			r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+			}))}
+			mk := func(threshold float64) alertResourceModel {
+				return mkAlert(func(m *alertResourceModel) {
+					if tc.mods != nil {
+						tc.mods(m)
+					}
+					m.ID = types.StringValue("al1")
+					m.Threshold = types.Float64Value(threshold)
+				})
+			}
+			state := tfsdk.State{Schema: sch}
+			if d := state.Set(ctx, mk(100)); d.HasError() {
+				t.Fatalf("state.Set: %s", d)
+			}
+			// A different planned threshold makes a stray state write detectable.
+			plan := tfsdk.Plan{Schema: sch}
+			if d := plan.Set(ctx, mk(250)); d.HasError() {
+				t.Fatalf("plan.Set: %s", d)
+			}
+			resp := &fwresource.UpdateResponse{State: state}
+			r.Update(ctx, fwresource.UpdateRequest{Plan: plan}, resp)
+			if !resp.Diagnostics.HasError() {
+				t.Fatal("expected an error when update hits 404, got none")
+			}
+			if got := resp.Diagnostics.Errors()[0].Summary(); got != "Alert No Longer Exists" {
+				t.Errorf("error summary = %q, want %q", got, "Alert No Longer Exists")
+			}
+			var got alertResourceModel
+			resp.State.Get(ctx, &got)
+			if got.Threshold.ValueFloat64() != 100 {
+				t.Errorf("threshold=%v, want the prior 100 left untouched", got.Threshold.ValueFloat64())
+			}
+		})
+	}
 
 	t.Run("delete treats 404 as a no-op", func(t *testing.T) {
 		t.Parallel()
