@@ -93,3 +93,27 @@ func TestIsBadRequestWith(t *testing.T) {
 		})
 	}
 }
+
+func TestIs4xxPermanent(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{name: "403 is permanent", err: errors.New("status: 403, body: forbidden"), want: true},
+		{name: "400 is permanent", err: errors.New("status: 400, body: bad request"), want: true},
+		{name: "404 is permanent", err: errors.New("status: 404, body: not found"), want: true},
+		{name: "429 is NOT permanent - rate limiting is transient and doRequest retries it", err: errors.New("status: 429, body: too many requests"), want: false},
+		{name: "408 is permanent - doRequest wraps it in backoff.Permanent, so both layers agree", err: errors.New("status: 408, body: request timeout"), want: true},
+		{name: "5xx is not a 4xx at all", err: errors.New("status: 503, body: unavailable"), want: false},
+		{name: "non-status error", err: errors.New("connection refused"), want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := is4xxPermanent(tc.err); got != tc.want {
+				t.Errorf("is4xxPermanent(%v) = %v; want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
