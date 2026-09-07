@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -546,13 +550,63 @@ func (c *ClientImpl) ChangeClickPipeState(ctx context.Context, serviceId string,
 	return &clickPipeResponse.Result, nil
 }
 
+// DeleteClickPipe waits for authoritative absence after the API accepts deletion.
+// The 15-minute budget covers DELETE, service wake-up, retries and GET polling;
+// the HTTP client's timeout only limits individual requests.
 func (c *ClientImpl) DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error {
-	req, err := http.NewRequest(http.MethodDelete, c.getClickPipePath(serviceId, clickPipeId, ""), nil)
-	if err != nil {
-		return err
+	return c.deleteClickPipeWithBudget(ctx, serviceId, clickPipeId, 15*time.Minute, 5*time.Second)
+}
+
+func (c *ClientImpl) deleteClickPipeWithBudget(ctx context.Context, serviceId, clickPipeId string, maxWait, interval time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, maxWait)
+	defer cancel()
+
+	deleteAccepted := false
+	for {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("waiting for ClickPipe %s deletion: %w", clickPipeId, err)
+		}
+		var err error
+		if !deleteAccepted {
+			var req *http.Request
+			req, err = http.NewRequest(http.MethodDelete, c.getClickPipePath(serviceId, clickPipeId, ""), nil)
+			if err != nil {
+				return err
+			}
+			_, err = c.doClickPipeRequest(ctx, serviceId, req)
+			if err == nil {
+				deleteAccepted = true
+				continue
+			}
+		} else {
+			// Every existing state, including Deleting, means cleanup is pending.
+			_, err = c.GetClickPipe(ctx, serviceId, clickPipeId)
+		}
+		if ctx.Err() != nil {
+			return fmt.Errorf("waiting for ClickPipe %s deletion: %w", clickPipeId, ctx.Err())
+		}
+		if IsNotFound(err) {
+			return nil
+		}
+		if err != nil && !isClickPipeDeletionRetryable(err) {
+			return err
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("waiting for ClickPipe %s deletion: %w", clickPipeId, ctx.Err())
+		case <-timer.C:
+		}
 	}
-	_, err = c.doClickPipeRequest(ctx, serviceId, req)
-	return err
+}
+
+func isClickPipeDeletionRetryable(err error) bool {
+	var networkErr net.Error
+	var operationErr *net.OpError
+	return is5xx(err) || strings.HasPrefix(err.Error(), "status: 429") ||
+		errors.As(err, &operationErr) || (errors.As(err, &networkErr) && networkErr.Timeout()) ||
+		errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 func (c *ClientImpl) GetClickPipeSettings(ctx context.Context, serviceId string, clickPipeId string) (map[string]any, error) {
