@@ -2162,6 +2162,26 @@ func TestServiceResource_generatedPassword_planApplyConsistency(t *testing.T) {
 			mutate:  func(s *models.ServiceResourceModel) { s.Name = types.StringValue("renamed") },
 			wantNil: false,
 		},
+		{
+			// password_hash takes its own branch in Update and sets
+			// passwordChanged just like a plain password does, so ModifyPlan
+			// has to mark the attribute unknown for it too.
+			name: "password_hash change clears it",
+			mutate: func(s *models.ServiceResourceModel) {
+				s.PasswordHash = types.StringValue("n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=")
+			},
+			wantNil: true,
+		},
+		{
+			// The write-only path: bumping password_wo_version with a real
+			// password_wo is the third way an apply changes the password.
+			name: "password_wo version bump clears it",
+			mutate: func(s *models.ServiceResourceModel) {
+				s.PasswordWO = types.StringValue("new-write-only-password")
+				s.PasswordWOVersion = types.Int64Value(2)
+			},
+			wantNil: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2235,5 +2255,47 @@ func TestServiceResource_generatedPassword_planApplyConsistency(t *testing.T) {
 				t.Errorf("generated_password = %v, want it preserved", applied.GeneratedPassword)
 			}
 		})
+	}
+}
+
+// generated_password only ever exists in state: the API returns it once, in the
+// create response, and never again. Read must therefore carry it across a
+// refresh untouched. It survives today only because syncServiceState mutates
+// the model in place rather than rebuilding it — nothing else pins that, so a
+// refactor there would silently drop the value on the next plan.
+func TestServiceResource_Read_preservesGeneratedPassword(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	syncResp := getBaseResponse(encodableInitialState().ID.ValueString())
+	syncResp.State = api.StateRunning
+
+	priorState := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.GeneratedPassword = types.StringValue("api-generated-secret")
+		s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+	}).Get()
+
+	mc := minimock.NewController(t)
+	r.client = api.NewClientMock(mc).GetServiceMock.Return(&syncResp, nil)
+
+	stateVal := tfsdk.State{Schema: sch}
+	if d := stateVal.Set(ctx, &priorState); d.HasError() {
+		t.Fatalf("encoding state: %v", d.Errors())
+	}
+
+	resp := &resource.ReadResponse{State: tfsdk.State{Schema: sch}}
+	r.Read(ctx, resource.ReadRequest{State: stateVal}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Read returned errors: %v", resp.Diagnostics.Errors())
+	}
+
+	var out models.ServiceResourceModel
+	if d := resp.State.Get(ctx, &out); d.HasError() {
+		t.Fatalf("decoding refreshed state: %v", d.Errors())
+	}
+	if out.GeneratedPassword.ValueString() != "api-generated-secret" {
+		t.Errorf("generated_password = %v after refresh; want it preserved as %q",
+			out.GeneratedPassword, "api-generated-secret")
 	}
 }
