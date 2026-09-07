@@ -230,6 +230,7 @@ type ClickPipeMySQLSource struct {
 	CACertificate         *string                      `json:"caCertificate,omitempty"`
 	DisableTLS            *bool                        `json:"disableTls,omitempty"`
 	SkipCertVerification  *bool                        `json:"skipCertVerification,omitempty"`
+	ServerID              *uint32                      `json:"serverId,omitempty"`
 	Credentials           *ClickPipeSourceCredentials  `json:"credentials,omitempty"`
 	Settings              *ClickPipeMySQLSettings      `json:"settings,omitempty"`
 	Mappings              []ClickPipeMySQLTableMapping `json:"tableMappings,omitempty"`

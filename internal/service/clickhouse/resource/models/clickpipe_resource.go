@@ -734,6 +734,11 @@ func (m ClickPipeMySQLTableMappingModel) ObjectValue() types.Object {
 	})
 }
 
+// ClickPipeMySQLSourceModel is the Terraform view of api.ClickPipeMySQLSource.
+//
+// ServerID is a uint32 in the API but is held as Int64 here: the plugin
+// framework has no unsigned type and Int32 cannot represent values above
+// 2147483647. The schema validator enforces the uint32 range.
 type ClickPipeMySQLSourceModel struct {
 	Type                 types.String `tfsdk:"type"`
 	Host                 types.String `tfsdk:"host"`
@@ -744,6 +749,7 @@ type ClickPipeMySQLSourceModel struct {
 	CACertificate        types.String `tfsdk:"ca_certificate"`
 	DisableTLS           types.Bool   `tfsdk:"disable_tls"`
 	SkipCertVerification types.Bool   `tfsdk:"skip_cert_verification"`
+	ServerID             types.Int64  `tfsdk:"server_id"`
 	Credentials          types.Object `tfsdk:"credentials"`
 	Settings             types.Object `tfsdk:"settings"`
 	TableMappings        types.Set    `tfsdk:"table_mappings"`
@@ -762,6 +768,7 @@ func (m ClickPipeMySQLSourceModel) ObjectType() types.ObjectType {
 			"ca_certificate":         types.StringType,
 			"disable_tls":            types.BoolType,
 			"skip_cert_verification": types.BoolType,
+			"server_id":              types.Int64Type,
 			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":               ClickPipeMySQLSettingsModel{}.ObjectType(),
 			"table_mappings":         types.SetType{ElemType: ClickPipeMySQLTableMappingModel{}.ObjectType()},
@@ -781,6 +788,7 @@ func (m ClickPipeMySQLSourceModel) ObjectValue() types.Object {
 		"ca_certificate":         m.CACertificate,
 		"disable_tls":            m.DisableTLS,
 		"skip_cert_verification": m.SkipCertVerification,
+		"server_id":              m.ServerID,
 		"credentials":            m.Credentials,
 		"settings":               m.Settings,
 		"table_mappings":         m.TableMappings,

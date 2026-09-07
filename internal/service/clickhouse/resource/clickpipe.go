@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -1247,6 +1248,24 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Optional:    true,
 								Computed:    true,
 								Default:     booldefault.StaticBool(false),
+							},
+							// server_id is a uint32 on the wire (see api.ClickPipeMySQLSource.ServerID),
+							// Int64Attribute is the smallest type that can hold its full domain.
+							// The validator below enforces the real range, and extractSourceFromPlan
+							// narrows the value to uint32 behind a runtime bounds check.
+							"server_id": schema.Int64Attribute{
+								MarkdownDescription: fmt.Sprintf(
+									"Optional MySQL `server_id` the pipe declares itself as in the MySQL replication topology. Must be unique across replicas connected to the source. If omitted, one is assigned randomly. Must be a non-zero unsigned 32-bit integer (1 to %d).",
+									uint32(math.MaxUint32),
+								),
+								Optional: true,
+								Computed: true,
+								Validators: []validator.Int64{
+									int64validator.Between(1, math.MaxUint32),
+								},
+								PlanModifiers: []planmodifier.Int64{
+									int64planmodifier.UseStateForUnknown(),
+								},
 							},
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
@@ -3741,6 +3760,12 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			val := mysqlModel.SkipCertVerification.ValueBool()
 			mysqlSource.SkipCertVerification = &val
 		}
+		if !mysqlModel.ServerID.IsNull() && !mysqlModel.ServerID.IsUnknown() {
+			if v := mysqlModel.ServerID.ValueInt64(); v >= 1 && v <= math.MaxUint32 {
+				serverID := uint32(v)
+				mysqlSource.ServerID = &serverID
+			}
+		}
 		if !isUpdate {
 			mysqlSource.SSHKeyResourceID = mysqlModel.SSHKeyResourceID.ValueStringPointer()
 		}
@@ -4850,6 +4875,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			mysqlModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.MySQL.SkipCertVerification)
 		} else {
 			mysqlModel.SkipCertVerification = types.BoolValue(false)
+		}
+
+		if clickPipe.Source.MySQL.ServerID != nil {
+			mysqlModel.ServerID = types.Int64Value(int64(*clickPipe.Source.MySQL.ServerID))
+		} else if !stateMySQLModel.ServerID.IsNull() {
+			mysqlModel.ServerID = stateMySQLModel.ServerID
+		} else {
+			mysqlModel.ServerID = types.Int64Null()
 		}
 
 		if len(tableMappingList) > 0 {
