@@ -75,6 +75,13 @@ type ClientMock struct {
 	beforeCreateRoleCounter uint64
 	CreateRoleMock          mClientMockCreateRole
 
+	funcCreateSSHKey          func(ctx context.Context, serviceId string, request CreateSSHKey) (sp1 *SSHKey, err error)
+	funcCreateSSHKeyOrigin    string
+	inspectFuncCreateSSHKey   func(ctx context.Context, serviceId string, request CreateSSHKey)
+	afterCreateSSHKeyCounter  uint64
+	beforeCreateSSHKeyCounter uint64
+	CreateSSHKeyMock          mClientMockCreateSSHKey
+
 	funcCreateService          func(ctx context.Context, s Service) (sp1 *Service, s1 string, err error)
 	funcCreateServiceOrigin    string
 	inspectFuncCreateService   func(ctx context.Context, s Service)
@@ -137,6 +144,13 @@ type ClientMock struct {
 	afterDeleteRoleCounter  uint64
 	beforeDeleteRoleCounter uint64
 	DeleteRoleMock          mClientMockDeleteRole
+
+	funcDeleteSSHKey          func(ctx context.Context, serviceId string, sshKeyId string) (err error)
+	funcDeleteSSHKeyOrigin    string
+	inspectFuncDeleteSSHKey   func(ctx context.Context, serviceId string, sshKeyId string)
+	afterDeleteSSHKeyCounter  uint64
+	beforeDeleteSSHKeyCounter uint64
+	DeleteSSHKeyMock          mClientMockDeleteSSHKey
 
 	funcDeleteScheduledScaling          func(ctx context.Context, serviceId string) (err error)
 	funcDeleteScheduledScalingOrigin    string
@@ -285,6 +299,20 @@ type ClientMock struct {
 	beforeGetRoleCounter uint64
 	GetRoleMock          mClientMockGetRole
 
+	funcGetSSHKey          func(ctx context.Context, serviceId string, sshKeyId string) (sp1 *SSHKey, err error)
+	funcGetSSHKeyOrigin    string
+	inspectFuncGetSSHKey   func(ctx context.Context, serviceId string, sshKeyId string)
+	afterGetSSHKeyCounter  uint64
+	beforeGetSSHKeyCounter uint64
+	GetSSHKeyMock          mClientMockGetSSHKey
+
+	funcGetSSHKeyPath          func(serviceId string, sshKeyId string) (s1 string)
+	funcGetSSHKeyPathOrigin    string
+	inspectFuncGetSSHKeyPath   func(serviceId string, sshKeyId string)
+	afterGetSSHKeyPathCounter  uint64
+	beforeGetSSHKeyPathCounter uint64
+	GetSSHKeyPathMock          mClientMockGetSSHKeyPath
+
 	funcGetScheduledScaling          func(ctx context.Context, serviceId string) (ap1 *AutoScalingSchedule, err error)
 	funcGetScheduledScalingOrigin    string
 	inspectFuncGetScheduledScaling   func(ctx context.Context, serviceId string)
@@ -354,6 +382,13 @@ type ClientMock struct {
 	afterListRolesCounter  uint64
 	beforeListRolesCounter uint64
 	ListRolesMock          mClientMockListRoles
+
+	funcListSSHKeys          func(ctx context.Context, serviceId string) (spa1 []*SSHKey, err error)
+	funcListSSHKeysOrigin    string
+	inspectFuncListSSHKeys   func(ctx context.Context, serviceId string)
+	afterListSSHKeysCounter  uint64
+	beforeListSSHKeysCounter uint64
+	ListSSHKeysMock          mClientMockListSSHKeys
 
 	funcListServices          func(ctx context.Context, filters []string) (sa1 []Service, err error)
 	funcListServicesOrigin    string
@@ -495,6 +530,13 @@ type ClientMock struct {
 	beforeUploadUDFArchiveCounter uint64
 	UploadUDFArchiveMock          mClientMockUploadUDFArchive
 
+	funcValidateSSHKey          func(ctx context.Context, serviceId string, sshKeyId string) (sp1 *SSHKey, err error)
+	funcValidateSSHKeyOrigin    string
+	inspectFuncValidateSSHKey   func(ctx context.Context, serviceId string, sshKeyId string)
+	afterValidateSSHKeyCounter  uint64
+	beforeValidateSSHKeyCounter uint64
+	ValidateSSHKeyMock          mClientMockValidateSSHKey
+
 	funcWaitForClickPipeCdcScaling          func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (cp1 *ClickPipeCdcScaling, err error)
 	funcWaitForClickPipeCdcScalingOrigin    string
 	inspectFuncWaitForClickPipeCdcScaling   func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration)
@@ -577,6 +619,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateRoleMock = mClientMockCreateRole{mock: m}
 	m.CreateRoleMock.callArgs = []*ClientMockCreateRoleParams{}
 
+	m.CreateSSHKeyMock = mClientMockCreateSSHKey{mock: m}
+	m.CreateSSHKeyMock.callArgs = []*ClientMockCreateSSHKeyParams{}
+
 	m.CreateServiceMock = mClientMockCreateService{mock: m}
 	m.CreateServiceMock.callArgs = []*ClientMockCreateServiceParams{}
 
@@ -603,6 +648,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeleteRoleMock = mClientMockDeleteRole{mock: m}
 	m.DeleteRoleMock.callArgs = []*ClientMockDeleteRoleParams{}
+
+	m.DeleteSSHKeyMock = mClientMockDeleteSSHKey{mock: m}
+	m.DeleteSSHKeyMock.callArgs = []*ClientMockDeleteSSHKeyParams{}
 
 	m.DeleteScheduledScalingMock = mClientMockDeleteScheduledScaling{mock: m}
 	m.DeleteScheduledScalingMock.callArgs = []*ClientMockDeleteScheduledScalingParams{}
@@ -667,6 +715,12 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetRoleMock = mClientMockGetRole{mock: m}
 	m.GetRoleMock.callArgs = []*ClientMockGetRoleParams{}
 
+	m.GetSSHKeyMock = mClientMockGetSSHKey{mock: m}
+	m.GetSSHKeyMock.callArgs = []*ClientMockGetSSHKeyParams{}
+
+	m.GetSSHKeyPathMock = mClientMockGetSSHKeyPath{mock: m}
+	m.GetSSHKeyPathMock.callArgs = []*ClientMockGetSSHKeyPathParams{}
+
 	m.GetScheduledScalingMock = mClientMockGetScheduledScaling{mock: m}
 	m.GetScheduledScalingMock.callArgs = []*ClientMockGetScheduledScalingParams{}
 
@@ -696,6 +750,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.ListRolesMock = mClientMockListRoles{mock: m}
 	m.ListRolesMock.callArgs = []*ClientMockListRolesParams{}
+
+	m.ListSSHKeysMock = mClientMockListSSHKeys{mock: m}
+	m.ListSSHKeysMock.callArgs = []*ClientMockListSSHKeysParams{}
 
 	m.ListServicesMock = mClientMockListServices{mock: m}
 	m.ListServicesMock.callArgs = []*ClientMockListServicesParams{}
@@ -756,6 +813,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UploadUDFArchiveMock = mClientMockUploadUDFArchive{mock: m}
 	m.UploadUDFArchiveMock.callArgs = []*ClientMockUploadUDFArchiveParams{}
+
+	m.ValidateSSHKeyMock = mClientMockValidateSSHKey{mock: m}
+	m.ValidateSSHKeyMock.callArgs = []*ClientMockValidateSSHKeyParams{}
 
 	m.WaitForClickPipeCdcScalingMock = mClientMockWaitForClickPipeCdcScaling{mock: m}
 	m.WaitForClickPipeCdcScalingMock.callArgs = []*ClientMockWaitForClickPipeCdcScalingParams{}
@@ -3773,6 +3833,380 @@ func (m *ClientMock) MinimockCreateRoleInspect() {
 	if !m.CreateRoleMock.invocationsDone() && afterCreateRoleCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateRole at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateRoleMock.expectedInvocations), m.CreateRoleMock.expectedInvocationsOrigin, afterCreateRoleCounter)
+	}
+}
+
+type mClientMockCreateSSHKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateSSHKeyExpectation
+	expectations       []*ClientMockCreateSSHKeyExpectation
+
+	callArgs []*ClientMockCreateSSHKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateSSHKeyExpectation specifies expectation struct of the Client.CreateSSHKey
+type ClientMockCreateSSHKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateSSHKeyParams
+	paramPtrs          *ClientMockCreateSSHKeyParamPtrs
+	expectationOrigins ClientMockCreateSSHKeyExpectationOrigins
+	results            *ClientMockCreateSSHKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateSSHKeyParams contains parameters of the Client.CreateSSHKey
+type ClientMockCreateSSHKeyParams struct {
+	ctx       context.Context
+	serviceId string
+	request   CreateSSHKey
+}
+
+// ClientMockCreateSSHKeyParamPtrs contains pointers to parameters of the Client.CreateSSHKey
+type ClientMockCreateSSHKeyParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	request   *CreateSSHKey
+}
+
+// ClientMockCreateSSHKeyResults contains results of the Client.CreateSSHKey
+type ClientMockCreateSSHKeyResults struct {
+	sp1 *SSHKey
+	err error
+}
+
+// ClientMockCreateSSHKeyOrigins contains origins of expectations of the Client.CreateSSHKey
+type ClientMockCreateSSHKeyExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originRequest   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateSSHKey *mClientMockCreateSSHKey) Optional() *mClientMockCreateSSHKey {
+	mmCreateSSHKey.optional = true
+	return mmCreateSSHKey
+}
+
+// Expect sets up expected params for Client.CreateSSHKey
+func (mmCreateSSHKey *mClientMockCreateSSHKey) Expect(ctx context.Context, serviceId string, request CreateSSHKey) *mClientMockCreateSSHKey {
+	if mmCreateSSHKey.mock.funcCreateSSHKey != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by Set")
+	}
+
+	if mmCreateSSHKey.defaultExpectation == nil {
+		mmCreateSSHKey.defaultExpectation = &ClientMockCreateSSHKeyExpectation{}
+	}
+
+	if mmCreateSSHKey.defaultExpectation.paramPtrs != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by ExpectParams functions")
+	}
+
+	mmCreateSSHKey.defaultExpectation.params = &ClientMockCreateSSHKeyParams{ctx, serviceId, request}
+	mmCreateSSHKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateSSHKey.expectations {
+		if minimock.Equal(e.params, mmCreateSSHKey.defaultExpectation.params) {
+			mmCreateSSHKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateSSHKey.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateSSHKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateSSHKey
+func (mmCreateSSHKey *mClientMockCreateSSHKey) ExpectCtxParam1(ctx context.Context) *mClientMockCreateSSHKey {
+	if mmCreateSSHKey.mock.funcCreateSSHKey != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by Set")
+	}
+
+	if mmCreateSSHKey.defaultExpectation == nil {
+		mmCreateSSHKey.defaultExpectation = &ClientMockCreateSSHKeyExpectation{}
+	}
+
+	if mmCreateSSHKey.defaultExpectation.params != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by Expect")
+	}
+
+	if mmCreateSSHKey.defaultExpectation.paramPtrs == nil {
+		mmCreateSSHKey.defaultExpectation.paramPtrs = &ClientMockCreateSSHKeyParamPtrs{}
+	}
+	mmCreateSSHKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateSSHKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateSSHKey
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.CreateSSHKey
+func (mmCreateSSHKey *mClientMockCreateSSHKey) ExpectServiceIdParam2(serviceId string) *mClientMockCreateSSHKey {
+	if mmCreateSSHKey.mock.funcCreateSSHKey != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by Set")
+	}
+
+	if mmCreateSSHKey.defaultExpectation == nil {
+		mmCreateSSHKey.defaultExpectation = &ClientMockCreateSSHKeyExpectation{}
+	}
+
+	if mmCreateSSHKey.defaultExpectation.params != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by Expect")
+	}
+
+	if mmCreateSSHKey.defaultExpectation.paramPtrs == nil {
+		mmCreateSSHKey.defaultExpectation.paramPtrs = &ClientMockCreateSSHKeyParamPtrs{}
+	}
+	mmCreateSSHKey.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmCreateSSHKey.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmCreateSSHKey
+}
+
+// ExpectRequestParam3 sets up expected param request for Client.CreateSSHKey
+func (mmCreateSSHKey *mClientMockCreateSSHKey) ExpectRequestParam3(request CreateSSHKey) *mClientMockCreateSSHKey {
+	if mmCreateSSHKey.mock.funcCreateSSHKey != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by Set")
+	}
+
+	if mmCreateSSHKey.defaultExpectation == nil {
+		mmCreateSSHKey.defaultExpectation = &ClientMockCreateSSHKeyExpectation{}
+	}
+
+	if mmCreateSSHKey.defaultExpectation.params != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by Expect")
+	}
+
+	if mmCreateSSHKey.defaultExpectation.paramPtrs == nil {
+		mmCreateSSHKey.defaultExpectation.paramPtrs = &ClientMockCreateSSHKeyParamPtrs{}
+	}
+	mmCreateSSHKey.defaultExpectation.paramPtrs.request = &request
+	mmCreateSSHKey.defaultExpectation.expectationOrigins.originRequest = minimock.CallerInfo(1)
+
+	return mmCreateSSHKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateSSHKey
+func (mmCreateSSHKey *mClientMockCreateSSHKey) Inspect(f func(ctx context.Context, serviceId string, request CreateSSHKey)) *mClientMockCreateSSHKey {
+	if mmCreateSSHKey.mock.inspectFuncCreateSSHKey != nil {
+		mmCreateSSHKey.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateSSHKey")
+	}
+
+	mmCreateSSHKey.mock.inspectFuncCreateSSHKey = f
+
+	return mmCreateSSHKey
+}
+
+// Return sets up results that will be returned by Client.CreateSSHKey
+func (mmCreateSSHKey *mClientMockCreateSSHKey) Return(sp1 *SSHKey, err error) *ClientMock {
+	if mmCreateSSHKey.mock.funcCreateSSHKey != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by Set")
+	}
+
+	if mmCreateSSHKey.defaultExpectation == nil {
+		mmCreateSSHKey.defaultExpectation = &ClientMockCreateSSHKeyExpectation{mock: mmCreateSSHKey.mock}
+	}
+	mmCreateSSHKey.defaultExpectation.results = &ClientMockCreateSSHKeyResults{sp1, err}
+	mmCreateSSHKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateSSHKey.mock
+}
+
+// Set uses given function f to mock the Client.CreateSSHKey method
+func (mmCreateSSHKey *mClientMockCreateSSHKey) Set(f func(ctx context.Context, serviceId string, request CreateSSHKey) (sp1 *SSHKey, err error)) *ClientMock {
+	if mmCreateSSHKey.defaultExpectation != nil {
+		mmCreateSSHKey.mock.t.Fatalf("Default expectation is already set for the Client.CreateSSHKey method")
+	}
+
+	if len(mmCreateSSHKey.expectations) > 0 {
+		mmCreateSSHKey.mock.t.Fatalf("Some expectations are already set for the Client.CreateSSHKey method")
+	}
+
+	mmCreateSSHKey.mock.funcCreateSSHKey = f
+	mmCreateSSHKey.mock.funcCreateSSHKeyOrigin = minimock.CallerInfo(1)
+	return mmCreateSSHKey.mock
+}
+
+// When sets expectation for the Client.CreateSSHKey which will trigger the result defined by the following
+// Then helper
+func (mmCreateSSHKey *mClientMockCreateSSHKey) When(ctx context.Context, serviceId string, request CreateSSHKey) *ClientMockCreateSSHKeyExpectation {
+	if mmCreateSSHKey.mock.funcCreateSSHKey != nil {
+		mmCreateSSHKey.mock.t.Fatalf("ClientMock.CreateSSHKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateSSHKeyExpectation{
+		mock:               mmCreateSSHKey.mock,
+		params:             &ClientMockCreateSSHKeyParams{ctx, serviceId, request},
+		expectationOrigins: ClientMockCreateSSHKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateSSHKey.expectations = append(mmCreateSSHKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateSSHKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateSSHKeyExpectation) Then(sp1 *SSHKey, err error) *ClientMock {
+	e.results = &ClientMockCreateSSHKeyResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateSSHKey should be invoked
+func (mmCreateSSHKey *mClientMockCreateSSHKey) Times(n uint64) *mClientMockCreateSSHKey {
+	if n == 0 {
+		mmCreateSSHKey.mock.t.Fatalf("Times of ClientMock.CreateSSHKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateSSHKey.expectedInvocations, n)
+	mmCreateSSHKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateSSHKey
+}
+
+func (mmCreateSSHKey *mClientMockCreateSSHKey) invocationsDone() bool {
+	if len(mmCreateSSHKey.expectations) == 0 && mmCreateSSHKey.defaultExpectation == nil && mmCreateSSHKey.mock.funcCreateSSHKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateSSHKey.mock.afterCreateSSHKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateSSHKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateSSHKey implements Client
+func (mmCreateSSHKey *ClientMock) CreateSSHKey(ctx context.Context, serviceId string, request CreateSSHKey) (sp1 *SSHKey, err error) {
+	mm_atomic.AddUint64(&mmCreateSSHKey.beforeCreateSSHKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateSSHKey.afterCreateSSHKeyCounter, 1)
+
+	mmCreateSSHKey.t.Helper()
+
+	if mmCreateSSHKey.inspectFuncCreateSSHKey != nil {
+		mmCreateSSHKey.inspectFuncCreateSSHKey(ctx, serviceId, request)
+	}
+
+	mm_params := ClientMockCreateSSHKeyParams{ctx, serviceId, request}
+
+	// Record call args
+	mmCreateSSHKey.CreateSSHKeyMock.mutex.Lock()
+	mmCreateSSHKey.CreateSSHKeyMock.callArgs = append(mmCreateSSHKey.CreateSSHKeyMock.callArgs, &mm_params)
+	mmCreateSSHKey.CreateSSHKeyMock.mutex.Unlock()
+
+	for _, e := range mmCreateSSHKey.CreateSSHKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmCreateSSHKey.CreateSSHKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateSSHKey.CreateSSHKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateSSHKey.CreateSSHKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateSSHKey.CreateSSHKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateSSHKeyParams{ctx, serviceId, request}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateSSHKey.t.Errorf("ClientMock.CreateSSHKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateSSHKey.CreateSSHKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmCreateSSHKey.t.Errorf("ClientMock.CreateSSHKey got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateSSHKey.CreateSSHKeyMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.request != nil && !minimock.Equal(*mm_want_ptrs.request, mm_got.request) {
+				mmCreateSSHKey.t.Errorf("ClientMock.CreateSSHKey got unexpected parameter request, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateSSHKey.CreateSSHKeyMock.defaultExpectation.expectationOrigins.originRequest, *mm_want_ptrs.request, mm_got.request, minimock.Diff(*mm_want_ptrs.request, mm_got.request))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateSSHKey.t.Errorf("ClientMock.CreateSSHKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateSSHKey.CreateSSHKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateSSHKey.CreateSSHKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateSSHKey.t.Fatal("No results are set for the ClientMock.CreateSSHKey")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmCreateSSHKey.funcCreateSSHKey != nil {
+		return mmCreateSSHKey.funcCreateSSHKey(ctx, serviceId, request)
+	}
+	mmCreateSSHKey.t.Fatalf("Unexpected call to ClientMock.CreateSSHKey. %v %v %v", ctx, serviceId, request)
+	return
+}
+
+// CreateSSHKeyAfterCounter returns a count of finished ClientMock.CreateSSHKey invocations
+func (mmCreateSSHKey *ClientMock) CreateSSHKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateSSHKey.afterCreateSSHKeyCounter)
+}
+
+// CreateSSHKeyBeforeCounter returns a count of ClientMock.CreateSSHKey invocations
+func (mmCreateSSHKey *ClientMock) CreateSSHKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateSSHKey.beforeCreateSSHKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateSSHKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateSSHKey *mClientMockCreateSSHKey) Calls() []*ClientMockCreateSSHKeyParams {
+	mmCreateSSHKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateSSHKeyParams, len(mmCreateSSHKey.callArgs))
+	copy(argCopy, mmCreateSSHKey.callArgs)
+
+	mmCreateSSHKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateSSHKeyDone returns true if the count of the CreateSSHKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateSSHKeyDone() bool {
+	if m.CreateSSHKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateSSHKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateSSHKeyMock.invocationsDone()
+}
+
+// MinimockCreateSSHKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateSSHKeyInspect() {
+	for _, e := range m.CreateSSHKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateSSHKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateSSHKeyCounter := mm_atomic.LoadUint64(&m.afterCreateSSHKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateSSHKeyMock.defaultExpectation != nil && afterCreateSSHKeyCounter < 1 {
+		if m.CreateSSHKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateSSHKey at\n%s", m.CreateSSHKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateSSHKey at\n%s with params: %#v", m.CreateSSHKeyMock.defaultExpectation.expectationOrigins.origin, *m.CreateSSHKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateSSHKey != nil && afterCreateSSHKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateSSHKey at\n%s", m.funcCreateSSHKeyOrigin)
+	}
+
+	if !m.CreateSSHKeyMock.invocationsDone() && afterCreateSSHKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateSSHKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateSSHKeyMock.expectedInvocations), m.CreateSSHKeyMock.expectedInvocationsOrigin, afterCreateSSHKeyCounter)
 	}
 }
 
@@ -6918,6 +7352,379 @@ func (m *ClientMock) MinimockDeleteRoleInspect() {
 	if !m.DeleteRoleMock.invocationsDone() && afterDeleteRoleCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteRole at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteRoleMock.expectedInvocations), m.DeleteRoleMock.expectedInvocationsOrigin, afterDeleteRoleCounter)
+	}
+}
+
+type mClientMockDeleteSSHKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteSSHKeyExpectation
+	expectations       []*ClientMockDeleteSSHKeyExpectation
+
+	callArgs []*ClientMockDeleteSSHKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteSSHKeyExpectation specifies expectation struct of the Client.DeleteSSHKey
+type ClientMockDeleteSSHKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteSSHKeyParams
+	paramPtrs          *ClientMockDeleteSSHKeyParamPtrs
+	expectationOrigins ClientMockDeleteSSHKeyExpectationOrigins
+	results            *ClientMockDeleteSSHKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteSSHKeyParams contains parameters of the Client.DeleteSSHKey
+type ClientMockDeleteSSHKeyParams struct {
+	ctx       context.Context
+	serviceId string
+	sshKeyId  string
+}
+
+// ClientMockDeleteSSHKeyParamPtrs contains pointers to parameters of the Client.DeleteSSHKey
+type ClientMockDeleteSSHKeyParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	sshKeyId  *string
+}
+
+// ClientMockDeleteSSHKeyResults contains results of the Client.DeleteSSHKey
+type ClientMockDeleteSSHKeyResults struct {
+	err error
+}
+
+// ClientMockDeleteSSHKeyOrigins contains origins of expectations of the Client.DeleteSSHKey
+type ClientMockDeleteSSHKeyExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originSshKeyId  string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) Optional() *mClientMockDeleteSSHKey {
+	mmDeleteSSHKey.optional = true
+	return mmDeleteSSHKey
+}
+
+// Expect sets up expected params for Client.DeleteSSHKey
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) Expect(ctx context.Context, serviceId string, sshKeyId string) *mClientMockDeleteSSHKey {
+	if mmDeleteSSHKey.mock.funcDeleteSSHKey != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by Set")
+	}
+
+	if mmDeleteSSHKey.defaultExpectation == nil {
+		mmDeleteSSHKey.defaultExpectation = &ClientMockDeleteSSHKeyExpectation{}
+	}
+
+	if mmDeleteSSHKey.defaultExpectation.paramPtrs != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteSSHKey.defaultExpectation.params = &ClientMockDeleteSSHKeyParams{ctx, serviceId, sshKeyId}
+	mmDeleteSSHKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteSSHKey.expectations {
+		if minimock.Equal(e.params, mmDeleteSSHKey.defaultExpectation.params) {
+			mmDeleteSSHKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteSSHKey.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteSSHKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteSSHKey
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteSSHKey {
+	if mmDeleteSSHKey.mock.funcDeleteSSHKey != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by Set")
+	}
+
+	if mmDeleteSSHKey.defaultExpectation == nil {
+		mmDeleteSSHKey.defaultExpectation = &ClientMockDeleteSSHKeyExpectation{}
+	}
+
+	if mmDeleteSSHKey.defaultExpectation.params != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by Expect")
+	}
+
+	if mmDeleteSSHKey.defaultExpectation.paramPtrs == nil {
+		mmDeleteSSHKey.defaultExpectation.paramPtrs = &ClientMockDeleteSSHKeyParamPtrs{}
+	}
+	mmDeleteSSHKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteSSHKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteSSHKey
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.DeleteSSHKey
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) ExpectServiceIdParam2(serviceId string) *mClientMockDeleteSSHKey {
+	if mmDeleteSSHKey.mock.funcDeleteSSHKey != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by Set")
+	}
+
+	if mmDeleteSSHKey.defaultExpectation == nil {
+		mmDeleteSSHKey.defaultExpectation = &ClientMockDeleteSSHKeyExpectation{}
+	}
+
+	if mmDeleteSSHKey.defaultExpectation.params != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by Expect")
+	}
+
+	if mmDeleteSSHKey.defaultExpectation.paramPtrs == nil {
+		mmDeleteSSHKey.defaultExpectation.paramPtrs = &ClientMockDeleteSSHKeyParamPtrs{}
+	}
+	mmDeleteSSHKey.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmDeleteSSHKey.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmDeleteSSHKey
+}
+
+// ExpectSshKeyIdParam3 sets up expected param sshKeyId for Client.DeleteSSHKey
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) ExpectSshKeyIdParam3(sshKeyId string) *mClientMockDeleteSSHKey {
+	if mmDeleteSSHKey.mock.funcDeleteSSHKey != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by Set")
+	}
+
+	if mmDeleteSSHKey.defaultExpectation == nil {
+		mmDeleteSSHKey.defaultExpectation = &ClientMockDeleteSSHKeyExpectation{}
+	}
+
+	if mmDeleteSSHKey.defaultExpectation.params != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by Expect")
+	}
+
+	if mmDeleteSSHKey.defaultExpectation.paramPtrs == nil {
+		mmDeleteSSHKey.defaultExpectation.paramPtrs = &ClientMockDeleteSSHKeyParamPtrs{}
+	}
+	mmDeleteSSHKey.defaultExpectation.paramPtrs.sshKeyId = &sshKeyId
+	mmDeleteSSHKey.defaultExpectation.expectationOrigins.originSshKeyId = minimock.CallerInfo(1)
+
+	return mmDeleteSSHKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteSSHKey
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) Inspect(f func(ctx context.Context, serviceId string, sshKeyId string)) *mClientMockDeleteSSHKey {
+	if mmDeleteSSHKey.mock.inspectFuncDeleteSSHKey != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteSSHKey")
+	}
+
+	mmDeleteSSHKey.mock.inspectFuncDeleteSSHKey = f
+
+	return mmDeleteSSHKey
+}
+
+// Return sets up results that will be returned by Client.DeleteSSHKey
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) Return(err error) *ClientMock {
+	if mmDeleteSSHKey.mock.funcDeleteSSHKey != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by Set")
+	}
+
+	if mmDeleteSSHKey.defaultExpectation == nil {
+		mmDeleteSSHKey.defaultExpectation = &ClientMockDeleteSSHKeyExpectation{mock: mmDeleteSSHKey.mock}
+	}
+	mmDeleteSSHKey.defaultExpectation.results = &ClientMockDeleteSSHKeyResults{err}
+	mmDeleteSSHKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteSSHKey.mock
+}
+
+// Set uses given function f to mock the Client.DeleteSSHKey method
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) Set(f func(ctx context.Context, serviceId string, sshKeyId string) (err error)) *ClientMock {
+	if mmDeleteSSHKey.defaultExpectation != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("Default expectation is already set for the Client.DeleteSSHKey method")
+	}
+
+	if len(mmDeleteSSHKey.expectations) > 0 {
+		mmDeleteSSHKey.mock.t.Fatalf("Some expectations are already set for the Client.DeleteSSHKey method")
+	}
+
+	mmDeleteSSHKey.mock.funcDeleteSSHKey = f
+	mmDeleteSSHKey.mock.funcDeleteSSHKeyOrigin = minimock.CallerInfo(1)
+	return mmDeleteSSHKey.mock
+}
+
+// When sets expectation for the Client.DeleteSSHKey which will trigger the result defined by the following
+// Then helper
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) When(ctx context.Context, serviceId string, sshKeyId string) *ClientMockDeleteSSHKeyExpectation {
+	if mmDeleteSSHKey.mock.funcDeleteSSHKey != nil {
+		mmDeleteSSHKey.mock.t.Fatalf("ClientMock.DeleteSSHKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteSSHKeyExpectation{
+		mock:               mmDeleteSSHKey.mock,
+		params:             &ClientMockDeleteSSHKeyParams{ctx, serviceId, sshKeyId},
+		expectationOrigins: ClientMockDeleteSSHKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteSSHKey.expectations = append(mmDeleteSSHKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteSSHKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteSSHKeyExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteSSHKeyResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteSSHKey should be invoked
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) Times(n uint64) *mClientMockDeleteSSHKey {
+	if n == 0 {
+		mmDeleteSSHKey.mock.t.Fatalf("Times of ClientMock.DeleteSSHKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteSSHKey.expectedInvocations, n)
+	mmDeleteSSHKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteSSHKey
+}
+
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) invocationsDone() bool {
+	if len(mmDeleteSSHKey.expectations) == 0 && mmDeleteSSHKey.defaultExpectation == nil && mmDeleteSSHKey.mock.funcDeleteSSHKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteSSHKey.mock.afterDeleteSSHKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteSSHKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteSSHKey implements Client
+func (mmDeleteSSHKey *ClientMock) DeleteSSHKey(ctx context.Context, serviceId string, sshKeyId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteSSHKey.beforeDeleteSSHKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteSSHKey.afterDeleteSSHKeyCounter, 1)
+
+	mmDeleteSSHKey.t.Helper()
+
+	if mmDeleteSSHKey.inspectFuncDeleteSSHKey != nil {
+		mmDeleteSSHKey.inspectFuncDeleteSSHKey(ctx, serviceId, sshKeyId)
+	}
+
+	mm_params := ClientMockDeleteSSHKeyParams{ctx, serviceId, sshKeyId}
+
+	// Record call args
+	mmDeleteSSHKey.DeleteSSHKeyMock.mutex.Lock()
+	mmDeleteSSHKey.DeleteSSHKeyMock.callArgs = append(mmDeleteSSHKey.DeleteSSHKeyMock.callArgs, &mm_params)
+	mmDeleteSSHKey.DeleteSSHKeyMock.mutex.Unlock()
+
+	for _, e := range mmDeleteSSHKey.DeleteSSHKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteSSHKey.DeleteSSHKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteSSHKey.DeleteSSHKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteSSHKey.DeleteSSHKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteSSHKey.DeleteSSHKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteSSHKeyParams{ctx, serviceId, sshKeyId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteSSHKey.t.Errorf("ClientMock.DeleteSSHKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteSSHKey.DeleteSSHKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmDeleteSSHKey.t.Errorf("ClientMock.DeleteSSHKey got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteSSHKey.DeleteSSHKeyMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.sshKeyId != nil && !minimock.Equal(*mm_want_ptrs.sshKeyId, mm_got.sshKeyId) {
+				mmDeleteSSHKey.t.Errorf("ClientMock.DeleteSSHKey got unexpected parameter sshKeyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteSSHKey.DeleteSSHKeyMock.defaultExpectation.expectationOrigins.originSshKeyId, *mm_want_ptrs.sshKeyId, mm_got.sshKeyId, minimock.Diff(*mm_want_ptrs.sshKeyId, mm_got.sshKeyId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteSSHKey.t.Errorf("ClientMock.DeleteSSHKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteSSHKey.DeleteSSHKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteSSHKey.DeleteSSHKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteSSHKey.t.Fatal("No results are set for the ClientMock.DeleteSSHKey")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteSSHKey.funcDeleteSSHKey != nil {
+		return mmDeleteSSHKey.funcDeleteSSHKey(ctx, serviceId, sshKeyId)
+	}
+	mmDeleteSSHKey.t.Fatalf("Unexpected call to ClientMock.DeleteSSHKey. %v %v %v", ctx, serviceId, sshKeyId)
+	return
+}
+
+// DeleteSSHKeyAfterCounter returns a count of finished ClientMock.DeleteSSHKey invocations
+func (mmDeleteSSHKey *ClientMock) DeleteSSHKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteSSHKey.afterDeleteSSHKeyCounter)
+}
+
+// DeleteSSHKeyBeforeCounter returns a count of ClientMock.DeleteSSHKey invocations
+func (mmDeleteSSHKey *ClientMock) DeleteSSHKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteSSHKey.beforeDeleteSSHKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteSSHKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteSSHKey *mClientMockDeleteSSHKey) Calls() []*ClientMockDeleteSSHKeyParams {
+	mmDeleteSSHKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteSSHKeyParams, len(mmDeleteSSHKey.callArgs))
+	copy(argCopy, mmDeleteSSHKey.callArgs)
+
+	mmDeleteSSHKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteSSHKeyDone returns true if the count of the DeleteSSHKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteSSHKeyDone() bool {
+	if m.DeleteSSHKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteSSHKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteSSHKeyMock.invocationsDone()
+}
+
+// MinimockDeleteSSHKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteSSHKeyInspect() {
+	for _, e := range m.DeleteSSHKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteSSHKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteSSHKeyCounter := mm_atomic.LoadUint64(&m.afterDeleteSSHKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteSSHKeyMock.defaultExpectation != nil && afterDeleteSSHKeyCounter < 1 {
+		if m.DeleteSSHKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteSSHKey at\n%s", m.DeleteSSHKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteSSHKey at\n%s with params: %#v", m.DeleteSSHKeyMock.defaultExpectation.expectationOrigins.origin, *m.DeleteSSHKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteSSHKey != nil && afterDeleteSSHKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteSSHKey at\n%s", m.funcDeleteSSHKeyOrigin)
+	}
+
+	if !m.DeleteSSHKeyMock.invocationsDone() && afterDeleteSSHKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteSSHKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteSSHKeyMock.expectedInvocations), m.DeleteSSHKeyMock.expectedInvocationsOrigin, afterDeleteSSHKeyCounter)
 	}
 }
 
@@ -14212,6 +15019,722 @@ func (m *ClientMock) MinimockGetRoleInspect() {
 	}
 }
 
+type mClientMockGetSSHKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetSSHKeyExpectation
+	expectations       []*ClientMockGetSSHKeyExpectation
+
+	callArgs []*ClientMockGetSSHKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetSSHKeyExpectation specifies expectation struct of the Client.GetSSHKey
+type ClientMockGetSSHKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetSSHKeyParams
+	paramPtrs          *ClientMockGetSSHKeyParamPtrs
+	expectationOrigins ClientMockGetSSHKeyExpectationOrigins
+	results            *ClientMockGetSSHKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetSSHKeyParams contains parameters of the Client.GetSSHKey
+type ClientMockGetSSHKeyParams struct {
+	ctx       context.Context
+	serviceId string
+	sshKeyId  string
+}
+
+// ClientMockGetSSHKeyParamPtrs contains pointers to parameters of the Client.GetSSHKey
+type ClientMockGetSSHKeyParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	sshKeyId  *string
+}
+
+// ClientMockGetSSHKeyResults contains results of the Client.GetSSHKey
+type ClientMockGetSSHKeyResults struct {
+	sp1 *SSHKey
+	err error
+}
+
+// ClientMockGetSSHKeyOrigins contains origins of expectations of the Client.GetSSHKey
+type ClientMockGetSSHKeyExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originSshKeyId  string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetSSHKey *mClientMockGetSSHKey) Optional() *mClientMockGetSSHKey {
+	mmGetSSHKey.optional = true
+	return mmGetSSHKey
+}
+
+// Expect sets up expected params for Client.GetSSHKey
+func (mmGetSSHKey *mClientMockGetSSHKey) Expect(ctx context.Context, serviceId string, sshKeyId string) *mClientMockGetSSHKey {
+	if mmGetSSHKey.mock.funcGetSSHKey != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by Set")
+	}
+
+	if mmGetSSHKey.defaultExpectation == nil {
+		mmGetSSHKey.defaultExpectation = &ClientMockGetSSHKeyExpectation{}
+	}
+
+	if mmGetSSHKey.defaultExpectation.paramPtrs != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by ExpectParams functions")
+	}
+
+	mmGetSSHKey.defaultExpectation.params = &ClientMockGetSSHKeyParams{ctx, serviceId, sshKeyId}
+	mmGetSSHKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetSSHKey.expectations {
+		if minimock.Equal(e.params, mmGetSSHKey.defaultExpectation.params) {
+			mmGetSSHKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetSSHKey.defaultExpectation.params)
+		}
+	}
+
+	return mmGetSSHKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetSSHKey
+func (mmGetSSHKey *mClientMockGetSSHKey) ExpectCtxParam1(ctx context.Context) *mClientMockGetSSHKey {
+	if mmGetSSHKey.mock.funcGetSSHKey != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by Set")
+	}
+
+	if mmGetSSHKey.defaultExpectation == nil {
+		mmGetSSHKey.defaultExpectation = &ClientMockGetSSHKeyExpectation{}
+	}
+
+	if mmGetSSHKey.defaultExpectation.params != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by Expect")
+	}
+
+	if mmGetSSHKey.defaultExpectation.paramPtrs == nil {
+		mmGetSSHKey.defaultExpectation.paramPtrs = &ClientMockGetSSHKeyParamPtrs{}
+	}
+	mmGetSSHKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetSSHKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetSSHKey
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetSSHKey
+func (mmGetSSHKey *mClientMockGetSSHKey) ExpectServiceIdParam2(serviceId string) *mClientMockGetSSHKey {
+	if mmGetSSHKey.mock.funcGetSSHKey != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by Set")
+	}
+
+	if mmGetSSHKey.defaultExpectation == nil {
+		mmGetSSHKey.defaultExpectation = &ClientMockGetSSHKeyExpectation{}
+	}
+
+	if mmGetSSHKey.defaultExpectation.params != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by Expect")
+	}
+
+	if mmGetSSHKey.defaultExpectation.paramPtrs == nil {
+		mmGetSSHKey.defaultExpectation.paramPtrs = &ClientMockGetSSHKeyParamPtrs{}
+	}
+	mmGetSSHKey.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetSSHKey.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetSSHKey
+}
+
+// ExpectSshKeyIdParam3 sets up expected param sshKeyId for Client.GetSSHKey
+func (mmGetSSHKey *mClientMockGetSSHKey) ExpectSshKeyIdParam3(sshKeyId string) *mClientMockGetSSHKey {
+	if mmGetSSHKey.mock.funcGetSSHKey != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by Set")
+	}
+
+	if mmGetSSHKey.defaultExpectation == nil {
+		mmGetSSHKey.defaultExpectation = &ClientMockGetSSHKeyExpectation{}
+	}
+
+	if mmGetSSHKey.defaultExpectation.params != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by Expect")
+	}
+
+	if mmGetSSHKey.defaultExpectation.paramPtrs == nil {
+		mmGetSSHKey.defaultExpectation.paramPtrs = &ClientMockGetSSHKeyParamPtrs{}
+	}
+	mmGetSSHKey.defaultExpectation.paramPtrs.sshKeyId = &sshKeyId
+	mmGetSSHKey.defaultExpectation.expectationOrigins.originSshKeyId = minimock.CallerInfo(1)
+
+	return mmGetSSHKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetSSHKey
+func (mmGetSSHKey *mClientMockGetSSHKey) Inspect(f func(ctx context.Context, serviceId string, sshKeyId string)) *mClientMockGetSSHKey {
+	if mmGetSSHKey.mock.inspectFuncGetSSHKey != nil {
+		mmGetSSHKey.mock.t.Fatalf("Inspect function is already set for ClientMock.GetSSHKey")
+	}
+
+	mmGetSSHKey.mock.inspectFuncGetSSHKey = f
+
+	return mmGetSSHKey
+}
+
+// Return sets up results that will be returned by Client.GetSSHKey
+func (mmGetSSHKey *mClientMockGetSSHKey) Return(sp1 *SSHKey, err error) *ClientMock {
+	if mmGetSSHKey.mock.funcGetSSHKey != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by Set")
+	}
+
+	if mmGetSSHKey.defaultExpectation == nil {
+		mmGetSSHKey.defaultExpectation = &ClientMockGetSSHKeyExpectation{mock: mmGetSSHKey.mock}
+	}
+	mmGetSSHKey.defaultExpectation.results = &ClientMockGetSSHKeyResults{sp1, err}
+	mmGetSSHKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetSSHKey.mock
+}
+
+// Set uses given function f to mock the Client.GetSSHKey method
+func (mmGetSSHKey *mClientMockGetSSHKey) Set(f func(ctx context.Context, serviceId string, sshKeyId string) (sp1 *SSHKey, err error)) *ClientMock {
+	if mmGetSSHKey.defaultExpectation != nil {
+		mmGetSSHKey.mock.t.Fatalf("Default expectation is already set for the Client.GetSSHKey method")
+	}
+
+	if len(mmGetSSHKey.expectations) > 0 {
+		mmGetSSHKey.mock.t.Fatalf("Some expectations are already set for the Client.GetSSHKey method")
+	}
+
+	mmGetSSHKey.mock.funcGetSSHKey = f
+	mmGetSSHKey.mock.funcGetSSHKeyOrigin = minimock.CallerInfo(1)
+	return mmGetSSHKey.mock
+}
+
+// When sets expectation for the Client.GetSSHKey which will trigger the result defined by the following
+// Then helper
+func (mmGetSSHKey *mClientMockGetSSHKey) When(ctx context.Context, serviceId string, sshKeyId string) *ClientMockGetSSHKeyExpectation {
+	if mmGetSSHKey.mock.funcGetSSHKey != nil {
+		mmGetSSHKey.mock.t.Fatalf("ClientMock.GetSSHKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetSSHKeyExpectation{
+		mock:               mmGetSSHKey.mock,
+		params:             &ClientMockGetSSHKeyParams{ctx, serviceId, sshKeyId},
+		expectationOrigins: ClientMockGetSSHKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetSSHKey.expectations = append(mmGetSSHKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetSSHKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetSSHKeyExpectation) Then(sp1 *SSHKey, err error) *ClientMock {
+	e.results = &ClientMockGetSSHKeyResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetSSHKey should be invoked
+func (mmGetSSHKey *mClientMockGetSSHKey) Times(n uint64) *mClientMockGetSSHKey {
+	if n == 0 {
+		mmGetSSHKey.mock.t.Fatalf("Times of ClientMock.GetSSHKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetSSHKey.expectedInvocations, n)
+	mmGetSSHKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetSSHKey
+}
+
+func (mmGetSSHKey *mClientMockGetSSHKey) invocationsDone() bool {
+	if len(mmGetSSHKey.expectations) == 0 && mmGetSSHKey.defaultExpectation == nil && mmGetSSHKey.mock.funcGetSSHKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetSSHKey.mock.afterGetSSHKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetSSHKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetSSHKey implements Client
+func (mmGetSSHKey *ClientMock) GetSSHKey(ctx context.Context, serviceId string, sshKeyId string) (sp1 *SSHKey, err error) {
+	mm_atomic.AddUint64(&mmGetSSHKey.beforeGetSSHKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetSSHKey.afterGetSSHKeyCounter, 1)
+
+	mmGetSSHKey.t.Helper()
+
+	if mmGetSSHKey.inspectFuncGetSSHKey != nil {
+		mmGetSSHKey.inspectFuncGetSSHKey(ctx, serviceId, sshKeyId)
+	}
+
+	mm_params := ClientMockGetSSHKeyParams{ctx, serviceId, sshKeyId}
+
+	// Record call args
+	mmGetSSHKey.GetSSHKeyMock.mutex.Lock()
+	mmGetSSHKey.GetSSHKeyMock.callArgs = append(mmGetSSHKey.GetSSHKeyMock.callArgs, &mm_params)
+	mmGetSSHKey.GetSSHKeyMock.mutex.Unlock()
+
+	for _, e := range mmGetSSHKey.GetSSHKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmGetSSHKey.GetSSHKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetSSHKey.GetSSHKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetSSHKey.GetSSHKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmGetSSHKey.GetSSHKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetSSHKeyParams{ctx, serviceId, sshKeyId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetSSHKey.t.Errorf("ClientMock.GetSSHKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSSHKey.GetSSHKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetSSHKey.t.Errorf("ClientMock.GetSSHKey got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSSHKey.GetSSHKeyMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.sshKeyId != nil && !minimock.Equal(*mm_want_ptrs.sshKeyId, mm_got.sshKeyId) {
+				mmGetSSHKey.t.Errorf("ClientMock.GetSSHKey got unexpected parameter sshKeyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSSHKey.GetSSHKeyMock.defaultExpectation.expectationOrigins.originSshKeyId, *mm_want_ptrs.sshKeyId, mm_got.sshKeyId, minimock.Diff(*mm_want_ptrs.sshKeyId, mm_got.sshKeyId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetSSHKey.t.Errorf("ClientMock.GetSSHKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetSSHKey.GetSSHKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetSSHKey.GetSSHKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetSSHKey.t.Fatal("No results are set for the ClientMock.GetSSHKey")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmGetSSHKey.funcGetSSHKey != nil {
+		return mmGetSSHKey.funcGetSSHKey(ctx, serviceId, sshKeyId)
+	}
+	mmGetSSHKey.t.Fatalf("Unexpected call to ClientMock.GetSSHKey. %v %v %v", ctx, serviceId, sshKeyId)
+	return
+}
+
+// GetSSHKeyAfterCounter returns a count of finished ClientMock.GetSSHKey invocations
+func (mmGetSSHKey *ClientMock) GetSSHKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetSSHKey.afterGetSSHKeyCounter)
+}
+
+// GetSSHKeyBeforeCounter returns a count of ClientMock.GetSSHKey invocations
+func (mmGetSSHKey *ClientMock) GetSSHKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetSSHKey.beforeGetSSHKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetSSHKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetSSHKey *mClientMockGetSSHKey) Calls() []*ClientMockGetSSHKeyParams {
+	mmGetSSHKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetSSHKeyParams, len(mmGetSSHKey.callArgs))
+	copy(argCopy, mmGetSSHKey.callArgs)
+
+	mmGetSSHKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetSSHKeyDone returns true if the count of the GetSSHKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetSSHKeyDone() bool {
+	if m.GetSSHKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetSSHKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetSSHKeyMock.invocationsDone()
+}
+
+// MinimockGetSSHKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetSSHKeyInspect() {
+	for _, e := range m.GetSSHKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetSSHKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetSSHKeyCounter := mm_atomic.LoadUint64(&m.afterGetSSHKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetSSHKeyMock.defaultExpectation != nil && afterGetSSHKeyCounter < 1 {
+		if m.GetSSHKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetSSHKey at\n%s", m.GetSSHKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetSSHKey at\n%s with params: %#v", m.GetSSHKeyMock.defaultExpectation.expectationOrigins.origin, *m.GetSSHKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetSSHKey != nil && afterGetSSHKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetSSHKey at\n%s", m.funcGetSSHKeyOrigin)
+	}
+
+	if !m.GetSSHKeyMock.invocationsDone() && afterGetSSHKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetSSHKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetSSHKeyMock.expectedInvocations), m.GetSSHKeyMock.expectedInvocationsOrigin, afterGetSSHKeyCounter)
+	}
+}
+
+type mClientMockGetSSHKeyPath struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetSSHKeyPathExpectation
+	expectations       []*ClientMockGetSSHKeyPathExpectation
+
+	callArgs []*ClientMockGetSSHKeyPathParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetSSHKeyPathExpectation specifies expectation struct of the Client.GetSSHKeyPath
+type ClientMockGetSSHKeyPathExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetSSHKeyPathParams
+	paramPtrs          *ClientMockGetSSHKeyPathParamPtrs
+	expectationOrigins ClientMockGetSSHKeyPathExpectationOrigins
+	results            *ClientMockGetSSHKeyPathResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetSSHKeyPathParams contains parameters of the Client.GetSSHKeyPath
+type ClientMockGetSSHKeyPathParams struct {
+	serviceId string
+	sshKeyId  string
+}
+
+// ClientMockGetSSHKeyPathParamPtrs contains pointers to parameters of the Client.GetSSHKeyPath
+type ClientMockGetSSHKeyPathParamPtrs struct {
+	serviceId *string
+	sshKeyId  *string
+}
+
+// ClientMockGetSSHKeyPathResults contains results of the Client.GetSSHKeyPath
+type ClientMockGetSSHKeyPathResults struct {
+	s1 string
+}
+
+// ClientMockGetSSHKeyPathOrigins contains origins of expectations of the Client.GetSSHKeyPath
+type ClientMockGetSSHKeyPathExpectationOrigins struct {
+	origin          string
+	originServiceId string
+	originSshKeyId  string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) Optional() *mClientMockGetSSHKeyPath {
+	mmGetSSHKeyPath.optional = true
+	return mmGetSSHKeyPath
+}
+
+// Expect sets up expected params for Client.GetSSHKeyPath
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) Expect(serviceId string, sshKeyId string) *mClientMockGetSSHKeyPath {
+	if mmGetSSHKeyPath.mock.funcGetSSHKeyPath != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("ClientMock.GetSSHKeyPath mock is already set by Set")
+	}
+
+	if mmGetSSHKeyPath.defaultExpectation == nil {
+		mmGetSSHKeyPath.defaultExpectation = &ClientMockGetSSHKeyPathExpectation{}
+	}
+
+	if mmGetSSHKeyPath.defaultExpectation.paramPtrs != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("ClientMock.GetSSHKeyPath mock is already set by ExpectParams functions")
+	}
+
+	mmGetSSHKeyPath.defaultExpectation.params = &ClientMockGetSSHKeyPathParams{serviceId, sshKeyId}
+	mmGetSSHKeyPath.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetSSHKeyPath.expectations {
+		if minimock.Equal(e.params, mmGetSSHKeyPath.defaultExpectation.params) {
+			mmGetSSHKeyPath.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetSSHKeyPath.defaultExpectation.params)
+		}
+	}
+
+	return mmGetSSHKeyPath
+}
+
+// ExpectServiceIdParam1 sets up expected param serviceId for Client.GetSSHKeyPath
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) ExpectServiceIdParam1(serviceId string) *mClientMockGetSSHKeyPath {
+	if mmGetSSHKeyPath.mock.funcGetSSHKeyPath != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("ClientMock.GetSSHKeyPath mock is already set by Set")
+	}
+
+	if mmGetSSHKeyPath.defaultExpectation == nil {
+		mmGetSSHKeyPath.defaultExpectation = &ClientMockGetSSHKeyPathExpectation{}
+	}
+
+	if mmGetSSHKeyPath.defaultExpectation.params != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("ClientMock.GetSSHKeyPath mock is already set by Expect")
+	}
+
+	if mmGetSSHKeyPath.defaultExpectation.paramPtrs == nil {
+		mmGetSSHKeyPath.defaultExpectation.paramPtrs = &ClientMockGetSSHKeyPathParamPtrs{}
+	}
+	mmGetSSHKeyPath.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetSSHKeyPath.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetSSHKeyPath
+}
+
+// ExpectSshKeyIdParam2 sets up expected param sshKeyId for Client.GetSSHKeyPath
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) ExpectSshKeyIdParam2(sshKeyId string) *mClientMockGetSSHKeyPath {
+	if mmGetSSHKeyPath.mock.funcGetSSHKeyPath != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("ClientMock.GetSSHKeyPath mock is already set by Set")
+	}
+
+	if mmGetSSHKeyPath.defaultExpectation == nil {
+		mmGetSSHKeyPath.defaultExpectation = &ClientMockGetSSHKeyPathExpectation{}
+	}
+
+	if mmGetSSHKeyPath.defaultExpectation.params != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("ClientMock.GetSSHKeyPath mock is already set by Expect")
+	}
+
+	if mmGetSSHKeyPath.defaultExpectation.paramPtrs == nil {
+		mmGetSSHKeyPath.defaultExpectation.paramPtrs = &ClientMockGetSSHKeyPathParamPtrs{}
+	}
+	mmGetSSHKeyPath.defaultExpectation.paramPtrs.sshKeyId = &sshKeyId
+	mmGetSSHKeyPath.defaultExpectation.expectationOrigins.originSshKeyId = minimock.CallerInfo(1)
+
+	return mmGetSSHKeyPath
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetSSHKeyPath
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) Inspect(f func(serviceId string, sshKeyId string)) *mClientMockGetSSHKeyPath {
+	if mmGetSSHKeyPath.mock.inspectFuncGetSSHKeyPath != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("Inspect function is already set for ClientMock.GetSSHKeyPath")
+	}
+
+	mmGetSSHKeyPath.mock.inspectFuncGetSSHKeyPath = f
+
+	return mmGetSSHKeyPath
+}
+
+// Return sets up results that will be returned by Client.GetSSHKeyPath
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) Return(s1 string) *ClientMock {
+	if mmGetSSHKeyPath.mock.funcGetSSHKeyPath != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("ClientMock.GetSSHKeyPath mock is already set by Set")
+	}
+
+	if mmGetSSHKeyPath.defaultExpectation == nil {
+		mmGetSSHKeyPath.defaultExpectation = &ClientMockGetSSHKeyPathExpectation{mock: mmGetSSHKeyPath.mock}
+	}
+	mmGetSSHKeyPath.defaultExpectation.results = &ClientMockGetSSHKeyPathResults{s1}
+	mmGetSSHKeyPath.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetSSHKeyPath.mock
+}
+
+// Set uses given function f to mock the Client.GetSSHKeyPath method
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) Set(f func(serviceId string, sshKeyId string) (s1 string)) *ClientMock {
+	if mmGetSSHKeyPath.defaultExpectation != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("Default expectation is already set for the Client.GetSSHKeyPath method")
+	}
+
+	if len(mmGetSSHKeyPath.expectations) > 0 {
+		mmGetSSHKeyPath.mock.t.Fatalf("Some expectations are already set for the Client.GetSSHKeyPath method")
+	}
+
+	mmGetSSHKeyPath.mock.funcGetSSHKeyPath = f
+	mmGetSSHKeyPath.mock.funcGetSSHKeyPathOrigin = minimock.CallerInfo(1)
+	return mmGetSSHKeyPath.mock
+}
+
+// When sets expectation for the Client.GetSSHKeyPath which will trigger the result defined by the following
+// Then helper
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) When(serviceId string, sshKeyId string) *ClientMockGetSSHKeyPathExpectation {
+	if mmGetSSHKeyPath.mock.funcGetSSHKeyPath != nil {
+		mmGetSSHKeyPath.mock.t.Fatalf("ClientMock.GetSSHKeyPath mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetSSHKeyPathExpectation{
+		mock:               mmGetSSHKeyPath.mock,
+		params:             &ClientMockGetSSHKeyPathParams{serviceId, sshKeyId},
+		expectationOrigins: ClientMockGetSSHKeyPathExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetSSHKeyPath.expectations = append(mmGetSSHKeyPath.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetSSHKeyPath return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetSSHKeyPathExpectation) Then(s1 string) *ClientMock {
+	e.results = &ClientMockGetSSHKeyPathResults{s1}
+	return e.mock
+}
+
+// Times sets number of times Client.GetSSHKeyPath should be invoked
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) Times(n uint64) *mClientMockGetSSHKeyPath {
+	if n == 0 {
+		mmGetSSHKeyPath.mock.t.Fatalf("Times of ClientMock.GetSSHKeyPath mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetSSHKeyPath.expectedInvocations, n)
+	mmGetSSHKeyPath.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetSSHKeyPath
+}
+
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) invocationsDone() bool {
+	if len(mmGetSSHKeyPath.expectations) == 0 && mmGetSSHKeyPath.defaultExpectation == nil && mmGetSSHKeyPath.mock.funcGetSSHKeyPath == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetSSHKeyPath.mock.afterGetSSHKeyPathCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetSSHKeyPath.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetSSHKeyPath implements Client
+func (mmGetSSHKeyPath *ClientMock) GetSSHKeyPath(serviceId string, sshKeyId string) (s1 string) {
+	mm_atomic.AddUint64(&mmGetSSHKeyPath.beforeGetSSHKeyPathCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetSSHKeyPath.afterGetSSHKeyPathCounter, 1)
+
+	mmGetSSHKeyPath.t.Helper()
+
+	if mmGetSSHKeyPath.inspectFuncGetSSHKeyPath != nil {
+		mmGetSSHKeyPath.inspectFuncGetSSHKeyPath(serviceId, sshKeyId)
+	}
+
+	mm_params := ClientMockGetSSHKeyPathParams{serviceId, sshKeyId}
+
+	// Record call args
+	mmGetSSHKeyPath.GetSSHKeyPathMock.mutex.Lock()
+	mmGetSSHKeyPath.GetSSHKeyPathMock.callArgs = append(mmGetSSHKeyPath.GetSSHKeyPathMock.callArgs, &mm_params)
+	mmGetSSHKeyPath.GetSSHKeyPathMock.mutex.Unlock()
+
+	for _, e := range mmGetSSHKeyPath.GetSSHKeyPathMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.s1
+		}
+	}
+
+	if mmGetSSHKeyPath.GetSSHKeyPathMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetSSHKeyPath.GetSSHKeyPathMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetSSHKeyPath.GetSSHKeyPathMock.defaultExpectation.params
+		mm_want_ptrs := mmGetSSHKeyPath.GetSSHKeyPathMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetSSHKeyPathParams{serviceId, sshKeyId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetSSHKeyPath.t.Errorf("ClientMock.GetSSHKeyPath got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSSHKeyPath.GetSSHKeyPathMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.sshKeyId != nil && !minimock.Equal(*mm_want_ptrs.sshKeyId, mm_got.sshKeyId) {
+				mmGetSSHKeyPath.t.Errorf("ClientMock.GetSSHKeyPath got unexpected parameter sshKeyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSSHKeyPath.GetSSHKeyPathMock.defaultExpectation.expectationOrigins.originSshKeyId, *mm_want_ptrs.sshKeyId, mm_got.sshKeyId, minimock.Diff(*mm_want_ptrs.sshKeyId, mm_got.sshKeyId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetSSHKeyPath.t.Errorf("ClientMock.GetSSHKeyPath got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetSSHKeyPath.GetSSHKeyPathMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetSSHKeyPath.GetSSHKeyPathMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetSSHKeyPath.t.Fatal("No results are set for the ClientMock.GetSSHKeyPath")
+		}
+		return (*mm_results).s1
+	}
+	if mmGetSSHKeyPath.funcGetSSHKeyPath != nil {
+		return mmGetSSHKeyPath.funcGetSSHKeyPath(serviceId, sshKeyId)
+	}
+	mmGetSSHKeyPath.t.Fatalf("Unexpected call to ClientMock.GetSSHKeyPath. %v %v", serviceId, sshKeyId)
+	return
+}
+
+// GetSSHKeyPathAfterCounter returns a count of finished ClientMock.GetSSHKeyPath invocations
+func (mmGetSSHKeyPath *ClientMock) GetSSHKeyPathAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetSSHKeyPath.afterGetSSHKeyPathCounter)
+}
+
+// GetSSHKeyPathBeforeCounter returns a count of ClientMock.GetSSHKeyPath invocations
+func (mmGetSSHKeyPath *ClientMock) GetSSHKeyPathBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetSSHKeyPath.beforeGetSSHKeyPathCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetSSHKeyPath.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetSSHKeyPath *mClientMockGetSSHKeyPath) Calls() []*ClientMockGetSSHKeyPathParams {
+	mmGetSSHKeyPath.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetSSHKeyPathParams, len(mmGetSSHKeyPath.callArgs))
+	copy(argCopy, mmGetSSHKeyPath.callArgs)
+
+	mmGetSSHKeyPath.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetSSHKeyPathDone returns true if the count of the GetSSHKeyPath invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetSSHKeyPathDone() bool {
+	if m.GetSSHKeyPathMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetSSHKeyPathMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetSSHKeyPathMock.invocationsDone()
+}
+
+// MinimockGetSSHKeyPathInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetSSHKeyPathInspect() {
+	for _, e := range m.GetSSHKeyPathMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetSSHKeyPath at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetSSHKeyPathCounter := mm_atomic.LoadUint64(&m.afterGetSSHKeyPathCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetSSHKeyPathMock.defaultExpectation != nil && afterGetSSHKeyPathCounter < 1 {
+		if m.GetSSHKeyPathMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetSSHKeyPath at\n%s", m.GetSSHKeyPathMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetSSHKeyPath at\n%s with params: %#v", m.GetSSHKeyPathMock.defaultExpectation.expectationOrigins.origin, *m.GetSSHKeyPathMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetSSHKeyPath != nil && afterGetSSHKeyPathCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetSSHKeyPath at\n%s", m.funcGetSSHKeyPathOrigin)
+	}
+
+	if !m.GetSSHKeyPathMock.invocationsDone() && afterGetSSHKeyPathCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetSSHKeyPath at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetSSHKeyPathMock.expectedInvocations), m.GetSSHKeyPathMock.expectedInvocationsOrigin, afterGetSSHKeyPathCounter)
+	}
+}
+
 type mClientMockGetScheduledScaling struct {
 	optional           bool
 	mock               *ClientMock
@@ -17577,6 +19100,349 @@ func (m *ClientMock) MinimockListRolesInspect() {
 	if !m.ListRolesMock.invocationsDone() && afterListRolesCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ListRoles at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ListRolesMock.expectedInvocations), m.ListRolesMock.expectedInvocationsOrigin, afterListRolesCounter)
+	}
+}
+
+type mClientMockListSSHKeys struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListSSHKeysExpectation
+	expectations       []*ClientMockListSSHKeysExpectation
+
+	callArgs []*ClientMockListSSHKeysParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListSSHKeysExpectation specifies expectation struct of the Client.ListSSHKeys
+type ClientMockListSSHKeysExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListSSHKeysParams
+	paramPtrs          *ClientMockListSSHKeysParamPtrs
+	expectationOrigins ClientMockListSSHKeysExpectationOrigins
+	results            *ClientMockListSSHKeysResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListSSHKeysParams contains parameters of the Client.ListSSHKeys
+type ClientMockListSSHKeysParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockListSSHKeysParamPtrs contains pointers to parameters of the Client.ListSSHKeys
+type ClientMockListSSHKeysParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockListSSHKeysResults contains results of the Client.ListSSHKeys
+type ClientMockListSSHKeysResults struct {
+	spa1 []*SSHKey
+	err  error
+}
+
+// ClientMockListSSHKeysOrigins contains origins of expectations of the Client.ListSSHKeys
+type ClientMockListSSHKeysExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListSSHKeys *mClientMockListSSHKeys) Optional() *mClientMockListSSHKeys {
+	mmListSSHKeys.optional = true
+	return mmListSSHKeys
+}
+
+// Expect sets up expected params for Client.ListSSHKeys
+func (mmListSSHKeys *mClientMockListSSHKeys) Expect(ctx context.Context, serviceId string) *mClientMockListSSHKeys {
+	if mmListSSHKeys.mock.funcListSSHKeys != nil {
+		mmListSSHKeys.mock.t.Fatalf("ClientMock.ListSSHKeys mock is already set by Set")
+	}
+
+	if mmListSSHKeys.defaultExpectation == nil {
+		mmListSSHKeys.defaultExpectation = &ClientMockListSSHKeysExpectation{}
+	}
+
+	if mmListSSHKeys.defaultExpectation.paramPtrs != nil {
+		mmListSSHKeys.mock.t.Fatalf("ClientMock.ListSSHKeys mock is already set by ExpectParams functions")
+	}
+
+	mmListSSHKeys.defaultExpectation.params = &ClientMockListSSHKeysParams{ctx, serviceId}
+	mmListSSHKeys.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListSSHKeys.expectations {
+		if minimock.Equal(e.params, mmListSSHKeys.defaultExpectation.params) {
+			mmListSSHKeys.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListSSHKeys.defaultExpectation.params)
+		}
+	}
+
+	return mmListSSHKeys
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListSSHKeys
+func (mmListSSHKeys *mClientMockListSSHKeys) ExpectCtxParam1(ctx context.Context) *mClientMockListSSHKeys {
+	if mmListSSHKeys.mock.funcListSSHKeys != nil {
+		mmListSSHKeys.mock.t.Fatalf("ClientMock.ListSSHKeys mock is already set by Set")
+	}
+
+	if mmListSSHKeys.defaultExpectation == nil {
+		mmListSSHKeys.defaultExpectation = &ClientMockListSSHKeysExpectation{}
+	}
+
+	if mmListSSHKeys.defaultExpectation.params != nil {
+		mmListSSHKeys.mock.t.Fatalf("ClientMock.ListSSHKeys mock is already set by Expect")
+	}
+
+	if mmListSSHKeys.defaultExpectation.paramPtrs == nil {
+		mmListSSHKeys.defaultExpectation.paramPtrs = &ClientMockListSSHKeysParamPtrs{}
+	}
+	mmListSSHKeys.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListSSHKeys.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListSSHKeys
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.ListSSHKeys
+func (mmListSSHKeys *mClientMockListSSHKeys) ExpectServiceIdParam2(serviceId string) *mClientMockListSSHKeys {
+	if mmListSSHKeys.mock.funcListSSHKeys != nil {
+		mmListSSHKeys.mock.t.Fatalf("ClientMock.ListSSHKeys mock is already set by Set")
+	}
+
+	if mmListSSHKeys.defaultExpectation == nil {
+		mmListSSHKeys.defaultExpectation = &ClientMockListSSHKeysExpectation{}
+	}
+
+	if mmListSSHKeys.defaultExpectation.params != nil {
+		mmListSSHKeys.mock.t.Fatalf("ClientMock.ListSSHKeys mock is already set by Expect")
+	}
+
+	if mmListSSHKeys.defaultExpectation.paramPtrs == nil {
+		mmListSSHKeys.defaultExpectation.paramPtrs = &ClientMockListSSHKeysParamPtrs{}
+	}
+	mmListSSHKeys.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmListSSHKeys.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmListSSHKeys
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListSSHKeys
+func (mmListSSHKeys *mClientMockListSSHKeys) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockListSSHKeys {
+	if mmListSSHKeys.mock.inspectFuncListSSHKeys != nil {
+		mmListSSHKeys.mock.t.Fatalf("Inspect function is already set for ClientMock.ListSSHKeys")
+	}
+
+	mmListSSHKeys.mock.inspectFuncListSSHKeys = f
+
+	return mmListSSHKeys
+}
+
+// Return sets up results that will be returned by Client.ListSSHKeys
+func (mmListSSHKeys *mClientMockListSSHKeys) Return(spa1 []*SSHKey, err error) *ClientMock {
+	if mmListSSHKeys.mock.funcListSSHKeys != nil {
+		mmListSSHKeys.mock.t.Fatalf("ClientMock.ListSSHKeys mock is already set by Set")
+	}
+
+	if mmListSSHKeys.defaultExpectation == nil {
+		mmListSSHKeys.defaultExpectation = &ClientMockListSSHKeysExpectation{mock: mmListSSHKeys.mock}
+	}
+	mmListSSHKeys.defaultExpectation.results = &ClientMockListSSHKeysResults{spa1, err}
+	mmListSSHKeys.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListSSHKeys.mock
+}
+
+// Set uses given function f to mock the Client.ListSSHKeys method
+func (mmListSSHKeys *mClientMockListSSHKeys) Set(f func(ctx context.Context, serviceId string) (spa1 []*SSHKey, err error)) *ClientMock {
+	if mmListSSHKeys.defaultExpectation != nil {
+		mmListSSHKeys.mock.t.Fatalf("Default expectation is already set for the Client.ListSSHKeys method")
+	}
+
+	if len(mmListSSHKeys.expectations) > 0 {
+		mmListSSHKeys.mock.t.Fatalf("Some expectations are already set for the Client.ListSSHKeys method")
+	}
+
+	mmListSSHKeys.mock.funcListSSHKeys = f
+	mmListSSHKeys.mock.funcListSSHKeysOrigin = minimock.CallerInfo(1)
+	return mmListSSHKeys.mock
+}
+
+// When sets expectation for the Client.ListSSHKeys which will trigger the result defined by the following
+// Then helper
+func (mmListSSHKeys *mClientMockListSSHKeys) When(ctx context.Context, serviceId string) *ClientMockListSSHKeysExpectation {
+	if mmListSSHKeys.mock.funcListSSHKeys != nil {
+		mmListSSHKeys.mock.t.Fatalf("ClientMock.ListSSHKeys mock is already set by Set")
+	}
+
+	expectation := &ClientMockListSSHKeysExpectation{
+		mock:               mmListSSHKeys.mock,
+		params:             &ClientMockListSSHKeysParams{ctx, serviceId},
+		expectationOrigins: ClientMockListSSHKeysExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListSSHKeys.expectations = append(mmListSSHKeys.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListSSHKeys return parameters for the expectation previously defined by the When method
+func (e *ClientMockListSSHKeysExpectation) Then(spa1 []*SSHKey, err error) *ClientMock {
+	e.results = &ClientMockListSSHKeysResults{spa1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListSSHKeys should be invoked
+func (mmListSSHKeys *mClientMockListSSHKeys) Times(n uint64) *mClientMockListSSHKeys {
+	if n == 0 {
+		mmListSSHKeys.mock.t.Fatalf("Times of ClientMock.ListSSHKeys mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListSSHKeys.expectedInvocations, n)
+	mmListSSHKeys.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListSSHKeys
+}
+
+func (mmListSSHKeys *mClientMockListSSHKeys) invocationsDone() bool {
+	if len(mmListSSHKeys.expectations) == 0 && mmListSSHKeys.defaultExpectation == nil && mmListSSHKeys.mock.funcListSSHKeys == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListSSHKeys.mock.afterListSSHKeysCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListSSHKeys.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListSSHKeys implements Client
+func (mmListSSHKeys *ClientMock) ListSSHKeys(ctx context.Context, serviceId string) (spa1 []*SSHKey, err error) {
+	mm_atomic.AddUint64(&mmListSSHKeys.beforeListSSHKeysCounter, 1)
+	defer mm_atomic.AddUint64(&mmListSSHKeys.afterListSSHKeysCounter, 1)
+
+	mmListSSHKeys.t.Helper()
+
+	if mmListSSHKeys.inspectFuncListSSHKeys != nil {
+		mmListSSHKeys.inspectFuncListSSHKeys(ctx, serviceId)
+	}
+
+	mm_params := ClientMockListSSHKeysParams{ctx, serviceId}
+
+	// Record call args
+	mmListSSHKeys.ListSSHKeysMock.mutex.Lock()
+	mmListSSHKeys.ListSSHKeysMock.callArgs = append(mmListSSHKeys.ListSSHKeysMock.callArgs, &mm_params)
+	mmListSSHKeys.ListSSHKeysMock.mutex.Unlock()
+
+	for _, e := range mmListSSHKeys.ListSSHKeysMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.spa1, e.results.err
+		}
+	}
+
+	if mmListSSHKeys.ListSSHKeysMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListSSHKeys.ListSSHKeysMock.defaultExpectation.Counter, 1)
+		mm_want := mmListSSHKeys.ListSSHKeysMock.defaultExpectation.params
+		mm_want_ptrs := mmListSSHKeys.ListSSHKeysMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListSSHKeysParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListSSHKeys.t.Errorf("ClientMock.ListSSHKeys got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListSSHKeys.ListSSHKeysMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmListSSHKeys.t.Errorf("ClientMock.ListSSHKeys got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListSSHKeys.ListSSHKeysMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListSSHKeys.t.Errorf("ClientMock.ListSSHKeys got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListSSHKeys.ListSSHKeysMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListSSHKeys.ListSSHKeysMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListSSHKeys.t.Fatal("No results are set for the ClientMock.ListSSHKeys")
+		}
+		return (*mm_results).spa1, (*mm_results).err
+	}
+	if mmListSSHKeys.funcListSSHKeys != nil {
+		return mmListSSHKeys.funcListSSHKeys(ctx, serviceId)
+	}
+	mmListSSHKeys.t.Fatalf("Unexpected call to ClientMock.ListSSHKeys. %v %v", ctx, serviceId)
+	return
+}
+
+// ListSSHKeysAfterCounter returns a count of finished ClientMock.ListSSHKeys invocations
+func (mmListSSHKeys *ClientMock) ListSSHKeysAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListSSHKeys.afterListSSHKeysCounter)
+}
+
+// ListSSHKeysBeforeCounter returns a count of ClientMock.ListSSHKeys invocations
+func (mmListSSHKeys *ClientMock) ListSSHKeysBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListSSHKeys.beforeListSSHKeysCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListSSHKeys.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListSSHKeys *mClientMockListSSHKeys) Calls() []*ClientMockListSSHKeysParams {
+	mmListSSHKeys.mutex.RLock()
+
+	argCopy := make([]*ClientMockListSSHKeysParams, len(mmListSSHKeys.callArgs))
+	copy(argCopy, mmListSSHKeys.callArgs)
+
+	mmListSSHKeys.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListSSHKeysDone returns true if the count of the ListSSHKeys invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListSSHKeysDone() bool {
+	if m.ListSSHKeysMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListSSHKeysMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListSSHKeysMock.invocationsDone()
+}
+
+// MinimockListSSHKeysInspect logs each unmet expectation
+func (m *ClientMock) MinimockListSSHKeysInspect() {
+	for _, e := range m.ListSSHKeysMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListSSHKeys at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListSSHKeysCounter := mm_atomic.LoadUint64(&m.afterListSSHKeysCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListSSHKeysMock.defaultExpectation != nil && afterListSSHKeysCounter < 1 {
+		if m.ListSSHKeysMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListSSHKeys at\n%s", m.ListSSHKeysMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListSSHKeys at\n%s with params: %#v", m.ListSSHKeysMock.defaultExpectation.expectationOrigins.origin, *m.ListSSHKeysMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListSSHKeys != nil && afterListSSHKeysCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListSSHKeys at\n%s", m.funcListSSHKeysOrigin)
+	}
+
+	if !m.ListSSHKeysMock.invocationsDone() && afterListSSHKeysCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListSSHKeys at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListSSHKeysMock.expectedInvocations), m.ListSSHKeysMock.expectedInvocationsOrigin, afterListSSHKeysCounter)
 	}
 }
 
@@ -25058,6 +26924,380 @@ func (m *ClientMock) MinimockUploadUDFArchiveInspect() {
 	}
 }
 
+type mClientMockValidateSSHKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockValidateSSHKeyExpectation
+	expectations       []*ClientMockValidateSSHKeyExpectation
+
+	callArgs []*ClientMockValidateSSHKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockValidateSSHKeyExpectation specifies expectation struct of the Client.ValidateSSHKey
+type ClientMockValidateSSHKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockValidateSSHKeyParams
+	paramPtrs          *ClientMockValidateSSHKeyParamPtrs
+	expectationOrigins ClientMockValidateSSHKeyExpectationOrigins
+	results            *ClientMockValidateSSHKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockValidateSSHKeyParams contains parameters of the Client.ValidateSSHKey
+type ClientMockValidateSSHKeyParams struct {
+	ctx       context.Context
+	serviceId string
+	sshKeyId  string
+}
+
+// ClientMockValidateSSHKeyParamPtrs contains pointers to parameters of the Client.ValidateSSHKey
+type ClientMockValidateSSHKeyParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	sshKeyId  *string
+}
+
+// ClientMockValidateSSHKeyResults contains results of the Client.ValidateSSHKey
+type ClientMockValidateSSHKeyResults struct {
+	sp1 *SSHKey
+	err error
+}
+
+// ClientMockValidateSSHKeyOrigins contains origins of expectations of the Client.ValidateSSHKey
+type ClientMockValidateSSHKeyExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originSshKeyId  string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmValidateSSHKey *mClientMockValidateSSHKey) Optional() *mClientMockValidateSSHKey {
+	mmValidateSSHKey.optional = true
+	return mmValidateSSHKey
+}
+
+// Expect sets up expected params for Client.ValidateSSHKey
+func (mmValidateSSHKey *mClientMockValidateSSHKey) Expect(ctx context.Context, serviceId string, sshKeyId string) *mClientMockValidateSSHKey {
+	if mmValidateSSHKey.mock.funcValidateSSHKey != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by Set")
+	}
+
+	if mmValidateSSHKey.defaultExpectation == nil {
+		mmValidateSSHKey.defaultExpectation = &ClientMockValidateSSHKeyExpectation{}
+	}
+
+	if mmValidateSSHKey.defaultExpectation.paramPtrs != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by ExpectParams functions")
+	}
+
+	mmValidateSSHKey.defaultExpectation.params = &ClientMockValidateSSHKeyParams{ctx, serviceId, sshKeyId}
+	mmValidateSSHKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmValidateSSHKey.expectations {
+		if minimock.Equal(e.params, mmValidateSSHKey.defaultExpectation.params) {
+			mmValidateSSHKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmValidateSSHKey.defaultExpectation.params)
+		}
+	}
+
+	return mmValidateSSHKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ValidateSSHKey
+func (mmValidateSSHKey *mClientMockValidateSSHKey) ExpectCtxParam1(ctx context.Context) *mClientMockValidateSSHKey {
+	if mmValidateSSHKey.mock.funcValidateSSHKey != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by Set")
+	}
+
+	if mmValidateSSHKey.defaultExpectation == nil {
+		mmValidateSSHKey.defaultExpectation = &ClientMockValidateSSHKeyExpectation{}
+	}
+
+	if mmValidateSSHKey.defaultExpectation.params != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by Expect")
+	}
+
+	if mmValidateSSHKey.defaultExpectation.paramPtrs == nil {
+		mmValidateSSHKey.defaultExpectation.paramPtrs = &ClientMockValidateSSHKeyParamPtrs{}
+	}
+	mmValidateSSHKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmValidateSSHKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmValidateSSHKey
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.ValidateSSHKey
+func (mmValidateSSHKey *mClientMockValidateSSHKey) ExpectServiceIdParam2(serviceId string) *mClientMockValidateSSHKey {
+	if mmValidateSSHKey.mock.funcValidateSSHKey != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by Set")
+	}
+
+	if mmValidateSSHKey.defaultExpectation == nil {
+		mmValidateSSHKey.defaultExpectation = &ClientMockValidateSSHKeyExpectation{}
+	}
+
+	if mmValidateSSHKey.defaultExpectation.params != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by Expect")
+	}
+
+	if mmValidateSSHKey.defaultExpectation.paramPtrs == nil {
+		mmValidateSSHKey.defaultExpectation.paramPtrs = &ClientMockValidateSSHKeyParamPtrs{}
+	}
+	mmValidateSSHKey.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmValidateSSHKey.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmValidateSSHKey
+}
+
+// ExpectSshKeyIdParam3 sets up expected param sshKeyId for Client.ValidateSSHKey
+func (mmValidateSSHKey *mClientMockValidateSSHKey) ExpectSshKeyIdParam3(sshKeyId string) *mClientMockValidateSSHKey {
+	if mmValidateSSHKey.mock.funcValidateSSHKey != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by Set")
+	}
+
+	if mmValidateSSHKey.defaultExpectation == nil {
+		mmValidateSSHKey.defaultExpectation = &ClientMockValidateSSHKeyExpectation{}
+	}
+
+	if mmValidateSSHKey.defaultExpectation.params != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by Expect")
+	}
+
+	if mmValidateSSHKey.defaultExpectation.paramPtrs == nil {
+		mmValidateSSHKey.defaultExpectation.paramPtrs = &ClientMockValidateSSHKeyParamPtrs{}
+	}
+	mmValidateSSHKey.defaultExpectation.paramPtrs.sshKeyId = &sshKeyId
+	mmValidateSSHKey.defaultExpectation.expectationOrigins.originSshKeyId = minimock.CallerInfo(1)
+
+	return mmValidateSSHKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ValidateSSHKey
+func (mmValidateSSHKey *mClientMockValidateSSHKey) Inspect(f func(ctx context.Context, serviceId string, sshKeyId string)) *mClientMockValidateSSHKey {
+	if mmValidateSSHKey.mock.inspectFuncValidateSSHKey != nil {
+		mmValidateSSHKey.mock.t.Fatalf("Inspect function is already set for ClientMock.ValidateSSHKey")
+	}
+
+	mmValidateSSHKey.mock.inspectFuncValidateSSHKey = f
+
+	return mmValidateSSHKey
+}
+
+// Return sets up results that will be returned by Client.ValidateSSHKey
+func (mmValidateSSHKey *mClientMockValidateSSHKey) Return(sp1 *SSHKey, err error) *ClientMock {
+	if mmValidateSSHKey.mock.funcValidateSSHKey != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by Set")
+	}
+
+	if mmValidateSSHKey.defaultExpectation == nil {
+		mmValidateSSHKey.defaultExpectation = &ClientMockValidateSSHKeyExpectation{mock: mmValidateSSHKey.mock}
+	}
+	mmValidateSSHKey.defaultExpectation.results = &ClientMockValidateSSHKeyResults{sp1, err}
+	mmValidateSSHKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmValidateSSHKey.mock
+}
+
+// Set uses given function f to mock the Client.ValidateSSHKey method
+func (mmValidateSSHKey *mClientMockValidateSSHKey) Set(f func(ctx context.Context, serviceId string, sshKeyId string) (sp1 *SSHKey, err error)) *ClientMock {
+	if mmValidateSSHKey.defaultExpectation != nil {
+		mmValidateSSHKey.mock.t.Fatalf("Default expectation is already set for the Client.ValidateSSHKey method")
+	}
+
+	if len(mmValidateSSHKey.expectations) > 0 {
+		mmValidateSSHKey.mock.t.Fatalf("Some expectations are already set for the Client.ValidateSSHKey method")
+	}
+
+	mmValidateSSHKey.mock.funcValidateSSHKey = f
+	mmValidateSSHKey.mock.funcValidateSSHKeyOrigin = minimock.CallerInfo(1)
+	return mmValidateSSHKey.mock
+}
+
+// When sets expectation for the Client.ValidateSSHKey which will trigger the result defined by the following
+// Then helper
+func (mmValidateSSHKey *mClientMockValidateSSHKey) When(ctx context.Context, serviceId string, sshKeyId string) *ClientMockValidateSSHKeyExpectation {
+	if mmValidateSSHKey.mock.funcValidateSSHKey != nil {
+		mmValidateSSHKey.mock.t.Fatalf("ClientMock.ValidateSSHKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockValidateSSHKeyExpectation{
+		mock:               mmValidateSSHKey.mock,
+		params:             &ClientMockValidateSSHKeyParams{ctx, serviceId, sshKeyId},
+		expectationOrigins: ClientMockValidateSSHKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmValidateSSHKey.expectations = append(mmValidateSSHKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ValidateSSHKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockValidateSSHKeyExpectation) Then(sp1 *SSHKey, err error) *ClientMock {
+	e.results = &ClientMockValidateSSHKeyResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ValidateSSHKey should be invoked
+func (mmValidateSSHKey *mClientMockValidateSSHKey) Times(n uint64) *mClientMockValidateSSHKey {
+	if n == 0 {
+		mmValidateSSHKey.mock.t.Fatalf("Times of ClientMock.ValidateSSHKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmValidateSSHKey.expectedInvocations, n)
+	mmValidateSSHKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmValidateSSHKey
+}
+
+func (mmValidateSSHKey *mClientMockValidateSSHKey) invocationsDone() bool {
+	if len(mmValidateSSHKey.expectations) == 0 && mmValidateSSHKey.defaultExpectation == nil && mmValidateSSHKey.mock.funcValidateSSHKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmValidateSSHKey.mock.afterValidateSSHKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmValidateSSHKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ValidateSSHKey implements Client
+func (mmValidateSSHKey *ClientMock) ValidateSSHKey(ctx context.Context, serviceId string, sshKeyId string) (sp1 *SSHKey, err error) {
+	mm_atomic.AddUint64(&mmValidateSSHKey.beforeValidateSSHKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmValidateSSHKey.afterValidateSSHKeyCounter, 1)
+
+	mmValidateSSHKey.t.Helper()
+
+	if mmValidateSSHKey.inspectFuncValidateSSHKey != nil {
+		mmValidateSSHKey.inspectFuncValidateSSHKey(ctx, serviceId, sshKeyId)
+	}
+
+	mm_params := ClientMockValidateSSHKeyParams{ctx, serviceId, sshKeyId}
+
+	// Record call args
+	mmValidateSSHKey.ValidateSSHKeyMock.mutex.Lock()
+	mmValidateSSHKey.ValidateSSHKeyMock.callArgs = append(mmValidateSSHKey.ValidateSSHKeyMock.callArgs, &mm_params)
+	mmValidateSSHKey.ValidateSSHKeyMock.mutex.Unlock()
+
+	for _, e := range mmValidateSSHKey.ValidateSSHKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmValidateSSHKey.ValidateSSHKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmValidateSSHKey.ValidateSSHKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmValidateSSHKey.ValidateSSHKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmValidateSSHKey.ValidateSSHKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockValidateSSHKeyParams{ctx, serviceId, sshKeyId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmValidateSSHKey.t.Errorf("ClientMock.ValidateSSHKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmValidateSSHKey.ValidateSSHKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmValidateSSHKey.t.Errorf("ClientMock.ValidateSSHKey got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmValidateSSHKey.ValidateSSHKeyMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.sshKeyId != nil && !minimock.Equal(*mm_want_ptrs.sshKeyId, mm_got.sshKeyId) {
+				mmValidateSSHKey.t.Errorf("ClientMock.ValidateSSHKey got unexpected parameter sshKeyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmValidateSSHKey.ValidateSSHKeyMock.defaultExpectation.expectationOrigins.originSshKeyId, *mm_want_ptrs.sshKeyId, mm_got.sshKeyId, minimock.Diff(*mm_want_ptrs.sshKeyId, mm_got.sshKeyId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmValidateSSHKey.t.Errorf("ClientMock.ValidateSSHKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmValidateSSHKey.ValidateSSHKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmValidateSSHKey.ValidateSSHKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmValidateSSHKey.t.Fatal("No results are set for the ClientMock.ValidateSSHKey")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmValidateSSHKey.funcValidateSSHKey != nil {
+		return mmValidateSSHKey.funcValidateSSHKey(ctx, serviceId, sshKeyId)
+	}
+	mmValidateSSHKey.t.Fatalf("Unexpected call to ClientMock.ValidateSSHKey. %v %v %v", ctx, serviceId, sshKeyId)
+	return
+}
+
+// ValidateSSHKeyAfterCounter returns a count of finished ClientMock.ValidateSSHKey invocations
+func (mmValidateSSHKey *ClientMock) ValidateSSHKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmValidateSSHKey.afterValidateSSHKeyCounter)
+}
+
+// ValidateSSHKeyBeforeCounter returns a count of ClientMock.ValidateSSHKey invocations
+func (mmValidateSSHKey *ClientMock) ValidateSSHKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmValidateSSHKey.beforeValidateSSHKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ValidateSSHKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmValidateSSHKey *mClientMockValidateSSHKey) Calls() []*ClientMockValidateSSHKeyParams {
+	mmValidateSSHKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockValidateSSHKeyParams, len(mmValidateSSHKey.callArgs))
+	copy(argCopy, mmValidateSSHKey.callArgs)
+
+	mmValidateSSHKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockValidateSSHKeyDone returns true if the count of the ValidateSSHKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockValidateSSHKeyDone() bool {
+	if m.ValidateSSHKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ValidateSSHKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ValidateSSHKeyMock.invocationsDone()
+}
+
+// MinimockValidateSSHKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockValidateSSHKeyInspect() {
+	for _, e := range m.ValidateSSHKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ValidateSSHKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterValidateSSHKeyCounter := mm_atomic.LoadUint64(&m.afterValidateSSHKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ValidateSSHKeyMock.defaultExpectation != nil && afterValidateSSHKeyCounter < 1 {
+		if m.ValidateSSHKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ValidateSSHKey at\n%s", m.ValidateSSHKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ValidateSSHKey at\n%s with params: %#v", m.ValidateSSHKeyMock.defaultExpectation.expectationOrigins.origin, *m.ValidateSSHKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcValidateSSHKey != nil && afterValidateSSHKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ValidateSSHKey at\n%s", m.funcValidateSSHKeyOrigin)
+	}
+
+	if !m.ValidateSSHKeyMock.invocationsDone() && afterValidateSSHKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ValidateSSHKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ValidateSSHKeyMock.expectedInvocations), m.ValidateSSHKeyMock.expectedInvocationsOrigin, afterValidateSSHKeyCounter)
+	}
+}
+
 type mClientMockWaitForClickPipeCdcScaling struct {
 	optional           bool
 	mock               *ClientMock
@@ -27940,6 +30180,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateRoleInspect()
 
+			m.MinimockCreateSSHKeyInspect()
+
 			m.MinimockCreateServiceInspect()
 
 			m.MinimockCreateUDFInspect()
@@ -27957,6 +30199,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockDeleteReversePrivateEndpointInspect()
 
 			m.MinimockDeleteRoleInspect()
+
+			m.MinimockDeleteSSHKeyInspect()
 
 			m.MinimockDeleteScheduledScalingInspect()
 
@@ -28000,6 +30244,10 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetRoleInspect()
 
+			m.MinimockGetSSHKeyInspect()
+
+			m.MinimockGetSSHKeyPathInspect()
+
 			m.MinimockGetScheduledScalingInspect()
 
 			m.MinimockGetServiceInspect()
@@ -28019,6 +30267,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockListReversePrivateEndpointsInspect()
 
 			m.MinimockListRolesInspect()
+
+			m.MinimockListSSHKeysInspect()
 
 			m.MinimockListServicesInspect()
 
@@ -28059,6 +30309,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateUpgradeWindowInspect()
 
 			m.MinimockUploadUDFArchiveInspect()
+
+			m.MinimockValidateSSHKeyInspect()
 
 			m.MinimockWaitForClickPipeCdcScalingInspect()
 
@@ -28104,6 +30356,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateQueryEndpointDone() &&
 		m.MinimockCreateReversePrivateEndpointDone() &&
 		m.MinimockCreateRoleDone() &&
+		m.MinimockCreateSSHKeyDone() &&
 		m.MinimockCreateServiceDone() &&
 		m.MinimockCreateUDFDone() &&
 		m.MinimockCreateUDFUploadSessionDone() &&
@@ -28113,6 +30366,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteQueryEndpointDone() &&
 		m.MinimockDeleteReversePrivateEndpointDone() &&
 		m.MinimockDeleteRoleDone() &&
+		m.MinimockDeleteSSHKeyDone() &&
 		m.MinimockDeleteScheduledScalingDone() &&
 		m.MinimockDeleteServiceDone() &&
 		m.MinimockDeleteUDFDone() &&
@@ -28134,6 +30388,8 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetReversePrivateEndpointDone() &&
 		m.MinimockGetReversePrivateEndpointPathDone() &&
 		m.MinimockGetRoleDone() &&
+		m.MinimockGetSSHKeyDone() &&
+		m.MinimockGetSSHKeyPathDone() &&
 		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockGetServiceBaseDone() &&
@@ -28144,6 +30400,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockListPostgresDone() &&
 		m.MinimockListReversePrivateEndpointsDone() &&
 		m.MinimockListRolesDone() &&
+		m.MinimockListSSHKeysDone() &&
 		m.MinimockListServicesDone() &&
 		m.MinimockReplacePostgresConfigDone() &&
 		m.MinimockRestorePostgresDone() &&
@@ -28164,6 +30421,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateServicePasswordDone() &&
 		m.MinimockUpdateUpgradeWindowDone() &&
 		m.MinimockUploadUDFArchiveDone() &&
+		m.MinimockValidateSSHKeyDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
 		m.MinimockWaitForClickPipeStateDone() &&
 		m.MinimockWaitForPostgresMatchDone() &&

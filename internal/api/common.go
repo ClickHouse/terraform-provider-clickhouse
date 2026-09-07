@@ -36,6 +36,7 @@ var sensitiveBodyKeys = map[string]struct{}{
 	"uploadURL":         {},
 	"presignedUrl":      {},
 	"presignedURL":      {},
+	"protobufSchema":    {},
 	// Postgres connection strings embed the generated password in the URI.
 	"connectionString":  {},
 	"connection_string": {},

@@ -80,6 +80,11 @@ func TestRedactSensitiveBody(t *testing.T) {
 			want:  `{"tokenSecret":"REDACTED"}`,
 		},
 		{
+			name:  "uploaded Protobuf schema redacted",
+			input: `{"source":{"kafka":{"protobufSchema":"c2Vuc2l0aXZlLXByb3RvYnVmLXNjaGVtYQ=="}}}`,
+			want:  `{"source":{"kafka":{"protobufSchema":"REDACTED"}}}`,
+		},
+		{
 			name:  "presigned UDF upload URL redacted",
 			input: `{"uploadId":"id","uploadUrl":"https://object.example/archive?X-Amz-Signature=secret"}`,
 			want:  `{"uploadId":"id","uploadUrl":"REDACTED"}`,
