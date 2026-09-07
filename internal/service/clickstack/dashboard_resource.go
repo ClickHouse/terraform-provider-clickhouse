@@ -367,10 +367,12 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 	updated, err := r.client.WithTeam(plan.Team.ValueString()).
 		UpdateDashboard(ctx, plan.ID.ValueString(), body)
 	if err != nil {
+		// Removing state from Update is illegal ("Missing Resource State After
+		// Update"); prior state survives and the next refresh converges via Read.
 		if errors.Is(err, client.ErrNotFound) {
-			// Deleted out-of-band between plan and apply: drop it from state so the next
-			// plan recreates it, rather than hard-erroring.
-			resp.State.RemoveResource(ctx)
+			resp.Diagnostics.AddError("Dashboard No Longer Exists",
+				fmt.Sprintf("dashboard %s no longer exists on the server: it was deleted outside "+
+					"this apply. The next plan recreates it.", plan.ID.ValueString()))
 			return
 		}
 		resp.Diagnostics.AddError("Error Updating Dashboard", err.Error())

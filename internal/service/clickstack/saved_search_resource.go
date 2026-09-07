@@ -252,8 +252,12 @@ func (r *savedSearchResource) Update(ctx context.Context, req resource.UpdateReq
 
 	ss, err := r.client.WithTeam(plan.Team.ValueString()).UpdateSavedSearch(ctx, plan.ID.ValueString(), input)
 	if err != nil {
+		// Removing state from Update is illegal ("Missing Resource State After
+		// Update"); prior state survives and the next refresh converges via Read.
 		if errors.Is(err, client.ErrNotFound) {
-			resp.State.RemoveResource(ctx)
+			resp.Diagnostics.AddError("Saved Search No Longer Exists",
+				fmt.Sprintf("saved search %s no longer exists on the server: it was deleted outside "+
+					"this apply. The next plan recreates it.", plan.ID.ValueString()))
 			return
 		}
 		resp.Diagnostics.AddError("Error Updating Saved Search", err.Error())

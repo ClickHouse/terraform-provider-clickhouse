@@ -717,10 +717,10 @@ func TestDashboardResource_Update(t *testing.T) {
 	const priorNorm = `{"id":"d1","name":"D","tiles":[{"id":"srv-1","name":"T"}]}`
 
 	cases := []struct {
-		name        string
-		handler     http.HandlerFunc
-		wantErr     bool
-		wantRemoved bool
+		name           string
+		handler        http.HandlerFunc
+		wantErr        bool
+		wantErrSummary string
 	}{
 		{
 			name: "success merges tile id and updates state",
@@ -735,9 +735,12 @@ func TestDashboardResource_Update(t *testing.T) {
 			},
 		},
 		{
-			name:        "not found removes resource from state",
-			handler:     func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) },
-			wantRemoved: true,
+			// Update must error rather than clear state: the framework rejects a
+			// state removal from Update with "Missing Resource State After Update".
+			name:           "not found errors and keeps prior state",
+			handler:        func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) },
+			wantErr:        true,
+			wantErrSummary: "Dashboard No Longer Exists",
 		},
 		{
 			name: "api error surfaces diagnostic",
@@ -753,21 +756,34 @@ func TestDashboardResource_Update(t *testing.T) {
 			t.Parallel()
 			sch := dashboardTestSchema(t)
 			r := &dashboardResource{client: dashboardTestClient(t, tc.handler)}
-			resp := &fwresource.UpdateResponse{State: tfsdk.State{Schema: sch}}
+			// The framework pre-populates resp.State with prior state, so seed it
+			// here too — otherwise a "state survived" assertion proves nothing.
+			prior := tfsdk.State{Schema: sch, Raw: dashboardObjectValue(ptr("d1"), nil, ptr(body), ptr(priorNorm))}
+			resp := &fwresource.UpdateResponse{State: prior}
 			r.Update(context.Background(), fwresource.UpdateRequest{
 				Plan:  tfsdk.Plan{Schema: sch, Raw: dashboardObjectValue(ptr("d1"), nil, ptr(body), nil)},
-				State: tfsdk.State{Schema: sch, Raw: dashboardObjectValue(ptr("d1"), nil, ptr(body), ptr(priorNorm))},
+				State: prior,
 			}, resp)
 
 			if resp.Diagnostics.HasError() != tc.wantErr {
 				t.Fatalf("HasError()=%v, want %v: %s", resp.Diagnostics.HasError(), tc.wantErr, resp.Diagnostics)
 			}
 			if tc.wantErr {
-				return
-			}
-			if tc.wantRemoved {
-				if !resp.State.Raw.IsNull() {
-					t.Error("expected resource removed from state")
+				if tc.wantErrSummary != "" {
+					if got := resp.Diagnostics.Errors()[0].Summary(); got != tc.wantErrSummary {
+						t.Errorf("error summary = %q, want %q", got, tc.wantErrSummary)
+					}
+				}
+				if resp.State.Raw.IsNull() {
+					t.Fatal("expected prior state left intact on an errored update")
+				}
+				// normalized_json is the one field the plan does not carry, so it is
+				// what catches a stray state write on the error path.
+				var got dashboardResourceModel
+				resp.State.Get(context.Background(), &got)
+				if got.NormalizedJSON.ValueString() != priorNorm {
+					t.Errorf("normalized_json=%q, want the prior %q left untouched",
+						got.NormalizedJSON.ValueString(), priorNorm)
 				}
 				return
 			}
