@@ -244,3 +244,192 @@ func TestWaitForServiceState_stopsOnContextCancel(t *testing.T) {
 		t.Errorf("took %s; want an immediate return on a cancelled context", elapsed)
 	}
 }
+
+// A service can 404 for the first few polls right after create: the API is
+// eventually consistent, so the id the create call just returned may not be
+// visible to every read yet. With TolerateNotFound the wait must absorb that
+// window rather than failing the whole create on the first poll.
+func TestWaitForServiceState_toleratesNotFoundWithinLimit(t *testing.T) {
+	var calls int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if n := atomic.AddInt32(&calls, 1); n <= 3 {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"NOT_FOUND","status":404}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: StateRunning}})
+	})
+
+	err := client.WaitForServiceState(context.Background(), "svc-1", func(state string) bool { return state == StateRunning }, 60, TolerateNotFound(5), withPollInterval(time.Millisecond))
+	if err != nil {
+		t.Fatalf("WaitForServiceState: want nil after 3 tolerated 404s, got %v", err)
+	}
+	if n := atomic.LoadInt32(&calls); n != 4 {
+		t.Errorf("server received %d calls; want 4 (3x 404 then success)", n)
+	}
+}
+
+// The tolerance is bounded: past the replication window a 404 means the
+// service really is gone, so the wait must give up rather than burn the full
+// maxWaitSeconds budget.
+func TestWaitForServiceState_failsOnceNotFoundToleranceExhausted(t *testing.T) {
+	var calls int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":"NOT_FOUND","status":404}`))
+	})
+
+	err := client.WaitForServiceState(context.Background(), "svc-1", func(state string) bool { return state == StateRunning }, 5, TolerateNotFound(2), withPollInterval(time.Millisecond))
+	if err == nil {
+		t.Fatal("WaitForServiceState: want error once the 404 tolerance is exhausted, got nil")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("error = %v; want it to still match IsNotFound so delete paths can detect it", err)
+	}
+	// 2 tolerated + 1 that trips the permanent branch.
+	if n := atomic.LoadInt32(&calls); n != 3 {
+		t.Errorf("server received %d calls; want exactly 3 (tolerance 2, then give up)", n)
+	}
+}
+
+// Without the option the previous behaviour stands: a 404 is terminal on the
+// first poll. Only the post-create wait opts into tolerating it.
+func TestWaitForServiceState_notFoundIsTerminalByDefault(t *testing.T) {
+	var calls int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":"NOT_FOUND","status":404}`))
+	})
+
+	err := client.WaitForServiceState(context.Background(), "svc-1", func(state string) bool { return state == StateRunning }, 5)
+	if err == nil {
+		t.Fatal("WaitForServiceState: want error, got nil")
+	}
+	if !IsNotFound(err) {
+		t.Errorf("error = %v; want IsNotFound to still match after backoff unwraps the permanent error", err)
+	}
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("WaitForServiceState made %d HTTP calls on a 404; want exactly 1", n)
+	}
+}
+
+// waitForServiceRunning is a thin wrapper over WaitForServiceState. It is what
+// the ClickPipes and UDF paths use after waking a service, and it had no
+// coverage of its own — pin both the success condition and the inherited
+// fail-fast behaviour.
+func TestWaitForServiceRunning(t *testing.T) {
+	t.Run("returns once the service reports running", func(t *testing.T) {
+		var calls int32
+		client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			state := StateRunning
+			if atomic.AddInt32(&calls, 1) == 1 {
+				// partially_running is explicitly NOT sufficient here.
+				state = "partially_running"
+			}
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: state}})
+		})
+
+		if err := client.waitForServiceRunning(context.Background(), "svc-1", 60, withPollInterval(time.Millisecond)); err != nil {
+			t.Fatalf("waitForServiceRunning: %v", err)
+		}
+		if n := atomic.LoadInt32(&calls); n != 2 {
+			t.Errorf("server received %d calls; want 2 (partially_running, then running)", n)
+		}
+	})
+
+	t.Run("fails fast on a 403 instead of polling out the budget", func(t *testing.T) {
+		var calls int32
+		client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&calls, 1)
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":"FORBIDDEN","status":403}`))
+		})
+
+		if err := client.waitForServiceRunning(context.Background(), "svc-1", 25); err == nil {
+			t.Fatal("waitForServiceRunning: want error, got nil")
+		}
+		if n := atomic.LoadInt32(&calls); n != 1 {
+			t.Errorf("waitForServiceRunning made %d HTTP calls on a 403; want exactly 1", n)
+		}
+	})
+}
+
+// DeleteService only ever needs the service's state, both to decide whether a
+// stop is required and to detect that the deletion finished. Neither should
+// drag in the private endpoint config, backup configuration or query endpoint
+// sub-resources, which need permissions a delete-scoped token may not hold.
+func TestDeleteService_pollsLightweightEndpointsOnly(t *testing.T) {
+	var gets, deletes int32
+	var deleted atomic.Bool
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/organizations/org-1/services/svc-1" {
+			t.Errorf("unexpected request to %q; DeleteService should only touch the base service endpoint", r.URL.Path)
+		}
+		switch r.Method {
+		case http.MethodDelete:
+			atomic.AddInt32(&deletes, 1)
+			deleted.Store(true)
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[ServiceResponseResult]{
+				Result: ServiceResponseResult{Service: Service{Id: "svc-1", State: StateStopped}},
+			})
+		default:
+			atomic.AddInt32(&gets, 1)
+			// Reads before the DELETE report the service as already stopped,
+			// so no stop command is needed; reads after it report it as gone.
+			if deleted.Load() {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":"NOT_FOUND","status":404}`))
+				return
+			}
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: StateStopped}})
+		}
+	})
+
+	svc, err := client.DeleteService(context.Background(), "svc-1")
+	if err != nil {
+		t.Fatalf("DeleteService: %v", err)
+	}
+	if svc == nil || svc.Id != "svc-1" {
+		t.Errorf("DeleteService returned %+v; want the deleted service", svc)
+	}
+	if n := atomic.LoadInt32(&deletes); n != 1 {
+		t.Errorf("issued %d DELETEs; want exactly 1", n)
+	}
+	// Initial state check, the stopped-state wait, then the deletion confirmation.
+	if n := atomic.LoadInt32(&gets); n != 3 {
+		t.Errorf("issued %d GETs; want 3 (state check, stopped-state wait, deletion confirmation)", n)
+	}
+}
+
+// A 4xx while waiting for the deletion to land will never resolve by retrying.
+// It must surface immediately rather than being retried for the full 5-minute
+// budget, which is what "not deleted yet" looks like.
+func TestDeleteService_failsFastOnForbiddenWhileConfirmingDeletion(t *testing.T) {
+	var getsAfterDelete int32
+	var deleted bool
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			deleted = true
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[ServiceResponseResult]{
+				Result: ServiceResponseResult{Service: Service{Id: "svc-1", State: StateStopped}},
+			})
+			return
+		}
+		if !deleted {
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: StateStopped}})
+			return
+		}
+		atomic.AddInt32(&getsAfterDelete, 1)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error":"FORBIDDEN","status":403}`))
+	})
+
+	if _, err := client.DeleteService(context.Background(), "svc-1"); err == nil {
+		t.Fatal("DeleteService: want error when the deletion check is forbidden, got nil")
+	}
+	if n := atomic.LoadInt32(&getsAfterDelete); n != 1 {
+		t.Errorf("polled %d times after the DELETE; want exactly 1 (no retrying a 403)", n)
+	}
+}
