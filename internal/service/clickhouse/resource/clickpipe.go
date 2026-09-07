@@ -1255,7 +1255,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							// narrows the value to uint32 behind a runtime bounds check.
 							"server_id": schema.Int64Attribute{
 								MarkdownDescription: fmt.Sprintf(
-									"Optional MySQL `server_id` the pipe declares itself as in the MySQL replication topology. Must be unique across replicas connected to the source. If omitted, one is assigned automatically. Must be an unsigned 32-bit integer (1 to %d).",
+									"Optional MySQL `server_id` the pipe declares itself as in the MySQL replication topology. Must be unique across replicas connected to the source. If omitted, one is assigned randomly. Must be a non-zero unsigned 32-bit integer (1 to %d).",
 									uint32(math.MaxUint32),
 								),
 								Optional: true,

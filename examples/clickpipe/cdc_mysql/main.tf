@@ -62,7 +62,7 @@ resource "clickhouse_clickpipe" "mysql_cdc" {
 
       # Optional: server_id the pipe declares itself as in the MySQL replication
       # topology. Must be unique across replicas connected to the source. If
-      # omitted, one is assigned automatically.
+      # omitted, one is assigned randomly.
       # server_id = 4242
 
       credentials = {
