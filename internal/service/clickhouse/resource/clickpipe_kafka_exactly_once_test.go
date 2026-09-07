@@ -17,6 +17,7 @@ import (
 // with the given exactly_once value, so tests can exercise null vs. set behavior.
 func buildKafkaExactlyOncePlan(exactlyOnce types.Bool) models.ClickPipeResourceModel {
 	kafkaAttrs := map[string]attr.Value{
+		"ssh_key_resource_id":          types.StringNull(),
 		"type":                         types.StringValue("msk"),
 		"format":                       types.StringValue(api.ClickPipeJSONEachRowFormat),
 		"brokers":                      types.StringValue("broker:9092"),
@@ -24,6 +25,7 @@ func buildKafkaExactlyOncePlan(exactlyOnce types.Bool) models.ClickPipeResourceM
 		"consumer_group":               types.StringNull(),
 		"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
 		"schema_registry":              types.ObjectNull(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes),
+		"protobuf_schema":              types.StringNull(),
 		"authentication":               types.StringValue(api.ClickPipeAuthenticationIAMRole),
 		"credentials":                  types.ObjectNull(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes),
 		"iam_role":                     types.StringValue("arn:aws:iam::123456789012:role/MyRole"),

@@ -67,6 +67,13 @@ type Client interface {
 	DeleteReversePrivateEndpoint(ctx context.Context, serviceId, reversePrivateEndpointId string) error
 	WaitForReversePrivateEndpointState(ctx context.Context, serviceId string, reversePrivateEndpointId string, stateChecker func(string) bool, maxWaitSeconds uint64) (*ReversePrivateEndpoint, error)
 
+	GetSSHKeyPath(serviceId, sshKeyId string) string
+	ListSSHKeys(ctx context.Context, serviceId string) ([]*SSHKey, error)
+	GetSSHKey(ctx context.Context, serviceId, sshKeyId string) (*SSHKey, error)
+	CreateSSHKey(ctx context.Context, serviceId string, request CreateSSHKey) (*SSHKey, error)
+	DeleteSSHKey(ctx context.Context, serviceId, sshKeyId string) error
+	ValidateSSHKey(ctx context.Context, serviceId, sshKeyId string) (*SSHKey, error)
+
 	ListMembers(ctx context.Context) ([]Member, error)
 	GetMember(ctx context.Context, userID string) (*Member, error)
 

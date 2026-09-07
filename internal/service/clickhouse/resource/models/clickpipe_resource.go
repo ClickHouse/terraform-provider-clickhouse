@@ -169,8 +169,9 @@ func (m ClickPipeKafkaSourceCredentialsModel) ObjectValue() types.Object {
 }
 
 type ClickPipeKafkaSourceModel struct {
-	Type   types.String `tfsdk:"type"`
-	Format types.String `tfsdk:"format"`
+	Type           types.String `tfsdk:"type"`
+	Format         types.String `tfsdk:"format"`
+	ProtobufSchema types.String `tfsdk:"protobuf_schema"`
 
 	Brokers types.String `tfsdk:"brokers"`
 	Topics  types.String `tfsdk:"topics"`
@@ -188,6 +189,8 @@ type ClickPipeKafkaSourceModel struct {
 	ReversePrivateEndpointIDs types.List `tfsdk:"reverse_private_endpoint_ids"`
 
 	ExactlyOnce types.Bool `tfsdk:"exactly_once"`
+
+	SSHKeyResourceID types.String `tfsdk:"ssh_key_resource_id"`
 }
 
 func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
@@ -195,6 +198,7 @@ func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
 		AttrTypes: map[string]attr.Type{
 			"type":                         types.StringType,
 			"format":                       types.StringType,
+			"protobuf_schema":              types.StringType,
 			"brokers":                      types.StringType,
 			"topics":                       types.StringType,
 			"consumer_group":               types.StringType,
@@ -206,6 +210,7 @@ func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
 			"ca_certificate":               types.StringType,
 			"reverse_private_endpoint_ids": types.ListType{ElemType: types.StringType},
 			"exactly_once":                 types.BoolType,
+			"ssh_key_resource_id":          types.StringType,
 		},
 	}
 }
@@ -214,6 +219,7 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"type":                         m.Type,
 		"format":                       m.Format,
+		"protobuf_schema":              m.ProtobufSchema,
 		"brokers":                      m.Brokers,
 		"topics":                       m.Topics,
 		"consumer_group":               m.ConsumerGroup,
@@ -225,6 +231,7 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 		"ca_certificate":               m.CACertificate,
 		"reverse_private_endpoint_ids": m.ReversePrivateEndpointIDs,
 		"exactly_once":                 m.ExactlyOnce,
+		"ssh_key_resource_id":          m.SSHKeyResourceID,
 	})
 }
 
@@ -406,50 +413,59 @@ func (m ClickPipePostgresTableMappingModel) ObjectValue() types.Object {
 }
 
 type ClickPipePostgresSourceModel struct {
-	Type           types.String `tfsdk:"type"`
-	Host           types.String `tfsdk:"host"`
-	Port           types.Int64  `tfsdk:"port"`
-	Database       types.String `tfsdk:"database"`
-	Authentication types.String `tfsdk:"authentication"`
-	IAMRole        types.String `tfsdk:"iam_role"`
-	TLSHost        types.String `tfsdk:"tls_host"`
-	CACertificate  types.String `tfsdk:"ca_certificate"`
-	Credentials    types.Object `tfsdk:"credentials"`
-	Settings       types.Object `tfsdk:"settings"`
-	TableMappings  types.Set    `tfsdk:"table_mappings"`
+	Type                 types.String `tfsdk:"type"`
+	Host                 types.String `tfsdk:"host"`
+	Port                 types.Int64  `tfsdk:"port"`
+	Database             types.String `tfsdk:"database"`
+	Authentication       types.String `tfsdk:"authentication"`
+	IAMRole              types.String `tfsdk:"iam_role"`
+	TLSHost              types.String `tfsdk:"tls_host"`
+	CACertificate        types.String `tfsdk:"ca_certificate"`
+	DisableTLS           types.Bool   `tfsdk:"disable_tls"`
+	SkipCertVerification types.Bool   `tfsdk:"skip_cert_verification"`
+	Credentials          types.Object `tfsdk:"credentials"`
+	Settings             types.Object `tfsdk:"settings"`
+	TableMappings        types.Set    `tfsdk:"table_mappings"`
+	SSHKeyResourceID     types.String `tfsdk:"ssh_key_resource_id"`
 }
 
 func (m ClickPipePostgresSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"type":           types.StringType,
-			"host":           types.StringType,
-			"port":           types.Int64Type,
-			"database":       types.StringType,
-			"authentication": types.StringType,
-			"iam_role":       types.StringType,
-			"tls_host":       types.StringType,
-			"ca_certificate": types.StringType,
-			"credentials":    ClickPipeSourceCredentialsModel{}.ObjectType(),
-			"settings":       ClickPipePostgresSettingsModel{}.ObjectType(),
-			"table_mappings": types.SetType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
+			"type":                   types.StringType,
+			"host":                   types.StringType,
+			"port":                   types.Int64Type,
+			"database":               types.StringType,
+			"authentication":         types.StringType,
+			"iam_role":               types.StringType,
+			"tls_host":               types.StringType,
+			"ca_certificate":         types.StringType,
+			"disable_tls":            types.BoolType,
+			"skip_cert_verification": types.BoolType,
+			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"settings":               ClickPipePostgresSettingsModel{}.ObjectType(),
+			"table_mappings":         types.SetType{ElemType: ClickPipePostgresTableMappingModel{}.ObjectType()},
+			"ssh_key_resource_id":    types.StringType,
 		},
 	}
 }
 
 func (m ClickPipePostgresSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"type":           m.Type,
-		"host":           m.Host,
-		"port":           m.Port,
-		"database":       m.Database,
-		"authentication": m.Authentication,
-		"iam_role":       m.IAMRole,
-		"tls_host":       m.TLSHost,
-		"ca_certificate": m.CACertificate,
-		"credentials":    m.Credentials,
-		"settings":       m.Settings,
-		"table_mappings": m.TableMappings,
+		"type":                   m.Type,
+		"host":                   m.Host,
+		"port":                   m.Port,
+		"database":               m.Database,
+		"authentication":         m.Authentication,
+		"iam_role":               m.IAMRole,
+		"tls_host":               m.TLSHost,
+		"ca_certificate":         m.CACertificate,
+		"disable_tls":            m.DisableTLS,
+		"skip_cert_verification": m.SkipCertVerification,
+		"credentials":            m.Credentials,
+		"settings":               m.Settings,
+		"table_mappings":         m.TableMappings,
+		"ssh_key_resource_id":    m.SSHKeyResourceID,
 	})
 }
 
@@ -685,6 +701,7 @@ type ClickPipeMySQLTableMappingModel struct {
 	SortingKeys         types.List   `tfsdk:"sorting_keys"`
 	TableEngine         types.String `tfsdk:"table_engine"`
 	PartitionKey        types.String `tfsdk:"partition_key"`
+	PartitionByExpr     types.String `tfsdk:"partition_by_expr"`
 }
 
 func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
@@ -698,6 +715,7 @@ func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
 			"sorting_keys":           types.ListType{ElemType: types.StringType},
 			"table_engine":           types.StringType,
 			"partition_key":          types.StringType,
+			"partition_by_expr":      types.StringType,
 		},
 	}
 }
@@ -712,9 +730,15 @@ func (m ClickPipeMySQLTableMappingModel) ObjectValue() types.Object {
 		"sorting_keys":           m.SortingKeys,
 		"table_engine":           m.TableEngine,
 		"partition_key":          m.PartitionKey,
+		"partition_by_expr":      m.PartitionByExpr,
 	})
 }
 
+// ClickPipeMySQLSourceModel is the Terraform view of api.ClickPipeMySQLSource.
+//
+// ServerID is a uint32 in the API but is held as Int64 here: the plugin
+// framework has no unsigned type and Int32 cannot represent values above
+// 2147483647. The schema validator enforces the uint32 range.
 type ClickPipeMySQLSourceModel struct {
 	Type                 types.String `tfsdk:"type"`
 	Host                 types.String `tfsdk:"host"`
@@ -725,9 +749,11 @@ type ClickPipeMySQLSourceModel struct {
 	CACertificate        types.String `tfsdk:"ca_certificate"`
 	DisableTLS           types.Bool   `tfsdk:"disable_tls"`
 	SkipCertVerification types.Bool   `tfsdk:"skip_cert_verification"`
+	ServerID             types.Int64  `tfsdk:"server_id"`
 	Credentials          types.Object `tfsdk:"credentials"`
 	Settings             types.Object `tfsdk:"settings"`
 	TableMappings        types.Set    `tfsdk:"table_mappings"`
+	SSHKeyResourceID     types.String `tfsdk:"ssh_key_resource_id"`
 }
 
 func (m ClickPipeMySQLSourceModel) ObjectType() types.ObjectType {
@@ -742,9 +768,11 @@ func (m ClickPipeMySQLSourceModel) ObjectType() types.ObjectType {
 			"ca_certificate":         types.StringType,
 			"disable_tls":            types.BoolType,
 			"skip_cert_verification": types.BoolType,
+			"server_id":              types.Int64Type,
 			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":               ClickPipeMySQLSettingsModel{}.ObjectType(),
 			"table_mappings":         types.SetType{ElemType: ClickPipeMySQLTableMappingModel{}.ObjectType()},
+			"ssh_key_resource_id":    types.StringType,
 		},
 	}
 }
@@ -760,9 +788,11 @@ func (m ClickPipeMySQLSourceModel) ObjectValue() types.Object {
 		"ca_certificate":         m.CACertificate,
 		"disable_tls":            m.DisableTLS,
 		"skip_cert_verification": m.SkipCertVerification,
+		"server_id":              m.ServerID,
 		"credentials":            m.Credentials,
 		"settings":               m.Settings,
 		"table_mappings":         m.TableMappings,
+		"ssh_key_resource_id":    m.SSHKeyResourceID,
 	})
 }
 
@@ -830,41 +860,47 @@ func (m ClickPipeMongoDBTableMappingModel) ObjectValue() types.Object {
 }
 
 type ClickPipeMongoDBSourceModel struct {
-	URI            types.String `tfsdk:"uri"`
-	ReadPreference types.String `tfsdk:"read_preference"`
-	TLSHost        types.String `tfsdk:"tls_host"`
-	CACertificate  types.String `tfsdk:"ca_certificate"`
-	DisableTLS     types.Bool   `tfsdk:"disable_tls"`
-	Credentials    types.Object `tfsdk:"credentials"`
-	Settings       types.Object `tfsdk:"settings"`
-	TableMappings  types.Set    `tfsdk:"table_mappings"`
+	URI                  types.String `tfsdk:"uri"`
+	ReadPreference       types.String `tfsdk:"read_preference"`
+	TLSHost              types.String `tfsdk:"tls_host"`
+	CACertificate        types.String `tfsdk:"ca_certificate"`
+	DisableTLS           types.Bool   `tfsdk:"disable_tls"`
+	SkipCertVerification types.Bool   `tfsdk:"skip_cert_verification"`
+	Credentials          types.Object `tfsdk:"credentials"`
+	Settings             types.Object `tfsdk:"settings"`
+	TableMappings        types.Set    `tfsdk:"table_mappings"`
+	SSHKeyResourceID     types.String `tfsdk:"ssh_key_resource_id"`
 }
 
 func (m ClickPipeMongoDBSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"uri":             types.StringType,
-			"read_preference": types.StringType,
-			"tls_host":        types.StringType,
-			"ca_certificate":  types.StringType,
-			"disable_tls":     types.BoolType,
-			"credentials":     ClickPipeSourceCredentialsModel{}.ObjectType(),
-			"settings":        ClickPipeMongoDBSettingsModel{}.ObjectType(),
-			"table_mappings":  types.SetType{ElemType: ClickPipeMongoDBTableMappingModel{}.ObjectType()},
+			"uri":                    types.StringType,
+			"read_preference":        types.StringType,
+			"tls_host":               types.StringType,
+			"ca_certificate":         types.StringType,
+			"disable_tls":            types.BoolType,
+			"skip_cert_verification": types.BoolType,
+			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"settings":               ClickPipeMongoDBSettingsModel{}.ObjectType(),
+			"table_mappings":         types.SetType{ElemType: ClickPipeMongoDBTableMappingModel{}.ObjectType()},
+			"ssh_key_resource_id":    types.StringType,
 		},
 	}
 }
 
 func (m ClickPipeMongoDBSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"uri":             m.URI,
-		"read_preference": m.ReadPreference,
-		"tls_host":        m.TLSHost,
-		"ca_certificate":  m.CACertificate,
-		"disable_tls":     m.DisableTLS,
-		"credentials":     m.Credentials,
-		"settings":        m.Settings,
-		"table_mappings":  m.TableMappings,
+		"uri":                    m.URI,
+		"read_preference":        m.ReadPreference,
+		"tls_host":               m.TLSHost,
+		"ca_certificate":         m.CACertificate,
+		"disable_tls":            m.DisableTLS,
+		"skip_cert_verification": m.SkipCertVerification,
+		"credentials":            m.Credentials,
+		"settings":               m.Settings,
+		"table_mappings":         m.TableMappings,
+		"ssh_key_resource_id":    m.SSHKeyResourceID,
 	})
 }
 
