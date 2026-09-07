@@ -152,7 +152,7 @@ resource "clickhouse_clickstack_alert" "legacy_single_channel" {
 
 - `channel` (Attributes, Deprecated) Single notification channel for the alert. Deprecated: use `channels`. Exactly one of `channel` or `channels` must be set. Importing an alert always populates `channels`, so a config still on `channel` shows a diff after import. (see [below for nested schema](#nestedatt--channel))
 - `channels` (Attributes List) Notification channels for the alert, in order. Between 1 and 10 entries, no duplicates. Exactly one of `channel` or `channels` must be set. (see [below for nested schema](#nestedatt--channels))
-- `dashboard_id` (String) ID of the dashboard that owns the tile. Required together with `tile_id` when `source` is `tile`: a tile lives inside its dashboard document, so it can only be looked up through the dashboard. Changing this to a different known value forces replacement.
+- `dashboard_id` (String) ID of the dashboard that owns the tile. Required together with `tile_id` when `source` is `tile`: a tile lives inside its dashboard document, so it can only be looked up through the dashboard. Changing this forces replacement, including when the dashboard itself is replaced: the server deletes a dashboard's tile alerts along with it, so the alert cannot outlive the dashboard it points at.
 - `group_by` (String) Optional expression to evaluate the alert per group (saved-search alerts only). Sticky once set: the API keeps the previous value when the field is omitted and cannot clear it, so removing it from config is a no-op (recreate the alert to fully reset it).
 - `message` (String) Optional notification message template (1-4096 characters).
 - `name` (String) Optional alert name (1-512 characters).

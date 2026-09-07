@@ -86,18 +86,24 @@ func sourceRequiresReplace() planmodifier.String {
 	)
 }
 
-// targetRequiresReplace forces replacement when the alert's target changes, but
-// not when the planned id is unknown. An unknown id usually resolves to the same
-// value (tile_ids goes unknown whenever the dashboard body is unknown at plan),
-// and the alert PUT is a partial $set that accepts the resolved ids, so
-// replacing on unknown would destroy every tile alert for nothing.
-func targetRequiresReplace(attrName string) planmodifier.String {
+// tileIDRequiresReplace forces replacement when tile_id changes, but not when
+// the planned id is unknown. tile_ids goes unknown whenever the dashboard body
+// is unknown at plan, the id usually resolves to the same value, and the alert
+// PUT is a partial $set that accepts the resolved id, so replacing on unknown
+// would destroy every tile alert on the dashboard for nothing.
+//
+// dashboard_id deliberately does not get this exemption: dashboard id uses
+// UseStateForUnknown, so it only goes unknown when the dashboard itself is
+// being replaced, and then the server cascade-deletes the tile alerts with it.
+// Planning that as an in-place update makes Update hit a 404 and remove state,
+// which the framework rejects with "Missing Resource State After Update".
+func tileIDRequiresReplace() planmodifier.String {
 	return stringplanmodifier.RequiresReplaceIf(
 		func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
 			resp.RequiresReplace = !req.PlanValue.IsUnknown()
 		},
-		"Changing "+attrName+" forces replacement; an unknown planned value does not, the apply sends the resolved id in place.",
-		"Changing `"+attrName+"` forces replacement; an unknown planned value does not, the apply sends the resolved id in place.",
+		"Changing tile_id forces replacement; an unknown planned value does not, the apply sends the resolved id in place.",
+		"Changing `tile_id` forces replacement; an unknown planned value does not, the apply sends the resolved id in place.",
 	)
 }
 
@@ -231,8 +237,10 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional: true,
 				Description: "ID of the dashboard that owns the tile. Required together with `tile_id` when " +
 					"`source` is `tile`: a tile lives inside its dashboard document, so it can only be " +
-					"looked up through the dashboard. Changing this to a different known value forces replacement.",
-				PlanModifiers: []planmodifier.String{targetRequiresReplace(dashboardIDAttr)},
+					"looked up through the dashboard. Changing this forces replacement, including when the " +
+					"dashboard itself is replaced: the server deletes a dashboard's tile alerts along with " +
+					"it, so the alert cannot outlive the dashboard it points at.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			tileIDAttr: schema.StringAttribute{
 				Optional: true,
@@ -242,7 +250,7 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					"its own: the server reads the tile's chart config from the dashboard on every evaluation. " +
 					"The tile must be a line, stacked bar, or number tile. Changing this to a different known " +
 					"value forces replacement.",
-				PlanModifiers: []planmodifier.String{targetRequiresReplace(tileIDAttr)},
+				PlanModifiers: []planmodifier.String{tileIDRequiresReplace()},
 			},
 			"group_by": schema.StringAttribute{
 				Optional: true,

@@ -234,41 +234,54 @@ func TestAlertResource_SourceRequiresReplace(t *testing.T) {
 	}
 }
 
-// TestAlertResource_TargetRequiresReplace: an unknown planned tile_id or
-// dashboard_id must not replace the alert. tile_ids goes unknown whenever the
-// dashboard body is unknown at plan, and replacing on that would destroy every
-// tile alert on the dashboard.
+// TestAlertResource_TargetRequiresReplace drives the target ids through the
+// real schema, because the two differ on the unknown case. An unknown tile_id
+// must not replace: tile_ids goes unknown whenever the dashboard body is
+// unknown at plan, and replacing on that would destroy every tile alert on the
+// dashboard. An unknown dashboard_id must replace: dashboard id only goes
+// unknown when the dashboard is being replaced, and the server deletes its tile
+// alerts with it, so an in-place update would 404 and fail the apply.
 func TestAlertResource_TargetRequiresReplace(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	exists := tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{}}, map[string]tftypes.Value{})
+	schema := alertSchema(t)
 
 	cases := []struct {
-		name  string
-		state types.String
-		plan  types.String
-		want  bool
+		name     string
+		attrName string
+		state    types.String
+		plan     types.String
+		want     bool
 	}{
-		{"different known id replaces", types.StringValue("t1"), types.StringValue("t2"), true},
-		{"same id does not replace", types.StringValue("t1"), types.StringValue("t1"), false},
-		{"unknown planned id does not replace", types.StringValue("t1"), types.StringUnknown(), false},
+		{"different known tile_id replaces", tileIDAttr, types.StringValue("t1"), types.StringValue("t2"), true},
+		{"same tile_id does not replace", tileIDAttr, types.StringValue("t1"), types.StringValue("t1"), false},
+		{"unknown tile_id does not replace", tileIDAttr, types.StringValue("t1"), types.StringUnknown(), false},
+		{"different known dashboard_id replaces", dashboardIDAttr, types.StringValue("d1"), types.StringValue("d2"), true},
+		{"same dashboard_id does not replace", dashboardIDAttr, types.StringValue("d1"), types.StringValue("d1"), false},
+		{"unknown dashboard_id replaces", dashboardIDAttr, types.StringValue("d1"), types.StringUnknown(), true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			for _, attrName := range []string{tileIDAttr, dashboardIDAttr} {
-				req := planmodifier.StringRequest{
-					Path:       path.Root(attrName),
-					StateValue: tc.state,
-					PlanValue:  tc.plan,
-					State:      tfsdk.State{Raw: exists},
-					Plan:       tfsdk.Plan{Raw: exists},
-				}
-				resp := &planmodifier.StringResponse{PlanValue: tc.plan}
-				targetRequiresReplace(attrName).PlanModifyString(ctx, req, resp)
-				if resp.RequiresReplace != tc.want {
-					t.Errorf("%s: RequiresReplace=%v, want %v", attrName, resp.RequiresReplace, tc.want)
-				}
+			attr, ok := schema.Attributes[tc.attrName].(rschema.StringAttribute)
+			if !ok {
+				t.Fatalf("%s is not a StringAttribute", tc.attrName)
+			}
+			if len(attr.PlanModifiers) != 1 {
+				t.Fatalf("%s has %d plan modifiers, want 1", tc.attrName, len(attr.PlanModifiers))
+			}
+			req := planmodifier.StringRequest{
+				Path:       path.Root(tc.attrName),
+				StateValue: tc.state,
+				PlanValue:  tc.plan,
+				State:      tfsdk.State{Raw: exists},
+				Plan:       tfsdk.Plan{Raw: exists},
+			}
+			resp := &planmodifier.StringResponse{PlanValue: tc.plan}
+			attr.PlanModifiers[0].PlanModifyString(ctx, req, resp)
+			if resp.RequiresReplace != tc.want {
+				t.Errorf("RequiresReplace=%v, want %v", resp.RequiresReplace, tc.want)
 			}
 		})
 	}
