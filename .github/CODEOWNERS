@@ -6,10 +6,6 @@
 /internal/service/postgres/   @ClickHouse/clickgres
 /internal/service/clickstack/ @ClickHouse/clickstack
 
-# ClickHouse instance resources and the shared API client. Both sit before the
-# component globs below on purpose: whatever a component already owns there
-# (udf.go, clickpipe_*.go, ...) keeps routing to that component's team, and
-# everything else in these two directories is ours.
 /internal/api/                         @rndD @mdevils @balanza
 /internal/service/clickhouse/resource/ @rndD @mdevils @balanza
 
