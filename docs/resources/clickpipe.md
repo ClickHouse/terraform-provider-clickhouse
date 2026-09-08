@@ -312,7 +312,7 @@ Optional:
 
 - `access_key` (Attributes) The access key for the Kinesis source. Use with `IAM_USER` authentication. Can be rotated in place via an update. (see [below for nested schema](#nestedatt--source--kinesis--access_key))
 - `iam_role` (String) The IAM role for the Kinesis source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kinesis.
-- `protobuf_schema` (String, Sensitive) Base64-encoded Protobuf schema. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Required with `format = "Protobuf"` and not supported with other formats. Changing it forces replacement. Requires Protobuf schema upload to be enabled for the organization.
+- `protobuf_schema` (String, Sensitive) Base64-encoded Protobuf schema. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Required with `format = "Protobuf"` and not supported with other formats. Changing it forces replacement.
 - `timestamp` (String) The timestamp for the Kinesis source. Use with `AT_TIMESTAMP` iterator type. (format `2021-01-01T00:00`)
 - `use_enhanced_fan_out` (Boolean) Whether to use enhanced fan-out consumer.
 

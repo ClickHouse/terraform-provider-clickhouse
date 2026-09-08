@@ -667,7 +667,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "Base64-encoded Protobuf schema. " +
 									"Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. " +
 									"Required with `format = \"Protobuf\"` and not supported with other formats. " +
-									"Changing it forces replacement. Requires Protobuf schema upload to be enabled for the organization.",
+									"Changing it forces replacement.",
 								Optional:  true,
 								Sensitive: true,
 								PlanModifiers: []planmodifier.String{
@@ -3275,8 +3275,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Authentication:    kinesisModel.Authentication.ValueString(),
 			IAMRole:           kinesisModel.IAMRole.ValueStringPointer(),
 		}
-		if !isUpdate {
-			source.Kinesis.ProtobufSchema = kinesisModel.ProtobufSchema.ValueStringPointer()
+		if !isUpdate && !kinesisModel.ProtobufSchema.IsNull() {
+			encodedSchema := strings.TrimSpace(kinesisModel.ProtobufSchema.ValueString())
+			source.Kinesis.ProtobufSchema = &encodedSchema
 		}
 
 		if !kinesisModel.Timestamp.IsNull() {

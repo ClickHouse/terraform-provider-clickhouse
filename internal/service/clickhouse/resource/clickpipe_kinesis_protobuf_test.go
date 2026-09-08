@@ -239,22 +239,59 @@ func TestClickPipeResource_KinesisProtobufSchemaIsSensitiveAndImmutable(t *testi
 
 func TestExtractSourceFromPlan_KinesisProtobufSchema(t *testing.T) {
 	encodedSchema := base64.StdEncoding.EncodeToString([]byte(`syntax = "proto3"; message Event { string id = 1; }`))
-	plan := kinesisProtobufModel(t, types.StringValue(api.ClickPipeProtobufFormat), types.StringValue(encodedSchema))
-	diagnostics := diag.Diagnostics{}
+	maximumSizeSchema := strings.Repeat("A", maxClickPipeProtobufSchemaEncodedSize)
+	tests := []struct {
+		name     string
+		format   string
+		schema   types.String
+		expected types.String
+	}{
+		{
+			name:     "preserves an encoded schema",
+			format:   api.ClickPipeProtobufFormat,
+			schema:   types.StringValue(encodedSchema),
+			expected: types.StringValue(encodedSchema),
+		},
+		{
+			name:     "trims surrounding whitespace",
+			format:   api.ClickPipeProtobufFormat,
+			schema:   types.StringValue(" \n" + encodedSchema + "\t "),
+			expected: types.StringValue(encodedSchema),
+		},
+		{
+			name:     "trims a maximum-size schema before sending",
+			format:   api.ClickPipeProtobufFormat,
+			schema:   types.StringValue(" \n" + maximumSizeSchema + "\t "),
+			expected: types.StringValue(maximumSizeSchema),
+		},
+		{
+			name:     "omits an unset schema",
+			format:   api.ClickPipeJSONEachRowFormat,
+			schema:   types.StringNull(),
+			expected: types.StringNull(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			plan := kinesisProtobufModel(t, types.StringValue(test.format), test.schema)
+			originalSource := plan.Source
+			diagnostics := diag.Diagnostics{}
 
-	source := (&ClickPipeResource{}).extractSourceFromPlan(
-		t.Context(),
-		&diagnostics,
-		plan,
-		nil,
-		false,
-	)
+			source := (&ClickPipeResource{}).extractSourceFromPlan(
+				t.Context(),
+				&diagnostics,
+				plan,
+				nil,
+				false,
+			)
 
-	require.False(t, diagnostics.HasError())
-	require.NotNil(t, source.Kinesis)
-	require.NotNil(t, source.Kinesis.ProtobufSchema)
-	assert.Equal(t, api.ClickPipeProtobufFormat, source.Kinesis.Format)
-	assert.Equal(t, encodedSchema, *source.Kinesis.ProtobufSchema)
+			require.False(t, diagnostics.HasError())
+			require.NotNil(t, source.Kinesis)
+			assert.Equal(t, test.format, source.Kinesis.Format)
+			assert.Equal(t, test.expected, types.StringPointerValue(source.Kinesis.ProtobufSchema))
+			assert.Equal(t, originalSource, plan.Source)
+		})
+	}
 }
 
 func TestExtractSourceFromPlan_KinesisProtobufSchemaOmittedOnUpdate(t *testing.T) {
