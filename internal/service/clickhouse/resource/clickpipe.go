@@ -668,8 +668,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									"Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. " +
 									"Required with `format = \"Protobuf\"` and not supported with other formats. " +
 									"Changing it forces replacement.",
-								Optional:  true,
-								Sensitive: true,
+								Optional: true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
 								},

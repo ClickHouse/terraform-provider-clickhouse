@@ -157,7 +157,7 @@ func TestClickPipeResource_ValidatesKinesisProtobufSchemaConfiguration(t *testin
 	}
 }
 
-func TestClickPipeResource_KinesisProtobufSchemaIsSensitiveAndImmutable(t *testing.T) {
+func TestClickPipeResource_KinesisProtobufSchemaIsNonSensitiveAndImmutable(t *testing.T) {
 	ctx := t.Context()
 	clickPipeResource := &ClickPipeResource{}
 	schemaResponse := &resource.SchemaResponse{}
@@ -172,7 +172,7 @@ func TestClickPipeResource_KinesisProtobufSchemaIsSensitiveAndImmutable(t *testi
 	require.IsType(t, resourceschema.StringAttribute{}, upload)
 	schemaAttribute := upload.(resourceschema.StringAttribute)
 	assert.True(t, schemaAttribute.Optional)
-	assert.True(t, schemaAttribute.Sensitive)
+	assert.False(t, schemaAttribute.Sensitive)
 	assert.False(t, schemaAttribute.WriteOnly)
 	require.Len(t, schemaAttribute.PlanModifiers, 1)
 	formatAttribute := kinesisAttribute.Attributes["format"].(resourceschema.StringAttribute)
