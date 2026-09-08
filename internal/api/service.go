@@ -138,7 +138,42 @@ func (c *ClientImpl) CreateService(ctx context.Context, s Service) (*Service, st
 	return &serviceResponse.Result.Service, serviceResponse.Result.Password, nil
 }
 
-func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error {
+const defaultStateWaitPollInterval = 5 * time.Second
+
+type waitOptions struct {
+	notFoundTolerance int
+	pollInterval      time.Duration
+}
+
+// withPollInterval shortens the gap between polls. Unexported: it exists so
+// tests do not have to spend real seconds per retry.
+func withPollInterval(d time.Duration) WaitOption {
+	return func(o *waitOptions) {
+		o.pollInterval = d
+	}
+}
+
+// WaitOption configures WaitForServiceState.
+type WaitOption func(*waitOptions)
+
+// TolerateNotFound absorbs up to n 404s during the wait instead of failing on
+// the first one. Use it right after a create: the API is eventually consistent,
+// so a read issued that quickly can miss a service that does exist. Keep n
+// small — past that window a 404 means the service really is gone.
+func TolerateNotFound(n int) WaitOption {
+	return func(o *waitOptions) {
+		o.notFoundTolerance = n
+	}
+}
+
+func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption) error {
+	cfg := waitOptions{pollInterval: defaultStateWaitPollInterval}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	notFoundSeen := 0
+
 	// Wait until service is in desired state
 	checkState := func() error {
 		// Only the state field is needed here, so poll the lightweight
@@ -148,6 +183,10 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 		// wait for a state transition (e.g. right after creating a
 		// service with a token scoped to only that one instance).
 		state, err := c.getServiceState(ctx, serviceId)
+		if IsNotFound(err) && notFoundSeen < cfg.notFoundTolerance {
+			notFoundSeen++
+			return err
+		}
 		if is5xx(err) || is4xxPermanent(err) {
 			// 500s are automatically retried in `doRequest`. A 4xx other
 			// than 429/408 (e.g. a missing permission) will never resolve
@@ -170,7 +209,9 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 		maxWaitSeconds = 5
 	}
 
-	return backoff.Retry(checkState, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)), ctx)) //nolint:gosec
+	maxRetries := uint64(time.Duration(maxWaitSeconds) * time.Second / cfg.pollInterval) //nolint:gosec
+
+	return backoff.Retry(checkState, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(cfg.pollInterval), maxRetries), ctx))
 }
 
 // getServiceState returns just the service state. Unlike GetService it does
@@ -217,8 +258,8 @@ func (c *ClientImpl) wakeService(ctx context.Context, serviceId string) error {
 // only state in which the ClickPipes API accepts creations and updates
 // (partially_running is NOT sufficient). It is a thin wrapper around
 // WaitForServiceState for internal use (e.g. after wakeService).
-func (c *ClientImpl) waitForServiceRunning(ctx context.Context, serviceId string, maxWaitSeconds int) error {
-	return c.WaitForServiceState(ctx, serviceId, func(state string) bool { return state == StateRunning }, maxWaitSeconds)
+func (c *ClientImpl) waitForServiceRunning(ctx context.Context, serviceId string, maxWaitSeconds int, opts ...WaitOption) error {
+	return c.WaitForServiceState(ctx, serviceId, func(state string) bool { return state == StateRunning }, maxWaitSeconds, opts...)
 }
 
 func (c *ClientImpl) UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error) {
@@ -247,7 +288,9 @@ func (c *ClientImpl) UpdateService(ctx context.Context, serviceId string, s Serv
 }
 
 func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Service, error) {
-	service, err := c.GetService(ctx, serviceId)
+	// Only the state decides whether a stop is needed first, so avoid the
+	// GetService fan-out and the extra permissions it would require.
+	state, err := c.getServiceState(ctx, serviceId)
 	if IsNotFound(err) {
 		// That is what we want
 		return nil, nil
@@ -255,7 +298,7 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 		return nil, err
 	}
 
-	if service.State != StateStopped && service.State != StateStopping {
+	if state != StateStopped && state != StateStopping {
 		rb, _ := json.Marshal(ServiceStateUpdate{
 			Command: "stop",
 		})
@@ -324,10 +367,18 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 
 	// Wait until service is deleted
 	checkDeleted := func() error {
-		_, err := c.GetService(ctx, serviceId)
+		// Only existence matters here, so poll the lightweight endpoint
+		// rather than the full GetService fan-out.
+		_, err := c.getServiceState(ctx, serviceId)
 		if IsNotFound(err) {
 			// That is what we want
 			return nil
+		}
+		if is5xx(err) || is4xxPermanent(err) {
+			// Same reasoning as WaitForServiceState: a missing permission
+			// will not resolve by retrying, and would otherwise look
+			// identical to "not deleted yet" for the full 5 minutes.
+			return backoff.Permanent(err)
 		} else if err != nil {
 			return err
 		}
@@ -336,9 +387,9 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 	}
 
 	// Wait for up to 5 minutes for the service to be deleted
-	err = backoff.Retry(checkDeleted, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 60))
+	err = backoff.Retry(checkDeleted, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 60), ctx))
 	if err != nil {
-		return nil, fmt.Errorf("service %s was not deleted in the allocated time", serviceId)
+		return nil, fmt.Errorf("service %s was not deleted in the allocated time: %w", serviceId, err)
 	}
 
 	return &serviceResponse.Result.Service, nil

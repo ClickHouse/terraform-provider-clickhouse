@@ -51,6 +51,11 @@ var (
 //go:embed descriptions/service.md
 var serviceResourceDescription string
 
+// The API is eventually consistent, so a just-created service can 404 for the
+// first few polls on the very id the create call returned. Absorb that window
+// instead of failing the create.
+const createStateWaitNotFoundTolerance = 5
+
 // NewServiceResource is a helper function to simplify the provider implementation.
 func NewServiceResource() resource.Resource {
 	return &ServiceResource{}
@@ -1481,7 +1486,8 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		plan.GeneratedPassword = types.StringValue(generatedPassword)
 	}
 
-	err = r.client.WaitForServiceState(ctx, s.Id, func(state string) bool { return state != api.StateProvisioning }, 90*60)
+	err = r.client.WaitForServiceState(ctx, s.Id, func(state string) bool { return state != api.StateProvisioning }, 90*60,
+		api.TolerateNotFound(createStateWaitNotFoundTolerance))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error retrieving service state",
