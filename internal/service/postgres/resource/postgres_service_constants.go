@@ -5,6 +5,7 @@ package resource
 
 var postgresCloudProviders = []string{
 	"aws",
+	"gcp",
 }
 
 var postgresVersions = []string{
