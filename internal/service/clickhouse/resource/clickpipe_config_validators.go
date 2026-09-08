@@ -99,6 +99,86 @@ func (v kafkaProtobufSchemaValidator) ValidateResource(ctx context.Context, req 
 	}
 }
 
+// kinesisProtobufSchemaValidator enforces the Kinesis Protobuf schema rules exposed by the OpenAPI.
+type kinesisProtobufSchemaValidator struct{}
+
+// Description returns a plain-text summary of the Kinesis Protobuf schema validation.
+func (v kinesisProtobufSchemaValidator) Description(_ context.Context) string {
+	return "Validates direct Kinesis Protobuf schema configuration."
+}
+
+// MarkdownDescription returns the validation summary for the supplied context.
+func (v kinesisProtobufSchemaValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+// ValidateResource reads req.Config in ctx and adds Kinesis schema errors to resp.
+// Cross-field validation is deferred until the relevant Terraform values are known.
+func (v kinesisProtobufSchemaValidator) ValidateResource(
+	ctx context.Context,
+	req resource.ValidateConfigRequest,
+	resp *resource.ValidateConfigResponse,
+) {
+	var data models.ClickPipeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if data.Source.IsNull() || data.Source.IsUnknown() {
+		return
+	}
+
+	var sourceModel models.ClickPipeSourceModel
+	resp.Diagnostics.Append(data.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if sourceModel.Kinesis.IsNull() || sourceModel.Kinesis.IsUnknown() {
+		return
+	}
+
+	var kinesisModel models.ClickPipeKinesisSourceModel
+	resp.Diagnostics.Append(sourceModel.Kinesis.As(ctx, &kinesisModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	protobufSchemaPath := path.Root("source").AtName("kinesis").AtName("protobuf_schema")
+	protobufSchemaKnown := !kinesisModel.ProtobufSchema.IsUnknown()
+	protobufSchemaSet := protobufSchemaKnown && !kinesisModel.ProtobufSchema.IsNull()
+	if protobufSchemaSet {
+		encodedSchema := strings.TrimSpace(kinesisModel.ProtobufSchema.ValueString())
+		if !isValidProtobufSchemaBase64(encodedSchema) {
+			resp.Diagnostics.AddAttributeError(
+				protobufSchemaPath,
+				"Invalid Kinesis Protobuf schema",
+				"protobuf_schema must contain valid base64 data and must not exceed 1 MiB.",
+			)
+		}
+	}
+
+	if kinesisModel.Format.IsNull() || kinesisModel.Format.IsUnknown() {
+		return
+	}
+
+	format := kinesisModel.Format.ValueString()
+	if protobufSchemaSet && format != api.ClickPipeProtobufFormat {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("source").AtName("kinesis").AtName("format"),
+			"Invalid Kinesis Protobuf schema configuration",
+			"protobuf_schema is supported only when format is Protobuf.",
+		)
+	}
+	protobufSchemaMissing := protobufSchemaKnown && !protobufSchemaSet
+	if format == api.ClickPipeProtobufFormat && protobufSchemaMissing {
+		resp.Diagnostics.AddAttributeError(
+			protobufSchemaPath,
+			"Missing Kinesis Protobuf schema",
+			"Protobuf format requires protobuf_schema.",
+		)
+	}
+}
+
 // isValidProtobufSchemaBase64 reports whether a non-empty schema is canonical padded or unpadded base64 within the API limit.
 func isValidProtobufSchemaBase64(encodedSchema string) bool {
 	if encodedSchema == "" || len(encodedSchema) > maxClickPipeProtobufSchemaEncodedSize {
@@ -230,6 +310,7 @@ func (v cdcClickPipeScalingValidator) ValidateResource(ctx context.Context, req 
 func (c *ClickPipeResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		kafkaProtobufSchemaValidator{},
+		kinesisProtobufSchemaValidator{},
 		pubsubSeekValidator{},
 		cdcClickPipeScalingValidator{},
 	}

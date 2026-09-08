@@ -7,6 +7,11 @@ description: |-
   Supported source types: Kafka (Confluent, MSK, Azure Event Hubs, Redpanda, WarpStream), Object Storage (S3, GCS, Azure Blob), Kinesis, Postgres CDC, MySQL CDC, BigQuery, and MongoDB CDC.
   Known limitations:
   ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.Changing the source type of an existing ClickPipe will force replacement (destroy and recreate).
+  Kinesis Protobuf schema uploads
+  Set source.kinesis.format = "Protobuf" and supply source.kinesis.protobuf_schema using filebase64() with a .proto or serialized FileDescriptorSet file. The maximum encoded size is 1 MiB (a file up to 768 KiB). Other formats do not accept protobuf_schema.
+  This requires Kinesis Protobuf schema upload support to be enabled for your organization. The backend selects the first message declared in the last root file; message selection cannot be overridden through this resource.
+  The schema is sent only when the ClickPipe is created. Changing, adding, or removing it forces replacement; credential updates do not resend it. Terraform preserves the schema in state because the API does not return it. It is marked sensitive to hide it from normal output, but it is still stored in state, so protect access to your state files.
+  Import cannot recover the uploaded schema. Adding protobuf_schema to an imported ClickPipe forces replacement, even if it matches the schema already stored by the backend.
 ---
 
 # clickhouse_clickpipe (Resource)
@@ -19,6 +24,16 @@ Known limitations:
 
 - ClickPipe does not support table updates for managed tables. If you need to update the table schema, you will have to do that externally.
 - Changing the source type of an existing ClickPipe will force replacement (destroy and recreate).
+
+### Kinesis Protobuf schema uploads
+
+Set `source.kinesis.format = "Protobuf"` and supply `source.kinesis.protobuf_schema` using `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file. The maximum encoded size is 1 MiB (a file up to 768 KiB). Other formats do not accept `protobuf_schema`.
+
+This requires Kinesis Protobuf schema upload support to be enabled for your organization. The backend selects the first message declared in the last root file; message selection cannot be overridden through this resource.
+
+The schema is sent only when the ClickPipe is created. Changing, adding, or removing it forces replacement; credential updates do not resend it. Terraform preserves the schema in state because the API does not return it. It is marked sensitive to hide it from normal output, but it is still stored in state, so protect access to your state files.
+
+Import cannot recover the uploaded schema. Adding `protobuf_schema` to an imported ClickPipe forces replacement, even if it matches the schema already stored by the backend.
 
 ## Example Usage
 
@@ -303,7 +318,7 @@ Optional:
 Required:
 
 - `authentication` (String) The authentication method for the Kinesis source. (`IAM_ROLE`, `IAM_USER`).
-- `format` (String) The format of the Kinesis source. (`JSONEachRow`, `Avro`, `AvroConfluent`)
+- `format` (String) The format of the Kinesis source. (`JSONEachRow`, `Avro`, `AvroConfluent`, `Protobuf`)
 - `iterator_type` (String) The iterator type for the Kinesis source. (`TRIM_HORIZON`, `LATEST`, `AT_TIMESTAMP`)
 - `region` (String) The AWS region of the Kinesis stream.
 - `stream_name` (String) The name of the Kinesis stream.
@@ -312,6 +327,7 @@ Optional:
 
 - `access_key` (Attributes) The access key for the Kinesis source. Use with `IAM_USER` authentication. Can be rotated in place via an update. (see [below for nested schema](#nestedatt--source--kinesis--access_key))
 - `iam_role` (String) The IAM role for the Kinesis source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kinesis.
+- `protobuf_schema` (String, Sensitive) Base64-encoded Protobuf schema. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Required with `format = "Protobuf"` and not supported with other formats. Changing it forces replacement. Requires Protobuf schema upload to be enabled for the organization.
 - `timestamp` (String) The timestamp for the Kinesis source. Use with `AT_TIMESTAMP` iterator type. (format `2021-01-01T00:00`)
 - `use_enhanced_fan_out` (Boolean) Whether to use enhanced fan-out consumer.
 

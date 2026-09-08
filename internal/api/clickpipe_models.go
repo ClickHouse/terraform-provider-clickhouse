@@ -144,6 +144,8 @@ type ClickPipeObjectStorageSource struct {
 
 type ClickPipeKinesisSource struct {
 	Format string `json:"format"`
+	// ProtobufSchema contains the base64-encoded schema required for Protobuf format.
+	ProtobufSchema *string `json:"protobufSchema,omitempty"`
 
 	StreamName string `json:"streamName"`
 	Region     string `json:"region"`

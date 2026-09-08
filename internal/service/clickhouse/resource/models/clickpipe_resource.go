@@ -237,6 +237,7 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 
 type ClickPipeKinesisSourceModel struct {
 	Format            types.String `tfsdk:"format"`
+	ProtobufSchema    types.String `tfsdk:"protobuf_schema"`
 	StreamName        types.String `tfsdk:"stream_name"`
 	Region            types.String `tfsdk:"region"`
 	IteratorType      types.String `tfsdk:"iterator_type"`
@@ -251,6 +252,7 @@ func (m ClickPipeKinesisSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"format":               types.StringType,
+			"protobuf_schema":      types.StringType,
 			"stream_name":          types.StringType,
 			"region":               types.StringType,
 			"iterator_type":        types.StringType,
@@ -266,6 +268,7 @@ func (m ClickPipeKinesisSourceModel) ObjectType() types.ObjectType {
 func (m ClickPipeKinesisSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"format":               m.Format,
+		"protobuf_schema":      m.ProtobufSchema,
 		"stream_name":          m.StreamName,
 		"region":               m.Region,
 		"iterator_type":        m.IteratorType,
