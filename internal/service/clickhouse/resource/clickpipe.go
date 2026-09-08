@@ -663,6 +663,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									stringplanmodifier.RequiresReplace(),
 								},
 							},
+							"protobuf_schema": schema.StringAttribute{
+								MarkdownDescription: "Base64-encoded Protobuf schema. " +
+									"Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. " +
+									"Required with `format = \"Protobuf\"` and not supported with other formats. " +
+									"Changing it forces replacement.",
+								Optional: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"stream_name": schema.StringAttribute{
 								Description: "The name of the Kinesis stream.",
 								Required:    true,
@@ -3264,6 +3274,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Authentication:    kinesisModel.Authentication.ValueString(),
 			IAMRole:           kinesisModel.IAMRole.ValueStringPointer(),
 		}
+		if !isUpdate && !kinesisModel.ProtobufSchema.IsNull() {
+			encodedSchema := strings.TrimSpace(kinesisModel.ProtobufSchema.ValueString())
+			source.Kinesis.ProtobufSchema = &encodedSchema
+		}
 
 		if !kinesisModel.Timestamp.IsNull() {
 			source.Kinesis.Timestamp = kinesisModel.Timestamp.ValueStringPointer()
@@ -4331,6 +4345,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		kinesisModel := models.ClickPipeKinesisSourceModel{
 			Format:            types.StringValue(clickPipe.Source.Kinesis.Format),
+			ProtobufSchema:    stateKinesisModel.ProtobufSchema,
 			StreamName:        types.StringValue(clickPipe.Source.Kinesis.StreamName),
 			Region:            types.StringValue(clickPipe.Source.Kinesis.Region),
 			IteratorType:      types.StringValue(clickPipe.Source.Kinesis.IteratorType),

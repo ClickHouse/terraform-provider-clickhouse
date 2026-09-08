@@ -23,3 +23,21 @@ func TestClickPipeKafkaSource_OmitsUnsetProtobufSchema(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(payload), "protobufSchema")
 }
+
+func TestClickPipeKinesisSource_ProtobufSchemaJSON(t *testing.T) {
+	protobufSchema := "c3ludGF4ID0gInByb3RvMyI7"
+
+	payload, err := json.Marshal(ClickPipeKinesisSource{ProtobufSchema: &protobufSchema})
+
+	require.NoError(t, err)
+	var source map[string]any
+	require.NoError(t, json.Unmarshal(payload, &source))
+	assert.Equal(t, protobufSchema, source["protobufSchema"])
+}
+
+func TestClickPipeKinesisSource_OmitsUnsetProtobufSchema(t *testing.T) {
+	payload, err := json.Marshal(ClickPipeKinesisSource{})
+
+	require.NoError(t, err)
+	assert.NotContains(t, string(payload), "protobufSchema")
+}

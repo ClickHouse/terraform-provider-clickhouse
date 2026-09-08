@@ -56,7 +56,12 @@ var ClickPipeKafkaFormats = []string{
 	ClickPipeProtobufFormat,
 }
 
-var ClickPipeKinesisFormats = ClickPipeStreamingFormats
+var ClickPipeKinesisFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeAvroConfluentFormat,
+	ClickPipeProtobufFormat,
+}
 
 const (
 	ClickPipeAuthenticationIAMRole          = "IAM_ROLE"
