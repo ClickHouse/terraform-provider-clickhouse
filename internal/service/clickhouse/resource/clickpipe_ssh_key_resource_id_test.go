@@ -282,6 +282,7 @@ func buildMySQLSSHKeyResourcePlan(sshKeyResourceID types.String) models.ClickPip
 		"ca_certificate":         types.StringNull(),
 		"disable_tls":            types.BoolNull(),
 		"skip_cert_verification": types.BoolNull(),
+		"server_id":              types.Int64Null(),
 		"credentials":            dbSourceCredentials(),
 		"settings":               settingsModel.ObjectValue(),
 		"table_mappings":         types.SetValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType(), []attr.Value{}),

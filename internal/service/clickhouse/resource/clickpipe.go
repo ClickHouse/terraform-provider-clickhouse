@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -662,6 +663,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									stringplanmodifier.RequiresReplace(),
 								},
 							},
+							"protobuf_schema": schema.StringAttribute{
+								MarkdownDescription: "Base64-encoded Protobuf schema. " +
+									"Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. " +
+									"Required with `format = \"Protobuf\"` and not supported with other formats. " +
+									"Changing it forces replacement.",
+								Optional: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"stream_name": schema.StringAttribute{
 								Description: "The name of the Kinesis stream.",
 								Required:    true,
@@ -1248,6 +1259,24 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Computed:    true,
 								Default:     booldefault.StaticBool(false),
 							},
+							// server_id is a uint32 on the wire (see api.ClickPipeMySQLSource.ServerID),
+							// Int64Attribute is the smallest type that can hold its full domain.
+							// The validator below enforces the real range, and extractSourceFromPlan
+							// narrows the value to uint32 behind a runtime bounds check.
+							"server_id": schema.Int64Attribute{
+								MarkdownDescription: fmt.Sprintf(
+									"Optional MySQL `server_id` the pipe declares itself as in the MySQL replication topology. Must be unique across replicas connected to the source. If omitted, one is assigned randomly. Must be a non-zero unsigned 32-bit integer (1 to %d).",
+									uint32(math.MaxUint32),
+								),
+								Optional: true,
+								Computed: true,
+								Validators: []validator.Int64{
+									int64validator.Between(1, math.MaxUint32),
+								},
+								PlanModifiers: []planmodifier.Int64{
+									int64planmodifier.UseStateForUnknown(),
+								},
+							},
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
 								Required:            true,
@@ -1452,6 +1481,19 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										"partition_key": schema.StringAttribute{
 											Description: "Custom partitioning column used for parallel snapshotting. Must be an indexed column of integer, date, datetime, or timestamp type.",
 											Optional:    true,
+										},
+										"partition_by_expr": schema.StringAttribute{
+											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping.",
+											Optional:    true,
+											Validators: []validator.String{
+												// The API stores a blank expression as unset, which reads
+												// back as null and would produce "inconsistent result
+												// after apply". Omit the attribute instead of blanking it.
+												stringvalidator.RegexMatches(
+													regexp.MustCompile(`\S`),
+													"must not be empty or whitespace-only; omit the attribute instead",
+												),
+											},
 										},
 									},
 								},
@@ -2534,6 +2576,15 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 										} else if !stateMapping.UseCustomSortingKey.Equal(planMapping.UseCustomSortingKey) {
 											changed = true
 											changeDetail = "use_custom_sorting_key"
+										} else if !stateMapping.TableEngine.Equal(planMapping.TableEngine) {
+											changed = true
+											changeDetail = "table_engine"
+										} else if !stateMapping.PartitionKey.Equal(planMapping.PartitionKey) {
+											changed = true
+											changeDetail = "partition_key"
+										} else if !stateMapping.PartitionByExpr.Equal(planMapping.PartitionByExpr) {
+											changed = true
+											changeDetail = "partition_by_expr"
 										}
 
 										if changed {
@@ -3223,6 +3274,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			Authentication:    kinesisModel.Authentication.ValueString(),
 			IAMRole:           kinesisModel.IAMRole.ValueStringPointer(),
 		}
+		if !isUpdate && !kinesisModel.ProtobufSchema.IsNull() {
+			encodedSchema := strings.TrimSpace(kinesisModel.ProtobufSchema.ValueString())
+			source.Kinesis.ProtobufSchema = &encodedSchema
+		}
 
 		if !kinesisModel.Timestamp.IsNull() {
 			source.Kinesis.Timestamp = kinesisModel.Timestamp.ValueStringPointer()
@@ -3719,6 +3774,12 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			val := mysqlModel.SkipCertVerification.ValueBool()
 			mysqlSource.SkipCertVerification = &val
 		}
+		if !mysqlModel.ServerID.IsNull() && !mysqlModel.ServerID.IsUnknown() {
+			if v := mysqlModel.ServerID.ValueInt64(); v >= 1 && v <= math.MaxUint32 {
+				serverID := uint32(v)
+				mysqlSource.ServerID = &serverID
+			}
+		}
 		if !isUpdate {
 			mysqlSource.SSHKeyResourceID = mysqlModel.SSHKeyResourceID.ValueStringPointer()
 		}
@@ -3907,6 +3968,10 @@ func convertMySQLTableMappingModelToAPI(ctx context.Context, diagnostics *diag.D
 
 	if !mappingModel.PartitionKey.IsNull() {
 		mapping.PartitionKey = mappingModel.PartitionKey.ValueStringPointer()
+	}
+
+	if !mappingModel.PartitionByExpr.IsNull() {
+		mapping.PartitionByExpr = mappingModel.PartitionByExpr.ValueStringPointer()
 	}
 
 	return mapping
@@ -4280,6 +4345,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		kinesisModel := models.ClickPipeKinesisSourceModel{
 			Format:            types.StringValue(clickPipe.Source.Kinesis.Format),
+			ProtobufSchema:    stateKinesisModel.ProtobufSchema,
 			StreamName:        types.StringValue(clickPipe.Source.Kinesis.StreamName),
 			Region:            types.StringValue(clickPipe.Source.Kinesis.Region),
 			IteratorType:      types.StringValue(clickPipe.Source.Kinesis.IteratorType),
@@ -4766,6 +4832,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				tableMappingModel.PartitionKey = types.StringNull()
 			}
 
+			if mapping.PartitionByExpr != nil && *mapping.PartitionByExpr != "" {
+				tableMappingModel.PartitionByExpr = types.StringValue(*mapping.PartitionByExpr)
+			} else {
+				tableMappingModel.PartitionByExpr = types.StringNull()
+			}
+
 			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
 		}
 
@@ -4818,6 +4890,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			mysqlModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.MySQL.SkipCertVerification)
 		} else {
 			mysqlModel.SkipCertVerification = types.BoolValue(false)
+		}
+
+		if clickPipe.Source.MySQL.ServerID != nil {
+			mysqlModel.ServerID = types.Int64Value(int64(*clickPipe.Source.MySQL.ServerID))
+		} else if !stateMySQLModel.ServerID.IsNull() {
+			mysqlModel.ServerID = stateMySQLModel.ServerID
+		} else {
+			mysqlModel.ServerID = types.Int64Null()
 		}
 
 		if len(tableMappingList) > 0 {

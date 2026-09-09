@@ -144,6 +144,8 @@ type ClickPipeObjectStorageSource struct {
 
 type ClickPipeKinesisSource struct {
 	Format string `json:"format"`
+	// ProtobufSchema contains the base64-encoded schema required for Protobuf format.
+	ProtobufSchema *string `json:"protobufSchema,omitempty"`
 
 	StreamName string `json:"streamName"`
 	Region     string `json:"region"`
@@ -230,6 +232,7 @@ type ClickPipeMySQLSource struct {
 	CACertificate         *string                      `json:"caCertificate,omitempty"`
 	DisableTLS            *bool                        `json:"disableTls,omitempty"`
 	SkipCertVerification  *bool                        `json:"skipCertVerification,omitempty"`
+	ServerID              *uint32                      `json:"serverId,omitempty"`
 	Credentials           *ClickPipeSourceCredentials  `json:"credentials,omitempty"`
 	Settings              *ClickPipeMySQLSettings      `json:"settings,omitempty"`
 	Mappings              []ClickPipeMySQLTableMapping `json:"tableMappings,omitempty"`
@@ -260,6 +263,7 @@ type ClickPipeMySQLTableMapping struct {
 	SortingKeys         []string `json:"sortingKeys,omitempty"`
 	TableEngine         *string  `json:"tableEngine,omitempty"`
 	PartitionKey        *string  `json:"partitionKey,omitempty"`
+	PartitionByExpr     *string  `json:"partitionByExpr,omitempty"`
 }
 
 type ClickPipeMongoDBSettings struct {

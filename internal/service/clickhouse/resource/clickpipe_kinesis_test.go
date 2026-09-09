@@ -30,6 +30,7 @@ func buildKinesisResourceModel(authentication string, accessKeyID, secretKey, ia
 
 	kinesisAttrs := map[string]attr.Value{
 		"format":               types.StringValue("JSONEachRow"),
+		"protobuf_schema":      types.StringNull(),
 		"stream_name":          types.StringValue("my-stream"),
 		"region":               types.StringValue("us-east-1"),
 		"iterator_type":        types.StringValue("TRIM_HORIZON"),
@@ -140,6 +141,7 @@ func TestCredentialsObjectChanged_KinesisAccessKey(t *testing.T) {
 func getKinesisSyncState(authentication string, accessKey types.Object, iamRole types.String) models.ClickPipeResourceModel {
 	kinesisAttrs := map[string]attr.Value{
 		"format":               types.StringValue("JSONEachRow"),
+		"protobuf_schema":      types.StringNull(),
 		"stream_name":          types.StringValue("my-stream"),
 		"region":               types.StringValue("us-east-1"),
 		"iterator_type":        types.StringValue("TRIM_HORIZON"),

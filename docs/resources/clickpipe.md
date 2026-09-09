@@ -303,7 +303,7 @@ Optional:
 Required:
 
 - `authentication` (String) The authentication method for the Kinesis source. (`IAM_ROLE`, `IAM_USER`).
-- `format` (String) The format of the Kinesis source. (`JSONEachRow`, `Avro`, `AvroConfluent`)
+- `format` (String) The format of the Kinesis source. (`JSONEachRow`, `Avro`, `AvroConfluent`, `Protobuf`)
 - `iterator_type` (String) The iterator type for the Kinesis source. (`TRIM_HORIZON`, `LATEST`, `AT_TIMESTAMP`)
 - `region` (String) The AWS region of the Kinesis stream.
 - `stream_name` (String) The name of the Kinesis stream.
@@ -312,6 +312,7 @@ Optional:
 
 - `access_key` (Attributes) The access key for the Kinesis source. Use with `IAM_USER` authentication. Can be rotated in place via an update. (see [below for nested schema](#nestedatt--source--kinesis--access_key))
 - `iam_role` (String) The IAM role for the Kinesis source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kinesis.
+- `protobuf_schema` (String) Base64-encoded Protobuf schema. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Required with `format = "Protobuf"` and not supported with other formats. Changing it forces replacement.
 - `timestamp` (String) The timestamp for the Kinesis source. Use with `AT_TIMESTAMP` iterator type. (format `2021-01-01T00:00`)
 - `use_enhanced_fan_out` (Boolean) Whether to use enhanced fan-out consumer.
 
@@ -407,6 +408,7 @@ Optional:
 - `disable_tls` (Boolean) Disable TLS for the MySQL connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the MySQL instance. Default is 3306.
+- `server_id` (Number) Optional MySQL `server_id` the pipe declares itself as in the MySQL replication topology. Must be unique across replicas connected to the source. If omitted, one is assigned randomly. Must be a non-zero unsigned 32-bit integer (1 to 4294967295).
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MySQL connection.
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
@@ -458,6 +460,7 @@ Required:
 Optional:
 
 - `excluded_columns` (Set of String) Columns to exclude from replication.
+- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Must be an indexed column of integer, date, datetime, or timestamp type.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)

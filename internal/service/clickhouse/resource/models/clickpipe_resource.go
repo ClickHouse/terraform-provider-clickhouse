@@ -237,6 +237,7 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 
 type ClickPipeKinesisSourceModel struct {
 	Format            types.String `tfsdk:"format"`
+	ProtobufSchema    types.String `tfsdk:"protobuf_schema"`
 	StreamName        types.String `tfsdk:"stream_name"`
 	Region            types.String `tfsdk:"region"`
 	IteratorType      types.String `tfsdk:"iterator_type"`
@@ -251,6 +252,7 @@ func (m ClickPipeKinesisSourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"format":               types.StringType,
+			"protobuf_schema":      types.StringType,
 			"stream_name":          types.StringType,
 			"region":               types.StringType,
 			"iterator_type":        types.StringType,
@@ -266,6 +268,7 @@ func (m ClickPipeKinesisSourceModel) ObjectType() types.ObjectType {
 func (m ClickPipeKinesisSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"format":               m.Format,
+		"protobuf_schema":      m.ProtobufSchema,
 		"stream_name":          m.StreamName,
 		"region":               m.Region,
 		"iterator_type":        m.IteratorType,
@@ -701,6 +704,7 @@ type ClickPipeMySQLTableMappingModel struct {
 	SortingKeys         types.List   `tfsdk:"sorting_keys"`
 	TableEngine         types.String `tfsdk:"table_engine"`
 	PartitionKey        types.String `tfsdk:"partition_key"`
+	PartitionByExpr     types.String `tfsdk:"partition_by_expr"`
 }
 
 func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
@@ -714,6 +718,7 @@ func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
 			"sorting_keys":           types.ListType{ElemType: types.StringType},
 			"table_engine":           types.StringType,
 			"partition_key":          types.StringType,
+			"partition_by_expr":      types.StringType,
 		},
 	}
 }
@@ -728,9 +733,15 @@ func (m ClickPipeMySQLTableMappingModel) ObjectValue() types.Object {
 		"sorting_keys":           m.SortingKeys,
 		"table_engine":           m.TableEngine,
 		"partition_key":          m.PartitionKey,
+		"partition_by_expr":      m.PartitionByExpr,
 	})
 }
 
+// ClickPipeMySQLSourceModel is the Terraform view of api.ClickPipeMySQLSource.
+//
+// ServerID is a uint32 in the API but is held as Int64 here: the plugin
+// framework has no unsigned type and Int32 cannot represent values above
+// 2147483647. The schema validator enforces the uint32 range.
 type ClickPipeMySQLSourceModel struct {
 	Type                 types.String `tfsdk:"type"`
 	Host                 types.String `tfsdk:"host"`
@@ -741,6 +752,7 @@ type ClickPipeMySQLSourceModel struct {
 	CACertificate        types.String `tfsdk:"ca_certificate"`
 	DisableTLS           types.Bool   `tfsdk:"disable_tls"`
 	SkipCertVerification types.Bool   `tfsdk:"skip_cert_verification"`
+	ServerID             types.Int64  `tfsdk:"server_id"`
 	Credentials          types.Object `tfsdk:"credentials"`
 	Settings             types.Object `tfsdk:"settings"`
 	TableMappings        types.Set    `tfsdk:"table_mappings"`
@@ -759,6 +771,7 @@ func (m ClickPipeMySQLSourceModel) ObjectType() types.ObjectType {
 			"ca_certificate":         types.StringType,
 			"disable_tls":            types.BoolType,
 			"skip_cert_verification": types.BoolType,
+			"server_id":              types.Int64Type,
 			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":               ClickPipeMySQLSettingsModel{}.ObjectType(),
 			"table_mappings":         types.SetType{ElemType: ClickPipeMySQLTableMappingModel{}.ObjectType()},
@@ -778,6 +791,7 @@ func (m ClickPipeMySQLSourceModel) ObjectValue() types.Object {
 		"ca_certificate":         m.CACertificate,
 		"disable_tls":            m.DisableTLS,
 		"skip_cert_verification": m.SkipCertVerification,
+		"server_id":              m.ServerID,
 		"credentials":            m.Credentials,
 		"settings":               m.Settings,
 		"table_mappings":         m.TableMappings,
