@@ -226,6 +226,44 @@ func TestWebhookResource_CRUD(t *testing.T) {
 		}
 	})
 
+	// Update must error rather than clear state: the framework rejects a state
+	// removal from Update with "Missing Resource State After Update".
+	t.Run("update errors on 404 and keeps state", func(t *testing.T) {
+		t.Parallel()
+		r := &webhookResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))}
+		mk := func(name string) webhookResourceModel {
+			return webhookModel(func(m *webhookResourceModel) {
+				m.ID = types.StringValue("wh1")
+				m.Name = types.StringValue(name)
+			})
+		}
+		state := tfsdk.State{Schema: sch}
+		if d := state.Set(ctx, mk("prior")); d.HasError() {
+			t.Fatalf("state.Set: %s", d)
+		}
+		// A different planned name makes a stray state write detectable.
+		plan := tfsdk.Plan{Schema: sch}
+		if d := plan.Set(ctx, mk("planned")); d.HasError() {
+			t.Fatalf("plan.Set: %s", d)
+		}
+		config := tfsdk.Config{Schema: sch, Raw: plan.Raw}
+		resp := &fwresource.UpdateResponse{State: state}
+		r.Update(ctx, fwresource.UpdateRequest{Plan: plan, Config: config}, resp)
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("expected an error when update hits 404, got none")
+		}
+		if got := resp.Diagnostics.Errors()[0].Summary(); got != "Webhook No Longer Exists" {
+			t.Errorf("error summary = %q, want %q", got, "Webhook No Longer Exists")
+		}
+		var got webhookResourceModel
+		resp.State.Get(ctx, &got)
+		if got.Name.ValueString() != "prior" {
+			t.Errorf("name=%q, want the prior %q left untouched", got.Name.ValueString(), "prior")
+		}
+	})
+
 	t.Run("delete surfaces a non-404 error as a diagnostic", func(t *testing.T) {
 		t.Parallel()
 		r := &webhookResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

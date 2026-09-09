@@ -64,6 +64,7 @@ reimport clickhouse_clickstack_saved_search.errors
 reimport clickhouse_clickstack_webhook.alerts
 reimport clickhouse_clickstack_webhook.alerts_secondary
 reimport clickhouse_clickstack_alert.too_many_errors
+reimport clickhouse_clickstack_alert.error_count_tile
 reimport clickhouse_clickstack_role.readonly
 
 echo "--- plan after import (expecting no changes)"

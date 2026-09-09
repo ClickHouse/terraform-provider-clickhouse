@@ -42,6 +42,12 @@ func TestCreateAlert(t *testing.T) {
 		if _, ok := body["groupBy"]; ok {
 			t.Errorf("expected groupBy omitted")
 		}
+		// A saved-search alert carries no tile target.
+		for _, k := range []string{"dashboardId", "tileId"} {
+			if _, ok := body[k]; ok {
+				t.Errorf("expected %s omitted, got %v", k, body[k])
+			}
+		}
 		// Transient server fields are never sent.
 		for _, k := range []string{"state", "silenced", "executionErrors"} {
 			if _, ok := body[k]; ok {
@@ -129,6 +135,11 @@ func TestUpdateAlert(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatalf("decode request body: %v", err)
 		}
+		// Update defaults an empty source the same way create does; every
+		// existing saved-search resource relies on it.
+		if body["source"] != "saved_search" {
+			t.Errorf("expected source saved_search, got %v", body["source"])
+		}
 		// KTD8: update never sends the server-managed transient fields.
 		for _, k := range []string{"state", "silenced", "executionErrors"} {
 			if _, ok := body[k]; ok {
@@ -151,6 +162,77 @@ func TestUpdateAlert(t *testing.T) {
 	}
 	if al.Threshold != 50 {
 		t.Errorf("expected threshold 50, got %v", al.Threshold)
+	}
+}
+
+func TestCreateAlert_TileSource(t *testing.T) {
+	t.Parallel()
+
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if body["source"] != "tile" || body["dashboardId"] != "d1" || body["tileId"] != "t1" {
+			t.Errorf("expected source tile with dashboardId d1 and tileId t1, got %v", body)
+		}
+		// A tile alert has no saved search; the key must be absent, not "".
+		if _, ok := body["savedSearchId"]; ok {
+			t.Errorf("expected savedSearchId omitted for a tile alert, got %v", body["savedSearchId"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":{"id":"al2","source":"tile","dashboardId":"d1","tileId":"t1","interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"},"state":"OK"}}`)
+	})
+
+	al, err := c.CreateAlert(context.Background(), Alert{
+		Source:        AlertSourceTile,
+		DashboardID:   "d1",
+		TileID:        "t1",
+		Channel:       AlertChannel{Type: AlertChannelWebhook, WebhookID: "wh1"},
+		Interval:      "5m",
+		Threshold:     100,
+		ThresholdType: "above",
+	})
+	if err != nil {
+		t.Fatalf("CreateAlert: %v", err)
+	}
+	if al.Source != AlertSourceTile || al.DashboardID != "d1" || al.TileID != "t1" || al.SavedSearchID != "" {
+		t.Errorf("tile fields not decoded: %+v", al)
+	}
+}
+
+func TestUpdateAlert_TileSourceKept(t *testing.T) {
+	t.Parallel()
+
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if body["source"] != "tile" {
+			t.Errorf("update must keep the caller's source, got %v", body["source"])
+		}
+		// The update path must serialize the tile target, not just the source.
+		if body["dashboardId"] != "d1" || body["tileId"] != "t1" {
+			t.Errorf("expected dashboardId d1 and tileId t1, got %v", body)
+		}
+		if _, ok := body["savedSearchId"]; ok {
+			t.Errorf("expected savedSearchId omitted for a tile alert, got %v", body["savedSearchId"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":{"id":"al2","source":"tile","dashboardId":"d1","tileId":"t1","threshold":50}}`)
+	})
+
+	al, err := c.UpdateAlert(context.Background(), "al2", Alert{
+		Source: AlertSourceTile, DashboardID: "d1", TileID: "t1",
+		Channel:  AlertChannel{Type: AlertChannelWebhook, WebhookID: "wh1"},
+		Interval: "5m", Threshold: 50, ThresholdType: "above",
+	})
+	if err != nil {
+		t.Fatalf("UpdateAlert: %v", err)
+	}
+	if al.Threshold != 50 || al.TileID != "t1" {
+		t.Errorf("unexpected alert: %+v", al)
 	}
 }
 

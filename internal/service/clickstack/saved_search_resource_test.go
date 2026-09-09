@@ -230,6 +230,43 @@ func TestSavedSearchResource_CRUD(t *testing.T) {
 		}
 	})
 
+	// Update must error rather than clear state: the framework rejects a state
+	// removal from Update with "Missing Resource State After Update".
+	t.Run("update errors on 404 and keeps state", func(t *testing.T) {
+		t.Parallel()
+		r := &savedSearchResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))}
+		mk := func(name string) savedSearchResourceModel {
+			return savedSearchModel(func(m *savedSearchResourceModel) {
+				m.ID = types.StringValue("ss1")
+				m.Name = types.StringValue(name)
+			})
+		}
+		state := tfsdk.State{Schema: sch}
+		if d := state.Set(ctx, mk("prior")); d.HasError() {
+			t.Fatalf("state.Set: %s", d)
+		}
+		// A different planned name makes a stray state write detectable.
+		plan := tfsdk.Plan{Schema: sch}
+		if d := plan.Set(ctx, mk("planned")); d.HasError() {
+			t.Fatalf("plan.Set: %s", d)
+		}
+		resp := &fwresource.UpdateResponse{State: state}
+		r.Update(ctx, fwresource.UpdateRequest{Plan: plan}, resp)
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("expected an error when update hits 404, got none")
+		}
+		if got := resp.Diagnostics.Errors()[0].Summary(); got != "Saved Search No Longer Exists" {
+			t.Errorf("error summary = %q, want %q", got, "Saved Search No Longer Exists")
+		}
+		var got savedSearchResourceModel
+		resp.State.Get(ctx, &got)
+		if got.Name.ValueString() != "prior" {
+			t.Errorf("name=%q, want the prior %q left untouched", got.Name.ValueString(), "prior")
+		}
+	})
+
 	t.Run("create surfaces a generic error as a diagnostic", func(t *testing.T) {
 		t.Parallel()
 		r := &savedSearchResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
