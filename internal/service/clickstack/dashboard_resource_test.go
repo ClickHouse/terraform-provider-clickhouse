@@ -460,15 +460,7 @@ func TestDashboardResource_ValidateConfig(t *testing.T) {
 			resp := &fwresource.ValidateConfigResponse{}
 			r.ValidateConfig(context.Background(), dashboardValidateConfigRequest(t, tc.dashboardJSON), resp)
 
-			// ValidateConfig also emits the beta warning; drop it so these
-			// cases assert only the dashboard_json validation diagnostics.
-			var got diag.Diagnostics
-			for _, d := range resp.Diagnostics {
-				if d.Summary() == "Beta Resource" {
-					continue
-				}
-				got = append(got, d)
-			}
+			got := resp.Diagnostics
 
 			if len(got) != len(tc.want) {
 				t.Fatalf("got %d diagnostics, want %d: %s", len(got), len(tc.want), got)

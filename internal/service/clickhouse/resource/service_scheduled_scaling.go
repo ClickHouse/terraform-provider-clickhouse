@@ -227,6 +227,8 @@ func (r *ServiceScheduledScalingResource) Configure(_ context.Context, req resou
 }
 
 func (r *ServiceScheduledScalingResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	utils.BetaWarning("clickhouse_service_scheduled_scaling", &resp.Diagnostics)
+
 	var plan models.ServiceScheduledScalingResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -278,7 +280,6 @@ func (r *ServiceScheduledScalingResource) Create(ctx context.Context, req resour
 }
 
 func (r *ServiceScheduledScalingResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.BetaWarning("clickhouse_service_scheduled_scaling", &resp.Diagnostics)
 	var state models.ServiceScheduledScalingResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -307,6 +308,8 @@ func (r *ServiceScheduledScalingResource) Read(ctx context.Context, req resource
 }
 
 func (r *ServiceScheduledScalingResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	utils.BetaWarning("clickhouse_service_scheduled_scaling", &resp.Diagnostics)
+
 	var plan models.ServiceScheduledScalingResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -355,13 +358,14 @@ func (r *ServiceScheduledScalingResource) Delete(ctx context.Context, req resour
 }
 
 func (r *ServiceScheduledScalingResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	utils.BetaWarning("clickhouse_service_scheduled_scaling", &resp.Diagnostics)
+
 	// `id` and `service_id` are equal — write both so Read finds the service.
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), req.ID)...)
 }
 
 func (r *ServiceScheduledScalingResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.BetaWarning("clickhouse_service_scheduled_scaling", &resp.Diagnostics)
 	var config models.ServiceScheduledScalingResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {

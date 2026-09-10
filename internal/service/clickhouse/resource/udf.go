@@ -267,8 +267,6 @@ func (r *UDFResource) Configure(_ context.Context, req resource.ConfigureRequest
 }
 
 func (r *UDFResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.BetaWarning("clickhouse_udf", &resp.Diagnostics)
-
 	var config models.UDFResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() || config.Type.IsUnknown() || config.Runtime.IsUnknown() {
@@ -394,6 +392,8 @@ func (r *UDFResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanReq
 }
 
 func (r *UDFResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	utils.BetaWarning("clickhouse_udf", &resp.Diagnostics)
+
 	var plan models.UDFResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -455,6 +455,8 @@ func (r *UDFResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 }
 
 func (r *UDFResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	utils.BetaWarning("clickhouse_udf", &resp.Diagnostics)
+
 	var plan models.UDFResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -526,6 +528,8 @@ func (r *UDFResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 }
 
 func (r *UDFResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	utils.BetaWarning("clickhouse_udf", &resp.Diagnostics)
+
 	if !udfNamePattern.MatchString(req.ID) {
 		resp.Diagnostics.AddError(
 			"Invalid UDF import ID",

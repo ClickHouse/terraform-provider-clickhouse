@@ -18,6 +18,12 @@ For examples on how to use this provider, see the [Github repository](https://gi
 
 To use this provider, you need a ClickHouse Cloud account. Once you have [signed up for an account](https://console.clickhouse.cloud/signUp), you can [sign in](https://clickhouse.cloud/signIn) and generate an [API key](https://clickhouse.com/docs/en/cloud/manage/openapi) for authentication.
 
+## Beta resources
+
+Resources that are not generally available yet emit a `Beta Resource` warning when they are created, updated or imported — the operations that bring one under management or change it. Nothing is emitted during `terraform plan`, including a plan that creates or changes a beta resource; the notice appears in the apply output instead. Beta data sources are the exception: they warn when read, which happens on every plan.
+
+To acknowledge beta status once and stop the notices altogether, set `CLICKHOUSE_SUPPRESS_BETA_WARNINGS=true` in the environment Terraform runs in. Other warnings are unaffected.
+
 ## Breaking changes
 
 Note: we only provide upgrade path from consecutive major releases of our terraform provider.
@@ -46,7 +52,7 @@ then a manual process is required after the upgrade. Please visit [https://githu
 
 ## ClickStack (beta)
 
-This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) resources via the `clickhouse_clickstack_*` resources and data sources. These are in **beta**: they emit a beta warning at plan/apply time and their behavior may change in future releases.
+This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) resources via the `clickhouse_clickstack_*` resources and data sources. These are in **beta**: their behavior may change in future releases, and they emit a beta notice on create, update and import (see [Beta resources](#beta-resources)).
 
 How the `clickhouse_clickstack_*` resources authenticate depends on where ClickStack runs:
 

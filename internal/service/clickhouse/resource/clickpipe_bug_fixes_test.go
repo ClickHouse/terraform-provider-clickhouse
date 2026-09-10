@@ -1111,3 +1111,76 @@ func TestClickPipeResource_ModifyPlan_StateOnNoOpPlan_Issue595(t *testing.T) {
 			"an update may settle in a transient state, so the planned state must stay Unknown, got %v", planned)
 	})
 }
+
+// Issue #696 — the CDC cleanup note fired on every plan for every CDC pipe,
+// including plans with no changes at all, where there is nothing to act on.
+func TestClickPipeResource_ModifyPlan_CDCCleanupNoteOnlyWhenChanging_Issue696(t *testing.T) {
+	ctx := context.Background()
+
+	hasCleanupNote := func(diags diag.Diagnostics) bool {
+		for _, d := range diags.Warnings() {
+			if d.Summary() == "Note about CDC table cleanup" {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("no-change plan does not warn", func(t *testing.T) {
+		state := mysqlPlanForModifyPlan()
+		plan := mysqlPlanForModifyPlan()
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.False(t, hasCleanupNote(diags),
+			"an unchanged CDC pipe has no tables to clean up; got: %v", diags)
+	})
+
+	t.Run("changed plan still warns", func(t *testing.T) {
+		state := mysqlPlanForModifyPlan()
+		plan := mysqlPlanForModifyPlan()
+		plan.Name = types.StringValue("renamed-pipe")
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.True(t, hasCleanupNote(diags),
+			"a changing CDC pipe may be replaced, so the note must survive; got: %v", diags)
+	})
+
+	// The framework marks `state` Unknown whenever the proposed plan differs
+	// from prior state, even when ModifyPlan's repairs resolve the difference.
+	// The gate reads the repaired plan, so this still has to count as a no-op.
+	t.Run("plan repaired back to a no-op does not warn", func(t *testing.T) {
+		state := mysqlPlanForModifyPlan()
+		plan := mysqlPlanForModifyPlan()
+		plan.State = types.StringUnknown()
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.False(t, hasCleanupNote(diags),
+			"a repaired no-op has no tables to clean up; got: %v", diags)
+	})
+
+	// Postgres is the source the issue was reported against, and isCDCPipe
+	// tests each source type separately.
+	t.Run("postgres no-change plan does not warn", func(t *testing.T) {
+		state := postgresPlanWithExcludedColumns(ctx, []string{"ssn"}, "users")
+		plan := postgresPlanWithExcludedColumns(ctx, []string{"ssn"}, "users")
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.False(t, hasCleanupNote(diags),
+			"an unchanged Postgres CDC pipe has no tables to clean up; got: %v", diags)
+	})
+
+	t.Run("postgres changed plan still warns", func(t *testing.T) {
+		state := postgresPlanWithExcludedColumns(ctx, []string{"ssn"}, "users")
+		plan := postgresPlanWithExcludedColumns(ctx, []string{"ssn"}, "users")
+		plan.Name = types.StringValue("renamed-pipe")
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.True(t, hasCleanupNote(diags),
+			"a changing Postgres CDC pipe may be replaced, so the note must survive; got: %v", diags)
+	})
+}
