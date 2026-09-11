@@ -2054,6 +2054,102 @@ func TestServiceResource_Create_generatedPassword_emptyResponseStaysNull(t *test
 // When Update itself changes the password, any generated_password carried
 // forward from create is known-wrong (not merely possibly-stale), so it must
 // be cleared rather than left in state via UseStateForUnknown.
+// The profile can only be set at service creation time (the Cloud API has no
+// PATCH support for it), so Create is the only path that can send it.
+func TestServiceResource_Create_profile(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	profileName := "v1-standard-byoc-4"
+
+	tests := []struct {
+		name        string
+		planProfile types.String
+		respProfile *string
+		wantSent    *string
+		wantState   types.String
+	}{
+		{
+			name:        "configured profile is sent to the API and synced into state",
+			planProfile: types.StringValue(profileName),
+			respProfile: &profileName,
+			wantSent:    &profileName,
+			wantState:   types.StringValue(profileName),
+		},
+		{
+			name:        "unconfigured profile (planned unknown) is omitted from the API payload",
+			planProfile: types.StringUnknown(),
+			respProfile: nil,
+			wantSent:    nil,
+			wantState:   types.StringNull(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			createResp := getBaseResponse("svc-new")
+			createResp.State = api.StateRunning
+			createResp.Profile = tt.respProfile
+			syncResp := createResp
+
+			var sentProfile *string
+			mc := minimock.NewController(t)
+			apiClientMock := api.NewClientMock(mc).
+				CreateServiceMock.Set(func(_ context.Context, s api.Service) (*api.Service, string, error) {
+				sentProfile = s.Profile
+				return &createResp, "api-generated-secret", nil
+			}).
+				WaitForServiceStateMock.Return(nil).
+				GetServiceMock.Return(&syncResp, nil)
+
+			r.client = apiClientMock
+
+			plan := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+				s.Profile = tt.planProfile
+				s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+				// Computed with no prior state: the framework plans this as unknown.
+				s.GeneratedPassword = types.StringUnknown()
+			}).Get()
+
+			planVal := tfsdk.Plan{Schema: sch}
+			if d := planVal.Set(ctx, &plan); d.HasError() {
+				t.Fatalf("encoding plan: %v", d.Errors())
+			}
+			req := resource.CreateRequest{
+				Plan:   planVal,
+				Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+			}
+			resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+			r.Create(ctx, req, resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("Create returned errors: %v", resp.Diagnostics.Errors())
+			}
+
+			switch {
+			case tt.wantSent == nil && sentProfile != nil:
+				t.Errorf("profile sent to API = %q, want omitted", *sentProfile)
+			case tt.wantSent != nil && sentProfile == nil:
+				t.Errorf("profile omitted from API payload, want %q", *tt.wantSent)
+			case tt.wantSent != nil && *sentProfile != *tt.wantSent:
+				t.Errorf("profile sent to API = %q, want %q", *sentProfile, *tt.wantSent)
+			}
+
+			var out models.ServiceResourceModel
+			if d := resp.State.Get(ctx, &out); d.HasError() {
+				t.Fatalf("decoding post-apply state: %v", d.Errors())
+			}
+			// Computed: must always settle to a known value, never stay unknown.
+			if out.Profile.IsUnknown() {
+				t.Error("profile is still unknown after apply")
+			}
+			if !out.Profile.Equal(tt.wantState) {
+				t.Errorf("profile in state = %v, want %v", out.Profile, tt.wantState)
+			}
+		})
+	}
+}
+
 func TestServiceResource_Update_generatedPasswordClearedOnPasswordChange(t *testing.T) {
 	ctx := context.Background()
 	r := &ServiceResource{}
