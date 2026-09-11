@@ -113,18 +113,44 @@ require_result_array() {
   fi
 }
 
-# Last resort at the deadline: a service wedged in `stopping` never reaches
-# `stopped`, so the state machine below can never fire its DELETE. Try the
-# DELETE anyway -- it takes if the backend has quietly finished, and a 4xx costs
-# nothing -- then name everything still alive so a human can sweep by suffix.
-report_stuck_services() {
-  local entry id state name
-  echo "::error::Gave up after ${SWEEP_TIMEOUT_SECONDS}s with $# service(s) alive for suffix ${SUFFIX}."
+# Last resort at the deadline: a service wedged in a non-terminal state never
+# reaches `stopped`, so the state machine below can never fire its DELETE. Send
+# the DELETE unconditionally -- in practice this clears a service that has been
+# refusing `stop` with 409 -- then re-read the organization and fail only for
+# the ones that are genuinely still there. Reporting a leak the delete just
+# fixed would page somebody for nothing.
+force_delete_stuck_services() {
+  local entry id state name output
+  local -a still_alive
+
+  echo "Deadline of ${SWEEP_TIMEOUT_SECONDS}s reached with $# service(s) still alive for suffix ${SUFFIX}; forcing delete."
   for entry in "$@"; do
     IFS=$'\t' read -r id state name <<<"${entry}"
-    echo "::error::  leaked service ${id} (${name}) in state ${state}"
+    echo "Force-deleting service ${id} (${name}) in state ${state}..."
     mutate -X DELETE "${ORG_URL}/services/${id}" || true
   done
+
+  sleep "${POLL_INTERVAL_SECONDS}"
+
+  output="$(api_get_json "${ORG_URL}/services" "services")" || {
+    echo "::error::Forced delete sent for suffix ${SUFFIX} but the result could not be confirmed."
+    return 1
+  }
+  require_result_array "${output}" "services" || return 1
+  mapfile -t still_alive < <(jq --arg suffix "${SUFFIX}" -r \
+    '.result[] | select(.name | contains($suffix)) | [.id, .state, .name] | @tsv' <<<"${output}")
+
+  if [[ "${#still_alive[@]}" -eq 0 ]]; then
+    echo "Forced delete cleared every remaining service for suffix ${SUFFIX}."
+    return 0
+  fi
+
+  echo "::error::${#still_alive[@]} service(s) for suffix ${SUFFIX} survived the forced delete and are still running."
+  for entry in "${still_alive[@]}"; do
+    IFS=$'\t' read -r id state name <<<"${entry}"
+    echo "::error::  leaked service ${id} (${name}) in state ${state}"
+  done
+  return 1
 }
 
 # A service only accepts DELETE once it reports `stopped`, so this polls: stop
@@ -161,8 +187,8 @@ cleanup_services() {
     echo "There are ${#entries[@]} services to be cleaned up."
 
     if [[ "${SECONDS}" -ge "${deadline}" ]]; then
-      report_stuck_services "${entries[@]}"
-      return 1
+      force_delete_stuck_services "${entries[@]}"
+      return
     fi
 
     for entry in "${entries[@]}"; do
@@ -178,8 +204,13 @@ cleanup_services() {
         ;;
       *)
         echo "Stopping service ${id}..."
+        # A service wedged in `provisioning` refuses `stop` with 409 for as long
+        # as it exists, but accepts DELETE. Falling back immediately beats
+        # waiting out the whole deadline to discover the same thing.
         mutate -X PATCH "${ORG_URL}/services/${id}/state" \
-          -H 'Content-Type: application/json' --data '{"command": "stop"}' || true
+          -H 'Content-Type: application/json' --data '{"command": "stop"}' \
+          || mutate -X DELETE "${ORG_URL}/services/${id}" \
+          || true
         ;;
       esac
     done
