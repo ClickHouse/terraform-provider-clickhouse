@@ -2,10 +2,6 @@
 
 set -euo pipefail
 
-api_env_production=${api_env_production:?"api_env_production not set"}
-api_env_staging=${api_env_staging:?"api_env_staging not set"}
-api_env_development=${api_env_development:?"api_env_development not set"}
-
 api_url=${api_url:-""}
 organization_id=${organization_id:-""}
 api_key_id=${api_key_id:-""}
@@ -19,45 +15,38 @@ region=""
 compliance_region=""
 
 # When this script is called by the cron schedule inputs are empty so we default to Production.
-ENV=${api_env:-"Production"}
+api_environment=${api_env:-"Production"}
 
-case "${ENV}" in
-Production)
-  api_url="$(echo "${api_env_production}" | jq -r .api_url)"
-  organization_id="$(echo "${api_env_production}" | jq -r .organization_id)"
-  api_key_id="$(echo "${api_env_production}" | jq -r .api_key_id)"
-  api_key_secret="$(echo "${api_env_production}" | jq -r .api_key_secret)"
-  if [[ -n "${cloud}" ]]; then
-    # GCP capacity shortages in us-central1 have caused example provisioning to time out.
-    region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud] - ["us-central1"]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-    compliance_region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud] - ["us-central1"]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-    if [[ -z "${region}" || -z "${compliance_region}" ]]; then
-      echo "No eligible production example regions for ${cloud} after excluding us-central1" >&2
-      exit 1
-    fi
+select_region() {
+  local candidates
+  if ! candidates="$(jq -ce --arg kind "$1" --arg cloud "${cloud}" '
+    .[$kind][$cloud]
+    | if type == "array" and ($kind == "compliance_regions" or length > 0)
+        and all(.[]; type == "string" and test("^[a-z0-9-]+$"))
+      then .
+      else error("Invalid region list")
+      end
+  ' <<< "${region_config}" 2>/dev/null)"; then
+    echo "Invalid ${api_environment} region configuration: $1.${cloud} must be an array of region names (regions cannot be empty)" >&2
+    return 1
   fi
+  jq -r '.[]' <<< "${candidates}" | shuf -n 1
+}
+
+case "${api_environment}" in
+Production)
+  api_config=${api_env_production:?"api_env_production not set"}
+  region_config=${example_regions_production:-$api_config}
   ;;
 
 Staging)
-  api_url="$(echo "${api_env_staging}" | jq -r .api_url)"
-  organization_id="$(echo "${api_env_staging}" | jq -r .organization_id)"
-  api_key_id="$(echo "${api_env_staging}" | jq -r .api_key_id)"
-  api_key_secret="$(echo "${api_env_staging}" | jq -r .api_key_secret)"
-  if [[ -n "${cloud}" ]]; then
-    region="$(echo "${api_env_staging}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-    compliance_region="$(echo "${api_env_staging}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-  fi
+  api_config=${api_env_staging:?"api_env_staging not set"}
+  region_config=${example_regions_staging:-$api_config}
   ;;
 
 Development)
-  api_url="$(echo "${api_env_development}" | jq -r .api_url)"
-  organization_id="$(echo "${api_env_development}" | jq -r .organization_id)"
-  api_key_id="$(echo "${api_env_development}" | jq -r .api_key_id)"
-  api_key_secret="$(echo "${api_env_development}" | jq -r .api_key_secret)"
-  if [[ -n "${cloud}" ]]; then
-    region="$(echo "${api_env_development}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-    compliance_region="$(echo "${api_env_development}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-  fi
+  api_config=${api_env_development:?"api_env_development not set"}
+  region_config=${example_regions_development:-$api_config}
   ;;
 
 Custom)
@@ -108,7 +97,22 @@ Custom)
 
   fi
   ;;
+*)
+  echo "Unknown API environment: ${api_environment}" >&2
+  exit 1
+  ;;
 esac
+
+if [[ "${api_environment}" != "Custom" ]]; then
+  api_url="$(jq -r .api_url <<< "${api_config}")"
+  organization_id="$(jq -r .organization_id <<< "${api_config}")"
+  api_key_id="$(jq -r .api_key_id <<< "${api_config}")"
+  api_key_secret="$(jq -r .api_key_secret <<< "${api_config}")"
+  if [[ -n "${cloud}" ]]; then
+    region="$(select_region regions)"
+    compliance_region="$(select_region compliance_regions)"
+  fi
+fi
 
 # shellcheck disable=SC2129
 echo "api_url=${api_url}" >>"${GITHUB_OUTPUT}"
