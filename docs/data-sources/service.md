@@ -61,6 +61,7 @@ output "service_endpoints" {
 - `name` (String) Human-readable name of the service.
 - `num_replicas` (Number) Number of replicas.
 - `private_endpoint_ids` (List of String) IDs of private endpoints attached to the service.
+- `profile` (String) Custom instance profile of the service, if any (e.g. a dynamic BYOC profile such as 'v1-standard-byoc-4').
 - `readonly` (Boolean) Whether the service is read-only.
 - `region` (String) Cloud region the service runs in.
 - `release_channel` (String) Release channel ('default' or 'fast').

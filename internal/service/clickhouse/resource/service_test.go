@@ -167,6 +167,20 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			wantErr:         false,
 		},
 		{
+			name:  "Updates profile field in state",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				profile := "v1-standard-byoc-4"
+				src.Profile = &profile
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.Profile = types.StringValue("v1-standard-byoc-4")
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
 			name:  "Set IdleScaling field to true",
 			state: state,
 			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {

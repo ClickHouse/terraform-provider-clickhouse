@@ -216,6 +216,15 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringvalidator.OneOf(api.TierDevelopment, api.TierProduction),
 				},
 			},
+			"profile": schema.StringAttribute{
+				Description: "Custom instance profile for the service, only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Can only be set at service creation time; changing it forces the service to be replaced. Use the 'available service profiles' OpenAPI endpoint to list the profiles available to your organization.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
 			"release_channel": schema.StringAttribute{
 				Description: "Release channel to use for this service. Can be 'default', 'fast' or 'slow'.",
 				Optional:    true,
@@ -1304,6 +1313,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	if !plan.BYOCID.IsUnknown() && !plan.BYOCID.IsNull() {
 		service.BYOCId = plan.BYOCID.ValueStringPointer()
+	}
+
+	if !plan.Profile.IsUnknown() && !plan.Profile.IsNull() {
+		service.Profile = plan.Profile.ValueStringPointer()
 	}
 
 	if !plan.BackupID.IsUnknown() && !plan.BackupID.IsNull() {
@@ -2400,13 +2413,15 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					CloudProvider:          priorStateData.CloudProvider,
 					Region:                 priorStateData.Region,
 					Tier:                   priorStateData.Tier,
-					ReleaseChannel:         priorStateData.ReleaseChannel,
-					IdleScaling:            priorStateData.IdleScaling,
-					IpAccessList:           priorStateData.IpAccessList,
-					MinTotalMemoryGb:       priorStateData.MinTotalMemoryGb,
-					MaxTotalMemoryGb:       priorStateData.MaxTotalMemoryGb,
-					MinReplicaMemoryGb:     priorStateData.MinReplicaMemoryGb,
-					MaxReplicaMemoryGb:     priorStateData.MaxReplicaMemoryGb,
+					// New attribute, absent from V0 state — the next refresh fills it from the API.
+					Profile:            types.StringNull(),
+					ReleaseChannel:     priorStateData.ReleaseChannel,
+					IdleScaling:        priorStateData.IdleScaling,
+					IpAccessList:       priorStateData.IpAccessList,
+					MinTotalMemoryGb:   priorStateData.MinTotalMemoryGb,
+					MaxTotalMemoryGb:   priorStateData.MaxTotalMemoryGb,
+					MinReplicaMemoryGb: priorStateData.MinReplicaMemoryGb,
+					MaxReplicaMemoryGb: priorStateData.MaxReplicaMemoryGb,
 					// New in V1, absent from V0 state — set explicit Null rather than relying on the zero value.
 					// AutoscalingMode Null here means the first post-upgrade plan resolves the mode from the
 					// scaling fields and, for an existing vertical service, writes "vertical" — so under
@@ -2470,6 +2485,11 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.Tier = types.StringValue(service.Tier)
 	} else {
 		state.Tier = types.StringNull()
+	}
+	if service.Profile != nil {
+		state.Profile = types.StringValue(*service.Profile)
+	} else {
+		state.Profile = types.StringNull()
 	}
 	state.ReleaseChannel = types.StringValue(service.ReleaseChannel)
 	state.IdleScaling = types.BoolValue(service.IdleScaling)
