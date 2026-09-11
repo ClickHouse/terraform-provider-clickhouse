@@ -2413,15 +2413,14 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					CloudProvider:          priorStateData.CloudProvider,
 					Region:                 priorStateData.Region,
 					Tier:                   priorStateData.Tier,
-					// New attribute, absent from V0 state — the next refresh fills it from the API.
-					Profile:            types.StringNull(),
-					ReleaseChannel:     priorStateData.ReleaseChannel,
-					IdleScaling:        priorStateData.IdleScaling,
-					IpAccessList:       priorStateData.IpAccessList,
-					MinTotalMemoryGb:   priorStateData.MinTotalMemoryGb,
-					MaxTotalMemoryGb:   priorStateData.MaxTotalMemoryGb,
-					MinReplicaMemoryGb: priorStateData.MinReplicaMemoryGb,
-					MaxReplicaMemoryGb: priorStateData.MaxReplicaMemoryGb,
+					Profile:                types.StringNull(),
+					ReleaseChannel:         priorStateData.ReleaseChannel,
+					IdleScaling:            priorStateData.IdleScaling,
+					IpAccessList:           priorStateData.IpAccessList,
+					MinTotalMemoryGb:       priorStateData.MinTotalMemoryGb,
+					MaxTotalMemoryGb:       priorStateData.MaxTotalMemoryGb,
+					MinReplicaMemoryGb:     priorStateData.MinReplicaMemoryGb,
+					MaxReplicaMemoryGb:     priorStateData.MaxReplicaMemoryGb,
 					// New in V1, absent from V0 state — set explicit Null rather than relying on the zero value.
 					// AutoscalingMode Null here means the first post-upgrade plan resolves the mode from the
 					// scaling fields and, for an existing vertical service, writes "vertical" — so under
