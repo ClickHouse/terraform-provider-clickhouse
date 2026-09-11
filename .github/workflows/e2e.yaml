@@ -108,7 +108,7 @@ jobs:
   build-provider:
     outputs:
       artifact: ${{ steps.build.outputs.artifact }}
-    runs-on: k8s-medium
+    runs-on: k8s-large
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -138,7 +138,7 @@ jobs:
   # Run e2e tests
   e2e:
     needs: ["token", "find-tf-releases", "list-examples", "build-provider"]
-    runs-on: k8s-small
+    runs-on: k8s-medium
     environment: default
     permissions:
       id-token: write
@@ -236,7 +236,7 @@ jobs:
 
   upgrade:
     needs: ["token", "find-tf-releases", "list-examples", "build-provider"]
-    runs-on: k8s-small
+    runs-on: k8s-medium
     environment: default
     permissions:
       id-token: write
