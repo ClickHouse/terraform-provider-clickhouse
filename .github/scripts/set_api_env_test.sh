@@ -42,16 +42,20 @@ for environment in Production Staging Development; do
   suffix="${environment,,}"
   run_setup gcp "api_env=${environment}" "api_env_${suffix}=${credentials}" "example_regions_${suffix}=${config}"
   expect_regions us-east1 us-west1
-  run_setup gcp "api_env=${environment}"
-  expect_regions us-central1 us-central1
+  if run_setup gcp "api_env=${environment}"; then
+    fail 'missing variable used region lists from secrets'
+  fi
+  [[ ! -s "${test_dir}/output" ]] || fail 'missing variable emitted partial outputs'
+  grep -q "EXAMPLE_REGIONS_${environment^^} is required" "${test_dir}/stderr" || fail 'missing variable diagnostic'
+  if run_setup gcp "api_env=${environment}" "example_regions_${suffix}="; then
+    fail 'empty variable used region lists from secrets'
+  fi
 done
 
 run_setup gcp "example_regions_production=${config}"
 expect_regions us-east1 us-west1
 run_setup gcp "example_regions_production=${config}" TEST_PICK=last
 expect_regions europe-west4 us-west1
-run_setup gcp example_regions_production=
-expect_regions us-central1 us-central1
 run_setup aws "example_regions_production=${config}"
 expect_regions us-west-2 us-east-1
 run_setup azure "example_regions_production=${config}"
@@ -62,6 +66,10 @@ run_setup gcp "example_regions_production=${with_extra_fields}"
 expect_regions us-east1 us-west1
 grep -Fqx 'api_url=https://example.invalid/v1' "${test_dir}/output" || fail 'variable overrode API URL'
 
+with_invalid_secret_regions="$(jq -c '. + {regions: "unused", compliance_regions: null}' <<< "${credentials}")"
+run_setup gcp "api_env_production=${with_invalid_secret_regions}" "example_regions_production=${config}"
+expect_regions us-east1 us-west1
+
 without_compliance="$(jq -c '.compliance_regions.gcp = []' <<< "${config}")"
 run_setup gcp api_env=Development "example_regions_development=${without_compliance}"
 expect_regions us-east1 ''
@@ -71,7 +79,7 @@ for invalid in 'not-json' ' ' 'null' '[]' '{}' '{"regions":{"gcp":[]}}' \
   '{"regions":{"gcp":[42]},"compliance_regions":{"gcp":["us-east1"]}}' \
   '{"regions":{"gcp":["us-east1\ninjected=value"]},"compliance_regions":{"gcp":["us-east1"]}}'; do
   if run_setup gcp "example_regions_production=${invalid}"; then
-    fail 'invalid variable fell back to legacy configuration'
+    fail 'invalid variable used region lists from secrets'
   fi
   [[ ! -s "${test_dir}/output" ]] || fail 'invalid configuration emitted partial outputs'
   grep -q 'Invalid Production region configuration' "${test_dir}/stderr" || fail 'missing validation diagnostic'
@@ -87,18 +95,5 @@ run_setup gcp api_env=Custom api_url=https://example.invalid/v1 organization_id=
 expect_regions us-central1 us-central1
 
 if run_setup gcp api_env=Unknown; then fail 'unknown environment accepted'; fi
-
-exported="$(bash "${script_dir}/export_example_regions.sh" <<< "${legacy}")"
-expected="$(jq '{regions, compliance_regions}' <<< "${legacy}")"
-[[ "${exported}" == "${expected}" ]] || fail 'export changed region configuration'
-[[ "${exported}" != *secret-sentinel* ]] || fail 'export leaked credentials'
-for invalid in '{"api_key_secret":"secret-sentinel"}' 'not-json-secret-sentinel' \
-  '{"regions":{"gcp":"secret-sentinel"},"compliance_regions":{}}'; do
-  if bash "${script_dir}/export_example_regions.sh" <<< "${invalid}" > "${test_dir}/stdout" 2> "${test_dir}/stderr"; then
-    fail 'invalid export accepted'
-  fi
-  [[ ! -s "${test_dir}/stdout" ]] || fail 'invalid export emitted output'
-  if grep -q secret-sentinel "${test_dir}/stderr"; then fail 'export diagnostic leaked input'; fi
-done
 
 echo 'Example region configuration checks passed.'

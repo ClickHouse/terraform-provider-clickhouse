@@ -36,17 +36,17 @@ select_region() {
 case "${api_environment}" in
 Production)
   api_config=${api_env_production:?"api_env_production not set"}
-  region_config=${example_regions_production:-$api_config}
+  region_config=${example_regions_production:-""}
   ;;
 
 Staging)
   api_config=${api_env_staging:?"api_env_staging not set"}
-  region_config=${example_regions_staging:-$api_config}
+  region_config=${example_regions_staging:-""}
   ;;
 
 Development)
   api_config=${api_env_development:?"api_env_development not set"}
-  region_config=${example_regions_development:-$api_config}
+  region_config=${example_regions_development:-""}
   ;;
 
 Custom)
@@ -109,6 +109,10 @@ if [[ "${api_environment}" != "Custom" ]]; then
   api_key_id="$(jq -r .api_key_id <<< "${api_config}")"
   api_key_secret="$(jq -r .api_key_secret <<< "${api_config}")"
   if [[ -n "${cloud}" ]]; then
+    if [[ -z "${region_config}" ]]; then
+      echo "EXAMPLE_REGIONS_${api_environment^^} is required when selecting example regions" >&2
+      exit 1
+    fi
     region="$(select_region regions)"
     compliance_region="$(select_region compliance_regions)"
   fi

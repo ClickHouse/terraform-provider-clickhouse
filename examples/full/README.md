@@ -43,22 +43,13 @@ remove it from both GCP arrays in
 `EXAMPLE_REGIONS_PRODUCTION`, keeping the other approved regions.
 
 The API URL, organization ID, and API keys continue to come exclusively from the
-`API_ENV_PRODUCTION`, `API_ENV_STAGING`, and `API_ENV_DEVELOPMENT` secrets. Do not
-copy those credentials into an Actions variable. Custom runs continue to use
-their explicit API and region inputs.
+`API_ENV_PRODUCTION`, `API_ENV_STAGING`, and `API_ENV_DEVELOPMENT` secrets. Existing
+`regions` and `compliance_regions` fields in those secrets are ignored and can
+be left in place. Do not copy credentials into an Actions variable. Custom runs
+continue to use their explicit API and region inputs.
 
-### Migrating existing lists
-
-1. Run the **Export example regions** workflow for the desired environment. It
-   extracts only `regions` and `compliance_regions` from the existing secret and
-   writes them to the job summary; access to the original Bitwarden JSON is not
-   required.
-2. Copy that JSON into the corresponding repository Actions variable. Edit the
-   region arrays as needed, then save the variable.
-3. Run the E2E workflow for that environment to verify the selected regions.
-
-During migration, an unset or empty variable falls back to the region lists in
-the corresponding secret. Once set, the variable supplies both maps in full;
-missing or malformed lists, and an empty `regions` list, fail before any
-Terraform work, without falling back to a region that was intentionally removed.
-Credentials-only cleanup steps do not require region variables.
+Configure the Actions variables before running the example workflows. The variable
+for the selected environment is required whenever a job selects a region. An unset,
+empty, or malformed variable fails before Terraform runs; there is no fallback
+to the region lists in secrets. Credentials-only cleanup steps do not require
+region variables.
