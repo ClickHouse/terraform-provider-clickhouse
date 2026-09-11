@@ -115,8 +115,8 @@ require_result_array() {
 
 # Last resort at the deadline: a service wedged in a non-terminal state never
 # reaches `stopped`, so the state machine below can never fire its DELETE. Send
-# the DELETE unconditionally -- in practice this clears a service that has been
-# refusing `stop` with 409 -- then re-read the organization and fail only for
+# the DELETE unconditionally -- it takes if the backend has quietly finished,
+# and a 4xx costs nothing -- then re-read the organization and fail only for
 # the ones that are genuinely still there. Reporting a leak the delete just
 # fixed would page somebody for nothing.
 force_delete_stuck_services() {
@@ -204,9 +204,10 @@ cleanup_services() {
         ;;
       *)
         echo "Stopping service ${id}..."
-        # A service wedged in `provisioning` refuses `stop` with 409 for as long
-        # as it exists, but accepts DELETE. Falling back immediately beats
-        # waiting out the whole deadline to discover the same thing.
+        # A service wedged in `provisioning` refuses `stop` with 409 for as
+        # long as it stays there. Try DELETE as well rather than spend the
+        # whole deadline resending a call the API keeps rejecting. DELETE may
+        # be refused too, in which case the deadline still catches it.
         mutate -X PATCH "${ORG_URL}/services/${id}/state" \
           -H 'Content-Type: application/json' --data '{"command": "stop"}' \
           || mutate -X DELETE "${ORG_URL}/services/${id}" \
