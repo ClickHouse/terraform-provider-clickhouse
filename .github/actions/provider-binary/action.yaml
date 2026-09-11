@@ -1,0 +1,92 @@
+name: Provide the branch build of the provider
+description: >
+  Puts a terraform-provider-clickhouse built from this branch on the runner and
+  points terraform at it through dev_overrides. Downloads a prebuilt artifact
+  when one is named, otherwise builds it here.
+inputs:
+  artifact:
+    required: false
+    default: ""
+    description: >
+      Name of an artifact holding a prebuilt terraform-provider-clickhouse. When
+      empty the provider is built in place, which is the fallback for callers
+      that have no build job yet.
+
+runs:
+  using: composite
+  steps:
+    # The binary lives in RUNNER_TEMP rather than the working tree on purpose:
+    # the upgrade test checks out an older tag and back again mid-run, and a
+    # dev_overrides directory inside the repo gets caught up in that.
+    - shell: bash
+      name: Pick a location for the provider binary
+      run: |
+        echo "PROVIDER_BIN_DIR=${RUNNER_TEMP}/terraform-provider-clickhouse" >> "${GITHUB_ENV}"
+
+    - name: Setup go
+      if: ${{ inputs.artifact == '' }}
+      uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      with:
+        go-version-file: "go.mod"
+        cache: true
+
+    - shell: bash
+      if: ${{ inputs.artifact == '' }}
+      name: Build provider from branch
+      run: |
+        echo "::group::Build provider from branch"
+        git checkout ${{ github.ref }}
+        mkdir -p "${PROVIDER_BIN_DIR}"
+        go get
+        go build -o "${PROVIDER_BIN_DIR}/terraform-provider-clickhouse" -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.commit=${{ github.sha }}'
+        echo "::endgroup::"
+
+    - name: Download prebuilt provider
+      if: ${{ inputs.artifact != '' }}
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: ${{ inputs.artifact }}
+        path: ${{ runner.temp }}/terraform-provider-clickhouse
+
+    - shell: bash
+      if: ${{ inputs.artifact != '' }}
+      name: Check the prebuilt provider runs on this runner
+      run: |
+        echo "::group::Check the prebuilt provider runs on this runner"
+        bin="${PROVIDER_BIN_DIR}/terraform-provider-clickhouse"
+        # Artifacts do not carry the executable bit.
+        chmod +x "${bin}"
+        # The build job and this job are separate runners. If they ever differ in
+        # OS or architecture the binary will not exec, and failing here says so
+        # plainly instead of surfacing as a confusing terraform init error.
+        if ! file "${bin}"; then
+          echo "::error::Could not inspect ${bin}."
+          exit 1
+        fi
+        # The provider is a plugin and exits non-zero when run outside terraform,
+        # so treat "it produced the plugin handshake complaint" as success and
+        # only an exec failure (126/127) as fatal.
+        set +e
+        "${bin}" >/dev/null 2>&1
+        rc=$?
+        set -e
+        if [ "${rc}" -eq 126 ] || [ "${rc}" -eq 127 ]; then
+          echo "::error::${bin} cannot be executed on this runner (exit ${rc}); the build job and this job likely differ in OS or architecture."
+          exit 1
+        fi
+        echo "::endgroup::"
+
+    - shell: bash
+      name: Point terraform at the branch build
+      run: |
+        echo "::group::Point terraform at the branch build"
+        cat <<EOF >"${HOME}/.terraformrc"
+        provider_installation {
+          dev_overrides {
+            "ClickHouse/clickhouse" = "${PROVIDER_BIN_DIR}"
+          }
+          direct {}
+        }
+        EOF
+        cat "${HOME}/.terraformrc"
+        echo "::endgroup::"
