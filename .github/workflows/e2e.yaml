@@ -349,3 +349,17 @@ jobs:
           token_key: ${{ steps.credentials.outputs.api_key_id }}
           token_secret: ${{ steps.credentials.outputs.api_key_secret }}
           token: ${{needs.token.outputs.token}}
+
+      # Not gated on main, unlike the report job above: a leaked service costs
+      # money on any branch, and the cleanup job is continue-on-error, so this
+      # message is the only signal that something was left running.
+      - name: Report cleanup failure on slack
+        if: failure()
+        uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2.5.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: "failure"
+          notification_title: "E2E cleanup failed for {branch} - services tagged ${{ needs.token.outputs.token }} may still be running"
+          footer: "{run_url}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
