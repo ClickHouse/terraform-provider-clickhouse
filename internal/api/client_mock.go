@@ -390,6 +390,13 @@ type ClientMock struct {
 	beforeListSSHKeysCounter uint64
 	ListSSHKeysMock          mClientMockListSSHKeys
 
+	funcListServiceProfiles          func(ctx context.Context, regionId string, byocId string) (sa1 []ServiceProfile, err error)
+	funcListServiceProfilesOrigin    string
+	inspectFuncListServiceProfiles   func(ctx context.Context, regionId string, byocId string)
+	afterListServiceProfilesCounter  uint64
+	beforeListServiceProfilesCounter uint64
+	ListServiceProfilesMock          mClientMockListServiceProfiles
+
 	funcListServices          func(ctx context.Context, filters []string) (sa1 []Service, err error)
 	funcListServicesOrigin    string
 	inspectFuncListServices   func(ctx context.Context, filters []string)
@@ -753,6 +760,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.ListSSHKeysMock = mClientMockListSSHKeys{mock: m}
 	m.ListSSHKeysMock.callArgs = []*ClientMockListSSHKeysParams{}
+
+	m.ListServiceProfilesMock = mClientMockListServiceProfiles{mock: m}
+	m.ListServiceProfilesMock.callArgs = []*ClientMockListServiceProfilesParams{}
 
 	m.ListServicesMock = mClientMockListServices{mock: m}
 	m.ListServicesMock.callArgs = []*ClientMockListServicesParams{}
@@ -19446,6 +19456,380 @@ func (m *ClientMock) MinimockListSSHKeysInspect() {
 	}
 }
 
+type mClientMockListServiceProfiles struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListServiceProfilesExpectation
+	expectations       []*ClientMockListServiceProfilesExpectation
+
+	callArgs []*ClientMockListServiceProfilesParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListServiceProfilesExpectation specifies expectation struct of the Client.ListServiceProfiles
+type ClientMockListServiceProfilesExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListServiceProfilesParams
+	paramPtrs          *ClientMockListServiceProfilesParamPtrs
+	expectationOrigins ClientMockListServiceProfilesExpectationOrigins
+	results            *ClientMockListServiceProfilesResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListServiceProfilesParams contains parameters of the Client.ListServiceProfiles
+type ClientMockListServiceProfilesParams struct {
+	ctx      context.Context
+	regionId string
+	byocId   string
+}
+
+// ClientMockListServiceProfilesParamPtrs contains pointers to parameters of the Client.ListServiceProfiles
+type ClientMockListServiceProfilesParamPtrs struct {
+	ctx      *context.Context
+	regionId *string
+	byocId   *string
+}
+
+// ClientMockListServiceProfilesResults contains results of the Client.ListServiceProfiles
+type ClientMockListServiceProfilesResults struct {
+	sa1 []ServiceProfile
+	err error
+}
+
+// ClientMockListServiceProfilesOrigins contains origins of expectations of the Client.ListServiceProfiles
+type ClientMockListServiceProfilesExpectationOrigins struct {
+	origin         string
+	originCtx      string
+	originRegionId string
+	originByocId   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListServiceProfiles *mClientMockListServiceProfiles) Optional() *mClientMockListServiceProfiles {
+	mmListServiceProfiles.optional = true
+	return mmListServiceProfiles
+}
+
+// Expect sets up expected params for Client.ListServiceProfiles
+func (mmListServiceProfiles *mClientMockListServiceProfiles) Expect(ctx context.Context, regionId string, byocId string) *mClientMockListServiceProfiles {
+	if mmListServiceProfiles.mock.funcListServiceProfiles != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by Set")
+	}
+
+	if mmListServiceProfiles.defaultExpectation == nil {
+		mmListServiceProfiles.defaultExpectation = &ClientMockListServiceProfilesExpectation{}
+	}
+
+	if mmListServiceProfiles.defaultExpectation.paramPtrs != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by ExpectParams functions")
+	}
+
+	mmListServiceProfiles.defaultExpectation.params = &ClientMockListServiceProfilesParams{ctx, regionId, byocId}
+	mmListServiceProfiles.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListServiceProfiles.expectations {
+		if minimock.Equal(e.params, mmListServiceProfiles.defaultExpectation.params) {
+			mmListServiceProfiles.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListServiceProfiles.defaultExpectation.params)
+		}
+	}
+
+	return mmListServiceProfiles
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListServiceProfiles
+func (mmListServiceProfiles *mClientMockListServiceProfiles) ExpectCtxParam1(ctx context.Context) *mClientMockListServiceProfiles {
+	if mmListServiceProfiles.mock.funcListServiceProfiles != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by Set")
+	}
+
+	if mmListServiceProfiles.defaultExpectation == nil {
+		mmListServiceProfiles.defaultExpectation = &ClientMockListServiceProfilesExpectation{}
+	}
+
+	if mmListServiceProfiles.defaultExpectation.params != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by Expect")
+	}
+
+	if mmListServiceProfiles.defaultExpectation.paramPtrs == nil {
+		mmListServiceProfiles.defaultExpectation.paramPtrs = &ClientMockListServiceProfilesParamPtrs{}
+	}
+	mmListServiceProfiles.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListServiceProfiles.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListServiceProfiles
+}
+
+// ExpectRegionIdParam2 sets up expected param regionId for Client.ListServiceProfiles
+func (mmListServiceProfiles *mClientMockListServiceProfiles) ExpectRegionIdParam2(regionId string) *mClientMockListServiceProfiles {
+	if mmListServiceProfiles.mock.funcListServiceProfiles != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by Set")
+	}
+
+	if mmListServiceProfiles.defaultExpectation == nil {
+		mmListServiceProfiles.defaultExpectation = &ClientMockListServiceProfilesExpectation{}
+	}
+
+	if mmListServiceProfiles.defaultExpectation.params != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by Expect")
+	}
+
+	if mmListServiceProfiles.defaultExpectation.paramPtrs == nil {
+		mmListServiceProfiles.defaultExpectation.paramPtrs = &ClientMockListServiceProfilesParamPtrs{}
+	}
+	mmListServiceProfiles.defaultExpectation.paramPtrs.regionId = &regionId
+	mmListServiceProfiles.defaultExpectation.expectationOrigins.originRegionId = minimock.CallerInfo(1)
+
+	return mmListServiceProfiles
+}
+
+// ExpectByocIdParam3 sets up expected param byocId for Client.ListServiceProfiles
+func (mmListServiceProfiles *mClientMockListServiceProfiles) ExpectByocIdParam3(byocId string) *mClientMockListServiceProfiles {
+	if mmListServiceProfiles.mock.funcListServiceProfiles != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by Set")
+	}
+
+	if mmListServiceProfiles.defaultExpectation == nil {
+		mmListServiceProfiles.defaultExpectation = &ClientMockListServiceProfilesExpectation{}
+	}
+
+	if mmListServiceProfiles.defaultExpectation.params != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by Expect")
+	}
+
+	if mmListServiceProfiles.defaultExpectation.paramPtrs == nil {
+		mmListServiceProfiles.defaultExpectation.paramPtrs = &ClientMockListServiceProfilesParamPtrs{}
+	}
+	mmListServiceProfiles.defaultExpectation.paramPtrs.byocId = &byocId
+	mmListServiceProfiles.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmListServiceProfiles
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListServiceProfiles
+func (mmListServiceProfiles *mClientMockListServiceProfiles) Inspect(f func(ctx context.Context, regionId string, byocId string)) *mClientMockListServiceProfiles {
+	if mmListServiceProfiles.mock.inspectFuncListServiceProfiles != nil {
+		mmListServiceProfiles.mock.t.Fatalf("Inspect function is already set for ClientMock.ListServiceProfiles")
+	}
+
+	mmListServiceProfiles.mock.inspectFuncListServiceProfiles = f
+
+	return mmListServiceProfiles
+}
+
+// Return sets up results that will be returned by Client.ListServiceProfiles
+func (mmListServiceProfiles *mClientMockListServiceProfiles) Return(sa1 []ServiceProfile, err error) *ClientMock {
+	if mmListServiceProfiles.mock.funcListServiceProfiles != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by Set")
+	}
+
+	if mmListServiceProfiles.defaultExpectation == nil {
+		mmListServiceProfiles.defaultExpectation = &ClientMockListServiceProfilesExpectation{mock: mmListServiceProfiles.mock}
+	}
+	mmListServiceProfiles.defaultExpectation.results = &ClientMockListServiceProfilesResults{sa1, err}
+	mmListServiceProfiles.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListServiceProfiles.mock
+}
+
+// Set uses given function f to mock the Client.ListServiceProfiles method
+func (mmListServiceProfiles *mClientMockListServiceProfiles) Set(f func(ctx context.Context, regionId string, byocId string) (sa1 []ServiceProfile, err error)) *ClientMock {
+	if mmListServiceProfiles.defaultExpectation != nil {
+		mmListServiceProfiles.mock.t.Fatalf("Default expectation is already set for the Client.ListServiceProfiles method")
+	}
+
+	if len(mmListServiceProfiles.expectations) > 0 {
+		mmListServiceProfiles.mock.t.Fatalf("Some expectations are already set for the Client.ListServiceProfiles method")
+	}
+
+	mmListServiceProfiles.mock.funcListServiceProfiles = f
+	mmListServiceProfiles.mock.funcListServiceProfilesOrigin = minimock.CallerInfo(1)
+	return mmListServiceProfiles.mock
+}
+
+// When sets expectation for the Client.ListServiceProfiles which will trigger the result defined by the following
+// Then helper
+func (mmListServiceProfiles *mClientMockListServiceProfiles) When(ctx context.Context, regionId string, byocId string) *ClientMockListServiceProfilesExpectation {
+	if mmListServiceProfiles.mock.funcListServiceProfiles != nil {
+		mmListServiceProfiles.mock.t.Fatalf("ClientMock.ListServiceProfiles mock is already set by Set")
+	}
+
+	expectation := &ClientMockListServiceProfilesExpectation{
+		mock:               mmListServiceProfiles.mock,
+		params:             &ClientMockListServiceProfilesParams{ctx, regionId, byocId},
+		expectationOrigins: ClientMockListServiceProfilesExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListServiceProfiles.expectations = append(mmListServiceProfiles.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListServiceProfiles return parameters for the expectation previously defined by the When method
+func (e *ClientMockListServiceProfilesExpectation) Then(sa1 []ServiceProfile, err error) *ClientMock {
+	e.results = &ClientMockListServiceProfilesResults{sa1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListServiceProfiles should be invoked
+func (mmListServiceProfiles *mClientMockListServiceProfiles) Times(n uint64) *mClientMockListServiceProfiles {
+	if n == 0 {
+		mmListServiceProfiles.mock.t.Fatalf("Times of ClientMock.ListServiceProfiles mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListServiceProfiles.expectedInvocations, n)
+	mmListServiceProfiles.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListServiceProfiles
+}
+
+func (mmListServiceProfiles *mClientMockListServiceProfiles) invocationsDone() bool {
+	if len(mmListServiceProfiles.expectations) == 0 && mmListServiceProfiles.defaultExpectation == nil && mmListServiceProfiles.mock.funcListServiceProfiles == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListServiceProfiles.mock.afterListServiceProfilesCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListServiceProfiles.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListServiceProfiles implements Client
+func (mmListServiceProfiles *ClientMock) ListServiceProfiles(ctx context.Context, regionId string, byocId string) (sa1 []ServiceProfile, err error) {
+	mm_atomic.AddUint64(&mmListServiceProfiles.beforeListServiceProfilesCounter, 1)
+	defer mm_atomic.AddUint64(&mmListServiceProfiles.afterListServiceProfilesCounter, 1)
+
+	mmListServiceProfiles.t.Helper()
+
+	if mmListServiceProfiles.inspectFuncListServiceProfiles != nil {
+		mmListServiceProfiles.inspectFuncListServiceProfiles(ctx, regionId, byocId)
+	}
+
+	mm_params := ClientMockListServiceProfilesParams{ctx, regionId, byocId}
+
+	// Record call args
+	mmListServiceProfiles.ListServiceProfilesMock.mutex.Lock()
+	mmListServiceProfiles.ListServiceProfilesMock.callArgs = append(mmListServiceProfiles.ListServiceProfilesMock.callArgs, &mm_params)
+	mmListServiceProfiles.ListServiceProfilesMock.mutex.Unlock()
+
+	for _, e := range mmListServiceProfiles.ListServiceProfilesMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sa1, e.results.err
+		}
+	}
+
+	if mmListServiceProfiles.ListServiceProfilesMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListServiceProfiles.ListServiceProfilesMock.defaultExpectation.Counter, 1)
+		mm_want := mmListServiceProfiles.ListServiceProfilesMock.defaultExpectation.params
+		mm_want_ptrs := mmListServiceProfiles.ListServiceProfilesMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListServiceProfilesParams{ctx, regionId, byocId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListServiceProfiles.t.Errorf("ClientMock.ListServiceProfiles got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListServiceProfiles.ListServiceProfilesMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.regionId != nil && !minimock.Equal(*mm_want_ptrs.regionId, mm_got.regionId) {
+				mmListServiceProfiles.t.Errorf("ClientMock.ListServiceProfiles got unexpected parameter regionId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListServiceProfiles.ListServiceProfilesMock.defaultExpectation.expectationOrigins.originRegionId, *mm_want_ptrs.regionId, mm_got.regionId, minimock.Diff(*mm_want_ptrs.regionId, mm_got.regionId))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmListServiceProfiles.t.Errorf("ClientMock.ListServiceProfiles got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListServiceProfiles.ListServiceProfilesMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListServiceProfiles.t.Errorf("ClientMock.ListServiceProfiles got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListServiceProfiles.ListServiceProfilesMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListServiceProfiles.ListServiceProfilesMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListServiceProfiles.t.Fatal("No results are set for the ClientMock.ListServiceProfiles")
+		}
+		return (*mm_results).sa1, (*mm_results).err
+	}
+	if mmListServiceProfiles.funcListServiceProfiles != nil {
+		return mmListServiceProfiles.funcListServiceProfiles(ctx, regionId, byocId)
+	}
+	mmListServiceProfiles.t.Fatalf("Unexpected call to ClientMock.ListServiceProfiles. %v %v %v", ctx, regionId, byocId)
+	return
+}
+
+// ListServiceProfilesAfterCounter returns a count of finished ClientMock.ListServiceProfiles invocations
+func (mmListServiceProfiles *ClientMock) ListServiceProfilesAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListServiceProfiles.afterListServiceProfilesCounter)
+}
+
+// ListServiceProfilesBeforeCounter returns a count of ClientMock.ListServiceProfiles invocations
+func (mmListServiceProfiles *ClientMock) ListServiceProfilesBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListServiceProfiles.beforeListServiceProfilesCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListServiceProfiles.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListServiceProfiles *mClientMockListServiceProfiles) Calls() []*ClientMockListServiceProfilesParams {
+	mmListServiceProfiles.mutex.RLock()
+
+	argCopy := make([]*ClientMockListServiceProfilesParams, len(mmListServiceProfiles.callArgs))
+	copy(argCopy, mmListServiceProfiles.callArgs)
+
+	mmListServiceProfiles.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListServiceProfilesDone returns true if the count of the ListServiceProfiles invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListServiceProfilesDone() bool {
+	if m.ListServiceProfilesMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListServiceProfilesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListServiceProfilesMock.invocationsDone()
+}
+
+// MinimockListServiceProfilesInspect logs each unmet expectation
+func (m *ClientMock) MinimockListServiceProfilesInspect() {
+	for _, e := range m.ListServiceProfilesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListServiceProfiles at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListServiceProfilesCounter := mm_atomic.LoadUint64(&m.afterListServiceProfilesCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListServiceProfilesMock.defaultExpectation != nil && afterListServiceProfilesCounter < 1 {
+		if m.ListServiceProfilesMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListServiceProfiles at\n%s", m.ListServiceProfilesMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListServiceProfiles at\n%s with params: %#v", m.ListServiceProfilesMock.defaultExpectation.expectationOrigins.origin, *m.ListServiceProfilesMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListServiceProfiles != nil && afterListServiceProfilesCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListServiceProfiles at\n%s", m.funcListServiceProfilesOrigin)
+	}
+
+	if !m.ListServiceProfilesMock.invocationsDone() && afterListServiceProfilesCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListServiceProfiles at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListServiceProfilesMock.expectedInvocations), m.ListServiceProfilesMock.expectedInvocationsOrigin, afterListServiceProfilesCounter)
+	}
+}
+
 type mClientMockListServices struct {
 	optional           bool
 	mock               *ClientMock
@@ -30270,6 +30654,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockListSSHKeysInspect()
 
+			m.MinimockListServiceProfilesInspect()
+
 			m.MinimockListServicesInspect()
 
 			m.MinimockReplacePostgresConfigInspect()
@@ -30401,6 +30787,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockListReversePrivateEndpointsDone() &&
 		m.MinimockListRolesDone() &&
 		m.MinimockListSSHKeysDone() &&
+		m.MinimockListServiceProfilesDone() &&
 		m.MinimockListServicesDone() &&
 		m.MinimockReplacePostgresConfigDone() &&
 		m.MinimockRestorePostgresDone() &&

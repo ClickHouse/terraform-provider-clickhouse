@@ -58,6 +58,7 @@ type Service struct {
 	Provider                        string                        `json:"provider"`
 	Region                          string                        `json:"region"`
 	Tier                            string                        `json:"tier,omitempty"`
+	Profile                         *string                       `json:"profile,omitempty"`
 	IdleScaling                     bool                          `json:"idleScaling"`
 	IpAccessList                    []IpAccess                    `json:"ipAccessList"`
 	AutoscalingMode                 string                        `json:"autoscalingMode,omitempty"`
