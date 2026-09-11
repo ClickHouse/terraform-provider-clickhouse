@@ -35,6 +35,27 @@ api() { curl "${CURL_OPTS[@]}" --user "${TOKEN_KEY}:${TOKEN_SECRET}" "$@"; }
 
 is_dry_run() { [[ "${DRY_RUN}" == "true" || "${DRY_RUN}" == "1" ]]; }
 
+# Endpoint ids seen on services matching the suffix, collected before anything
+# is deleted: once a service is gone its attachments cannot be read back, and
+# the organization-level registration is all that is left.
+MATCHED_ENDPOINT_IDS=()
+
+# An endpoint belongs to this run if one of the run's services had it attached,
+# or if its description carries the suffix. Anything else belongs to somebody
+# else and is left alone.
+endpoint_matches_suffix() {
+  local id="$1" description="$2" known
+  if [[ -n "${description}" && "${description}" == *"${SUFFIX}"* ]]; then
+    return 0
+  fi
+  for known in "${MATCHED_ENDPOINT_IDS[@]}"; do
+    if [[ "${known}" == "${id}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 # One transport blip used to abort the whole script under `set -e` and leave
 # every later phase unrun, so reads retry until they come back as parseable
 # JSON. A body that does not parse is treated as a failed attempt, not as data.
@@ -111,7 +132,7 @@ report_stuck_services() {
 cleanup_services() {
   local deadline=$((SECONDS + SWEEP_TIMEOUT_SECONDS))
   local output entry id state name
-  local -a entries
+  local -a entries pass_endpoint_ids
 
   echo "Deleting any service with suffix ${SUFFIX}..."
 
@@ -120,6 +141,12 @@ cleanup_services() {
     require_result_array "${output}" "services" || return 1
     mapfile -t entries < <(jq --arg suffix "${SUFFIX}" -r \
       '.result[] | select(.name | contains($suffix)) | [.id, .state, .name] | @tsv' <<<"${output}")
+
+    mapfile -t pass_endpoint_ids < <(jq --arg suffix "${SUFFIX}" -r \
+      '.result[] | select(.name | contains($suffix)) | (.privateEndpointIds // [])[]' <<<"${output}")
+    if [[ "${#pass_endpoint_ids[@]}" -gt 0 ]]; then
+      MATCHED_ENDPOINT_IDS+=("${pass_endpoint_ids[@]}")
+    fi
 
     if [[ "${#entries[@]}" -eq 0 ]]; then
       echo "No services to cleanup."
@@ -206,22 +233,22 @@ cleanup_postgres() {
 }
 
 cleanup_private_endpoints() {
-  local output entry id cloud_provider region body rc=0
+  local output entry id cloud_provider region description body rc=0
   local -a entries
 
-  echo "Cleanup of private link endpoints under the terraform organization..."
+  echo "Cleanup of private link endpoints attached to services with suffix ${SUFFIX}..."
 
   output="$(api_get_json "${ORG_URL}" "organization ${ORGANIZATION_ID}")" || return 1
   mapfile -t entries < <(jq -r \
-    '(.result.privateEndpoints // [])[] | [.id, .cloudProvider, .region] | @tsv' <<<"${output}")
+    '(.result.privateEndpoints // [])[] | [.id, .cloudProvider, .region, (.description // "")] | @tsv' <<<"${output}")
 
   if [[ "${#entries[@]}" -eq 0 ]]; then
-    echo "No private endpoints to cleanup."
+    echo "No private endpoints registered on the organization."
     return 0
   fi
 
   for entry in "${entries[@]}"; do
-    IFS=$'\t' read -r id cloud_provider region <<<"${entry}"
+    IFS=$'\t' read -r id cloud_provider region description <<<"${entry}"
     if [[ -z "$id" || -z "$cloud_provider" || -z "$region" ]]; then
       echo "::error::Missing required field(s) in private endpoint data: $entry" >&2
       echo "  ID: ${id:-<empty>}" >&2
@@ -230,6 +257,12 @@ cleanup_private_endpoints() {
       rc=1
       continue
     fi
+
+    if ! endpoint_matches_suffix "${id}" "${description}"; then
+      echo "Leaving private endpoint ${id} (${cloud_provider}/${region}) in place: not attached to any service with suffix ${SUFFIX}."
+      continue
+    fi
+
     body=$(cat <<EOF
 {
   "privateEndpoints": {
