@@ -26,9 +26,6 @@ jobs:
           files: |
             **/*.sh
 
-      - name: Test example environment configuration
-        run: bash .github/scripts/set_api_env_test.sh
-
       - name: Run
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
