@@ -129,6 +129,11 @@ report_stuck_services() {
 
 # A service only accepts DELETE once it reports `stopped`, so this polls: stop
 # whatever is running, delete whatever has stopped, repeat until nothing matches.
+#
+# Warehouse secondaries sort first (isPrimary=false, and null for services that
+# are not part of a warehouse at all) because a primary cannot be deleted while
+# a secondary still shares its dataWarehouseId -- the same constraint the
+# Managed Postgres sweep below already orders around.
 cleanup_services() {
   local deadline=$((SECONDS + SWEEP_TIMEOUT_SECONDS))
   local output entry id state name
@@ -140,7 +145,7 @@ cleanup_services() {
     output="$(api_get_json "${ORG_URL}/services" "services")" || return 1
     require_result_array "${output}" "services" || return 1
     mapfile -t entries < <(jq --arg suffix "${SUFFIX}" -r \
-      '.result[] | select(.name | contains($suffix)) | [.id, .state, .name] | @tsv' <<<"${output}")
+      '.result | sort_by(.isPrimary)[] | select(.name | contains($suffix)) | [.id, .state, .name] | @tsv' <<<"${output}")
 
     mapfile -t pass_endpoint_ids < <(jq --arg suffix "${SUFFIX}" -r \
       '.result[] | select(.name | contains($suffix)) | (.privateEndpointIds // [])[]' <<<"${output}")
