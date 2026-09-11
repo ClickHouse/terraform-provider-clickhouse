@@ -102,10 +102,43 @@ jobs:
         with:
           ignore: pci
 
+  # Built once per run and shared with every matrix job below. Building it in
+  # each job instead meant one `go build` per test-by-terraform-version
+  # combination, all of them producing the same binary.
+  build-provider:
+    outputs:
+      artifact: ${{ steps.build.outputs.artifact }}
+    runs-on: k8s-large
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Build provider
+        id: build
+        run: |
+          mkdir -p dist
+          go build -o dist/terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.commit=${{ github.sha }}'
+          go env GOOS GOARCH
+          echo "artifact=provider-${{ github.run_id }}-${{ github.run_attempt }}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload provider
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.build.outputs.artifact }}
+          path: dist/terraform-provider-clickhouse
+          retention-days: 1
+          if-no-files-found: error
+
   # Run e2e tests
   e2e:
-    needs: ["token", "find-tf-releases", "list-examples"]
-    runs-on: k8s-large
+    needs: ["token", "find-tf-releases", "list-examples", "build-provider"]
+    runs-on: k8s-medium
     environment: default
     permissions:
       id-token: write
@@ -164,6 +197,7 @@ jobs:
           cloud_provider: ${{ matrix.test.cloud }}
           upgrade_test: "false"
           skip_build: "false"
+          provider_artifact: ${{ needs.build-provider.outputs.artifact }}
           region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -201,8 +235,8 @@ jobs:
           gcp_region: ${{ steps.credentials.outputs.region }}
 
   upgrade:
-    needs: ["token", "find-tf-releases", "list-examples"]
-    runs-on: k8s-large
+    needs: ["token", "find-tf-releases", "list-examples", "build-provider"]
+    runs-on: k8s-medium
     environment: default
     permissions:
       id-token: write
@@ -261,6 +295,7 @@ jobs:
           upgrade_test: "true"
           upgrade_from: ${{ inputs.upgrade_from }}
           skip_build: "false"
+          provider_artifact: ${{ needs.build-provider.outputs.artifact }}
           region: ${{ contains(fromJSON('["hipaa", "pci"]'), matrix.test.name) && steps.credentials.outputs.compliance_region || steps.credentials.outputs.region }}
           aws_role_arn: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
