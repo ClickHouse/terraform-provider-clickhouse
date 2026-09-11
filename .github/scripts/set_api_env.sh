@@ -28,8 +28,13 @@ Production)
   api_key_id="$(echo "${api_env_production}" | jq -r .api_key_id)"
   api_key_secret="$(echo "${api_env_production}" | jq -r .api_key_secret)"
   if [[ -n "${cloud}" ]]; then
-    region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
-    compliance_region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    # GCP capacity shortages in us-central1 have caused example provisioning to time out.
+    region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud] - ["us-central1"]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    compliance_region="$(echo "${api_env_production}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud] - ["us-central1"]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    if [[ -z "${region}" || -z "${compliance_region}" ]]; then
+      echo "No eligible production example regions for ${cloud} after excluding us-central1" >&2
+      exit 1
+    fi
   fi
   ;;
 
