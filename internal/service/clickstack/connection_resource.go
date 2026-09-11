@@ -133,11 +133,9 @@ func (r *connectionResource) Configure(_ context.Context, req resource.Configure
 	r.client = providerData.ClickStack
 }
 
-func (r *connectionResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.BetaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
-}
-
 func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
+
 	var plan connectionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -187,6 +185,8 @@ func (r *connectionResource) Read(ctx context.Context, req resource.ReadRequest,
 }
 
 func (r *connectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
+
 	var plan connectionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -235,6 +235,8 @@ func (r *connectionResource) Delete(ctx context.Context, req resource.DeleteRequ
 }
 
 func (r *connectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
+
 	// Accept either "<id>" (default team) or "<team>/<id>" so connections in a
 	// non-default team can be imported. The team is required by the API to
 	// resolve the team-scoped connection ID during the import Read.

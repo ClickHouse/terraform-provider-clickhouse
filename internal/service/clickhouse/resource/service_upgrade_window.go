@@ -105,6 +105,8 @@ func (r *ServiceUpgradeWindowResource) Configure(_ context.Context, req resource
 }
 
 func (r *ServiceUpgradeWindowResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	utils.BetaWarning("clickhouse_service_upgrade_window", &resp.Diagnostics)
+
 	var plan models.ServiceUpgradeWindowResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -141,12 +143,7 @@ func (r *ServiceUpgradeWindowResource) Create(ctx context.Context, req resource.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *ServiceUpgradeWindowResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.BetaWarning("clickhouse_service_upgrade_window", &resp.Diagnostics)
-}
-
 func (r *ServiceUpgradeWindowResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.BetaWarning("clickhouse_service_upgrade_window", &resp.Diagnostics)
 	var state models.ServiceUpgradeWindowResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -171,6 +168,8 @@ func (r *ServiceUpgradeWindowResource) Read(ctx context.Context, req resource.Re
 }
 
 func (r *ServiceUpgradeWindowResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	utils.BetaWarning("clickhouse_service_upgrade_window", &resp.Diagnostics)
+
 	var plan models.ServiceUpgradeWindowResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -205,6 +204,8 @@ func (r *ServiceUpgradeWindowResource) Delete(ctx context.Context, req resource.
 }
 
 func (r *ServiceUpgradeWindowResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	utils.BetaWarning("clickhouse_service_upgrade_window", &resp.Diagnostics)
+
 	// Validate the service exists and is a primary before writing state.
 	// GET /upgradeWindow on a secondary returns the inherited primary's window
 	// (so import would succeed at the upgrade-window layer), but every
