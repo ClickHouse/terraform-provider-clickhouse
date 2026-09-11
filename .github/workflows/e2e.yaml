@@ -349,3 +349,18 @@ jobs:
           token_key: ${{ steps.credentials.outputs.api_key_id }}
           token_secret: ${{ steps.credentials.outputs.api_key_secret }}
           token: ${{needs.token.outputs.token}}
+
+      # Scheduled runs only. A manual dispatch or a PR-triggered run has someone
+      # already watching it, so the message would be noise. For the nightly run
+      # there is nobody watching and the cleanup job is continue-on-error, which
+      # makes this the only signal that something was left running.
+      - name: Report cleanup failure on slack
+        if: ${{ failure() && github.event_name == 'schedule' }}
+        uses: ravsamhq/notify-slack-action@be814b201e233b2dc673608aa46e5447c8ab13f2 # v2.5.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: "failure"
+          notification_title: "E2E cleanup failed for {branch} - services tagged ${{ needs.token.outputs.token }} may still be running"
+          footer: "{run_url}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
