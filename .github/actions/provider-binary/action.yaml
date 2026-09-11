@@ -59,13 +59,10 @@ runs:
         # The build job and this job are separate runners. If they ever differ in
         # OS or architecture the binary will not exec, and failing here says so
         # plainly instead of surfacing as a confusing terraform init error.
-        if ! file "${bin}"; then
-          echo "::error::Could not inspect ${bin}."
-          exit 1
-        fi
+        #
         # The provider is a plugin and exits non-zero when run outside terraform,
-        # so treat "it produced the plugin handshake complaint" as success and
-        # only an exec failure (126/127) as fatal.
+        # so only an exec failure counts: 126 is "cannot execute", 127 is "not
+        # found". Any other status means the binary ran, which is all we need.
         set +e
         "${bin}" >/dev/null 2>&1
         rc=$?
@@ -74,6 +71,7 @@ runs:
           echo "::error::${bin} cannot be executed on this runner (exit ${rc}); the build job and this job likely differ in OS or architecture."
           exit 1
         fi
+        echo "Provider binary runs on this runner."
         echo "::endgroup::"
 
     - shell: bash
