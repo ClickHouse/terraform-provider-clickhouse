@@ -19,6 +19,10 @@ ORG_URL="${API_URL}/organizations/${ORGANIZATION_ID}"
 SWEEP_TIMEOUT_SECONDS="${SWEEP_TIMEOUT_SECONDS:-1200}"
 POLL_INTERVAL_SECONDS="${POLL_INTERVAL_SECONDS:-5}"
 
+# Report what the sweep would touch without touching it. Handy for checking a
+# suffix against a real organization before letting the deletes run.
+DRY_RUN="${DRY_RUN:-false}"
+
 HTTP_ATTEMPTS="${HTTP_ATTEMPTS:-5}"
 RETRY_DELAY_SECONDS="${RETRY_DELAY_SECONDS:-5}"
 
@@ -28,6 +32,8 @@ RETRY_DELAY_SECONDS="${RETRY_DELAY_SECONDS:-5}"
 CURL_OPTS=(-sS --connect-timeout 10 --max-time 60)
 
 api() { curl "${CURL_OPTS[@]}" --user "${TOKEN_KEY}:${TOKEN_SECRET}" "$@"; }
+
+is_dry_run() { [[ "${DRY_RUN}" == "true" || "${DRY_RUN}" == "1" ]]; }
 
 # One transport blip used to abort the whole script under `set -e` and leave
 # every later phase unrun, so reads retry until they come back as parseable
@@ -51,6 +57,12 @@ api_get_json() {
 # own, and inside a poll loop the next pass re-drives the request anyway.
 mutate() {
   local attempt code
+
+  if is_dry_run; then
+    echo "  [dry-run] would send: $*"
+    return 0
+  fi
+
   for attempt in $(seq 1 "${HTTP_ATTEMPTS}"); do
     if code="$(api -o /dev/null -w '%{http_code}' "$@")"; then
       if [[ "${code}" -ge 400 ]]; then
@@ -140,6 +152,11 @@ cleanup_services() {
       esac
     done
 
+    if is_dry_run; then
+      echo "[dry-run] stopping after one pass; nothing was changed."
+      return 0
+    fi
+
     echo "Waiting ${POLL_INTERVAL_SECONDS} seconds..."
     sleep "${POLL_INTERVAL_SECONDS}"
   done
@@ -177,6 +194,11 @@ cleanup_postgres() {
       echo "Deleting Managed Postgres service ${id}..."
       mutate -X DELETE "${ORG_URL}/postgres/${id}" || true
     done
+
+    if is_dry_run; then
+      echo "[dry-run] stopping after one pass; nothing was changed."
+      return 0
+    fi
 
     echo "Waiting ${POLL_INTERVAL_SECONDS} seconds..."
     sleep "${POLL_INTERVAL_SECONDS}"
@@ -262,6 +284,10 @@ cleanup_roles() {
 
   return "${rc}"
 }
+
+if is_dry_run; then
+  echo "DRY RUN: listing what matches suffix ${SUFFIX} in organization ${ORGANIZATION_ID}; no changes will be made."
+fi
 
 FAILED_PHASES=()
 
