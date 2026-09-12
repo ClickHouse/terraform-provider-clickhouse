@@ -1270,6 +1270,7 @@ func buildMongoDBCredentialsPlan(password, passwordWO types.String, passwordWOVe
 			"replication_mode":                   types.StringValue("cdc"),
 			"sync_interval_seconds":              types.Int64Null(),
 			"pull_batch_size":                    types.Int64Null(),
+			"initial_load_parallelism":           types.Int64Null(),
 			"snapshot_num_rows_per_partition":    types.Int64Null(),
 			"snapshot_number_of_parallel_tables": types.Int64Null(),
 			"delete_on_merge":                    types.BoolNull(),
@@ -1450,11 +1451,12 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name        string
-		state       models.ClickPipeResourceModel
-		response    *api.ClickPipe
-		responseErr error
-		wantErr     bool
+		name                       string
+		state                      models.ClickPipeResourceModel
+		response                   *api.ClickPipe
+		responseErr                error
+		wantErr                    bool
+		wantInitialLoadParallelism types.Int64
 	}{
 		{
 			name:  "Syncs MongoDB source with all settings",
@@ -1471,6 +1473,7 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 							ReplicationMode:                "cdc",
 							SyncIntervalSeconds:            intPtr(30),
 							PullBatchSize:                  intPtr(500),
+							InitialLoadParallelism:         intPtr(4),
 							SnapshotNumRowsPerPartition:    intPtr(100000),
 							SnapshotNumberOfParallelTables: intPtr(2),
 							DeleteOnMerge:                  boolPtr(true),
@@ -1490,7 +1493,8 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 					Database: "default",
 				},
 			},
-			wantErr: false,
+			wantErr:                    false,
+			wantInitialLoadParallelism: types.Int64Value(4),
 		},
 		{
 			name:  "Preserves null values for optional MongoDB settings",
@@ -1519,7 +1523,8 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 					Database: "default",
 				},
 			},
-			wantErr: false,
+			wantErr:                    false,
+			wantInitialLoadParallelism: types.Int64Null(),
 		},
 	}
 
@@ -1561,6 +1566,11 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 				var mongodbModel models.ClickPipeMongoDBSourceModel
 				sourceModel.MongoDB.As(ctx, &mongodbModel, basetypes.ObjectAsOptions{})
 				assert.False(t, mongodbModel.Credentials.IsNull(), "credentials should be preserved from state")
+
+				// Validate initial_load_parallelism is read back from the API (or kept null when absent)
+				var settingsModel models.ClickPipeMongoDBSettingsModel
+				mongodbModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})
+				assert.Equal(t, tt.wantInitialLoadParallelism, settingsModel.InitialLoadParallelism)
 			}
 		})
 	}
@@ -1605,6 +1615,7 @@ func getMongoDBInitialState() models.ClickPipeResourceModel {
 							"replication_mode":                   types.StringValue("cdc"),
 							"sync_interval_seconds":              types.Int64Null(),
 							"pull_batch_size":                    types.Int64Null(),
+							"initial_load_parallelism":           types.Int64Null(),
 							"snapshot_num_rows_per_partition":    types.Int64Null(),
 							"snapshot_number_of_parallel_tables": types.Int64Null(),
 							"delete_on_merge":                    types.BoolNull(),
