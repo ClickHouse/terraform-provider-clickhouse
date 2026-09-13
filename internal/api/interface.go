@@ -13,7 +13,7 @@ type Client interface {
 	ListServices(ctx context.Context, filters []string) ([]Service, error)
 	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
 	CreateService(ctx context.Context, s Service) (*Service, string, error)
-	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error
+	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption) error
 	UpdateService(ctx context.Context, serviceId string, s ServiceUpdate) (*Service, error)
 	UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (*Service, error)
 	GetScheduledScaling(ctx context.Context, serviceId string) (*AutoScalingSchedule, error)

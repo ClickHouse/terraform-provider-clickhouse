@@ -572,9 +572,9 @@ type ClientMock struct {
 	beforeWaitForReversePrivateEndpointStateCounter uint64
 	WaitForReversePrivateEndpointStateMock          mClientMockWaitForReversePrivateEndpointState
 
-	funcWaitForServiceState          func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
+	funcWaitForServiceState          func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption) (err error)
 	funcWaitForServiceStateOrigin    string
-	inspectFuncWaitForServiceState   func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int)
+	inspectFuncWaitForServiceState   func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption)
 	afterWaitForServiceStateCounter  uint64
 	beforeWaitForServiceStateCounter uint64
 	WaitForServiceStateMock          mClientMockWaitForServiceState
@@ -29444,6 +29444,7 @@ type ClientMockWaitForServiceStateParams struct {
 	serviceId      string
 	stateChecker   func(string) bool
 	maxWaitSeconds int
+	opts           []WaitOption
 }
 
 // ClientMockWaitForServiceStateParamPtrs contains pointers to parameters of the Client.WaitForServiceState
@@ -29452,6 +29453,7 @@ type ClientMockWaitForServiceStateParamPtrs struct {
 	serviceId      *string
 	stateChecker   *func(string) bool
 	maxWaitSeconds *int
+	opts           *[]WaitOption
 }
 
 // ClientMockWaitForServiceStateResults contains results of the Client.WaitForServiceState
@@ -29466,6 +29468,7 @@ type ClientMockWaitForServiceStateExpectationOrigins struct {
 	originServiceId      string
 	originStateChecker   string
 	originMaxWaitSeconds string
+	originOpts           string
 }
 
 // Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
@@ -29479,7 +29482,7 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) Optional() *mClient
 }
 
 // Expect sets up expected params for Client.WaitForServiceState
-func (mmWaitForServiceState *mClientMockWaitForServiceState) Expect(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) *mClientMockWaitForServiceState {
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Expect(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption) *mClientMockWaitForServiceState {
 	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
 		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
 	}
@@ -29492,7 +29495,7 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) Expect(ctx context.
 		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by ExpectParams functions")
 	}
 
-	mmWaitForServiceState.defaultExpectation.params = &ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds}
+	mmWaitForServiceState.defaultExpectation.params = &ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds, opts}
 	mmWaitForServiceState.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmWaitForServiceState.expectations {
 		if minimock.Equal(e.params, mmWaitForServiceState.defaultExpectation.params) {
@@ -29595,8 +29598,31 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectMaxWaitSecond
 	return mmWaitForServiceState
 }
 
+// ExpectOptsParam5 sets up expected param opts for Client.WaitForServiceState
+func (mmWaitForServiceState *mClientMockWaitForServiceState) ExpectOptsParam5(opts ...WaitOption) *mClientMockWaitForServiceState {
+	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
+	}
+
+	if mmWaitForServiceState.defaultExpectation == nil {
+		mmWaitForServiceState.defaultExpectation = &ClientMockWaitForServiceStateExpectation{}
+	}
+
+	if mmWaitForServiceState.defaultExpectation.params != nil {
+		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Expect")
+	}
+
+	if mmWaitForServiceState.defaultExpectation.paramPtrs == nil {
+		mmWaitForServiceState.defaultExpectation.paramPtrs = &ClientMockWaitForServiceStateParamPtrs{}
+	}
+	mmWaitForServiceState.defaultExpectation.paramPtrs.opts = &opts
+	mmWaitForServiceState.defaultExpectation.expectationOrigins.originOpts = minimock.CallerInfo(1)
+
+	return mmWaitForServiceState
+}
+
 // Inspect accepts an inspector function that has same arguments as the Client.WaitForServiceState
-func (mmWaitForServiceState *mClientMockWaitForServiceState) Inspect(f func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int)) *mClientMockWaitForServiceState {
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Inspect(f func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption)) *mClientMockWaitForServiceState {
 	if mmWaitForServiceState.mock.inspectFuncWaitForServiceState != nil {
 		mmWaitForServiceState.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForServiceState")
 	}
@@ -29621,7 +29647,7 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) Return(err error) *
 }
 
 // Set uses given function f to mock the Client.WaitForServiceState method
-func (mmWaitForServiceState *mClientMockWaitForServiceState) Set(f func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)) *ClientMock {
+func (mmWaitForServiceState *mClientMockWaitForServiceState) Set(f func(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption) (err error)) *ClientMock {
 	if mmWaitForServiceState.defaultExpectation != nil {
 		mmWaitForServiceState.mock.t.Fatalf("Default expectation is already set for the Client.WaitForServiceState method")
 	}
@@ -29637,14 +29663,14 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) Set(f func(ctx cont
 
 // When sets expectation for the Client.WaitForServiceState which will trigger the result defined by the following
 // Then helper
-func (mmWaitForServiceState *mClientMockWaitForServiceState) When(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) *ClientMockWaitForServiceStateExpectation {
+func (mmWaitForServiceState *mClientMockWaitForServiceState) When(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption) *ClientMockWaitForServiceStateExpectation {
 	if mmWaitForServiceState.mock.funcWaitForServiceState != nil {
 		mmWaitForServiceState.mock.t.Fatalf("ClientMock.WaitForServiceState mock is already set by Set")
 	}
 
 	expectation := &ClientMockWaitForServiceStateExpectation{
 		mock:               mmWaitForServiceState.mock,
-		params:             &ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds},
+		params:             &ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds, opts},
 		expectationOrigins: ClientMockWaitForServiceStateExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmWaitForServiceState.expectations = append(mmWaitForServiceState.expectations, expectation)
@@ -29679,17 +29705,17 @@ func (mmWaitForServiceState *mClientMockWaitForServiceState) invocationsDone() b
 }
 
 // WaitForServiceState implements Client
-func (mmWaitForServiceState *ClientMock) WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) (err error) {
+func (mmWaitForServiceState *ClientMock) WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption) (err error) {
 	mm_atomic.AddUint64(&mmWaitForServiceState.beforeWaitForServiceStateCounter, 1)
 	defer mm_atomic.AddUint64(&mmWaitForServiceState.afterWaitForServiceStateCounter, 1)
 
 	mmWaitForServiceState.t.Helper()
 
 	if mmWaitForServiceState.inspectFuncWaitForServiceState != nil {
-		mmWaitForServiceState.inspectFuncWaitForServiceState(ctx, serviceId, stateChecker, maxWaitSeconds)
+		mmWaitForServiceState.inspectFuncWaitForServiceState(ctx, serviceId, stateChecker, maxWaitSeconds, opts...)
 	}
 
-	mm_params := ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds}
+	mm_params := ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds, opts}
 
 	// Record call args
 	mmWaitForServiceState.WaitForServiceStateMock.mutex.Lock()
@@ -29708,7 +29734,7 @@ func (mmWaitForServiceState *ClientMock) WaitForServiceState(ctx context.Context
 		mm_want := mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.params
 		mm_want_ptrs := mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.paramPtrs
 
-		mm_got := ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds}
+		mm_got := ClientMockWaitForServiceStateParams{ctx, serviceId, stateChecker, maxWaitSeconds, opts}
 
 		if mm_want_ptrs != nil {
 
@@ -29732,6 +29758,11 @@ func (mmWaitForServiceState *ClientMock) WaitForServiceState(ctx context.Context
 					mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.expectationOrigins.originMaxWaitSeconds, *mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds, minimock.Diff(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds))
 			}
 
+			if mm_want_ptrs.opts != nil && !minimock.Equal(*mm_want_ptrs.opts, mm_got.opts) {
+				mmWaitForServiceState.t.Errorf("ClientMock.WaitForServiceState got unexpected parameter opts, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.expectationOrigins.originOpts, *mm_want_ptrs.opts, mm_got.opts, minimock.Diff(*mm_want_ptrs.opts, mm_got.opts))
+			}
+
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
 			mmWaitForServiceState.t.Errorf("ClientMock.WaitForServiceState got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 				mmWaitForServiceState.WaitForServiceStateMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
@@ -29744,9 +29775,9 @@ func (mmWaitForServiceState *ClientMock) WaitForServiceState(ctx context.Context
 		return (*mm_results).err
 	}
 	if mmWaitForServiceState.funcWaitForServiceState != nil {
-		return mmWaitForServiceState.funcWaitForServiceState(ctx, serviceId, stateChecker, maxWaitSeconds)
+		return mmWaitForServiceState.funcWaitForServiceState(ctx, serviceId, stateChecker, maxWaitSeconds, opts...)
 	}
-	mmWaitForServiceState.t.Fatalf("Unexpected call to ClientMock.WaitForServiceState. %v %v %v %v", ctx, serviceId, stateChecker, maxWaitSeconds)
+	mmWaitForServiceState.t.Fatalf("Unexpected call to ClientMock.WaitForServiceState. %v %v %v %v %v", ctx, serviceId, stateChecker, maxWaitSeconds, opts)
 	return
 }
 
