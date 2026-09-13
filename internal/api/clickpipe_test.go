@@ -7,7 +7,74 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestGetClickPipesServiceContext(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/organizations/org-1/services/svc-1/clickpipes/context" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[ClickPipesServiceContext]{
+			Result: ClickPipesServiceContext{GCPWorkloadIdentity: ClickPipesGCPWorkloadIdentityContext{
+				Supported: true,
+				Ready:     boolPtr(true),
+				Principal: strPtr("tenant@clickpipes.iam.gserviceaccount.com"),
+			}},
+		})
+	})
+
+	got, err := client.GetClickPipesServiceContext(context.Background(), testServiceID)
+	if err != nil {
+		t.Fatalf("GetClickPipesServiceContext: %v", err)
+	}
+	if !got.GCPWorkloadIdentity.Supported || got.GCPWorkloadIdentity.Ready == nil || !*got.GCPWorkloadIdentity.Ready {
+		t.Fatalf("unexpected workload identity context: %+v", got.GCPWorkloadIdentity)
+	}
+	if got.GCPWorkloadIdentity.Principal == nil || *got.GCPWorkloadIdentity.Principal != "tenant@clickpipes.iam.gserviceaccount.com" {
+		t.Errorf("principal = %v", got.GCPWorkloadIdentity.Principal)
+	}
+}
+
+func TestWaitForClickPipesGCPWorkloadIdentity(t *testing.T) {
+	t.Run("returns ready identity", func(t *testing.T) {
+		client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`{"result":{"gcpWorkloadIdentity":{"supported":true,"ready":true,"principal":"tenant@example.com"}}}`))
+		})
+
+		got, err := client.WaitForClickPipesGCPWorkloadIdentity(context.Background(), testServiceID, time.Second)
+		if err != nil {
+			t.Fatalf("WaitForClickPipesGCPWorkloadIdentity: %v", err)
+		}
+		if got.Principal == nil || *got.Principal != "tenant@example.com" {
+			t.Errorf("principal = %v", got.Principal)
+		}
+	})
+
+	t.Run("rejects unsupported identity without waiting", func(t *testing.T) {
+		client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`{"result":{"gcpWorkloadIdentity":{"supported":false}}}`))
+		})
+
+		_, err := client.WaitForClickPipesGCPWorkloadIdentity(context.Background(), testServiceID, time.Second)
+		if err == nil || !strings.Contains(err.Error(), "not supported") {
+			t.Fatalf("error = %v; want unsupported error", err)
+		}
+	})
+
+	t.Run("times out while identity is not ready", func(t *testing.T) {
+		client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`{"result":{"gcpWorkloadIdentity":{"supported":true,"ready":false}}}`))
+		})
+
+		_, err := client.WaitForClickPipesGCPWorkloadIdentity(context.Background(), testServiceID, 10*time.Millisecond)
+		if err == nil || !strings.Contains(err.Error(), "timed out after 10ms") {
+			t.Fatalf("error = %v; want timeout error", err)
+		}
+	})
+}
 
 const (
 	testServiceID = "svc-1"
