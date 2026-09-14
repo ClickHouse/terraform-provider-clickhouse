@@ -227,7 +227,7 @@ Required:
 
 - `brokers` (String) The list of Kafka bootstrap brokers. (comma separated)
 - `format` (String) The format of the Kafka source. (`JSONEachRow`, `Avro`, `AvroConfluent`, `Protobuf`)
-- `topics` (String) The list of Kafka topics. (comma separated)
+- `topics` (String) One or more Kafka topics as a comma-separated string (for example, topic1,topic2). All topics must have the same schema and are ingested into the same destination table by a single ClickPipe.
 
 Optional:
 
