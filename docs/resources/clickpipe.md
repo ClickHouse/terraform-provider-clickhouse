@@ -355,6 +355,7 @@ Required:
 Optional:
 
 - `delete_on_merge` (Boolean) Enable hard delete behavior in ReplacingMergeTree for MongoDB DELETE operations.
+- `initial_load_parallelism` (Number) Number of parallel workers to use per collection during the initial snapshot phase. Can only be set at creation time; changing it forces pipe replacement.
 - `pull_batch_size` (Number) Number of rows to pull in each batch during CDC replication.
 - `snapshot_num_rows_per_partition` (Number) Number of rows per partition during the snapshot phase.
 - `snapshot_number_of_parallel_tables` (Number) Number of collections to snapshot in parallel during the initial load phase.

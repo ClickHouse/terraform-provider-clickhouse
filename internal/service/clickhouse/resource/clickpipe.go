@@ -1768,6 +1768,18 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											int64validator.AtLeast(1),
 										},
 									},
+									"initial_load_parallelism": schema.Int64Attribute{
+										Description: "Number of parallel workers to use per collection during the initial snapshot phase. Can only be set at creation time; changing it forces pipe replacement.",
+										Computed:    true,
+										Optional:    true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+									},
 									"snapshot_num_rows_per_partition": schema.Int64Attribute{
 										Description: "Number of rows per partition during the snapshot phase.",
 										Computed:    true,
@@ -3825,6 +3837,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			v := int(settingsModel.PullBatchSize.ValueInt64())
 			settings.PullBatchSize = &v
 		}
+		if !settingsModel.InitialLoadParallelism.IsNull() && !settingsModel.InitialLoadParallelism.IsUnknown() {
+			v := int(settingsModel.InitialLoadParallelism.ValueInt64())
+			settings.InitialLoadParallelism = &v
+		}
 		if !settingsModel.SnapshotNumRowsPerPartition.IsNull() && !settingsModel.SnapshotNumRowsPerPartition.IsUnknown() {
 			v := int(settingsModel.SnapshotNumRowsPerPartition.ValueInt64())
 			settings.SnapshotNumRowsPerPartition = &v
@@ -4958,6 +4974,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.PullBatchSize = types.Int64Value(int64(*clickPipe.Source.MongoDB.Settings.PullBatchSize))
 		} else {
 			settingsModel.PullBatchSize = stateSettingsModel.PullBatchSize
+		}
+
+		if clickPipe.Source.MongoDB.Settings.InitialLoadParallelism != nil {
+			settingsModel.InitialLoadParallelism = types.Int64Value(int64(*clickPipe.Source.MongoDB.Settings.InitialLoadParallelism))
+		} else {
+			settingsModel.InitialLoadParallelism = stateSettingsModel.InitialLoadParallelism
 		}
 
 		if clickPipe.Source.MongoDB.Settings.SnapshotNumRowsPerPartition != nil {
