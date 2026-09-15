@@ -179,7 +179,6 @@ func (r *webhookResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 func (r *webhookResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.BetaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
 	var cfg webhookResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {
@@ -221,6 +220,8 @@ func (m *webhookResourceModel) validate() diag.Diagnostics {
 }
 
 func (r *webhookResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
+
 	var plan webhookResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	// Write-only values live only in config, not plan.
@@ -269,6 +270,8 @@ func (r *webhookResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 func (r *webhookResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
+
 	var plan webhookResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	var config webhookResourceModel
@@ -317,6 +320,8 @@ func (r *webhookResource) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func (r *webhookResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_webhook", &resp.Diagnostics)
+
 	// Accept "<id>" (default team) or "<team>/<id>" for a non-default team.
 	// Write-only secrets are null on import (they live only in config).
 	if team, id, ok := strings.Cut(req.ID, "/"); ok {

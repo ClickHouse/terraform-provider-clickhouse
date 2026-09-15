@@ -2678,27 +2678,49 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Warn about manual table cleanup for CDC pipes (Postgres and MySQL)
-	// Show this for any modification to make users aware, with message clarifying it's for recreations
-	if !request.State.Raw.IsNull() && !request.Plan.Raw.IsNull() {
-		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
-		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-				isCDCPipe := (!planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull()) ||
-					(!planSourceModel.MySQL.IsNull() && !stateSourceModel.MySQL.IsNull()) ||
-					(!planSourceModel.MongoDB.IsNull() && !stateSourceModel.MongoDB.IsNull())
-				if isCDCPipe {
-					response.Diagnostics.AddWarning(
-						"Note about CDC table cleanup",
-						"If this change requires replacement (check for '# forces replacement' in the plan), destination tables are not automatically deleted. You may need to manually delete previous destination tables before recreating the pipe.",
-					)
-				}
-			}
-		}
+	// Must stay the last step that touches the plan: decides `state` from the
+	// fully repaired plan. warnAboutCDCTableCleanup runs after it but only adds
+	// diagnostics, and it needs the repaired plan to tell a no-op from a change.
+	c.planStateAttribute(ctx, request, response)
+
+	c.warnAboutCDCTableCleanup(ctx, request, response, plan, state)
+}
+
+// warnAboutCDCTableCleanup tells the practitioner that a replacement leaves the
+// old destination tables behind. Only worth saying when the pipe is actually
+// changing: on a no-op plan it is noise that hides warnings needing action
+// (https://github.com/ClickHouse/terraform-provider-clickhouse/issues/696).
+// ModifyPlan cannot see the framework's RequiresReplace, so "changing" is the
+// closest signal available, hence the hedge in the message. Runs after
+// planStateAttribute because that is what settles whether the repaired plan
+// still differs from prior state.
+func (c *ClickPipeResource) warnAboutCDCTableCleanup(ctx context.Context, request resource.ModifyPlanRequest, response *resource.ModifyPlanResponse, plan, state models.ClickPipeResourceModel) {
+	if request.State.Raw.IsNull() || request.Plan.Raw.IsNull() || response.Diagnostics.HasError() {
+		return
+	}
+	if response.Plan.Raw.Equal(request.State.Raw) {
+		return
 	}
 
-	// Must stay the final step: decides `state` from the fully repaired plan.
-	c.planStateAttribute(ctx, request, response)
+	var planSourceModel, stateSourceModel models.ClickPipeSourceModel
+	if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return
+	}
+	if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return
+	}
+
+	isCDCPipe := (!planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull()) ||
+		(!planSourceModel.MySQL.IsNull() && !stateSourceModel.MySQL.IsNull()) ||
+		(!planSourceModel.MongoDB.IsNull() && !stateSourceModel.MongoDB.IsNull())
+	if !isCDCPipe {
+		return
+	}
+
+	response.Diagnostics.AddWarning(
+		"Note about CDC table cleanup",
+		"If this change requires replacement (check for '# forces replacement' in the plan), destination tables are not automatically deleted. You may need to manually delete previous destination tables before recreating the pipe.",
+	)
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
