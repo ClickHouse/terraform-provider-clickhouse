@@ -24,6 +24,11 @@ defaults:
   run:
     shell: bash
 
+env:
+  example_regions_production: ${{ vars.EXAMPLE_REGIONS_PRODUCTION }}
+  example_regions_staging: ${{ vars.EXAMPLE_REGIONS_STAGING }}
+  example_regions_development: ${{ vars.EXAMPLE_REGIONS_DEVELOPMENT }}
+
 jobs:
   # Validate the input
   validate:
