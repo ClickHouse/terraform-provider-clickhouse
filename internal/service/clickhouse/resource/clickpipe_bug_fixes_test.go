@@ -916,6 +916,7 @@ func postgresPlanWithTableDefinition(withTableDef bool) models.ClickPipeResource
 			SortingKey:  types.ListValueMust(types.StringType, []attr.Value{}),
 			PartitionBy: types.StringNull(),
 			PrimaryKey:  types.StringNull(),
+			TTL:         types.StringNull(),
 		}.ObjectValue()
 	}
 
