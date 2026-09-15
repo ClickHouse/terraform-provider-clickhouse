@@ -17,14 +17,18 @@ type ServiceProfile struct {
 
 // ListServiceProfiles returns the custom instance profiles available to the
 // organization in the given region. BYOC profiles are only included when
-// byocId is set to the BYOC infrastructure id they are configured for.
+// byocId is set to the BYOC infrastructure id they are configured for; in that
+// case regionId may be empty and the API derives the region from the
+// infrastructure.
 func (c *ClientImpl) ListServiceProfiles(ctx context.Context, regionId string, byocId string) ([]ServiceProfile, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getOrgPath("/serviceProfiles"), nil)
 	if err != nil {
 		return nil, err
 	}
 	q := req.URL.Query()
-	q.Set("region_id", regionId)
+	if regionId != "" {
+		q.Set("region_id", regionId)
+	}
 	if byocId != "" {
 		q.Set("byoc_id", byocId)
 	}

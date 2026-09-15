@@ -3,8 +3,9 @@
 #
 #   terraform output available_profiles
 data "clickhouse_service_profiles" "byoc" {
-  region_id = "us-east-1"
-  byoc_id   = var.byoc_id # optional; BYOC profiles are only returned when set
+  # With byoc_id set, region_id can be omitted: the BYOC infrastructure's
+  # region is used. Without byoc_id, region_id is required.
+  byoc_id = var.byoc_id # BYOC profiles are only returned when set
 }
 
 output "available_profiles" {

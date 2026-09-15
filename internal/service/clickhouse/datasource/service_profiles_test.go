@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -31,6 +32,14 @@ func TestServiceProfilesToListValue_MapsItems(t *testing.T) {
 	}
 	if got := attrs["memory_gi"].(types.Float64).ValueFloat64(); got != 8 {
 		t.Errorf("elems[0].memory_gi = %v; want 8", got)
+	}
+}
+
+func TestServiceProfilesDataSource_RequiresRegionOrByocId(t *testing.T) {
+	d := &serviceProfilesDataSource{}
+	validators := d.ConfigValidators(context.Background())
+	if len(validators) != 1 {
+		t.Fatalf("len(validators) = %d; want 1 (AtLeastOneOf region_id/byoc_id)", len(validators))
 	}
 }
 

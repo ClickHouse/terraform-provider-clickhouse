@@ -5,10 +5,12 @@ import (
 	_ "embed"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/datasourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
@@ -18,7 +20,10 @@ import (
 //go:embed descriptions/service_profiles.md
 var serviceProfilesDataSourceDescription string
 
-var _ datasource.DataSource = &serviceProfilesDataSource{}
+var (
+	_ datasource.DataSource                     = &serviceProfilesDataSource{}
+	_ datasource.DataSourceWithConfigValidators = &serviceProfilesDataSource{}
+)
 
 func NewServiceProfilesDataSource() datasource.DataSource { return &serviceProfilesDataSource{} }
 
@@ -88,11 +93,11 @@ func (d *serviceProfilesDataSource) Schema(_ context.Context, _ datasource.Schem
 		MarkdownDescription: serviceProfilesDataSourceDescription,
 		Attributes: map[string]schema.Attribute{
 			"region_id": schema.StringAttribute{
-				Description: "Region to list available profiles for (e.g. 'us-east-1').",
-				Required:    true,
+				Description: "Region to list available profiles for (e.g. 'us-east-1'). Required unless 'byoc_id' is set; when both are set it must match the BYOC infrastructure's region.",
+				Optional:    true,
 			},
 			"byoc_id": schema.StringAttribute{
-				Description: "BYOC infrastructure ID. Required to include dynamic BYOC profiles in the result.",
+				Description: "BYOC infrastructure ID. Required to include dynamic BYOC profiles in the result. When set, 'region_id' can be omitted and the BYOC infrastructure's region is used.",
 				Optional:    true,
 			},
 			"profiles": schema.ListNestedAttribute{
@@ -116,6 +121,15 @@ func (d *serviceProfilesDataSource) Schema(_ context.Context, _ datasource.Schem
 				},
 			},
 		},
+	}
+}
+
+func (d *serviceProfilesDataSource) ConfigValidators(_ context.Context) []datasource.ConfigValidator {
+	return []datasource.ConfigValidator{
+		datasourcevalidator.AtLeastOneOf(
+			path.MatchRoot("region_id"),
+			path.MatchRoot("byoc_id"),
+		),
 	}
 }
 

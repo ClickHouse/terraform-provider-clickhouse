@@ -56,3 +56,23 @@ func TestListServiceProfiles_OmitsEmptyByocId(t *testing.T) {
 		t.Errorf("len = %d; want 0", len(got))
 	}
 }
+
+func TestListServiceProfiles_OmitsEmptyRegionId(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if _, present := r.URL.Query()["region_id"]; present {
+			t.Errorf("region_id should not be sent when empty; query = %q", r.URL.RawQuery)
+		}
+		if got := r.URL.Query().Get("byoc_id"); got != "byoc-1" {
+			t.Errorf("byoc_id = %q; want byoc-1", got)
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[[]ServiceProfile]{Result: []ServiceProfile{}})
+	})
+
+	got, err := client.ListServiceProfiles(context.Background(), "", "byoc-1")
+	if err != nil {
+		t.Fatalf("ListServiceProfiles: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("len = %d; want 0", len(got))
+	}
+}
