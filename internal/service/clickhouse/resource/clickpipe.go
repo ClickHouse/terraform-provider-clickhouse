@@ -1916,6 +1916,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "The primary key of the table.",
 								Optional:            true,
 							},
+							"ttl": schema.StringAttribute{
+								MarkdownDescription: "ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.",
+								Optional:            true,
+								Validators: []validator.String{
+									stringvalidator.LengthAtLeast(1),
+								},
+							},
 						},
 						PlanModifiers: []planmodifier.Object{
 							objectplanmodifier.RequiresReplace(),
@@ -2833,6 +2840,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 				Engine:      engine,
 				PartitionBy: tableDefinitionModel.PartitionBy.ValueStringPointer(),
 				PrimaryKey:  tableDefinitionModel.PrimaryKey.ValueStringPointer(),
+				TTL:         tableDefinitionModel.TTL.ValueStringPointer(),
 				SortingKey:  sortingKey,
 			}
 		}
@@ -5348,6 +5356,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Engine:      engineModel.ObjectValue(),
 			PartitionBy: types.StringPointerValue(clickPipe.Destination.TableDefinition.PartitionBy),
 			PrimaryKey:  types.StringPointerValue(clickPipe.Destination.TableDefinition.PrimaryKey),
+			TTL:         types.StringPointerValue(clickPipe.Destination.TableDefinition.TTL),
 		}
 
 		if len(clickPipe.Destination.TableDefinition.SortingKey) > 0 {

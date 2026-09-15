@@ -61,6 +61,8 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
       engine {
         type = "MergeTree"
       }
+
+      ttl = "event_time + INTERVAL 30 DAY"
     }
 
     columns {
@@ -71,6 +73,11 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
     columns {
       name = "my_field2"
       type = "UInt64"
+    }
+
+    columns {
+      name = "event_time"
+      type = "DateTime"
     }
   }
 
@@ -139,6 +146,7 @@ Optional:
 - `partition_by` (String) The column to partition the table by.
 - `primary_key` (String) The primary key of the table.
 - `sorting_key` (List of String) The list of columns for the sorting key.
+- `ttl` (String) ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.
 
 <a id="nestedatt--destination--table_definition--engine"></a>
 ### Nested Schema for `destination.table_definition.engine`
