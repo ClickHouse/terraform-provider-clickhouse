@@ -266,7 +266,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"topics": schema.StringAttribute{
-								Description: "The list of Kafka topics. (comma separated)",
+								Description: "One or more Kafka topics as a comma-separated string (for example, topic1,topic2). All topics must have the same schema and are ingested into the same destination table by a single ClickPipe.",
 								Required:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
