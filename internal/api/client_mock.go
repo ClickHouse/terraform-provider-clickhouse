@@ -355,6 +355,13 @@ type ClientMock struct {
 	beforeGetServiceBaseCounter uint64
 	GetServiceBaseMock          mClientMockGetServiceBase
 
+	funcGetSnapshotConfiguration          func(ctx context.Context, serviceId string) (sp1 *SnapshotConfiguration, err error)
+	funcGetSnapshotConfigurationOrigin    string
+	inspectFuncGetSnapshotConfiguration   func(ctx context.Context, serviceId string)
+	afterGetSnapshotConfigurationCounter  uint64
+	beforeGetSnapshotConfigurationCounter uint64
+	GetSnapshotConfigurationMock          mClientMockGetSnapshotConfiguration
+
 	funcGetUDF          func(ctx context.Context, functionName string) (up1 *UDF, err error)
 	funcGetUDFOrigin    string
 	inspectFuncGetUDF   func(ctx context.Context, functionName string)
@@ -550,6 +557,13 @@ type ClientMock struct {
 	afterUpdateServicePasswordCounter  uint64
 	beforeUpdateServicePasswordCounter uint64
 	UpdateServicePasswordMock          mClientMockUpdateServicePassword
+
+	funcUpdateSnapshotConfiguration          func(ctx context.Context, serviceId string, s SnapshotConfiguration) (sp1 *SnapshotConfiguration, err error)
+	funcUpdateSnapshotConfigurationOrigin    string
+	inspectFuncUpdateSnapshotConfiguration   func(ctx context.Context, serviceId string, s SnapshotConfiguration)
+	afterUpdateSnapshotConfigurationCounter  uint64
+	beforeUpdateSnapshotConfigurationCounter uint64
+	UpdateSnapshotConfigurationMock          mClientMockUpdateSnapshotConfiguration
 
 	funcUpdateUpgradeWindow          func(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (up1 *UpgradeWindow, err error)
 	funcUpdateUpgradeWindowOrigin    string
@@ -774,6 +788,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetServiceBaseMock = mClientMockGetServiceBase{mock: m}
 	m.GetServiceBaseMock.callArgs = []*ClientMockGetServiceBaseParams{}
 
+	m.GetSnapshotConfigurationMock = mClientMockGetSnapshotConfiguration{mock: m}
+	m.GetSnapshotConfigurationMock.callArgs = []*ClientMockGetSnapshotConfigurationParams{}
+
 	m.GetUDFMock = mClientMockGetUDF{mock: m}
 	m.GetUDFMock.callArgs = []*ClientMockGetUDFParams{}
 
@@ -857,6 +874,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateServicePasswordMock = mClientMockUpdateServicePassword{mock: m}
 	m.UpdateServicePasswordMock.callArgs = []*ClientMockUpdateServicePasswordParams{}
+
+	m.UpdateSnapshotConfigurationMock = mClientMockUpdateSnapshotConfiguration{mock: m}
+	m.UpdateSnapshotConfigurationMock.callArgs = []*ClientMockUpdateSnapshotConfigurationParams{}
 
 	m.UpdateUpgradeWindowMock = mClientMockUpdateUpgradeWindow{mock: m}
 	m.UpdateUpgradeWindowMock.callArgs = []*ClientMockUpdateUpgradeWindowParams{}
@@ -17935,6 +17955,349 @@ func (m *ClientMock) MinimockGetServiceBaseInspect() {
 	}
 }
 
+type mClientMockGetSnapshotConfiguration struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetSnapshotConfigurationExpectation
+	expectations       []*ClientMockGetSnapshotConfigurationExpectation
+
+	callArgs []*ClientMockGetSnapshotConfigurationParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetSnapshotConfigurationExpectation specifies expectation struct of the Client.GetSnapshotConfiguration
+type ClientMockGetSnapshotConfigurationExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetSnapshotConfigurationParams
+	paramPtrs          *ClientMockGetSnapshotConfigurationParamPtrs
+	expectationOrigins ClientMockGetSnapshotConfigurationExpectationOrigins
+	results            *ClientMockGetSnapshotConfigurationResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetSnapshotConfigurationParams contains parameters of the Client.GetSnapshotConfiguration
+type ClientMockGetSnapshotConfigurationParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetSnapshotConfigurationParamPtrs contains pointers to parameters of the Client.GetSnapshotConfiguration
+type ClientMockGetSnapshotConfigurationParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetSnapshotConfigurationResults contains results of the Client.GetSnapshotConfiguration
+type ClientMockGetSnapshotConfigurationResults struct {
+	sp1 *SnapshotConfiguration
+	err error
+}
+
+// ClientMockGetSnapshotConfigurationOrigins contains origins of expectations of the Client.GetSnapshotConfiguration
+type ClientMockGetSnapshotConfigurationExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) Optional() *mClientMockGetSnapshotConfiguration {
+	mmGetSnapshotConfiguration.optional = true
+	return mmGetSnapshotConfiguration
+}
+
+// Expect sets up expected params for Client.GetSnapshotConfiguration
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) Expect(ctx context.Context, serviceId string) *mClientMockGetSnapshotConfiguration {
+	if mmGetSnapshotConfiguration.mock.funcGetSnapshotConfiguration != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("ClientMock.GetSnapshotConfiguration mock is already set by Set")
+	}
+
+	if mmGetSnapshotConfiguration.defaultExpectation == nil {
+		mmGetSnapshotConfiguration.defaultExpectation = &ClientMockGetSnapshotConfigurationExpectation{}
+	}
+
+	if mmGetSnapshotConfiguration.defaultExpectation.paramPtrs != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("ClientMock.GetSnapshotConfiguration mock is already set by ExpectParams functions")
+	}
+
+	mmGetSnapshotConfiguration.defaultExpectation.params = &ClientMockGetSnapshotConfigurationParams{ctx, serviceId}
+	mmGetSnapshotConfiguration.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetSnapshotConfiguration.expectations {
+		if minimock.Equal(e.params, mmGetSnapshotConfiguration.defaultExpectation.params) {
+			mmGetSnapshotConfiguration.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetSnapshotConfiguration.defaultExpectation.params)
+		}
+	}
+
+	return mmGetSnapshotConfiguration
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetSnapshotConfiguration
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) ExpectCtxParam1(ctx context.Context) *mClientMockGetSnapshotConfiguration {
+	if mmGetSnapshotConfiguration.mock.funcGetSnapshotConfiguration != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("ClientMock.GetSnapshotConfiguration mock is already set by Set")
+	}
+
+	if mmGetSnapshotConfiguration.defaultExpectation == nil {
+		mmGetSnapshotConfiguration.defaultExpectation = &ClientMockGetSnapshotConfigurationExpectation{}
+	}
+
+	if mmGetSnapshotConfiguration.defaultExpectation.params != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("ClientMock.GetSnapshotConfiguration mock is already set by Expect")
+	}
+
+	if mmGetSnapshotConfiguration.defaultExpectation.paramPtrs == nil {
+		mmGetSnapshotConfiguration.defaultExpectation.paramPtrs = &ClientMockGetSnapshotConfigurationParamPtrs{}
+	}
+	mmGetSnapshotConfiguration.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetSnapshotConfiguration.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetSnapshotConfiguration
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetSnapshotConfiguration
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) ExpectServiceIdParam2(serviceId string) *mClientMockGetSnapshotConfiguration {
+	if mmGetSnapshotConfiguration.mock.funcGetSnapshotConfiguration != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("ClientMock.GetSnapshotConfiguration mock is already set by Set")
+	}
+
+	if mmGetSnapshotConfiguration.defaultExpectation == nil {
+		mmGetSnapshotConfiguration.defaultExpectation = &ClientMockGetSnapshotConfigurationExpectation{}
+	}
+
+	if mmGetSnapshotConfiguration.defaultExpectation.params != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("ClientMock.GetSnapshotConfiguration mock is already set by Expect")
+	}
+
+	if mmGetSnapshotConfiguration.defaultExpectation.paramPtrs == nil {
+		mmGetSnapshotConfiguration.defaultExpectation.paramPtrs = &ClientMockGetSnapshotConfigurationParamPtrs{}
+	}
+	mmGetSnapshotConfiguration.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetSnapshotConfiguration.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetSnapshotConfiguration
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetSnapshotConfiguration
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetSnapshotConfiguration {
+	if mmGetSnapshotConfiguration.mock.inspectFuncGetSnapshotConfiguration != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("Inspect function is already set for ClientMock.GetSnapshotConfiguration")
+	}
+
+	mmGetSnapshotConfiguration.mock.inspectFuncGetSnapshotConfiguration = f
+
+	return mmGetSnapshotConfiguration
+}
+
+// Return sets up results that will be returned by Client.GetSnapshotConfiguration
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) Return(sp1 *SnapshotConfiguration, err error) *ClientMock {
+	if mmGetSnapshotConfiguration.mock.funcGetSnapshotConfiguration != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("ClientMock.GetSnapshotConfiguration mock is already set by Set")
+	}
+
+	if mmGetSnapshotConfiguration.defaultExpectation == nil {
+		mmGetSnapshotConfiguration.defaultExpectation = &ClientMockGetSnapshotConfigurationExpectation{mock: mmGetSnapshotConfiguration.mock}
+	}
+	mmGetSnapshotConfiguration.defaultExpectation.results = &ClientMockGetSnapshotConfigurationResults{sp1, err}
+	mmGetSnapshotConfiguration.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetSnapshotConfiguration.mock
+}
+
+// Set uses given function f to mock the Client.GetSnapshotConfiguration method
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) Set(f func(ctx context.Context, serviceId string) (sp1 *SnapshotConfiguration, err error)) *ClientMock {
+	if mmGetSnapshotConfiguration.defaultExpectation != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("Default expectation is already set for the Client.GetSnapshotConfiguration method")
+	}
+
+	if len(mmGetSnapshotConfiguration.expectations) > 0 {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("Some expectations are already set for the Client.GetSnapshotConfiguration method")
+	}
+
+	mmGetSnapshotConfiguration.mock.funcGetSnapshotConfiguration = f
+	mmGetSnapshotConfiguration.mock.funcGetSnapshotConfigurationOrigin = minimock.CallerInfo(1)
+	return mmGetSnapshotConfiguration.mock
+}
+
+// When sets expectation for the Client.GetSnapshotConfiguration which will trigger the result defined by the following
+// Then helper
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) When(ctx context.Context, serviceId string) *ClientMockGetSnapshotConfigurationExpectation {
+	if mmGetSnapshotConfiguration.mock.funcGetSnapshotConfiguration != nil {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("ClientMock.GetSnapshotConfiguration mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetSnapshotConfigurationExpectation{
+		mock:               mmGetSnapshotConfiguration.mock,
+		params:             &ClientMockGetSnapshotConfigurationParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetSnapshotConfigurationExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetSnapshotConfiguration.expectations = append(mmGetSnapshotConfiguration.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetSnapshotConfiguration return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetSnapshotConfigurationExpectation) Then(sp1 *SnapshotConfiguration, err error) *ClientMock {
+	e.results = &ClientMockGetSnapshotConfigurationResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetSnapshotConfiguration should be invoked
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) Times(n uint64) *mClientMockGetSnapshotConfiguration {
+	if n == 0 {
+		mmGetSnapshotConfiguration.mock.t.Fatalf("Times of ClientMock.GetSnapshotConfiguration mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetSnapshotConfiguration.expectedInvocations, n)
+	mmGetSnapshotConfiguration.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetSnapshotConfiguration
+}
+
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) invocationsDone() bool {
+	if len(mmGetSnapshotConfiguration.expectations) == 0 && mmGetSnapshotConfiguration.defaultExpectation == nil && mmGetSnapshotConfiguration.mock.funcGetSnapshotConfiguration == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetSnapshotConfiguration.mock.afterGetSnapshotConfigurationCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetSnapshotConfiguration.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetSnapshotConfiguration implements Client
+func (mmGetSnapshotConfiguration *ClientMock) GetSnapshotConfiguration(ctx context.Context, serviceId string) (sp1 *SnapshotConfiguration, err error) {
+	mm_atomic.AddUint64(&mmGetSnapshotConfiguration.beforeGetSnapshotConfigurationCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetSnapshotConfiguration.afterGetSnapshotConfigurationCounter, 1)
+
+	mmGetSnapshotConfiguration.t.Helper()
+
+	if mmGetSnapshotConfiguration.inspectFuncGetSnapshotConfiguration != nil {
+		mmGetSnapshotConfiguration.inspectFuncGetSnapshotConfiguration(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetSnapshotConfigurationParams{ctx, serviceId}
+
+	// Record call args
+	mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.mutex.Lock()
+	mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.callArgs = append(mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.callArgs, &mm_params)
+	mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.mutex.Unlock()
+
+	for _, e := range mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.defaultExpectation.params
+		mm_want_ptrs := mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetSnapshotConfigurationParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetSnapshotConfiguration.t.Errorf("ClientMock.GetSnapshotConfiguration got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetSnapshotConfiguration.t.Errorf("ClientMock.GetSnapshotConfiguration got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetSnapshotConfiguration.t.Errorf("ClientMock.GetSnapshotConfiguration got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetSnapshotConfiguration.GetSnapshotConfigurationMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetSnapshotConfiguration.t.Fatal("No results are set for the ClientMock.GetSnapshotConfiguration")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmGetSnapshotConfiguration.funcGetSnapshotConfiguration != nil {
+		return mmGetSnapshotConfiguration.funcGetSnapshotConfiguration(ctx, serviceId)
+	}
+	mmGetSnapshotConfiguration.t.Fatalf("Unexpected call to ClientMock.GetSnapshotConfiguration. %v %v", ctx, serviceId)
+	return
+}
+
+// GetSnapshotConfigurationAfterCounter returns a count of finished ClientMock.GetSnapshotConfiguration invocations
+func (mmGetSnapshotConfiguration *ClientMock) GetSnapshotConfigurationAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetSnapshotConfiguration.afterGetSnapshotConfigurationCounter)
+}
+
+// GetSnapshotConfigurationBeforeCounter returns a count of ClientMock.GetSnapshotConfiguration invocations
+func (mmGetSnapshotConfiguration *ClientMock) GetSnapshotConfigurationBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetSnapshotConfiguration.beforeGetSnapshotConfigurationCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetSnapshotConfiguration.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetSnapshotConfiguration *mClientMockGetSnapshotConfiguration) Calls() []*ClientMockGetSnapshotConfigurationParams {
+	mmGetSnapshotConfiguration.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetSnapshotConfigurationParams, len(mmGetSnapshotConfiguration.callArgs))
+	copy(argCopy, mmGetSnapshotConfiguration.callArgs)
+
+	mmGetSnapshotConfiguration.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetSnapshotConfigurationDone returns true if the count of the GetSnapshotConfiguration invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetSnapshotConfigurationDone() bool {
+	if m.GetSnapshotConfigurationMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetSnapshotConfigurationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetSnapshotConfigurationMock.invocationsDone()
+}
+
+// MinimockGetSnapshotConfigurationInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetSnapshotConfigurationInspect() {
+	for _, e := range m.GetSnapshotConfigurationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetSnapshotConfiguration at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetSnapshotConfigurationCounter := mm_atomic.LoadUint64(&m.afterGetSnapshotConfigurationCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetSnapshotConfigurationMock.defaultExpectation != nil && afterGetSnapshotConfigurationCounter < 1 {
+		if m.GetSnapshotConfigurationMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetSnapshotConfiguration at\n%s", m.GetSnapshotConfigurationMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetSnapshotConfiguration at\n%s with params: %#v", m.GetSnapshotConfigurationMock.defaultExpectation.expectationOrigins.origin, *m.GetSnapshotConfigurationMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetSnapshotConfiguration != nil && afterGetSnapshotConfigurationCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetSnapshotConfiguration at\n%s", m.funcGetSnapshotConfigurationOrigin)
+	}
+
+	if !m.GetSnapshotConfigurationMock.invocationsDone() && afterGetSnapshotConfigurationCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetSnapshotConfiguration at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetSnapshotConfigurationMock.expectedInvocations), m.GetSnapshotConfigurationMock.expectedInvocationsOrigin, afterGetSnapshotConfigurationCounter)
+	}
+}
+
 type mClientMockGetUDF struct {
 	optional           bool
 	mock               *ClientMock
@@ -28127,6 +28490,380 @@ func (m *ClientMock) MinimockUpdateServicePasswordInspect() {
 	}
 }
 
+type mClientMockUpdateSnapshotConfiguration struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateSnapshotConfigurationExpectation
+	expectations       []*ClientMockUpdateSnapshotConfigurationExpectation
+
+	callArgs []*ClientMockUpdateSnapshotConfigurationParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateSnapshotConfigurationExpectation specifies expectation struct of the Client.UpdateSnapshotConfiguration
+type ClientMockUpdateSnapshotConfigurationExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateSnapshotConfigurationParams
+	paramPtrs          *ClientMockUpdateSnapshotConfigurationParamPtrs
+	expectationOrigins ClientMockUpdateSnapshotConfigurationExpectationOrigins
+	results            *ClientMockUpdateSnapshotConfigurationResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateSnapshotConfigurationParams contains parameters of the Client.UpdateSnapshotConfiguration
+type ClientMockUpdateSnapshotConfigurationParams struct {
+	ctx       context.Context
+	serviceId string
+	s         SnapshotConfiguration
+}
+
+// ClientMockUpdateSnapshotConfigurationParamPtrs contains pointers to parameters of the Client.UpdateSnapshotConfiguration
+type ClientMockUpdateSnapshotConfigurationParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	s         *SnapshotConfiguration
+}
+
+// ClientMockUpdateSnapshotConfigurationResults contains results of the Client.UpdateSnapshotConfiguration
+type ClientMockUpdateSnapshotConfigurationResults struct {
+	sp1 *SnapshotConfiguration
+	err error
+}
+
+// ClientMockUpdateSnapshotConfigurationOrigins contains origins of expectations of the Client.UpdateSnapshotConfiguration
+type ClientMockUpdateSnapshotConfigurationExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originS         string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) Optional() *mClientMockUpdateSnapshotConfiguration {
+	mmUpdateSnapshotConfiguration.optional = true
+	return mmUpdateSnapshotConfiguration
+}
+
+// Expect sets up expected params for Client.UpdateSnapshotConfiguration
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) Expect(ctx context.Context, serviceId string, s SnapshotConfiguration) *mClientMockUpdateSnapshotConfiguration {
+	if mmUpdateSnapshotConfiguration.mock.funcUpdateSnapshotConfiguration != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation == nil {
+		mmUpdateSnapshotConfiguration.defaultExpectation = &ClientMockUpdateSnapshotConfigurationExpectation{}
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateSnapshotConfiguration.defaultExpectation.params = &ClientMockUpdateSnapshotConfigurationParams{ctx, serviceId, s}
+	mmUpdateSnapshotConfiguration.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateSnapshotConfiguration.expectations {
+		if minimock.Equal(e.params, mmUpdateSnapshotConfiguration.defaultExpectation.params) {
+			mmUpdateSnapshotConfiguration.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateSnapshotConfiguration.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateSnapshotConfiguration
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateSnapshotConfiguration
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateSnapshotConfiguration {
+	if mmUpdateSnapshotConfiguration.mock.funcUpdateSnapshotConfiguration != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation == nil {
+		mmUpdateSnapshotConfiguration.defaultExpectation = &ClientMockUpdateSnapshotConfigurationExpectation{}
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation.params != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by Expect")
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs == nil {
+		mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs = &ClientMockUpdateSnapshotConfigurationParamPtrs{}
+	}
+	mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateSnapshotConfiguration.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateSnapshotConfiguration
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateSnapshotConfiguration
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateSnapshotConfiguration {
+	if mmUpdateSnapshotConfiguration.mock.funcUpdateSnapshotConfiguration != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation == nil {
+		mmUpdateSnapshotConfiguration.defaultExpectation = &ClientMockUpdateSnapshotConfigurationExpectation{}
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation.params != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by Expect")
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs == nil {
+		mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs = &ClientMockUpdateSnapshotConfigurationParamPtrs{}
+	}
+	mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmUpdateSnapshotConfiguration.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmUpdateSnapshotConfiguration
+}
+
+// ExpectSParam3 sets up expected param s for Client.UpdateSnapshotConfiguration
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) ExpectSParam3(s SnapshotConfiguration) *mClientMockUpdateSnapshotConfiguration {
+	if mmUpdateSnapshotConfiguration.mock.funcUpdateSnapshotConfiguration != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation == nil {
+		mmUpdateSnapshotConfiguration.defaultExpectation = &ClientMockUpdateSnapshotConfigurationExpectation{}
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation.params != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by Expect")
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs == nil {
+		mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs = &ClientMockUpdateSnapshotConfigurationParamPtrs{}
+	}
+	mmUpdateSnapshotConfiguration.defaultExpectation.paramPtrs.s = &s
+	mmUpdateSnapshotConfiguration.defaultExpectation.expectationOrigins.originS = minimock.CallerInfo(1)
+
+	return mmUpdateSnapshotConfiguration
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateSnapshotConfiguration
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) Inspect(f func(ctx context.Context, serviceId string, s SnapshotConfiguration)) *mClientMockUpdateSnapshotConfiguration {
+	if mmUpdateSnapshotConfiguration.mock.inspectFuncUpdateSnapshotConfiguration != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateSnapshotConfiguration")
+	}
+
+	mmUpdateSnapshotConfiguration.mock.inspectFuncUpdateSnapshotConfiguration = f
+
+	return mmUpdateSnapshotConfiguration
+}
+
+// Return sets up results that will be returned by Client.UpdateSnapshotConfiguration
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) Return(sp1 *SnapshotConfiguration, err error) *ClientMock {
+	if mmUpdateSnapshotConfiguration.mock.funcUpdateSnapshotConfiguration != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by Set")
+	}
+
+	if mmUpdateSnapshotConfiguration.defaultExpectation == nil {
+		mmUpdateSnapshotConfiguration.defaultExpectation = &ClientMockUpdateSnapshotConfigurationExpectation{mock: mmUpdateSnapshotConfiguration.mock}
+	}
+	mmUpdateSnapshotConfiguration.defaultExpectation.results = &ClientMockUpdateSnapshotConfigurationResults{sp1, err}
+	mmUpdateSnapshotConfiguration.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateSnapshotConfiguration.mock
+}
+
+// Set uses given function f to mock the Client.UpdateSnapshotConfiguration method
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) Set(f func(ctx context.Context, serviceId string, s SnapshotConfiguration) (sp1 *SnapshotConfiguration, err error)) *ClientMock {
+	if mmUpdateSnapshotConfiguration.defaultExpectation != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("Default expectation is already set for the Client.UpdateSnapshotConfiguration method")
+	}
+
+	if len(mmUpdateSnapshotConfiguration.expectations) > 0 {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("Some expectations are already set for the Client.UpdateSnapshotConfiguration method")
+	}
+
+	mmUpdateSnapshotConfiguration.mock.funcUpdateSnapshotConfiguration = f
+	mmUpdateSnapshotConfiguration.mock.funcUpdateSnapshotConfigurationOrigin = minimock.CallerInfo(1)
+	return mmUpdateSnapshotConfiguration.mock
+}
+
+// When sets expectation for the Client.UpdateSnapshotConfiguration which will trigger the result defined by the following
+// Then helper
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) When(ctx context.Context, serviceId string, s SnapshotConfiguration) *ClientMockUpdateSnapshotConfigurationExpectation {
+	if mmUpdateSnapshotConfiguration.mock.funcUpdateSnapshotConfiguration != nil {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("ClientMock.UpdateSnapshotConfiguration mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateSnapshotConfigurationExpectation{
+		mock:               mmUpdateSnapshotConfiguration.mock,
+		params:             &ClientMockUpdateSnapshotConfigurationParams{ctx, serviceId, s},
+		expectationOrigins: ClientMockUpdateSnapshotConfigurationExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateSnapshotConfiguration.expectations = append(mmUpdateSnapshotConfiguration.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateSnapshotConfiguration return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateSnapshotConfigurationExpectation) Then(sp1 *SnapshotConfiguration, err error) *ClientMock {
+	e.results = &ClientMockUpdateSnapshotConfigurationResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateSnapshotConfiguration should be invoked
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) Times(n uint64) *mClientMockUpdateSnapshotConfiguration {
+	if n == 0 {
+		mmUpdateSnapshotConfiguration.mock.t.Fatalf("Times of ClientMock.UpdateSnapshotConfiguration mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateSnapshotConfiguration.expectedInvocations, n)
+	mmUpdateSnapshotConfiguration.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateSnapshotConfiguration
+}
+
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) invocationsDone() bool {
+	if len(mmUpdateSnapshotConfiguration.expectations) == 0 && mmUpdateSnapshotConfiguration.defaultExpectation == nil && mmUpdateSnapshotConfiguration.mock.funcUpdateSnapshotConfiguration == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateSnapshotConfiguration.mock.afterUpdateSnapshotConfigurationCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateSnapshotConfiguration.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateSnapshotConfiguration implements Client
+func (mmUpdateSnapshotConfiguration *ClientMock) UpdateSnapshotConfiguration(ctx context.Context, serviceId string, s SnapshotConfiguration) (sp1 *SnapshotConfiguration, err error) {
+	mm_atomic.AddUint64(&mmUpdateSnapshotConfiguration.beforeUpdateSnapshotConfigurationCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateSnapshotConfiguration.afterUpdateSnapshotConfigurationCounter, 1)
+
+	mmUpdateSnapshotConfiguration.t.Helper()
+
+	if mmUpdateSnapshotConfiguration.inspectFuncUpdateSnapshotConfiguration != nil {
+		mmUpdateSnapshotConfiguration.inspectFuncUpdateSnapshotConfiguration(ctx, serviceId, s)
+	}
+
+	mm_params := ClientMockUpdateSnapshotConfigurationParams{ctx, serviceId, s}
+
+	// Record call args
+	mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.mutex.Lock()
+	mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.callArgs = append(mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.callArgs, &mm_params)
+	mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.mutex.Unlock()
+
+	for _, e := range mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateSnapshotConfigurationParams{ctx, serviceId, s}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateSnapshotConfiguration.t.Errorf("ClientMock.UpdateSnapshotConfiguration got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateSnapshotConfiguration.t.Errorf("ClientMock.UpdateSnapshotConfiguration got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.s != nil && !minimock.Equal(*mm_want_ptrs.s, mm_got.s) {
+				mmUpdateSnapshotConfiguration.t.Errorf("ClientMock.UpdateSnapshotConfiguration got unexpected parameter s, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.defaultExpectation.expectationOrigins.originS, *mm_want_ptrs.s, mm_got.s, minimock.Diff(*mm_want_ptrs.s, mm_got.s))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateSnapshotConfiguration.t.Errorf("ClientMock.UpdateSnapshotConfiguration got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateSnapshotConfiguration.UpdateSnapshotConfigurationMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateSnapshotConfiguration.t.Fatal("No results are set for the ClientMock.UpdateSnapshotConfiguration")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmUpdateSnapshotConfiguration.funcUpdateSnapshotConfiguration != nil {
+		return mmUpdateSnapshotConfiguration.funcUpdateSnapshotConfiguration(ctx, serviceId, s)
+	}
+	mmUpdateSnapshotConfiguration.t.Fatalf("Unexpected call to ClientMock.UpdateSnapshotConfiguration. %v %v %v", ctx, serviceId, s)
+	return
+}
+
+// UpdateSnapshotConfigurationAfterCounter returns a count of finished ClientMock.UpdateSnapshotConfiguration invocations
+func (mmUpdateSnapshotConfiguration *ClientMock) UpdateSnapshotConfigurationAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateSnapshotConfiguration.afterUpdateSnapshotConfigurationCounter)
+}
+
+// UpdateSnapshotConfigurationBeforeCounter returns a count of ClientMock.UpdateSnapshotConfiguration invocations
+func (mmUpdateSnapshotConfiguration *ClientMock) UpdateSnapshotConfigurationBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateSnapshotConfiguration.beforeUpdateSnapshotConfigurationCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateSnapshotConfiguration.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateSnapshotConfiguration *mClientMockUpdateSnapshotConfiguration) Calls() []*ClientMockUpdateSnapshotConfigurationParams {
+	mmUpdateSnapshotConfiguration.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateSnapshotConfigurationParams, len(mmUpdateSnapshotConfiguration.callArgs))
+	copy(argCopy, mmUpdateSnapshotConfiguration.callArgs)
+
+	mmUpdateSnapshotConfiguration.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateSnapshotConfigurationDone returns true if the count of the UpdateSnapshotConfiguration invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateSnapshotConfigurationDone() bool {
+	if m.UpdateSnapshotConfigurationMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateSnapshotConfigurationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateSnapshotConfigurationMock.invocationsDone()
+}
+
+// MinimockUpdateSnapshotConfigurationInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateSnapshotConfigurationInspect() {
+	for _, e := range m.UpdateSnapshotConfigurationMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateSnapshotConfiguration at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateSnapshotConfigurationCounter := mm_atomic.LoadUint64(&m.afterUpdateSnapshotConfigurationCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateSnapshotConfigurationMock.defaultExpectation != nil && afterUpdateSnapshotConfigurationCounter < 1 {
+		if m.UpdateSnapshotConfigurationMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateSnapshotConfiguration at\n%s", m.UpdateSnapshotConfigurationMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateSnapshotConfiguration at\n%s with params: %#v", m.UpdateSnapshotConfigurationMock.defaultExpectation.expectationOrigins.origin, *m.UpdateSnapshotConfigurationMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateSnapshotConfiguration != nil && afterUpdateSnapshotConfigurationCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateSnapshotConfiguration at\n%s", m.funcUpdateSnapshotConfigurationOrigin)
+	}
+
+	if !m.UpdateSnapshotConfigurationMock.invocationsDone() && afterUpdateSnapshotConfigurationCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateSnapshotConfiguration at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateSnapshotConfigurationMock.expectedInvocations), m.UpdateSnapshotConfigurationMock.expectedInvocationsOrigin, afterUpdateSnapshotConfigurationCounter)
+	}
+}
+
 type mClientMockUpdateUpgradeWindow struct {
 	optional           bool
 	mock               *ClientMock
@@ -32210,6 +32947,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetServiceBaseInspect()
 
+			m.MinimockGetSnapshotConfigurationInspect()
+
 			m.MinimockGetUDFInspect()
 
 			m.MinimockGetUDFAttachmentInspect()
@@ -32265,6 +33004,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateServiceInspect()
 
 			m.MinimockUpdateServicePasswordInspect()
+
+			m.MinimockUpdateSnapshotConfigurationInspect()
 
 			m.MinimockUpdateUpgradeWindowInspect()
 
@@ -32356,6 +33097,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockGetServiceBaseDone() &&
+		m.MinimockGetSnapshotConfigurationDone() &&
 		m.MinimockGetUDFDone() &&
 		m.MinimockGetUDFAttachmentDone() &&
 		m.MinimockGetUpgradeWindowDone() &&
@@ -32384,6 +33126,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateScheduledScalingDone() &&
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
+		m.MinimockUpdateSnapshotConfigurationDone() &&
 		m.MinimockUpdateUpgradeWindowDone() &&
 		m.MinimockUploadUDFArchiveDone() &&
 		m.MinimockValidateSSHKeyDone() &&

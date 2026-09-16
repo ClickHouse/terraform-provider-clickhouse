@@ -13,11 +13,19 @@ type OrganizationUpdate struct {
 }
 
 type OrgResult struct {
-	CreatedAt        string            `json:"createdAt,omitempty"`
-	ID               string            `json:"id,omitempty"`
-	Name             string            `json:"name,omitempty"`
-	PrivateEndpoints []PrivateEndpoint `json:"privateEndpoints,omitempty"`
-	EnableCoreDumps  *bool             `json:"enableCoreDumps,omitempty"`
+	CreatedAt        string                    `json:"createdAt,omitempty"`
+	ID               string                    `json:"id,omitempty"`
+	Name             string                    `json:"name,omitempty"`
+	PrivateEndpoints []PrivateEndpoint         `json:"privateEndpoints,omitempty"`
+	EnableCoreDumps  *bool                     `json:"enableCoreDumps,omitempty"`
+	Capabilities     *OrganizationCapabilities `json:"capabilities,omitempty"`
+}
+
+// OrganizationCapabilities reports per-capability eligibility for gated features. Pointer fields: an API version
+// predating this field omits capabilities entirely (nil), and an individual capability may be absent (nil) — callers
+// treat nil as "unknown", never as "ineligible".
+type OrganizationCapabilities struct {
+	Snapshots *bool `json:"snapshots,omitempty"`
 }
 
 // GetOrganization retrieves the current organization settings.
