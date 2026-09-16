@@ -70,6 +70,18 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 		}
 
 		service.BackupConfiguration = backupConfiguration
+
+		// Snapshots are a beta feature gated behind an org flag; the endpoint 403s for orgs not enrolled. Treat
+		// forbidden as "no snapshot config" so the read still succeeds — note that if an org loses the flag after
+		// setting a config, this clears snapshot_configuration from state on the next refresh (a diff, not a failure).
+		snapshotConfiguration, err := c.GetSnapshotConfiguration(ctx, service.Id)
+		if err != nil {
+			if !IsForbidden(err) {
+				return nil, err
+			}
+		} else {
+			service.SnapshotConfiguration = snapshotConfiguration
+		}
 	}
 
 	queryEndpoints, err := c.GetQueryEndpoint(ctx, service.Id)
