@@ -36,6 +36,8 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
       engine {
         type = "MergeTree"
       }
+
+      ttl = "event_time + INTERVAL 30 DAY"
     }
 
     columns {
@@ -46,6 +48,11 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
     columns {
       name = "my_field2"
       type = "UInt64"
+    }
+
+    columns {
+      name = "event_time"
+      type = "DateTime"
     }
   }
 

@@ -266,7 +266,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"topics": schema.StringAttribute{
-								Description: "The list of Kafka topics. (comma separated)",
+								Description: "One or more Kafka topics as a comma-separated string (for example, topic1,topic2). All topics must have the same schema and are ingested into the same destination table by a single ClickPipe.",
 								Required:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
@@ -1916,6 +1916,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								MarkdownDescription: "The primary key of the table.",
 								Optional:            true,
 							},
+							"ttl": schema.StringAttribute{
+								MarkdownDescription: "ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.",
+								Optional:            true,
+								Validators: []validator.String{
+									stringvalidator.LengthAtLeast(1),
+								},
+							},
 						},
 						PlanModifiers: []planmodifier.Object{
 							objectplanmodifier.RequiresReplace(),
@@ -2678,27 +2685,49 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Warn about manual table cleanup for CDC pipes (Postgres and MySQL)
-	// Show this for any modification to make users aware, with message clarifying it's for recreations
-	if !request.State.Raw.IsNull() && !request.Plan.Raw.IsNull() {
-		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
-		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-				isCDCPipe := (!planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull()) ||
-					(!planSourceModel.MySQL.IsNull() && !stateSourceModel.MySQL.IsNull()) ||
-					(!planSourceModel.MongoDB.IsNull() && !stateSourceModel.MongoDB.IsNull())
-				if isCDCPipe {
-					response.Diagnostics.AddWarning(
-						"Note about CDC table cleanup",
-						"If this change requires replacement (check for '# forces replacement' in the plan), destination tables are not automatically deleted. You may need to manually delete previous destination tables before recreating the pipe.",
-					)
-				}
-			}
-		}
+	// Must stay the last step that touches the plan: decides `state` from the
+	// fully repaired plan. warnAboutCDCTableCleanup runs after it but only adds
+	// diagnostics, and it needs the repaired plan to tell a no-op from a change.
+	c.planStateAttribute(ctx, request, response)
+
+	c.warnAboutCDCTableCleanup(ctx, request, response, plan, state)
+}
+
+// warnAboutCDCTableCleanup tells the practitioner that a replacement leaves the
+// old destination tables behind. Only worth saying when the pipe is actually
+// changing: on a no-op plan it is noise that hides warnings needing action
+// (https://github.com/ClickHouse/terraform-provider-clickhouse/issues/696).
+// ModifyPlan cannot see the framework's RequiresReplace, so "changing" is the
+// closest signal available, hence the hedge in the message. Runs after
+// planStateAttribute because that is what settles whether the repaired plan
+// still differs from prior state.
+func (c *ClickPipeResource) warnAboutCDCTableCleanup(ctx context.Context, request resource.ModifyPlanRequest, response *resource.ModifyPlanResponse, plan, state models.ClickPipeResourceModel) {
+	if request.State.Raw.IsNull() || request.Plan.Raw.IsNull() || response.Diagnostics.HasError() {
+		return
+	}
+	if response.Plan.Raw.Equal(request.State.Raw) {
+		return
 	}
 
-	// Must stay the final step: decides `state` from the fully repaired plan.
-	c.planStateAttribute(ctx, request, response)
+	var planSourceModel, stateSourceModel models.ClickPipeSourceModel
+	if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return
+	}
+	if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return
+	}
+
+	isCDCPipe := (!planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull()) ||
+		(!planSourceModel.MySQL.IsNull() && !stateSourceModel.MySQL.IsNull()) ||
+		(!planSourceModel.MongoDB.IsNull() && !stateSourceModel.MongoDB.IsNull())
+	if !isCDCPipe {
+		return
+	}
+
+	response.Diagnostics.AddWarning(
+		"Note about CDC table cleanup",
+		"If this change requires replacement (check for '# forces replacement' in the plan), destination tables are not automatically deleted. You may need to manually delete previous destination tables before recreating the pipe.",
+	)
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
@@ -2811,6 +2840,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 				Engine:      engine,
 				PartitionBy: tableDefinitionModel.PartitionBy.ValueStringPointer(),
 				PrimaryKey:  tableDefinitionModel.PrimaryKey.ValueStringPointer(),
+				TTL:         tableDefinitionModel.TTL.ValueStringPointer(),
 				SortingKey:  sortingKey,
 			}
 		}
@@ -5326,6 +5356,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Engine:      engineModel.ObjectValue(),
 			PartitionBy: types.StringPointerValue(clickPipe.Destination.TableDefinition.PartitionBy),
 			PrimaryKey:  types.StringPointerValue(clickPipe.Destination.TableDefinition.PrimaryKey),
+			TTL:         types.StringPointerValue(clickPipe.Destination.TableDefinition.TTL),
 		}
 
 		if len(clickPipe.Destination.TableDefinition.SortingKey) > 0 {

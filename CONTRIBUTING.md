@@ -144,7 +144,11 @@ go tool adr-tool supersede     --help
 3. Add an example under [`examples/`](examples/) and run `make docs`.
 4. Add acceptance tests and run `make testacc`.
 5. If it is not GA yet, mark it **beta**: call `utils.BetaWarning("<name>",
-   &resp.Diagnostics)` so users see it at plan time, and open its description
+   &resp.Diagnostics)` from `Create`, `Update` and `ImportState` — the
+   operations that bring a beta resource under management or change it — and
+   **not** from `ValidateConfig` or `Read`, which run on every plan and refresh
+   (see [#696](https://github.com/ClickHouse/terraform-provider-clickhouse/issues/696)).
+   Open its description
    markdown with a `~> **Note:** This resource is in beta.` callout. When a
    whole service group is beta (as ClickStack is), one callout in
    [`internal/provider/README.md`](internal/provider/README.md) covers the
