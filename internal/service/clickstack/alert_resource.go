@@ -397,7 +397,6 @@ func (r *alertResource) Configure(_ context.Context, req resource.ConfigureReque
 // short-circuits when an operand is null or unknown, mirroring the guard in the
 // dashboard resource's ValidateConfig.
 func (r *alertResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.BetaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
 	var cfg alertResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {
@@ -605,6 +604,8 @@ func validateAlertChannel(diags *diag.Diagnostics, p path.Path, c alertChannelMo
 }
 
 func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
+
 	var plan alertResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -662,6 +663,8 @@ func (r *alertResource) Read(ctx context.Context, req resource.ReadRequest, resp
 }
 
 func (r *alertResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
+
 	var plan alertResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -711,6 +714,8 @@ func (r *alertResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 
 func (r *alertResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_alert", &resp.Diagnostics)
+
 	if team, id, ok := strings.Cut(req.ID, "/"); ok {
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("team"), team)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)

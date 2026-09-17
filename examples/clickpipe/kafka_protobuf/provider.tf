@@ -1,13 +1,8 @@
-# This file is generated automatically please do not edit
 terraform {
   required_providers {
     clickhouse = {
-      version = "3.30.0"
+      version = "3.12.0-alpha2"
       source  = "ClickHouse/clickhouse"
-    }
-    archive = {
-      version = "~> 2.4"
-      source  = "hashicorp/archive"
     }
   }
 }
