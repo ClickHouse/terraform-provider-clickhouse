@@ -357,6 +357,7 @@ type ClickPipeDestinationTableDefinition struct {
 	SortingKey  []string                        `json:"sortingKey"`
 	PartitionBy *string                         `json:"partitionBy,omitempty"`
 	PrimaryKey  *string                         `json:"primaryKey,omitempty"`
+	TTL         *string                         `json:"ttl,omitempty"`
 }
 
 type ClickPipeDestination struct {

@@ -58,9 +58,6 @@ func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.Metad
 	resp.TypeName = req.ProviderTypeName + "_postgres_service"
 }
 
-// ValidateConfig surfaces the beta warning at plan time, matching the other
-// beta resources (clickhouse_service_upgrade_window, …).
-//
 // State-dependent rules are NOT enforced here: ValidateConfig is stateless, so
 // it can't tell a create from an update or read prior state. That covers the
 // create-time attribute rules (required for a standard create; inherited from
@@ -69,8 +66,6 @@ func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.Metad
 // block (which needs is_primary from prior state). All of these live in
 // ModifyPlan, which has prior state.
 func (r *PostgresServiceResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
-
 	var cloudProvider types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("cloud_provider"), &cloudProvider)...)
 	if resp.Diagnostics.HasError() {
@@ -575,6 +570,8 @@ func (r *PostgresServiceResource) Configure(_ context.Context, req resource.Conf
 // Create provisions a new instance via one of three mutually-exclusive paths:
 // standard, read replica (read_replica_of), or point-in-time restore.
 func (r *PostgresServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+
 	var plan, config models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
@@ -692,8 +689,6 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 }
 
 func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
-
 	var state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -759,6 +754,8 @@ func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadReq
 // RequiresReplaceIf (replace for a live replica, adopted in place once promoted
 // out-of-band) so Update also handles that in-place adoption.
 func (r *PostgresServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+
 	var plan, state, config models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -890,6 +887,8 @@ func (r *PostgresServiceResource) Delete(ctx context.Context, req resource.Delet
 }
 
 func (r *PostgresServiceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
