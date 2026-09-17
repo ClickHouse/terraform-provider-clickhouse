@@ -54,6 +54,13 @@ type ClientMock struct {
 	beforeCreatePostgresReadReplicaCounter uint64
 	CreatePostgresReadReplicaMock          mClientMockCreatePostgresReadReplica
 
+	funcCreateQueryAPIEndpoint          func(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest) (qp1 *QueryAPIEndpoint, err error)
+	funcCreateQueryAPIEndpointOrigin    string
+	inspectFuncCreateQueryAPIEndpoint   func(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest)
+	afterCreateQueryAPIEndpointCounter  uint64
+	beforeCreateQueryAPIEndpointCounter uint64
+	CreateQueryAPIEndpointMock          mClientMockCreateQueryAPIEndpoint
+
 	funcCreateQueryEndpoint          func(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint) (sp1 *ServiceQueryEndpoint, err error)
 	funcCreateQueryEndpointOrigin    string
 	inspectFuncCreateQueryEndpoint   func(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint)
@@ -123,6 +130,13 @@ type ClientMock struct {
 	afterDeletePostgresCounter  uint64
 	beforeDeletePostgresCounter uint64
 	DeletePostgresMock          mClientMockDeletePostgres
+
+	funcDeleteQueryAPIEndpoint          func(ctx context.Context, serviceID string, endpointID string) (err error)
+	funcDeleteQueryAPIEndpointOrigin    string
+	inspectFuncDeleteQueryAPIEndpoint   func(ctx context.Context, serviceID string, endpointID string)
+	afterDeleteQueryAPIEndpointCounter  uint64
+	beforeDeleteQueryAPIEndpointCounter uint64
+	DeleteQueryAPIEndpointMock          mClientMockDeleteQueryAPIEndpoint
 
 	funcDeleteQueryEndpoint          func(ctx context.Context, serviceID string) (err error)
 	funcDeleteQueryEndpointOrigin    string
@@ -270,6 +284,13 @@ type ClientMock struct {
 	afterGetPostgresConfigCounter  uint64
 	beforeGetPostgresConfigCounter uint64
 	GetPostgresConfigMock          mClientMockGetPostgresConfig
+
+	funcGetQueryAPIEndpoint          func(ctx context.Context, serviceID string, endpointID string) (qp1 *QueryAPIEndpoint, err error)
+	funcGetQueryAPIEndpointOrigin    string
+	inspectFuncGetQueryAPIEndpoint   func(ctx context.Context, serviceID string, endpointID string)
+	afterGetQueryAPIEndpointCounter  uint64
+	beforeGetQueryAPIEndpointCounter uint64
+	GetQueryAPIEndpointMock          mClientMockGetQueryAPIEndpoint
 
 	funcGetQueryEndpoint          func(ctx context.Context, serviceID string) (sp1 *ServiceQueryEndpoint, err error)
 	funcGetQueryEndpointOrigin    string
@@ -481,6 +502,13 @@ type ClientMock struct {
 	beforeUpdatePostgresCounter uint64
 	UpdatePostgresMock          mClientMockUpdatePostgres
 
+	funcUpdateQueryAPIEndpoint          func(ctx context.Context, serviceID string, endpointID string, endpoint QueryAPIEndpointRequest) (qp1 *QueryAPIEndpoint, err error)
+	funcUpdateQueryAPIEndpointOrigin    string
+	inspectFuncUpdateQueryAPIEndpoint   func(ctx context.Context, serviceID string, endpointID string, endpoint QueryAPIEndpointRequest)
+	afterUpdateQueryAPIEndpointCounter  uint64
+	beforeUpdateQueryAPIEndpointCounter uint64
+	UpdateQueryAPIEndpointMock          mClientMockUpdateQueryAPIEndpoint
+
 	funcUpdateReplicaScaling          func(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (sp1 *Service, err error)
 	funcUpdateReplicaScalingOrigin    string
 	inspectFuncUpdateReplicaScaling   func(ctx context.Context, serviceId string, s ReplicaScalingUpdate)
@@ -610,6 +638,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreatePostgresReadReplicaMock = mClientMockCreatePostgresReadReplica{mock: m}
 	m.CreatePostgresReadReplicaMock.callArgs = []*ClientMockCreatePostgresReadReplicaParams{}
 
+	m.CreateQueryAPIEndpointMock = mClientMockCreateQueryAPIEndpoint{mock: m}
+	m.CreateQueryAPIEndpointMock.callArgs = []*ClientMockCreateQueryAPIEndpointParams{}
+
 	m.CreateQueryEndpointMock = mClientMockCreateQueryEndpoint{mock: m}
 	m.CreateQueryEndpointMock.callArgs = []*ClientMockCreateQueryEndpointParams{}
 
@@ -639,6 +670,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeletePostgresMock = mClientMockDeletePostgres{mock: m}
 	m.DeletePostgresMock.callArgs = []*ClientMockDeletePostgresParams{}
+
+	m.DeleteQueryAPIEndpointMock = mClientMockDeleteQueryAPIEndpoint{mock: m}
+	m.DeleteQueryAPIEndpointMock.callArgs = []*ClientMockDeleteQueryAPIEndpointParams{}
 
 	m.DeleteQueryEndpointMock = mClientMockDeleteQueryEndpoint{mock: m}
 	m.DeleteQueryEndpointMock.callArgs = []*ClientMockDeleteQueryEndpointParams{}
@@ -702,6 +736,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetPostgresConfigMock = mClientMockGetPostgresConfig{mock: m}
 	m.GetPostgresConfigMock.callArgs = []*ClientMockGetPostgresConfigParams{}
+
+	m.GetQueryAPIEndpointMock = mClientMockGetQueryAPIEndpoint{mock: m}
+	m.GetQueryAPIEndpointMock.callArgs = []*ClientMockGetQueryAPIEndpointParams{}
 
 	m.GetQueryEndpointMock = mClientMockGetQueryEndpoint{mock: m}
 	m.GetQueryEndpointMock.callArgs = []*ClientMockGetQueryEndpointParams{}
@@ -792,6 +829,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdatePostgresMock = mClientMockUpdatePostgres{mock: m}
 	m.UpdatePostgresMock.callArgs = []*ClientMockUpdatePostgresParams{}
+
+	m.UpdateQueryAPIEndpointMock = mClientMockUpdateQueryAPIEndpoint{mock: m}
+	m.UpdateQueryAPIEndpointMock.callArgs = []*ClientMockUpdateQueryAPIEndpointParams{}
 
 	m.UpdateReplicaScalingMock = mClientMockUpdateReplicaScaling{mock: m}
 	m.UpdateReplicaScalingMock.callArgs = []*ClientMockUpdateReplicaScalingParams{}
@@ -2742,6 +2782,380 @@ func (m *ClientMock) MinimockCreatePostgresReadReplicaInspect() {
 	if !m.CreatePostgresReadReplicaMock.invocationsDone() && afterCreatePostgresReadReplicaCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreatePostgresReadReplica at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreatePostgresReadReplicaMock.expectedInvocations), m.CreatePostgresReadReplicaMock.expectedInvocationsOrigin, afterCreatePostgresReadReplicaCounter)
+	}
+}
+
+type mClientMockCreateQueryAPIEndpoint struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateQueryAPIEndpointExpectation
+	expectations       []*ClientMockCreateQueryAPIEndpointExpectation
+
+	callArgs []*ClientMockCreateQueryAPIEndpointParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateQueryAPIEndpointExpectation specifies expectation struct of the Client.CreateQueryAPIEndpoint
+type ClientMockCreateQueryAPIEndpointExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateQueryAPIEndpointParams
+	paramPtrs          *ClientMockCreateQueryAPIEndpointParamPtrs
+	expectationOrigins ClientMockCreateQueryAPIEndpointExpectationOrigins
+	results            *ClientMockCreateQueryAPIEndpointResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateQueryAPIEndpointParams contains parameters of the Client.CreateQueryAPIEndpoint
+type ClientMockCreateQueryAPIEndpointParams struct {
+	ctx       context.Context
+	serviceID string
+	endpoint  QueryAPIEndpointRequest
+}
+
+// ClientMockCreateQueryAPIEndpointParamPtrs contains pointers to parameters of the Client.CreateQueryAPIEndpoint
+type ClientMockCreateQueryAPIEndpointParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	endpoint  *QueryAPIEndpointRequest
+}
+
+// ClientMockCreateQueryAPIEndpointResults contains results of the Client.CreateQueryAPIEndpoint
+type ClientMockCreateQueryAPIEndpointResults struct {
+	qp1 *QueryAPIEndpoint
+	err error
+}
+
+// ClientMockCreateQueryAPIEndpointOrigins contains origins of expectations of the Client.CreateQueryAPIEndpoint
+type ClientMockCreateQueryAPIEndpointExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+	originEndpoint  string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) Optional() *mClientMockCreateQueryAPIEndpoint {
+	mmCreateQueryAPIEndpoint.optional = true
+	return mmCreateQueryAPIEndpoint
+}
+
+// Expect sets up expected params for Client.CreateQueryAPIEndpoint
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) Expect(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest) *mClientMockCreateQueryAPIEndpoint {
+	if mmCreateQueryAPIEndpoint.mock.funcCreateQueryAPIEndpoint != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation == nil {
+		mmCreateQueryAPIEndpoint.defaultExpectation = &ClientMockCreateQueryAPIEndpointExpectation{}
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by ExpectParams functions")
+	}
+
+	mmCreateQueryAPIEndpoint.defaultExpectation.params = &ClientMockCreateQueryAPIEndpointParams{ctx, serviceID, endpoint}
+	mmCreateQueryAPIEndpoint.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateQueryAPIEndpoint.expectations {
+		if minimock.Equal(e.params, mmCreateQueryAPIEndpoint.defaultExpectation.params) {
+			mmCreateQueryAPIEndpoint.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateQueryAPIEndpoint.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateQueryAPIEndpoint
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateQueryAPIEndpoint
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) ExpectCtxParam1(ctx context.Context) *mClientMockCreateQueryAPIEndpoint {
+	if mmCreateQueryAPIEndpoint.mock.funcCreateQueryAPIEndpoint != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation == nil {
+		mmCreateQueryAPIEndpoint.defaultExpectation = &ClientMockCreateQueryAPIEndpointExpectation{}
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockCreateQueryAPIEndpointParamPtrs{}
+	}
+	mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateQueryAPIEndpoint.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateQueryAPIEndpoint
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.CreateQueryAPIEndpoint
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) ExpectServiceIDParam2(serviceID string) *mClientMockCreateQueryAPIEndpoint {
+	if mmCreateQueryAPIEndpoint.mock.funcCreateQueryAPIEndpoint != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation == nil {
+		mmCreateQueryAPIEndpoint.defaultExpectation = &ClientMockCreateQueryAPIEndpointExpectation{}
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockCreateQueryAPIEndpointParamPtrs{}
+	}
+	mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmCreateQueryAPIEndpoint.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmCreateQueryAPIEndpoint
+}
+
+// ExpectEndpointParam3 sets up expected param endpoint for Client.CreateQueryAPIEndpoint
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) ExpectEndpointParam3(endpoint QueryAPIEndpointRequest) *mClientMockCreateQueryAPIEndpoint {
+	if mmCreateQueryAPIEndpoint.mock.funcCreateQueryAPIEndpoint != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation == nil {
+		mmCreateQueryAPIEndpoint.defaultExpectation = &ClientMockCreateQueryAPIEndpointExpectation{}
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockCreateQueryAPIEndpointParamPtrs{}
+	}
+	mmCreateQueryAPIEndpoint.defaultExpectation.paramPtrs.endpoint = &endpoint
+	mmCreateQueryAPIEndpoint.defaultExpectation.expectationOrigins.originEndpoint = minimock.CallerInfo(1)
+
+	return mmCreateQueryAPIEndpoint
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateQueryAPIEndpoint
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) Inspect(f func(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest)) *mClientMockCreateQueryAPIEndpoint {
+	if mmCreateQueryAPIEndpoint.mock.inspectFuncCreateQueryAPIEndpoint != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateQueryAPIEndpoint")
+	}
+
+	mmCreateQueryAPIEndpoint.mock.inspectFuncCreateQueryAPIEndpoint = f
+
+	return mmCreateQueryAPIEndpoint
+}
+
+// Return sets up results that will be returned by Client.CreateQueryAPIEndpoint
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) Return(qp1 *QueryAPIEndpoint, err error) *ClientMock {
+	if mmCreateQueryAPIEndpoint.mock.funcCreateQueryAPIEndpoint != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmCreateQueryAPIEndpoint.defaultExpectation == nil {
+		mmCreateQueryAPIEndpoint.defaultExpectation = &ClientMockCreateQueryAPIEndpointExpectation{mock: mmCreateQueryAPIEndpoint.mock}
+	}
+	mmCreateQueryAPIEndpoint.defaultExpectation.results = &ClientMockCreateQueryAPIEndpointResults{qp1, err}
+	mmCreateQueryAPIEndpoint.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateQueryAPIEndpoint.mock
+}
+
+// Set uses given function f to mock the Client.CreateQueryAPIEndpoint method
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) Set(f func(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest) (qp1 *QueryAPIEndpoint, err error)) *ClientMock {
+	if mmCreateQueryAPIEndpoint.defaultExpectation != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("Default expectation is already set for the Client.CreateQueryAPIEndpoint method")
+	}
+
+	if len(mmCreateQueryAPIEndpoint.expectations) > 0 {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("Some expectations are already set for the Client.CreateQueryAPIEndpoint method")
+	}
+
+	mmCreateQueryAPIEndpoint.mock.funcCreateQueryAPIEndpoint = f
+	mmCreateQueryAPIEndpoint.mock.funcCreateQueryAPIEndpointOrigin = minimock.CallerInfo(1)
+	return mmCreateQueryAPIEndpoint.mock
+}
+
+// When sets expectation for the Client.CreateQueryAPIEndpoint which will trigger the result defined by the following
+// Then helper
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) When(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest) *ClientMockCreateQueryAPIEndpointExpectation {
+	if mmCreateQueryAPIEndpoint.mock.funcCreateQueryAPIEndpoint != nil {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.CreateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateQueryAPIEndpointExpectation{
+		mock:               mmCreateQueryAPIEndpoint.mock,
+		params:             &ClientMockCreateQueryAPIEndpointParams{ctx, serviceID, endpoint},
+		expectationOrigins: ClientMockCreateQueryAPIEndpointExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateQueryAPIEndpoint.expectations = append(mmCreateQueryAPIEndpoint.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateQueryAPIEndpoint return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateQueryAPIEndpointExpectation) Then(qp1 *QueryAPIEndpoint, err error) *ClientMock {
+	e.results = &ClientMockCreateQueryAPIEndpointResults{qp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateQueryAPIEndpoint should be invoked
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) Times(n uint64) *mClientMockCreateQueryAPIEndpoint {
+	if n == 0 {
+		mmCreateQueryAPIEndpoint.mock.t.Fatalf("Times of ClientMock.CreateQueryAPIEndpoint mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateQueryAPIEndpoint.expectedInvocations, n)
+	mmCreateQueryAPIEndpoint.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateQueryAPIEndpoint
+}
+
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) invocationsDone() bool {
+	if len(mmCreateQueryAPIEndpoint.expectations) == 0 && mmCreateQueryAPIEndpoint.defaultExpectation == nil && mmCreateQueryAPIEndpoint.mock.funcCreateQueryAPIEndpoint == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateQueryAPIEndpoint.mock.afterCreateQueryAPIEndpointCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateQueryAPIEndpoint.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateQueryAPIEndpoint implements Client
+func (mmCreateQueryAPIEndpoint *ClientMock) CreateQueryAPIEndpoint(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest) (qp1 *QueryAPIEndpoint, err error) {
+	mm_atomic.AddUint64(&mmCreateQueryAPIEndpoint.beforeCreateQueryAPIEndpointCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateQueryAPIEndpoint.afterCreateQueryAPIEndpointCounter, 1)
+
+	mmCreateQueryAPIEndpoint.t.Helper()
+
+	if mmCreateQueryAPIEndpoint.inspectFuncCreateQueryAPIEndpoint != nil {
+		mmCreateQueryAPIEndpoint.inspectFuncCreateQueryAPIEndpoint(ctx, serviceID, endpoint)
+	}
+
+	mm_params := ClientMockCreateQueryAPIEndpointParams{ctx, serviceID, endpoint}
+
+	// Record call args
+	mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.mutex.Lock()
+	mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.callArgs = append(mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.callArgs, &mm_params)
+	mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.mutex.Unlock()
+
+	for _, e := range mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.qp1, e.results.err
+		}
+	}
+
+	if mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateQueryAPIEndpointParams{ctx, serviceID, endpoint}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateQueryAPIEndpoint.t.Errorf("ClientMock.CreateQueryAPIEndpoint got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmCreateQueryAPIEndpoint.t.Errorf("ClientMock.CreateQueryAPIEndpoint got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.endpoint != nil && !minimock.Equal(*mm_want_ptrs.endpoint, mm_got.endpoint) {
+				mmCreateQueryAPIEndpoint.t.Errorf("ClientMock.CreateQueryAPIEndpoint got unexpected parameter endpoint, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originEndpoint, *mm_want_ptrs.endpoint, mm_got.endpoint, minimock.Diff(*mm_want_ptrs.endpoint, mm_got.endpoint))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateQueryAPIEndpoint.t.Errorf("ClientMock.CreateQueryAPIEndpoint got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateQueryAPIEndpoint.CreateQueryAPIEndpointMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateQueryAPIEndpoint.t.Fatal("No results are set for the ClientMock.CreateQueryAPIEndpoint")
+		}
+		return (*mm_results).qp1, (*mm_results).err
+	}
+	if mmCreateQueryAPIEndpoint.funcCreateQueryAPIEndpoint != nil {
+		return mmCreateQueryAPIEndpoint.funcCreateQueryAPIEndpoint(ctx, serviceID, endpoint)
+	}
+	mmCreateQueryAPIEndpoint.t.Fatalf("Unexpected call to ClientMock.CreateQueryAPIEndpoint. %v %v %v", ctx, serviceID, endpoint)
+	return
+}
+
+// CreateQueryAPIEndpointAfterCounter returns a count of finished ClientMock.CreateQueryAPIEndpoint invocations
+func (mmCreateQueryAPIEndpoint *ClientMock) CreateQueryAPIEndpointAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateQueryAPIEndpoint.afterCreateQueryAPIEndpointCounter)
+}
+
+// CreateQueryAPIEndpointBeforeCounter returns a count of ClientMock.CreateQueryAPIEndpoint invocations
+func (mmCreateQueryAPIEndpoint *ClientMock) CreateQueryAPIEndpointBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateQueryAPIEndpoint.beforeCreateQueryAPIEndpointCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateQueryAPIEndpoint.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateQueryAPIEndpoint *mClientMockCreateQueryAPIEndpoint) Calls() []*ClientMockCreateQueryAPIEndpointParams {
+	mmCreateQueryAPIEndpoint.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateQueryAPIEndpointParams, len(mmCreateQueryAPIEndpoint.callArgs))
+	copy(argCopy, mmCreateQueryAPIEndpoint.callArgs)
+
+	mmCreateQueryAPIEndpoint.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateQueryAPIEndpointDone returns true if the count of the CreateQueryAPIEndpoint invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateQueryAPIEndpointDone() bool {
+	if m.CreateQueryAPIEndpointMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateQueryAPIEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateQueryAPIEndpointMock.invocationsDone()
+}
+
+// MinimockCreateQueryAPIEndpointInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateQueryAPIEndpointInspect() {
+	for _, e := range m.CreateQueryAPIEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateQueryAPIEndpoint at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateQueryAPIEndpointCounter := mm_atomic.LoadUint64(&m.afterCreateQueryAPIEndpointCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateQueryAPIEndpointMock.defaultExpectation != nil && afterCreateQueryAPIEndpointCounter < 1 {
+		if m.CreateQueryAPIEndpointMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateQueryAPIEndpoint at\n%s", m.CreateQueryAPIEndpointMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateQueryAPIEndpoint at\n%s with params: %#v", m.CreateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.origin, *m.CreateQueryAPIEndpointMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateQueryAPIEndpoint != nil && afterCreateQueryAPIEndpointCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateQueryAPIEndpoint at\n%s", m.funcCreateQueryAPIEndpointOrigin)
+	}
+
+	if !m.CreateQueryAPIEndpointMock.invocationsDone() && afterCreateQueryAPIEndpointCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateQueryAPIEndpoint at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateQueryAPIEndpointMock.expectedInvocations), m.CreateQueryAPIEndpointMock.expectedInvocationsOrigin, afterCreateQueryAPIEndpointCounter)
 	}
 }
 
@@ -6295,6 +6709,379 @@ func (m *ClientMock) MinimockDeletePostgresInspect() {
 	if !m.DeletePostgresMock.invocationsDone() && afterDeletePostgresCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeletePostgres at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeletePostgresMock.expectedInvocations), m.DeletePostgresMock.expectedInvocationsOrigin, afterDeletePostgresCounter)
+	}
+}
+
+type mClientMockDeleteQueryAPIEndpoint struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteQueryAPIEndpointExpectation
+	expectations       []*ClientMockDeleteQueryAPIEndpointExpectation
+
+	callArgs []*ClientMockDeleteQueryAPIEndpointParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteQueryAPIEndpointExpectation specifies expectation struct of the Client.DeleteQueryAPIEndpoint
+type ClientMockDeleteQueryAPIEndpointExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteQueryAPIEndpointParams
+	paramPtrs          *ClientMockDeleteQueryAPIEndpointParamPtrs
+	expectationOrigins ClientMockDeleteQueryAPIEndpointExpectationOrigins
+	results            *ClientMockDeleteQueryAPIEndpointResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteQueryAPIEndpointParams contains parameters of the Client.DeleteQueryAPIEndpoint
+type ClientMockDeleteQueryAPIEndpointParams struct {
+	ctx        context.Context
+	serviceID  string
+	endpointID string
+}
+
+// ClientMockDeleteQueryAPIEndpointParamPtrs contains pointers to parameters of the Client.DeleteQueryAPIEndpoint
+type ClientMockDeleteQueryAPIEndpointParamPtrs struct {
+	ctx        *context.Context
+	serviceID  *string
+	endpointID *string
+}
+
+// ClientMockDeleteQueryAPIEndpointResults contains results of the Client.DeleteQueryAPIEndpoint
+type ClientMockDeleteQueryAPIEndpointResults struct {
+	err error
+}
+
+// ClientMockDeleteQueryAPIEndpointOrigins contains origins of expectations of the Client.DeleteQueryAPIEndpoint
+type ClientMockDeleteQueryAPIEndpointExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originServiceID  string
+	originEndpointID string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) Optional() *mClientMockDeleteQueryAPIEndpoint {
+	mmDeleteQueryAPIEndpoint.optional = true
+	return mmDeleteQueryAPIEndpoint
+}
+
+// Expect sets up expected params for Client.DeleteQueryAPIEndpoint
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) Expect(ctx context.Context, serviceID string, endpointID string) *mClientMockDeleteQueryAPIEndpoint {
+	if mmDeleteQueryAPIEndpoint.mock.funcDeleteQueryAPIEndpoint != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation == nil {
+		mmDeleteQueryAPIEndpoint.defaultExpectation = &ClientMockDeleteQueryAPIEndpointExpectation{}
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteQueryAPIEndpoint.defaultExpectation.params = &ClientMockDeleteQueryAPIEndpointParams{ctx, serviceID, endpointID}
+	mmDeleteQueryAPIEndpoint.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteQueryAPIEndpoint.expectations {
+		if minimock.Equal(e.params, mmDeleteQueryAPIEndpoint.defaultExpectation.params) {
+			mmDeleteQueryAPIEndpoint.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteQueryAPIEndpoint.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteQueryAPIEndpoint
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteQueryAPIEndpoint
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteQueryAPIEndpoint {
+	if mmDeleteQueryAPIEndpoint.mock.funcDeleteQueryAPIEndpoint != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation == nil {
+		mmDeleteQueryAPIEndpoint.defaultExpectation = &ClientMockDeleteQueryAPIEndpointExpectation{}
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockDeleteQueryAPIEndpointParamPtrs{}
+	}
+	mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteQueryAPIEndpoint.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteQueryAPIEndpoint
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.DeleteQueryAPIEndpoint
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) ExpectServiceIDParam2(serviceID string) *mClientMockDeleteQueryAPIEndpoint {
+	if mmDeleteQueryAPIEndpoint.mock.funcDeleteQueryAPIEndpoint != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation == nil {
+		mmDeleteQueryAPIEndpoint.defaultExpectation = &ClientMockDeleteQueryAPIEndpointExpectation{}
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockDeleteQueryAPIEndpointParamPtrs{}
+	}
+	mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmDeleteQueryAPIEndpoint.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmDeleteQueryAPIEndpoint
+}
+
+// ExpectEndpointIDParam3 sets up expected param endpointID for Client.DeleteQueryAPIEndpoint
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) ExpectEndpointIDParam3(endpointID string) *mClientMockDeleteQueryAPIEndpoint {
+	if mmDeleteQueryAPIEndpoint.mock.funcDeleteQueryAPIEndpoint != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation == nil {
+		mmDeleteQueryAPIEndpoint.defaultExpectation = &ClientMockDeleteQueryAPIEndpointExpectation{}
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockDeleteQueryAPIEndpointParamPtrs{}
+	}
+	mmDeleteQueryAPIEndpoint.defaultExpectation.paramPtrs.endpointID = &endpointID
+	mmDeleteQueryAPIEndpoint.defaultExpectation.expectationOrigins.originEndpointID = minimock.CallerInfo(1)
+
+	return mmDeleteQueryAPIEndpoint
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteQueryAPIEndpoint
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) Inspect(f func(ctx context.Context, serviceID string, endpointID string)) *mClientMockDeleteQueryAPIEndpoint {
+	if mmDeleteQueryAPIEndpoint.mock.inspectFuncDeleteQueryAPIEndpoint != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteQueryAPIEndpoint")
+	}
+
+	mmDeleteQueryAPIEndpoint.mock.inspectFuncDeleteQueryAPIEndpoint = f
+
+	return mmDeleteQueryAPIEndpoint
+}
+
+// Return sets up results that will be returned by Client.DeleteQueryAPIEndpoint
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) Return(err error) *ClientMock {
+	if mmDeleteQueryAPIEndpoint.mock.funcDeleteQueryAPIEndpoint != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmDeleteQueryAPIEndpoint.defaultExpectation == nil {
+		mmDeleteQueryAPIEndpoint.defaultExpectation = &ClientMockDeleteQueryAPIEndpointExpectation{mock: mmDeleteQueryAPIEndpoint.mock}
+	}
+	mmDeleteQueryAPIEndpoint.defaultExpectation.results = &ClientMockDeleteQueryAPIEndpointResults{err}
+	mmDeleteQueryAPIEndpoint.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteQueryAPIEndpoint.mock
+}
+
+// Set uses given function f to mock the Client.DeleteQueryAPIEndpoint method
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) Set(f func(ctx context.Context, serviceID string, endpointID string) (err error)) *ClientMock {
+	if mmDeleteQueryAPIEndpoint.defaultExpectation != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("Default expectation is already set for the Client.DeleteQueryAPIEndpoint method")
+	}
+
+	if len(mmDeleteQueryAPIEndpoint.expectations) > 0 {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("Some expectations are already set for the Client.DeleteQueryAPIEndpoint method")
+	}
+
+	mmDeleteQueryAPIEndpoint.mock.funcDeleteQueryAPIEndpoint = f
+	mmDeleteQueryAPIEndpoint.mock.funcDeleteQueryAPIEndpointOrigin = minimock.CallerInfo(1)
+	return mmDeleteQueryAPIEndpoint.mock
+}
+
+// When sets expectation for the Client.DeleteQueryAPIEndpoint which will trigger the result defined by the following
+// Then helper
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) When(ctx context.Context, serviceID string, endpointID string) *ClientMockDeleteQueryAPIEndpointExpectation {
+	if mmDeleteQueryAPIEndpoint.mock.funcDeleteQueryAPIEndpoint != nil {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("ClientMock.DeleteQueryAPIEndpoint mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteQueryAPIEndpointExpectation{
+		mock:               mmDeleteQueryAPIEndpoint.mock,
+		params:             &ClientMockDeleteQueryAPIEndpointParams{ctx, serviceID, endpointID},
+		expectationOrigins: ClientMockDeleteQueryAPIEndpointExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteQueryAPIEndpoint.expectations = append(mmDeleteQueryAPIEndpoint.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteQueryAPIEndpoint return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteQueryAPIEndpointExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteQueryAPIEndpointResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteQueryAPIEndpoint should be invoked
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) Times(n uint64) *mClientMockDeleteQueryAPIEndpoint {
+	if n == 0 {
+		mmDeleteQueryAPIEndpoint.mock.t.Fatalf("Times of ClientMock.DeleteQueryAPIEndpoint mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteQueryAPIEndpoint.expectedInvocations, n)
+	mmDeleteQueryAPIEndpoint.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteQueryAPIEndpoint
+}
+
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) invocationsDone() bool {
+	if len(mmDeleteQueryAPIEndpoint.expectations) == 0 && mmDeleteQueryAPIEndpoint.defaultExpectation == nil && mmDeleteQueryAPIEndpoint.mock.funcDeleteQueryAPIEndpoint == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteQueryAPIEndpoint.mock.afterDeleteQueryAPIEndpointCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteQueryAPIEndpoint.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteQueryAPIEndpoint implements Client
+func (mmDeleteQueryAPIEndpoint *ClientMock) DeleteQueryAPIEndpoint(ctx context.Context, serviceID string, endpointID string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteQueryAPIEndpoint.beforeDeleteQueryAPIEndpointCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteQueryAPIEndpoint.afterDeleteQueryAPIEndpointCounter, 1)
+
+	mmDeleteQueryAPIEndpoint.t.Helper()
+
+	if mmDeleteQueryAPIEndpoint.inspectFuncDeleteQueryAPIEndpoint != nil {
+		mmDeleteQueryAPIEndpoint.inspectFuncDeleteQueryAPIEndpoint(ctx, serviceID, endpointID)
+	}
+
+	mm_params := ClientMockDeleteQueryAPIEndpointParams{ctx, serviceID, endpointID}
+
+	// Record call args
+	mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.mutex.Lock()
+	mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.callArgs = append(mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.callArgs, &mm_params)
+	mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.mutex.Unlock()
+
+	for _, e := range mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteQueryAPIEndpointParams{ctx, serviceID, endpointID}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteQueryAPIEndpoint.t.Errorf("ClientMock.DeleteQueryAPIEndpoint got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmDeleteQueryAPIEndpoint.t.Errorf("ClientMock.DeleteQueryAPIEndpoint got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.endpointID != nil && !minimock.Equal(*mm_want_ptrs.endpointID, mm_got.endpointID) {
+				mmDeleteQueryAPIEndpoint.t.Errorf("ClientMock.DeleteQueryAPIEndpoint got unexpected parameter endpointID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originEndpointID, *mm_want_ptrs.endpointID, mm_got.endpointID, minimock.Diff(*mm_want_ptrs.endpointID, mm_got.endpointID))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteQueryAPIEndpoint.t.Errorf("ClientMock.DeleteQueryAPIEndpoint got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteQueryAPIEndpoint.DeleteQueryAPIEndpointMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteQueryAPIEndpoint.t.Fatal("No results are set for the ClientMock.DeleteQueryAPIEndpoint")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteQueryAPIEndpoint.funcDeleteQueryAPIEndpoint != nil {
+		return mmDeleteQueryAPIEndpoint.funcDeleteQueryAPIEndpoint(ctx, serviceID, endpointID)
+	}
+	mmDeleteQueryAPIEndpoint.t.Fatalf("Unexpected call to ClientMock.DeleteQueryAPIEndpoint. %v %v %v", ctx, serviceID, endpointID)
+	return
+}
+
+// DeleteQueryAPIEndpointAfterCounter returns a count of finished ClientMock.DeleteQueryAPIEndpoint invocations
+func (mmDeleteQueryAPIEndpoint *ClientMock) DeleteQueryAPIEndpointAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteQueryAPIEndpoint.afterDeleteQueryAPIEndpointCounter)
+}
+
+// DeleteQueryAPIEndpointBeforeCounter returns a count of ClientMock.DeleteQueryAPIEndpoint invocations
+func (mmDeleteQueryAPIEndpoint *ClientMock) DeleteQueryAPIEndpointBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteQueryAPIEndpoint.beforeDeleteQueryAPIEndpointCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteQueryAPIEndpoint.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteQueryAPIEndpoint *mClientMockDeleteQueryAPIEndpoint) Calls() []*ClientMockDeleteQueryAPIEndpointParams {
+	mmDeleteQueryAPIEndpoint.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteQueryAPIEndpointParams, len(mmDeleteQueryAPIEndpoint.callArgs))
+	copy(argCopy, mmDeleteQueryAPIEndpoint.callArgs)
+
+	mmDeleteQueryAPIEndpoint.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteQueryAPIEndpointDone returns true if the count of the DeleteQueryAPIEndpoint invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteQueryAPIEndpointDone() bool {
+	if m.DeleteQueryAPIEndpointMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteQueryAPIEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteQueryAPIEndpointMock.invocationsDone()
+}
+
+// MinimockDeleteQueryAPIEndpointInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteQueryAPIEndpointInspect() {
+	for _, e := range m.DeleteQueryAPIEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteQueryAPIEndpoint at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteQueryAPIEndpointCounter := mm_atomic.LoadUint64(&m.afterDeleteQueryAPIEndpointCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteQueryAPIEndpointMock.defaultExpectation != nil && afterDeleteQueryAPIEndpointCounter < 1 {
+		if m.DeleteQueryAPIEndpointMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteQueryAPIEndpoint at\n%s", m.DeleteQueryAPIEndpointMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteQueryAPIEndpoint at\n%s with params: %#v", m.DeleteQueryAPIEndpointMock.defaultExpectation.expectationOrigins.origin, *m.DeleteQueryAPIEndpointMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteQueryAPIEndpoint != nil && afterDeleteQueryAPIEndpointCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteQueryAPIEndpoint at\n%s", m.funcDeleteQueryAPIEndpointOrigin)
+	}
+
+	if !m.DeleteQueryAPIEndpointMock.invocationsDone() && afterDeleteQueryAPIEndpointCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteQueryAPIEndpoint at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteQueryAPIEndpointMock.expectedInvocations), m.DeleteQueryAPIEndpointMock.expectedInvocationsOrigin, afterDeleteQueryAPIEndpointCounter)
 	}
 }
 
@@ -13614,6 +14401,380 @@ func (m *ClientMock) MinimockGetPostgresConfigInspect() {
 	if !m.GetPostgresConfigMock.invocationsDone() && afterGetPostgresConfigCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetPostgresConfig at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetPostgresConfigMock.expectedInvocations), m.GetPostgresConfigMock.expectedInvocationsOrigin, afterGetPostgresConfigCounter)
+	}
+}
+
+type mClientMockGetQueryAPIEndpoint struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetQueryAPIEndpointExpectation
+	expectations       []*ClientMockGetQueryAPIEndpointExpectation
+
+	callArgs []*ClientMockGetQueryAPIEndpointParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetQueryAPIEndpointExpectation specifies expectation struct of the Client.GetQueryAPIEndpoint
+type ClientMockGetQueryAPIEndpointExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetQueryAPIEndpointParams
+	paramPtrs          *ClientMockGetQueryAPIEndpointParamPtrs
+	expectationOrigins ClientMockGetQueryAPIEndpointExpectationOrigins
+	results            *ClientMockGetQueryAPIEndpointResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetQueryAPIEndpointParams contains parameters of the Client.GetQueryAPIEndpoint
+type ClientMockGetQueryAPIEndpointParams struct {
+	ctx        context.Context
+	serviceID  string
+	endpointID string
+}
+
+// ClientMockGetQueryAPIEndpointParamPtrs contains pointers to parameters of the Client.GetQueryAPIEndpoint
+type ClientMockGetQueryAPIEndpointParamPtrs struct {
+	ctx        *context.Context
+	serviceID  *string
+	endpointID *string
+}
+
+// ClientMockGetQueryAPIEndpointResults contains results of the Client.GetQueryAPIEndpoint
+type ClientMockGetQueryAPIEndpointResults struct {
+	qp1 *QueryAPIEndpoint
+	err error
+}
+
+// ClientMockGetQueryAPIEndpointOrigins contains origins of expectations of the Client.GetQueryAPIEndpoint
+type ClientMockGetQueryAPIEndpointExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originServiceID  string
+	originEndpointID string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) Optional() *mClientMockGetQueryAPIEndpoint {
+	mmGetQueryAPIEndpoint.optional = true
+	return mmGetQueryAPIEndpoint
+}
+
+// Expect sets up expected params for Client.GetQueryAPIEndpoint
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) Expect(ctx context.Context, serviceID string, endpointID string) *mClientMockGetQueryAPIEndpoint {
+	if mmGetQueryAPIEndpoint.mock.funcGetQueryAPIEndpoint != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation == nil {
+		mmGetQueryAPIEndpoint.defaultExpectation = &ClientMockGetQueryAPIEndpointExpectation{}
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by ExpectParams functions")
+	}
+
+	mmGetQueryAPIEndpoint.defaultExpectation.params = &ClientMockGetQueryAPIEndpointParams{ctx, serviceID, endpointID}
+	mmGetQueryAPIEndpoint.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetQueryAPIEndpoint.expectations {
+		if minimock.Equal(e.params, mmGetQueryAPIEndpoint.defaultExpectation.params) {
+			mmGetQueryAPIEndpoint.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetQueryAPIEndpoint.defaultExpectation.params)
+		}
+	}
+
+	return mmGetQueryAPIEndpoint
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetQueryAPIEndpoint
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) ExpectCtxParam1(ctx context.Context) *mClientMockGetQueryAPIEndpoint {
+	if mmGetQueryAPIEndpoint.mock.funcGetQueryAPIEndpoint != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation == nil {
+		mmGetQueryAPIEndpoint.defaultExpectation = &ClientMockGetQueryAPIEndpointExpectation{}
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockGetQueryAPIEndpointParamPtrs{}
+	}
+	mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetQueryAPIEndpoint.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetQueryAPIEndpoint
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.GetQueryAPIEndpoint
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) ExpectServiceIDParam2(serviceID string) *mClientMockGetQueryAPIEndpoint {
+	if mmGetQueryAPIEndpoint.mock.funcGetQueryAPIEndpoint != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation == nil {
+		mmGetQueryAPIEndpoint.defaultExpectation = &ClientMockGetQueryAPIEndpointExpectation{}
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockGetQueryAPIEndpointParamPtrs{}
+	}
+	mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmGetQueryAPIEndpoint.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmGetQueryAPIEndpoint
+}
+
+// ExpectEndpointIDParam3 sets up expected param endpointID for Client.GetQueryAPIEndpoint
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) ExpectEndpointIDParam3(endpointID string) *mClientMockGetQueryAPIEndpoint {
+	if mmGetQueryAPIEndpoint.mock.funcGetQueryAPIEndpoint != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation == nil {
+		mmGetQueryAPIEndpoint.defaultExpectation = &ClientMockGetQueryAPIEndpointExpectation{}
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockGetQueryAPIEndpointParamPtrs{}
+	}
+	mmGetQueryAPIEndpoint.defaultExpectation.paramPtrs.endpointID = &endpointID
+	mmGetQueryAPIEndpoint.defaultExpectation.expectationOrigins.originEndpointID = minimock.CallerInfo(1)
+
+	return mmGetQueryAPIEndpoint
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetQueryAPIEndpoint
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) Inspect(f func(ctx context.Context, serviceID string, endpointID string)) *mClientMockGetQueryAPIEndpoint {
+	if mmGetQueryAPIEndpoint.mock.inspectFuncGetQueryAPIEndpoint != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("Inspect function is already set for ClientMock.GetQueryAPIEndpoint")
+	}
+
+	mmGetQueryAPIEndpoint.mock.inspectFuncGetQueryAPIEndpoint = f
+
+	return mmGetQueryAPIEndpoint
+}
+
+// Return sets up results that will be returned by Client.GetQueryAPIEndpoint
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) Return(qp1 *QueryAPIEndpoint, err error) *ClientMock {
+	if mmGetQueryAPIEndpoint.mock.funcGetQueryAPIEndpoint != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmGetQueryAPIEndpoint.defaultExpectation == nil {
+		mmGetQueryAPIEndpoint.defaultExpectation = &ClientMockGetQueryAPIEndpointExpectation{mock: mmGetQueryAPIEndpoint.mock}
+	}
+	mmGetQueryAPIEndpoint.defaultExpectation.results = &ClientMockGetQueryAPIEndpointResults{qp1, err}
+	mmGetQueryAPIEndpoint.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetQueryAPIEndpoint.mock
+}
+
+// Set uses given function f to mock the Client.GetQueryAPIEndpoint method
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) Set(f func(ctx context.Context, serviceID string, endpointID string) (qp1 *QueryAPIEndpoint, err error)) *ClientMock {
+	if mmGetQueryAPIEndpoint.defaultExpectation != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("Default expectation is already set for the Client.GetQueryAPIEndpoint method")
+	}
+
+	if len(mmGetQueryAPIEndpoint.expectations) > 0 {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("Some expectations are already set for the Client.GetQueryAPIEndpoint method")
+	}
+
+	mmGetQueryAPIEndpoint.mock.funcGetQueryAPIEndpoint = f
+	mmGetQueryAPIEndpoint.mock.funcGetQueryAPIEndpointOrigin = minimock.CallerInfo(1)
+	return mmGetQueryAPIEndpoint.mock
+}
+
+// When sets expectation for the Client.GetQueryAPIEndpoint which will trigger the result defined by the following
+// Then helper
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) When(ctx context.Context, serviceID string, endpointID string) *ClientMockGetQueryAPIEndpointExpectation {
+	if mmGetQueryAPIEndpoint.mock.funcGetQueryAPIEndpoint != nil {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("ClientMock.GetQueryAPIEndpoint mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetQueryAPIEndpointExpectation{
+		mock:               mmGetQueryAPIEndpoint.mock,
+		params:             &ClientMockGetQueryAPIEndpointParams{ctx, serviceID, endpointID},
+		expectationOrigins: ClientMockGetQueryAPIEndpointExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetQueryAPIEndpoint.expectations = append(mmGetQueryAPIEndpoint.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetQueryAPIEndpoint return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetQueryAPIEndpointExpectation) Then(qp1 *QueryAPIEndpoint, err error) *ClientMock {
+	e.results = &ClientMockGetQueryAPIEndpointResults{qp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetQueryAPIEndpoint should be invoked
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) Times(n uint64) *mClientMockGetQueryAPIEndpoint {
+	if n == 0 {
+		mmGetQueryAPIEndpoint.mock.t.Fatalf("Times of ClientMock.GetQueryAPIEndpoint mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetQueryAPIEndpoint.expectedInvocations, n)
+	mmGetQueryAPIEndpoint.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetQueryAPIEndpoint
+}
+
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) invocationsDone() bool {
+	if len(mmGetQueryAPIEndpoint.expectations) == 0 && mmGetQueryAPIEndpoint.defaultExpectation == nil && mmGetQueryAPIEndpoint.mock.funcGetQueryAPIEndpoint == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetQueryAPIEndpoint.mock.afterGetQueryAPIEndpointCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetQueryAPIEndpoint.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetQueryAPIEndpoint implements Client
+func (mmGetQueryAPIEndpoint *ClientMock) GetQueryAPIEndpoint(ctx context.Context, serviceID string, endpointID string) (qp1 *QueryAPIEndpoint, err error) {
+	mm_atomic.AddUint64(&mmGetQueryAPIEndpoint.beforeGetQueryAPIEndpointCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetQueryAPIEndpoint.afterGetQueryAPIEndpointCounter, 1)
+
+	mmGetQueryAPIEndpoint.t.Helper()
+
+	if mmGetQueryAPIEndpoint.inspectFuncGetQueryAPIEndpoint != nil {
+		mmGetQueryAPIEndpoint.inspectFuncGetQueryAPIEndpoint(ctx, serviceID, endpointID)
+	}
+
+	mm_params := ClientMockGetQueryAPIEndpointParams{ctx, serviceID, endpointID}
+
+	// Record call args
+	mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.mutex.Lock()
+	mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.callArgs = append(mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.callArgs, &mm_params)
+	mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.mutex.Unlock()
+
+	for _, e := range mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.qp1, e.results.err
+		}
+	}
+
+	if mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.defaultExpectation.params
+		mm_want_ptrs := mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetQueryAPIEndpointParams{ctx, serviceID, endpointID}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetQueryAPIEndpoint.t.Errorf("ClientMock.GetQueryAPIEndpoint got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmGetQueryAPIEndpoint.t.Errorf("ClientMock.GetQueryAPIEndpoint got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.endpointID != nil && !minimock.Equal(*mm_want_ptrs.endpointID, mm_got.endpointID) {
+				mmGetQueryAPIEndpoint.t.Errorf("ClientMock.GetQueryAPIEndpoint got unexpected parameter endpointID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originEndpointID, *mm_want_ptrs.endpointID, mm_got.endpointID, minimock.Diff(*mm_want_ptrs.endpointID, mm_got.endpointID))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetQueryAPIEndpoint.t.Errorf("ClientMock.GetQueryAPIEndpoint got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetQueryAPIEndpoint.GetQueryAPIEndpointMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetQueryAPIEndpoint.t.Fatal("No results are set for the ClientMock.GetQueryAPIEndpoint")
+		}
+		return (*mm_results).qp1, (*mm_results).err
+	}
+	if mmGetQueryAPIEndpoint.funcGetQueryAPIEndpoint != nil {
+		return mmGetQueryAPIEndpoint.funcGetQueryAPIEndpoint(ctx, serviceID, endpointID)
+	}
+	mmGetQueryAPIEndpoint.t.Fatalf("Unexpected call to ClientMock.GetQueryAPIEndpoint. %v %v %v", ctx, serviceID, endpointID)
+	return
+}
+
+// GetQueryAPIEndpointAfterCounter returns a count of finished ClientMock.GetQueryAPIEndpoint invocations
+func (mmGetQueryAPIEndpoint *ClientMock) GetQueryAPIEndpointAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetQueryAPIEndpoint.afterGetQueryAPIEndpointCounter)
+}
+
+// GetQueryAPIEndpointBeforeCounter returns a count of ClientMock.GetQueryAPIEndpoint invocations
+func (mmGetQueryAPIEndpoint *ClientMock) GetQueryAPIEndpointBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetQueryAPIEndpoint.beforeGetQueryAPIEndpointCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetQueryAPIEndpoint.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetQueryAPIEndpoint *mClientMockGetQueryAPIEndpoint) Calls() []*ClientMockGetQueryAPIEndpointParams {
+	mmGetQueryAPIEndpoint.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetQueryAPIEndpointParams, len(mmGetQueryAPIEndpoint.callArgs))
+	copy(argCopy, mmGetQueryAPIEndpoint.callArgs)
+
+	mmGetQueryAPIEndpoint.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetQueryAPIEndpointDone returns true if the count of the GetQueryAPIEndpoint invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetQueryAPIEndpointDone() bool {
+	if m.GetQueryAPIEndpointMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetQueryAPIEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetQueryAPIEndpointMock.invocationsDone()
+}
+
+// MinimockGetQueryAPIEndpointInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetQueryAPIEndpointInspect() {
+	for _, e := range m.GetQueryAPIEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetQueryAPIEndpoint at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetQueryAPIEndpointCounter := mm_atomic.LoadUint64(&m.afterGetQueryAPIEndpointCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetQueryAPIEndpointMock.defaultExpectation != nil && afterGetQueryAPIEndpointCounter < 1 {
+		if m.GetQueryAPIEndpointMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetQueryAPIEndpoint at\n%s", m.GetQueryAPIEndpointMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetQueryAPIEndpoint at\n%s with params: %#v", m.GetQueryAPIEndpointMock.defaultExpectation.expectationOrigins.origin, *m.GetQueryAPIEndpointMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetQueryAPIEndpoint != nil && afterGetQueryAPIEndpointCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetQueryAPIEndpoint at\n%s", m.funcGetQueryAPIEndpointOrigin)
+	}
+
+	if !m.GetQueryAPIEndpointMock.invocationsDone() && afterGetQueryAPIEndpointCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetQueryAPIEndpoint at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetQueryAPIEndpointMock.expectedInvocations), m.GetQueryAPIEndpointMock.expectedInvocationsOrigin, afterGetQueryAPIEndpointCounter)
 	}
 }
 
@@ -24307,6 +25468,411 @@ func (m *ClientMock) MinimockUpdatePostgresInspect() {
 	}
 }
 
+type mClientMockUpdateQueryAPIEndpoint struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateQueryAPIEndpointExpectation
+	expectations       []*ClientMockUpdateQueryAPIEndpointExpectation
+
+	callArgs []*ClientMockUpdateQueryAPIEndpointParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateQueryAPIEndpointExpectation specifies expectation struct of the Client.UpdateQueryAPIEndpoint
+type ClientMockUpdateQueryAPIEndpointExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateQueryAPIEndpointParams
+	paramPtrs          *ClientMockUpdateQueryAPIEndpointParamPtrs
+	expectationOrigins ClientMockUpdateQueryAPIEndpointExpectationOrigins
+	results            *ClientMockUpdateQueryAPIEndpointResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateQueryAPIEndpointParams contains parameters of the Client.UpdateQueryAPIEndpoint
+type ClientMockUpdateQueryAPIEndpointParams struct {
+	ctx        context.Context
+	serviceID  string
+	endpointID string
+	endpoint   QueryAPIEndpointRequest
+}
+
+// ClientMockUpdateQueryAPIEndpointParamPtrs contains pointers to parameters of the Client.UpdateQueryAPIEndpoint
+type ClientMockUpdateQueryAPIEndpointParamPtrs struct {
+	ctx        *context.Context
+	serviceID  *string
+	endpointID *string
+	endpoint   *QueryAPIEndpointRequest
+}
+
+// ClientMockUpdateQueryAPIEndpointResults contains results of the Client.UpdateQueryAPIEndpoint
+type ClientMockUpdateQueryAPIEndpointResults struct {
+	qp1 *QueryAPIEndpoint
+	err error
+}
+
+// ClientMockUpdateQueryAPIEndpointOrigins contains origins of expectations of the Client.UpdateQueryAPIEndpoint
+type ClientMockUpdateQueryAPIEndpointExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originServiceID  string
+	originEndpointID string
+	originEndpoint   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) Optional() *mClientMockUpdateQueryAPIEndpoint {
+	mmUpdateQueryAPIEndpoint.optional = true
+	return mmUpdateQueryAPIEndpoint
+}
+
+// Expect sets up expected params for Client.UpdateQueryAPIEndpoint
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) Expect(ctx context.Context, serviceID string, endpointID string, endpoint QueryAPIEndpointRequest) *mClientMockUpdateQueryAPIEndpoint {
+	if mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpoint != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation = &ClientMockUpdateQueryAPIEndpointExpectation{}
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateQueryAPIEndpoint.defaultExpectation.params = &ClientMockUpdateQueryAPIEndpointParams{ctx, serviceID, endpointID, endpoint}
+	mmUpdateQueryAPIEndpoint.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateQueryAPIEndpoint.expectations {
+		if minimock.Equal(e.params, mmUpdateQueryAPIEndpoint.defaultExpectation.params) {
+			mmUpdateQueryAPIEndpoint.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateQueryAPIEndpoint.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateQueryAPIEndpoint
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateQueryAPIEndpoint
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateQueryAPIEndpoint {
+	if mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpoint != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation = &ClientMockUpdateQueryAPIEndpointExpectation{}
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockUpdateQueryAPIEndpointParamPtrs{}
+	}
+	mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateQueryAPIEndpoint.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateQueryAPIEndpoint
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.UpdateQueryAPIEndpoint
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) ExpectServiceIDParam2(serviceID string) *mClientMockUpdateQueryAPIEndpoint {
+	if mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpoint != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation = &ClientMockUpdateQueryAPIEndpointExpectation{}
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockUpdateQueryAPIEndpointParamPtrs{}
+	}
+	mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmUpdateQueryAPIEndpoint.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmUpdateQueryAPIEndpoint
+}
+
+// ExpectEndpointIDParam3 sets up expected param endpointID for Client.UpdateQueryAPIEndpoint
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) ExpectEndpointIDParam3(endpointID string) *mClientMockUpdateQueryAPIEndpoint {
+	if mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpoint != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation = &ClientMockUpdateQueryAPIEndpointExpectation{}
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockUpdateQueryAPIEndpointParamPtrs{}
+	}
+	mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs.endpointID = &endpointID
+	mmUpdateQueryAPIEndpoint.defaultExpectation.expectationOrigins.originEndpointID = minimock.CallerInfo(1)
+
+	return mmUpdateQueryAPIEndpoint
+}
+
+// ExpectEndpointParam4 sets up expected param endpoint for Client.UpdateQueryAPIEndpoint
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) ExpectEndpointParam4(endpoint QueryAPIEndpointRequest) *mClientMockUpdateQueryAPIEndpoint {
+	if mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpoint != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation = &ClientMockUpdateQueryAPIEndpointExpectation{}
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation.params != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Expect")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs = &ClientMockUpdateQueryAPIEndpointParamPtrs{}
+	}
+	mmUpdateQueryAPIEndpoint.defaultExpectation.paramPtrs.endpoint = &endpoint
+	mmUpdateQueryAPIEndpoint.defaultExpectation.expectationOrigins.originEndpoint = minimock.CallerInfo(1)
+
+	return mmUpdateQueryAPIEndpoint
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateQueryAPIEndpoint
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) Inspect(f func(ctx context.Context, serviceID string, endpointID string, endpoint QueryAPIEndpointRequest)) *mClientMockUpdateQueryAPIEndpoint {
+	if mmUpdateQueryAPIEndpoint.mock.inspectFuncUpdateQueryAPIEndpoint != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateQueryAPIEndpoint")
+	}
+
+	mmUpdateQueryAPIEndpoint.mock.inspectFuncUpdateQueryAPIEndpoint = f
+
+	return mmUpdateQueryAPIEndpoint
+}
+
+// Return sets up results that will be returned by Client.UpdateQueryAPIEndpoint
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) Return(qp1 *QueryAPIEndpoint, err error) *ClientMock {
+	if mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpoint != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	if mmUpdateQueryAPIEndpoint.defaultExpectation == nil {
+		mmUpdateQueryAPIEndpoint.defaultExpectation = &ClientMockUpdateQueryAPIEndpointExpectation{mock: mmUpdateQueryAPIEndpoint.mock}
+	}
+	mmUpdateQueryAPIEndpoint.defaultExpectation.results = &ClientMockUpdateQueryAPIEndpointResults{qp1, err}
+	mmUpdateQueryAPIEndpoint.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateQueryAPIEndpoint.mock
+}
+
+// Set uses given function f to mock the Client.UpdateQueryAPIEndpoint method
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) Set(f func(ctx context.Context, serviceID string, endpointID string, endpoint QueryAPIEndpointRequest) (qp1 *QueryAPIEndpoint, err error)) *ClientMock {
+	if mmUpdateQueryAPIEndpoint.defaultExpectation != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("Default expectation is already set for the Client.UpdateQueryAPIEndpoint method")
+	}
+
+	if len(mmUpdateQueryAPIEndpoint.expectations) > 0 {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("Some expectations are already set for the Client.UpdateQueryAPIEndpoint method")
+	}
+
+	mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpoint = f
+	mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpointOrigin = minimock.CallerInfo(1)
+	return mmUpdateQueryAPIEndpoint.mock
+}
+
+// When sets expectation for the Client.UpdateQueryAPIEndpoint which will trigger the result defined by the following
+// Then helper
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) When(ctx context.Context, serviceID string, endpointID string, endpoint QueryAPIEndpointRequest) *ClientMockUpdateQueryAPIEndpointExpectation {
+	if mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpoint != nil {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("ClientMock.UpdateQueryAPIEndpoint mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateQueryAPIEndpointExpectation{
+		mock:               mmUpdateQueryAPIEndpoint.mock,
+		params:             &ClientMockUpdateQueryAPIEndpointParams{ctx, serviceID, endpointID, endpoint},
+		expectationOrigins: ClientMockUpdateQueryAPIEndpointExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateQueryAPIEndpoint.expectations = append(mmUpdateQueryAPIEndpoint.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateQueryAPIEndpoint return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateQueryAPIEndpointExpectation) Then(qp1 *QueryAPIEndpoint, err error) *ClientMock {
+	e.results = &ClientMockUpdateQueryAPIEndpointResults{qp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateQueryAPIEndpoint should be invoked
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) Times(n uint64) *mClientMockUpdateQueryAPIEndpoint {
+	if n == 0 {
+		mmUpdateQueryAPIEndpoint.mock.t.Fatalf("Times of ClientMock.UpdateQueryAPIEndpoint mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateQueryAPIEndpoint.expectedInvocations, n)
+	mmUpdateQueryAPIEndpoint.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateQueryAPIEndpoint
+}
+
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) invocationsDone() bool {
+	if len(mmUpdateQueryAPIEndpoint.expectations) == 0 && mmUpdateQueryAPIEndpoint.defaultExpectation == nil && mmUpdateQueryAPIEndpoint.mock.funcUpdateQueryAPIEndpoint == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateQueryAPIEndpoint.mock.afterUpdateQueryAPIEndpointCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateQueryAPIEndpoint.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateQueryAPIEndpoint implements Client
+func (mmUpdateQueryAPIEndpoint *ClientMock) UpdateQueryAPIEndpoint(ctx context.Context, serviceID string, endpointID string, endpoint QueryAPIEndpointRequest) (qp1 *QueryAPIEndpoint, err error) {
+	mm_atomic.AddUint64(&mmUpdateQueryAPIEndpoint.beforeUpdateQueryAPIEndpointCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateQueryAPIEndpoint.afterUpdateQueryAPIEndpointCounter, 1)
+
+	mmUpdateQueryAPIEndpoint.t.Helper()
+
+	if mmUpdateQueryAPIEndpoint.inspectFuncUpdateQueryAPIEndpoint != nil {
+		mmUpdateQueryAPIEndpoint.inspectFuncUpdateQueryAPIEndpoint(ctx, serviceID, endpointID, endpoint)
+	}
+
+	mm_params := ClientMockUpdateQueryAPIEndpointParams{ctx, serviceID, endpointID, endpoint}
+
+	// Record call args
+	mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.mutex.Lock()
+	mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.callArgs = append(mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.callArgs, &mm_params)
+	mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.mutex.Unlock()
+
+	for _, e := range mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.qp1, e.results.err
+		}
+	}
+
+	if mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateQueryAPIEndpointParams{ctx, serviceID, endpointID, endpoint}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateQueryAPIEndpoint.t.Errorf("ClientMock.UpdateQueryAPIEndpoint got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmUpdateQueryAPIEndpoint.t.Errorf("ClientMock.UpdateQueryAPIEndpoint got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.endpointID != nil && !minimock.Equal(*mm_want_ptrs.endpointID, mm_got.endpointID) {
+				mmUpdateQueryAPIEndpoint.t.Errorf("ClientMock.UpdateQueryAPIEndpoint got unexpected parameter endpointID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originEndpointID, *mm_want_ptrs.endpointID, mm_got.endpointID, minimock.Diff(*mm_want_ptrs.endpointID, mm_got.endpointID))
+			}
+
+			if mm_want_ptrs.endpoint != nil && !minimock.Equal(*mm_want_ptrs.endpoint, mm_got.endpoint) {
+				mmUpdateQueryAPIEndpoint.t.Errorf("ClientMock.UpdateQueryAPIEndpoint got unexpected parameter endpoint, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.originEndpoint, *mm_want_ptrs.endpoint, mm_got.endpoint, minimock.Diff(*mm_want_ptrs.endpoint, mm_got.endpoint))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateQueryAPIEndpoint.t.Errorf("ClientMock.UpdateQueryAPIEndpoint got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateQueryAPIEndpoint.UpdateQueryAPIEndpointMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateQueryAPIEndpoint.t.Fatal("No results are set for the ClientMock.UpdateQueryAPIEndpoint")
+		}
+		return (*mm_results).qp1, (*mm_results).err
+	}
+	if mmUpdateQueryAPIEndpoint.funcUpdateQueryAPIEndpoint != nil {
+		return mmUpdateQueryAPIEndpoint.funcUpdateQueryAPIEndpoint(ctx, serviceID, endpointID, endpoint)
+	}
+	mmUpdateQueryAPIEndpoint.t.Fatalf("Unexpected call to ClientMock.UpdateQueryAPIEndpoint. %v %v %v %v", ctx, serviceID, endpointID, endpoint)
+	return
+}
+
+// UpdateQueryAPIEndpointAfterCounter returns a count of finished ClientMock.UpdateQueryAPIEndpoint invocations
+func (mmUpdateQueryAPIEndpoint *ClientMock) UpdateQueryAPIEndpointAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateQueryAPIEndpoint.afterUpdateQueryAPIEndpointCounter)
+}
+
+// UpdateQueryAPIEndpointBeforeCounter returns a count of ClientMock.UpdateQueryAPIEndpoint invocations
+func (mmUpdateQueryAPIEndpoint *ClientMock) UpdateQueryAPIEndpointBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateQueryAPIEndpoint.beforeUpdateQueryAPIEndpointCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateQueryAPIEndpoint.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateQueryAPIEndpoint *mClientMockUpdateQueryAPIEndpoint) Calls() []*ClientMockUpdateQueryAPIEndpointParams {
+	mmUpdateQueryAPIEndpoint.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateQueryAPIEndpointParams, len(mmUpdateQueryAPIEndpoint.callArgs))
+	copy(argCopy, mmUpdateQueryAPIEndpoint.callArgs)
+
+	mmUpdateQueryAPIEndpoint.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateQueryAPIEndpointDone returns true if the count of the UpdateQueryAPIEndpoint invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateQueryAPIEndpointDone() bool {
+	if m.UpdateQueryAPIEndpointMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateQueryAPIEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateQueryAPIEndpointMock.invocationsDone()
+}
+
+// MinimockUpdateQueryAPIEndpointInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateQueryAPIEndpointInspect() {
+	for _, e := range m.UpdateQueryAPIEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateQueryAPIEndpoint at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateQueryAPIEndpointCounter := mm_atomic.LoadUint64(&m.afterUpdateQueryAPIEndpointCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateQueryAPIEndpointMock.defaultExpectation != nil && afterUpdateQueryAPIEndpointCounter < 1 {
+		if m.UpdateQueryAPIEndpointMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateQueryAPIEndpoint at\n%s", m.UpdateQueryAPIEndpointMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateQueryAPIEndpoint at\n%s with params: %#v", m.UpdateQueryAPIEndpointMock.defaultExpectation.expectationOrigins.origin, *m.UpdateQueryAPIEndpointMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateQueryAPIEndpoint != nil && afterUpdateQueryAPIEndpointCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateQueryAPIEndpoint at\n%s", m.funcUpdateQueryAPIEndpointOrigin)
+	}
+
+	if !m.UpdateQueryAPIEndpointMock.invocationsDone() && afterUpdateQueryAPIEndpointCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateQueryAPIEndpoint at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateQueryAPIEndpointMock.expectedInvocations), m.UpdateQueryAPIEndpointMock.expectedInvocationsOrigin, afterUpdateQueryAPIEndpointCounter)
+	}
+}
+
 type mClientMockUpdateReplicaScaling struct {
 	optional           bool
 	mock               *ClientMock
@@ -30174,6 +31740,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreatePostgresReadReplicaInspect()
 
+			m.MinimockCreateQueryAPIEndpointInspect()
+
 			m.MinimockCreateQueryEndpointInspect()
 
 			m.MinimockCreateReversePrivateEndpointInspect()
@@ -30193,6 +31761,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockDeleteClickPipeInspect()
 
 			m.MinimockDeletePostgresInspect()
+
+			m.MinimockDeleteQueryAPIEndpointInspect()
 
 			m.MinimockDeleteQueryEndpointInspect()
 
@@ -30235,6 +31805,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetPostgresCaCertificatesInspect()
 
 			m.MinimockGetPostgresConfigInspect()
+
+			m.MinimockGetQueryAPIEndpointInspect()
 
 			m.MinimockGetQueryEndpointInspect()
 
@@ -30296,6 +31868,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockUpdatePostgresInspect()
 
+			m.MinimockUpdateQueryAPIEndpointInspect()
+
 			m.MinimockUpdateReplicaScalingInspect()
 
 			m.MinimockUpdateRoleInspect()
@@ -30353,6 +31927,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreatePostgresDone() &&
 		m.MinimockCreatePostgresReadReplicaDone() &&
+		m.MinimockCreateQueryAPIEndpointDone() &&
 		m.MinimockCreateQueryEndpointDone() &&
 		m.MinimockCreateReversePrivateEndpointDone() &&
 		m.MinimockCreateRoleDone() &&
@@ -30363,6 +31938,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateUDFVersionDone() &&
 		m.MinimockDeleteClickPipeDone() &&
 		m.MinimockDeletePostgresDone() &&
+		m.MinimockDeleteQueryAPIEndpointDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
 		m.MinimockDeleteReversePrivateEndpointDone() &&
 		m.MinimockDeleteRoleDone() &&
@@ -30384,6 +31960,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetPostgresDone() &&
 		m.MinimockGetPostgresCaCertificatesDone() &&
 		m.MinimockGetPostgresConfigDone() &&
+		m.MinimockGetQueryAPIEndpointDone() &&
 		m.MinimockGetQueryEndpointDone() &&
 		m.MinimockGetReversePrivateEndpointDone() &&
 		m.MinimockGetReversePrivateEndpointPathDone() &&
@@ -30414,6 +31991,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateOrganizationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdatePostgresDone() &&
+		m.MinimockUpdateQueryAPIEndpointDone() &&
 		m.MinimockUpdateReplicaScalingDone() &&
 		m.MinimockUpdateRoleDone() &&
 		m.MinimockUpdateScheduledScalingDone() &&

@@ -16,6 +16,7 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres/resource/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 func TestPostgresSchema_cloudProviderAndSize(t *testing.T) {
@@ -57,6 +58,30 @@ func TestPostgresSchema_cloudProviderAndSize(t *testing.T) {
 	}
 }
 
+// Suppressing the beta notices must not touch anything else -- issue #696 asked
+// for the beta notices gone, not for a quieter provider.
+func TestPostgresPrivatePreviewWarningSurvivesBetaSuppression(t *testing.T) {
+	t.Setenv(utils.SuppressBetaWarningsEnvVar, "1")
+
+	ctx := context.Background()
+	r := &PostgresServiceResource{}
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+
+	model := gateModel(true)
+	model.CloudProvider = types.StringValue("gcp")
+	state := tfsdk.State{Schema: schemaResp.Schema}
+	require.False(t, state.Set(ctx, model).HasError())
+
+	var resp resource.ValidateConfigResponse
+	r.ValidateConfig(ctx, resource.ValidateConfigRequest{
+		Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: state.Raw},
+	}, &resp)
+
+	require.Equal(t, 1, resp.Diagnostics.WarningsCount(), "%v", resp.Diagnostics)
+	require.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "private preview")
+}
+
 func TestPostgresValidateConfig_privatePreview(t *testing.T) {
 	ctx := context.Background()
 	r := &PostgresServiceResource{}
@@ -68,10 +93,10 @@ func TestPostgresValidateConfig_privatePreview(t *testing.T) {
 		provider  types.String
 		wantCount int
 	}{
-		{"aws", types.StringValue("aws"), 1},
-		{"gcp", types.StringValue("gcp"), 2},
-		{"inherited", types.StringNull(), 1},
-		{"unknown", types.StringUnknown(), 1},
+		{"aws", types.StringValue("aws"), 0},
+		{"gcp", types.StringValue("gcp"), 1},
+		{"inherited", types.StringNull(), 0},
+		{"unknown", types.StringUnknown(), 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			model := gateModel(true)
@@ -84,9 +109,8 @@ func TestPostgresValidateConfig_privatePreview(t *testing.T) {
 			}, &resp)
 			require.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
 			require.Equal(t, tc.wantCount, resp.Diagnostics.WarningsCount(), "%v", resp.Diagnostics)
-			require.Equal(t, "Beta Resource", resp.Diagnostics.Warnings()[0].Summary())
 			if tc.name == "gcp" {
-				warning := resp.Diagnostics.Warnings()[1]
+				warning := resp.Diagnostics.Warnings()[0]
 				require.Contains(t, warning.Summary(), "private preview")
 				require.Contains(t, warning.Detail(), "Contact ClickHouse support")
 				require.Equal(t, path.Root("cloud_provider"), warning.(diag.DiagnosticWithPath).Path())

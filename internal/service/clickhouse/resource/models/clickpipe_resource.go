@@ -999,6 +999,7 @@ type ClickPipeDestinationTableDefinitionModel struct {
 	SortingKey  types.List   `tfsdk:"sorting_key"`
 	PartitionBy types.String `tfsdk:"partition_by"`
 	PrimaryKey  types.String `tfsdk:"primary_key"`
+	TTL         types.String `tfsdk:"ttl"`
 }
 
 func (m ClickPipeDestinationTableDefinitionModel) ObjectType() types.ObjectType {
@@ -1008,6 +1009,7 @@ func (m ClickPipeDestinationTableDefinitionModel) ObjectType() types.ObjectType 
 			"sorting_key":  types.ListType{ElemType: types.StringType},
 			"partition_by": types.StringType,
 			"primary_key":  types.StringType,
+			"ttl":          types.StringType,
 		},
 	}
 }
@@ -1018,6 +1020,7 @@ func (m ClickPipeDestinationTableDefinitionModel) ObjectValue() types.Object {
 		"sorting_key":  m.SortingKey,
 		"partition_by": m.PartitionBy,
 		"primary_key":  m.PrimaryKey,
+		"ttl":          m.TTL,
 	})
 }
 
