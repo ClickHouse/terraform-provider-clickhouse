@@ -23,7 +23,7 @@ type ServiceProfile struct {
 func (c *ClientImpl) ListServiceProfiles(ctx context.Context, regionId string, byocId string) ([]ServiceProfile, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getOrgPath("/serviceProfiles"), nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build list service profiles request: %w", err)
 	}
 	q := req.URL.Query()
 	if regionId != "" {
@@ -36,7 +36,7 @@ func (c *ClientImpl) ListServiceProfiles(ctx context.Context, regionId string, b
 
 	body, err := c.doRequest(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list service profiles: %w", err)
 	}
 
 	resp := ResponseWithResult[[]ServiceProfile]{}
