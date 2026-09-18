@@ -41,6 +41,11 @@ linters:
       - path: internal/service/clickhouse/resource/clickpipe\.go
         linters:
           - dupl
+      # backup_configuration.go and snapshot_configuration.go are deliberate parallel
+      # API-client mirrors over distinct config types. The resulting duplication is accepted.
+      - path: internal/api/(backup|snapshot)_configuration\.go
+        linters:
+          - dupl
 
 formatters:
   enable:

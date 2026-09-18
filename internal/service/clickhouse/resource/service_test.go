@@ -2,6 +2,8 @@ package resource
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -632,6 +634,56 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			updateTimestamp: false,
 			wantErr:         false,
 		},
+		{
+			name:  "Populates SnapshotConfiguration from response",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				enabled := true
+				gap := int32(30)
+				timeFrame := int32(1440)
+				src.SnapshotConfiguration = &api.SnapshotConfiguration{
+					Enabled:   &enabled,
+					Gap:       &gap,
+					TimeFrame: &timeFrame,
+				}
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.SnapshotConfiguration = models.SnapshotConfiguration{
+					Enabled:   types.BoolValue(true),
+					Gap:       types.Int32Value(30),
+					TimeFrame: types.Int32Value(1440),
+				}.ObjectValue()
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
+		{
+			// The API keeps gap/time_frame on a disabled config, so a disabled response still carries the cadence
+			// through to state (rather than nulling it).
+			name:  "Maps a disabled SnapshotConfiguration that retains its cadence",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				enabled := false
+				gap := int32(30)
+				timeFrame := int32(1440)
+				src.SnapshotConfiguration = &api.SnapshotConfiguration{
+					Enabled:   &enabled,
+					Gap:       &gap,
+					TimeFrame: &timeFrame,
+				}
+			}).GetPtr(),
+			responseErr: nil,
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.SnapshotConfiguration = models.SnapshotConfiguration{
+					Enabled:   types.BoolValue(false),
+					Gap:       types.Int32Value(30),
+					TimeFrame: types.Int32Value(1440),
+				}.ObjectValue()
+			}).Get(),
+			updateTimestamp: false,
+			wantErr:         false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -721,6 +773,7 @@ func getInitialState() models.ServiceResourceModel {
 		EncryptionKey:                   types.StringNull(),
 		EncryptionAssumedRoleIdentifier: types.StringNull(),
 		BackupConfiguration:             backupConfiguration,
+		SnapshotConfiguration:           types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes),
 		TransparentEncryptionData: models.TransparentEncryptionData{
 			Enabled: types.BoolValue(false),
 			RoleID:  types.StringNull(),
@@ -993,6 +1046,46 @@ func TestServiceResource_ValidateConfig(t *testing.T) {
 			t.Errorf("an inverted per-replica memory range must be rejected")
 		}
 	})
+
+	// snapshot_configuration cadence: only validated when enabled. An enabled config requires a supported preset;
+	// a disabled config accepts any pairing (matching the API, which ignores the cadence when snapshots are off).
+	snapshotCfg := func(sc models.SnapshotConfiguration) models.ServiceResourceModel {
+		return horizontal(func(s *models.ServiceResourceModel) {
+			s.SnapshotConfiguration = sc.ObjectValue()
+		})
+	}
+
+	t.Run("enabled snapshots without a cadence are rejected", func(t *testing.T) {
+		cfg := snapshotCfg(models.SnapshotConfiguration{Enabled: types.BoolValue(true), Gap: types.Int32Null(), TimeFrame: types.Int32Null()})
+		if !detailContains(run(t, cfg), "gap and time_frame are required when snapshots are enabled") {
+			t.Errorf("enabled snapshots without gap/time_frame must be rejected")
+		}
+	})
+
+	t.Run("enabled snapshots with a mismatched preset pair are rejected", func(t *testing.T) {
+		cfg := snapshotCfg(models.SnapshotConfiguration{Enabled: types.BoolValue(true), Gap: types.Int32Value(30), TimeFrame: types.Int32Value(2880)})
+		if !detailContains(run(t, cfg), "must be a supported preset") {
+			t.Errorf("a mismatched (gap 30, time_frame 2880) pair must be rejected")
+		}
+	})
+
+	t.Run("enabled snapshots with a supported preset pass", func(t *testing.T) {
+		for _, sc := range []models.SnapshotConfiguration{
+			{Enabled: types.BoolValue(true), Gap: types.Int32Value(30), TimeFrame: types.Int32Value(1440)},
+			{Enabled: types.BoolValue(true), Gap: types.Int32Value(60), TimeFrame: types.Int32Value(2880)},
+		} {
+			if diags := run(t, snapshotCfg(sc)); diags.HasError() {
+				t.Errorf("a supported preset (gap %d, time_frame %d) should pass, got: %v", sc.Gap.ValueInt32(), sc.TimeFrame.ValueInt32(), diags.Errors())
+			}
+		}
+	})
+
+	t.Run("a disabled config with any pairing passes (matches the API)", func(t *testing.T) {
+		cfg := snapshotCfg(models.SnapshotConfiguration{Enabled: types.BoolValue(false), Gap: types.Int32Value(30), TimeFrame: types.Int32Value(2880)})
+		if diags := run(t, cfg); diags.HasError() {
+			t.Errorf("a disabled config with a swapped pair must not be rejected at plan time, got: %v", diags.Errors())
+		}
+	})
 }
 
 func TestResolveIsHorizontal(t *testing.T) {
@@ -1102,6 +1195,28 @@ func TestServiceResource_ModifyPlan_horizontal(t *testing.T) {
 		}).Get()
 		if !detailContains(run(t, devVertical), "cannot be defined if the service tier is development") {
 			t.Errorf("an explicit autoscaling_mode on development tier must be rejected")
+		}
+	})
+
+	t.Run("snapshot_configuration on development tier is rejected", func(t *testing.T) {
+		devSnapshot := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+			s.Tier = types.StringValue(api.TierDevelopment)
+			s.MinReplicaMemoryGb = types.Int64Null()
+			s.MaxReplicaMemoryGb = types.Int64Null()
+			s.SnapshotConfiguration = models.SnapshotConfiguration{Enabled: types.BoolValue(true), Gap: types.Int32Value(30), TimeFrame: types.Int32Value(1440)}.ObjectValue()
+		}).Get()
+		if !detailContains(run(t, devSnapshot), "snapshot_configuration cannot be defined if the service tier is development") {
+			t.Errorf("a snapshot_configuration on development tier must be rejected")
+		}
+	})
+
+	t.Run("snapshot_configuration with warehouse_id set is rejected", func(t *testing.T) {
+		warehouseSnapshot := test.NewUpdater(horizontalPPv2).Update(func(s *models.ServiceResourceModel) {
+			s.DataWarehouseID = types.StringValue("wh-123")
+			s.SnapshotConfiguration = models.SnapshotConfiguration{Enabled: types.BoolValue(true), Gap: types.Int32Value(30), TimeFrame: types.Int32Value(1440)}.ObjectValue()
+		}).Get()
+		if !detailContains(run(t, warehouseSnapshot), "snapshot_configuration cannot be specified when warehouse_id is set") {
+			t.Errorf("a snapshot_configuration with warehouse_id set must be rejected")
 		}
 	})
 
@@ -1978,6 +2093,120 @@ func TestServiceResource_Create_generatedPassword(t *testing.T) {
 	}
 }
 
+// When gap/time_frame are unknown in the plan (Optional+Computed, no prior state), Create must omit them from the
+// UpdateSnapshotConfiguration call — ValueInt32Pointer() on an unknown returns a pointer to 0, which omitempty can't
+// drop, so a naive mapping would PATCH gap:0/timeFrame:0 and be rejected as an unsupported cadence.
+func TestServiceResource_Create_snapshotOmitsUnknownCadence(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	createResp := getBaseResponse("svc-new")
+	createResp.State = api.StateRunning
+	syncResp := createResp
+
+	plan := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.Password = types.StringNull()
+		s.PasswordHash = types.StringNull()
+		s.DoubleSha1PasswordHash = types.StringNull()
+		s.PasswordWO = types.StringNull()
+		s.PasswordWOVersion = types.Int64Null()
+		s.GeneratedPassword = types.StringUnknown()
+		s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+		s.SnapshotConfiguration = models.SnapshotConfiguration{
+			Enabled:   types.BoolValue(true),
+			Gap:       types.Int32Unknown(),
+			TimeFrame: types.Int32Unknown(),
+		}.ObjectValue()
+	}).Get()
+
+	mc := minimock.NewController(t)
+	var captured api.SnapshotConfiguration
+	apiClientMock := api.NewClientMock(mc).
+		CreateServiceMock.Return(&createResp, "api-generated-secret", nil).
+		WaitForServiceStateMock.Return(nil).
+		GetServiceMock.Return(&syncResp, nil).
+		UpdateServicePasswordMock.Optional().Return(&api.ServicePasswordUpdateResult{}, nil).
+		UpdateSnapshotConfigurationMock.Set(func(_ context.Context, _ string, cfg api.SnapshotConfiguration) (*api.SnapshotConfiguration, error) {
+		captured = cfg
+		return &cfg, nil
+	})
+
+	r.client = apiClientMock
+
+	planVal := tfsdk.Plan{Schema: sch}
+	if d := planVal.Set(ctx, &plan); d.HasError() {
+		t.Fatalf("encoding plan: %v", d.Errors())
+	}
+	req := resource.CreateRequest{
+		Plan:   planVal,
+		Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+	}
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Create returned errors: %v", resp.Diagnostics.Errors())
+	}
+
+	if captured.Enabled == nil || !*captured.Enabled {
+		t.Errorf("enabled = %v, want a pointer to true", captured.Enabled)
+	}
+	if captured.Gap != nil {
+		t.Errorf("gap = %v, want nil (unknown must be omitted)", *captured.Gap)
+	}
+	if captured.TimeFrame != nil {
+		t.Errorf("timeFrame = %v, want nil (unknown must be omitted)", *captured.TimeFrame)
+	}
+}
+
+// A snapshot PATCH failure during Create surfaces a clear, snapshot-specific error. (Known limitation, matching the
+// backup and query-endpoint paths: the service is already created at this point and is left untracked on failure —
+// see the resource docs; the real fix is a plan-time eligibility gate.)
+func TestServiceResource_Create_snapshotFailureSurfacesError(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	createResp := getBaseResponse("svc-new")
+	createResp.State = api.StateRunning
+
+	plan := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.Password = types.StringNull()
+		s.PasswordHash = types.StringNull()
+		s.DoubleSha1PasswordHash = types.StringNull()
+		s.PasswordWO = types.StringNull()
+		s.PasswordWOVersion = types.Int64Null()
+		s.GeneratedPassword = types.StringUnknown()
+		s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+		s.SnapshotConfiguration = models.SnapshotConfiguration{
+			Enabled:   types.BoolValue(true),
+			Gap:       types.Int32Value(30),
+			TimeFrame: types.Int32Value(1440),
+		}.ObjectValue()
+	}).Get()
+
+	mc := minimock.NewController(t)
+	r.client = api.NewClientMock(mc).
+		CreateServiceMock.Return(&createResp, "api-generated-secret", nil).
+		WaitForServiceStateMock.Return(nil).
+		UpdateServicePasswordMock.Optional().Return(&api.ServicePasswordUpdateResult{}, nil).
+		UpdateSnapshotConfigurationMock.Return(nil, errors.New("snapshots are not enabled for this organization"))
+
+	planVal := tfsdk.Plan{Schema: sch}
+	if d := planVal.Set(ctx, &plan); d.HasError() {
+		t.Fatalf("encoding plan: %v", d.Errors())
+	}
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(ctx, resource.CreateRequest{Plan: planVal, Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw}}, resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected Create to surface the snapshot PATCH error")
+	}
+	if !detailContains(resp.Diagnostics, "snapshot") {
+		t.Errorf("expected the surfaced error to mention the snapshot configuration; got %v", resp.Diagnostics.Errors())
+	}
+}
+
 // If CreateService's response carries an empty (rather than absent) password
 // - a tier that doesn't assign one, or a future API change - generated_password
 // must be stored as null, not as the empty string, which would be
@@ -2236,4 +2465,119 @@ func TestServiceResource_generatedPassword_planApplyConsistency(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestToAPISnapshotConfiguration(t *testing.T) {
+	i32 := func(v int32) *int32 { return &v }
+	b := func(v bool) *bool { return &v }
+	tests := []struct {
+		name string
+		in   models.SnapshotConfiguration
+		want api.SnapshotConfiguration
+	}{
+		{
+			name: "known fields are all sent",
+			in:   models.SnapshotConfiguration{Enabled: types.BoolValue(true), Gap: types.Int32Value(30), TimeFrame: types.Int32Value(1440)},
+			want: api.SnapshotConfiguration{Enabled: b(true), Gap: i32(30), TimeFrame: i32(1440)},
+		},
+		{
+			// An omitted Optional+Computed cadence field is Unknown and must be left off the payload — a
+			// pointer-to-0 would reach the API as gap:0/timeFrame:0 and be rejected as an unsupported cadence.
+			name: "unknown cadence is omitted, not sent as zero",
+			in:   models.SnapshotConfiguration{Enabled: types.BoolValue(true), Gap: types.Int32Unknown(), TimeFrame: types.Int32Unknown()},
+			want: api.SnapshotConfiguration{Enabled: b(true)},
+		},
+		{
+			name: "disabled with a known cadence sends every field",
+			in:   models.SnapshotConfiguration{Enabled: types.BoolValue(false), Gap: types.Int32Value(30), TimeFrame: types.Int32Value(1440)},
+			want: api.SnapshotConfiguration{Enabled: b(false), Gap: i32(30), TimeFrame: i32(1440)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := toAPISnapshotConfiguration(tt.in); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("toAPISnapshotConfiguration() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// Update maps snapshot config through the same helper as Create (so an unknown cadence is omitted) and skips the
+// API call entirely when the planned config equals state.
+func TestServiceResource_Update_snapshotConfiguration(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	syncResp := getBaseResponse(encodableInitialState().ID.ValueString())
+	syncResp.State = api.StateRunning
+
+	withSnapshot := func(obj types.Object) models.ServiceResourceModel {
+		return test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+			s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+			s.SnapshotConfiguration = obj
+		}).Get()
+	}
+	enabledPreset := models.SnapshotConfiguration{Enabled: types.BoolValue(true), Gap: types.Int32Value(30), TimeFrame: types.Int32Value(1440)}.ObjectValue()
+	nullSnapshot := types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes)
+
+	runUpdate := func(t *testing.T, state, plan models.ServiceResourceModel) {
+		t.Helper()
+		stateVal := tfsdk.State{Schema: sch}
+		if d := stateVal.Set(ctx, &state); d.HasError() {
+			t.Fatalf("encoding state: %v", d.Errors())
+		}
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &plan); d.HasError() {
+			t.Fatalf("encoding plan: %v", d.Errors())
+		}
+		resp := &resource.UpdateResponse{State: tfsdk.State{Schema: sch}}
+		r.Update(ctx, resource.UpdateRequest{State: stateVal, Plan: planVal, Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw}}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Update returned errors: %v", resp.Diagnostics.Errors())
+		}
+	}
+
+	t.Run("unchanged snapshot config makes no API call", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		var snapshotCalled bool
+		r.client = api.NewClientMock(mc).
+			UpdateServiceMock.Optional().Return(&syncResp, nil).
+			UpdateReplicaScalingMock.Optional().Return(&syncResp, nil).
+			GetServiceMock.Return(&syncResp, nil).
+			UpdateSnapshotConfigurationMock.Optional().Set(func(_ context.Context, _ string, _ api.SnapshotConfiguration) (*api.SnapshotConfiguration, error) {
+			snapshotCalled = true
+			return &api.SnapshotConfiguration{}, nil
+		})
+
+		runUpdate(t, withSnapshot(enabledPreset), withSnapshot(enabledPreset))
+		if snapshotCalled {
+			t.Error("UpdateSnapshotConfiguration should not be called when the snapshot config is unchanged")
+		}
+	})
+
+	t.Run("enabling with unknown cadence omits gap/time_frame", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		var captured api.SnapshotConfiguration
+		r.client = api.NewClientMock(mc).
+			UpdateServiceMock.Optional().Return(&syncResp, nil).
+			UpdateReplicaScalingMock.Optional().Return(&syncResp, nil).
+			GetServiceMock.Return(&syncResp, nil).
+			UpdateSnapshotConfigurationMock.Set(func(_ context.Context, _ string, cfg api.SnapshotConfiguration) (*api.SnapshotConfiguration, error) {
+			captured = cfg
+			return &cfg, nil
+		})
+
+		plan := withSnapshot(models.SnapshotConfiguration{Enabled: types.BoolValue(true), Gap: types.Int32Unknown(), TimeFrame: types.Int32Unknown()}.ObjectValue())
+		runUpdate(t, withSnapshot(nullSnapshot), plan)
+		if captured.Enabled == nil || !*captured.Enabled {
+			t.Errorf("enabled = %v, want a pointer to true", captured.Enabled)
+		}
+		if captured.Gap != nil {
+			t.Errorf("gap = %v, want nil (unknown must be omitted)", *captured.Gap)
+		}
+		if captured.TimeFrame != nil {
+			t.Errorf("timeFrame = %v, want nil (unknown must be omitted)", *captured.TimeFrame)
+		}
+	})
 }
