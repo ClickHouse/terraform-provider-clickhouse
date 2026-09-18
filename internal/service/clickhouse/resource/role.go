@@ -9,6 +9,7 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -121,14 +122,23 @@ func (r *RoleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 							},
 						},
 						"tags": schema.SingleNestedAttribute{
-							Description: "Optional tags for additional policy metadata.",
+							Description: "Optional SQL console access configuration. Set exactly one of role or grants.",
 							Optional:    true,
 							Attributes: map[string]schema.Attribute{
 								"role": schema.StringAttribute{
 									Description: "SQL console role level for passwordless DB access. One of: sql-console-admin (full access), sql-console-readonly (read-only).",
-									Required:    true,
+									Optional:    true,
 									Validators: []validator.String{
 										stringvalidator.OneOf(api.RBACPolicyRoleV2Values...),
+										stringvalidator.ExactlyOneOf(path.MatchRelative().AtParent().AtName("grants")),
+									},
+								},
+								"grants": schema.ListAttribute{
+									Description: "Ordered SQL GRANT and REVOKE statements for custom SQL console access.",
+									Optional:    true,
+									ElementType: types.StringType,
+									Validators: []validator.List{
+										listvalidator.SizeAtLeast(1),
 									},
 								},
 							},
@@ -490,6 +500,12 @@ func planPoliciesToAPICreate(ctx context.Context, policiesList types.List) ([]ap
 			tags = &api.RBACPolicyTags{}
 			if !tagsModel.RoleV2.IsNull() && !tagsModel.RoleV2.IsUnknown() {
 				tags.RoleV2 = tagsModel.RoleV2.ValueString()
+			}
+			if !tagsModel.Grants.IsNull() && !tagsModel.Grants.IsUnknown() {
+				diags.Append(tagsModel.Grants.ElementsAs(ctx, &tags.Grants, false)...)
+				if diags.HasError() {
+					return nil, diags
+				}
 			}
 		}
 
