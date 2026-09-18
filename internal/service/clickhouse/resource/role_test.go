@@ -8,11 +8,90 @@ import (
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	frameworkresource "github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
+
+func TestRoleResourceTagsSchema(t *testing.T) {
+	ctx := context.Background()
+	var schemaResp frameworkresource.SchemaResponse
+	(&RoleResource{}).Schema(ctx, frameworkresource.SchemaRequest{}, &schemaResp)
+
+	policies := schemaResp.Schema.Attributes["policies"].(schema.ListNestedAttribute)
+	tags := policies.NestedObject.Attributes["tags"].(schema.SingleNestedAttribute)
+	role := tags.Attributes["role"].(schema.StringAttribute)
+	grants := tags.Attributes["grants"].(schema.ListAttribute)
+
+	tests := []struct {
+		name      string
+		role      any
+		grants    any
+		wantError bool
+	}{
+		{name: "role only", role: "sql-console-readonly", grants: nil},
+		{name: "grants only", role: nil, grants: []tftypes.Value{tftypes.NewValue(tftypes.String, "GRANT SELECT ON default.*")}},
+		{name: "role and grants", role: "sql-console-readonly", grants: []tftypes.Value{tftypes.NewValue(tftypes.String, "GRANT SELECT ON default.*")}, wantError: true},
+		{name: "neither role nor grants", role: nil, grants: nil, wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := tfsdk.Config{
+				Schema: schema.Schema{Attributes: tags.Attributes},
+				Raw: tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{
+					"role":   tftypes.String,
+					"grants": tftypes.List{ElementType: tftypes.String},
+				}}, map[string]tftypes.Value{
+					"role":   tftypes.NewValue(tftypes.String, tt.role),
+					"grants": tftypes.NewValue(tftypes.List{ElementType: tftypes.String}, tt.grants),
+				}),
+			}
+
+			var configValue types.String
+			if tt.role == nil {
+				configValue = types.StringNull()
+			} else {
+				configValue = types.StringValue(tt.role.(string))
+			}
+
+			var resp validator.StringResponse
+			for _, v := range role.Validators {
+				v.ValidateString(ctx, validator.StringRequest{
+					Path:           path.Root("role"),
+					PathExpression: path.MatchRoot("role"),
+					Config:         config,
+					ConfigValue:    configValue,
+				}, &resp)
+			}
+
+			if resp.Diagnostics.HasError() != tt.wantError {
+				t.Fatalf("error diagnostics do not match: got %v, want error %t", resp.Diagnostics, tt.wantError)
+			}
+		})
+	}
+
+	t.Run("grants cannot be empty", func(t *testing.T) {
+		var resp validator.ListResponse
+		for _, v := range grants.Validators {
+			v.ValidateList(ctx, validator.ListRequest{
+				Path:        path.Root("grants"),
+				ConfigValue: types.ListValueMust(types.StringType, []attr.Value{}),
+			}, &resp)
+		}
+
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("expected an error for an empty grants list")
+		}
+	})
+}
 
 func TestRoleResource_syncRoleState(t *testing.T) {
 	ctx := context.Background()
@@ -232,6 +311,47 @@ func TestApplyRoleToState_BackendInjectedPermissions(t *testing.T) {
 	}
 }
 
+func TestApplyRoleToState_CustomGrantsAreAuthoritative(t *testing.T) {
+	target := models.RoleResourceModel{
+		Policies: newTestPolicyList(t, newTestPolicyModelWithGrants(t,
+			"ALLOW",
+			[]string{"sql-console:database:access"},
+			[]string{"instance/service-id"},
+			[]string{
+				"GRANT SELECT ON default.*",
+				"REVOKE SELECT ON default.secret",
+			},
+		)),
+	}
+	want := []string{
+		"REVOKE SELECT ON default.secret",
+		"GRANT SELECT ON default.*",
+	}
+	role := &api.RBACRole{Policies: []api.RBACPolicy{{
+		AllowDeny:   api.RBACAllowDenyAllow,
+		Permissions: []string{"sql-console:database:access"},
+		Resources:   []string{"instance/service-id"},
+		Tags:        &api.RBACPolicyTags{Grants: want},
+	}}}
+
+	diags := applyRoleToState(context.Background(), role, &target)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	policies := target.Policies.Elements()
+	tags := policies[0].(types.Object).Attributes()["tags"].(types.Object)
+	grants := tags.Attributes()["grants"].(types.List)
+	var got []string
+	diags = grants.ElementsAs(context.Background(), &got, false)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics reading grants: %v", diags)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("grants do not match API order: got %v, want %v", got, want)
+	}
+}
+
 func newTestPolicyModel(t *testing.T, effect string, perms []string) models.RolePolicyModel {
 	t.Helper()
 	permValues := make([]attr.Value, len(perms))
@@ -274,8 +394,27 @@ func newTestPolicyModelWithTags(t *testing.T, effect string, perms []string, res
 	pm := newTestPolicyModelWithResources(t, effect, perms, resources)
 	tagsModel := models.RolePolicyTagsModel{
 		RoleV2: types.StringValue(roleV2),
+		Grants: types.ListNull(types.StringType),
 	}
 	pm.Tags = tagsModel.ObjectValue()
+	return pm
+}
+
+func newTestPolicyModelWithGrants(t *testing.T, effect string, perms []string, resources, grants []string) models.RolePolicyModel {
+	t.Helper()
+	pm := newTestPolicyModelWithResources(t, effect, perms, resources)
+	grantValues := make([]attr.Value, len(grants))
+	for i, grant := range grants {
+		grantValues[i] = types.StringValue(grant)
+	}
+	grantsList, diags := types.ListValue(types.StringType, grantValues)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics building grants list: %v", diags)
+	}
+	pm.Tags = models.RolePolicyTagsModel{
+		RoleV2: types.StringNull(),
+		Grants: grantsList,
+	}.ObjectValue()
 	return pm
 }
 
@@ -334,6 +473,29 @@ func TestPlanPoliciesToAPICreate(t *testing.T) {
 					Permissions: []string{"sql-console:database:access"},
 					Resources:   []string{"instance/*"},
 					Tags:        &api.RBACPolicyTags{RoleV2: "sql-console-readonly"},
+				},
+			},
+		},
+		{
+			name: "policy with custom grants preserves order",
+			input: newTestPolicyList(t, newTestPolicyModelWithGrants(t,
+				"ALLOW",
+				[]string{"sql-console:database:access"},
+				[]string{"instance/service-id"},
+				[]string{
+					"GRANT SELECT ON default.*",
+					"REVOKE SELECT ON default.secret",
+				},
+			)),
+			wantResult: []api.RBACPolicyCreateRequest{
+				{
+					AllowDeny:   api.RBACAllowDenyAllow,
+					Permissions: []string{"sql-console:database:access"},
+					Resources:   []string{"instance/service-id"},
+					Tags: &api.RBACPolicyTags{Grants: []string{
+						"GRANT SELECT ON default.*",
+						"REVOKE SELECT ON default.secret",
+					}},
 				},
 			},
 		},
