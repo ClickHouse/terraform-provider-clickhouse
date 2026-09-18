@@ -62,6 +62,9 @@ func TestServiceToObjectValue_MapsScalarsAndNulls(t *testing.T) {
 	if !attrs["byoc_id"].(types.String).IsNull() {
 		t.Errorf("byoc_id should be null when BYOCId is nil")
 	}
+	if !attrs["profile"].(types.String).IsNull() {
+		t.Errorf("profile should be null when Profile is nil")
+	}
 	if !attrs["idle_timeout_minutes"].(types.Int64).IsNull() {
 		t.Errorf("idle_timeout_minutes should be null when nil")
 	}

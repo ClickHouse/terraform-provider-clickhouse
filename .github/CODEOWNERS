@@ -6,8 +6,9 @@
 /internal/service/postgres/   @ClickHouse/clickgres
 /internal/service/clickstack/ @ClickHouse/clickstack
 
-/internal/api/                         @rndD @mdevils @balanza
-/internal/service/clickhouse/resource/ @rndD @mdevils @balanza
+/internal/api/                           @rndD @mdevils @balanza
+/internal/service/clickhouse/resource/   @rndD @mdevils @balanza
+/internal/service/clickhouse/datasource/ @rndD @mdevils @balanza
 
 # Component globs are intentionally LAST: CODEOWNERS gives the last matching
 # pattern precedence, so these keep routing e.g. ClickPipes reviews to their
