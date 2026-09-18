@@ -114,7 +114,7 @@ func APIToRolePolicyModel(p api.RBACPolicy) (RolePolicyModel, diag.Diagnostics) 
 	}
 
 	var tagsObj types.Object
-	if p.Tags == nil {
+	if p.Tags == nil || (p.Tags.RoleV2 == "" && len(p.Tags.Grants) == 0) {
 		tagsObj = types.ObjectNull(RolePolicyTagsModel{}.ObjectType().AttrTypes)
 	} else {
 		roleV2 := types.StringNull()

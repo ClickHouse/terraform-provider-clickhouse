@@ -73,6 +73,23 @@ func TestAPIToRolePolicyModel(t *testing.T) {
 			},
 		},
 		{
+			name: "empty tags are null",
+			input: api.RBACPolicy{
+				AllowDeny:   api.RBACAllowDenyAllow,
+				Permissions: []string{"sql-console:database:access"},
+				Tags:        &api.RBACPolicyTags{},
+			},
+			wantModel: RolePolicyModel{
+				ID:          types.StringValue(""),
+				RoleID:      types.StringValue(""),
+				TenantID:    types.StringValue(""),
+				Effect:      types.StringValue("ALLOW"),
+				Permissions: strSetVal("sql-console:database:access"),
+				Resources:   types.SetNull(types.StringType),
+				Tags:        types.ObjectNull(RolePolicyTagsModel{}.ObjectType().AttrTypes),
+			},
+		},
+		{
 			name: "tags with grants set preserve order",
 			input: api.RBACPolicy{
 				AllowDeny:   api.RBACAllowDenyAllow,
