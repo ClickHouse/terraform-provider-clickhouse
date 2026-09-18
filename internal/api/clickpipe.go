@@ -84,6 +84,12 @@ var ClickPipeKafkaAuthenticationMethods = []string{
 	ClickPipeKafkaAuthenticationMutualTLS,
 }
 
+const ClickPipeKafkaTombstoneModeDelete = "delete"
+
+var ClickPipeKafkaTombstoneModes = []string{
+	ClickPipeKafkaTombstoneModeDelete,
+}
+
 const (
 	ClickPipeKafkaSourceType              = "kafka"
 	ClickPipeKafkaRedpandaSourceType      = "redpanda"

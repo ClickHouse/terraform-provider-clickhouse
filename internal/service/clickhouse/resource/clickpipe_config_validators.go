@@ -16,6 +16,45 @@ import (
 
 const maxClickPipeProtobufSchemaEncodedSize = 1 << 20 // 1 MiB in bytes
 
+// kafkaTombstoneModeValidator enforces the exactly-once requirement exposed by the OpenAPI.
+type kafkaTombstoneModeValidator struct{}
+
+func (v kafkaTombstoneModeValidator) Description(_ context.Context) string {
+	return "Validates Kafka tombstone handling configuration."
+}
+
+func (v kafkaTombstoneModeValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v kafkaTombstoneModeValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data models.ClickPipeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() || data.Source.IsNull() || data.Source.IsUnknown() {
+		return
+	}
+
+	var sourceModel models.ClickPipeSourceModel
+	resp.Diagnostics.Append(data.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || sourceModel.Kafka.IsNull() || sourceModel.Kafka.IsUnknown() {
+		return
+	}
+
+	var kafkaModel models.ClickPipeKafkaSourceModel
+	resp.Diagnostics.Append(sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || kafkaModel.TombstoneMode.IsNull() || kafkaModel.TombstoneMode.IsUnknown() || kafkaModel.ExactlyOnce.IsUnknown() {
+		return
+	}
+
+	if kafkaModel.ExactlyOnce.IsNull() || !kafkaModel.ExactlyOnce.ValueBool() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("source").AtName("kafka").AtName("tombstone_mode"),
+			"Invalid Kafka tombstone configuration",
+			"tombstone_mode requires exactly_once = true.",
+		)
+	}
+}
+
 // kafkaProtobufSchemaValidator enforces the Kafka Protobuf schema rules exposed by the OpenAPI.
 type kafkaProtobufSchemaValidator struct{}
 
@@ -309,6 +348,7 @@ func (v cdcClickPipeScalingValidator) ValidateResource(ctx context.Context, req 
 
 func (c *ClickPipeResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
+		kafkaTombstoneModeValidator{},
 		kafkaProtobufSchemaValidator{},
 		kinesisProtobufSchemaValidator{},
 		pubsubSeekValidator{},
