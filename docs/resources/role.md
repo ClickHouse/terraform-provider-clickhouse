@@ -42,9 +42,9 @@ description: |-
     role_id  = clickhouse_role.example.id
     user_ids = [data.clickhouse_user.alice.id]
   }
-
+  
   For custom SQL console access, set grants instead of role:
-
+  
   resource "clickhouse_role" "custom_sql" {
     name = "custom-sql-access"
   
@@ -62,7 +62,7 @@ description: |-
       },
     ]
   }
-
+  
   Permission reconciliation
   The provider only tracks the permissions you declare in configuration.
   The backend may auto-grant additional permissions as a side effect of a declared one (for example, granting control-plane:service:manage may also grant a related permission). Those extra permissions are intentionally not recorded in state.
