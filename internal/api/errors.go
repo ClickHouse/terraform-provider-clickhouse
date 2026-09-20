@@ -1,8 +1,37 @@
 package api
 
 import (
+	"regexp"
+	"strconv"
 	"strings"
 )
+
+// statusPattern matches the HTTP status this package records when a request
+// fails, formatted as `status: %d, body: %s` (see common.go). The word
+// boundaries keep it from matching a longer run of digits or a status-like
+// suffix of another word.
+var statusPattern = regexp.MustCompile(`(?i)\bstatus:\s*(\d{3})\b`)
+
+// StatusFromMessage returns the HTTP status recorded in an error message or
+// response body, or 0 if it holds none.
+//
+// This package owns the error format, so it also owns recovering the status
+// from it: code outside this package must not parse error text itself. Unlike
+// the prefix-matching predicates below, this finds the status anywhere in the
+// message, so it still works once a caller has wrapped the error with context.
+func StatusFromMessage(message string) int {
+	match := statusPattern.FindStringSubmatch(message)
+	if len(match) != 2 {
+		return 0
+	}
+
+	status, err := strconv.Atoi(match[1])
+	if err != nil {
+		return 0
+	}
+
+	return status
+}
 
 func IsNotFound(err error) bool {
 	if err == nil {
