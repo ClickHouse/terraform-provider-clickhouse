@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -39,6 +40,247 @@ func TestAlertChannelAttrTypesMatchSchema(t *testing.T) {
 			t.Errorf("attribute %q: schema type %s, alertChannelAttrTypes %s", name, got, typ)
 		}
 	}
+}
+
+func TestAnomalyConfigAttrTypesMatchSchema(t *testing.T) {
+	t.Parallel()
+	schemaAttrs := anomalyConfigAttributes()
+	if len(schemaAttrs) != len(anomalyConfigAttrTypes) {
+		t.Fatalf("schema has %d anomaly_config attributes, anomalyConfigAttrTypes has %d",
+			len(schemaAttrs), len(anomalyConfigAttrTypes))
+	}
+	for name, a := range schemaAttrs {
+		typ, ok := anomalyConfigAttrTypes[name]
+		if !ok {
+			t.Errorf("schema attribute %q missing from anomalyConfigAttrTypes", name)
+			continue
+		}
+		if got := a.GetType(); got != typ {
+			t.Errorf("attribute %q: schema type %s, anomalyConfigAttrTypes %s", name, got, typ)
+		}
+	}
+}
+
+func TestAlertResource_DetectionMode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	// The server resolves an omitted detectionMode to threshold instead of
+	// keeping the stored one, so a write that leaves it out demotes an anomaly
+	// alert. Every write has to carry it, including from legacy state.
+	t.Run("toClient always sends a mode", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name string
+			mod  func(*alertResourceModel)
+			want string
+		}{
+			{"explicit threshold", nil, detectionModeThreshold},
+			{"anomaly", asAnomaly(fullAnomalyConfig()), detectionModeAnomaly},
+			{"null mode from older state", func(m *alertResourceModel) { m.DetectionMode = types.StringNull() }, detectionModeThreshold},
+		} {
+			m := mkAlert(tc.mod)
+			al, d := m.toClient(ctx)
+			if d.HasError() {
+				t.Fatalf("%s: toClient: %s", tc.name, d)
+			}
+			if al.DetectionMode != tc.want {
+				t.Errorf("%s: detection mode = %q, want %q", tc.name, al.DetectionMode, tc.want)
+			}
+		}
+	})
+
+	t.Run("toClient sends the whole config in anomaly mode", func(t *testing.T) {
+		t.Parallel()
+		m := mkAlert(asAnomaly(fullAnomalyConfig()))
+		al, d := m.toClient(ctx)
+		if d.HasError() {
+			t.Fatalf("toClient: %s", d)
+		}
+		want := client.AnomalyConfig{
+			BucketSizeSeconds: ptr(120), ZScoreThreshold: ptr(4.0), Condition: ptr(anomalyConditionAbove),
+			MinAbsoluteDelta: ptr(5.0), NonNegative: ptr(false), MaxSeries: ptr(50), BaselineLookbackMinutes: ptr(720),
+		}
+		if diff := cmp.Diff(&want, al.AnomalyConfig); diff != "" {
+			t.Errorf("anomaly config mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	// A field the config leaves out is omitted rather than filled in here, so
+	// the server's defaults stay in one place.
+	t.Run("toClient sends only the fields the config set", func(t *testing.T) {
+		t.Parallel()
+		partial := anomalyConfigModel{
+			BucketSizeSeconds:       types.Int64Null(),
+			ZScoreThreshold:         types.Float64Value(6),
+			Condition:               types.StringNull(),
+			MinAbsoluteDelta:        types.Float64Null(),
+			NonNegative:             types.BoolNull(),
+			MaxSeries:               types.Int64Null(),
+			BaselineLookbackMinutes: types.Int64Null(),
+		}
+		m := mkAlert(asAnomaly(partial))
+		al, d := m.toClient(ctx)
+		if d.HasError() {
+			t.Fatalf("toClient: %s", d)
+		}
+		want := client.AnomalyConfig{ZScoreThreshold: ptr(6.0)}
+		if diff := cmp.Diff(&want, al.AnomalyConfig); diff != "" {
+			t.Errorf("anomaly config mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("toClient omits the config in threshold mode", func(t *testing.T) {
+		t.Parallel()
+		m := mkAlert(nil)
+		al, d := m.toClient(ctx)
+		if d.HasError() {
+			t.Fatalf("toClient: %s", d)
+		}
+		if al.AnomalyConfig != nil {
+			t.Errorf("anomaly config = %+v, want nil", al.AnomalyConfig)
+		}
+	})
+
+	t.Run("applyAlert maps the mode and config back", func(t *testing.T) {
+		t.Parallel()
+		m := mkAlert(asAnomaly(fullAnomalyConfig()))
+		cfg := client.AnomalyConfig{
+			BucketSizeSeconds: ptr(300), ZScoreThreshold: ptr(2.5), Condition: ptr(anomalyConditionBelow),
+			MinAbsoluteDelta: ptr(1.0), NonNegative: ptr(true), MaxSeries: ptr(10), BaselineLookbackMinutes: ptr(60),
+		}
+		if d := m.applyAlert(ctx, &client.Alert{
+			ID: "al1", Source: alertSourceSavedSearch, SavedSearchID: "ss1",
+			Interval: "5m", Threshold: 100, ThresholdType: thresholdTypeAbove,
+			DetectionMode: detectionModeAnomaly, AnomalyConfig: &cfg,
+		}); d.HasError() {
+			t.Fatalf("applyAlert: %s", d)
+		}
+		if m.DetectionMode.ValueString() != detectionModeAnomaly {
+			t.Errorf("detection mode = %q, want anomaly", m.DetectionMode.ValueString())
+		}
+		got, ok, d := asAnomalyConfig(ctx, m.AnomalyConfig)
+		if d.HasError() || !ok || got == nil {
+			t.Fatalf("decode anomaly config: ok=%v cfg=%v diags=%s", ok, got, d)
+		}
+		if got.BucketSizeSeconds.ValueInt64() != 300 || got.ZScoreThreshold.ValueFloat64() != 2.5 ||
+			got.Condition.ValueString() != "below" || got.MaxSeries.ValueInt64() != 10 {
+			t.Errorf("anomaly config = %+v", got)
+		}
+	})
+
+	t.Run("applyAlert nulls the config in threshold mode", func(t *testing.T) {
+		t.Parallel()
+		m := mkAlert(asAnomaly(fullAnomalyConfig()))
+		if d := m.applyAlert(ctx, &client.Alert{
+			ID: "al1", Source: alertSourceSavedSearch, SavedSearchID: "ss1",
+			Interval: "5m", Threshold: 100, ThresholdType: thresholdTypeAbove,
+			DetectionMode: detectionModeThreshold,
+		}); d.HasError() {
+			t.Fatalf("applyAlert: %s", d)
+		}
+		if !m.AnomalyConfig.IsNull() {
+			t.Errorf("anomaly config = %s, want null", m.AnomalyConfig)
+		}
+	})
+
+	// A server predating detection modes returns none at all. Overwriting the
+	// planned value then would report an anomaly alert as threshold and fail
+	// the apply with an inconsistent result.
+	t.Run("applyAlert keeps the planned mode when the server returns none", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name string
+			mod  func(*alertResourceModel)
+			want string
+		}{
+			{"planned threshold", nil, detectionModeThreshold},
+			{"planned anomaly", asAnomaly(fullAnomalyConfig()), detectionModeAnomaly},
+			{"unknown, as on a create", func(m *alertResourceModel) { m.DetectionMode = types.StringUnknown() }, detectionModeThreshold},
+		} {
+			m := mkAlert(tc.mod)
+			if d := m.applyAlert(ctx, &client.Alert{
+				ID: "al1", Source: alertSourceSavedSearch, SavedSearchID: "ss1",
+				Interval: "5m", Threshold: 100, ThresholdType: thresholdTypeAbove,
+			}); d.HasError() {
+				t.Fatalf("%s: applyAlert: %s", tc.name, d)
+			}
+			if m.DetectionMode.ValueString() != tc.want {
+				t.Errorf("%s: detection mode = %q, want %q", tc.name, m.DetectionMode.ValueString(), tc.want)
+			}
+		}
+	})
+}
+
+// An Optional+Computed attribute whose config is null keeps its prior value in
+// the proposed plan, so without ModifyPlan a switch back to threshold would
+// plan the old block and then fail against the null applyAlert writes.
+func TestAlertResource_ModifyPlan(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sch := alertSchema(t)
+	r := &alertResource{}
+
+	modify := func(t *testing.T, state, plan alertResourceModel) alertResourceModel {
+		t.Helper()
+		st := tfsdk.State{Schema: sch}
+		if d := st.Set(ctx, state); d.HasError() {
+			t.Fatalf("state.Set: %s", d)
+		}
+		pl := tfsdk.Plan{Schema: sch}
+		if d := pl.Set(ctx, plan); d.HasError() {
+			t.Fatalf("plan.Set: %s", d)
+		}
+		resp := &fwresource.ModifyPlanResponse{Plan: pl}
+		r.ModifyPlan(ctx, fwresource.ModifyPlanRequest{State: st, Plan: pl}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("ModifyPlan: %s", resp.Diagnostics)
+		}
+		var got alertResourceModel
+		resp.Plan.Get(ctx, &got)
+		return got
+	}
+
+	t.Run("drops a stale config when the plan is threshold", func(t *testing.T) {
+		t.Parallel()
+		// The plan Terraform proposes when the block is deleted from config:
+		// threshold mode, but the prior object carried over.
+		plan := mkAlert(asAnomaly(fullAnomalyConfig()))
+		plan.DetectionMode = types.StringValue(detectionModeThreshold)
+		got := modify(t, mkAlert(asAnomaly(fullAnomalyConfig())), plan)
+		if !got.AnomalyConfig.IsNull() {
+			t.Errorf("anomaly_config = %s, want null", got.AnomalyConfig)
+		}
+	})
+
+	t.Run("leaves the config alone in anomaly mode", func(t *testing.T) {
+		t.Parallel()
+		got := modify(t, mkAlert(asAnomaly(fullAnomalyConfig())), mkAlert(asAnomaly(fullAnomalyConfig())))
+		if got.AnomalyConfig.IsNull() {
+			t.Error("anomaly_config was dropped in anomaly mode")
+		}
+	})
+
+	t.Run("no-op on create", func(t *testing.T) {
+		t.Parallel()
+		plan := mkAlert(asAnomaly(fullAnomalyConfig()))
+		plan.DetectionMode = types.StringValue(detectionModeThreshold)
+		pl := tfsdk.Plan{Schema: sch}
+		if d := pl.Set(ctx, plan); d.HasError() {
+			t.Fatalf("plan.Set: %s", d)
+		}
+		resp := &fwresource.ModifyPlanResponse{Plan: pl}
+		// Null state is a create; there is no prior value to be stale.
+		r.ModifyPlan(ctx, fwresource.ModifyPlanRequest{State: tfsdk.State{Schema: sch}, Plan: pl}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("ModifyPlan: %s", resp.Diagnostics)
+		}
+		var got alertResourceModel
+		resp.Plan.Get(ctx, &got)
+		if got.AnomalyConfig.IsNull() {
+			t.Error("anomaly_config was dropped on create")
+		}
+	})
 }
 
 func TestAlertResource_Metadata(t *testing.T) {
@@ -143,6 +385,36 @@ func chanList(cs ...alertChannelModel) types.List {
 func nullChan() types.Object   { return types.ObjectNull(alertChannelAttrTypes) }
 func nullChanList() types.List { return types.ListNull(alertChannelObjectType) }
 
+// fullAnomalyConfig is a config with every field set to something other than
+// its server default, so a test that loses one can tell which.
+func fullAnomalyConfig() anomalyConfigModel {
+	return anomalyConfigModel{
+		BucketSizeSeconds:       types.Int64Value(120),
+		ZScoreThreshold:         types.Float64Value(4),
+		Condition:               types.StringValue("above"),
+		MinAbsoluteDelta:        types.Float64Value(5),
+		NonNegative:             types.BoolValue(false),
+		MaxSeries:               types.Int64Value(50),
+		BaselineLookbackMinutes: types.Int64Value(720),
+	}
+}
+
+func anomalyObj(c anomalyConfigModel) types.Object {
+	o, d := types.ObjectValueFrom(context.Background(), anomalyConfigAttrTypes, c)
+	if d.HasError() {
+		panic(fmt.Sprintf("build anomaly config object: %s", d))
+	}
+	return o
+}
+
+// asAnomaly turns a model into an anomaly alert carrying cfg.
+func asAnomaly(cfg anomalyConfigModel) func(*alertResourceModel) {
+	return func(m *alertResourceModel) {
+		m.DetectionMode = types.StringValue(detectionModeAnomaly)
+		m.AnomalyConfig = anomalyObj(cfg)
+	}
+}
+
 // readChan decodes the deprecated single channel for assertions.
 func readChan(t *testing.T, o types.Object) alertChannelModel {
 	t.Helper()
@@ -176,6 +448,8 @@ func mkAlert(mods func(*alertResourceModel)) alertResourceModel {
 		Threshold:             types.Float64Value(100),
 		ThresholdType:         types.StringValue(thresholdTypeAbove),
 		ThresholdMax:          types.Float64Null(),
+		DetectionMode:         types.StringValue(detectionModeThreshold),
+		AnomalyConfig:         types.ObjectNull(anomalyConfigAttrTypes),
 		Interval:              types.StringValue("5m"),
 		NumConsecutiveWindows: types.Int64Null(),
 		ScheduleOffsetMinutes: types.Int64Null(),
@@ -323,6 +597,75 @@ func TestAlertResource_Validate(t *testing.T) {
 			"above with threshold_max set is accepted",
 			func(m *alertResourceModel) { m.ThresholdMax = types.Float64Value(200) },
 			false,
+		},
+		{"anomaly alert with a full config", asAnomaly(fullAnomalyConfig()), false},
+		{
+			"anomaly mode with no config",
+			func(m *alertResourceModel) { m.DetectionMode = types.StringValue(detectionModeAnomaly) },
+			false,
+		},
+		{
+			"invalid detection_mode",
+			func(m *alertResourceModel) { m.DetectionMode = types.StringValue("bogus") },
+			true,
+		},
+		{
+			"anomaly_config in threshold mode",
+			func(m *alertResourceModel) { m.AnomalyConfig = anomalyObj(fullAnomalyConfig()) },
+			true,
+		},
+		{
+			"anomaly_config with a null detection_mode",
+			func(m *alertResourceModel) {
+				m.DetectionMode = types.StringNull()
+				m.AnomalyConfig = anomalyObj(fullAnomalyConfig())
+			},
+			true,
+		},
+		{
+			"bucket_size_seconds below the minimum",
+			asAnomaly(func() anomalyConfigModel {
+				c := fullAnomalyConfig()
+				c.BucketSizeSeconds = types.Int64Value(30)
+				return c
+			}()),
+			true,
+		},
+		{
+			"max_series above the maximum",
+			asAnomaly(func() anomalyConfigModel {
+				c := fullAnomalyConfig()
+				c.MaxSeries = types.Int64Value(1001)
+				return c
+			}()),
+			true,
+		},
+		{
+			"zero z_score_threshold",
+			asAnomaly(func() anomalyConfigModel {
+				c := fullAnomalyConfig()
+				c.ZScoreThreshold = types.Float64Value(0)
+				return c
+			}()),
+			true,
+		},
+		{
+			"negative min_absolute_delta",
+			asAnomaly(func() anomalyConfigModel {
+				c := fullAnomalyConfig()
+				c.MinAbsoluteDelta = types.Float64Value(-1)
+				return c
+			}()),
+			true,
+		},
+		{
+			"invalid condition",
+			asAnomaly(func() anomalyConfigModel {
+				c := fullAnomalyConfig()
+				c.Condition = types.StringValue("sideways")
+				return c
+			}()),
+			true,
 		},
 		{
 			"start_at and non-zero offset conflict",

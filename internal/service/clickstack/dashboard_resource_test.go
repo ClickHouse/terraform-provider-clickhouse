@@ -525,7 +525,8 @@ func dashboardTestClient(t *testing.T, h http.Handler) *client.Client {
 	return c
 }
 
-func ptr(s string) *string { return &s }
+// ptr is shared by the clickstack resource tests for the client's optional fields.
+func ptr[T any](v T) *T { return &v }
 
 func TestDashboardResource_Create(t *testing.T) {
 	t.Parallel()

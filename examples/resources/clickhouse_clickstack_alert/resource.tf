@@ -113,3 +113,38 @@ resource "clickhouse_clickstack_alert" "legacy_single_channel" {
   threshold_type = "above"
   interval       = "1h"
 }
+
+# An anomaly alert. Instead of comparing against `threshold`, it builds a
+# baseline from recent history and fires when the value leaves the expected
+# band. `threshold` is still required by the API but unused in this mode.
+#
+# Every `anomaly_config` field the config leaves out takes the server's default.
+# The whole block is sent on each write, so removing a field later keeps its
+# last applied value rather than restoring the default; set it explicitly to
+# change it. Anomaly detection has to be enabled on the deployment.
+resource "clickhouse_clickstack_alert" "latency_anomaly" {
+  source       = "tile"
+  dashboard_id = clickhouse_clickstack_dashboard.latency.id
+  tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
+
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.slack.id
+    },
+  ]
+
+  detection_mode = "anomaly"
+
+  anomaly_config = {
+    # Four standard deviations from the baseline, alerting only on spikes.
+    z_score_threshold = 4
+    condition         = "above"
+  }
+
+  threshold      = 0
+  threshold_type = "above"
+  interval       = "5m"
+
+  name = "p95 latency above typical"
+}

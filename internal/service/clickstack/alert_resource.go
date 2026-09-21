@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -31,17 +32,19 @@ var (
 	_ resource.ResourceWithConfigure      = (*alertResource)(nil)
 	_ resource.ResourceWithImportState    = (*alertResource)(nil)
 	_ resource.ResourceWithValidateConfig = (*alertResource)(nil)
+	_ resource.ResourceWithModifyPlan     = (*alertResource)(nil)
 )
 
 // Threshold type values referenced in more than one place.
 const (
 	thresholdTypeAbove   = "above"
+	thresholdTypeBelow   = "below"
 	thresholdTypeBetween = "between"
 )
 
 // alertThresholdTypes is the set of accepted threshold comparison types.
 var alertThresholdTypes = []string{
-	thresholdTypeAbove, "below", "above_exclusive", "below_or_equal",
+	thresholdTypeAbove, thresholdTypeBelow, "above_exclusive", "below_or_equal",
 	"equal", "not_equal", thresholdTypeBetween, "not_between",
 }
 
@@ -154,6 +157,61 @@ var alertChannelAttrTypes = map[string]attr.Type{
 
 var alertChannelObjectType = types.ObjectType{AttrTypes: alertChannelAttrTypes}
 
+// Alert detection modes. Mirrors the client constants so the resource never
+// spells the API strings itself.
+const (
+	detectionModeThreshold = client.AlertDetectionModeThreshold
+	detectionModeAnomaly   = client.AlertDetectionModeAnomaly
+)
+
+// alertDetectionModes is the set of accepted detection modes.
+var alertDetectionModes = []string{detectionModeThreshold, detectionModeAnomaly}
+
+// Anomaly conditions: which side of the expected band alerts.
+const (
+	anomalyConditionAbove        = "above"
+	anomalyConditionBelow        = "below"
+	anomalyConditionAboveOrBelow = "above_or_below"
+)
+
+// anomalyConditions is the set of accepted anomaly_config.condition values.
+var anomalyConditions = []string{anomalyConditionAbove, anomalyConditionBelow, anomalyConditionAboveOrBelow}
+
+// anomaly_config attribute names, referenced by the schema, the attr.Type map
+// and the validation paths.
+const (
+	bucketSizeSecondsAttr       = "bucket_size_seconds"
+	zScoreThresholdAttr         = "z_score_threshold"
+	conditionAttr               = "condition"
+	minAbsoluteDeltaAttr        = "min_absolute_delta"
+	nonNegativeAttr             = "non_negative"
+	maxSeriesAttr               = "max_series"
+	baselineLookbackMinutesAttr = "baseline_lookback_minutes"
+)
+
+// anomalyConfigModel maps the nested anomaly_config block.
+type anomalyConfigModel struct {
+	BucketSizeSeconds       types.Int64   `tfsdk:"bucket_size_seconds"`
+	ZScoreThreshold         types.Float64 `tfsdk:"z_score_threshold"`
+	Condition               types.String  `tfsdk:"condition"`
+	MinAbsoluteDelta        types.Float64 `tfsdk:"min_absolute_delta"`
+	NonNegative             types.Bool    `tfsdk:"non_negative"`
+	MaxSeries               types.Int64   `tfsdk:"max_series"`
+	BaselineLookbackMinutes types.Int64   `tfsdk:"baseline_lookback_minutes"`
+}
+
+// anomalyConfigAttrTypes mirrors anomalyConfigAttributes() for the
+// framework-typed anomaly_config model field; the two must be kept in step.
+var anomalyConfigAttrTypes = map[string]attr.Type{
+	bucketSizeSecondsAttr:       types.Int64Type,
+	zScoreThresholdAttr:         types.Float64Type,
+	conditionAttr:               types.StringType,
+	minAbsoluteDeltaAttr:        types.Float64Type,
+	nonNegativeAttr:             types.BoolType,
+	maxSeriesAttr:               types.Int64Type,
+	baselineLookbackMinutesAttr: types.Int64Type,
+}
+
 // alertResourceModel maps the resource schema data. Server-managed transient
 // fields (state, silenced, execution_errors) are intentionally not modeled: they
 // are never sent, and the API's partial-update PUT preserves them (KTD8).
@@ -171,18 +229,22 @@ type alertResourceModel struct {
 	// Terraform resolves it, and reflecting that into *alertChannelModel or
 	// []alertChannelModel fails Config.Get with a "this is always an error in
 	// the provider" diagnostic (see asChannel/asChannels).
-	Channel               types.Object  `tfsdk:"channel"`
-	Channels              types.List    `tfsdk:"channels"`
-	Threshold             types.Float64 `tfsdk:"threshold"`
-	ThresholdType         types.String  `tfsdk:"threshold_type"`
-	ThresholdMax          types.Float64 `tfsdk:"threshold_max"`
-	Interval              types.String  `tfsdk:"interval"`
-	NumConsecutiveWindows types.Int64   `tfsdk:"num_consecutive_windows"`
-	ScheduleOffsetMinutes types.Int64   `tfsdk:"schedule_offset_minutes"`
-	ScheduleStartAt       types.String  `tfsdk:"schedule_start_at"`
-	Name                  types.String  `tfsdk:"name"`
-	Message               types.String  `tfsdk:"message"`
-	Note                  types.String  `tfsdk:"note"`
+	Channel       types.Object  `tfsdk:"channel"`
+	Channels      types.List    `tfsdk:"channels"`
+	Threshold     types.Float64 `tfsdk:"threshold"`
+	ThresholdType types.String  `tfsdk:"threshold_type"`
+	ThresholdMax  types.Float64 `tfsdk:"threshold_max"`
+	DetectionMode types.String  `tfsdk:"detection_mode"`
+	// AnomalyConfig is a framework type for the same reason Channel is: a config
+	// that takes the whole block from a module output leaves it unknown.
+	AnomalyConfig         types.Object `tfsdk:"anomaly_config"`
+	Interval              types.String `tfsdk:"interval"`
+	NumConsecutiveWindows types.Int64  `tfsdk:"num_consecutive_windows"`
+	ScheduleOffsetMinutes types.Int64  `tfsdk:"schedule_offset_minutes"`
+	ScheduleStartAt       types.String `tfsdk:"schedule_start_at"`
+	Name                  types.String `tfsdk:"name"`
+	Message               types.String `tfsdk:"message"`
+	Note                  types.String `tfsdk:"note"`
 }
 
 func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -205,7 +267,10 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one " +
 			"resource). Import each alert separately by its own ID. An alert whose source this provider " +
 			"does not model (for example `inline`) fails to import with a clear error.\n\n" +
-			"Alerts are threshold-based (there is no anomaly mode). Configuration is validated at " +
+			"Alerts are threshold-based by default. Set `detection_mode = \"anomaly\"` to compare " +
+			"against a baseline built from recent history instead, tuned through `anomaly_config`; " +
+			"anomaly detection has to be enabled on the deployment.\n\n" +
+			"Configuration is validated at " +
 			"plan time; those rules mirror the ClickStack server contract on a best-effort basis, so " +
 			"a server-side rule change may make the plan-time checks slightly stale until a new " +
 			"provider release.",
@@ -291,6 +356,31 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:    true,
 				Description: "Upper bound, required for `between`/`not_between` and ignored otherwise. Must be >= `threshold`.",
 			},
+			"detection_mode": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Description: "How the alert decides it is firing: `threshold` (the default) compares the " +
+					"value against `threshold`, `anomaly` compares it against a baseline built from recent " +
+					"history and ignores `threshold`. Anomaly detection must be enabled on the deployment; " +
+					"if it is not, the server rejects the write.\n\n" +
+					"Sticky once set: leaving it out of config keeps the last applied mode rather " +
+					"than reverting to `threshold`, so an imported anomaly alert is never demoted by " +
+					"a config that does not mention it. Set it to `threshold` explicitly to switch " +
+					"back. A replacement starts from config alone, so an alert recreated for another " +
+					"reason (a changed `tile_id`, for example) comes back in threshold mode unless " +
+					"config names the mode.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown()},
+			},
+			"anomaly_config": schema.SingleNestedAttribute{
+				Optional: true,
+				Computed: true,
+				Description: "Tuning for `detection_mode = \"anomaly\"`, rejected in threshold mode. The " +
+					"server fills its own default for every field left unset, and the whole block is sent " +
+					"on each write, so removing a field from config keeps the last applied value rather " +
+					"than restoring the default. Set it explicitly to change it.",
+				Attributes:    anomalyConfigAttributes(),
+				PlanModifiers: []planmodifier.Object{objectplanmodifier.UseNonNullStateForUnknown()},
+			},
 			"interval": schema.StringAttribute{
 				Required:    true,
 				Description: "Evaluation window: one of `1m`, `5m`, `15m`, `30m`, `1h`, `6h`, `12h`, `1d`.",
@@ -342,6 +432,128 @@ func alertChannelAttributes() map[string]schema.Attribute {
 	}
 }
 
+// anomalyConfigAttributes is the attribute set of `anomaly_config`. Every field
+// is Optional+Computed: the server supplies a default for each one it is not
+// sent. Bounds are enforced in validate(), with the rest of the alert's rules.
+func anomalyConfigAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		bucketSizeSecondsAttr: schema.Int64Attribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Seconds of data scored as one point, 60 to 3600. Defaults to 60.",
+		},
+		zScoreThresholdAttr: schema.Float64Attribute{
+			Optional: true,
+			Computed: true,
+			Description: "Standard deviations from the baseline before a point counts as anomalous; " +
+				"lower is more sensitive. Must be greater than 0. Defaults to 3.",
+		},
+		conditionAttr: schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+			Description: "Which side of the expected band to alert on: `above`, `below`, or " +
+				"`above_or_below`. Defaults to `above_or_below`.",
+		},
+		minAbsoluteDeltaAttr: schema.Float64Attribute{
+			Optional: true,
+			Computed: true,
+			Description: "Smallest observed-minus-expected gap that may alert, whatever the " +
+				"statistical significance. 0 sizes the minimum from the expected value. Defaults to 0.",
+		},
+		nonNegativeAttr: schema.BoolAttribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Clamp expected values at zero, for metrics that cannot go negative. Defaults to true.",
+		},
+		maxSeriesAttr: schema.Int64Attribute{
+			Optional:    true,
+			Computed:    true,
+			Description: "Cap on how many grouped series are scored, 1 to 1000. Defaults to 100.",
+		},
+		baselineLookbackMinutesAttr: schema.Int64Attribute{
+			Optional: true,
+			Computed: true,
+			Description: "Minutes of trailing history that define the baseline, 1 to 1440. Never " +
+				"shorter than the evaluation window. Defaults to 120.",
+		},
+	}
+}
+
+// toClient renders the block for the wire. Only the fields the config set are
+// sent; the server fills its own default for the rest, which keeps those
+// defaults in one place rather than copied here where they can drift.
+func (c *anomalyConfigModel) toClient() *client.AnomalyConfig {
+	var out client.AnomalyConfig
+	if known(c.BucketSizeSeconds) {
+		v := int(c.BucketSizeSeconds.ValueInt64())
+		out.BucketSizeSeconds = &v
+	}
+	if known(c.ZScoreThreshold) {
+		v := c.ZScoreThreshold.ValueFloat64()
+		out.ZScoreThreshold = &v
+	}
+	if known(c.Condition) {
+		v := c.Condition.ValueString()
+		out.Condition = &v
+	}
+	if known(c.MinAbsoluteDelta) {
+		v := c.MinAbsoluteDelta.ValueFloat64()
+		out.MinAbsoluteDelta = &v
+	}
+	if known(c.NonNegative) {
+		v := c.NonNegative.ValueBool()
+		out.NonNegative = &v
+	}
+	if known(c.MaxSeries) {
+		v := int(c.MaxSeries.ValueInt64())
+		out.MaxSeries = &v
+	}
+	if known(c.BaselineLookbackMinutes) {
+		v := int(c.BaselineLookbackMinutes.ValueInt64())
+		out.BaselineLookbackMinutes = &v
+	}
+	return &out
+}
+
+// anomalyConfigFromClient maps a server config into the nested block. The
+// server normalizes the config on every read and write, so in practice every
+// field comes back set; a nil is mapped to null rather than a zero that would
+// read as a real value.
+func anomalyConfigFromClient(c client.AnomalyConfig) anomalyConfigModel {
+	return anomalyConfigModel{
+		BucketSizeSeconds:       intPtrToInt64(c.BucketSizeSeconds),
+		ZScoreThreshold:         types.Float64PointerValue(c.ZScoreThreshold),
+		Condition:               types.StringPointerValue(c.Condition),
+		MinAbsoluteDelta:        types.Float64PointerValue(c.MinAbsoluteDelta),
+		NonNegative:             types.BoolPointerValue(c.NonNegative),
+		MaxSeries:               intPtrToInt64(c.MaxSeries),
+		BaselineLookbackMinutes: intPtrToInt64(c.BaselineLookbackMinutes),
+	}
+}
+
+// intPtrToInt64 widens an optional API int into the framework's Int64.
+func intPtrToInt64(v *int) types.Int64 {
+	if v == nil {
+		return types.Int64Null()
+	}
+	return types.Int64Value(int64(*v))
+}
+
+// asAnomalyConfig decodes `anomaly_config`. The returned pointer is nil when the
+// attribute is unset. ok is false when the value is unknown as a whole, i.e.
+// Terraform has not resolved it yet and no rule can inspect it.
+func asAnomalyConfig(ctx context.Context, o types.Object) (*anomalyConfigModel, bool, diag.Diagnostics) {
+	if o.IsNull() {
+		return nil, true, nil
+	}
+	if o.IsUnknown() {
+		return nil, false, nil
+	}
+	var c anomalyConfigModel
+	d := o.As(ctx, &c, basetypes.ObjectAsOptions{})
+	return &c, true, d
+}
+
 // asChannel decodes the deprecated single `channel`. The returned pointer is nil
 // when the attribute is unset. ok is false when the value is unknown as a whole,
 // i.e. Terraform has not resolved it yet and no rule can inspect it.
@@ -372,6 +584,31 @@ func asChannels(ctx context.Context, l types.List) ([]alertChannelModel, bool, d
 	out := make([]alertChannelModel, 0, len(l.Elements()))
 	d := l.ElementsAs(ctx, &out, false)
 	return out, true, d
+}
+
+// ModifyPlan drops the planned anomaly_config once the alert is no longer in
+// anomaly mode. An Optional+Computed attribute whose config is null keeps its
+// prior value in the proposed plan, so switching back to threshold would plan
+// the old block while applyAlert writes null, and the apply would fail with
+// "Provider produced inconsistent result after apply".
+func (r *alertResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Null plan is a destroy; null state is a create, which has nothing stale.
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	var plan alertResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	// An unknown mode cannot be decided here; Create/Update reconcile it.
+	if !known(plan.DetectionMode) || plan.DetectionMode.ValueString() == detectionModeAnomaly {
+		return
+	}
+	if plan.AnomalyConfig.IsNull() {
+		return
+	}
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("anomaly_config"), types.ObjectNull(anomalyConfigAttrTypes))...)
 }
 
 func (r *alertResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -481,6 +718,8 @@ func (m *alertResourceModel) validate(ctx context.Context) diag.Diagnostics {
 		}
 	}
 
+	m.validateAnomaly(ctx, &diags)
+
 	// Scheduling modes are mutually exclusive.
 	offsetSet := known(m.ScheduleOffsetMinutes) && m.ScheduleOffsetMinutes.ValueInt64() > 0
 	if known(m.ScheduleStartAt) && offsetSet {
@@ -520,6 +759,69 @@ func (m *alertResourceModel) validate(ctx context.Context) diag.Diagnostics {
 // validateChannels enforces the channel/channels selection rules: exactly one of
 // the two, a list within the API's size limit, no duplicates, and a valid type
 // with its required sub-field on every entry.
+// effectiveDetectionMode returns the mode the config means. A null mode is the
+// threshold default (validate runs on the raw config, before the server's
+// value is known); an unknown mode reports known=false.
+func (m *alertResourceModel) effectiveDetectionMode() (string, bool) {
+	if m.DetectionMode.IsUnknown() {
+		return "", false
+	}
+	if m.DetectionMode.IsNull() {
+		return detectionModeThreshold, true
+	}
+	return m.DetectionMode.ValueString(), true
+}
+
+func (m *alertResourceModel) validateAnomaly(ctx context.Context, diags *diag.Diagnostics) {
+	mode, modeKnown := m.effectiveDetectionMode()
+	if modeKnown && !slices.Contains(alertDetectionModes, mode) {
+		diags.AddAttributeError(path.Root("detection_mode"), "Invalid detection_mode",
+			fmt.Sprintf("detection_mode must be one of %s, got %q", strings.Join(alertDetectionModes, ", "), mode))
+		return
+	}
+
+	// Presence is decided on null alone, before decoding: a block Terraform has
+	// not resolved yet is still set, so the pairing rule holds either way. The
+	// API rejects the pair outright rather than ignoring the config.
+	if modeKnown && mode != detectionModeAnomaly && !m.AnomalyConfig.IsNull() {
+		diags.AddAttributeError(path.Root("anomaly_config"), "Not valid in threshold mode",
+			"anomaly_config is only valid when detection_mode is \"anomaly\"")
+		return
+	}
+
+	cfg, ok, d := asAnomalyConfig(ctx, m.AnomalyConfig)
+	diags.Append(d...)
+	if !ok || cfg == nil {
+		return
+	}
+	for _, b := range []struct {
+		name     string
+		v        types.Int64
+		min, max int64
+	}{
+		{bucketSizeSecondsAttr, cfg.BucketSizeSeconds, 60, 3600},
+		{maxSeriesAttr, cfg.MaxSeries, 1, 1000},
+		{baselineLookbackMinutesAttr, cfg.BaselineLookbackMinutes, 1, 1440},
+	} {
+		if known(b.v) && (b.v.ValueInt64() < b.min || b.v.ValueInt64() > b.max) {
+			diags.AddAttributeError(path.Root("anomaly_config").AtName(b.name), "Invalid "+b.name,
+				fmt.Sprintf("%s must be between %d and %d, got %d", b.name, b.min, b.max, b.v.ValueInt64()))
+		}
+	}
+	if known(cfg.ZScoreThreshold) && cfg.ZScoreThreshold.ValueFloat64() <= 0 {
+		diags.AddAttributeError(path.Root("anomaly_config").AtName(zScoreThresholdAttr), "Invalid z_score_threshold",
+			"z_score_threshold must be greater than 0")
+	}
+	if known(cfg.MinAbsoluteDelta) && cfg.MinAbsoluteDelta.ValueFloat64() < 0 {
+		diags.AddAttributeError(path.Root("anomaly_config").AtName(minAbsoluteDeltaAttr), "Invalid min_absolute_delta",
+			"min_absolute_delta must be at least 0")
+	}
+	if known(cfg.Condition) && !slices.Contains(anomalyConditions, cfg.Condition.ValueString()) {
+		diags.AddAttributeError(path.Root("anomaly_config").AtName(conditionAttr), "Invalid condition",
+			fmt.Sprintf("condition must be one of %s, got %q", strings.Join(anomalyConditions, ", "), cfg.Condition.ValueString()))
+	}
+}
+
 func (m *alertResourceModel) validateChannels(ctx context.Context, diags *diag.Diagnostics) {
 	// Presence is decided on null alone, before any decoding: an attribute set to
 	// a value Terraform has not resolved yet is still set, so the exactly-one-of
@@ -780,6 +1082,24 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 		v := m.ThresholdMax.ValueFloat64()
 		al.ThresholdMax = &v
 	}
+	// Always sent, because an omitted mode resolves to threshold server-side
+	// rather than keeping the stored one. cmp.Or covers the off-plan paths where
+	// the attribute is null (unit tests, state written before this field).
+	al.DetectionMode = cmp.Or(m.DetectionMode.ValueString(), detectionModeThreshold)
+	if al.DetectionMode == detectionModeAnomaly {
+		cfg, ok, d := asAnomalyConfig(ctx, m.AnomalyConfig)
+		diags.Append(d...)
+		switch {
+		case !ok:
+			// Unreachable for the same reason the channel case is, and reported
+			// rather than skipped: omitting the block resets the tuning to the
+			// server's defaults instead of failing.
+			diags.AddError("Unresolved anomaly configuration",
+				"the alert's anomaly_config was still unknown at apply time. This is a bug in the provider.")
+		case cfg != nil:
+			al.AnomalyConfig = cfg.toClient()
+		}
+	}
 	if known(m.NumConsecutiveWindows) {
 		v := int(m.NumConsecutiveWindows.ValueInt64())
 		al.NumConsecutiveWindows = &v
@@ -839,6 +1159,30 @@ func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) d
 		} else {
 			m.ThresholdMax = types.Float64Null()
 		}
+	}
+	// A server predating detection modes returns none. Keep the planned value
+	// then, so an anomaly alert on such a deployment is not reported as
+	// threshold and fail the apply with an inconsistent result; only a model
+	// value that is itself absent falls back.
+	if al.DetectionMode != "" {
+		m.DetectionMode = types.StringValue(al.DetectionMode)
+	} else if !known(m.DetectionMode) {
+		m.DetectionMode = types.StringValue(detectionModeThreshold)
+	}
+	// The server returns the config only in anomaly mode, and returns it whole,
+	// so state always holds the values the evaluator uses rather than the subset
+	// the config named.
+	switch {
+	case al.AnomalyConfig != nil:
+		obj, d := types.ObjectValueFrom(ctx, anomalyConfigAttrTypes, anomalyConfigFromClient(*al.AnomalyConfig))
+		diags.Append(d...)
+		m.AnomalyConfig = obj
+	case m.DetectionMode.ValueString() != detectionModeAnomaly:
+		m.AnomalyConfig = types.ObjectNull(anomalyConfigAttrTypes)
+	case !known(m.AnomalyConfig):
+		// Anomaly mode with no config back from the server: nothing to reflect,
+		// and leaving it unknown is not a valid final state.
+		m.AnomalyConfig = types.ObjectNull(anomalyConfigAttrTypes)
 	}
 	m.Interval = types.StringValue(al.Interval)
 	if al.NumConsecutiveWindows != nil {

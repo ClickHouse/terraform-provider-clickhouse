@@ -25,6 +25,28 @@ const AlertChannelWebhook = "webhook"
 // MaxAlertChannels is the API's per-alert channel limit.
 const MaxAlertChannels = 10
 
+// Alert detection modes accepted by the external v2 API.
+const (
+	AlertDetectionModeThreshold = "threshold"
+	AlertDetectionModeAnomaly   = "anomaly"
+)
+
+// AnomalyConfig tunes an anomaly-mode alert. Every field is a pointer so an
+// unset one is omitted and the server applies its own default, rather than the
+// provider keeping a second copy of those defaults that can drift. Zero and
+// false are meaningful (minAbsoluteDelta 0 sizes the minimum from the expected
+// value, nonNegative false allows negative expected values), which is why
+// omitempty on a pointer rather than a value type.
+type AnomalyConfig struct {
+	BucketSizeSeconds       *int     `json:"bucketSizeSeconds,omitempty"`
+	ZScoreThreshold         *float64 `json:"zScoreThreshold,omitempty"`
+	Condition               *string  `json:"condition,omitempty"`
+	MinAbsoluteDelta        *float64 `json:"minAbsoluteDelta,omitempty"`
+	NonNegative             *bool    `json:"nonNegative,omitempty"`
+	MaxSeries               *int     `json:"maxSeries,omitempty"`
+	BaselineLookbackMinutes *int     `json:"baselineLookbackMinutes,omitempty"`
+}
+
 // AlertChannel is an alert's notification channel. Only the webhook type exists
 // today; the shape mirrors the API so additional channel types slot in later.
 type AlertChannel struct {
@@ -70,6 +92,14 @@ type Alert struct {
 	Threshold     float64        `json:"threshold"`
 	ThresholdType string         `json:"thresholdType"`
 	ThresholdMax  *float64       `json:"thresholdMax,omitempty"`
+	// DetectionMode is the one write-schema field an omitted value does not
+	// preserve: the server resolves it to "threshold" rather than keeping the
+	// stored mode, so every write must carry it or an anomaly alert silently
+	// becomes a threshold one. The resource always sets it.
+	DetectionMode string `json:"detectionMode,omitempty"`
+	// AnomalyConfig is sent only in anomaly mode, which the API requires. The
+	// server fills its own default for each field the request omits.
+	AnomalyConfig *AnomalyConfig `json:"anomalyConfig,omitempty"`
 	// Exactly one target is set, matching Source. All three are omitempty so the
 	// unused pair is never sent; the API strips keys outside the chosen source's
 	// branch, so sending them would only mislead a reader of the request.

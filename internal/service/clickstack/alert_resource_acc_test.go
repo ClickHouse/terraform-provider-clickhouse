@@ -125,6 +125,92 @@ func testAccAlertResourceSingleChannelConfig() string {
   }`, 1)
 }
 
+// TestAccAlertResourceAnomaly covers the anomaly mode end to end: the fields
+// the config omits come back filled with the server's defaults, changing one
+// is an in-place update, and switching to threshold clears the block. The
+// second step re-applies the first config unchanged, which is where an omitted
+// detectionMode used to demote the alert.
+// Requires TF_ACC, CLICKSTACK_API_KEY, CLICKSTACK_SOURCE_ID, and a deployment
+// with anomaly alerts enabled.
+func TestAccAlertResourceAnomaly(t *testing.T) {
+	const name = "clickhouse_clickstack_alert.test"
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccSourceChainPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAlertResourceAnomalyConfig(`
+    z_score_threshold = 4
+`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "detection_mode", "anomaly"),
+					resource.TestCheckResourceAttr(name, "anomaly_config.z_score_threshold", "4"),
+					// Unset in config, so these are the server's defaults.
+					resource.TestCheckResourceAttr(name, "anomaly_config.bucket_size_seconds", "60"),
+					resource.TestCheckResourceAttr(name, "anomaly_config.condition", "above_or_below"),
+					resource.TestCheckResourceAttr(name, "anomaly_config.non_negative", "true"),
+					resource.TestCheckResourceAttr(name, "anomaly_config.max_series", "100"),
+				),
+			},
+			{
+				// An update that has nothing to do with the mode is where the
+				// demotion used to happen, so the mode has to survive one.
+				Config: strings.Replace(testAccAlertResourceAnomalyConfig(`
+    z_score_threshold = 4
+`), `  interval       = "5m"`, `  interval       = "15m"`, 1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "interval", "15m"),
+					resource.TestCheckResourceAttr(name, "detection_mode", "anomaly"),
+					resource.TestCheckResourceAttr(name, "anomaly_config.z_score_threshold", "4"),
+				),
+			},
+			{
+				Config: testAccAlertResourceAnomalyConfig(`
+    z_score_threshold  = 2
+    condition          = "above"
+    bucket_size_seconds = 120
+`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "anomaly_config.z_score_threshold", "2"),
+					resource.TestCheckResourceAttr(name, "anomaly_config.condition", "above"),
+					resource.TestCheckResourceAttr(name, "anomaly_config.bucket_size_seconds", "120"),
+				),
+			},
+			{
+				ResourceName:            name,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"team"},
+			},
+			{
+				// Back to threshold. The mode is sticky, so dropping it from
+				// config keeps anomaly; it has to be named to switch back, and
+				// the block must then go null rather than keep stale tuning.
+				Config: strings.Replace(testAccAlertResourceConfig(250),
+					`  threshold      = 250`,
+					`  detection_mode = "threshold"
+
+  threshold      = 250`, 1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "detection_mode", "threshold"),
+					resource.TestCheckNoResourceAttr(name, "anomaly_config.z_score_threshold"),
+				),
+			},
+		},
+	})
+}
+
+// testAccAlertResourceAnomalyConfig is testAccAlertResourceConfig switched to
+// anomaly mode, with the given anomaly_config body.
+func testAccAlertResourceAnomalyConfig(body string) string {
+	full := testAccAlertResourceConfig(250)
+	return strings.Replace(full, `  threshold      = 250`, fmt.Sprintf(`  detection_mode = "anomaly"
+
+  anomaly_config = {%s  }
+
+  threshold      = 250`, body), 1)
+}
+
 // TestAccAlertResourceDeprecatedChannel keeps the pre-multi-channel `channel`
 // form covered: it must still apply, and must not pick up a `channels` value
 // from the response (which always carries both fields). Import is exercised
