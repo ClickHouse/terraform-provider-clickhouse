@@ -68,6 +68,73 @@ func TestAPIToRolePolicyModel(t *testing.T) {
 				Resources:   types.SetNull(types.StringType),
 				Tags: RolePolicyTagsModel{
 					RoleV2: types.StringValue("sql-console-readonly"),
+					Grants: types.ListNull(types.StringType),
+				}.ObjectValue(),
+			},
+		},
+		{
+			name: "empty tags are null",
+			input: api.RBACPolicy{
+				AllowDeny:   api.RBACAllowDenyAllow,
+				Permissions: []string{"sql-console:database:access"},
+				Tags:        &api.RBACPolicyTags{},
+			},
+			wantModel: RolePolicyModel{
+				ID:          types.StringValue(""),
+				RoleID:      types.StringValue(""),
+				TenantID:    types.StringValue(""),
+				Effect:      types.StringValue("ALLOW"),
+				Permissions: strSetVal("sql-console:database:access"),
+				Resources:   types.SetNull(types.StringType),
+				Tags:        types.ObjectNull(RolePolicyTagsModel{}.ObjectType().AttrTypes),
+			},
+		},
+		{
+			name: "tags with grants set preserve order",
+			input: api.RBACPolicy{
+				AllowDeny:   api.RBACAllowDenyAllow,
+				Permissions: []string{"sql-console:database:access"},
+				Tags: &api.RBACPolicyTags{Grants: []string{
+					"GRANT SELECT ON default.*",
+					"REVOKE SELECT ON default.secret",
+				}},
+			},
+			wantModel: RolePolicyModel{
+				ID:          types.StringValue(""),
+				RoleID:      types.StringValue(""),
+				TenantID:    types.StringValue(""),
+				Effect:      types.StringValue("ALLOW"),
+				Permissions: strSetVal("sql-console:database:access"),
+				Resources:   types.SetNull(types.StringType),
+				Tags: RolePolicyTagsModel{
+					RoleV2: types.StringNull(),
+					Grants: strListVal(
+						"GRANT SELECT ON default.*",
+						"REVOKE SELECT ON default.secret",
+					),
+				}.ObjectValue(),
+			},
+		},
+		{
+			name: "tags with role and grants preserve both",
+			input: api.RBACPolicy{
+				AllowDeny:   api.RBACAllowDenyAllow,
+				Permissions: []string{"sql-console:database:access"},
+				Tags: &api.RBACPolicyTags{
+					RoleV2: "sql-console-readonly",
+					Grants: []string{"GRANT SELECT ON default.*"},
+				},
+			},
+			wantModel: RolePolicyModel{
+				ID:          types.StringValue(""),
+				RoleID:      types.StringValue(""),
+				TenantID:    types.StringValue(""),
+				Effect:      types.StringValue("ALLOW"),
+				Permissions: strSetVal("sql-console:database:access"),
+				Resources:   types.SetNull(types.StringType),
+				Tags: RolePolicyTagsModel{
+					RoleV2: types.StringValue("sql-console-readonly"),
+					Grants: strListVal("GRANT SELECT ON default.*"),
 				}.ObjectValue(),
 			},
 		},
@@ -94,4 +161,13 @@ func strSetVal(strs ...string) types.Set {
 	}
 	s, _ := types.SetValue(types.StringType, values)
 	return s
+}
+
+func strListVal(strs ...string) types.List {
+	values := make([]attr.Value, len(strs))
+	for i, s := range strs {
+		values[i] = types.StringValue(s)
+	}
+	l, _ := types.ListValue(types.StringType, values)
+	return l
 }

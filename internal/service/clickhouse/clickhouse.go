@@ -32,6 +32,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		resource.NewClickPipeSSHKeyResource,
 		resource.NewOrganizationSettingsResource,
 		resource.NewPrivateEndpointRegistrationResource,
+		resource.NewQueryAPIEndpointResource,
 		resource.NewRoleResource,
 		resource.NewRoleAssignmentResource,
 		resource.NewServicePrivateEndpointsAttachmentResource,
@@ -52,5 +53,6 @@ func (servicePackage) DataSources() []func() upstreamdatasource.DataSource {
 		datasource.NewUserDataSource,
 		datasource.NewServiceDataSource,
 		datasource.NewServicesDataSource,
+		datasource.NewServiceProfilesDataSource,
 	}
 }

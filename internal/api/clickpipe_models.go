@@ -270,6 +270,7 @@ type ClickPipeMongoDBSettings struct {
 	SyncIntervalSeconds            *int   `json:"syncIntervalSeconds,omitempty"`
 	PullBatchSize                  *int   `json:"pullBatchSize,omitempty"`
 	ReplicationMode                string `json:"replicationMode,omitempty"`
+	InitialLoadParallelism         *int   `json:"initialLoadParallelism,omitempty"`
 	SnapshotNumRowsPerPartition    *int   `json:"snapshotNumRowsPerPartition,omitempty"`
 	SnapshotNumberOfParallelTables *int   `json:"snapshotNumberOfParallelTables,omitempty"`
 	DeleteOnMerge                  *bool  `json:"deleteOnMerge,omitempty"`
@@ -357,6 +358,7 @@ type ClickPipeDestinationTableDefinition struct {
 	SortingKey  []string                        `json:"sortingKey"`
 	PartitionBy *string                         `json:"partitionBy,omitempty"`
 	PrimaryKey  *string                         `json:"primaryKey,omitempty"`
+	TTL         *string                         `json:"ttl,omitempty"`
 }
 
 type ClickPipeDestination struct {

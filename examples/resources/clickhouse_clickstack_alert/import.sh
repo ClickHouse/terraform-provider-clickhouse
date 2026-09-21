@@ -9,3 +9,20 @@ terraform import clickhouse_clickstack_alert.too_many_errors 65f0c0ffeecafef00db
 # form {"data": [{"id": "...", "name": "...", "savedSearchId": "...", ...}]}.
 curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
   "$CLICKSTACK_ENDPOINT/api/v2/alerts" | jq -r '.data[] | "\(.id)\t\(.name)"'
+
+# Tile alerts (source = "tile") are imported the same way, by the alert's own ID.
+# Importing a dashboard does not import its tile alerts: terraform import maps one
+# ID to one resource. List the tile alerts with their dashboard and tile ids:
+curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
+  "$CLICKSTACK_ENDPOINT/api/v2/alerts" \
+  | jq -r '.data[] | select(.source == "tile") | "\(.id)\t\(.dashboardId)\t\(.tileId)\t\(.name)"'
+
+# `terraform plan -generate-config-out=...` writes the alert with literal ids for
+# dashboard_id, tile_id and the webhook_id inside channels. Terraform generates
+# config from state alone and cannot know those ids belong to other resources, so
+# replace them by hand to link the alert to its dashboard tile and webhook:
+#   dashboard_id = clickhouse_clickstack_dashboard.latency.id
+#   tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
+#   channels     = [{ type = "webhook", webhook_id = clickhouse_clickstack_webhook.slack.id }]
+# Import always populates channels, never the deprecated channel, whatever the
+# alert was created with. The generated `= null` lines can be deleted.

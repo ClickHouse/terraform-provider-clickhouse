@@ -46,6 +46,59 @@ resource "clickhouse_clickstack_alert" "latency_band" {
   num_consecutive_windows = 2
 }
 
+# A tile alert on a dashboard chart. Tile ids are assigned by the server, so the
+# alert takes the id from the dashboard's computed `tile_ids` map, keyed by tile
+# name. Keep the tile's name unique within the dashboard and unchanged: a rename
+# mints a new id and detaches the alert. Only line, stacked bar, and number tiles
+# can be alerted on.
+resource "clickhouse_clickstack_dashboard" "latency" {
+  dashboard_json = jsonencode({
+    name = "Latency"
+    tiles = [
+      {
+        name = "p95 latency"
+        x    = 0
+        y    = 0
+        w    = 12
+        h    = 6
+        config = {
+          displayType = "line"
+          sourceId    = clickhouse_clickstack_source.traces.id
+          select = [
+            {
+              aggFn           = "quantile"
+              level           = 0.95
+              valueExpression = "Duration"
+            }
+          ]
+        }
+      }
+    ]
+  })
+}
+
+resource "clickhouse_clickstack_alert" "p95_latency" {
+  source       = "tile"
+  dashboard_id = clickhouse_clickstack_dashboard.latency.id
+  tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
+
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.slack.id
+    },
+  ]
+
+  # Fire when the tile's p95 goes above 500 in a 5-minute window. The threshold is
+  # in the tile's own units: raw `Duration` here, which is nanoseconds when the
+  # source sets duration_precision = 9.
+  threshold      = 500
+  threshold_type = "above"
+  interval       = "5m"
+
+  name = "p95 latency too high"
+}
+
 # The pre-multi-channel `channel` form still applies, but it is deprecated and
 # can only ever notify one target. Switch it to a single-entry `channels` list.
 resource "clickhouse_clickstack_alert" "legacy_single_channel" {

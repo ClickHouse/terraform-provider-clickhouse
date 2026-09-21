@@ -4,14 +4,14 @@ page_title: "clickhouse_clickstack_dashboard Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
   Manages a ClickStack dashboard from a JSON document (the v2 API dashboard body: name, tiles, tags, filters, savedQuery, containers). The JSON is validated at plan time against the ClickStack API when the validate endpoint is available. Export an existing dashboard with GET /api/v2/dashboards/{id} or terraform import. PromQL tiles are not supported by the API and cannot be managed here. The dashboard_json configuration is the sole source of truth: this resource does not detect changes made to the dashboard outside Terraform (e.g. edits in the UI). Such out-of-band changes are not reported as drift on terraform plan; they persist until the dashboard_json value itself changes, at which point the entire dashboard is replaced and any manual edits are overwritten. Manage a dashboard either entirely in Terraform or entirely in the UI, not both.
-  Tile alerts (alerts bound to a dashboard tile) are not managed by this resource. On update, Terraform carries each tile's server-assigned ID forward — matched by tile name — so a UI-created tile alert survives an apply. Tiles with duplicate or blank names, or renamed between applies, fall back to positional matching and may lose their alert; pin an explicit id on such tiles if you manage tile alerts in the UI.
+  Tile alerts are managed with clickhouse_clickstack_alert (source = "tile"), which references this dashboard's id and a tile id. Tile ids are assigned by the server and cannot be set in dashboard_json (an authored id is ignored on create and replaced on update unless the server already has it). Use the computed tile_ids map to reference a tile by name from clickhouse_clickstack_alert, and keep alerted tiles' names unique and stable: Terraform carries each tile's id forward by name across updates, so a tile that keeps its unique name keeps its id wherever it moves in the array, while a rename mints a new id and drops the tile's alert. Position only decides ids among blank- or duplicate-named tiles. Importing a dashboard does not import its tile alerts; import each alert separately.
 ---
 
 # clickhouse_clickstack_dashboard (Resource)
 
 Manages a ClickStack dashboard from a JSON document (the v2 API dashboard body: name, tiles, tags, filters, savedQuery, containers). The JSON is validated at plan time against the ClickStack API when the validate endpoint is available. Export an existing dashboard with `GET /api/v2/dashboards/{id}` or `terraform import`. PromQL tiles are not supported by the API and cannot be managed here. The `dashboard_json` configuration is the sole source of truth: this resource does not detect changes made to the dashboard outside Terraform (e.g. edits in the UI). Such out-of-band changes are not reported as drift on `terraform plan`; they persist until the `dashboard_json` value itself changes, at which point the entire dashboard is replaced and any manual edits are overwritten. Manage a dashboard either entirely in Terraform or entirely in the UI, not both.
 
-Tile alerts (alerts bound to a dashboard tile) are not managed by this resource. On update, Terraform carries each tile's server-assigned ID forward — matched by tile `name` — so a UI-created tile alert survives an apply. Tiles with duplicate or blank names, or renamed between applies, fall back to positional matching and may lose their alert; pin an explicit `id` on such tiles if you manage tile alerts in the UI.
+Tile alerts are managed with `clickhouse_clickstack_alert` (`source = "tile"`), which references this dashboard's `id` and a tile `id`. Tile ids are assigned by the server and cannot be set in `dashboard_json` (an authored `id` is ignored on create and replaced on update unless the server already has it). Use the computed `tile_ids` map to reference a tile by name from `clickhouse_clickstack_alert`, and keep alerted tiles' names unique and stable: Terraform carries each tile's id forward by name across updates, so a tile that keeps its unique name keeps its id wherever it moves in the array, while a rename mints a new id and drops the tile's alert. Position only decides ids among blank- or duplicate-named tiles. Importing a dashboard does not import its tile alerts; import each alert separately.
 
 ## Example Usage
 
@@ -77,6 +77,7 @@ variable "connection_id" { type = string }
 
 - `id` (String) Identifier of the dashboard.
 - `normalized_json` (String) Server-canonical dashboard body returned by the API (defaults applied, server-assigned tile IDs).
+- `tile_ids` (Map of String) Server-assigned tile ids keyed by tile name, for tiles whose name is non-empty and unique within the dashboard. Reference these from `clickhouse_clickstack_alert` (`source = "tile"`): `tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]`. Tile ids cannot be chosen in `dashboard_json`; the server assigns them and keeps them across updates for tiles that keep their unique name. Position only decides which id a blank- or duplicate-named tile gets, and only among those tiles: a named tile's id is never taken by position. A tile that keeps its unique name keeps its id at plan time; a new or renamed tile's id is known only after apply, and a name that disappears leaves the map, so an alert still referencing it fails at plan time with an invalid index.
 
 ## Import
 
@@ -97,4 +98,8 @@ terraform import clickhouse_clickstack_dashboard.collectors 65f0c0ffeecafef00dba
 # generates config from state alone and cannot know those ids belong to other
 # resources, so replace them by hand to link the dashboard to its sources:
 # sourceId = clickhouse_clickstack_source.traces.id
+
+# Tile alerts are separate resources and are NOT imported with the dashboard.
+# Import each one as a clickhouse_clickstack_alert (source = "tile") by its own
+# alert ID; see the clickhouse_clickstack_alert import example for how to list them.
 ```

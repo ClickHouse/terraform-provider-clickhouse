@@ -14,5 +14,17 @@ resource "clickhouse_role" "example" {
       permissions = ["control-plane:service:view-backups"]
       resources   = ["instance/<service-id>"]
     },
+    # Custom SQL console access scoped to a specific service
+    {
+      effect      = "ALLOW"
+      permissions = ["sql-console:database:access"]
+      resources   = ["instance/<service-id>"]
+      tags = {
+        grants = [
+          "GRANT SELECT ON default.*",
+          "REVOKE SELECT ON default.secret",
+        ]
+      }
+    },
   ]
 }

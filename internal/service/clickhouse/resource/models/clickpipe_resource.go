@@ -803,6 +803,7 @@ type ClickPipeMongoDBSettingsModel struct {
 	SyncIntervalSeconds            types.Int64  `tfsdk:"sync_interval_seconds"`
 	PullBatchSize                  types.Int64  `tfsdk:"pull_batch_size"`
 	ReplicationMode                types.String `tfsdk:"replication_mode"`
+	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
 	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
 	SnapshotNumberOfParallelTables types.Int64  `tfsdk:"snapshot_number_of_parallel_tables"`
 	DeleteOnMerge                  types.Bool   `tfsdk:"delete_on_merge"`
@@ -815,6 +816,7 @@ func (m ClickPipeMongoDBSettingsModel) ObjectType() types.ObjectType {
 			"sync_interval_seconds":              types.Int64Type,
 			"pull_batch_size":                    types.Int64Type,
 			"replication_mode":                   types.StringType,
+			"initial_load_parallelism":           types.Int64Type,
 			"snapshot_num_rows_per_partition":    types.Int64Type,
 			"snapshot_number_of_parallel_tables": types.Int64Type,
 			"delete_on_merge":                    types.BoolType,
@@ -828,6 +830,7 @@ func (m ClickPipeMongoDBSettingsModel) ObjectValue() types.Object {
 		"sync_interval_seconds":              m.SyncIntervalSeconds,
 		"pull_batch_size":                    m.PullBatchSize,
 		"replication_mode":                   m.ReplicationMode,
+		"initial_load_parallelism":           m.InitialLoadParallelism,
 		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
 		"snapshot_number_of_parallel_tables": m.SnapshotNumberOfParallelTables,
 		"delete_on_merge":                    m.DeleteOnMerge,
@@ -996,6 +999,7 @@ type ClickPipeDestinationTableDefinitionModel struct {
 	SortingKey  types.List   `tfsdk:"sorting_key"`
 	PartitionBy types.String `tfsdk:"partition_by"`
 	PrimaryKey  types.String `tfsdk:"primary_key"`
+	TTL         types.String `tfsdk:"ttl"`
 }
 
 func (m ClickPipeDestinationTableDefinitionModel) ObjectType() types.ObjectType {
@@ -1005,6 +1009,7 @@ func (m ClickPipeDestinationTableDefinitionModel) ObjectType() types.ObjectType 
 			"sorting_key":  types.ListType{ElemType: types.StringType},
 			"partition_by": types.StringType,
 			"primary_key":  types.StringType,
+			"ttl":          types.StringType,
 		},
 	}
 }
@@ -1015,6 +1020,7 @@ func (m ClickPipeDestinationTableDefinitionModel) ObjectValue() types.Object {
 		"sorting_key":  m.SortingKey,
 		"partition_by": m.PartitionBy,
 		"primary_key":  m.PrimaryKey,
+		"ttl":          m.TTL,
 	})
 }
 

@@ -61,6 +61,8 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
       engine {
         type = "MergeTree"
       }
+
+      ttl = "event_time + INTERVAL 30 DAY"
     }
 
     columns {
@@ -71,6 +73,11 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
     columns {
       name = "my_field2"
       type = "UInt64"
+    }
+
+    columns {
+      name = "event_time"
+      type = "DateTime"
     }
   }
 
@@ -139,6 +146,7 @@ Optional:
 - `partition_by` (String) The column to partition the table by.
 - `primary_key` (String) The primary key of the table.
 - `sorting_key` (List of String) The list of columns for the sorting key.
+- `ttl` (String) ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.
 
 <a id="nestedatt--destination--table_definition--engine"></a>
 ### Nested Schema for `destination.table_definition.engine`
@@ -227,7 +235,7 @@ Required:
 
 - `brokers` (String) The list of Kafka bootstrap brokers. (comma separated)
 - `format` (String) The format of the Kafka source. (`JSONEachRow`, `Avro`, `AvroConfluent`, `Protobuf`)
-- `topics` (String) The list of Kafka topics. (comma separated)
+- `topics` (String) One or more Kafka topics as a comma-separated string (for example, topic1,topic2). All topics must have the same schema and are ingested into the same destination table by a single ClickPipe.
 
 Optional:
 
@@ -355,6 +363,7 @@ Required:
 Optional:
 
 - `delete_on_merge` (Boolean) Enable hard delete behavior in ReplacingMergeTree for MongoDB DELETE operations.
+- `initial_load_parallelism` (Number) Number of parallel workers to use per collection during the initial snapshot phase. Can only be set at creation time; changing it forces pipe replacement.
 - `pull_batch_size` (Number) Number of rows to pull in each batch during CDC replication.
 - `snapshot_num_rows_per_partition` (Number) Number of rows per partition during the snapshot phase.
 - `snapshot_number_of_parallel_tables` (Number) Number of collections to snapshot in parallel during the initial load phase.

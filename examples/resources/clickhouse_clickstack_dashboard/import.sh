@@ -10,3 +10,7 @@ terraform import clickhouse_clickstack_dashboard.collectors 65f0c0ffeecafef00dba
 # generates config from state alone and cannot know those ids belong to other
 # resources, so replace them by hand to link the dashboard to its sources:
 # sourceId = clickhouse_clickstack_source.traces.id
+
+# Tile alerts are separate resources and are NOT imported with the dashboard.
+# Import each one as a clickhouse_clickstack_alert (source = "tile") by its own
+# alert ID; see the clickhouse_clickstack_alert import example for how to list them.

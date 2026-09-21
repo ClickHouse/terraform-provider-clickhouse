@@ -10,9 +10,14 @@ import (
 
 const alertsPath = "/api/v2/alerts"
 
-// AlertSourceSavedSearch is the only alert source this provider supports today:
-// alerts evaluate a saved search. (Tile alerts, source "tile", are out of scope.)
-const AlertSourceSavedSearch = "saved_search"
+// Alert sources accepted by the external v2 API. A saved-search alert evaluates
+// a saved search; a tile alert evaluates one dashboard tile (line, stacked bar,
+// or number). The API also has an internal-only "inline" source that is not
+// exposed externally yet.
+const (
+	AlertSourceSavedSearch = "saved_search"
+	AlertSourceTile        = "tile"
+)
 
 // AlertChannelWebhook is the webhook channel type.
 const AlertChannelWebhook = "webhook"
@@ -50,6 +55,8 @@ type AlertChannel struct {
 //     removing it from config is a no-op (recreate to reset).
 //   - thresholdMax: kept when omitted and rejects null; only sent for range
 //     threshold types (and applyAlert does not reconcile it for other types).
+//   - savedSearchId, dashboardId, tileId: an omitted id keeps the current target,
+//     which is why the resource rejects "" at plan time instead of sending it.
 type Alert struct {
 	ID     string `json:"id,omitempty"`
 	Source string `json:"source"`
@@ -57,19 +64,24 @@ type Alert struct {
 	// Channels[0] on read and accepts both fields on write only when they agree,
 	// so mirrorChannel keeps them in sync before every request. Sending it keeps
 	// single-channel writes working against deployments that predate Channels.
-	Channel               AlertChannel   `json:"channel"`
-	Channels              []AlertChannel `json:"channels,omitempty"`
-	Interval              string         `json:"interval"`
-	Threshold             float64        `json:"threshold"`
-	ThresholdType         string         `json:"thresholdType"`
-	ThresholdMax          *float64       `json:"thresholdMax,omitempty"`
-	SavedSearchID         string         `json:"savedSearchId"`
-	GroupBy               *string        `json:"groupBy,omitempty"`
-	Name                  *string        `json:"name,omitempty"`
-	Message               *string        `json:"message,omitempty"`
-	Note                  *string        `json:"note,omitempty"`
-	NumConsecutiveWindows *int           `json:"numConsecutiveWindows,omitempty"`
-	ScheduleOffsetMinutes *int           `json:"scheduleOffsetMinutes,omitempty"`
+	Channel       AlertChannel   `json:"channel"`
+	Channels      []AlertChannel `json:"channels,omitempty"`
+	Interval      string         `json:"interval"`
+	Threshold     float64        `json:"threshold"`
+	ThresholdType string         `json:"thresholdType"`
+	ThresholdMax  *float64       `json:"thresholdMax,omitempty"`
+	// Exactly one target is set, matching Source. All three are omitempty so the
+	// unused pair is never sent; the API strips keys outside the chosen source's
+	// branch, so sending them would only mislead a reader of the request.
+	SavedSearchID         string  `json:"savedSearchId,omitempty"`
+	DashboardID           string  `json:"dashboardId,omitempty"`
+	TileID                string  `json:"tileId,omitempty"`
+	GroupBy               *string `json:"groupBy,omitempty"`
+	Name                  *string `json:"name,omitempty"`
+	Message               *string `json:"message,omitempty"`
+	Note                  *string `json:"note,omitempty"`
+	NumConsecutiveWindows *int    `json:"numConsecutiveWindows,omitempty"`
+	ScheduleOffsetMinutes *int    `json:"scheduleOffsetMinutes,omitempty"`
 	// ScheduleStartAt is always serialized (no omitempty): a nil pointer sends
 	// JSON null, which the API treats as "clear" (and then forces the offset to
 	// 0). Omitting it would instead preserve the previous value. The provider
@@ -91,10 +103,10 @@ type alertEnvelope struct {
 	Data Alert `json:"data"`
 }
 
-// CreateAlert creates an alert and returns it as stored by the API. Source is
-// forced to saved_search regardless of the input.
+// CreateAlert creates an alert and returns it as stored by the API. Source
+// defaults to saved_search when unset.
 func (c *Client) CreateAlert(ctx context.Context, input Alert) (*Alert, error) {
-	input.Source = AlertSourceSavedSearch
+	input.Source = defaultSource(input.Source)
 	input.mirrorChannel()
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -128,12 +140,13 @@ func (c *Client) GetAlert(ctx context.Context, id string) (*Alert, error) {
 	return &resp.Data, nil
 }
 
-// UpdateAlert updates an alert by ID and returns the updated alert. The API PUT
-// is a partial $set of the write-schema fields (see the Alert doc for which
-// omitted fields clear vs. are kept), not a whole-document replace. It returns an
-// error wrapping ErrNotFound when the alert does not exist.
+// UpdateAlert updates an alert by ID and returns the updated alert. Source
+// defaults to saved_search when unset. The API PUT is a partial $set of the
+// write-schema fields (see the Alert doc for which omitted fields clear vs. are
+// kept), not a whole-document replace. It returns an error wrapping ErrNotFound
+// when the alert does not exist.
 func (c *Client) UpdateAlert(ctx context.Context, id string, input Alert) (*Alert, error) {
-	input.Source = AlertSourceSavedSearch
+	input.Source = defaultSource(input.Source)
 	input.mirrorChannel()
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -158,4 +171,13 @@ func (c *Client) UpdateAlert(ctx context.Context, id string, input Alert) (*Aler
 func (c *Client) DeleteAlert(ctx context.Context, id string) error {
 	_, err := c.do(ctx, http.MethodDelete, alertsPath+"/"+url.PathEscape(id), nil)
 	return err
+}
+
+// defaultSource keeps callers that predate tile alerts working: an empty source
+// still means a saved-search alert.
+func defaultSource(s string) string {
+	if s == "" {
+		return AlertSourceSavedSearch
+	}
+	return s
 }

@@ -11,6 +11,7 @@ type Client interface {
 	GetService(ctx context.Context, serviceId string) (*Service, error)
 	GetServiceBase(ctx context.Context, serviceId string) (*Service, error)
 	ListServices(ctx context.Context, filters []string) ([]Service, error)
+	ListServiceProfiles(ctx context.Context, regionId string, byocId string) ([]ServiceProfile, error)
 	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
 	CreateService(ctx context.Context, s Service) (*Service, string, error)
 	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error
@@ -46,6 +47,10 @@ type Client interface {
 	GetQueryEndpoint(ctx context.Context, serviceID string) (*ServiceQueryEndpoint, error)
 	CreateQueryEndpoint(ctx context.Context, serviceID string, endpoint ServiceQueryEndpoint) (*ServiceQueryEndpoint, error)
 	DeleteQueryEndpoint(ctx context.Context, serviceID string) error
+	GetQueryAPIEndpoint(ctx context.Context, serviceID, endpointID string) (*QueryAPIEndpoint, error)
+	CreateQueryAPIEndpoint(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest) (*QueryAPIEndpoint, error)
+	UpdateQueryAPIEndpoint(ctx context.Context, serviceID, endpointID string, endpoint QueryAPIEndpointRequest) (*QueryAPIEndpoint, error)
+	DeleteQueryAPIEndpoint(ctx context.Context, serviceID, endpointID string) error
 
 	GetClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
 	CreateClickPipe(ctx context.Context, serviceId string, clickPipe ClickPipe) (*ClickPipe, error)
