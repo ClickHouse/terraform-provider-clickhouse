@@ -54,6 +54,7 @@ func kafkaUpdateModel(caCertificate types.String, kafkaPassword string) models.C
 		"ca_certificate":               caCertificate,
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 types.BoolNull(),
+		"tombstone_mode":               types.StringNull(),
 	}
 	src := models.ClickPipeSourceModel{
 		Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
@@ -146,6 +147,7 @@ func TestClickPipeUpdate_KafkaOmitsImmutableFields(t *testing.T) {
 	assert.Empty(t, kafka.Topics, "immutable topics must be omitted")
 	assert.Nil(t, kafka.ConsumerGroup, "immutable consumer group must be omitted")
 	assert.Nil(t, kafka.Offset, "immutable offset must be omitted")
+	assert.Nil(t, kafka.TombstoneMode, "immutable tombstone mode must be omitted")
 
 	require.NotNil(t, kafka.CACertificate, "the mutable ca_certificate change must be carried")
 	assert.Equal(t, "PEM-CA", *kafka.CACertificate)
