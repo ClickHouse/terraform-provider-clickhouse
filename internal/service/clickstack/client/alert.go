@@ -12,11 +12,11 @@ const alertsPath = "/api/v2/alerts"
 
 // Alert sources accepted by the external v2 API. A saved-search alert evaluates
 // a saved search; a tile alert evaluates one dashboard tile (line, stacked bar,
-// or number). The API also has an internal-only "inline" source that is not
-// exposed externally yet.
+// or number); an inline alert has neither, just its own chart config.
 const (
 	AlertSourceSavedSearch = "saved_search"
 	AlertSourceTile        = "tile"
+	AlertSourceInline      = "inline"
 )
 
 // AlertChannelWebhook is the webhook channel type.
@@ -57,6 +57,8 @@ type AlertChannel struct {
 //     threshold types (and applyAlert does not reconcile it for other types).
 //   - savedSearchId, dashboardId, tileId: an omitted id keeps the current target,
 //     which is why the resource rejects "" at plan time instead of sending it.
+//   - chartConfig: required by the API on every inline write, so it is always
+//     sent in full for that source and never partially updated.
 type Alert struct {
 	ID     string `json:"id,omitempty"`
 	Source string `json:"source"`
@@ -73,15 +75,21 @@ type Alert struct {
 	// Exactly one target is set, matching Source. All three are omitempty so the
 	// unused pair is never sent; the API strips keys outside the chosen source's
 	// branch, so sending them would only mislead a reader of the request.
-	SavedSearchID         string  `json:"savedSearchId,omitempty"`
-	DashboardID           string  `json:"dashboardId,omitempty"`
-	TileID                string  `json:"tileId,omitempty"`
-	GroupBy               *string `json:"groupBy,omitempty"`
-	Name                  *string `json:"name,omitempty"`
-	Message               *string `json:"message,omitempty"`
-	Note                  *string `json:"note,omitempty"`
-	NumConsecutiveWindows *int    `json:"numConsecutiveWindows,omitempty"`
-	ScheduleOffsetMinutes *int    `json:"scheduleOffsetMinutes,omitempty"`
+	SavedSearchID string `json:"savedSearchId,omitempty"`
+	DashboardID   string `json:"dashboardId,omitempty"`
+	TileID        string `json:"tileId,omitempty"`
+	// ChartConfig is an inline alert's chart config, in the same external
+	// dialect as a v2 dashboard tile's config. The API rejects it on the other
+	// sources, hence omitempty. A single-alert response returns it, except
+	// when the stored config uses fields the external dialect cannot express;
+	// the list endpoint never returns it.
+	ChartConfig           json.RawMessage `json:"chartConfig,omitempty"`
+	GroupBy               *string         `json:"groupBy,omitempty"`
+	Name                  *string         `json:"name,omitempty"`
+	Message               *string         `json:"message,omitempty"`
+	Note                  *string         `json:"note,omitempty"`
+	NumConsecutiveWindows *int            `json:"numConsecutiveWindows,omitempty"`
+	ScheduleOffsetMinutes *int            `json:"scheduleOffsetMinutes,omitempty"`
 	// ScheduleStartAt is always serialized (no omitempty): a nil pointer sends
 	// JSON null, which the API treats as "clear" (and then forces the offset to
 	// 0). Omitting it would instead preserve the previous value. The provider
