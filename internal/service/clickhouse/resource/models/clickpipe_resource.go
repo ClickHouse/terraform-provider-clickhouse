@@ -238,9 +238,37 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeKinesisSchemaRegistryModel struct {
+	Type             types.String `tfsdk:"type"`
+	GlueRegion       types.String `tfsdk:"glue_region"`
+	GlueRegistryName types.String `tfsdk:"glue_registry_name"`
+	GlueRoleArn      types.String `tfsdk:"glue_role_arn"`
+}
+
+func (m ClickPipeKinesisSchemaRegistryModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"type":               types.StringType,
+			"glue_region":        types.StringType,
+			"glue_registry_name": types.StringType,
+			"glue_role_arn":      types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeKinesisSchemaRegistryModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"type":               m.Type,
+		"glue_region":        m.GlueRegion,
+		"glue_registry_name": m.GlueRegistryName,
+		"glue_role_arn":      m.GlueRoleArn,
+	})
+}
+
 type ClickPipeKinesisSourceModel struct {
 	Format            types.String `tfsdk:"format"`
 	ProtobufSchema    types.String `tfsdk:"protobuf_schema"`
+	SchemaRegistry    types.Object `tfsdk:"schema_registry"`
 	StreamName        types.String `tfsdk:"stream_name"`
 	Region            types.String `tfsdk:"region"`
 	IteratorType      types.String `tfsdk:"iterator_type"`
@@ -256,6 +284,7 @@ func (m ClickPipeKinesisSourceModel) ObjectType() types.ObjectType {
 		AttrTypes: map[string]attr.Type{
 			"format":               types.StringType,
 			"protobuf_schema":      types.StringType,
+			"schema_registry":      ClickPipeKinesisSchemaRegistryModel{}.ObjectType(),
 			"stream_name":          types.StringType,
 			"region":               types.StringType,
 			"iterator_type":        types.StringType,
@@ -272,6 +301,7 @@ func (m ClickPipeKinesisSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"format":               m.Format,
 		"protobuf_schema":      m.ProtobufSchema,
+		"schema_registry":      m.SchemaRegistry,
 		"stream_name":          m.StreamName,
 		"region":               m.Region,
 		"iterator_type":        m.IteratorType,

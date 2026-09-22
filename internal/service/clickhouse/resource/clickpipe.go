@@ -39,6 +39,9 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
+// iamRoleArnRegex matches an IAM role ARN in any AWS partition, with an optional path.
+var iamRoleArnRegex = regexp.MustCompile(`^arn:aws[a-z-]*:iam::[0-9]{12}:role/(?:[\x21-\x7E]+/)?[\w+=,.@-]+$`)
+
 var (
 	_ resource.Resource                     = &ClickPipeResource{}
 	_ resource.ResourceWithModifyPlan       = &ClickPipeResource{}
@@ -654,7 +657,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						},
 					},
 					"kinesis": schema.SingleNestedAttribute{
-						MarkdownDescription: "The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field forces resource replacement (destroy and recreate).",
+						MarkdownDescription: "The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field, including `schema_registry`, forces resource replacement (destroy and recreate).",
 						Optional:            true,
 						PlanModifiers: []planmodifier.Object{
 							requiresReplaceIfSourceTypeChanges{},
@@ -676,11 +679,53 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"protobuf_schema": schema.StringAttribute{
 								MarkdownDescription: "Base64-encoded Protobuf schema. " +
 									"Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. " +
-									"Required with `format = \"Protobuf\"` and not supported with other formats. " +
+									"Required with `format = \"Protobuf\"` unless `schema_registry` is set, and not supported with other formats. " +
 									"Changing it forces replacement.",
 								Optional: true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"schema_registry": schema.SingleNestedAttribute{
+								MarkdownDescription: "The AWS Glue schema registry for the Kinesis source. " +
+									"Required with `format = \"AvroConfluent\"`, optional with `format = \"Protobuf\"` instead of `protobuf_schema`, and not supported with other formats. " +
+									"Glue is read with the source's IAM identity unless `glue_role_arn` is set. Immutable: any change forces pipe replacement.",
+								Optional: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.RequiresReplace(),
+								},
+								Attributes: map[string]schema.Attribute{
+									"type": schema.StringAttribute{
+										MarkdownDescription: fmt.Sprintf(
+											"The type of the schema registry. (%s)",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKinesisSchemaRegistryTypes),
+										),
+										Required: true,
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipeKinesisSchemaRegistryTypes...),
+										},
+									},
+									"glue_region": schema.StringAttribute{
+										Description: "The AWS region of the Glue schema registry.",
+										Required:    true,
+										Validators: []validator.String{
+											stringvalidator.LengthAtLeast(1),
+										},
+									},
+									"glue_registry_name": schema.StringAttribute{
+										Description: "The name of the Glue schema registry.",
+										Required:    true,
+										Validators: []validator.String{
+											stringvalidator.LengthAtLeast(1),
+										},
+									},
+									"glue_role_arn": schema.StringAttribute{
+										Description: "The IAM role to assume for Glue schema registry access. Defaults to the IAM identity of the Kinesis source.",
+										Optional:    true,
+										Validators: []validator.String{
+											stringvalidator.RegexMatches(iamRoleArnRegex, "must be an IAM role ARN"),
+										},
+									},
 								},
 							},
 							"stream_name": schema.StringAttribute{
@@ -3331,6 +3376,17 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			encodedSchema := strings.TrimSpace(kinesisModel.ProtobufSchema.ValueString())
 			source.Kinesis.ProtobufSchema = &encodedSchema
 		}
+		if !isUpdate && !kinesisModel.SchemaRegistry.IsNull() {
+			schemaRegistryModel := models.ClickPipeKinesisSchemaRegistryModel{}
+			diagnostics.Append(kinesisModel.SchemaRegistry.As(ctx, &schemaRegistryModel, basetypes.ObjectAsOptions{})...)
+
+			source.Kinesis.SchemaRegistry = &api.ClickPipeKinesisSchemaRegistry{
+				Type:             schemaRegistryModel.Type.ValueString(),
+				GlueRegion:       strings.TrimSpace(schemaRegistryModel.GlueRegion.ValueString()),
+				GlueRegistryName: strings.TrimSpace(schemaRegistryModel.GlueRegistryName.ValueString()),
+				GlueRoleArn:      schemaRegistryModel.GlueRoleArn.ValueStringPointer(),
+			}
+		}
 
 		if !kinesisModel.Timestamp.IsNull() {
 			source.Kinesis.Timestamp = kinesisModel.Timestamp.ValueStringPointer()
@@ -4416,6 +4472,17 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Authentication:    types.StringValue(clickPipe.Source.Kinesis.Authentication),
 			IAMRole:           types.StringPointerValue(clickPipe.Source.Kinesis.IAMRole),
 			Timestamp:         types.StringPointerValue(clickPipe.Source.Kinesis.Timestamp),
+		}
+
+		if clickPipe.Source.Kinesis.SchemaRegistry != nil {
+			kinesisModel.SchemaRegistry = models.ClickPipeKinesisSchemaRegistryModel{
+				Type:             types.StringValue(clickPipe.Source.Kinesis.SchemaRegistry.Type),
+				GlueRegion:       types.StringValue(clickPipe.Source.Kinesis.SchemaRegistry.GlueRegion),
+				GlueRegistryName: types.StringValue(clickPipe.Source.Kinesis.SchemaRegistry.GlueRegistryName),
+				GlueRoleArn:      types.StringPointerValue(clickPipe.Source.Kinesis.SchemaRegistry.GlueRoleArn),
+			}.ObjectValue()
+		} else {
+			kinesisModel.SchemaRegistry = types.ObjectNull(models.ClickPipeKinesisSchemaRegistryModel{}.ObjectType().AttrTypes)
 		}
 
 		if !stateKinesisModel.AccessKey.IsNull() {

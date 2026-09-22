@@ -138,12 +138,13 @@ func (v kafkaProtobufSchemaValidator) ValidateResource(ctx context.Context, req 
 	}
 }
 
-// kinesisProtobufSchemaValidator enforces the Kinesis Protobuf schema rules exposed by the OpenAPI.
+// kinesisProtobufSchemaValidator enforces the Kinesis schema source rules exposed by the OpenAPI:
+// an uploaded Protobuf schema and an AWS Glue schema registry are alternatives, each tied to specific formats.
 type kinesisProtobufSchemaValidator struct{}
 
-// Description returns a plain-text summary of the Kinesis Protobuf schema validation.
+// Description returns a plain-text summary of the Kinesis schema source validation.
 func (v kinesisProtobufSchemaValidator) Description(_ context.Context) string {
-	return "Validates direct Kinesis Protobuf schema configuration."
+	return "Validates Kinesis Protobuf schema and AWS Glue schema registry configuration."
 }
 
 // MarkdownDescription returns the validation summary for the supplied context.
@@ -196,6 +197,17 @@ func (v kinesisProtobufSchemaValidator) ValidateResource(
 		}
 	}
 
+	schemaRegistryPath := path.Root("source").AtName("kinesis").AtName("schema_registry")
+	schemaRegistryKnown := !kinesisModel.SchemaRegistry.IsUnknown()
+	schemaRegistrySet := schemaRegistryKnown && !kinesisModel.SchemaRegistry.IsNull()
+	if protobufSchemaSet && schemaRegistrySet {
+		resp.Diagnostics.AddAttributeError(
+			schemaRegistryPath,
+			"Invalid Kinesis schema configuration",
+			"protobuf_schema cannot be combined with schema_registry.",
+		)
+	}
+
 	if kinesisModel.Format.IsNull() || kinesisModel.Format.IsUnknown() {
 		return
 	}
@@ -208,12 +220,27 @@ func (v kinesisProtobufSchemaValidator) ValidateResource(
 			"protobuf_schema is supported only when format is Protobuf.",
 		)
 	}
+	if schemaRegistrySet && format != api.ClickPipeAvroConfluentFormat && format != api.ClickPipeProtobufFormat {
+		resp.Diagnostics.AddAttributeError(
+			schemaRegistryPath,
+			"Invalid Kinesis schema registry configuration",
+			"schema_registry is supported only when format is AvroConfluent or Protobuf.",
+		)
+	}
+	schemaRegistryMissing := schemaRegistryKnown && !schemaRegistrySet
+	if format == api.ClickPipeAvroConfluentFormat && schemaRegistryMissing {
+		resp.Diagnostics.AddAttributeError(
+			schemaRegistryPath,
+			"Missing Kinesis schema registry",
+			"AvroConfluent format requires schema_registry.",
+		)
+	}
 	protobufSchemaMissing := protobufSchemaKnown && !protobufSchemaSet
-	if format == api.ClickPipeProtobufFormat && protobufSchemaMissing {
+	if format == api.ClickPipeProtobufFormat && protobufSchemaMissing && schemaRegistryMissing {
 		resp.Diagnostics.AddAttributeError(
 			protobufSchemaPath,
 			"Missing Kinesis Protobuf schema",
-			"Protobuf format requires protobuf_schema.",
+			"Protobuf format requires either protobuf_schema or schema_registry.",
 		)
 	}
 }

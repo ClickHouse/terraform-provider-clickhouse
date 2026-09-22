@@ -143,10 +143,21 @@ type ClickPipeObjectStorageSource struct {
 	AzureContainerName *string `json:"azureContainerName,omitempty"`
 }
 
+// ClickPipeKinesisSchemaRegistry is the AWS Glue schema registry of a Kinesis source. Glue authenticates
+// with the source's IAM identity, or with GlueRoleArn when set, so it carries no credentials.
+type ClickPipeKinesisSchemaRegistry struct {
+	Type             string  `json:"type"`
+	GlueRegion       string  `json:"glueRegion"`
+	GlueRegistryName string  `json:"glueRegistryName"`
+	GlueRoleArn      *string `json:"glueRoleArn,omitempty"`
+}
+
 type ClickPipeKinesisSource struct {
 	Format string `json:"format"`
-	// ProtobufSchema contains the base64-encoded schema required for Protobuf format.
+	// ProtobufSchema contains the base64-encoded schema used when no schema registry is configured.
 	ProtobufSchema *string `json:"protobufSchema,omitempty"`
+	// SchemaRegistry is required for AvroConfluent and replaces ProtobufSchema for Protobuf.
+	SchemaRegistry *ClickPipeKinesisSchemaRegistry `json:"schemaRegistry,omitempty"`
 
 	StreamName string `json:"streamName"`
 	Region     string `json:"region"`
