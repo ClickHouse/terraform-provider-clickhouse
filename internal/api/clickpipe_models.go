@@ -111,7 +111,8 @@ type ClickPipeKafkaSource struct {
 
 	ReversePrivateEndpointIDs []string `json:"reversePrivateEndpointIds,omitempty"`
 
-	ExactlyOnce *bool `json:"exactlyOnce,omitempty"`
+	ExactlyOnce   *bool   `json:"exactlyOnce,omitempty"`
+	TombstoneMode *string `json:"tombstoneMode,omitempty"`
 
 	SSHKeyResourceID *string `json:"sshKeyResourceId,omitempty"`
 }
