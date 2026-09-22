@@ -483,6 +483,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									boolplanmodifier.RequiresReplace(),
 								},
 							},
+							"tombstone_mode": schema.StringAttribute{
+								MarkdownDescription: "How Kafka tombstone records are handled. Set to `delete` to delete the matching destination row using field mappings sourced from `_key` or `_key.<field>`. Requires `exactly_once = true`. This setting is create-only; changing it forces ClickPipe replacement.",
+								Optional:            true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeKafkaTombstoneModes...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 						},
 					},
 					"object_storage": schema.SingleNestedAttribute{
@@ -3115,6 +3125,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			source.Kafka.Format = kafkaModel.Format.ValueString()
 			source.Kafka.ProtobufSchema = kafkaModel.ProtobufSchema.ValueStringPointer()
 			source.Kafka.ExactlyOnce = kafkaModel.ExactlyOnce.ValueBoolPointer()
+			source.Kafka.TombstoneMode = kafkaModel.TombstoneMode.ValueStringPointer()
 			source.Kafka.SSHKeyResourceID = kafkaModel.SSHKeyResourceID.ValueStringPointer()
 		}
 
@@ -4307,6 +4318,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			kafkaModel.ExactlyOnce = types.BoolValue(*clickPipe.Source.Kafka.ExactlyOnce)
 		} else {
 			kafkaModel.ExactlyOnce = types.BoolNull()
+		}
+
+		if clickPipe.Source.Kafka.TombstoneMode != nil {
+			kafkaModel.TombstoneMode = types.StringValue(*clickPipe.Source.Kafka.TombstoneMode)
+		} else {
+			kafkaModel.TombstoneMode = types.StringNull()
 		}
 
 		if clickPipe.Source.Kafka.SSHKeyResourceID != nil {
