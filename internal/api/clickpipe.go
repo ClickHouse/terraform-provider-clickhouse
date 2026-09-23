@@ -150,6 +150,12 @@ var ClickPipeKinesisAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMUser,
 }
 
+const ClickPipeKinesisSchemaRegistryTypeGlue = "glue"
+
+var ClickPipeKinesisSchemaRegistryTypes = []string{
+	ClickPipeKinesisSchemaRegistryTypeGlue,
+}
+
 const (
 	ClickPipeKinesisTrimHorizonIteratorType = "TRIM_HORIZON"
 	ClickPipeKinesisLatestIteratorType      = "LATEST"

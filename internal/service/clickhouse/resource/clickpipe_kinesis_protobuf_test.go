@@ -94,7 +94,7 @@ func TestClickPipeResource_ValidatesKinesisProtobufSchemaConfiguration(t *testin
 			name:           "requires a schema for Protobuf",
 			format:         types.StringValue(api.ClickPipeProtobufFormat),
 			schema:         types.StringNull(),
-			expectedDetail: "Protobuf format requires protobuf_schema.",
+			expectedDetail: "Protobuf format requires either protobuf_schema or schema_registry.",
 		},
 		{
 			name:           "rejects empty schemas",
@@ -141,7 +141,7 @@ func TestClickPipeResource_ValidatesKinesisProtobufSchemaConfiguration(t *testin
 		})
 	}
 
-	for _, format := range api.ClickPipeStreamingFormats {
+	for _, format := range []string{api.ClickPipeJSONEachRowFormat, api.ClickPipeAvroFormat} {
 		t.Run(format+" remains supported without a schema", func(t *testing.T) {
 			model := kinesisProtobufModel(t, types.StringValue(format), types.StringNull())
 
