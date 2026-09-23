@@ -4,6 +4,8 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
@@ -334,9 +336,8 @@ func (r *RoleResource) syncRoleState(ctx context.Context, state *models.RoleReso
 func applyRoleToState(ctx context.Context, role *api.RBACRole, state *models.RoleResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	// Declared permissions (plan on Create/Update, prior state on Read), captured
-	// before we overwrite state.Policies. Used to reconcile away injected perms.
-	desiredPerms := desiredPolicyPermissions(ctx, state.Policies, &diags)
+	// Captured before state.Policies is overwritten; see correlatePolicies.
+	base := basePolicies(ctx, state.Policies, &diags)
 	if diags.HasError() {
 		return diags
 	}
@@ -360,25 +361,22 @@ func applyRoleToState(ctx context.Context, role *api.RBACRole, state *models.Rol
 			state.Policies = emptyList
 		}
 	} else {
-		policyValues := make([]attr.Value, len(role.Policies))
-		for i, p := range role.Policies {
+		orderedPolicies, orderedPerms := correlatePolicies(base, role.Policies)
+
+		policyValues := make([]attr.Value, len(orderedPolicies))
+		for i, p := range orderedPolicies {
 			policyModel, d := models.APIToRolePolicyModel(p)
 			diags.Append(d...)
 			if diags.HasError() {
 				return diags
 			}
 
-			// Matched by index, which assumes the server returns policies in the
-			// same order they were sent. This is the same positional assumption
-			// the ordered policies List already relies on.
-			if i < len(desiredPerms) {
-				reconciled, d := reconcilePermissions(ctx, desiredPerms[i], policyModel.Permissions)
-				diags.Append(d...)
-				if diags.HasError() {
-					return diags
-				}
-				policyModel.Permissions = reconciled
+			reconciled, d := reconcilePermissions(ctx, orderedPerms[i], policyModel.Permissions)
+			diags.Append(d...)
+			if diags.HasError() {
+				return diags
 			}
+			policyModel.Permissions = reconciled
 
 			policyValues[i] = policyModel.ObjectValue()
 		}
@@ -393,9 +391,15 @@ func applyRoleToState(ctx context.Context, role *api.RBACRole, state *models.Rol
 	return diags
 }
 
-// desiredPolicyPermissions returns the declared permission set per policy, or
-// nil when there is nothing to reconcile against (import, first read).
-func desiredPolicyPermissions(ctx context.Context, policies types.List, diags *diag.Diagnostics) []types.Set {
+type basePolicyInfo struct {
+	key      string
+	perms    types.Set
+	permList []string
+}
+
+// basePolicies returns the declared policies in order, or nil when there is
+// nothing to correlate against (import, first read).
+func basePolicies(ctx context.Context, policies types.List, diags *diag.Diagnostics) []basePolicyInfo {
 	if policies.IsNull() || policies.IsUnknown() {
 		return nil
 	}
@@ -406,11 +410,75 @@ func desiredPolicyPermissions(ctx context.Context, policies types.List, diags *d
 		return nil
 	}
 
-	perms := make([]types.Set, len(policyModels))
+	result := make([]basePolicyInfo, len(policyModels))
 	for i, pm := range policyModels {
-		perms[i] = pm.Permissions
+		// Both Required, so never unknown by apply time.
+		var resources, perms []string
+		diags.Append(pm.Resources.ElementsAs(ctx, &resources, false)...)
+		diags.Append(pm.Permissions.ElementsAs(ctx, &perms, false)...)
+		if diags.HasError() {
+			return nil
+		}
+
+		result[i] = basePolicyInfo{
+			key:      policyMatchKey(pm.Effect.ValueString(), resources),
+			perms:    pm.Permissions,
+			permList: perms,
+		}
 	}
-	return perms
+	return result
+}
+
+// policyMatchKey uses the fields the API echoes back unchanged. Permissions are
+// excluded because the backend can inject extras; they only break ties.
+func policyMatchKey(effect string, resources []string) string {
+	sorted := slices.Clone(resources)
+	slices.Sort(sorted)
+	return effect + "|" + strings.Join(sorted, ",")
+}
+
+// correlatePolicies reorders apiPolicies to match base: the backend reassigns
+// IDs and does not preserve order on PATCH. Policies sharing a key are paired
+// by largest permission overlap; unmatched API policies are appended with a
+// null desired set, so reconcilePermissions keeps their actual permissions.
+func correlatePolicies(base []basePolicyInfo, apiPolicies []api.RBACPolicy) ([]api.RBACPolicy, []types.Set) {
+	used := make([]bool, len(apiPolicies))
+	ordered := make([]api.RBACPolicy, 0, len(apiPolicies))
+	perms := make([]types.Set, 0, len(apiPolicies))
+
+	for _, b := range base {
+		matched, bestOverlap := -1, -1
+		for i, p := range apiPolicies {
+			if used[i] || policyMatchKey(string(p.AllowDeny), p.Resources) != b.key {
+				continue
+			}
+			overlap := 0
+			for _, perm := range p.Permissions {
+				if slices.Contains(b.permList, perm) {
+					overlap++
+				}
+			}
+			if overlap > bestOverlap {
+				matched, bestOverlap = i, overlap
+			}
+		}
+		if matched == -1 {
+			continue
+		}
+		used[matched] = true
+		ordered = append(ordered, apiPolicies[matched])
+		perms = append(perms, b.perms)
+	}
+
+	for i, p := range apiPolicies {
+		if used[i] {
+			continue
+		}
+		ordered = append(ordered, p)
+		perms = append(perms, types.SetNull(types.StringType))
+	}
+
+	return ordered, perms
 }
 
 // reconcilePermissions returns the permissions to store in state. The backend
@@ -419,8 +487,9 @@ func desiredPolicyPermissions(ctx context.Context, policies types.List, diags *d
 // must not appear in state or they break the plan == applied consistency check
 // and show up as a permanent diff. Keeps only permissions present in both
 // desired and actual, so injected extras and backend-removed permissions are
-// both dropped. When desired is null/unknown (import, first read) there is
-// nothing to reconcile against, so actual is kept.
+// both dropped. When desired is null/unknown (import, first read, or a policy
+// correlatePolicies could not pair with a declared one) there is nothing to
+// reconcile against, so actual is kept.
 //
 // Trade-off: hiding actual-not-desired permissions also means a permission
 // added outside Terraform is not reported as drift. This is tied to the
