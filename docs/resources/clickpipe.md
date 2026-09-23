@@ -170,7 +170,7 @@ Optional:
 
 - `bigquery` (Attributes) The BigQuery source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--bigquery))
 - `kafka` (Attributes) The Kafka source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--kafka))
-- `kinesis` (Attributes) The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field forces resource replacement (destroy and recreate). (see [below for nested schema](#nestedatt--source--kinesis))
+- `kinesis` (Attributes) The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field, including `schema_registry`, forces resource replacement (destroy and recreate). (see [below for nested schema](#nestedatt--source--kinesis))
 - `mongodb` (Attributes) The MongoDB CDC source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--mongodb))
 - `mysql` (Attributes) The MySQL CDC source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--mysql))
 - `object_storage` (Attributes) The compatible object storage source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--object_storage))
@@ -321,7 +321,8 @@ Optional:
 
 - `access_key` (Attributes) The access key for the Kinesis source. Use with `IAM_USER` authentication. Can be rotated in place via an update. (see [below for nested schema](#nestedatt--source--kinesis--access_key))
 - `iam_role` (String) The IAM role for the Kinesis source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kinesis.
-- `protobuf_schema` (String) Base64-encoded Protobuf schema. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Required with `format = "Protobuf"` and not supported with other formats. Changing it forces replacement.
+- `protobuf_schema` (String) Base64-encoded Protobuf schema. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Required with `format = "Protobuf"` unless `schema_registry` is set, and not supported with other formats. Changing it forces replacement.
+- `schema_registry` (Attributes) The AWS Glue schema registry for the Kinesis source. Required with `format = "AvroConfluent"`, optional with `format = "Protobuf"` instead of `protobuf_schema`, and not supported with other formats. Glue is read with the source's IAM identity unless `glue_role_arn` is set. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kinesis--schema_registry))
 - `timestamp` (String) The timestamp for the Kinesis source. Use with `AT_TIMESTAMP` iterator type. (format `2021-01-01T00:00`)
 - `use_enhanced_fan_out` (Boolean) Whether to use enhanced fan-out consumer.
 
@@ -332,6 +333,20 @@ Required:
 
 - `access_key_id` (String, Sensitive) The access key ID for the Kinesis source.
 - `secret_key` (String, Sensitive) The secret key for the Kinesis source.
+
+
+<a id="nestedatt--source--kinesis--schema_registry"></a>
+### Nested Schema for `source.kinesis.schema_registry`
+
+Required:
+
+- `glue_region` (String) The AWS region of the Glue schema registry.
+- `glue_registry_name` (String) The name of the Glue schema registry.
+- `type` (String) The type of the schema registry. (`glue`)
+
+Optional:
+
+- `glue_role_arn` (String) The IAM role to assume for Glue schema registry access. Defaults to the IAM identity of the Kinesis source.
 
 
 

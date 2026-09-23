@@ -162,7 +162,7 @@ provider "clickhouse" { # self-hosted ClickStack
 terraform {
   required_providers {
     clickhouse = {
-      version = "3.31.1"
+      version = "3.32.0"
       source  = "ClickHouse/clickhouse"
     }
   }
