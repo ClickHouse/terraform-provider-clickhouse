@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -301,4 +302,64 @@ func TestClickPipeResource_SyncKinesisGlueSchemaRegistry(t *testing.T) {
 			assert.Equal(t, test.expected, kinesis.SchemaRegistry)
 		})
 	}
+}
+
+func TestClickPipeResource_KinesisSchemaRegistryRejectsSurroundingWhitespace(t *testing.T) {
+	ctx := t.Context()
+	clickPipeResource := &ClickPipeResource{}
+	schemaResponse := &resource.SchemaResponse{}
+	clickPipeResource.Schema(ctx, resource.SchemaRequest{}, schemaResponse)
+	require.False(t, schemaResponse.Diagnostics.HasError())
+	source := schemaResponse.Schema.Attributes["source"].(resourceschema.SingleNestedAttribute)
+	kinesis := source.Attributes["kinesis"].(resourceschema.SingleNestedAttribute)
+	registry := kinesis.Attributes["schema_registry"].(resourceschema.SingleNestedAttribute)
+
+	tests := []struct {
+		name  string
+		value string
+		valid bool
+	}{
+		{name: "accepts a trimmed value", value: "us-east-1", valid: true},
+		{name: "accepts a single character", value: "r", valid: true},
+		{name: "rejects an empty value", value: ""},
+		{name: "rejects whitespace only", value: "   "},
+		{name: "rejects leading whitespace", value: " us-east-1"},
+		{name: "rejects trailing whitespace", value: "us-east-1 "},
+		{name: "rejects a trailing newline", value: "us-east-1\n"},
+	}
+	for _, attribute := range []string{"glue_region", "glue_registry_name"} {
+		stringAttribute := registry.Attributes[attribute].(resourceschema.StringAttribute)
+		require.Len(t, stringAttribute.Validators, 1, attribute)
+		for _, test := range tests {
+			t.Run(attribute+" "+test.name, func(t *testing.T) {
+				request := validator.StringRequest{
+					Path:        path.Root("source").AtName("kinesis").AtName("schema_registry").AtName(attribute),
+					ConfigValue: types.StringValue(test.value),
+				}
+				response := &validator.StringResponse{}
+
+				stringAttribute.Validators[0].ValidateString(ctx, request, response)
+
+				assert.Equal(t, test.valid, !response.Diagnostics.HasError())
+			})
+		}
+	}
+}
+
+func TestExtractSourceFromPlan_KinesisGlueSchemaRegistryIsSentVerbatim(t *testing.T) {
+	registry := models.ClickPipeKinesisSchemaRegistryModel{
+		Type:             types.StringValue(api.ClickPipeKinesisSchemaRegistryTypeGlue),
+		GlueRegion:       types.StringValue("eu-west-1"),
+		GlueRegistryName: types.StringValue("Orders Registry"),
+		GlueRoleArn:      types.StringNull(),
+	}.ObjectValue()
+	plan := kinesisGlueModel(t, types.StringValue(api.ClickPipeAvroConfluentFormat), types.StringNull(), registry)
+	diagnostics := diag.Diagnostics{}
+
+	source := (&ClickPipeResource{}).extractSourceFromPlan(t.Context(), &diagnostics, plan, nil, false)
+
+	require.False(t, diagnostics.HasError())
+	require.NotNil(t, source.Kinesis.SchemaRegistry)
+	assert.Equal(t, "eu-west-1", source.Kinesis.SchemaRegistry.GlueRegion)
+	assert.Equal(t, "Orders Registry", source.Kinesis.SchemaRegistry.GlueRegistryName)
 }

@@ -42,6 +42,8 @@ import (
 // iamRoleArnRegex matches an IAM role ARN in any AWS partition, with an optional path.
 var iamRoleArnRegex = regexp.MustCompile(`^arn:aws[a-z-]*:iam::[0-9]{12}:role/(?:[\x21-\x7E]+/)?[\w+=,.@-]+$`)
 
+var trimmedNonEmptyRegex = regexp.MustCompile(`^\S(?:.*\S)?$`)
+
 var (
 	_ resource.Resource                     = &ClickPipeResource{}
 	_ resource.ResourceWithModifyPlan       = &ClickPipeResource{}
@@ -709,14 +711,14 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										Description: "The AWS region of the Glue schema registry.",
 										Required:    true,
 										Validators: []validator.String{
-											stringvalidator.LengthAtLeast(1),
+											stringvalidator.RegexMatches(trimmedNonEmptyRegex, "must not be empty or have leading or trailing whitespace"),
 										},
 									},
 									"glue_registry_name": schema.StringAttribute{
 										Description: "The name of the Glue schema registry.",
 										Required:    true,
 										Validators: []validator.String{
-											stringvalidator.LengthAtLeast(1),
+											stringvalidator.RegexMatches(trimmedNonEmptyRegex, "must not be empty or have leading or trailing whitespace"),
 										},
 									},
 									"glue_role_arn": schema.StringAttribute{
@@ -3382,8 +3384,8 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 
 			source.Kinesis.SchemaRegistry = &api.ClickPipeKinesisSchemaRegistry{
 				Type:             schemaRegistryModel.Type.ValueString(),
-				GlueRegion:       strings.TrimSpace(schemaRegistryModel.GlueRegion.ValueString()),
-				GlueRegistryName: strings.TrimSpace(schemaRegistryModel.GlueRegistryName.ValueString()),
+				GlueRegion:       schemaRegistryModel.GlueRegion.ValueString(),
+				GlueRegistryName: schemaRegistryModel.GlueRegistryName.ValueString(),
 				GlueRoleArn:      schemaRegistryModel.GlueRoleArn.ValueStringPointer(),
 			}
 		}
