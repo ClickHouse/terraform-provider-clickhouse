@@ -1,9 +1,8 @@
 name: Release Notes
 
 on:
-  push:
-    tags:
-      - 'v*'
+  # No push-tag trigger — release.yaml's trigger-release-notes job dispatches
+  # this workflow explicitly instead (see its comment for why).
   workflow_dispatch:
     inputs:
       tag:
