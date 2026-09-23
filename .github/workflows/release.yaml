@@ -608,3 +608,22 @@ jobs:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GORELEASER_PREVIOUS_TAG: ${{ steps.prev_tag.outputs.tag }}
 
+  # Kick off release-notes.yaml for the draft goreleaser just created.
+  # release-notes.yaml's own push-tag trigger never fires: the tag above is
+  # pushed with the default GITHUB_TOKEN, and GitHub Actions doesn't let
+  # GITHUB_TOKEN-authored pushes trigger other workflows (anti-recursion
+  # guardrail). Dispatch explicitly instead.
+  trigger-release-notes:
+    needs: [ "goreleaser" ]
+    if: ${{ needs.goreleaser.result == 'success' }}
+    runs-on: k8s-nano
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch release-notes workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run release-notes.yaml \
+            --repo ${{ github.repository }} \
+            -f tag="v${{ inputs.version }}"
