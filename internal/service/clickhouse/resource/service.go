@@ -191,9 +191,12 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"generated_password": schema.StringAttribute{
-				Description: "The password the API assigned to the default user at creation time, when no `password`/`password_hash` was supplied and `password_wo` was set to an empty string (one of `password`, `password_hash`, or `password_wo` must still be present per the schema's validation — omitting all three is rejected at plan time, so set `password_wo = \"\"` explicitly; `password_wo_version` must also be set, e.g. to `1`, since `password_wo` requires it whenever it has any non-null value, including an empty string). Only populated on create, and cleared again if a later apply changes the password through this provider. It is *not* tracked if the password is changed outside Terraform, in which case it goes stale and no longer reflects the current password. Useful for a one-time handoff — e.g. a caller that can create a service but has no permission to reset its password later.",
-				Computed:    true,
-				Sensitive:   true,
+				Description: "The password ClickHouse assigned to the default user at creation, when you don't supply your own (`password` and `password_hash` unset, and `password_wo = \"\"`).\n\n" +
+					"To use this: set `password_wo = \"\"` and `password_wo_version` (e.g. `1`) — the schema still requires one of `password`/`password_hash`/`password_wo` to be set, so this is how you opt into an auto-generated password instead of choosing your own.\n\n" +
+					"Only set right after creation. It goes blank again if you later change the password through this provider, and it isn't updated if the password changes outside Terraform (console, another tool) — so treat it as a one-time value to capture at creation, not a live mirror of the current password.\n\n" +
+					"Useful when the caller creating the service shouldn't need permission to reset its password afterward.",
+				Computed:  true,
+				Sensitive: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
