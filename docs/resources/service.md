@@ -113,6 +113,7 @@ resource "clickhouse_service" "horizontal_service" {
 - `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
 - `release_channel` (String) Release channel to use for this service. Can be 'default', 'fast' or 'slow'.
+- `snapshot_configuration` (Attributes) Configuration of service snapshot settings. Snapshots are a beta feature that requires the snapshots feature enabled for your organization, a PPv2 tier, and the backups entitlement. When enabling snapshots, an ineligible organization is rejected at plan time (when the organization API reports eligibility); otherwise an ineligible organization can still fail at apply. When enabled, gap and time_frame must be supplied together as a supported preset: (gap 30, time_frame 1440) or (gap 60, time_frame 2880). (see [below for nested schema](#nestedatt--snapshot_configuration))
 - `tags` (Map of String) Tags associated with the service as key-value pairs.
 - `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
 - `transparent_data_encryption` (Attributes) Configuration of the Transparent Data Encryption (TDE) feature. Requires an organization with the Enterprise plan. (see [below for nested schema](#nestedatt--transparent_data_encryption))
@@ -197,6 +198,19 @@ Required:
 Optional:
 
 - `allowed_origins` (String) Comma separated list of domain names to be allowed cross-origin resource sharing (CORS) access to the query API. Leave this field empty to restrict access to backend servers only
+
+
+<a id="nestedatt--snapshot_configuration"></a>
+### Nested Schema for `snapshot_configuration`
+
+Required:
+
+- `enabled` (Boolean) Whether scheduled snapshots are enabled for the service. When true, gap and time_frame are required.
+
+Optional:
+
+- `gap` (Number) Interval in minutes between snapshots. Required when enabled, and paired with time_frame: only the presets (gap 30, time_frame 1440) and (gap 60, time_frame 2880) are accepted.
+- `time_frame` (Number) Retention window in minutes the snapshots cover. Required when enabled, and paired with gap: only the presets (gap 30, time_frame 1440) and (gap 60, time_frame 2880) are accepted.
 
 
 <a id="nestedatt--transparent_data_encryption"></a>
