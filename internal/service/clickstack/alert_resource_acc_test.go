@@ -3,6 +3,7 @@ package clickstack_test
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -283,4 +284,91 @@ resource "clickhouse_clickstack_alert" "tile" {
   interval       = "5m"
 }
 `, os.Getenv("CLICKSTACK_SOURCE_ID"), threshold)
+}
+
+// TestAccAlertResource_Inline exercises create + update + import for a
+// standalone alert that has its own chart config and no saved search or
+// dashboard behind it.
+// Requires TF_ACC, CLICKSTACK_API_KEY, and CLICKSTACK_SOURCE_ID. Self-hosted
+// ClickStack only: the ClickHouse Cloud gateway does not expose the inline
+// source yet.
+func TestAccAlertResource_Inline(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccSourceChainPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccInlineAlertResourceConfig(100, "count"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("clickhouse_clickstack_alert.inline", "id"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.inline", "source", "inline"),
+					resource.TestCheckResourceAttrSet("clickhouse_clickstack_alert.inline", "chart_config"),
+					resource.TestCheckNoResourceAttr("clickhouse_clickstack_alert.inline", "saved_search_id"),
+					resource.TestCheckNoResourceAttr("clickhouse_clickstack_alert.inline", "dashboard_id"),
+				),
+			},
+			{
+				// A threshold change leaves the config alone; the API still wants
+				// the whole chartConfig on the PUT.
+				Config: testAccInlineAlertResourceConfig(250, "count"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.inline", "threshold", "250"),
+				),
+			},
+			{
+				// Editing the config itself is an in-place update: the PUT replaces
+				// the whole chartConfig rather than merging it.
+				Config: testAccInlineAlertResourceConfig(250, "errors"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestMatchResourceAttr("clickhouse_clickstack_alert.inline", "chart_config", regexp.MustCompile(`"errors"`)),
+				),
+			},
+			{
+				ResourceName:      "clickhouse_clickstack_alert.inline",
+				ImportState:       true,
+				ImportStateVerify: true,
+				// chart_config is imported in the server's canonical form, with
+				// its defaults filled in, so it will not match the authored JSON
+				// character for character. The next plan reconciles it.
+				ImportStateVerifyIgnore: []string{"team", "chart_config"},
+			},
+		},
+	})
+}
+
+func testAccInlineAlertResourceConfig(threshold int, alias string) string {
+	return fmt.Sprintf(`
+resource "clickhouse_clickstack_webhook" "inline" {
+  name    = "tf-acc-inline-alert-webhook"
+  service = "generic"
+  url     = "https://example.com/hook"
+}
+
+resource "clickhouse_clickstack_alert" "inline" {
+  source = "inline"
+
+  chart_config = jsonencode({
+    name        = "tf-acc-inline-alert"
+    displayType = "line"
+    sourceId    = %q
+    select = [
+      {
+        aggFn = "count"
+        alias = %q
+      }
+    ]
+  })
+
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.inline.id
+    },
+  ]
+
+  threshold      = %d
+  threshold_type = "above"
+  interval       = "5m"
+}
+`, os.Getenv("CLICKSTACK_SOURCE_ID"), alias, threshold)
 }

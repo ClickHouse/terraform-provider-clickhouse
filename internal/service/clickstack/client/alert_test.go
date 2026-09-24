@@ -201,6 +201,76 @@ func TestCreateAlert_TileSource(t *testing.T) {
 	}
 }
 
+func TestCreateAlert_InlineSource(t *testing.T) {
+	t.Parallel()
+
+	const chartConfig = `{"displayType":"line","sourceId":"s1","select":[{"aggFn":"count"}]}`
+
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if string(body["source"]) != `"inline"` {
+			t.Errorf("expected source inline, got %s", body["source"])
+		}
+		// The config must go out verbatim: the API validates it field by field.
+		if string(body["chartConfig"]) != chartConfig {
+			t.Errorf("chartConfig = %s, want %s", body["chartConfig"], chartConfig)
+		}
+		// An inline alert has no saved search or tile.
+		for _, k := range []string{"savedSearchId", "dashboardId", "tileId"} {
+			if _, ok := body[k]; ok {
+				t.Errorf("expected %s omitted for an inline alert, got %s", k, body[k])
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":{"id":"al3","source":"inline","chartConfig":`+chartConfig+
+			`,"interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"},"state":"OK"}}`)
+	})
+
+	al, err := c.CreateAlert(context.Background(), Alert{
+		Source:        AlertSourceInline,
+		ChartConfig:   json.RawMessage(chartConfig),
+		Channel:       AlertChannel{Type: AlertChannelWebhook, WebhookID: "wh1"},
+		Interval:      "5m",
+		Threshold:     100,
+		ThresholdType: "above",
+	})
+	if err != nil {
+		t.Fatalf("CreateAlert: %v", err)
+	}
+	if al.Source != AlertSourceInline || string(al.ChartConfig) != chartConfig {
+		t.Errorf("inline fields not decoded: %+v", al)
+	}
+}
+
+func TestCreateAlert_OmitsChartConfigWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		// The API rejects a chartConfig on a saved-search alert, so an unset one
+		// must not serialize as null.
+		if _, ok := body["chartConfig"]; ok {
+			t.Errorf("expected chartConfig omitted, got %s", body["chartConfig"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":{"id":"al1","source":"saved_search","savedSearchId":"ss1"}}`)
+	})
+
+	if _, err := c.CreateAlert(context.Background(), Alert{
+		SavedSearchID: "ss1",
+		Channel:       AlertChannel{Type: AlertChannelWebhook, WebhookID: "wh1"},
+		Interval:      "5m", Threshold: 100, ThresholdType: "above",
+	}); err != nil {
+		t.Fatalf("CreateAlert: %v", err)
+	}
+}
+
 func TestUpdateAlert_TileSourceKept(t *testing.T) {
 	t.Parallel()
 

@@ -83,10 +83,15 @@ func TestAlertResource_Schema(t *testing.T) {
 			t.Errorf("%q must be Optional (not Computed) so mode switches clear it", attr)
 		}
 	}
-	for _, attr := range []string{"source", "dashboard_id", "tile_id"} {
+	for _, attr := range []string{"source", "dashboard_id", "tile_id", "chart_config"} {
 		if _, ok := resp.Schema.Attributes[attr]; !ok {
 			t.Errorf("expected attribute %q", attr)
 		}
+	}
+	// chart_config is the authored source of truth: Computed would let a server
+	// echo overwrite it and diff forever.
+	if a, ok := resp.Schema.Attributes["chart_config"]; !ok || !a.IsOptional() || a.IsComputed() {
+		t.Error("chart_config must be Optional and not Computed")
 	}
 	// Tile alerts have no saved search, so saved_search_id can no longer be Required.
 	if a := resp.Schema.Attributes["saved_search_id"]; a != nil && a.IsRequired() {
@@ -170,6 +175,7 @@ func mkAlert(mods func(*alertResourceModel)) alertResourceModel {
 		SavedSearchID:         types.StringValue("ss1"),
 		DashboardID:           types.StringNull(),
 		TileID:                types.StringNull(),
+		ChartConfig:           types.StringNull(),
 		GroupBy:               types.StringNull(),
 		Channel:               chanObj(webhookChannel("wh1")),
 		Channels:              nullChanList(),
@@ -196,6 +202,16 @@ func asTile(m *alertResourceModel) {
 	m.SavedSearchID = types.StringNull()
 	m.DashboardID = types.StringValue("d1")
 	m.TileID = types.StringValue("t1")
+}
+
+// inlineChartConfig is a minimal builder config the API would accept.
+const inlineChartConfig = `{"displayType":"line","sourceId":"s1","select":[{"aggFn":"count"}]}`
+
+// asInline turns the mkAlert saved-search model into a valid inline alert.
+func asInline(m *alertResourceModel) {
+	m.Source = types.StringValue(alertSourceInline)
+	m.SavedSearchID = types.StringNull()
+	m.ChartConfig = types.StringValue(inlineChartConfig)
 }
 
 func TestAlertResource_SourceRequiresReplace(t *testing.T) {
@@ -492,7 +508,7 @@ func TestAlertResource_Validate(t *testing.T) {
 		},
 		{"null source is treated as saved_search", func(m *alertResourceModel) { m.Source = types.StringNull() }, false},
 		{"unknown source skips the shape rules", func(m *alertResourceModel) { m.Source = types.StringUnknown() }, false},
-		{"invalid source", func(m *alertResourceModel) { m.Source = types.StringValue("inline") }, true},
+		{"invalid source", func(m *alertResourceModel) { m.Source = types.StringValue("promql") }, true},
 		{"saved_search without saved_search_id", func(m *alertResourceModel) { m.SavedSearchID = types.StringNull() }, true},
 		{"saved_search with empty saved_search_id", func(m *alertResourceModel) { m.SavedSearchID = types.StringValue("") }, true},
 		{"saved_search with dashboard_id", func(m *alertResourceModel) { m.DashboardID = types.StringValue("d1") }, true},
@@ -509,6 +525,24 @@ func TestAlertResource_Validate(t *testing.T) {
 		{"tile with empty tile_id", func(m *alertResourceModel) { asTile(m); m.TileID = types.StringValue("") }, true},
 		{"tile with saved_search_id", func(m *alertResourceModel) { asTile(m); m.SavedSearchID = types.StringValue("ss1") }, true},
 		{"tile with group_by", func(m *alertResourceModel) { asTile(m); m.GroupBy = types.StringValue("svc") }, true},
+		{"saved_search with chart_config", func(m *alertResourceModel) { m.ChartConfig = types.StringValue(inlineChartConfig) }, true},
+		{"tile with chart_config", func(m *alertResourceModel) { asTile(m); m.ChartConfig = types.StringValue(inlineChartConfig) }, true},
+		{"valid inline alert", asInline, false},
+		{"inline without chart_config", func(m *alertResourceModel) { asInline(m); m.ChartConfig = types.StringNull() }, true},
+		{"inline with malformed chart_config", func(m *alertResourceModel) { asInline(m); m.ChartConfig = types.StringValue("{nope") }, true},
+		{"inline with non-object chart_config", func(m *alertResourceModel) { asInline(m); m.ChartConfig = types.StringValue(`["line"]`) }, true},
+		{"inline with null chart_config document", func(m *alertResourceModel) { asInline(m); m.ChartConfig = types.StringValue("null") }, true},
+		{
+			// A config built from another resource's attributes is unknown until
+			// Terraform resolves it, so no syntax rule can run against it.
+			"inline with unknown chart_config",
+			func(m *alertResourceModel) { asInline(m); m.ChartConfig = types.StringUnknown() },
+			false,
+		},
+		{"inline with saved_search_id", func(m *alertResourceModel) { asInline(m); m.SavedSearchID = types.StringValue("ss1") }, true},
+		{"inline with dashboard_id", func(m *alertResourceModel) { asInline(m); m.DashboardID = types.StringValue("d1") }, true},
+		{"inline with tile_id", func(m *alertResourceModel) { asInline(m); m.TileID = types.StringValue("t1") }, true},
+		{"inline with group_by", func(m *alertResourceModel) { asInline(m); m.GroupBy = types.StringValue("svc") }, true},
 	}
 
 	for _, tc := range cases {
@@ -581,6 +615,28 @@ func TestAlertResource_ToClient(t *testing.T) {
 		al, _ := m.toClient(context.Background())
 		if al.Source != client.AlertSourceSavedSearch || al.SavedSearchID != "ss1" {
 			t.Errorf("null source must mean saved_search: %+v", al)
+		}
+	})
+	t.Run("inline alert sends the chart config, no target ids", func(t *testing.T) {
+		t.Parallel()
+		m := mkAlert(asInline)
+		al, _ := m.toClient(context.Background())
+		if al.Source != client.AlertSourceInline || string(al.ChartConfig) != inlineChartConfig {
+			t.Errorf("inline fields not sent: %+v", al)
+		}
+		if al.SavedSearchID != "" || al.DashboardID != "" || al.TileID != "" {
+			t.Errorf("expected no target ids on an inline alert: %+v", al)
+		}
+	})
+
+	t.Run("chart config is not sent for other sources", func(t *testing.T) {
+		t.Parallel()
+		// Only reachable off the plan path: ValidateConfig rejects the pairing.
+		// The API would 400 on it, so the client must drop it rather than relay it.
+		m := mkAlert(func(m *alertResourceModel) { m.ChartConfig = types.StringValue(inlineChartConfig) })
+		al, _ := m.toClient(context.Background())
+		if al.ChartConfig != nil {
+			t.Errorf("expected no chartConfig for a saved_search alert, got %s", al.ChartConfig)
 		}
 	})
 }
@@ -779,6 +835,29 @@ func TestAlertResource_CRUD(t *testing.T) {
 		}
 	})
 
+	t.Run("create inline alert maps the chart config into state", func(t *testing.T) {
+		t.Parallel()
+		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"data":{"id":"al6","source":"inline","chartConfig":`+inlineChartConfig+
+				`,"interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
+		}))}
+		plan := tfsdk.Plan{Schema: sch}
+		if d := plan.Set(ctx, mkAlert(asInline)); d.HasError() {
+			t.Fatalf("plan.Set: %s", d)
+		}
+		resp := &fwresource.CreateResponse{State: tfsdk.State{Schema: sch}}
+		r.Create(ctx, fwresource.CreateRequest{Plan: plan}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Create: %s", resp.Diagnostics)
+		}
+		var got alertResourceModel
+		resp.State.Get(ctx, &got)
+		if got.ID.ValueString() != "al6" || got.Source.ValueString() != alertSourceInline ||
+			got.ChartConfig.ValueString() != inlineChartConfig || !got.SavedSearchID.IsNull() {
+			t.Errorf("inline alert state = %+v", got)
+		}
+	})
+
 	t.Run("create tile alert maps ids into state", func(t *testing.T) {
 		t.Parallel()
 		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -804,7 +883,7 @@ func TestAlertResource_CRUD(t *testing.T) {
 	t.Run("read rejects an alert source the provider does not model", func(t *testing.T) {
 		t.Parallel()
 		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = io.WriteString(w, `{"data":{"id":"al3","source":"inline","interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
+			_, _ = io.WriteString(w, `{"data":{"id":"al3","source":"promql","interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
 		}))}
 		state := tfsdk.State{Schema: sch}
 		m := mkAlert(func(m *alertResourceModel) { m.ID = types.StringValue("al3") })
@@ -821,6 +900,82 @@ func TestAlertResource_CRUD(t *testing.T) {
 		resp.State.Get(ctx, &got)
 		if got.Source.ValueString() != alertSourceSavedSearch {
 			t.Errorf("state source = %q, want the prior %q left untouched", got.Source.ValueString(), alertSourceSavedSearch)
+		}
+	})
+
+	t.Run("import fills chart_config from the server", func(t *testing.T) {
+		t.Parallel()
+		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"data":{"id":"al4","source":"inline","chartConfig":`+inlineChartConfig+
+				`,"interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
+		}))}
+		state := tfsdk.State{Schema: sch}
+		// Import leaves everything but the id unset.
+		m := mkAlert(func(m *alertResourceModel) {
+			m.ID = types.StringValue("al4")
+			m.ChartConfig = types.StringNull()
+		})
+		if d := state.Set(ctx, m); d.HasError() {
+			t.Fatalf("state.Set: %s", d)
+		}
+		resp := &fwresource.ReadResponse{State: state}
+		r.Read(ctx, fwresource.ReadRequest{State: state}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Read: %s", resp.Diagnostics)
+		}
+		var got alertResourceModel
+		resp.State.Get(ctx, &got)
+		if got.Source.ValueString() != alertSourceInline || got.ChartConfig.ValueString() != inlineChartConfig {
+			t.Errorf("imported inline alert = %+v", got)
+		}
+	})
+
+	t.Run("read keeps the authored chart_config over the server echo", func(t *testing.T) {
+		t.Parallel()
+		// The echoed config is semantically the same with server defaults applied
+		// and keys reordered. Adopting it would diff forever against the config.
+		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"data":{"id":"al4","source":"inline","chartConfig":`+
+				`{"select":[{"aggFn":"count","aggConditionLanguage":"lucene"}],"sourceId":"s1","displayType":"line","granularity":"auto"}`+
+				`,"interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
+		}))}
+		state := tfsdk.State{Schema: sch}
+		m := mkAlert(func(m *alertResourceModel) { asInline(m); m.ID = types.StringValue("al4") })
+		if d := state.Set(ctx, m); d.HasError() {
+			t.Fatalf("state.Set: %s", d)
+		}
+		resp := &fwresource.ReadResponse{State: state}
+		r.Read(ctx, fwresource.ReadRequest{State: state}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Read: %s", resp.Diagnostics)
+		}
+		var got alertResourceModel
+		resp.State.Get(ctx, &got)
+		if got.ChartConfig.ValueString() != inlineChartConfig {
+			t.Errorf("chart_config = %s, want the authored value kept", got.ChartConfig.ValueString())
+		}
+	})
+
+	t.Run("import fails when the server cannot express the chart config", func(t *testing.T) {
+		t.Parallel()
+		r := &alertResource{client: dashboardTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, `{"data":{"id":"al5","source":"inline","interval":"5m","threshold":100,"thresholdType":"above","channel":{"type":"webhook","webhookId":"wh1"}}}`)
+		}))}
+		state := tfsdk.State{Schema: sch}
+		m := mkAlert(func(m *alertResourceModel) {
+			m.ID = types.StringValue("al5")
+			m.ChartConfig = types.StringNull()
+		})
+		if d := state.Set(ctx, m); d.HasError() {
+			t.Fatalf("state.Set: %s", d)
+		}
+		resp := &fwresource.ReadResponse{State: state}
+		r.Read(ctx, fwresource.ReadRequest{State: state}, resp)
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("expected an error for an inline alert returned without a chart config, got none")
+		}
+		if got := resp.Diagnostics.Errors()[0].Summary(); got != "Alert chart config cannot be imported" {
+			t.Errorf("error summary = %q", got)
 		}
 	})
 
@@ -933,6 +1088,45 @@ func TestAlertResource_CRUD(t *testing.T) {
 		r.Delete(ctx, fwresource.DeleteRequest{State: state}, resp)
 		if resp.Diagnostics.HasError() {
 			t.Errorf("expected 404 delete to be a no-op, got %s", resp.Diagnostics)
+		}
+	})
+}
+
+// chart_config is Optional, not Computed, so a planned null has to survive
+// apply. Adopting a config the server sent on a non-inline alert would fail the
+// apply with "Provider produced inconsistent result after apply".
+func TestAlertResource_ApplyAlert_ChartConfigOnlyForInline(t *testing.T) {
+	t.Parallel()
+
+	for _, src := range []string{alertSourceSavedSearch, alertSourceTile} {
+		t.Run(src, func(t *testing.T) {
+			t.Parallel()
+			m := alertResourceModel{ChartConfig: types.StringNull()}
+			m.applyAlert(context.Background(), &client.Alert{
+				Source:        src,
+				ThresholdType: thresholdTypeAbove,
+				Channel:       client.AlertChannel{Type: "webhook"},
+				ChartConfig:   []byte(inlineChartConfig),
+			})
+			if !m.ChartConfig.IsNull() {
+				t.Errorf("chart_config = %q, want null for a %s alert", m.ChartConfig.ValueString(), src)
+			}
+		})
+	}
+
+	// The update path echoes the config back canonicalized; the planned value
+	// has to win there too, for the same reason.
+	t.Run("inline keeps the planned value over the echo", func(t *testing.T) {
+		t.Parallel()
+		m := alertResourceModel{ChartConfig: types.StringValue(inlineChartConfig)}
+		m.applyAlert(context.Background(), &client.Alert{
+			Source:        alertSourceInline,
+			ThresholdType: thresholdTypeAbove,
+			Channel:       client.AlertChannel{Type: "webhook"},
+			ChartConfig:   []byte(`{"displayType":"line","granularity":"auto","sourceId":"s1","select":[{"aggFn":"count"}]}`),
+		})
+		if m.ChartConfig.ValueString() != inlineChartConfig {
+			t.Errorf("chart_config = %s, want the planned value kept", m.ChartConfig.ValueString())
 		}
 	})
 }
