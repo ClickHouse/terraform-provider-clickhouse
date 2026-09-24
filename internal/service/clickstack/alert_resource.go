@@ -3,6 +3,7 @@ package clickstack
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -66,10 +67,11 @@ var alertChannelTypes = []string{channelTypeWebhook}
 const (
 	alertSourceSavedSearch = client.AlertSourceSavedSearch
 	alertSourceTile        = client.AlertSourceTile
+	alertSourceInline      = client.AlertSourceInline
 )
 
 // alertSources is the set of accepted alert sources.
-var alertSources = []string{alertSourceSavedSearch, alertSourceTile}
+var alertSources = []string{alertSourceSavedSearch, alertSourceTile, alertSourceInline}
 
 // sourceRequiresReplace forces replacement when source changes, except from a
 // null prior value: state written before source existed has it null, and the
@@ -134,7 +136,8 @@ func NewAlertResource() resource.Resource {
 	return &alertResource{}
 }
 
-// alertResource manages a ClickStack alert on a saved search or a dashboard tile.
+// alertResource manages a ClickStack alert on a saved search, a dashboard tile,
+// or its own chart config.
 type alertResource struct {
 	client *client.Client
 }
@@ -164,6 +167,7 @@ type alertResourceModel struct {
 	SavedSearchID types.String `tfsdk:"saved_search_id"`
 	DashboardID   types.String `tfsdk:"dashboard_id"`
 	TileID        types.String `tfsdk:"tile_id"`
+	ChartConfig   types.String `tfsdk:"chart_config"`
 	GroupBy       types.String `tfsdk:"group_by"`
 	// Channel and Channels are framework types rather than a Go pointer/slice so
 	// they can hold a wholly-unknown value. A config that takes either from a
@@ -191,10 +195,11 @@ func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest
 
 func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a ClickStack alert that evaluates a saved search or a dashboard tile on a " +
-			"schedule and notifies one or more channels when a threshold is crossed.\n\n" +
-			"Set `source` to `saved_search` (the default) with `saved_search_id`, or to `tile` with " +
-			"`dashboard_id` and `tile_id`. Tile ids are assigned by the server and cannot be set in " +
+		Description: "Manages a ClickStack alert that evaluates a saved search, a dashboard tile, or its own " +
+			"chart config on a schedule and notifies one or more channels when a threshold is crossed.\n\n" +
+			"Set `source` to `saved_search` (the default) with `saved_search_id`, to `tile` with " +
+			"`dashboard_id` and `tile_id`, or to `inline` with `chart_config` for a standalone alert that " +
+			"has no saved search or dashboard behind it. Tile ids are assigned by the server and cannot be set in " +
 			"`dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map " +
 			"(`tile_id = clickhouse_clickstack_dashboard.x.tile_ids[\"<tile name>\"]`). Keep the tile's " +
 			"name unique and stable: a rename mints a new id and detaches the alert, and the " +
@@ -203,8 +208,10 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"removed or changed to an unsupported display type; Terraform then plans to recreate it, " +
 			"which fails with the server's \"Tile not found\" until the tile is restored.\n\n" +
 			"Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one " +
-			"resource). Import each alert separately by its own ID. An alert whose source this provider " +
-			"does not model (for example `inline`) fails to import with a clear error.\n\n" +
+			"resource). Import each alert separately by its own ID. Importing an `inline` alert fills in " +
+			"`chart_config` from the server, and fails with a clear error for the rare chart whose stored " +
+			"config uses query features the v2 API cannot express (`filters`, `having`, `orderBy`, `limit`), " +
+			"since importing it would drop them.\n\n" +
 			"Alerts are threshold-based (there is no anomaly mode). Configuration is validated at " +
 			"plan time; those rules mirror the ClickStack server contract on a best-effort basis, so " +
 			"a server-side rule change may make the plan-time checks slightly stale until a new " +
@@ -225,8 +232,9 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional: true,
 				Computed: true,
 				Default:  stringdefault.StaticString(alertSourceSavedSearch),
-				Description: "What the alert evaluates: `saved_search` (default, requires `saved_search_id`) " +
-					"or `tile` (requires `dashboard_id` and `tile_id`). Changing this forces replacement.",
+				Description: "What the alert evaluates: `saved_search` (default, requires `saved_search_id`), " +
+					"`tile` (requires `dashboard_id` and `tile_id`), or `inline` (requires `chart_config`). " +
+					"Changing this forces replacement.",
 				PlanModifiers: []planmodifier.String{sourceRequiresReplace()},
 			},
 			savedSearchIDAttr: schema.StringAttribute{
@@ -251,6 +259,20 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					"The tile must be a line, stacked bar, or number tile. Changing this to a different known " +
 					"value forces replacement.",
 				PlanModifiers: []planmodifier.String{tileIDRequiresReplace()},
+			},
+			chartConfigAttr: schema.StringAttribute{
+				Optional: true,
+				Description: "Chart config for a standalone alert, as a JSON string in the same v2 API dialect " +
+					"as a tile's `config` in `dashboard_json`. Use `jsonencode(...)` or `file(...)`. Required " +
+					"when `source` is `inline` and rejected for the other sources. Only `line`, `stacked_bar` " +
+					"and `number` display types can be alerted on, as builder configs or raw SQL " +
+					"(`configType = \"sql\"`); PromQL charts cannot. A builder config also takes a chart-level " +
+					"`name`, `where` and `whereLanguage`, which a tile config does not. Like `dashboard_json`, " +
+					"this value is the sole source of truth: edits made to the alert's chart in the UI are not " +
+					"reported as drift. Self-hosted ClickStack only for now: the ClickHouse Cloud gateway's " +
+					"alert API does not list `inline` among its sources and has no chart config field, so it " +
+					"rejects the request. `saved_search` and `tile` alerts work on both.",
+				PlanModifiers: []planmodifier.String{jsonEqualPlanModifier{}},
 			},
 			"group_by": schema.StringAttribute{
 				Optional: true,
@@ -422,12 +444,17 @@ func (m *alertResourceModel) validate(ctx context.Context) diag.Diagnostics {
 					"saved_search_id is required and must be non-empty when source is \"saved_search\"")
 			}
 			for _, p := range []struct {
-				name string
-				v    types.String
-			}{{dashboardIDAttr, m.DashboardID}, {tileIDAttr, m.TileID}} {
+				name    string
+				v       types.String
+				validIn string
+			}{
+				{dashboardIDAttr, m.DashboardID, alertSourceTile},
+				{tileIDAttr, m.TileID, alertSourceTile},
+				{chartConfigAttr, m.ChartConfig, alertSourceInline},
+			} {
 				if !p.v.IsNull() {
 					diags.AddAttributeError(path.Root(p.name), "Not valid for saved_search alerts",
-						p.name+" is only valid when source is \"tile\"")
+						fmt.Sprintf("%s is only valid when source is %q", p.name, p.validIn))
 				}
 			}
 		case alertSourceTile:
@@ -443,11 +470,33 @@ func (m *alertResourceModel) validate(ctx context.Context) diag.Diagnostics {
 				diags.AddAttributeError(path.Root(savedSearchIDAttr), "Not valid for tile alerts",
 					"saved_search_id is only valid when source is \"saved_search\"")
 			}
+			if !m.ChartConfig.IsNull() {
+				diags.AddAttributeError(path.Root(chartConfigAttr), "Not valid for tile alerts",
+					"chart_config is only valid when source is \"inline\"; a tile alert reads the tile's own config")
+			}
 			// The API's tile branch has no groupBy and silently drops it, which
 			// Terraform would then report as an inconsistent result after apply.
 			if !m.GroupBy.IsNull() {
 				diags.AddAttributeError(path.Root("group_by"), "Not valid for tile alerts",
 					"group_by is only valid when source is \"saved_search\"")
+			}
+		case alertSourceInline:
+			m.validateChartConfig(&diags)
+			for _, p := range []struct {
+				name    string
+				v       types.String
+				validIn string
+			}{
+				{savedSearchIDAttr, m.SavedSearchID, alertSourceSavedSearch},
+				{dashboardIDAttr, m.DashboardID, alertSourceTile},
+				{tileIDAttr, m.TileID, alertSourceTile},
+				// The API's inline branch has no groupBy, same as the tile branch.
+				{"group_by", m.GroupBy, alertSourceSavedSearch},
+			} {
+				if !p.v.IsNull() {
+					diags.AddAttributeError(path.Root(p.name), "Not valid for inline alerts",
+						fmt.Sprintf("%s is only valid when source is %q", p.name, p.validIn))
+				}
 			}
 		default:
 			diags.AddAttributeError(path.Root(sourceAttr), "Invalid source",
@@ -515,6 +564,32 @@ func (m *alertResourceModel) validate(ctx context.Context) diag.Diagnostics {
 	m.validateChannels(ctx, &diags)
 
 	return diags
+}
+
+// validateChartConfig checks the inline alert's chart config: present, and JSON
+// the provider can hand to the API. Only the syntax is checked here — which
+// display types and fields a config may use is the server's contract, enforced
+// on write. An unknown value (a config built with jsonencode from another
+// resource's attributes) is left for apply.
+func (m *alertResourceModel) validateChartConfig(diags *diag.Diagnostics) {
+	p := path.Root(chartConfigAttr)
+	if m.ChartConfig.IsNull() {
+		diags.AddAttributeError(p, "chart_config required",
+			"chart_config is required when source is \"inline\"")
+		return
+	}
+	if !known(m.ChartConfig) {
+		return
+	}
+	// Decoding into a map rejects unparseable JSON and a parseable non-object
+	// alike (a bare array, string, or the document `null`, which decodes to a
+	// nil map without erroring), all of which the API would only turn into an
+	// opaque 400.
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(m.ChartConfig.ValueString()), &obj); err != nil || obj == nil {
+		diags.AddAttributeError(p, "Invalid chart_config",
+			"chart_config must be a JSON object, e.g. jsonencode({ displayType = \"line\", ... })")
+	}
 }
 
 // validateChannels enforces the channel/channels selection rules: exactly one of
@@ -646,15 +721,29 @@ func (r *alertResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	// The API has sources this resource does not model (e.g. "inline", which
-	// carries its own chart config). Storing one would make the next plan
-	// default source to saved_search and replace the alert; fail the read
-	// instead so an import of such an alert stops here with a clear message.
+	// The API may grow sources this resource does not model. Storing one would
+	// make the next plan default source to saved_search and replace the alert;
+	// fail the read instead so an import of such an alert stops here with a
+	// clear message.
 	if al.Source != "" && !slices.Contains(alertSources, al.Source) {
 		resp.Diagnostics.AddError("Unsupported alert source",
 			fmt.Sprintf("alert %s has source %q, which this provider does not manage (supported: %s); "+
 				"manage it outside Terraform or remove it from state", state.ID.ValueString(), al.Source,
 				strings.Join(alertSources, ", ")))
+		return
+	}
+
+	// An inline alert the API returns without its config has a stored chart the
+	// v2 dialect cannot express (filters, having, orderBy, limit and friends).
+	// Only reachable on import, since chart_config is otherwise already in
+	// state. Writing empty state would plan an update that overwrites the
+	// alert's query with nothing, so stop and say why.
+	if al.Source == alertSourceInline && state.ChartConfig.IsNull() && len(al.ChartConfig) == 0 {
+		resp.Diagnostics.AddError("Alert chart config cannot be imported",
+			fmt.Sprintf("alert %s is an inline alert whose chart config the v2 API cannot represent, so it "+
+				"was returned without one. This happens when the chart uses query features the API does not "+
+				"expose (for example filters, having, orderBy or limit). Rebuild the chart within those "+
+				"limits, or manage this alert outside Terraform.", state.ID.ValueString()))
 		return
 	}
 
@@ -744,6 +833,11 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 	// Null source only happens off the plan path (unit tests, legacy state); the
 	// schema default makes it saved_search everywhere else.
 	al.Source, _ = m.effectiveSource()
+	// Only inline alerts have a config, and the API requires the whole thing on
+	// every write, so it is always sent for that source.
+	if al.Source == alertSourceInline && known(m.ChartConfig) {
+		al.ChartConfig = json.RawMessage(m.ChartConfig.ValueString())
+	}
 	// Only one of the two is ever set (ValidateConfig rejects both). The client
 	// mirrors `channel` from `channels[0]` before sending. Both values are known
 	// by the time this runs — Terraform resolves the plan before apply — so the
@@ -807,6 +901,18 @@ func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) d
 	m.SavedSearchID = emptyToNull(al.SavedSearchID)
 	m.DashboardID = emptyToNull(al.DashboardID)
 	m.TileID = emptyToNull(al.TileID)
+	// chart_config is the authored source of truth, like dashboard_json: the
+	// echoed config has server-applied defaults and its own key order, so
+	// writing it back would either contradict the plan or never stop diffing.
+	// Only the import path reaches the backfill, where state has no config yet.
+	// The source gate matters because chart_config is Optional, not Computed: on
+	// a saved_search or tile alert the planned value is null, and adopting a
+	// config the server sent anyway would fail the apply as an inconsistent
+	// result. (The API omits the key rather than sending null, so a non-empty
+	// value here is a real config.)
+	if al.Source == alertSourceInline && m.ChartConfig.IsNull() && len(al.ChartConfig) > 0 {
+		m.ChartConfig = types.StringValue(string(al.ChartConfig))
+	}
 	m.GroupBy = types.StringPointerValue(al.GroupBy)
 	// Responses carry both `channel` and `channels`. Mirror back only the field
 	// the config used, leaving the other null — writing both would show a

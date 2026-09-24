@@ -99,6 +99,39 @@ resource "clickhouse_clickstack_alert" "p95_latency" {
   name = "p95 latency too high"
 }
 
+# A standalone alert with no saved search or dashboard behind it: the chart it
+# evaluates lives on the alert itself, in the same JSON dialect as a tile's
+# `config` in `dashboard_json`. Only line, stacked bar and number charts can be
+# alerted on. Self-hosted ClickStack only for now; the ClickHouse Cloud gateway
+# does not expose this alert source yet.
+resource "clickhouse_clickstack_alert" "error_log_spike" {
+  source = "inline"
+
+  chart_config = jsonencode({
+    name        = "Error log volume"
+    displayType = "line"
+    sourceId    = clickhouse_clickstack_source.logs.id
+    select = [
+      {
+        aggFn         = "count"
+        where         = "level:error"
+        whereLanguage = "lucene"
+      }
+    ]
+  })
+
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.slack.id
+    },
+  ]
+
+  threshold      = 100
+  threshold_type = "above"
+  interval       = "5m"
+}
+
 # The pre-multi-channel `channel` form still applies, but it is deprecated and
 # can only ever notify one target. Switch it to a single-entry `channels` list.
 resource "clickhouse_clickstack_alert" "legacy_single_channel" {
