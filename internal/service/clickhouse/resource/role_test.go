@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	frameworkresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -349,6 +351,163 @@ func TestApplyRoleToState_CustomGrantsAreAuthoritative(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("grants do not match API order: got %v, want %v", got, want)
+	}
+}
+
+// The backend reorders policies and reassigns their IDs on PATCH; state must
+// keep the prior order or the ordered List diffs positionally and shows churn.
+func TestApplyRoleToState_PreservesPolicyOrderAcrossBackendReorder(t *testing.T) {
+	orgPolicy := func(id string) models.RolePolicyModel {
+		pm := newTestPolicyModelWithResources(t, "ALLOW",
+			[]string{"control-plane:organization:view"},
+			[]string{"organization/1dff95ae-7280-4e33-bd5d-677e5f9456f9"})
+		pm.ID = types.StringValue(id)
+		pm.RoleID = types.StringValue("role-1")
+		pm.TenantID = types.StringValue("tenant-1")
+		return pm
+	}
+	servicePolicy := func(id string) models.RolePolicyModel {
+		pm := newTestPolicyModelWithResources(t, "ALLOW",
+			[]string{"control-plane:service:view", "control-plane:service:view-backups"},
+			[]string{"instance/1", "instance/2"})
+		pm.ID = types.StringValue(id)
+		pm.RoleID = types.StringValue("role-1")
+		pm.TenantID = types.StringValue("tenant-1")
+		return pm
+	}
+
+	target := models.RoleResourceModel{
+		ID:       types.StringValue("role-1"),
+		Policies: newTestPolicyList(t, orgPolicy("pol-1"), servicePolicy("pol-2")),
+	}
+
+	// The backend hands the same two policies back with fresh IDs, swapped.
+	role := &api.RBACRole{
+		ID:       "role-1",
+		TenantID: "tenant-1",
+		OwnerID:  "owner-1",
+		Type:     api.RBACRoleTypeCustom,
+		Policies: []api.RBACPolicy{
+			{
+				ID: "pol-4", RoleID: "role-1", TenantID: "tenant-1", AllowDeny: api.RBACAllowDenyAllow,
+				Permissions: []string{"control-plane:service:view", "control-plane:service:view-backups"},
+				Resources:   []string{"instance/1", "instance/2"},
+			},
+			{
+				ID: "pol-3", RoleID: "role-1", TenantID: "tenant-1", AllowDeny: api.RBACAllowDenyAllow,
+				Permissions: []string{"control-plane:organization:view"},
+				Resources:   []string{"organization/1dff95ae-7280-4e33-bd5d-677e5f9456f9"},
+			},
+		},
+	}
+
+	diags := applyRoleToState(context.Background(), role, &target)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	want := newTestPolicyList(t, orgPolicy("pol-3"), servicePolicy("pol-4"))
+	if !reflect.DeepEqual(target.Policies, want) {
+		t.Errorf("policy order was not preserved across a backend reorder:\ngot  = %v\nwant = %v", target.Policies, want)
+	}
+}
+
+func TestCorrelatePolicies(t *testing.T) {
+	ctx := context.Background()
+
+	apiPolicy := func(id, effect string, perms, resources []string) api.RBACPolicy {
+		return api.RBACPolicy{ID: id, AllowDeny: api.RBACAllowDeny(effect), Permissions: perms, Resources: resources}
+	}
+	orgView := []string{"control-plane:organization:view"}
+	svcView := []string{"control-plane:service:view", "control-plane:service:view-backups"}
+	sqlAccess := []string{"sql-console:database:access"}
+	org := []string{"organization/org-1"}
+	inst := []string{"instance/1"}
+
+	nullPerms := types.SetNull(types.StringType)
+
+	tests := []struct {
+		name string
+		base types.List
+		api  []api.RBACPolicy
+		// wantPerms[i] is the declared set paired with ordered[i]; null when unmatched.
+		wantIDs   []string
+		wantPerms []types.Set
+	}{
+		{
+			name:      "nil base keeps API order with null permissions",
+			base:      types.ListNull(models.RolePolicyModel{}.ObjectType()),
+			api:       []api.RBACPolicy{apiPolicy("a", "ALLOW", svcView, inst), apiPolicy("b", "ALLOW", orgView, org)},
+			wantIDs:   []string{"a", "b"},
+			wantPerms: []types.Set{nullPerms, nullPerms},
+		},
+		{
+			name: "reorder with distinct keys restores base order",
+			base: newTestPolicyList(t,
+				newTestPolicyModelWithResources(t, "ALLOW", orgView, org),
+				newTestPolicyModelWithResources(t, "ALLOW", svcView, inst),
+			),
+			api:       []api.RBACPolicy{apiPolicy("svc", "ALLOW", svcView, inst), apiPolicy("org", "ALLOW", orgView, org)},
+			wantIDs:   []string{"org", "svc"},
+			wantPerms: []types.Set{strSetValue(orgView...), strSetValue(svcView...)},
+		},
+		{
+			// Mirrors examples/resources/clickhouse_role: two ALLOW policies on one instance.
+			name: "reorder with colliding keys is disambiguated by permission overlap",
+			base: newTestPolicyList(t,
+				newTestPolicyModelWithResources(t, "ALLOW", svcView, inst),
+				newTestPolicyModelWithResources(t, "ALLOW", sqlAccess, inst),
+			),
+			api: []api.RBACPolicy{
+				apiPolicy("sql", "ALLOW", sqlAccess, inst),
+				// Backend also injected an extra permission on the control-plane policy.
+				apiPolicy("svc", "ALLOW", append(slices.Clone(svcView), "control-plane:service:delete"), inst),
+			},
+			wantIDs:   []string{"svc", "sql"},
+			wantPerms: []types.Set{strSetValue(svcView...), strSetValue(sqlAccess...)},
+		},
+		{
+			name: "base policy missing from API is dropped",
+			base: newTestPolicyList(t,
+				newTestPolicyModelWithResources(t, "ALLOW", orgView, org),
+				newTestPolicyModelWithResources(t, "ALLOW", svcView, inst),
+			),
+			api:       []api.RBACPolicy{apiPolicy("svc", "ALLOW", svcView, inst)},
+			wantIDs:   []string{"svc"},
+			wantPerms: []types.Set{strSetValue(svcView...)},
+		},
+		{
+			name: "API policy not in base is appended with null permissions",
+			base: newTestPolicyList(t,
+				newTestPolicyModelWithResources(t, "ALLOW", svcView, inst),
+			),
+			api:       []api.RBACPolicy{apiPolicy("new", "DENY", orgView, org), apiPolicy("svc", "ALLOW", svcView, inst)},
+			wantIDs:   []string{"svc", "new"},
+			wantPerms: []types.Set{strSetValue(svcView...), nullPerms},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			base := basePolicies(ctx, tt.base, &diags)
+			if diags.HasError() {
+				t.Fatalf("unexpected diagnostics: %v", diags)
+			}
+
+			ordered, perms := correlatePolicies(base, tt.api)
+
+			gotIDs := make([]string, len(ordered))
+			for i, p := range ordered {
+				gotIDs[i] = p.ID
+			}
+			if !reflect.DeepEqual(gotIDs, tt.wantIDs) {
+				t.Fatalf("order does not match: got %v, want %v", gotIDs, tt.wantIDs)
+			}
+			if !reflect.DeepEqual(perms, tt.wantPerms) {
+				t.Errorf("paired permissions do not match:\ngot  = %v\nwant = %v", perms, tt.wantPerms)
+			}
+		})
 	}
 }
 
