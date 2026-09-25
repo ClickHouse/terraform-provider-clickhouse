@@ -16,7 +16,7 @@ import (
 
 const maxClickPipeProtobufSchemaEncodedSize = 1 << 20 // 1 MiB in bytes
 
-// kafkaTombstoneModeValidator enforces the exactly-once requirement exposed by the OpenAPI.
+// kafkaTombstoneModeValidator enforces the hard-delete exactly-once requirement exposed by the OpenAPI.
 type kafkaTombstoneModeValidator struct{}
 
 func (v kafkaTombstoneModeValidator) Description(_ context.Context) string {
@@ -42,7 +42,11 @@ func (v kafkaTombstoneModeValidator) ValidateResource(ctx context.Context, req r
 
 	var kafkaModel models.ClickPipeKafkaSourceModel
 	resp.Diagnostics.Append(sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{})...)
-	if resp.Diagnostics.HasError() || kafkaModel.TombstoneMode.IsNull() || kafkaModel.TombstoneMode.IsUnknown() || kafkaModel.ExactlyOnce.IsUnknown() {
+	if resp.Diagnostics.HasError() || kafkaModel.TombstoneMode.IsNull() || kafkaModel.TombstoneMode.IsUnknown() {
+		return
+	}
+
+	if kafkaModel.TombstoneMode.ValueString() != api.ClickPipeKafkaTombstoneModeDelete || kafkaModel.ExactlyOnce.IsUnknown() {
 		return
 	}
 
@@ -50,7 +54,7 @@ func (v kafkaTombstoneModeValidator) ValidateResource(ctx context.Context, req r
 		resp.Diagnostics.AddAttributeError(
 			path.Root("source").AtName("kafka").AtName("tombstone_mode"),
 			"Invalid Kafka tombstone configuration",
-			"tombstone_mode requires exactly_once = true.",
+			"tombstone_mode = \"delete\" requires exactly_once = true.",
 		)
 	}
 }
