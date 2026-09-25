@@ -123,6 +123,21 @@ func TestExtractSourceFromPlan_Kafka_TombstoneModeDelete(t *testing.T) {
 	assert.Equal(t, api.ClickPipeKafkaTombstoneModeDelete, *source.Kafka.TombstoneMode)
 }
 
+func TestExtractSourceFromPlan_Kafka_TombstoneModeSoftDelete(t *testing.T) {
+	ctx := context.Background()
+	r := &ClickPipeResource{}
+
+	plan := buildKafkaDeliveryPlan(types.BoolNull(), types.StringValue(api.ClickPipeKafkaTombstoneModeSoftDelete))
+
+	diagnostics := diag.Diagnostics{}
+	source := r.extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+
+	assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+	assert.NotNil(t, source.Kafka)
+	assert.NotNil(t, source.Kafka.TombstoneMode)
+	assert.Equal(t, api.ClickPipeKafkaTombstoneModeSoftDelete, *source.Kafka.TombstoneMode)
+}
+
 func TestExtractSourceFromPlan_Kafka_TombstoneModeNull(t *testing.T) {
 	ctx := context.Background()
 	r := &ClickPipeResource{}
@@ -159,7 +174,7 @@ func TestClickPipeResource_syncClickPipeState_KafkaTombstoneMode(t *testing.T) {
 		ServiceID: types.StringValue("test-service-id"),
 		Source:    types.ObjectNull(models.ClickPipeSourceModel{}.ObjectType().AttrTypes),
 	}
-	tombstoneMode := api.ClickPipeKafkaTombstoneModeDelete
+	tombstoneMode := api.ClickPipeKafkaTombstoneModeSoftDelete
 
 	mc := minimock.NewController(t)
 	apiClientMock := api.NewClientMock(mc).
@@ -189,7 +204,7 @@ func TestClickPipeResource_syncClickPipeState_KafkaTombstoneMode(t *testing.T) {
 	assert.False(t, state.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}).HasError())
 	var kafkaModel models.ClickPipeKafkaSourceModel
 	assert.False(t, sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{}).HasError())
-	assert.Equal(t, api.ClickPipeKafkaTombstoneModeDelete, kafkaModel.TombstoneMode.ValueString())
+	assert.Equal(t, api.ClickPipeKafkaTombstoneModeSoftDelete, kafkaModel.TombstoneMode.ValueString())
 }
 
 func validateKafkaTombstoneConfig(t *testing.T, configModel models.ClickPipeResourceModel) diag.Diagnostics {
@@ -210,7 +225,7 @@ func validateKafkaTombstoneConfig(t *testing.T, configModel models.ClickPipeReso
 	return validationResponse.Diagnostics
 }
 
-func TestClickPipeResource_ValidatesKafkaTombstoneModeRequiresExactlyOnce(t *testing.T) {
+func TestClickPipeResource_ValidatesKafkaTombstoneModeExactlyOnceRequirements(t *testing.T) {
 	tests := []struct {
 		name          string
 		exactlyOnce   types.Bool
@@ -240,6 +255,16 @@ func TestClickPipeResource_ValidatesKafkaTombstoneModeRequiresExactlyOnce(t *tes
 			tombstoneMode: types.StringValue(api.ClickPipeKafkaTombstoneModeDelete),
 		},
 		{
+			name:          "soft-delete mode without exactly-once",
+			exactlyOnce:   types.BoolNull(),
+			tombstoneMode: types.StringValue(api.ClickPipeKafkaTombstoneModeSoftDelete),
+		},
+		{
+			name:          "soft-delete mode with exactly-once disabled",
+			exactlyOnce:   types.BoolValue(false),
+			tombstoneMode: types.StringValue(api.ClickPipeKafkaTombstoneModeSoftDelete),
+		},
+		{
 			name:          "tombstone mode omitted",
 			exactlyOnce:   types.BoolNull(),
 			tombstoneMode: types.StringNull(),
@@ -251,7 +276,7 @@ func TestClickPipeResource_ValidatesKafkaTombstoneModeRequiresExactlyOnce(t *tes
 			diagnostics := validateKafkaTombstoneConfig(t, buildKafkaDeliveryPlan(test.exactlyOnce, test.tombstoneMode))
 			assert.Equal(t, test.wantError, diagnostics.HasError())
 			if test.wantError {
-				assert.Contains(t, diagnostics.Errors()[0].Detail(), "tombstone_mode requires exactly_once = true")
+				assert.Contains(t, diagnostics.Errors()[0].Detail(), "tombstone_mode = \"delete\" requires exactly_once = true")
 			}
 		})
 	}
