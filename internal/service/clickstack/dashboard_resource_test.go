@@ -346,6 +346,82 @@ func dashboardValidateConfigRequest(t *testing.T, dashboardJSON string) fwresour
 	}
 }
 
+func TestNormalizedJSONPlanModifier(t *testing.T) {
+	t.Parallel()
+	const prior = `{"id":"d1","name":"D","tiles":[{"id":"srv-a","name":"A","x":0}]}`
+	cases := []struct {
+		name          string
+		priorAuthored *string // nil means create
+		plan          tftypes.Value
+		wantPrior     bool // true => normalized_json planned as its prior value
+	}{
+		{
+			// terraform import stores the server's compact body in dashboard_json,
+			// while the config reads a pretty-printed file. dashboard_json's own
+			// modifier keeps the state text, so the texts never converge and
+			// normalized_json must not go unknown over it on every plan.
+			name:          "reformatted body keeps the prior value",
+			priorAuthored: ptr(`{"name":"D","tiles":[{"name":"A","x":0}]}`),
+			plan:          tftypes.NewValue(tftypes.String, "{\n  \"tiles\": [{\"x\": 0, \"name\": \"A\"}],\n  \"name\": \"D\"\n}"),
+			wantPrior:     true,
+		},
+		{
+			name:          "changed body leaves it unknown",
+			priorAuthored: ptr(`{"name":"D","tiles":[{"name":"A","x":0}]}`),
+			plan:          tftypes.NewValue(tftypes.String, `{"name":"D2","tiles":[{"name":"A","x":0}]}`),
+		},
+		{
+			name:          "unknown body leaves it unknown",
+			priorAuthored: ptr(`{"name":"D"}`),
+			plan:          tftypes.NewValue(tftypes.String, tftypes.UnknownValue),
+		},
+		{
+			name: "create leaves it unknown",
+			plan: tftypes.NewValue(tftypes.String, `{"name":"D"}`),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sch := dashboardTestSchema(t)
+			stateValue := types.StringNull()
+			stateRaw := tftypes.NewValue(dashboardObjectType, nil)
+			if tc.priorAuthored != nil {
+				stateValue = types.StringValue(prior)
+				stateRaw = dashboardObjectValue(ptr("d1"), nil, tc.priorAuthored, ptr(prior))
+			}
+			planRaw := tftypes.NewValue(dashboardObjectType, map[string]tftypes.Value{
+				idAttr:             tftypes.NewValue(tftypes.String, "d1"),
+				teamAttr:           tftypes.NewValue(tftypes.String, nil),
+				dashboardJSONAttr:  tc.plan,
+				normalizedJSONAttr: tftypes.NewValue(tftypes.String, tftypes.UnknownValue),
+				tileIDsAttr:        tftypes.NewValue(tileIDsTFType, tftypes.UnknownValue),
+			})
+			req := planmodifier.StringRequest{
+				Path:       path.Root(normalizedJSONAttr),
+				StateValue: stateValue,
+				PlanValue:  types.StringUnknown(),
+				State:      tfsdk.State{Schema: sch, Raw: stateRaw},
+				Plan:       tfsdk.Plan{Schema: sch, Raw: planRaw},
+			}
+			resp := &planmodifier.StringResponse{PlanValue: req.PlanValue}
+			normalizedJSONPlanModifier{}.PlanModifyString(context.Background(), req, resp)
+
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("PlanModifyString: %s", resp.Diagnostics)
+			}
+			want := req.PlanValue
+			if tc.wantPrior {
+				want = req.StateValue
+			}
+			if !resp.PlanValue.Equal(want) {
+				t.Errorf("plan value = %v, want %v", resp.PlanValue, want)
+			}
+		})
+	}
+}
+
 // tileIDsTFType and dashboardObjectType mirror the resource schema, so every
 // Config/Plan/State value built here has the exact shape the framework expects.
 var (
