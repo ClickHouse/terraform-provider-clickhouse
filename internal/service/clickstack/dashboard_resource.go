@@ -95,8 +95,9 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				},
 			},
 			normalizedJSONAttr: schema.StringAttribute{
-				Computed:    true,
-				Description: "Server-canonical dashboard body returned by the API (defaults applied, server-assigned tile IDs).",
+				Computed:      true,
+				Description:   "Server-canonical dashboard body returned by the API (defaults applied, server-assigned tile IDs).",
+				PlanModifiers: []planmodifier.String{normalizedJSONPlanModifier{}},
 			},
 			tileIDsAttr: schema.MapAttribute{
 				Computed:    true,
@@ -165,13 +166,9 @@ func (m tileIDsPlanModifier) PlanModifyMap(ctx context.Context, req planmodifier
 	// matters — the framework may already have marked the attribute unknown
 	// because the config text differed, and an unknown tile_ids would itself plan
 	// an update.
-	if known(priorAuthored) {
-		plannedCanon, plannedErr := canonicalizeDashboardJSON(planned.ValueString())
-		priorCanon, priorErr := canonicalizeDashboardJSON(priorAuthored.ValueString())
-		if plannedErr == nil && priorErr == nil && plannedCanon == priorCanon {
-			resp.PlanValue = req.StateValue
-			return
-		}
+	if authoredUnchanged(planned, priorAuthored) {
+		resp.PlanValue = req.StateValue
+		return
 	}
 
 	elems, err := plannedTileIDs([]byte(planned.ValueString()), []byte(prior.ValueString()))
@@ -186,6 +183,52 @@ func (m tileIDsPlanModifier) PlanModifyMap(ctx context.Context, req planmodifier
 		return
 	}
 	resp.PlanValue = value
+}
+
+// normalizedJSONPlanModifier keeps normalized_json at its prior value when the
+// authored body has not changed. The framework marks it unknown whenever the
+// config text differs from state, and dashboard_json's modifier keeps the state
+// text for an equal body, so without this a body stored in another format (as
+// terraform import stores it) plans an update on every run.
+type normalizedJSONPlanModifier struct{}
+
+// Description returns a plain-text description of the modifier.
+func (m normalizedJSONPlanModifier) Description(_ context.Context) string {
+	return "Keeps the prior normalized_json when dashboard_json is unchanged after canonicalization."
+}
+
+// MarkdownDescription returns a markdown description of the modifier.
+func (m normalizedJSONPlanModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+// PlanModifyString hands back the prior value for an unchanged body and leaves
+// the framework's unknown otherwise; apply overwrites it with the server's body.
+func (m normalizedJSONPlanModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return // create or destroy
+	}
+	var planned, priorAuthored types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root(dashboardJSONAttr), &planned)...)
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(dashboardJSONAttr), &priorAuthored)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if authoredUnchanged(planned, priorAuthored) {
+		resp.PlanValue = req.StateValue
+	}
+}
+
+// authoredUnchanged reports whether two dashboard_json values are the same
+// dashboard. It must match dashboard_json's own modifier: if that one plans a
+// change this calls unchanged, apply contradicts the pinned values.
+func authoredUnchanged(planned, prior types.String) bool {
+	if !known(planned) || !known(prior) {
+		return false
+	}
+	plannedCanon, plannedErr := canonicalizeDashboardJSON(planned.ValueString())
+	priorCanon, priorErr := canonicalizeDashboardJSON(prior.ValueString())
+	return plannedErr == nil && priorErr == nil && plannedCanon == priorCanon
 }
 
 // plannedTileIDs predicts the tile_ids map an apply will produce, by running
