@@ -110,13 +110,36 @@ resource "clickhouse_clickstack_webhook" "alerts" {
   body    = jsonencode({ text = var.update_pass ? "tf e2e updated" : "tf e2e" })
 }
 
+# Second target, so the alert below can exercise multi-channel notification.
+resource "clickhouse_clickstack_webhook" "alerts_secondary" {
+  name    = "tf-e2e-secondary${var.suffix}"
+  service = "generic"
+  url     = "https://example.com/hooks/tf-e2e-secondary"
+  body    = jsonencode({ text = "tf e2e secondary" })
+}
+
 resource "clickhouse_clickstack_alert" "too_many_errors" {
   saved_search_id = clickhouse_clickstack_saved_search.errors.id
 
-  channel = {
-    type       = "webhook"
-    webhook_id = clickhouse_clickstack_webhook.alerts.id
-  }
+  # Two targets on the first pass and one on the update pass. An update replaces
+  # the channel list rather than merging it, so shrinking is the case worth
+  # covering here. Both webhook ids are unknown at plan time on the first pass,
+  # which is its own regression guard.
+  channels = var.update_pass ? [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.alerts.id
+    },
+    ] : [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.alerts.id
+    },
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.alerts_secondary.id
+    },
+  ]
 
   threshold      = var.update_pass ? 200 : 100
   threshold_type = "above"
@@ -128,6 +151,48 @@ resource "clickhouse_clickstack_alert" "too_many_errors" {
 
   name    = "tf-e2e${var.suffix}"
   message = "Error volume exceeded threshold"
+}
+
+# Second alert, on the deprecated single `channel`. That attribute is what every
+# pre-multi-channel config uses, so CI keeps writing it until it is removed. It is
+# deliberately left out of e2e-import.sh: import always populates `channels`, so a
+# `channel`-based config diffs after import by design.
+resource "clickhouse_clickstack_alert" "deprecated_channel" {
+  saved_search_id = clickhouse_clickstack_saved_search.errors.id
+
+  channel = {
+    type       = "webhook"
+    webhook_id = clickhouse_clickstack_webhook.alerts.id
+  }
+
+  threshold      = var.update_pass ? 400 : 300
+  threshold_type = "above"
+  interval       = "1d"
+
+  name = "tf-e2e-deprecated-channel${var.suffix}"
+}
+
+# Tile alert on the "Error count" tile, with the tile id read out of the
+# dashboard's tile_ids map. Same 1d interval as the saved-search alert, for the
+# same cost reason. On `channels` because e2e-import.sh reimports this alert and
+# asserts a clean plan, and import always populates `channels`.
+resource "clickhouse_clickstack_alert" "error_count_tile" {
+  source       = "tile"
+  dashboard_id = clickhouse_clickstack_dashboard.e2e.id
+  tile_id      = clickhouse_clickstack_dashboard.e2e.tile_ids["Error count"]
+
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.alerts.id
+    },
+  ]
+
+  threshold      = var.update_pass ? 50 : 25
+  threshold_type = "above"
+  interval       = "1d"
+
+  name = "tf-e2e-tile${var.suffix}"
 }
 
 # Custom RBAC role. ClickStack RBAC is its own system: it governs ClickStack
@@ -171,9 +236,9 @@ resource "clickhouse_clickstack_dashboard" "e2e" {
 
     tiles = [
       {
-        # Renamed on the update pass. Tile-id carry-forward matches on name, so
-        # a rename forces the positional fallback — the path that would silently
-        # drop a UI-created tile alert if it regressed.
+        # Renamed on the update pass. Tile-id carry-forward matches on name, so the
+        # rename sends this tile with no id and the server mints a fresh one. That is
+        # the path that would break a tile alert bound to the old name.
         name = var.update_pass ? "Log volume (renamed)" : "Log volume"
         x    = 0
         y    = 0
@@ -203,6 +268,26 @@ resource "clickhouse_clickstack_dashboard" "e2e" {
           connectionId = var.connection_id
           sqlTemplate  = "SELECT ServiceName, count() AS logs FROM default.otel_logs GROUP BY ServiceName ORDER BY logs DESC LIMIT 20"
         }
+      },
+      {
+        # The tile alert references this tile by name through tile_ids, so the
+        # name must stay unique and unchanged across the update pass.
+        name = "Error count"
+        x    = 0
+        y    = 3
+        w    = 6
+        h    = 3
+        config = {
+          displayType   = "number"
+          sourceId      = clickhouse_clickstack_source.logs.id
+          where         = "SeverityText = 'ERROR'"
+          whereLanguage = "sql"
+          select = [{
+            aggFn           = "count"
+            valueExpression = ""
+            alias           = "Errors"
+          }]
+        }
       }
     ]
   })
@@ -222,6 +307,18 @@ output "webhook_id" {
 
 output "alert_id" {
   value = clickhouse_clickstack_alert.too_many_errors.id
+}
+
+output "webhook_secondary_id" {
+  value = clickhouse_clickstack_webhook.alerts_secondary.id
+}
+
+output "deprecated_channel_alert_id" {
+  value = clickhouse_clickstack_alert.deprecated_channel.id
+}
+
+output "tile_alert_id" {
+  value = clickhouse_clickstack_alert.error_count_tile.id
 }
 
 output "dashboard_id" {

@@ -21,6 +21,7 @@ func buildKafkaSSHKeyResourcePlan(sshKeyResourceID types.String) models.ClickPip
 	kafkaAttrs := map[string]attr.Value{
 		"type":                         types.StringValue("msk"),
 		"format":                       types.StringValue(api.ClickPipeJSONEachRowFormat),
+		"protobuf_schema":              types.StringNull(),
 		"brokers":                      types.StringValue("broker:9092"),
 		"topics":                       types.StringValue("test-topic"),
 		"consumer_group":               types.StringNull(),
@@ -32,6 +33,7 @@ func buildKafkaSSHKeyResourcePlan(sshKeyResourceID types.String) models.ClickPip
 		"ca_certificate":               types.StringNull(),
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 types.BoolNull(),
+		"tombstone_mode":               types.StringNull(),
 		"ssh_key_resource_id":          sshKeyResourceID,
 	}
 	sourceModel := models.ClickPipeSourceModel{
@@ -281,6 +283,7 @@ func buildMySQLSSHKeyResourcePlan(sshKeyResourceID types.String) models.ClickPip
 		"ca_certificate":         types.StringNull(),
 		"disable_tls":            types.BoolNull(),
 		"skip_cert_verification": types.BoolNull(),
+		"server_id":              types.Int64Null(),
 		"credentials":            dbSourceCredentials(),
 		"settings":               settingsModel.ObjectValue(),
 		"table_mappings":         types.SetValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType(), []attr.Value{}),

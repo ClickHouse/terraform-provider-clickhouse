@@ -6,6 +6,21 @@ BINARY=terraform-provider-${NAME}
 VERSION=0.1
 OS_ARCH=darwin_arm64
 
+# golangci-lint can only analyse Go versions <= the one it was built with, so
+# both the linter build and the lint runs have to be pinned. Take the version
+# from go.mod, the same source CI resolves its Go from, so a bump can't leave
+# the two out of step. Exported file-wide on purpose: every target then builds
+# on the version CI uses, and no new target can miss the pin.
+#
+# Prefer the toolchain directive when there is one, since that is what setup-go
+# resolves to. `go mod edit -go=1.27` writes a two-part language version, which
+# is not a valid toolchain name, so pad it.
+GO_MOD_VERSION := $(shell awk '/^toolchain go/{v=substr($$2,3)} /^go /{if (!g) g=$$2} END{if (!v) v=g; if (v ~ /^[0-9]+\.[0-9]+$$/) v=v".0"; print v}' go.mod)
+ifeq ($(GO_MOD_VERSION),)
+$(error could not read the go version from go.mod)
+endif
+export GOTOOLCHAIN := go$(GO_MOD_VERSION)
+
 default: install
 
 build:
@@ -104,7 +119,6 @@ GOLANGCILINT = $(shell go env GOPATH)/bin/golangci-lint
 ifneq ($(shell test -f $(GOLANGCILINT) && echo -n yes),yes)
 GOLANGCILINT = /tmp/golangci-lint
 endif
-ensure-golangci-lint: export GOTOOLCHAIN := go1.26.0
 ensure-golangci-lint: ## Download golangci-lint locally if necessary.
 	$(call go-get-tool,$(GOLANGCILINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2)
 

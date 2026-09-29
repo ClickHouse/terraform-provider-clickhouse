@@ -214,10 +214,12 @@ type ServiceResourceModel struct {
 	DoubleSha1PasswordHash          types.String `tfsdk:"double_sha1_password_hash"`
 	PasswordWO                      types.String `tfsdk:"password_wo"`
 	PasswordWOVersion               types.Int64  `tfsdk:"password_wo_version"`
+	GeneratedPassword               types.String `tfsdk:"generated_password"`
 	Endpoints                       types.Object `tfsdk:"endpoints"`
 	CloudProvider                   types.String `tfsdk:"cloud_provider"`
 	Region                          types.String `tfsdk:"region"`
 	Tier                            types.String `tfsdk:"tier"`
+	Profile                         types.String `tfsdk:"profile"`
 	ReleaseChannel                  types.String `tfsdk:"release_channel"`
 	IdleScaling                     types.Bool   `tfsdk:"idle_scaling"`
 	IpAccessList                    types.List   `tfsdk:"ip_access"`
@@ -259,6 +261,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.CloudProvider.Equal(b.CloudProvider) ||
 		!m.Region.Equal(b.Region) ||
 		!m.Tier.Equal(b.Tier) ||
+		!m.Profile.Equal(b.Profile) ||
 		!m.ReleaseChannel.Equal(b.ReleaseChannel) ||
 		!m.IdleScaling.Equal(b.IdleScaling) ||
 		!m.MinTotalMemoryGb.Equal(b.MinTotalMemoryGb) ||

@@ -28,6 +28,43 @@ Check out the [documentation](https://registry.terraform.io/providers/ClickHouse
 
 ## Breaking changes and deprecations
 
+### Upgrading to version >= 3.26.0
+
+In version 3.26.0 we deprecated the `channel` attribute on `clickhouse_clickstack_alert` in favor of `channels`. You can keep using `channel`, but it will be removed in a future release, and it can only ever notify a single target.
+
+`channels` takes a list of 1 to 10 notification channels, so one alert can notify several destinations when it fires. Exactly one of `channel` or `channels` must be set.
+
+```terraform
+# Before
+resource "clickhouse_clickstack_alert" "too_many_errors" {
+  channel = {
+    type       = "webhook"
+    webhook_id = clickhouse_clickstack_webhook.slack.id
+  }
+  # ...
+}
+
+# After
+resource "clickhouse_clickstack_alert" "too_many_errors" {
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.slack.id
+    },
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.pagerduty.id
+    },
+  ]
+  # ...
+}
+```
+
+Two things to know when migrating:
+
+- Updating an alert replaces its channel list rather than merging into it. Sending only `channel` for an alert that has several channels reduces it to that one channel, so fetch the alert and send the complete `channels` list to preserve them.
+- `terraform import` always populates `channels`. A config still using `channel` shows a diff after importing an alert; switching it to a single-entry `channels` list resolves that.
+
 ### Upgrading to version >= 3.15.0
 
 In version 3.15.0 we deprecated the `CLICKHOUSE_TOKEN_KEY` and `CLICKHOUSE_TOKEN_SECRET` environment variables in favor of `CLICKHOUSE_CLOUD_API_KEY` and `CLICKHOUSE_CLOUD_API_SECRET`. The new names align with how API credentials are referred to in the [ClickHouse Cloud UI](https://clickhouse.cloud/) and the [OpenAPI docs](https://clickhouse.com/docs/en/cloud/manage/openapi).

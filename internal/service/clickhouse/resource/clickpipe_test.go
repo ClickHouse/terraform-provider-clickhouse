@@ -522,12 +522,14 @@ func buildKafkaMutualTLSPlan(certificate, privateKey types.String) models.ClickP
 		"consumer_group":               types.StringNull(),
 		"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
 		"schema_registry":              types.ObjectNull(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes),
+		"protobuf_schema":              types.StringNull(),
 		"authentication":               types.StringValue("MUTUAL_TLS"),
 		"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
 		"iam_role":                     types.StringNull(),
 		"ca_certificate":               types.StringNull(),
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 types.BoolNull(),
+		"tombstone_mode":               types.StringNull(),
 	}
 
 	sourceModel := models.ClickPipeSourceModel{
@@ -994,12 +996,14 @@ func buildKafkaCredentialsPlan(password, passwordWO types.String, passwordWOVers
 			"consumer_group":               types.StringNull(),
 			"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
 			"schema_registry":              types.ObjectNull(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes),
+			"protobuf_schema":              types.StringNull(),
 			"authentication":               types.StringValue("PLAIN"),
 			"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
 			"iam_role":                     types.StringNull(),
 			"ca_certificate":               types.StringNull(),
 			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 			"exactly_once":                 types.BoolNull(),
+			"tombstone_mode":               types.StringNull(),
 		}
 		sourceModel := models.ClickPipeSourceModel{
 			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
@@ -1093,12 +1097,14 @@ func buildKafkaSchemaRegistryCredentialsPlan(password, passwordWO types.String, 
 			"consumer_group":               types.StringNull(),
 			"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
 			"schema_registry":              types.ObjectValueMust(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes, srAttrs),
+			"protobuf_schema":              types.StringNull(),
 			"authentication":               types.StringValue("PLAIN"),
 			"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, mainCredAttrs),
 			"iam_role":                     types.StringNull(),
 			"ca_certificate":               types.StringNull(),
 			"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 			"exactly_once":                 types.BoolNull(),
+			"tombstone_mode":               types.StringNull(),
 		}
 		sourceModel := models.ClickPipeSourceModel{
 			Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
@@ -1192,6 +1198,7 @@ func buildMySQLCredentialsPlan(password, passwordWO types.String, passwordWOVers
 			"ca_certificate":         types.StringNull(),
 			"disable_tls":            types.BoolNull(),
 			"skip_cert_verification": types.BoolNull(),
+			"server_id":              types.Int64Null(),
 			"credentials":            types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
 			"settings":               types.ObjectValueMust(models.ClickPipeMySQLSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
 			"table_mappings":         types.SetValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType(), []attr.Value{}),
@@ -1266,6 +1273,7 @@ func buildMongoDBCredentialsPlan(password, passwordWO types.String, passwordWOVe
 			"replication_mode":                   types.StringValue("cdc"),
 			"sync_interval_seconds":              types.Int64Null(),
 			"pull_batch_size":                    types.Int64Null(),
+			"initial_load_parallelism":           types.Int64Null(),
 			"snapshot_num_rows_per_partition":    types.Int64Null(),
 			"snapshot_number_of_parallel_tables": types.Int64Null(),
 			"delete_on_merge":                    types.BoolNull(),
@@ -1446,11 +1454,12 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name        string
-		state       models.ClickPipeResourceModel
-		response    *api.ClickPipe
-		responseErr error
-		wantErr     bool
+		name                       string
+		state                      models.ClickPipeResourceModel
+		response                   *api.ClickPipe
+		responseErr                error
+		wantErr                    bool
+		wantInitialLoadParallelism types.Int64
 	}{
 		{
 			name:  "Syncs MongoDB source with all settings",
@@ -1467,6 +1476,7 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 							ReplicationMode:                "cdc",
 							SyncIntervalSeconds:            intPtr(30),
 							PullBatchSize:                  intPtr(500),
+							InitialLoadParallelism:         intPtr(4),
 							SnapshotNumRowsPerPartition:    intPtr(100000),
 							SnapshotNumberOfParallelTables: intPtr(2),
 							DeleteOnMerge:                  boolPtr(true),
@@ -1486,7 +1496,8 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 					Database: "default",
 				},
 			},
-			wantErr: false,
+			wantErr:                    false,
+			wantInitialLoadParallelism: types.Int64Value(4),
 		},
 		{
 			name:  "Preserves null values for optional MongoDB settings",
@@ -1515,7 +1526,8 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 					Database: "default",
 				},
 			},
-			wantErr: false,
+			wantErr:                    false,
+			wantInitialLoadParallelism: types.Int64Null(),
 		},
 	}
 
@@ -1557,6 +1569,11 @@ func TestClickPipeResource_syncClickPipeState_MongoDB(t *testing.T) {
 				var mongodbModel models.ClickPipeMongoDBSourceModel
 				sourceModel.MongoDB.As(ctx, &mongodbModel, basetypes.ObjectAsOptions{})
 				assert.False(t, mongodbModel.Credentials.IsNull(), "credentials should be preserved from state")
+
+				// Validate initial_load_parallelism is read back from the API (or kept null when absent)
+				var settingsModel models.ClickPipeMongoDBSettingsModel
+				mongodbModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})
+				assert.Equal(t, tt.wantInitialLoadParallelism, settingsModel.InitialLoadParallelism)
 			}
 		})
 	}
@@ -1601,6 +1618,7 @@ func getMongoDBInitialState() models.ClickPipeResourceModel {
 							"replication_mode":                   types.StringValue("cdc"),
 							"sync_interval_seconds":              types.Int64Null(),
 							"pull_batch_size":                    types.Int64Null(),
+							"initial_load_parallelism":           types.Int64Null(),
 							"snapshot_num_rows_per_partition":    types.Int64Null(),
 							"snapshot_number_of_parallel_tables": types.Int64Null(),
 							"delete_on_merge":                    types.BoolNull(),

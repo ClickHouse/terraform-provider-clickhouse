@@ -11,19 +11,22 @@ import (
 
 type RolePolicyTagsModel struct {
 	RoleV2 types.String `tfsdk:"role"`
+	Grants types.List   `tfsdk:"grants"`
 }
 
 func (r RolePolicyTagsModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"role": types.StringType,
+			"role":   types.StringType,
+			"grants": types.ListType{ElemType: types.StringType},
 		},
 	}
 }
 
 func (r RolePolicyTagsModel) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(r.ObjectType().AttrTypes, map[string]attr.Value{
-		"role": r.RoleV2,
+		"role":   r.RoleV2,
+		"grants": r.Grants,
 	})
 }
 
@@ -111,10 +114,29 @@ func APIToRolePolicyModel(p api.RBACPolicy) (RolePolicyModel, diag.Diagnostics) 
 	}
 
 	var tagsObj types.Object
-	if p.Tags != nil && p.Tags.RoleV2 != "" {
-		tagsObj = RolePolicyTagsModel{RoleV2: types.StringValue(p.Tags.RoleV2)}.ObjectValue()
-	} else {
+	if p.Tags == nil || (p.Tags.RoleV2 == "" && len(p.Tags.Grants) == 0) {
 		tagsObj = types.ObjectNull(RolePolicyTagsModel{}.ObjectType().AttrTypes)
+	} else {
+		roleV2 := types.StringNull()
+		if p.Tags.RoleV2 != "" {
+			roleV2 = types.StringValue(p.Tags.RoleV2)
+		}
+
+		grants := types.ListNull(types.StringType)
+		if p.Tags.Grants != nil {
+			grantValues := make([]attr.Value, len(p.Tags.Grants))
+			for i, grant := range p.Tags.Grants {
+				grantValues[i] = types.StringValue(grant)
+			}
+			var d diag.Diagnostics
+			grants, d = types.ListValue(types.StringType, grantValues)
+			diags.Append(d...)
+			if diags.HasError() {
+				return RolePolicyModel{}, diags
+			}
+		}
+
+		tagsObj = RolePolicyTagsModel{RoleV2: roleV2, Grants: grants}.ObjectValue()
 	}
 
 	return RolePolicyModel{

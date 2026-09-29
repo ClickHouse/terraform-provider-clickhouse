@@ -46,6 +46,7 @@ func serviceObjectType() types.ObjectType {
 		"cloud_provider":                     types.StringType,
 		"region":                             types.StringType,
 		"tier":                               types.StringType,
+		"profile":                            types.StringType,
 		"state":                              types.StringType,
 		"clickhouse_version":                 types.StringType,
 		"created_at":                         types.StringType,
@@ -176,6 +177,7 @@ func serviceToObjectValue(ctx context.Context, svc api.Service) (types.Object, d
 		"cloud_provider":                     types.StringValue(svc.Provider),
 		"region":                             types.StringValue(svc.Region),
 		"tier":                               strOrNull(svc.Tier),
+		"profile":                            strPtrOrNull(svc.Profile),
 		"state":                              strOrNull(svc.State),
 		"clickhouse_version":                 strOrNull(svc.ClickHouseVersion),
 		"created_at":                         strOrNull(svc.CreatedAt),
@@ -219,6 +221,7 @@ func serviceComputedAttributes() map[string]schema.Attribute {
 		"cloud_provider":        schema.StringAttribute{Description: "Cloud provider hosting the service ('aws', 'gcp', or 'azure').", Computed: true},
 		"region":                schema.StringAttribute{Description: "Cloud region the service runs in.", Computed: true},
 		"tier":                  schema.StringAttribute{Description: "Service tier.", Computed: true},
+		"profile":               schema.StringAttribute{Description: "Custom instance profile of the service, if any (e.g. a dynamic BYOC profile such as 'v1-standard-byoc-4').", Computed: true},
 		"state":                 schema.StringAttribute{Description: "Current service state (e.g. 'running', 'idle', 'stopped').", Computed: true},
 		"clickhouse_version":    schema.StringAttribute{Description: "ClickHouse version running on the service.", Computed: true},
 		"created_at":            schema.StringAttribute{Description: "RFC3339 creation timestamp.", Computed: true},
@@ -319,6 +322,7 @@ type serviceDataSourceModel struct {
 	CloudProvider                  types.String `tfsdk:"cloud_provider"`
 	Region                         types.String `tfsdk:"region"`
 	Tier                           types.String `tfsdk:"tier"`
+	Profile                        types.String `tfsdk:"profile"`
 	State                          types.String `tfsdk:"state"`
 	ClickHouseVersion              types.String `tfsdk:"clickhouse_version"`
 	CreatedAt                      types.String `tfsdk:"created_at"`

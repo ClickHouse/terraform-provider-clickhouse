@@ -45,6 +45,13 @@ func TestAccDashboardResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet("clickhouse_clickstack_dashboard.test", "normalized_json"),
 				),
 			},
+			// Same body, pretty-printed: the text differs from state but the
+			// dashboard does not, so the plan must be empty, not an update
+			// driven by normalized_json going unknown.
+			{
+				Config:   testAccDashboardResourcePrettyConfig("tf-acc-dashboard-renamed"),
+				PlanOnly: true,
+			},
 			// Import: dashboard_json is config-owned and reconstructed from the
 			// server response via canonicalization, so it is added to
 			// ImportStateVerifyIgnore to avoid spurious mismatches between the
@@ -102,40 +109,42 @@ func checkImportedDashboardJSON(states []*terraform.InstanceState) error {
 // filter. The filter is what makes the import check meaningful: the server
 // assigns it an id that the write path then refuses to accept back.
 func testAccDashboardResourceConfig(name string) string {
+	return testAccDashboardConfig(name, "")
+}
+
+// testAccDashboardResourcePrettyConfig is the same dashboard as indented text,
+// which differs from the compact form in state but not in content.
+func testAccDashboardResourcePrettyConfig(name string) string {
+	return testAccDashboardConfig(name, "  ")
+}
+
+func testAccDashboardConfig(name, indent string) string {
 	sourceID := os.Getenv("CLICKSTACK_SOURCE_ID")
+	body, err := json.MarshalIndent(map[string]any{
+		"name": name,
+		"filters": []any{map[string]any{
+			"type": "QUERY_EXPRESSION", "name": "Service", "expression": "ServiceName",
+			"sourceId": sourceID, "whereLanguage": "sql",
+		}},
+		"tiles": []any{map[string]any{
+			"name": "spans", "x": 0, "y": 0, "w": 6, "h": 3,
+			"config": map[string]any{
+				"displayType": "line", "sourceId": sourceID,
+				"select": []any{map[string]any{"aggFn": "count", "alias": "count"}},
+			},
+		}},
+	}, "", indent)
+	if err != nil {
+		panic(err) // a literal map always marshals
+	}
+	if indent == "" {
+		body, _ = json.Marshal(json.RawMessage(body)) // MarshalIndent with no indent still adds newlines
+	}
 	return fmt.Sprintf(`
 resource "clickhouse_clickstack_dashboard" "test" {
-  dashboard_json = jsonencode({
-    name = %q
-    filters = [
-      {
-        type          = "QUERY_EXPRESSION"
-        name          = "Service"
-        expression    = "ServiceName"
-        sourceId      = %q
-        whereLanguage = "sql"
-      }
-    ]
-    tiles = [
-      {
-        name = "spans"
-        x    = 0
-        y    = 0
-        w    = 6
-        h    = 3
-        config = {
-          displayType = "line"
-          sourceId    = %q
-          select = [
-            {
-              aggFn = "count"
-              alias = "count"
-            }
-          ]
-        }
-      }
-    ]
-  })
+  dashboard_json = <<-EOT
+%s
+  EOT
 }
-`, name, sourceID, sourceID)
+`, body)
 }

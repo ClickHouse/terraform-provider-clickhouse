@@ -47,12 +47,14 @@ func kafkaUpdateModel(caCertificate types.String, kafkaPassword string) models.C
 		"consumer_group":               types.StringValue("clickpipes-test"),
 		"offset":                       types.ObjectNull(models.ClickPipeKafkaOffsetModel{}.ObjectType().AttrTypes),
 		"schema_registry":              types.ObjectValueMust(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes, srAttrs),
+		"protobuf_schema":              types.StringNull(),
 		"authentication":               types.StringValue("PLAIN"),
 		"credentials":                  types.ObjectValueMust(models.ClickPipeKafkaSourceCredentialsModel{}.ObjectType().AttrTypes, mainCredAttrs),
 		"iam_role":                     types.StringNull(),
 		"ca_certificate":               caCertificate,
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 types.BoolNull(),
+		"tombstone_mode":               types.StringNull(),
 	}
 	src := models.ClickPipeSourceModel{
 		Kafka:         types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs),
@@ -137,6 +139,7 @@ func TestClickPipeUpdate_KafkaOmitsImmutableFields(t *testing.T) {
 	require.NotNil(t, kafka, "update payload carries no kafka source")
 
 	assert.Nil(t, kafka.SchemaRegistry, "schema registry must never be sent on update")
+	assert.Nil(t, kafka.ProtobufSchema, "protobuf schema must never be sent on update")
 	assert.Nil(t, kafka.Credentials, "unchanged credentials must be omitted")
 	assert.Empty(t, kafka.Type, "immutable type must be omitted")
 	assert.Empty(t, kafka.Format, "immutable format must be omitted")
@@ -144,6 +147,7 @@ func TestClickPipeUpdate_KafkaOmitsImmutableFields(t *testing.T) {
 	assert.Empty(t, kafka.Topics, "immutable topics must be omitted")
 	assert.Nil(t, kafka.ConsumerGroup, "immutable consumer group must be omitted")
 	assert.Nil(t, kafka.Offset, "immutable offset must be omitted")
+	assert.Nil(t, kafka.TombstoneMode, "immutable tombstone mode must be omitted")
 
 	require.NotNil(t, kafka.CACertificate, "the mutable ca_certificate change must be carried")
 	assert.Equal(t, "PEM-CA", *kafka.CACertificate)

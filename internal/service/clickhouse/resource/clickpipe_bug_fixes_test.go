@@ -234,6 +234,7 @@ func buildMySQLPlanWithCredentials(credentials types.Object) models.ClickPipeRes
 		"sorting_keys":           types.ListNull(types.StringType),
 		"table_engine":           types.StringNull(),
 		"partition_key":          types.StringNull(),
+		"partition_by_expr":      types.StringNull(),
 	}
 	mysqlAttrs := map[string]attr.Value{
 		"ssh_key_resource_id":    types.StringNull(),
@@ -246,6 +247,7 @@ func buildMySQLPlanWithCredentials(credentials types.Object) models.ClickPipeRes
 		"ca_certificate":         types.StringNull(),
 		"disable_tls":            types.BoolNull(),
 		"skip_cert_verification": types.BoolNull(),
+		"server_id":              types.Int64Null(),
 		"credentials":            credentials,
 		"settings":               types.ObjectValueMust(models.ClickPipeMySQLSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
 		"table_mappings": types.SetValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType(), []attr.Value{
@@ -765,6 +767,132 @@ func TestClickPipeResource_ModifyPlan_MappingValueFieldsImmutable_Issue648(t *te
 	})
 }
 
+// mysqlPlanForModifyPlan completes the minimal MySQL fixture so it encodes
+// cleanly against the resource schema for ModifyPlan (state and plan alike):
+// buildMySQLPlanWithCredentials leaves the complex-typed fields as zero values,
+// which carry no element/attribute types and are rejected by tfsdk.State.Set.
+func mysqlPlanForModifyPlan() models.ClickPipeResourceModel {
+	credentials := types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, map[string]attr.Value{
+		"username":            types.StringValue("user"),
+		"password":            types.StringValue("pass"),
+		"password_wo":         types.StringNull(),
+		"password_wo_version": types.Int64Null(),
+	})
+	m := buildMySQLPlanWithCredentials(credentials)
+
+	m.State = types.StringValue("provisioning")
+	m.Scaling = types.ObjectNull(models.ClickPipeScalingModel{}.ObjectType().AttrTypes)
+	m.FieldMappings = types.ListNull(models.ClickPipeFieldMappingModel{}.ObjectType())
+	m.Settings = types.DynamicNull()
+	m.Stopped = types.BoolNull()
+	m.TriggerResync = types.BoolNull()
+	m.Destination = types.ObjectValueMust(
+		models.ClickPipeDestinationModel{}.ObjectType().AttrTypes,
+		map[string]attr.Value{
+			"database":         types.StringValue("default"),
+			"table":            types.StringNull(),
+			"managed_table":    types.BoolNull(),
+			"table_definition": types.ObjectNull(models.ClickPipeDestinationTableDefinitionModel{}.ObjectType().AttrTypes),
+			"columns":          types.ListNull(models.ClickPipeDestinationColumnModel{}.ObjectType()),
+			"roles":            types.ListNull(types.StringType),
+		},
+	)
+	return m
+}
+
+// setMySQLMappingAttr rebuilds the model's single MySQL table mapping with one
+// attribute replaced.
+func setMySQLMappingAttr(ctx context.Context, t *testing.T, m *models.ClickPipeResourceModel, field string, v attr.Value) {
+	t.Helper()
+	var src models.ClickPipeSourceModel
+	if d := m.Source.As(ctx, &src, basetypes.ObjectAsOptions{}); d.HasError() {
+		t.Fatalf("decoding source failed: %v", d.Errors())
+	}
+	var mysql models.ClickPipeMySQLSourceModel
+	if d := src.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{}); d.HasError() {
+		t.Fatalf("decoding mysql source failed: %v", d.Errors())
+	}
+
+	elems := mysql.TableMappings.Elements()
+	if len(elems) != 1 {
+		t.Fatalf("fixture must have exactly one table mapping, got %d", len(elems))
+	}
+	attrs := maps.Clone(elems[0].(types.Object).Attributes())
+	attrs[field] = v
+	mysql.TableMappings = types.SetValueMust(
+		models.ClickPipeMySQLTableMappingModel{}.ObjectType(),
+		[]attr.Value{types.ObjectValueMust(models.ClickPipeMySQLTableMappingModel{}.ObjectType().AttrTypes, attrs)},
+	)
+	src.MySQL = mysql.ObjectValue()
+	m.Source = src.ObjectValue()
+}
+
+// MySQL mirror of the Postgres Issue #648 coverage, extended with
+// partition_by_expr (added to the API by control-plane#38962): table_engine,
+// partition_key, and partition_by_expr on an existing mapping cannot be edited
+// in place — the API rejects add+remove of the same source table in one PATCH,
+// so the plan-time error is the contract.
+func TestClickPipeResource_ModifyPlan_MySQLMappingValueFieldsImmutable(t *testing.T) {
+	ctx := context.Background()
+
+	valueFields := map[string]attr.Value{
+		"table_engine":      types.StringValue("Null"),
+		"partition_key":     types.StringValue("id"),
+		"partition_by_expr": types.StringValue("toYYYYMM(created_at)"),
+	}
+	for field, newValue := range valueFields {
+		t.Run("changing "+field+" is rejected at plan time", func(t *testing.T) {
+			state := mysqlPlanForModifyPlan()
+			plan := mysqlPlanForModifyPlan()
+			setMySQLMappingAttr(ctx, t, &plan, field, newValue)
+
+			diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+			assert.True(t, errorDetailContains(diags, "Cannot modify "+field),
+				"a %s change on an existing mapping must be rejected at plan time; got: %v", field, diags.Errors())
+		})
+	}
+
+	t.Run("identical value fields do not trip the guard", func(t *testing.T) {
+		state := mysqlPlanForModifyPlan()
+		plan := mysqlPlanForModifyPlan()
+		setMySQLMappingAttr(ctx, t, &state, "partition_by_expr", types.StringValue("toYYYYMM(created_at)"))
+		setMySQLMappingAttr(ctx, t, &plan, "partition_by_expr", types.StringValue("toYYYYMM(created_at)"))
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.False(t, errorDetailContains(diags, "Cannot modify"),
+			"an unchanged mapping must not be flagged; got: %v", diags.Errors())
+	})
+}
+
+// partition_by_expr must survive the model→API conversion shared by the create
+// (extractSourceFromPlan) and update (tableMappingsToAdd/Remove) payloads.
+func TestConvertMySQLTableMappingModelToAPI_PartitionByExpr(t *testing.T) {
+	ctx := context.Background()
+	diagnostics := diag.Diagnostics{}
+
+	mapping := convertMySQLTableMappingModelToAPI(ctx, &diagnostics, models.ClickPipeMySQLTableMappingModel{
+		SourceSchemaName:    types.StringValue("demo"),
+		SourceTable:         types.StringValue("events"),
+		TargetTable:         types.StringValue("events"),
+		ExcludedColumns:     types.SetNull(types.StringType),
+		UseCustomSortingKey: types.BoolNull(),
+		SortingKeys:         types.ListNull(types.StringType),
+		TableEngine:         types.StringNull(),
+		PartitionKey:        types.StringNull(),
+		PartitionByExpr:     types.StringValue("toYYYYMM(created_at)"),
+	})
+
+	assert.False(t, diagnostics.HasError(), "expected no errors, got: %v", diagnostics.Errors())
+	if assert.NotNil(t, mapping.PartitionByExpr) {
+		assert.Equal(t, "toYYYYMM(created_at)", *mapping.PartitionByExpr)
+	}
+	// null model fields must stay omitted so the API doesn't see blanked-out values
+	assert.Nil(t, mapping.PartitionKey)
+	assert.Nil(t, mapping.TableEngine)
+}
+
 // Issue #571 — ModifyPlan must reject destination.table_definition on a CDC pipe (it caused "inconsistent result after apply"), and must not fire when it's omitted.
 
 // postgresPlanWithTableDefinition clones the Postgres fixture, optionally adding a minimal destination.table_definition (MergeTree).
@@ -788,6 +916,7 @@ func postgresPlanWithTableDefinition(withTableDef bool) models.ClickPipeResource
 			SortingKey:  types.ListValueMust(types.StringType, []attr.Value{}),
 			PartitionBy: types.StringNull(),
 			PrimaryKey:  types.StringNull(),
+			TTL:         types.StringNull(),
 		}.ObjectValue()
 	}
 
@@ -981,5 +1110,78 @@ func TestClickPipeResource_ModifyPlan_StateOnNoOpPlan_Issue595(t *testing.T) {
 
 		assert.True(t, planned.IsUnknown(),
 			"an update may settle in a transient state, so the planned state must stay Unknown, got %v", planned)
+	})
+}
+
+// Issue #696 — the CDC cleanup note fired on every plan for every CDC pipe,
+// including plans with no changes at all, where there is nothing to act on.
+func TestClickPipeResource_ModifyPlan_CDCCleanupNoteOnlyWhenChanging_Issue696(t *testing.T) {
+	ctx := context.Background()
+
+	hasCleanupNote := func(diags diag.Diagnostics) bool {
+		for _, d := range diags.Warnings() {
+			if d.Summary() == "Note about CDC table cleanup" {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("no-change plan does not warn", func(t *testing.T) {
+		state := mysqlPlanForModifyPlan()
+		plan := mysqlPlanForModifyPlan()
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.False(t, hasCleanupNote(diags),
+			"an unchanged CDC pipe has no tables to clean up; got: %v", diags)
+	})
+
+	t.Run("changed plan still warns", func(t *testing.T) {
+		state := mysqlPlanForModifyPlan()
+		plan := mysqlPlanForModifyPlan()
+		plan.Name = types.StringValue("renamed-pipe")
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.True(t, hasCleanupNote(diags),
+			"a changing CDC pipe may be replaced, so the note must survive; got: %v", diags)
+	})
+
+	// The framework marks `state` Unknown whenever the proposed plan differs
+	// from prior state, even when ModifyPlan's repairs resolve the difference.
+	// The gate reads the repaired plan, so this still has to count as a no-op.
+	t.Run("plan repaired back to a no-op does not warn", func(t *testing.T) {
+		state := mysqlPlanForModifyPlan()
+		plan := mysqlPlanForModifyPlan()
+		plan.State = types.StringUnknown()
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.False(t, hasCleanupNote(diags),
+			"a repaired no-op has no tables to clean up; got: %v", diags)
+	})
+
+	// Postgres is the source the issue was reported against, and isCDCPipe
+	// tests each source type separately.
+	t.Run("postgres no-change plan does not warn", func(t *testing.T) {
+		state := postgresPlanWithExcludedColumns(ctx, []string{"ssn"}, "users")
+		plan := postgresPlanWithExcludedColumns(ctx, []string{"ssn"}, "users")
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.False(t, hasCleanupNote(diags),
+			"an unchanged Postgres CDC pipe has no tables to clean up; got: %v", diags)
+	})
+
+	t.Run("postgres changed plan still warns", func(t *testing.T) {
+		state := postgresPlanWithExcludedColumns(ctx, []string{"ssn"}, "users")
+		plan := postgresPlanWithExcludedColumns(ctx, []string{"ssn"}, "users")
+		plan.Name = types.StringValue("renamed-pipe")
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.True(t, hasCleanupNote(diags),
+			"a changing Postgres CDC pipe may be replaced, so the note must survive; got: %v", diags)
 	})
 }

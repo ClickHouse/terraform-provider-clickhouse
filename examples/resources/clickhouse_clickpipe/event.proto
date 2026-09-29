@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package events;
+
+message Event {
+  string id = 1;
+}

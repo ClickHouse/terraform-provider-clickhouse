@@ -65,7 +65,7 @@ Read-Only:
 - `permissions` (Set of String) List of permission strings.
 - `resources` (Set of String) List of resources this policy applies to.
 - `role_id` (String) ID of the role this policy belongs to.
-- `tags` (Attributes) Optional tags for additional policy metadata. (see [below for nested schema](#nestedatt--policies--tags))
+- `tags` (Attributes) Optional SQL console access configuration. (see [below for nested schema](#nestedatt--policies--tags))
 - `tenant_id` (String) Tenant ID that owns this policy.
 
 <a id="nestedatt--policies--tags"></a>
@@ -73,4 +73,5 @@ Read-Only:
 
 Read-Only:
 
+- `grants` (List of String) Ordered SQL GRANT and REVOKE statements for custom SQL console access.
 - `role` (String) SQL console role level for passwordless DB access. One of: sql-console-admin (full access), sql-console-readonly (read-only).

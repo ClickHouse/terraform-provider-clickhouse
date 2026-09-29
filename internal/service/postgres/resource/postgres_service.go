@@ -58,9 +58,6 @@ func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.Metad
 	resp.TypeName = req.ProviderTypeName + "_postgres_service"
 }
 
-// ValidateConfig surfaces the beta warning at plan time, matching the other
-// beta resources (clickhouse_service_upgrade_window, …).
-//
 // State-dependent rules are NOT enforced here: ValidateConfig is stateless, so
 // it can't tell a create from an update or read prior state. That covers the
 // create-time attribute rules (required for a standard create; inherited from
@@ -68,8 +65,19 @@ func (r *PostgresServiceResource) Metadata(_ context.Context, req resource.Metad
 // existing instance drops its origin block) and the live-replica modification
 // block (which needs is_primary from prior state). All of these live in
 // ModifyPlan, which has prior state.
-func (r *PostgresServiceResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+func (r *PostgresServiceResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var cloudProvider types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("cloud_provider"), &cloudProvider)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if cloudProvider.ValueString() == "gcp" {
+		resp.Diagnostics.AddAttributeWarning(
+			path.Root("cloud_provider"),
+			"Postgres on GCP is in private preview",
+			"Postgres on GCP is in private preview. Your organization must have access to GCP and the selected Postgres region. Contact ClickHouse support to request access.",
+		)
+	}
 }
 
 // configIsOrigin reports whether the config declares a read replica or restore.
@@ -311,7 +319,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"cloud_provider": schema.StringAttribute{
-				Description: "Cloud provider hosting the instance. Currently only 'aws' is supported. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).",
+				Description: "Cloud provider hosting the instance. Supported values are 'aws' and 'gcp'. Postgres on GCP is in private preview; contact ClickHouse support to enable access for your organization and region. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).",
 				Optional:    true,
 				Computed:    true,
 				Validators: []validator.String{
@@ -323,7 +331,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"region": schema.StringAttribute{
-				Description: "Cloud region (e.g. 'us-east-1'). No client-side validation; the server rejects unsupported regions. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).",
+				Description: "Cloud region (e.g. 'us-east-1' for AWS or 'us-west1' for GCP). No client-side validation; the server rejects unsupported regions. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
@@ -562,6 +570,8 @@ func (r *PostgresServiceResource) Configure(_ context.Context, req resource.Conf
 // Create provisions a new instance via one of three mutually-exclusive paths:
 // standard, read replica (read_replica_of), or point-in-time restore.
 func (r *PostgresServiceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+
 	var plan, config models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
@@ -679,8 +689,6 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 }
 
 func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
-
 	var state models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -746,6 +754,8 @@ func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadReq
 // RequiresReplaceIf (replace for a live replica, adopted in place once promoted
 // out-of-band) so Update also handles that in-place adoption.
 func (r *PostgresServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+
 	var plan, state, config models.PostgresServiceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -877,6 +887,8 @@ func (r *PostgresServiceResource) Delete(ctx context.Context, req resource.Delet
 }
 
 func (r *PostgresServiceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	utils.BetaWarning("clickhouse_postgres_service", &resp.Diagnostics)
+
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 

@@ -70,6 +70,25 @@ type MetadataMaterializedViews struct {
 	Granularity    string `json:"granularity"`
 }
 
+// FilterSettingColumn is one column of a source's required source filter.
+// AllowAll reports whether an "all values" selection is offered for the column.
+type FilterSettingColumn struct {
+	Name  string  `json:"name"`
+	Label *string `json:"label,omitempty"`
+	// AllowAll is a pointer because the API omits it entirely when false, rather
+	// than echoing false. Treat an absent value as false when reading.
+	AllowAll *bool `json:"allowAll,omitempty"`
+}
+
+// FilterSettings pins one or more columns that every query against the source
+// must filter on, with the candidate values sourced from a dictionary table.
+// This backs the "required source filters" shown in the UI.
+type FilterSettings struct {
+	DatabaseName string                `json:"databaseName"`
+	TableName    string                `json:"tableName"`
+	Columns      []FilterSettingColumn `json:"columns"`
+}
+
 // Source is a ClickStack source as returned by the v2 API. It is the union of
 // all source kinds; kind-specific fields are pointers and omitted when nil.
 type Source struct {
@@ -80,6 +99,8 @@ type Source struct {
 	From       SourceFrom `json:"from"`
 	Section    *string    `json:"section,omitempty"`
 	Disabled   *bool      `json:"disabled,omitempty"`
+
+	FilterSettings *FilterSettings `json:"filterSettings,omitempty"`
 
 	QuerySettings            []QuerySetting `json:"querySettings,omitempty"`
 	TimestampValueExpression string         `json:"timestampValueExpression"`

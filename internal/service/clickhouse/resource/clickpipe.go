@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -37,6 +38,11 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/tfutils"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
+
+// iamRoleArnRegex matches an IAM role ARN in any AWS partition, with an optional path.
+var iamRoleArnRegex = regexp.MustCompile(`^arn:aws[a-z-]*:iam::[0-9]{12}:role/(?:[\x21-\x7E]+/)?[\w+=,.@-]+$`)
+
+var trimmedNonEmptyRegex = regexp.MustCompile(`^\S(?:.*\S)?$`)
 
 var (
 	_ resource.Resource                     = &ClickPipeResource{}
@@ -250,6 +256,14 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									stringplanmodifier.RequiresReplace(),
 								},
 							},
+							"protobuf_schema": schema.StringAttribute{
+								MarkdownDescription: "Base64-encoded Protobuf schema used instead of `schema_registry`. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Requires `format = \"Protobuf\"` and forces replacement when changed.",
+								Optional:            true,
+								Sensitive:           true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"brokers": schema.StringAttribute{
 								Description: "The list of Kafka bootstrap brokers. (comma separated)",
 								Required:    true,
@@ -258,7 +272,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"topics": schema.StringAttribute{
-								Description: "The list of Kafka topics. (comma separated)",
+								Description: "One or more Kafka topics as a comma-separated string (for example, topic1,topic2). All topics must have the same schema and are ingested into the same destination table by a single ClickPipe.",
 								Required:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
@@ -475,6 +489,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									boolplanmodifier.RequiresReplace(),
 								},
 							},
+							"tombstone_mode": schema.StringAttribute{
+								MarkdownDescription: "How Kafka tombstone records are handled. Set to `delete` to delete the matching destination row using field mappings sourced from `_key` or `_key.<field>`. Requires `exactly_once = true`. This setting is create-only; changing it forces ClickPipe replacement.",
+								Optional:            true,
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeKafkaTombstoneModes...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 						},
 					},
 					"object_storage": schema.SingleNestedAttribute{
@@ -636,7 +660,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 						},
 					},
 					"kinesis": schema.SingleNestedAttribute{
-						MarkdownDescription: "The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field forces resource replacement (destroy and recreate).",
+						MarkdownDescription: "The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field, including `schema_registry`, forces resource replacement (destroy and recreate).",
 						Optional:            true,
 						PlanModifiers: []planmodifier.Object{
 							requiresReplaceIfSourceTypeChanges{},
@@ -653,6 +677,58 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"protobuf_schema": schema.StringAttribute{
+								MarkdownDescription: "Base64-encoded Protobuf schema. " +
+									"Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. " +
+									"Required with `format = \"Protobuf\"` unless `schema_registry` is set, and not supported with other formats. " +
+									"Changing it forces replacement.",
+								Optional: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"schema_registry": schema.SingleNestedAttribute{
+								MarkdownDescription: "The AWS Glue schema registry for the Kinesis source. " +
+									"Required with `format = \"AvroConfluent\"`, optional with `format = \"Protobuf\"` instead of `protobuf_schema`, and not supported with other formats. " +
+									"Glue is read with the source's IAM identity unless `glue_role_arn` is set. Immutable: any change forces pipe replacement.",
+								Optional: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.RequiresReplace(),
+								},
+								Attributes: map[string]schema.Attribute{
+									"type": schema.StringAttribute{
+										MarkdownDescription: fmt.Sprintf(
+											"The type of the schema registry. (%s)",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKinesisSchemaRegistryTypes),
+										),
+										Required: true,
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipeKinesisSchemaRegistryTypes...),
+										},
+									},
+									"glue_region": schema.StringAttribute{
+										Description: "The AWS region of the Glue schema registry.",
+										Required:    true,
+										Validators: []validator.String{
+											stringvalidator.RegexMatches(trimmedNonEmptyRegex, "must not be empty or have leading or trailing whitespace"),
+										},
+									},
+									"glue_registry_name": schema.StringAttribute{
+										Description: "The name of the Glue schema registry.",
+										Required:    true,
+										Validators: []validator.String{
+											stringvalidator.RegexMatches(trimmedNonEmptyRegex, "must not be empty or have leading or trailing whitespace"),
+										},
+									},
+									"glue_role_arn": schema.StringAttribute{
+										Description: "The IAM role to assume for Glue schema registry access. Defaults to the IAM identity of the Kinesis source.",
+										Optional:    true,
+										Validators: []validator.String{
+											stringvalidator.RegexMatches(iamRoleArnRegex, "must be an IAM role ARN"),
+										},
+									},
 								},
 							},
 							"stream_name": schema.StringAttribute{
@@ -1241,6 +1317,24 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Computed:    true,
 								Default:     booldefault.StaticBool(false),
 							},
+							// server_id is a uint32 on the wire (see api.ClickPipeMySQLSource.ServerID),
+							// Int64Attribute is the smallest type that can hold its full domain.
+							// The validator below enforces the real range, and extractSourceFromPlan
+							// narrows the value to uint32 behind a runtime bounds check.
+							"server_id": schema.Int64Attribute{
+								MarkdownDescription: fmt.Sprintf(
+									"Optional MySQL `server_id` the pipe declares itself as in the MySQL replication topology. Must be unique across replicas connected to the source. If omitted, one is assigned randomly. Must be a non-zero unsigned 32-bit integer (1 to %d).",
+									uint32(math.MaxUint32),
+								),
+								Optional: true,
+								Computed: true,
+								Validators: []validator.Int64{
+									int64validator.Between(1, math.MaxUint32),
+								},
+								PlanModifiers: []planmodifier.Int64{
+									int64planmodifier.UseStateForUnknown(),
+								},
+							},
 							"credentials": schema.SingleNestedAttribute{
 								MarkdownDescription: "The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
 								Required:            true,
@@ -1445,6 +1539,19 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										"partition_key": schema.StringAttribute{
 											Description: "Custom partitioning column used for parallel snapshotting. Must be an indexed column of integer, date, datetime, or timestamp type.",
 											Optional:    true,
+										},
+										"partition_by_expr": schema.StringAttribute{
+											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping.",
+											Optional:    true,
+											Validators: []validator.String{
+												// The API stores a blank expression as unset, which reads
+												// back as null and would produce "inconsistent result
+												// after apply". Omit the attribute instead of blanking it.
+												stringvalidator.RegexMatches(
+													regexp.MustCompile(`\S`),
+													"must not be empty or whitespace-only; omit the attribute instead",
+												),
+											},
 										},
 									},
 								},
@@ -1741,6 +1848,18 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											int64validator.AtLeast(1),
 										},
 									},
+									"initial_load_parallelism": schema.Int64Attribute{
+										Description: "Number of parallel workers to use per collection during the initial snapshot phase. Can only be set at creation time; changing it forces pipe replacement.",
+										Computed:    true,
+										Optional:    true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplace(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+									},
 									"snapshot_num_rows_per_partition": schema.Int64Attribute{
 										Description: "Number of rows per partition during the snapshot phase.",
 										Computed:    true,
@@ -1888,6 +2007,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							"primary_key": schema.StringAttribute{
 								MarkdownDescription: "The primary key of the table.",
 								Optional:            true,
+							},
+							"ttl": schema.StringAttribute{
+								MarkdownDescription: "ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.",
+								Optional:            true,
+								Validators: []validator.String{
+									stringvalidator.LengthAtLeast(1),
+								},
 							},
 						},
 						PlanModifiers: []planmodifier.Object{
@@ -2559,6 +2685,15 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 										} else if !stateMapping.UseCustomSortingKey.Equal(planMapping.UseCustomSortingKey) {
 											changed = true
 											changeDetail = "use_custom_sorting_key"
+										} else if !stateMapping.TableEngine.Equal(planMapping.TableEngine) {
+											changed = true
+											changeDetail = "table_engine"
+										} else if !stateMapping.PartitionKey.Equal(planMapping.PartitionKey) {
+											changed = true
+											changeDetail = "partition_key"
+										} else if !stateMapping.PartitionByExpr.Equal(planMapping.PartitionByExpr) {
+											changed = true
+											changeDetail = "partition_by_expr"
 										}
 
 										if changed {
@@ -2652,27 +2787,49 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Warn about manual table cleanup for CDC pipes (Postgres and MySQL)
-	// Show this for any modification to make users aware, with message clarifying it's for recreations
-	if !request.State.Raw.IsNull() && !request.Plan.Raw.IsNull() {
-		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
-		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
-				isCDCPipe := (!planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull()) ||
-					(!planSourceModel.MySQL.IsNull() && !stateSourceModel.MySQL.IsNull()) ||
-					(!planSourceModel.MongoDB.IsNull() && !stateSourceModel.MongoDB.IsNull())
-				if isCDCPipe {
-					response.Diagnostics.AddWarning(
-						"Note about CDC table cleanup",
-						"If this change requires replacement (check for '# forces replacement' in the plan), destination tables are not automatically deleted. You may need to manually delete previous destination tables before recreating the pipe.",
-					)
-				}
-			}
-		}
+	// Must stay the last step that touches the plan: decides `state` from the
+	// fully repaired plan. warnAboutCDCTableCleanup runs after it but only adds
+	// diagnostics, and it needs the repaired plan to tell a no-op from a change.
+	c.planStateAttribute(ctx, request, response)
+
+	c.warnAboutCDCTableCleanup(ctx, request, response, plan, state)
+}
+
+// warnAboutCDCTableCleanup tells the practitioner that a replacement leaves the
+// old destination tables behind. Only worth saying when the pipe is actually
+// changing: on a no-op plan it is noise that hides warnings needing action
+// (https://github.com/ClickHouse/terraform-provider-clickhouse/issues/696).
+// ModifyPlan cannot see the framework's RequiresReplace, so "changing" is the
+// closest signal available, hence the hedge in the message. Runs after
+// planStateAttribute because that is what settles whether the repaired plan
+// still differs from prior state.
+func (c *ClickPipeResource) warnAboutCDCTableCleanup(ctx context.Context, request resource.ModifyPlanRequest, response *resource.ModifyPlanResponse, plan, state models.ClickPipeResourceModel) {
+	if request.State.Raw.IsNull() || request.Plan.Raw.IsNull() || response.Diagnostics.HasError() {
+		return
+	}
+	if response.Plan.Raw.Equal(request.State.Raw) {
+		return
 	}
 
-	// Must stay the final step: decides `state` from the fully repaired plan.
-	c.planStateAttribute(ctx, request, response)
+	var planSourceModel, stateSourceModel models.ClickPipeSourceModel
+	if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return
+	}
+	if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return
+	}
+
+	isCDCPipe := (!planSourceModel.Postgres.IsNull() && !stateSourceModel.Postgres.IsNull()) ||
+		(!planSourceModel.MySQL.IsNull() && !stateSourceModel.MySQL.IsNull()) ||
+		(!planSourceModel.MongoDB.IsNull() && !stateSourceModel.MongoDB.IsNull())
+	if !isCDCPipe {
+		return
+	}
+
+	response.Diagnostics.AddWarning(
+		"Note about CDC table cleanup",
+		"If this change requires replacement (check for '# forces replacement' in the plan), destination tables are not automatically deleted. You may need to manually delete previous destination tables before recreating the pipe.",
+	)
 }
 
 func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
@@ -2785,6 +2942,7 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 				Engine:      engine,
 				PartitionBy: tableDefinitionModel.PartitionBy.ValueStringPointer(),
 				PrimaryKey:  tableDefinitionModel.PrimaryKey.ValueStringPointer(),
+				TTL:         tableDefinitionModel.TTL.ValueStringPointer(),
 				SortingKey:  sortingKey,
 			}
 		}
@@ -3162,7 +3320,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !isUpdate {
 			source.Kafka.Type = kafkaModel.Type.ValueString()
 			source.Kafka.Format = kafkaModel.Format.ValueString()
+			source.Kafka.ProtobufSchema = kafkaModel.ProtobufSchema.ValueStringPointer()
 			source.Kafka.ExactlyOnce = kafkaModel.ExactlyOnce.ValueBoolPointer()
+			source.Kafka.TombstoneMode = kafkaModel.TombstoneMode.ValueStringPointer()
 			source.Kafka.SSHKeyResourceID = kafkaModel.SSHKeyResourceID.ValueStringPointer()
 		}
 
@@ -3363,6 +3523,21 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			UseEnhancedFanOut: kinesisModel.UseEnhancedFanOut.ValueBool(),
 			Authentication:    kinesisModel.Authentication.ValueString(),
 			IAMRole:           kinesisModel.IAMRole.ValueStringPointer(),
+		}
+		if !isUpdate && !kinesisModel.ProtobufSchema.IsNull() {
+			encodedSchema := strings.TrimSpace(kinesisModel.ProtobufSchema.ValueString())
+			source.Kinesis.ProtobufSchema = &encodedSchema
+		}
+		if !isUpdate && !kinesisModel.SchemaRegistry.IsNull() {
+			schemaRegistryModel := models.ClickPipeKinesisSchemaRegistryModel{}
+			diagnostics.Append(kinesisModel.SchemaRegistry.As(ctx, &schemaRegistryModel, basetypes.ObjectAsOptions{})...)
+
+			source.Kinesis.SchemaRegistry = &api.ClickPipeKinesisSchemaRegistry{
+				Type:             schemaRegistryModel.Type.ValueString(),
+				GlueRegion:       schemaRegistryModel.GlueRegion.ValueString(),
+				GlueRegistryName: schemaRegistryModel.GlueRegistryName.ValueString(),
+				GlueRoleArn:      schemaRegistryModel.GlueRoleArn.ValueStringPointer(),
+			}
 		}
 
 		if !kinesisModel.Timestamp.IsNull() {
@@ -3865,6 +4040,12 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			val := mysqlModel.SkipCertVerification.ValueBool()
 			mysqlSource.SkipCertVerification = &val
 		}
+		if !mysqlModel.ServerID.IsNull() && !mysqlModel.ServerID.IsUnknown() {
+			if v := mysqlModel.ServerID.ValueInt64(); v >= 1 && v <= math.MaxUint32 {
+				serverID := uint32(v)
+				mysqlSource.ServerID = &serverID
+			}
+		}
 		if !isUpdate {
 			mysqlSource.SSHKeyResourceID = mysqlModel.SSHKeyResourceID.ValueStringPointer()
 		}
@@ -3909,6 +4090,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !settingsModel.PullBatchSize.IsNull() && !settingsModel.PullBatchSize.IsUnknown() {
 			v := int(settingsModel.PullBatchSize.ValueInt64())
 			settings.PullBatchSize = &v
+		}
+		if !settingsModel.InitialLoadParallelism.IsNull() && !settingsModel.InitialLoadParallelism.IsUnknown() {
+			v := int(settingsModel.InitialLoadParallelism.ValueInt64())
+			settings.InitialLoadParallelism = &v
 		}
 		if !settingsModel.SnapshotNumRowsPerPartition.IsNull() && !settingsModel.SnapshotNumRowsPerPartition.IsUnknown() {
 			v := int(settingsModel.SnapshotNumRowsPerPartition.ValueInt64())
@@ -4053,6 +4238,10 @@ func convertMySQLTableMappingModelToAPI(ctx context.Context, diagnostics *diag.D
 
 	if !mappingModel.PartitionKey.IsNull() {
 		mapping.PartitionKey = mappingModel.PartitionKey.ValueStringPointer()
+	}
+
+	if !mappingModel.PartitionByExpr.IsNull() {
+		mapping.PartitionByExpr = mappingModel.PartitionByExpr.ValueStringPointer()
 	}
 
 	return mapping
@@ -4277,6 +4466,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		kafkaModel := models.ClickPipeKafkaSourceModel{
 			Type:           types.StringValue(clickPipe.Source.Kafka.Type),
 			Format:         types.StringValue(clickPipe.Source.Kafka.Format),
+			ProtobufSchema: stateKafkaModel.ProtobufSchema,
 			Brokers:        types.StringValue(clickPipe.Source.Kafka.Brokers),
 			Topics:         types.StringValue(clickPipe.Source.Kafka.Topics),
 			ConsumerGroup:  types.StringValue(consumerGroup),
@@ -4341,6 +4531,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			kafkaModel.ExactlyOnce = types.BoolValue(*clickPipe.Source.Kafka.ExactlyOnce)
 		} else {
 			kafkaModel.ExactlyOnce = types.BoolNull()
+		}
+
+		if clickPipe.Source.Kafka.TombstoneMode != nil {
+			kafkaModel.TombstoneMode = types.StringValue(*clickPipe.Source.Kafka.TombstoneMode)
+		} else {
+			kafkaModel.TombstoneMode = types.StringNull()
 		}
 
 		if clickPipe.Source.Kafka.SSHKeyResourceID != nil {
@@ -4425,6 +4621,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		kinesisModel := models.ClickPipeKinesisSourceModel{
 			Format:            types.StringValue(clickPipe.Source.Kinesis.Format),
+			ProtobufSchema:    stateKinesisModel.ProtobufSchema,
 			StreamName:        types.StringValue(clickPipe.Source.Kinesis.StreamName),
 			Region:            types.StringValue(clickPipe.Source.Kinesis.Region),
 			IteratorType:      types.StringValue(clickPipe.Source.Kinesis.IteratorType),
@@ -4432,6 +4629,17 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Authentication:    types.StringValue(clickPipe.Source.Kinesis.Authentication),
 			IAMRole:           types.StringPointerValue(clickPipe.Source.Kinesis.IAMRole),
 			Timestamp:         types.StringPointerValue(clickPipe.Source.Kinesis.Timestamp),
+		}
+
+		if clickPipe.Source.Kinesis.SchemaRegistry != nil {
+			kinesisModel.SchemaRegistry = models.ClickPipeKinesisSchemaRegistryModel{
+				Type:             types.StringValue(clickPipe.Source.Kinesis.SchemaRegistry.Type),
+				GlueRegion:       types.StringValue(clickPipe.Source.Kinesis.SchemaRegistry.GlueRegion),
+				GlueRegistryName: types.StringValue(clickPipe.Source.Kinesis.SchemaRegistry.GlueRegistryName),
+				GlueRoleArn:      types.StringPointerValue(clickPipe.Source.Kinesis.SchemaRegistry.GlueRoleArn),
+			}.ObjectValue()
+		} else {
+			kinesisModel.SchemaRegistry = types.ObjectNull(models.ClickPipeKinesisSchemaRegistryModel{}.ObjectType().AttrTypes)
 		}
 
 		if !stateKinesisModel.AccessKey.IsNull() {
@@ -4911,6 +5119,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				tableMappingModel.PartitionKey = types.StringNull()
 			}
 
+			if mapping.PartitionByExpr != nil && *mapping.PartitionByExpr != "" {
+				tableMappingModel.PartitionByExpr = types.StringValue(*mapping.PartitionByExpr)
+			} else {
+				tableMappingModel.PartitionByExpr = types.StringNull()
+			}
+
 			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
 		}
 
@@ -4963,6 +5177,14 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			mysqlModel.SkipCertVerification = types.BoolValue(*clickPipe.Source.MySQL.SkipCertVerification)
 		} else {
 			mysqlModel.SkipCertVerification = types.BoolValue(false)
+		}
+
+		if clickPipe.Source.MySQL.ServerID != nil {
+			mysqlModel.ServerID = types.Int64Value(int64(*clickPipe.Source.MySQL.ServerID))
+		} else if !stateMySQLModel.ServerID.IsNull() {
+			mysqlModel.ServerID = stateMySQLModel.ServerID
+		} else {
+			mysqlModel.ServerID = types.Int64Null()
 		}
 
 		if len(tableMappingList) > 0 {
@@ -5023,6 +5245,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.PullBatchSize = types.Int64Value(int64(*clickPipe.Source.MongoDB.Settings.PullBatchSize))
 		} else {
 			settingsModel.PullBatchSize = stateSettingsModel.PullBatchSize
+		}
+
+		if clickPipe.Source.MongoDB.Settings.InitialLoadParallelism != nil {
+			settingsModel.InitialLoadParallelism = types.Int64Value(int64(*clickPipe.Source.MongoDB.Settings.InitialLoadParallelism))
+		} else {
+			settingsModel.InitialLoadParallelism = stateSettingsModel.InitialLoadParallelism
 		}
 
 		if clickPipe.Source.MongoDB.Settings.SnapshotNumRowsPerPartition != nil {
@@ -5397,6 +5625,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			Engine:      engineModel.ObjectValue(),
 			PartitionBy: types.StringPointerValue(clickPipe.Destination.TableDefinition.PartitionBy),
 			PrimaryKey:  types.StringPointerValue(clickPipe.Destination.TableDefinition.PrimaryKey),
+			TTL:         types.StringPointerValue(clickPipe.Destination.TableDefinition.TTL),
 		}
 
 		if len(clickPipe.Destination.TableDefinition.SortingKey) > 0 {
@@ -5808,6 +6037,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				source.Kafka.ConsumerGroup = nil
 				source.Kafka.Offset = nil
 				source.Kafka.SchemaRegistry = nil
+				source.Kafka.ProtobufSchema = nil
 			}
 
 			// For Pub/Sub, only re-send the service_account_key when it changed
@@ -6174,10 +6404,11 @@ func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.Import
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), endpointID)...)
 
 	resp.Diagnostics.AddWarning(
-		"Credentials are not imported",
+		"Sensitive values are not imported",
 		"The API never returns sensitive values, so importing a ClickPipe cannot persist credentials into your state.\n"+
 			"Your configuration (in *.tf files) must provide valid credentials.\n"+
 			"The first `terraform apply` after import sends the source credentials to the ClickPipe and records them in state.\n"+
-			"Schema registry credentials are immutable and never sent on update: the apply records your configured values in state without server-side verification, so ensure they match the registry credentials the pipe already uses.",
+			"Schema registry credentials are immutable and never sent on update: the apply records your configured values in state without server-side verification, so ensure they match the registry credentials the pipe already uses.\n"+
+			"Protobuf schemas aren't imported. Adding `protobuf_schema` after import forces ClickPipe replacement.",
 	)
 }

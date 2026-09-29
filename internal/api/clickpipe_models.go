@@ -104,6 +104,8 @@ type ClickPipeKafkaSchemaRegistry struct {
 type ClickPipeKafkaSource struct {
 	Type   string `json:"type,omitempty"`
 	Format string `json:"format,omitempty"`
+	// ProtobufSchema contains the base64-encoded schema used when no schema registry is configured.
+	ProtobufSchema *string `json:"protobufSchema,omitempty"`
 
 	Brokers string `json:"brokers,omitempty"`
 	Topics  string `json:"topics,omitempty"`
@@ -121,7 +123,8 @@ type ClickPipeKafkaSource struct {
 
 	ReversePrivateEndpointIDs []string `json:"reversePrivateEndpointIds,omitempty"`
 
-	ExactlyOnce *bool `json:"exactlyOnce,omitempty"`
+	ExactlyOnce   *bool   `json:"exactlyOnce,omitempty"`
+	TombstoneMode *string `json:"tombstoneMode,omitempty"`
 
 	SSHKeyResourceID *string `json:"sshKeyResourceId,omitempty"`
 }
@@ -152,8 +155,21 @@ type ClickPipeObjectStorageSource struct {
 	AzureContainerName *string `json:"azureContainerName,omitempty"`
 }
 
+// ClickPipeKinesisSchemaRegistry is the AWS Glue schema registry of a Kinesis source. Glue authenticates
+// with the source's IAM identity, or with GlueRoleArn when set, so it carries no credentials.
+type ClickPipeKinesisSchemaRegistry struct {
+	Type             string  `json:"type"`
+	GlueRegion       string  `json:"glueRegion"`
+	GlueRegistryName string  `json:"glueRegistryName"`
+	GlueRoleArn      *string `json:"glueRoleArn,omitempty"`
+}
+
 type ClickPipeKinesisSource struct {
 	Format string `json:"format"`
+	// ProtobufSchema contains the base64-encoded schema used when no schema registry is configured.
+	ProtobufSchema *string `json:"protobufSchema,omitempty"`
+	// SchemaRegistry is required for AvroConfluent and replaces ProtobufSchema for Protobuf.
+	SchemaRegistry *ClickPipeKinesisSchemaRegistry `json:"schemaRegistry,omitempty"`
 
 	StreamName string `json:"streamName"`
 	Region     string `json:"region"`
@@ -240,6 +256,7 @@ type ClickPipeMySQLSource struct {
 	CACertificate         *string                      `json:"caCertificate,omitempty"`
 	DisableTLS            *bool                        `json:"disableTls,omitempty"`
 	SkipCertVerification  *bool                        `json:"skipCertVerification,omitempty"`
+	ServerID              *uint32                      `json:"serverId,omitempty"`
 	Credentials           *ClickPipeSourceCredentials  `json:"credentials,omitempty"`
 	Settings              *ClickPipeMySQLSettings      `json:"settings,omitempty"`
 	Mappings              []ClickPipeMySQLTableMapping `json:"tableMappings,omitempty"`
@@ -270,12 +287,14 @@ type ClickPipeMySQLTableMapping struct {
 	SortingKeys         []string `json:"sortingKeys,omitempty"`
 	TableEngine         *string  `json:"tableEngine,omitempty"`
 	PartitionKey        *string  `json:"partitionKey,omitempty"`
+	PartitionByExpr     *string  `json:"partitionByExpr,omitempty"`
 }
 
 type ClickPipeMongoDBSettings struct {
 	SyncIntervalSeconds            *int   `json:"syncIntervalSeconds,omitempty"`
 	PullBatchSize                  *int   `json:"pullBatchSize,omitempty"`
 	ReplicationMode                string `json:"replicationMode,omitempty"`
+	InitialLoadParallelism         *int   `json:"initialLoadParallelism,omitempty"`
 	SnapshotNumRowsPerPartition    *int   `json:"snapshotNumRowsPerPartition,omitempty"`
 	SnapshotNumberOfParallelTables *int   `json:"snapshotNumberOfParallelTables,omitempty"`
 	DeleteOnMerge                  *bool  `json:"deleteOnMerge,omitempty"`
@@ -365,6 +384,7 @@ type ClickPipeDestinationTableDefinition struct {
 	SortingKey  []string                        `json:"sortingKey"`
 	PartitionBy *string                         `json:"partitionBy,omitempty"`
 	PrimaryKey  *string                         `json:"primaryKey,omitempty"`
+	TTL         *string                         `json:"ttl,omitempty"`
 }
 
 type ClickPipeDestination struct {

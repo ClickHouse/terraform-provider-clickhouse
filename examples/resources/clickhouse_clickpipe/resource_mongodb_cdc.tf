@@ -21,6 +21,10 @@ resource "clickhouse_clickpipe" "mongodb_cdc_clickpipe" {
         # Optional: Number of rows to pull per batch
         pull_batch_size = 500
 
+        # Optional: Number of parallel workers per collection during the initial
+        # snapshot. Can only be set at creation time (changing it replaces the pipe).
+        initial_load_parallelism = 4
+
         # Optional: Number of rows per partition during snapshot
         snapshot_num_rows_per_partition = 100000
 

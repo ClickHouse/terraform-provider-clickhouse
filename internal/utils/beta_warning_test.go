@@ -26,3 +26,31 @@ func TestBetaWarning(t *testing.T) {
 		t.Errorf("detail = %q, want %q", got, want)
 	}
 }
+
+func TestBetaWarningSuppressed(t *testing.T) {
+	for _, value := range []string{"1", "true", "TRUE"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv(SuppressBetaWarningsEnvVar, value)
+
+			var diags diag.Diagnostics
+			BetaWarning("clickhouse_clickstack_dashboard", &diags)
+
+			if len(diags) != 0 {
+				t.Errorf("got %d diagnostics, want 0: %s", len(diags), diags)
+			}
+		})
+	}
+}
+
+// A value that isn't a bool must not silence the notice: a typo in the env var
+// should leave the warnings on rather than hide them.
+func TestBetaWarningIgnoresNonBoolEnv(t *testing.T) {
+	t.Setenv(SuppressBetaWarningsEnvVar, "yes-please")
+
+	var diags diag.Diagnostics
+	BetaWarning("clickhouse_clickstack_dashboard", &diags)
+
+	if len(diags) != 1 {
+		t.Errorf("got %d diagnostics, want 1: %s", len(diags), diags)
+	}
+}

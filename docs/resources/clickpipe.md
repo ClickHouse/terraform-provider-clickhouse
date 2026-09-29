@@ -61,6 +61,8 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
       engine {
         type = "MergeTree"
       }
+
+      ttl = "event_time + INTERVAL 30 DAY"
     }
 
     columns {
@@ -71,6 +73,11 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
     columns {
       name = "my_field2"
       type = "UInt64"
+    }
+
+    columns {
+      name = "event_time"
+      type = "DateTime"
     }
   }
 
@@ -139,6 +146,7 @@ Optional:
 - `partition_by` (String) The column to partition the table by.
 - `primary_key` (String) The primary key of the table.
 - `sorting_key` (List of String) The list of columns for the sorting key.
+- `ttl` (String) ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.
 
 <a id="nestedatt--destination--table_definition--engine"></a>
 ### Nested Schema for `destination.table_definition.engine`
@@ -162,7 +170,7 @@ Optional:
 
 - `bigquery` (Attributes) The BigQuery source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--bigquery))
 - `kafka` (Attributes) The Kafka source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--kafka))
-- `kinesis` (Attributes) The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field forces resource replacement (destroy and recreate). (see [below for nested schema](#nestedatt--source--kinesis))
+- `kinesis` (Attributes) The Kinesis source configuration for the ClickPipe. Only `authentication`, `iam_role` and `access_key` can be updated in place; changing any other field, including `schema_registry`, forces resource replacement (destroy and recreate). (see [below for nested schema](#nestedatt--source--kinesis))
 - `mongodb` (Attributes) The MongoDB CDC source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--mongodb))
 - `mysql` (Attributes) The MySQL CDC source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--mysql))
 - `object_storage` (Attributes) The compatible object storage source configuration for the ClickPipe. (see [below for nested schema](#nestedatt--source--object_storage))
@@ -232,7 +240,7 @@ Required:
 
 - `brokers` (String) The list of Kafka bootstrap brokers. (comma separated)
 - `format` (String) The format of the Kafka source. (`JSONEachRow`, `Avro`, `AvroConfluent`, `Protobuf`)
-- `topics` (String) The list of Kafka topics. (comma separated)
+- `topics` (String) One or more Kafka topics as a comma-separated string (for example, topic1,topic2). All topics must have the same schema and are ingested into the same destination table by a single ClickPipe.
 
 Optional:
 
@@ -243,9 +251,11 @@ Optional:
 - `exactly_once` (Boolean) Enable exactly-once delivery. Guarantees every Kafka record is inserted exactly once across restarts and rebalances.
 - `iam_role` (String) The IAM role for the Kafka source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kafka#iam
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
+- `protobuf_schema` (String, Sensitive) Base64-encoded Protobuf schema used instead of `schema_registry`. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Requires `format = "Protobuf"` and forces replacement when changed.
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
 - `schema_registry` (Attributes) The schema registry for the Kafka source. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
+- `tombstone_mode` (String) How Kafka tombstone records are handled. Set to `delete` to delete the matching destination row using field mappings sourced from `_key` or `_key.<field>`. Requires `exactly_once = true`. This setting is create-only; changing it forces ClickPipe replacement.
 - `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.
 
 <a id="nestedatt--source--kafka--credentials"></a>
@@ -307,7 +317,7 @@ Optional:
 Required:
 
 - `authentication` (String) The authentication method for the Kinesis source. (`IAM_ROLE`, `IAM_USER`).
-- `format` (String) The format of the Kinesis source. (`JSONEachRow`, `Avro`, `AvroConfluent`)
+- `format` (String) The format of the Kinesis source. (`JSONEachRow`, `Avro`, `AvroConfluent`, `Protobuf`)
 - `iterator_type` (String) The iterator type for the Kinesis source. (`TRIM_HORIZON`, `LATEST`, `AT_TIMESTAMP`)
 - `region` (String) The AWS region of the Kinesis stream.
 - `stream_name` (String) The name of the Kinesis stream.
@@ -316,6 +326,8 @@ Optional:
 
 - `access_key` (Attributes) The access key for the Kinesis source. Use with `IAM_USER` authentication. Can be rotated in place via an update. (see [below for nested schema](#nestedatt--source--kinesis--access_key))
 - `iam_role` (String) The IAM role for the Kinesis source. Use with `IAM_ROLE` authentication. It can be used with AWS ClickHouse service only. Read more at https://clickhouse.com/docs/en/integrations/clickpipes/kinesis.
+- `protobuf_schema` (String) Base64-encoded Protobuf schema. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Required with `format = "Protobuf"` unless `schema_registry` is set, and not supported with other formats. Changing it forces replacement.
+- `schema_registry` (Attributes) The AWS Glue schema registry for the Kinesis source. Required with `format = "AvroConfluent"`, optional with `format = "Protobuf"` instead of `protobuf_schema`, and not supported with other formats. Glue is read with the source's IAM identity unless `glue_role_arn` is set. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kinesis--schema_registry))
 - `timestamp` (String) The timestamp for the Kinesis source. Use with `AT_TIMESTAMP` iterator type. (format `2021-01-01T00:00`)
 - `use_enhanced_fan_out` (Boolean) Whether to use enhanced fan-out consumer.
 
@@ -326,6 +338,20 @@ Required:
 
 - `access_key_id` (String, Sensitive) The access key ID for the Kinesis source.
 - `secret_key` (String, Sensitive) The secret key for the Kinesis source.
+
+
+<a id="nestedatt--source--kinesis--schema_registry"></a>
+### Nested Schema for `source.kinesis.schema_registry`
+
+Required:
+
+- `glue_region` (String) The AWS region of the Glue schema registry.
+- `glue_registry_name` (String) The name of the Glue schema registry.
+- `type` (String) The type of the schema registry. (`glue`)
+
+Optional:
+
+- `glue_role_arn` (String) The IAM role to assume for Glue schema registry access. Defaults to the IAM identity of the Kinesis source.
 
 
 
@@ -358,6 +384,7 @@ Required:
 Optional:
 
 - `delete_on_merge` (Boolean) Enable hard delete behavior in ReplacingMergeTree for MongoDB DELETE operations.
+- `initial_load_parallelism` (Number) Number of parallel workers to use per collection during the initial snapshot phase. Can only be set at creation time; changing it forces pipe replacement.
 - `pull_batch_size` (Number) Number of rows to pull in each batch during CDC replication.
 - `snapshot_num_rows_per_partition` (Number) Number of rows per partition during the snapshot phase.
 - `snapshot_number_of_parallel_tables` (Number) Number of collections to snapshot in parallel during the initial load phase.
@@ -411,6 +438,7 @@ Optional:
 - `disable_tls` (Boolean) Disable TLS for the MySQL connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the MySQL instance. Default is 3306.
+- `server_id` (Number) Optional MySQL `server_id` the pipe declares itself as in the MySQL replication topology. Must be unique across replicas connected to the source. If omitted, one is assigned randomly. Must be a non-zero unsigned 32-bit integer (1 to 4294967295).
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MySQL connection.
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
@@ -462,6 +490,7 @@ Required:
 Optional:
 
 - `excluded_columns` (Set of String) Columns to exclude from replication.
+- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Must be an indexed column of integer, date, datetime, or timestamp type.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)

@@ -176,12 +176,17 @@ func rolePoliciesSchemaAttribute() schema.ListNestedAttribute {
 					ElementType: types.StringType,
 				},
 				"tags": schema.SingleNestedAttribute{
-					Description: "Optional tags for additional policy metadata.",
+					Description: "Optional SQL console access configuration.",
 					Computed:    true,
 					Attributes: map[string]schema.Attribute{
 						"role": schema.StringAttribute{
 							Description: "SQL console role level for passwordless DB access. One of: sql-console-admin (full access), sql-console-readonly (read-only).",
 							Computed:    true,
+						},
+						"grants": schema.ListAttribute{
+							Description: "Ordered SQL GRANT and REVOKE statements for custom SQL console access.",
+							Computed:    true,
+							ElementType: types.StringType,
 						},
 					},
 				},

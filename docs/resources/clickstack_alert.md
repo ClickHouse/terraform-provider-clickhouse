@@ -3,31 +3,44 @@
 page_title: "clickhouse_clickstack_alert Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
-  Manages a ClickStack alert that evaluates a saved search on a schedule and notifies through a channel when a threshold is crossed.
+  Manages a ClickStack alert that evaluates a saved search, a dashboard tile, or its own chart config on a schedule and notifies one or more channels when a threshold is crossed.
+  Set source to saved_search (the default) with saved_search_id, to tile with dashboard_id and tile_id, or to inline with chart_config for a standalone alert that has no saved search or dashboard behind it. Tile ids are assigned by the server and cannot be set in dashboard_json; reference the tile through the dashboard's computed tile_ids map (tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert, and the plan fails with an invalid tile_ids index until the reference is updated. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
+  Importing a dashboard does not import its tile alerts (terraform import maps one ID to one resource). Import each alert separately by its own ID. Importing an inline alert fills in chart_config from the server, and fails with a clear error for the rare chart whose stored config uses query features the v2 API cannot express (filters, having, orderBy, limit), since importing it would drop them.
   Alerts are threshold-based (there is no anomaly mode). Configuration is validated at plan time; those rules mirror the ClickStack server contract on a best-effort basis, so a server-side rule change may make the plan-time checks slightly stale until a new provider release.
 ---
 
 # clickhouse_clickstack_alert (Resource)
 
-Manages a ClickStack alert that evaluates a saved search on a schedule and notifies through a channel when a threshold is crossed.
+Manages a ClickStack alert that evaluates a saved search, a dashboard tile, or its own chart config on a schedule and notifies one or more channels when a threshold is crossed.
+
+Set `source` to `saved_search` (the default) with `saved_search_id`, to `tile` with `dashboard_id` and `tile_id`, or to `inline` with `chart_config` for a standalone alert that has no saved search or dashboard behind it. Tile ids are assigned by the server and cannot be set in `dashboard_json`; reference the tile through the dashboard's computed `tile_ids` map (`tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]`). Keep the tile's name unique and stable: a rename mints a new id and detaches the alert, and the plan fails with an invalid `tile_ids` index until the reference is updated. Only line, stacked bar, and number tiles can be alerted on. The server deletes a tile alert when its tile is removed or changed to an unsupported display type; Terraform then plans to recreate it, which fails with the server's "Tile not found" until the tile is restored.
+
+Importing a dashboard does not import its tile alerts (`terraform import` maps one ID to one resource). Import each alert separately by its own ID. Importing an `inline` alert fills in `chart_config` from the server, and fails with a clear error for the rare chart whose stored config uses query features the v2 API cannot express (`filters`, `having`, `orderBy`, `limit`), since importing it would drop them.
 
 Alerts are threshold-based (there is no anomaly mode). Configuration is validated at plan time; those rules mirror the ClickStack server contract on a best-effort basis, so a server-side rule change may make the plan-time checks slightly stale until a new provider release.
 
 ## Example Usage
 
 ```terraform
-# A threshold alert on a saved search, notifying a webhook.
+# A threshold alert on a saved search, notifying two webhooks.
 #
-# The alert references its saved search and webhook by id, so Terraform creates
+# The alert references its saved search and webhooks by id, so Terraform creates
 # them first and destroys the alert before them (a webhook cannot be deleted
 # while an alert still references it).
 resource "clickhouse_clickstack_alert" "too_many_errors" {
   saved_search_id = clickhouse_clickstack_saved_search.errors.id
 
-  channel = {
-    type       = "webhook"
-    webhook_id = clickhouse_clickstack_webhook.slack.id
-  }
+  # Up to 10 channels, notified in order. Duplicates are rejected.
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.slack.id
+    },
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.pagerduty.id
+    },
+  ]
 
   # Fire when the saved search returns more than 100 rows in a 5-minute window.
   threshold      = 100
@@ -43,10 +56,10 @@ resource "clickhouse_clickstack_alert" "latency_band" {
   saved_search_id = clickhouse_clickstack_saved_search.errors.id
   group_by        = "ServiceName"
 
-  channel = {
+  channels = [{
     type       = "webhook"
     webhook_id = clickhouse_clickstack_webhook.generic.id
-  }
+  }]
 
   # between/not_between require threshold_max (>= threshold).
   threshold      = 200
@@ -56,6 +69,107 @@ resource "clickhouse_clickstack_alert" "latency_band" {
 
   num_consecutive_windows = 2
 }
+
+# A tile alert on a dashboard chart. Tile ids are assigned by the server, so the
+# alert takes the id from the dashboard's computed `tile_ids` map, keyed by tile
+# name. Keep the tile's name unique within the dashboard and unchanged: a rename
+# mints a new id and detaches the alert. Only line, stacked bar, and number tiles
+# can be alerted on.
+resource "clickhouse_clickstack_dashboard" "latency" {
+  dashboard_json = jsonencode({
+    name = "Latency"
+    tiles = [
+      {
+        name = "p95 latency"
+        x    = 0
+        y    = 0
+        w    = 12
+        h    = 6
+        config = {
+          displayType = "line"
+          sourceId    = clickhouse_clickstack_source.traces.id
+          select = [
+            {
+              aggFn           = "quantile"
+              level           = 0.95
+              valueExpression = "Duration"
+            }
+          ]
+        }
+      }
+    ]
+  })
+}
+
+resource "clickhouse_clickstack_alert" "p95_latency" {
+  source       = "tile"
+  dashboard_id = clickhouse_clickstack_dashboard.latency.id
+  tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
+
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.slack.id
+    },
+  ]
+
+  # Fire when the tile's p95 goes above 500 in a 5-minute window. The threshold is
+  # in the tile's own units: raw `Duration` here, which is nanoseconds when the
+  # source sets duration_precision = 9.
+  threshold      = 500
+  threshold_type = "above"
+  interval       = "5m"
+
+  name = "p95 latency too high"
+}
+
+# A standalone alert with no saved search or dashboard behind it: the chart it
+# evaluates lives on the alert itself, in the same JSON dialect as a tile's
+# `config` in `dashboard_json`. Only line, stacked bar and number charts can be
+# alerted on. Self-hosted ClickStack only for now; the ClickHouse Cloud gateway
+# does not expose this alert source yet.
+resource "clickhouse_clickstack_alert" "error_log_spike" {
+  source = "inline"
+
+  chart_config = jsonencode({
+    name        = "Error log volume"
+    displayType = "line"
+    sourceId    = clickhouse_clickstack_source.logs.id
+    select = [
+      {
+        aggFn         = "count"
+        where         = "level:error"
+        whereLanguage = "lucene"
+      }
+    ]
+  })
+
+  channels = [
+    {
+      type       = "webhook"
+      webhook_id = clickhouse_clickstack_webhook.slack.id
+    },
+  ]
+
+  threshold      = 100
+  threshold_type = "above"
+  interval       = "5m"
+}
+
+# The pre-multi-channel `channel` form still applies, but it is deprecated and
+# can only ever notify one target. Switch it to a single-entry `channels` list.
+resource "clickhouse_clickstack_alert" "legacy_single_channel" {
+  saved_search_id = clickhouse_clickstack_saved_search.errors.id
+
+  channel = {
+    type       = "webhook"
+    webhook_id = clickhouse_clickstack_webhook.generic.id
+  }
+
+  threshold      = 50
+  threshold_type = "above"
+  interval       = "1h"
+}
 ```
 
 <!-- schema generated by tfplugindocs -->
@@ -63,23 +177,28 @@ resource "clickhouse_clickstack_alert" "latency_band" {
 
 ### Required
 
-- `channel` (Attributes) Notification channel for the alert. (see [below for nested schema](#nestedatt--channel))
 - `interval` (String) Evaluation window: one of `1m`, `5m`, `15m`, `30m`, `1h`, `6h`, `12h`, `1d`.
-- `saved_search_id` (String) ID of the saved search this alert evaluates.
 - `threshold` (Number) Threshold value the alert compares against. For range types (`between`/`not_between`) this is the lower bound.
 - `threshold_type` (String) Comparison type: one of `above`, `below`, `above_exclusive`, `below_or_equal`, `equal`, `not_equal`, `between`, `not_between`.
 
 ### Optional
 
-- `group_by` (String) Optional expression to evaluate the alert per group. Sticky once set: the API keeps the previous value when the field is omitted and cannot clear it, so removing it from config is a no-op (recreate the alert to fully reset it).
+- `channel` (Attributes, Deprecated) Single notification channel for the alert. Deprecated: use `channels`. Exactly one of `channel` or `channels` must be set. Importing an alert always populates `channels`, so a config still on `channel` shows a diff after import. (see [below for nested schema](#nestedatt--channel))
+- `channels` (Attributes List) Notification channels for the alert, in order. Between 1 and 10 entries, no duplicates. Exactly one of `channel` or `channels` must be set. (see [below for nested schema](#nestedatt--channels))
+- `chart_config` (String) Chart config for a standalone alert, as a JSON string in the same v2 API dialect as a tile's `config` in `dashboard_json`. Use `jsonencode(...)` or `file(...)`. Required when `source` is `inline` and rejected for the other sources. Only `line`, `stacked_bar` and `number` display types can be alerted on, as builder configs or raw SQL (`configType = "sql"`); PromQL charts cannot. A builder config also takes a chart-level `name`, `where` and `whereLanguage`, which a tile config does not. Like `dashboard_json`, this value is the sole source of truth: edits made to the alert's chart in the UI are not reported as drift. Self-hosted ClickStack only for now: the ClickHouse Cloud gateway's alert API does not list `inline` among its sources and has no chart config field, so it rejects the request. `saved_search` and `tile` alerts work on both.
+- `dashboard_id` (String) ID of the dashboard that owns the tile. Required together with `tile_id` when `source` is `tile`: a tile lives inside its dashboard document, so it can only be looked up through the dashboard. Changing this forces replacement, including when the dashboard itself is replaced: the server deletes a dashboard's tile alerts along with it, so the alert cannot outlive the dashboard it points at.
+- `group_by` (String) Optional expression to evaluate the alert per group (saved-search alerts only). Sticky once set: the API keeps the previous value when the field is omitted and cannot clear it, so removing it from config is a no-op (recreate the alert to fully reset it).
 - `message` (String) Optional notification message template (1-4096 characters).
 - `name` (String) Optional alert name (1-512 characters).
 - `note` (String) Optional markdown note (1-4096 characters).
 - `num_consecutive_windows` (Number) Fire only after the condition holds for this many consecutive windows (>= 1).
+- `saved_search_id` (String) ID of the saved search this alert evaluates. Required when `source` is `saved_search`.
 - `schedule_offset_minutes` (Number) Offset window boundaries by this many minutes (0-1439, and less than the interval). Mutually exclusive with `schedule_start_at`; setting one clears the other.
 - `schedule_start_at` (String) Absolute UTC anchor (RFC3339) for window alignment. Mutually exclusive with a non-zero `schedule_offset_minutes`; setting one clears the other.
+- `source` (String) What the alert evaluates: `saved_search` (default, requires `saved_search_id`), `tile` (requires `dashboard_id` and `tile_id`), or `inline` (requires `chart_config`). Changing this forces replacement.
 - `team` (String) Team ID to manage this alert under (`x-hdx-team`). Changing this forces the alert to be replaced.
 - `threshold_max` (Number) Upper bound, required for `between`/`not_between` and ignored otherwise. Must be >= `threshold`.
+- `tile_id` (String) Server-assigned ID of the tile to alert on. Take it from the dashboard's `tile_ids` map by tile name; ids cannot be chosen in `dashboard_json`. Required together with `dashboard_id` when `source` is `tile`. The alert has no query of its own: the server reads the tile's chart config from the dashboard on every evaluation. The tile must be a line, stacked bar, or number tile. Changing this to a different known value forces replacement.
 
 ### Read-Only
 
@@ -87,6 +206,18 @@ resource "clickhouse_clickstack_alert" "latency_band" {
 
 <a id="nestedatt--channel"></a>
 ### Nested Schema for `channel`
+
+Required:
+
+- `type` (String) Channel type. Currently only `webhook` is supported.
+
+Optional:
+
+- `webhook_id` (String) ID of the webhook to notify. Required when `type` is `webhook`.
+
+
+<a id="nestedatt--channels"></a>
+### Nested Schema for `channels`
 
 Required:
 
@@ -114,4 +245,28 @@ terraform import clickhouse_clickstack_alert.too_many_errors 65f0c0ffeecafef00db
 # form {"data": [{"id": "...", "name": "...", "savedSearchId": "...", ...}]}.
 curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
   "$CLICKSTACK_ENDPOINT/api/v2/alerts" | jq -r '.data[] | "\(.id)\t\(.name)"'
+
+# Tile alerts (source = "tile") are imported the same way, by the alert's own ID.
+# Importing a dashboard does not import its tile alerts: terraform import maps one
+# ID to one resource. List the tile alerts with their dashboard and tile ids:
+curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
+  "$CLICKSTACK_ENDPOINT/api/v2/alerts" \
+  | jq -r '.data[] | select(.source == "tile") | "\(.id)\t\(.dashboardId)\t\(.tileId)\t\(.name)"'
+
+# Inline alerts (source = "inline") import the same way. chart_config comes back
+# in the server's canonical form, so a hand-written jsonencode(...) block will
+# show one diff on the next plan before it settles. List them:
+curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
+  "$CLICKSTACK_ENDPOINT/api/v2/alerts" \
+  | jq -r '.data[] | select(.source == "inline") | "\(.id)\t\(.displayName)"'
+
+# `terraform plan -generate-config-out=...` writes the alert with literal ids for
+# dashboard_id, tile_id and the webhook_id inside channels. Terraform generates
+# config from state alone and cannot know those ids belong to other resources, so
+# replace them by hand to link the alert to its dashboard tile and webhook:
+#   dashboard_id = clickhouse_clickstack_dashboard.latency.id
+#   tile_id      = clickhouse_clickstack_dashboard.latency.tile_ids["p95 latency"]
+#   channels     = [{ type = "webhook", webhook_id = clickhouse_clickstack_webhook.slack.id }]
+# Import always populates channels, never the deprecated channel, whatever the
+# alert was created with. The generated `= null` lines can be deleted.
 ```

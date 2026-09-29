@@ -32,6 +32,7 @@ func workloadIdentityKafka(sourceType string, credentials types.Object, iamRole 
 		"ssh_key_resource_id":          types.StringNull(),
 		"type":                         types.StringValue(sourceType),
 		"format":                       types.StringValue(api.ClickPipeJSONEachRowFormat),
+		"protobuf_schema":              types.StringNull(),
 		"brokers":                      types.StringValue("broker:9092"),
 		"topics":                       types.StringValue("events"),
 		"consumer_group":               types.StringNull(),
@@ -43,6 +44,7 @@ func workloadIdentityKafka(sourceType string, credentials types.Object, iamRole 
 		"ca_certificate":               types.StringNull(),
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 types.BoolNull(),
+		"tombstone_mode":               types.StringNull(),
 	})
 }
 

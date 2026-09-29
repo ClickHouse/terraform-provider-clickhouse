@@ -38,6 +38,12 @@ inputs:
     required: false
     default: "false"
     description: If true it runs tests out of last published terraform provider release
+  provider_artifact:
+    required: false
+    default: ""
+    description: >
+      Name of an artifact holding a provider built from this branch. When empty
+      the provider is built in this job instead.
   aws_role_arn:
     required: true
     description: The ARN of the AWS role to assume for AWS tests
@@ -123,13 +129,6 @@ runs:
           echo "Test ${{ inputs.test_name }} is not available for ${{ inputs.cloud_provider }}"
         fi
         echo "SKIP_E2E_TEST=false" >> "$GITHUB_ENV"
-
-    - name: Setup go
-      uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
-      if: ${{steps.defined.outputs.defined == 'true' }}
-      with:
-        go-version-file: "go.mod"
-        cache: true
 
     - name: Install terraform
       uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
@@ -352,25 +351,11 @@ runs:
 
           echo "::endgroup::"
 
-    - shell: bash
+    - name: Provide the branch build of the provider
       if: ${{ inputs.skip_build == 'false' && steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
-      name: Build provider from branch and create terraformrc to use it
-      run: |
-        git checkout ${{ github.ref }}
-        echo "::group::Build provider from branch and create terraformrc to use it"
-        go get
-        go build -o terraform-provider-clickhouse -ldflags='-X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.version=e2e -X github.com/ClickHouse/terraform-provider-clickhouse/internal/project.commit=${{ github.sha }}'
-
-        cat <<EOF >$HOME/.terraformrc
-        provider_installation {
-          dev_overrides {
-            "ClickHouse/clickhouse" = "$(pwd)"
-          }
-          direct {}
-        }
-        EOF
-
-        echo "::endgroup::"
+      uses: ./.github/actions/provider-binary
+      with:
+        artifact: ${{ inputs.provider_artifact }}
 
     - name: Run terraform
       if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}

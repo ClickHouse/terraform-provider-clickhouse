@@ -57,7 +57,12 @@ var ClickPipeKafkaFormats = []string{
 	ClickPipeProtobufFormat,
 }
 
-var ClickPipeKinesisFormats = ClickPipeStreamingFormats
+var ClickPipeKinesisFormats = []string{
+	ClickPipeJSONEachRowFormat,
+	ClickPipeAvroFormat,
+	ClickPipeAvroConfluentFormat,
+	ClickPipeProtobufFormat,
+}
 
 const (
 	ClickPipeAuthenticationIAMRole                        = "IAM_ROLE"
@@ -80,6 +85,12 @@ var ClickPipeKafkaAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMUser,
 	ClickPipeKafkaAuthenticationMutualTLS,
 	ClickPipeAuthenticationServiceAccountWorkloadIdentity,
+}
+
+const ClickPipeKafkaTombstoneModeDelete = "delete"
+
+var ClickPipeKafkaTombstoneModes = []string{
+	ClickPipeKafkaTombstoneModeDelete,
 }
 
 const (
@@ -141,6 +152,12 @@ var ClickPipeObjectStorageAuthenticationMethods = []string{
 var ClickPipeKinesisAuthenticationMethods = []string{
 	ClickPipeAuthenticationIAMRole,
 	ClickPipeAuthenticationIAMUser,
+}
+
+const ClickPipeKinesisSchemaRegistryTypeGlue = "glue"
+
+var ClickPipeKinesisSchemaRegistryTypes = []string{
+	ClickPipeKinesisSchemaRegistryTypeGlue,
 }
 
 const (

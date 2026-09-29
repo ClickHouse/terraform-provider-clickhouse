@@ -143,11 +143,9 @@ func (r *teamMemberResource) Configure(_ context.Context, req resource.Configure
 	r.client = providerData.ClickStack
 }
 
-func (r *teamMemberResource) ValidateConfig(_ context.Context, _ resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	utils.BetaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
-}
-
 func (r *teamMemberResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
+
 	var plan teamMemberResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -218,6 +216,8 @@ func (r *teamMemberResource) Read(ctx context.Context, req resource.ReadRequest,
 }
 
 func (r *teamMemberResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
+
 	var plan, state teamMemberResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -281,6 +281,8 @@ func (r *teamMemberResource) Delete(ctx context.Context, req resource.DeleteRequ
 }
 
 func (r *teamMemberResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	utils.BetaWarning("clickhouse_clickstack_team_member", &resp.Diagnostics)
+
 	// Accept "<email>" or "<team>/<email>". The remaining attributes are
 	// resolved during the import Read by matching on email.
 	if team, email, ok := strings.Cut(req.ID, "/"); ok {
