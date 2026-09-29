@@ -22,6 +22,7 @@ func TestSourceModel_RoundTrip(t *testing.T) {
 	t.Parallel()
 
 	ptr := func(s string) *string { return &s }
+	bptr := func(b bool) *bool { return &b }
 	dp := 9
 	disabled := true
 
@@ -66,6 +67,14 @@ func TestSourceModel_RoundTrip(t *testing.T) {
 		MetadataMaterializedViews: &client.MetadataMaterializedViews{
 			KeyRollupTable: "k", KVRollupTable: "kv", Granularity: "15m",
 		},
+		FilterSettings: &client.FilterSettings{
+			DatabaseName: "otel",
+			TableName:    "k8s_objects_dict",
+			Columns: []client.FilterSettingColumn{
+				{Name: "region", Label: ptr("Region"), AllowAll: bptr(false)},
+				{Name: "namespace", AllowAll: bptr(true)},
+			},
+		},
 	}
 
 	var m sourceResourceModel
@@ -91,7 +100,7 @@ func TestSourceResource_Schema(t *testing.T) {
 	for _, attr := range []string{
 		"id", "team", "name", "kind", "connection_id", "from",
 		"timestamp_value_expression", "duration_precision", "metric_tables",
-		"materialized_views", "query_settings",
+		"materialized_views", "query_settings", "filter_settings",
 	} {
 		if _, ok := resp.Schema.Attributes[attr]; !ok {
 			t.Errorf("expected resource schema to contain attribute %q", attr)
