@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"sort"
@@ -426,8 +427,9 @@ func TestDeleteService_failsFastOnForbiddenWhileConfirmingDeletion(t *testing.T)
 		_, _ = w.Write([]byte(`{"error":"FORBIDDEN","status":403}`))
 	})
 
-	if _, err := client.DeleteService(context.Background(), "svc-1"); err == nil {
-		t.Fatal("DeleteService: want error when the deletion check is forbidden, got nil")
+	_, err := client.DeleteService(context.Background(), "svc-1")
+	if !IsForbidden(errors.Unwrap(err)) {
+		t.Fatalf("DeleteService error = %v; want the wrapped 403, not a timeout", err)
 	}
 	if n := atomic.LoadInt32(&getsAfterDelete); n != 1 {
 		t.Errorf("polled %d times after the DELETE; want exactly 1 (no retrying a 403)", n)

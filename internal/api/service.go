@@ -166,6 +166,15 @@ func TolerateNotFound(n int) WaitOption {
 	}
 }
 
+// NotFoundTolerance reports the 404 tolerance a set of options resolves to.
+func NotFoundTolerance(opts ...WaitOption) int {
+	cfg := waitOptions{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg.notFoundTolerance
+}
+
 func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int, opts ...WaitOption) error {
 	cfg := waitOptions{pollInterval: defaultStateWaitPollInterval}
 	for _, opt := range opts {
@@ -389,7 +398,7 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 	// Wait for up to 5 minutes for the service to be deleted
 	err = backoff.Retry(checkDeleted, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 60), ctx))
 	if err != nil {
-		return nil, fmt.Errorf("service %s was not deleted in the allocated time: %w", serviceId, err)
+		return nil, fmt.Errorf("waiting for service %s to be deleted: %w", serviceId, err)
 	}
 
 	return &serviceResponse.Result.Service, nil

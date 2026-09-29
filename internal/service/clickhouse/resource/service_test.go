@@ -2409,3 +2409,49 @@ func TestServiceResource_Read_preservesGeneratedPassword(t *testing.T) {
 			out.GeneratedPassword, "api-generated-secret")
 	}
 }
+
+// The API-layer tests prove TolerateNotFound works; this pins that Create
+// actually asks for it, since a create-then-read can briefly 404.
+func TestServiceResource_Create_toleratesNotFoundWhileWaiting(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	createResp := getBaseResponse("svc-new")
+	createResp.State = api.StateRunning
+
+	plan := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.Password = types.StringNull()
+		s.PasswordHash = types.StringNull()
+		s.DoubleSha1PasswordHash = types.StringNull()
+		s.PasswordWO = types.StringNull()
+		s.PasswordWOVersion = types.Int64Null()
+		s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+		s.GeneratedPassword = types.StringUnknown()
+	}).Get()
+
+	gotTolerance := -1
+	mc := minimock.NewController(t)
+	r.client = api.NewClientMock(mc).
+		CreateServiceMock.Return(&createResp, "", nil).
+		WaitForServiceStateMock.Set(func(_ context.Context, _ string, _ func(string) bool, _ int, opts ...api.WaitOption) error {
+		gotTolerance = api.NotFoundTolerance(opts...)
+		return nil
+	}).
+		GetServiceMock.Return(&createResp, nil).
+		UpdateServicePasswordMock.Optional().Return(&api.ServicePasswordUpdateResult{}, nil)
+
+	planVal := tfsdk.Plan{Schema: sch}
+	if d := planVal.Set(ctx, &plan); d.HasError() {
+		t.Fatalf("encoding plan: %v", d.Errors())
+	}
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+	r.Create(ctx, resource.CreateRequest{Plan: planVal, Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw}}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Create returned errors: %v", resp.Diagnostics.Errors())
+	}
+
+	if gotTolerance != createStateWaitNotFoundTolerance {
+		t.Errorf("post-create wait used a 404 tolerance of %d; want %d", gotTolerance, createStateWaitNotFoundTolerance)
+	}
+}
