@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -402,5 +403,21 @@ func TestUpdateAlertMirrorsChannelFromChannels(t *testing.T) {
 		SavedSearchID: "ss1",
 	}); err != nil {
 		t.Fatalf("UpdateAlert: %v", err)
+	}
+}
+
+// Null asks the server to copy the parent's tags; [] clears them. omitempty would conflate the two.
+func TestAlertTagsWire(t *testing.T) {
+	for _, tc := range []struct {
+		tags []string
+		want string
+	}{{nil, `"tags":null`}, {[]string{}, `"tags":[]`}} {
+		b, err := json.Marshal(Alert{Tags: tc.tags})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), tc.want) {
+			t.Errorf("Marshal(Tags=%#v) = %s, want %s", tc.tags, b, tc.want)
+		}
 	}
 }
