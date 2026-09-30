@@ -284,6 +284,36 @@ func TestServiceResource_Equals(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "SnapshotConfiguration.Enabled changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.SnapshotConfiguration = SnapshotConfiguration{
+					Enabled: types.BoolValue(true),
+				}.ObjectValue()
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "SnapshotConfiguration.Gap changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.SnapshotConfiguration = SnapshotConfiguration{
+					Gap: types.Int32Value(30),
+				}.ObjectValue()
+			}).Get(),
+			want: false,
+		},
+		{
+			name: "SnapshotConfiguration.TimeFrame changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.SnapshotConfiguration = SnapshotConfiguration{
+					TimeFrame: types.Int32Value(1440),
+				}.ObjectValue()
+			}).Get(),
+			want: false,
+		},
+		{
 			name: "Tags changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
@@ -394,6 +424,7 @@ func getBaseModel() ServiceResourceModel {
 		EncryptionKey:                   types.String{},
 		EncryptionAssumedRoleIdentifier: types.String{},
 		BackupConfiguration:             BackupConfiguration{}.ObjectValue(),
+		SnapshotConfiguration:           SnapshotConfiguration{}.ObjectValue(),
 		Tags:                            types.MapNull(types.StringType),
 	}
 
