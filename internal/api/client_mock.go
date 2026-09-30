@@ -89,6 +89,13 @@ type ClientMock struct {
 	beforeCreateSSHKeyCounter uint64
 	CreateSSHKeyMock          mClientMockCreateSSHKey
 
+	funcCreateSavedQuery          func(ctx context.Context, serviceID string, query SavedQueryRequest) (sp1 *SavedQuery, err error)
+	funcCreateSavedQueryOrigin    string
+	inspectFuncCreateSavedQuery   func(ctx context.Context, serviceID string, query SavedQueryRequest)
+	afterCreateSavedQueryCounter  uint64
+	beforeCreateSavedQueryCounter uint64
+	CreateSavedQueryMock          mClientMockCreateSavedQuery
+
 	funcCreateService          func(ctx context.Context, s Service) (sp1 *Service, s1 string, err error)
 	funcCreateServiceOrigin    string
 	inspectFuncCreateService   func(ctx context.Context, s Service)
@@ -165,6 +172,13 @@ type ClientMock struct {
 	afterDeleteSSHKeyCounter  uint64
 	beforeDeleteSSHKeyCounter uint64
 	DeleteSSHKeyMock          mClientMockDeleteSSHKey
+
+	funcDeleteSavedQuery          func(ctx context.Context, serviceID string, queryID string) (err error)
+	funcDeleteSavedQueryOrigin    string
+	inspectFuncDeleteSavedQuery   func(ctx context.Context, serviceID string, queryID string)
+	afterDeleteSavedQueryCounter  uint64
+	beforeDeleteSavedQueryCounter uint64
+	DeleteSavedQueryMock          mClientMockDeleteSavedQuery
 
 	funcDeleteScheduledScaling          func(ctx context.Context, serviceId string) (err error)
 	funcDeleteScheduledScalingOrigin    string
@@ -340,6 +354,13 @@ type ClientMock struct {
 	afterGetSSHKeyPathCounter  uint64
 	beforeGetSSHKeyPathCounter uint64
 	GetSSHKeyPathMock          mClientMockGetSSHKeyPath
+
+	funcGetSavedQuery          func(ctx context.Context, serviceID string, queryID string) (sp1 *SavedQuery, err error)
+	funcGetSavedQueryOrigin    string
+	inspectFuncGetSavedQuery   func(ctx context.Context, serviceID string, queryID string)
+	afterGetSavedQueryCounter  uint64
+	beforeGetSavedQueryCounter uint64
+	GetSavedQueryMock          mClientMockGetSavedQuery
 
 	funcGetScheduledScaling          func(ctx context.Context, serviceId string) (ap1 *AutoScalingSchedule, err error)
 	funcGetScheduledScalingOrigin    string
@@ -537,6 +558,13 @@ type ClientMock struct {
 	beforeUpdateRoleCounter uint64
 	UpdateRoleMock          mClientMockUpdateRole
 
+	funcUpdateSavedQuery          func(ctx context.Context, serviceID string, queryID string, query SavedQueryRequest) (sp1 *SavedQuery, err error)
+	funcUpdateSavedQueryOrigin    string
+	inspectFuncUpdateSavedQuery   func(ctx context.Context, serviceID string, queryID string, query SavedQueryRequest)
+	afterUpdateSavedQueryCounter  uint64
+	beforeUpdateSavedQueryCounter uint64
+	UpdateSavedQueryMock          mClientMockUpdateSavedQuery
+
 	funcUpdateScheduledScaling          func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate) (ap1 *AutoScalingSchedule, err error)
 	funcUpdateScheduledScalingOrigin    string
 	inspectFuncUpdateScheduledScaling   func(ctx context.Context, serviceId string, s AutoScalingScheduleUpdate)
@@ -674,6 +702,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateSSHKeyMock = mClientMockCreateSSHKey{mock: m}
 	m.CreateSSHKeyMock.callArgs = []*ClientMockCreateSSHKeyParams{}
 
+	m.CreateSavedQueryMock = mClientMockCreateSavedQuery{mock: m}
+	m.CreateSavedQueryMock.callArgs = []*ClientMockCreateSavedQueryParams{}
+
 	m.CreateServiceMock = mClientMockCreateService{mock: m}
 	m.CreateServiceMock.callArgs = []*ClientMockCreateServiceParams{}
 
@@ -706,6 +737,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeleteSSHKeyMock = mClientMockDeleteSSHKey{mock: m}
 	m.DeleteSSHKeyMock.callArgs = []*ClientMockDeleteSSHKeyParams{}
+
+	m.DeleteSavedQueryMock = mClientMockDeleteSavedQuery{mock: m}
+	m.DeleteSavedQueryMock.callArgs = []*ClientMockDeleteSavedQueryParams{}
 
 	m.DeleteScheduledScalingMock = mClientMockDeleteScheduledScaling{mock: m}
 	m.DeleteScheduledScalingMock.callArgs = []*ClientMockDeleteScheduledScalingParams{}
@@ -781,6 +815,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetSSHKeyPathMock = mClientMockGetSSHKeyPath{mock: m}
 	m.GetSSHKeyPathMock.callArgs = []*ClientMockGetSSHKeyPathParams{}
+
+	m.GetSavedQueryMock = mClientMockGetSavedQuery{mock: m}
+	m.GetSavedQueryMock.callArgs = []*ClientMockGetSavedQueryParams{}
 
 	m.GetScheduledScalingMock = mClientMockGetScheduledScaling{mock: m}
 	m.GetScheduledScalingMock.callArgs = []*ClientMockGetScheduledScalingParams{}
@@ -865,6 +902,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateRoleMock = mClientMockUpdateRole{mock: m}
 	m.UpdateRoleMock.callArgs = []*ClientMockUpdateRoleParams{}
+
+	m.UpdateSavedQueryMock = mClientMockUpdateSavedQuery{mock: m}
+	m.UpdateSavedQueryMock.callArgs = []*ClientMockUpdateSavedQueryParams{}
 
 	m.UpdateScheduledScalingMock = mClientMockUpdateScheduledScaling{mock: m}
 	m.UpdateScheduledScalingMock.callArgs = []*ClientMockUpdateScheduledScalingParams{}
@@ -4651,6 +4691,380 @@ func (m *ClientMock) MinimockCreateSSHKeyInspect() {
 	if !m.CreateSSHKeyMock.invocationsDone() && afterCreateSSHKeyCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateSSHKey at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateSSHKeyMock.expectedInvocations), m.CreateSSHKeyMock.expectedInvocationsOrigin, afterCreateSSHKeyCounter)
+	}
+}
+
+type mClientMockCreateSavedQuery struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateSavedQueryExpectation
+	expectations       []*ClientMockCreateSavedQueryExpectation
+
+	callArgs []*ClientMockCreateSavedQueryParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateSavedQueryExpectation specifies expectation struct of the Client.CreateSavedQuery
+type ClientMockCreateSavedQueryExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateSavedQueryParams
+	paramPtrs          *ClientMockCreateSavedQueryParamPtrs
+	expectationOrigins ClientMockCreateSavedQueryExpectationOrigins
+	results            *ClientMockCreateSavedQueryResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateSavedQueryParams contains parameters of the Client.CreateSavedQuery
+type ClientMockCreateSavedQueryParams struct {
+	ctx       context.Context
+	serviceID string
+	query     SavedQueryRequest
+}
+
+// ClientMockCreateSavedQueryParamPtrs contains pointers to parameters of the Client.CreateSavedQuery
+type ClientMockCreateSavedQueryParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	query     *SavedQueryRequest
+}
+
+// ClientMockCreateSavedQueryResults contains results of the Client.CreateSavedQuery
+type ClientMockCreateSavedQueryResults struct {
+	sp1 *SavedQuery
+	err error
+}
+
+// ClientMockCreateSavedQueryOrigins contains origins of expectations of the Client.CreateSavedQuery
+type ClientMockCreateSavedQueryExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+	originQuery     string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) Optional() *mClientMockCreateSavedQuery {
+	mmCreateSavedQuery.optional = true
+	return mmCreateSavedQuery
+}
+
+// Expect sets up expected params for Client.CreateSavedQuery
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) Expect(ctx context.Context, serviceID string, query SavedQueryRequest) *mClientMockCreateSavedQuery {
+	if mmCreateSavedQuery.mock.funcCreateSavedQuery != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by Set")
+	}
+
+	if mmCreateSavedQuery.defaultExpectation == nil {
+		mmCreateSavedQuery.defaultExpectation = &ClientMockCreateSavedQueryExpectation{}
+	}
+
+	if mmCreateSavedQuery.defaultExpectation.paramPtrs != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by ExpectParams functions")
+	}
+
+	mmCreateSavedQuery.defaultExpectation.params = &ClientMockCreateSavedQueryParams{ctx, serviceID, query}
+	mmCreateSavedQuery.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateSavedQuery.expectations {
+		if minimock.Equal(e.params, mmCreateSavedQuery.defaultExpectation.params) {
+			mmCreateSavedQuery.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateSavedQuery.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateSavedQuery
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateSavedQuery
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) ExpectCtxParam1(ctx context.Context) *mClientMockCreateSavedQuery {
+	if mmCreateSavedQuery.mock.funcCreateSavedQuery != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by Set")
+	}
+
+	if mmCreateSavedQuery.defaultExpectation == nil {
+		mmCreateSavedQuery.defaultExpectation = &ClientMockCreateSavedQueryExpectation{}
+	}
+
+	if mmCreateSavedQuery.defaultExpectation.params != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by Expect")
+	}
+
+	if mmCreateSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmCreateSavedQuery.defaultExpectation.paramPtrs = &ClientMockCreateSavedQueryParamPtrs{}
+	}
+	mmCreateSavedQuery.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateSavedQuery.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateSavedQuery
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.CreateSavedQuery
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) ExpectServiceIDParam2(serviceID string) *mClientMockCreateSavedQuery {
+	if mmCreateSavedQuery.mock.funcCreateSavedQuery != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by Set")
+	}
+
+	if mmCreateSavedQuery.defaultExpectation == nil {
+		mmCreateSavedQuery.defaultExpectation = &ClientMockCreateSavedQueryExpectation{}
+	}
+
+	if mmCreateSavedQuery.defaultExpectation.params != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by Expect")
+	}
+
+	if mmCreateSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmCreateSavedQuery.defaultExpectation.paramPtrs = &ClientMockCreateSavedQueryParamPtrs{}
+	}
+	mmCreateSavedQuery.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmCreateSavedQuery.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmCreateSavedQuery
+}
+
+// ExpectQueryParam3 sets up expected param query for Client.CreateSavedQuery
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) ExpectQueryParam3(query SavedQueryRequest) *mClientMockCreateSavedQuery {
+	if mmCreateSavedQuery.mock.funcCreateSavedQuery != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by Set")
+	}
+
+	if mmCreateSavedQuery.defaultExpectation == nil {
+		mmCreateSavedQuery.defaultExpectation = &ClientMockCreateSavedQueryExpectation{}
+	}
+
+	if mmCreateSavedQuery.defaultExpectation.params != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by Expect")
+	}
+
+	if mmCreateSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmCreateSavedQuery.defaultExpectation.paramPtrs = &ClientMockCreateSavedQueryParamPtrs{}
+	}
+	mmCreateSavedQuery.defaultExpectation.paramPtrs.query = &query
+	mmCreateSavedQuery.defaultExpectation.expectationOrigins.originQuery = minimock.CallerInfo(1)
+
+	return mmCreateSavedQuery
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateSavedQuery
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) Inspect(f func(ctx context.Context, serviceID string, query SavedQueryRequest)) *mClientMockCreateSavedQuery {
+	if mmCreateSavedQuery.mock.inspectFuncCreateSavedQuery != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateSavedQuery")
+	}
+
+	mmCreateSavedQuery.mock.inspectFuncCreateSavedQuery = f
+
+	return mmCreateSavedQuery
+}
+
+// Return sets up results that will be returned by Client.CreateSavedQuery
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) Return(sp1 *SavedQuery, err error) *ClientMock {
+	if mmCreateSavedQuery.mock.funcCreateSavedQuery != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by Set")
+	}
+
+	if mmCreateSavedQuery.defaultExpectation == nil {
+		mmCreateSavedQuery.defaultExpectation = &ClientMockCreateSavedQueryExpectation{mock: mmCreateSavedQuery.mock}
+	}
+	mmCreateSavedQuery.defaultExpectation.results = &ClientMockCreateSavedQueryResults{sp1, err}
+	mmCreateSavedQuery.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateSavedQuery.mock
+}
+
+// Set uses given function f to mock the Client.CreateSavedQuery method
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) Set(f func(ctx context.Context, serviceID string, query SavedQueryRequest) (sp1 *SavedQuery, err error)) *ClientMock {
+	if mmCreateSavedQuery.defaultExpectation != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("Default expectation is already set for the Client.CreateSavedQuery method")
+	}
+
+	if len(mmCreateSavedQuery.expectations) > 0 {
+		mmCreateSavedQuery.mock.t.Fatalf("Some expectations are already set for the Client.CreateSavedQuery method")
+	}
+
+	mmCreateSavedQuery.mock.funcCreateSavedQuery = f
+	mmCreateSavedQuery.mock.funcCreateSavedQueryOrigin = minimock.CallerInfo(1)
+	return mmCreateSavedQuery.mock
+}
+
+// When sets expectation for the Client.CreateSavedQuery which will trigger the result defined by the following
+// Then helper
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) When(ctx context.Context, serviceID string, query SavedQueryRequest) *ClientMockCreateSavedQueryExpectation {
+	if mmCreateSavedQuery.mock.funcCreateSavedQuery != nil {
+		mmCreateSavedQuery.mock.t.Fatalf("ClientMock.CreateSavedQuery mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateSavedQueryExpectation{
+		mock:               mmCreateSavedQuery.mock,
+		params:             &ClientMockCreateSavedQueryParams{ctx, serviceID, query},
+		expectationOrigins: ClientMockCreateSavedQueryExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateSavedQuery.expectations = append(mmCreateSavedQuery.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateSavedQuery return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateSavedQueryExpectation) Then(sp1 *SavedQuery, err error) *ClientMock {
+	e.results = &ClientMockCreateSavedQueryResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateSavedQuery should be invoked
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) Times(n uint64) *mClientMockCreateSavedQuery {
+	if n == 0 {
+		mmCreateSavedQuery.mock.t.Fatalf("Times of ClientMock.CreateSavedQuery mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateSavedQuery.expectedInvocations, n)
+	mmCreateSavedQuery.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateSavedQuery
+}
+
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) invocationsDone() bool {
+	if len(mmCreateSavedQuery.expectations) == 0 && mmCreateSavedQuery.defaultExpectation == nil && mmCreateSavedQuery.mock.funcCreateSavedQuery == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateSavedQuery.mock.afterCreateSavedQueryCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateSavedQuery.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateSavedQuery implements Client
+func (mmCreateSavedQuery *ClientMock) CreateSavedQuery(ctx context.Context, serviceID string, query SavedQueryRequest) (sp1 *SavedQuery, err error) {
+	mm_atomic.AddUint64(&mmCreateSavedQuery.beforeCreateSavedQueryCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateSavedQuery.afterCreateSavedQueryCounter, 1)
+
+	mmCreateSavedQuery.t.Helper()
+
+	if mmCreateSavedQuery.inspectFuncCreateSavedQuery != nil {
+		mmCreateSavedQuery.inspectFuncCreateSavedQuery(ctx, serviceID, query)
+	}
+
+	mm_params := ClientMockCreateSavedQueryParams{ctx, serviceID, query}
+
+	// Record call args
+	mmCreateSavedQuery.CreateSavedQueryMock.mutex.Lock()
+	mmCreateSavedQuery.CreateSavedQueryMock.callArgs = append(mmCreateSavedQuery.CreateSavedQueryMock.callArgs, &mm_params)
+	mmCreateSavedQuery.CreateSavedQueryMock.mutex.Unlock()
+
+	for _, e := range mmCreateSavedQuery.CreateSavedQueryMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmCreateSavedQuery.CreateSavedQueryMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateSavedQuery.CreateSavedQueryMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateSavedQuery.CreateSavedQueryMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateSavedQuery.CreateSavedQueryMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateSavedQueryParams{ctx, serviceID, query}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateSavedQuery.t.Errorf("ClientMock.CreateSavedQuery got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateSavedQuery.CreateSavedQueryMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmCreateSavedQuery.t.Errorf("ClientMock.CreateSavedQuery got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateSavedQuery.CreateSavedQueryMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.query != nil && !minimock.Equal(*mm_want_ptrs.query, mm_got.query) {
+				mmCreateSavedQuery.t.Errorf("ClientMock.CreateSavedQuery got unexpected parameter query, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateSavedQuery.CreateSavedQueryMock.defaultExpectation.expectationOrigins.originQuery, *mm_want_ptrs.query, mm_got.query, minimock.Diff(*mm_want_ptrs.query, mm_got.query))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateSavedQuery.t.Errorf("ClientMock.CreateSavedQuery got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateSavedQuery.CreateSavedQueryMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateSavedQuery.CreateSavedQueryMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateSavedQuery.t.Fatal("No results are set for the ClientMock.CreateSavedQuery")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmCreateSavedQuery.funcCreateSavedQuery != nil {
+		return mmCreateSavedQuery.funcCreateSavedQuery(ctx, serviceID, query)
+	}
+	mmCreateSavedQuery.t.Fatalf("Unexpected call to ClientMock.CreateSavedQuery. %v %v %v", ctx, serviceID, query)
+	return
+}
+
+// CreateSavedQueryAfterCounter returns a count of finished ClientMock.CreateSavedQuery invocations
+func (mmCreateSavedQuery *ClientMock) CreateSavedQueryAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateSavedQuery.afterCreateSavedQueryCounter)
+}
+
+// CreateSavedQueryBeforeCounter returns a count of ClientMock.CreateSavedQuery invocations
+func (mmCreateSavedQuery *ClientMock) CreateSavedQueryBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateSavedQuery.beforeCreateSavedQueryCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateSavedQuery.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateSavedQuery *mClientMockCreateSavedQuery) Calls() []*ClientMockCreateSavedQueryParams {
+	mmCreateSavedQuery.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateSavedQueryParams, len(mmCreateSavedQuery.callArgs))
+	copy(argCopy, mmCreateSavedQuery.callArgs)
+
+	mmCreateSavedQuery.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateSavedQueryDone returns true if the count of the CreateSavedQuery invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateSavedQueryDone() bool {
+	if m.CreateSavedQueryMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateSavedQueryMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateSavedQueryMock.invocationsDone()
+}
+
+// MinimockCreateSavedQueryInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateSavedQueryInspect() {
+	for _, e := range m.CreateSavedQueryMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateSavedQuery at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateSavedQueryCounter := mm_atomic.LoadUint64(&m.afterCreateSavedQueryCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateSavedQueryMock.defaultExpectation != nil && afterCreateSavedQueryCounter < 1 {
+		if m.CreateSavedQueryMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateSavedQuery at\n%s", m.CreateSavedQueryMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateSavedQuery at\n%s with params: %#v", m.CreateSavedQueryMock.defaultExpectation.expectationOrigins.origin, *m.CreateSavedQueryMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateSavedQuery != nil && afterCreateSavedQueryCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateSavedQuery at\n%s", m.funcCreateSavedQueryOrigin)
+	}
+
+	if !m.CreateSavedQueryMock.invocationsDone() && afterCreateSavedQueryCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateSavedQuery at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateSavedQueryMock.expectedInvocations), m.CreateSavedQueryMock.expectedInvocationsOrigin, afterCreateSavedQueryCounter)
 	}
 }
 
@@ -8542,6 +8956,379 @@ func (m *ClientMock) MinimockDeleteSSHKeyInspect() {
 	if !m.DeleteSSHKeyMock.invocationsDone() && afterDeleteSSHKeyCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteSSHKey at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteSSHKeyMock.expectedInvocations), m.DeleteSSHKeyMock.expectedInvocationsOrigin, afterDeleteSSHKeyCounter)
+	}
+}
+
+type mClientMockDeleteSavedQuery struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteSavedQueryExpectation
+	expectations       []*ClientMockDeleteSavedQueryExpectation
+
+	callArgs []*ClientMockDeleteSavedQueryParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteSavedQueryExpectation specifies expectation struct of the Client.DeleteSavedQuery
+type ClientMockDeleteSavedQueryExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteSavedQueryParams
+	paramPtrs          *ClientMockDeleteSavedQueryParamPtrs
+	expectationOrigins ClientMockDeleteSavedQueryExpectationOrigins
+	results            *ClientMockDeleteSavedQueryResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteSavedQueryParams contains parameters of the Client.DeleteSavedQuery
+type ClientMockDeleteSavedQueryParams struct {
+	ctx       context.Context
+	serviceID string
+	queryID   string
+}
+
+// ClientMockDeleteSavedQueryParamPtrs contains pointers to parameters of the Client.DeleteSavedQuery
+type ClientMockDeleteSavedQueryParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	queryID   *string
+}
+
+// ClientMockDeleteSavedQueryResults contains results of the Client.DeleteSavedQuery
+type ClientMockDeleteSavedQueryResults struct {
+	err error
+}
+
+// ClientMockDeleteSavedQueryOrigins contains origins of expectations of the Client.DeleteSavedQuery
+type ClientMockDeleteSavedQueryExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+	originQueryID   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) Optional() *mClientMockDeleteSavedQuery {
+	mmDeleteSavedQuery.optional = true
+	return mmDeleteSavedQuery
+}
+
+// Expect sets up expected params for Client.DeleteSavedQuery
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) Expect(ctx context.Context, serviceID string, queryID string) *mClientMockDeleteSavedQuery {
+	if mmDeleteSavedQuery.mock.funcDeleteSavedQuery != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by Set")
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation == nil {
+		mmDeleteSavedQuery.defaultExpectation = &ClientMockDeleteSavedQueryExpectation{}
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation.paramPtrs != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteSavedQuery.defaultExpectation.params = &ClientMockDeleteSavedQueryParams{ctx, serviceID, queryID}
+	mmDeleteSavedQuery.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteSavedQuery.expectations {
+		if minimock.Equal(e.params, mmDeleteSavedQuery.defaultExpectation.params) {
+			mmDeleteSavedQuery.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteSavedQuery.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteSavedQuery
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteSavedQuery
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteSavedQuery {
+	if mmDeleteSavedQuery.mock.funcDeleteSavedQuery != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by Set")
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation == nil {
+		mmDeleteSavedQuery.defaultExpectation = &ClientMockDeleteSavedQueryExpectation{}
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation.params != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by Expect")
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmDeleteSavedQuery.defaultExpectation.paramPtrs = &ClientMockDeleteSavedQueryParamPtrs{}
+	}
+	mmDeleteSavedQuery.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteSavedQuery.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteSavedQuery
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.DeleteSavedQuery
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) ExpectServiceIDParam2(serviceID string) *mClientMockDeleteSavedQuery {
+	if mmDeleteSavedQuery.mock.funcDeleteSavedQuery != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by Set")
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation == nil {
+		mmDeleteSavedQuery.defaultExpectation = &ClientMockDeleteSavedQueryExpectation{}
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation.params != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by Expect")
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmDeleteSavedQuery.defaultExpectation.paramPtrs = &ClientMockDeleteSavedQueryParamPtrs{}
+	}
+	mmDeleteSavedQuery.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmDeleteSavedQuery.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmDeleteSavedQuery
+}
+
+// ExpectQueryIDParam3 sets up expected param queryID for Client.DeleteSavedQuery
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) ExpectQueryIDParam3(queryID string) *mClientMockDeleteSavedQuery {
+	if mmDeleteSavedQuery.mock.funcDeleteSavedQuery != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by Set")
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation == nil {
+		mmDeleteSavedQuery.defaultExpectation = &ClientMockDeleteSavedQueryExpectation{}
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation.params != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by Expect")
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmDeleteSavedQuery.defaultExpectation.paramPtrs = &ClientMockDeleteSavedQueryParamPtrs{}
+	}
+	mmDeleteSavedQuery.defaultExpectation.paramPtrs.queryID = &queryID
+	mmDeleteSavedQuery.defaultExpectation.expectationOrigins.originQueryID = minimock.CallerInfo(1)
+
+	return mmDeleteSavedQuery
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteSavedQuery
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) Inspect(f func(ctx context.Context, serviceID string, queryID string)) *mClientMockDeleteSavedQuery {
+	if mmDeleteSavedQuery.mock.inspectFuncDeleteSavedQuery != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteSavedQuery")
+	}
+
+	mmDeleteSavedQuery.mock.inspectFuncDeleteSavedQuery = f
+
+	return mmDeleteSavedQuery
+}
+
+// Return sets up results that will be returned by Client.DeleteSavedQuery
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) Return(err error) *ClientMock {
+	if mmDeleteSavedQuery.mock.funcDeleteSavedQuery != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by Set")
+	}
+
+	if mmDeleteSavedQuery.defaultExpectation == nil {
+		mmDeleteSavedQuery.defaultExpectation = &ClientMockDeleteSavedQueryExpectation{mock: mmDeleteSavedQuery.mock}
+	}
+	mmDeleteSavedQuery.defaultExpectation.results = &ClientMockDeleteSavedQueryResults{err}
+	mmDeleteSavedQuery.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteSavedQuery.mock
+}
+
+// Set uses given function f to mock the Client.DeleteSavedQuery method
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) Set(f func(ctx context.Context, serviceID string, queryID string) (err error)) *ClientMock {
+	if mmDeleteSavedQuery.defaultExpectation != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("Default expectation is already set for the Client.DeleteSavedQuery method")
+	}
+
+	if len(mmDeleteSavedQuery.expectations) > 0 {
+		mmDeleteSavedQuery.mock.t.Fatalf("Some expectations are already set for the Client.DeleteSavedQuery method")
+	}
+
+	mmDeleteSavedQuery.mock.funcDeleteSavedQuery = f
+	mmDeleteSavedQuery.mock.funcDeleteSavedQueryOrigin = minimock.CallerInfo(1)
+	return mmDeleteSavedQuery.mock
+}
+
+// When sets expectation for the Client.DeleteSavedQuery which will trigger the result defined by the following
+// Then helper
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) When(ctx context.Context, serviceID string, queryID string) *ClientMockDeleteSavedQueryExpectation {
+	if mmDeleteSavedQuery.mock.funcDeleteSavedQuery != nil {
+		mmDeleteSavedQuery.mock.t.Fatalf("ClientMock.DeleteSavedQuery mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteSavedQueryExpectation{
+		mock:               mmDeleteSavedQuery.mock,
+		params:             &ClientMockDeleteSavedQueryParams{ctx, serviceID, queryID},
+		expectationOrigins: ClientMockDeleteSavedQueryExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteSavedQuery.expectations = append(mmDeleteSavedQuery.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteSavedQuery return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteSavedQueryExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteSavedQueryResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteSavedQuery should be invoked
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) Times(n uint64) *mClientMockDeleteSavedQuery {
+	if n == 0 {
+		mmDeleteSavedQuery.mock.t.Fatalf("Times of ClientMock.DeleteSavedQuery mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteSavedQuery.expectedInvocations, n)
+	mmDeleteSavedQuery.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteSavedQuery
+}
+
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) invocationsDone() bool {
+	if len(mmDeleteSavedQuery.expectations) == 0 && mmDeleteSavedQuery.defaultExpectation == nil && mmDeleteSavedQuery.mock.funcDeleteSavedQuery == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteSavedQuery.mock.afterDeleteSavedQueryCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteSavedQuery.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteSavedQuery implements Client
+func (mmDeleteSavedQuery *ClientMock) DeleteSavedQuery(ctx context.Context, serviceID string, queryID string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteSavedQuery.beforeDeleteSavedQueryCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteSavedQuery.afterDeleteSavedQueryCounter, 1)
+
+	mmDeleteSavedQuery.t.Helper()
+
+	if mmDeleteSavedQuery.inspectFuncDeleteSavedQuery != nil {
+		mmDeleteSavedQuery.inspectFuncDeleteSavedQuery(ctx, serviceID, queryID)
+	}
+
+	mm_params := ClientMockDeleteSavedQueryParams{ctx, serviceID, queryID}
+
+	// Record call args
+	mmDeleteSavedQuery.DeleteSavedQueryMock.mutex.Lock()
+	mmDeleteSavedQuery.DeleteSavedQueryMock.callArgs = append(mmDeleteSavedQuery.DeleteSavedQueryMock.callArgs, &mm_params)
+	mmDeleteSavedQuery.DeleteSavedQueryMock.mutex.Unlock()
+
+	for _, e := range mmDeleteSavedQuery.DeleteSavedQueryMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteSavedQuery.DeleteSavedQueryMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteSavedQuery.DeleteSavedQueryMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteSavedQuery.DeleteSavedQueryMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteSavedQuery.DeleteSavedQueryMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteSavedQueryParams{ctx, serviceID, queryID}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteSavedQuery.t.Errorf("ClientMock.DeleteSavedQuery got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteSavedQuery.DeleteSavedQueryMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmDeleteSavedQuery.t.Errorf("ClientMock.DeleteSavedQuery got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteSavedQuery.DeleteSavedQueryMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.queryID != nil && !minimock.Equal(*mm_want_ptrs.queryID, mm_got.queryID) {
+				mmDeleteSavedQuery.t.Errorf("ClientMock.DeleteSavedQuery got unexpected parameter queryID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteSavedQuery.DeleteSavedQueryMock.defaultExpectation.expectationOrigins.originQueryID, *mm_want_ptrs.queryID, mm_got.queryID, minimock.Diff(*mm_want_ptrs.queryID, mm_got.queryID))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteSavedQuery.t.Errorf("ClientMock.DeleteSavedQuery got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteSavedQuery.DeleteSavedQueryMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteSavedQuery.DeleteSavedQueryMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteSavedQuery.t.Fatal("No results are set for the ClientMock.DeleteSavedQuery")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteSavedQuery.funcDeleteSavedQuery != nil {
+		return mmDeleteSavedQuery.funcDeleteSavedQuery(ctx, serviceID, queryID)
+	}
+	mmDeleteSavedQuery.t.Fatalf("Unexpected call to ClientMock.DeleteSavedQuery. %v %v %v", ctx, serviceID, queryID)
+	return
+}
+
+// DeleteSavedQueryAfterCounter returns a count of finished ClientMock.DeleteSavedQuery invocations
+func (mmDeleteSavedQuery *ClientMock) DeleteSavedQueryAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteSavedQuery.afterDeleteSavedQueryCounter)
+}
+
+// DeleteSavedQueryBeforeCounter returns a count of ClientMock.DeleteSavedQuery invocations
+func (mmDeleteSavedQuery *ClientMock) DeleteSavedQueryBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteSavedQuery.beforeDeleteSavedQueryCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteSavedQuery.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteSavedQuery *mClientMockDeleteSavedQuery) Calls() []*ClientMockDeleteSavedQueryParams {
+	mmDeleteSavedQuery.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteSavedQueryParams, len(mmDeleteSavedQuery.callArgs))
+	copy(argCopy, mmDeleteSavedQuery.callArgs)
+
+	mmDeleteSavedQuery.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteSavedQueryDone returns true if the count of the DeleteSavedQuery invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteSavedQueryDone() bool {
+	if m.DeleteSavedQueryMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteSavedQueryMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteSavedQueryMock.invocationsDone()
+}
+
+// MinimockDeleteSavedQueryInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteSavedQueryInspect() {
+	for _, e := range m.DeleteSavedQueryMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteSavedQuery at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteSavedQueryCounter := mm_atomic.LoadUint64(&m.afterDeleteSavedQueryCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteSavedQueryMock.defaultExpectation != nil && afterDeleteSavedQueryCounter < 1 {
+		if m.DeleteSavedQueryMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteSavedQuery at\n%s", m.DeleteSavedQueryMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteSavedQuery at\n%s with params: %#v", m.DeleteSavedQueryMock.defaultExpectation.expectationOrigins.origin, *m.DeleteSavedQueryMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteSavedQuery != nil && afterDeleteSavedQueryCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteSavedQuery at\n%s", m.funcDeleteSavedQueryOrigin)
+	}
+
+	if !m.DeleteSavedQueryMock.invocationsDone() && afterDeleteSavedQueryCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteSavedQuery at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteSavedQueryMock.expectedInvocations), m.DeleteSavedQueryMock.expectedInvocationsOrigin, afterDeleteSavedQueryCounter)
 	}
 }
 
@@ -17266,6 +18053,380 @@ func (m *ClientMock) MinimockGetSSHKeyPathInspect() {
 	if !m.GetSSHKeyPathMock.invocationsDone() && afterGetSSHKeyPathCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetSSHKeyPath at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetSSHKeyPathMock.expectedInvocations), m.GetSSHKeyPathMock.expectedInvocationsOrigin, afterGetSSHKeyPathCounter)
+	}
+}
+
+type mClientMockGetSavedQuery struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetSavedQueryExpectation
+	expectations       []*ClientMockGetSavedQueryExpectation
+
+	callArgs []*ClientMockGetSavedQueryParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetSavedQueryExpectation specifies expectation struct of the Client.GetSavedQuery
+type ClientMockGetSavedQueryExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetSavedQueryParams
+	paramPtrs          *ClientMockGetSavedQueryParamPtrs
+	expectationOrigins ClientMockGetSavedQueryExpectationOrigins
+	results            *ClientMockGetSavedQueryResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetSavedQueryParams contains parameters of the Client.GetSavedQuery
+type ClientMockGetSavedQueryParams struct {
+	ctx       context.Context
+	serviceID string
+	queryID   string
+}
+
+// ClientMockGetSavedQueryParamPtrs contains pointers to parameters of the Client.GetSavedQuery
+type ClientMockGetSavedQueryParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	queryID   *string
+}
+
+// ClientMockGetSavedQueryResults contains results of the Client.GetSavedQuery
+type ClientMockGetSavedQueryResults struct {
+	sp1 *SavedQuery
+	err error
+}
+
+// ClientMockGetSavedQueryOrigins contains origins of expectations of the Client.GetSavedQuery
+type ClientMockGetSavedQueryExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+	originQueryID   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetSavedQuery *mClientMockGetSavedQuery) Optional() *mClientMockGetSavedQuery {
+	mmGetSavedQuery.optional = true
+	return mmGetSavedQuery
+}
+
+// Expect sets up expected params for Client.GetSavedQuery
+func (mmGetSavedQuery *mClientMockGetSavedQuery) Expect(ctx context.Context, serviceID string, queryID string) *mClientMockGetSavedQuery {
+	if mmGetSavedQuery.mock.funcGetSavedQuery != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by Set")
+	}
+
+	if mmGetSavedQuery.defaultExpectation == nil {
+		mmGetSavedQuery.defaultExpectation = &ClientMockGetSavedQueryExpectation{}
+	}
+
+	if mmGetSavedQuery.defaultExpectation.paramPtrs != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by ExpectParams functions")
+	}
+
+	mmGetSavedQuery.defaultExpectation.params = &ClientMockGetSavedQueryParams{ctx, serviceID, queryID}
+	mmGetSavedQuery.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetSavedQuery.expectations {
+		if minimock.Equal(e.params, mmGetSavedQuery.defaultExpectation.params) {
+			mmGetSavedQuery.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetSavedQuery.defaultExpectation.params)
+		}
+	}
+
+	return mmGetSavedQuery
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetSavedQuery
+func (mmGetSavedQuery *mClientMockGetSavedQuery) ExpectCtxParam1(ctx context.Context) *mClientMockGetSavedQuery {
+	if mmGetSavedQuery.mock.funcGetSavedQuery != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by Set")
+	}
+
+	if mmGetSavedQuery.defaultExpectation == nil {
+		mmGetSavedQuery.defaultExpectation = &ClientMockGetSavedQueryExpectation{}
+	}
+
+	if mmGetSavedQuery.defaultExpectation.params != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by Expect")
+	}
+
+	if mmGetSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmGetSavedQuery.defaultExpectation.paramPtrs = &ClientMockGetSavedQueryParamPtrs{}
+	}
+	mmGetSavedQuery.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetSavedQuery.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetSavedQuery
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.GetSavedQuery
+func (mmGetSavedQuery *mClientMockGetSavedQuery) ExpectServiceIDParam2(serviceID string) *mClientMockGetSavedQuery {
+	if mmGetSavedQuery.mock.funcGetSavedQuery != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by Set")
+	}
+
+	if mmGetSavedQuery.defaultExpectation == nil {
+		mmGetSavedQuery.defaultExpectation = &ClientMockGetSavedQueryExpectation{}
+	}
+
+	if mmGetSavedQuery.defaultExpectation.params != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by Expect")
+	}
+
+	if mmGetSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmGetSavedQuery.defaultExpectation.paramPtrs = &ClientMockGetSavedQueryParamPtrs{}
+	}
+	mmGetSavedQuery.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmGetSavedQuery.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmGetSavedQuery
+}
+
+// ExpectQueryIDParam3 sets up expected param queryID for Client.GetSavedQuery
+func (mmGetSavedQuery *mClientMockGetSavedQuery) ExpectQueryIDParam3(queryID string) *mClientMockGetSavedQuery {
+	if mmGetSavedQuery.mock.funcGetSavedQuery != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by Set")
+	}
+
+	if mmGetSavedQuery.defaultExpectation == nil {
+		mmGetSavedQuery.defaultExpectation = &ClientMockGetSavedQueryExpectation{}
+	}
+
+	if mmGetSavedQuery.defaultExpectation.params != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by Expect")
+	}
+
+	if mmGetSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmGetSavedQuery.defaultExpectation.paramPtrs = &ClientMockGetSavedQueryParamPtrs{}
+	}
+	mmGetSavedQuery.defaultExpectation.paramPtrs.queryID = &queryID
+	mmGetSavedQuery.defaultExpectation.expectationOrigins.originQueryID = minimock.CallerInfo(1)
+
+	return mmGetSavedQuery
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetSavedQuery
+func (mmGetSavedQuery *mClientMockGetSavedQuery) Inspect(f func(ctx context.Context, serviceID string, queryID string)) *mClientMockGetSavedQuery {
+	if mmGetSavedQuery.mock.inspectFuncGetSavedQuery != nil {
+		mmGetSavedQuery.mock.t.Fatalf("Inspect function is already set for ClientMock.GetSavedQuery")
+	}
+
+	mmGetSavedQuery.mock.inspectFuncGetSavedQuery = f
+
+	return mmGetSavedQuery
+}
+
+// Return sets up results that will be returned by Client.GetSavedQuery
+func (mmGetSavedQuery *mClientMockGetSavedQuery) Return(sp1 *SavedQuery, err error) *ClientMock {
+	if mmGetSavedQuery.mock.funcGetSavedQuery != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by Set")
+	}
+
+	if mmGetSavedQuery.defaultExpectation == nil {
+		mmGetSavedQuery.defaultExpectation = &ClientMockGetSavedQueryExpectation{mock: mmGetSavedQuery.mock}
+	}
+	mmGetSavedQuery.defaultExpectation.results = &ClientMockGetSavedQueryResults{sp1, err}
+	mmGetSavedQuery.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetSavedQuery.mock
+}
+
+// Set uses given function f to mock the Client.GetSavedQuery method
+func (mmGetSavedQuery *mClientMockGetSavedQuery) Set(f func(ctx context.Context, serviceID string, queryID string) (sp1 *SavedQuery, err error)) *ClientMock {
+	if mmGetSavedQuery.defaultExpectation != nil {
+		mmGetSavedQuery.mock.t.Fatalf("Default expectation is already set for the Client.GetSavedQuery method")
+	}
+
+	if len(mmGetSavedQuery.expectations) > 0 {
+		mmGetSavedQuery.mock.t.Fatalf("Some expectations are already set for the Client.GetSavedQuery method")
+	}
+
+	mmGetSavedQuery.mock.funcGetSavedQuery = f
+	mmGetSavedQuery.mock.funcGetSavedQueryOrigin = minimock.CallerInfo(1)
+	return mmGetSavedQuery.mock
+}
+
+// When sets expectation for the Client.GetSavedQuery which will trigger the result defined by the following
+// Then helper
+func (mmGetSavedQuery *mClientMockGetSavedQuery) When(ctx context.Context, serviceID string, queryID string) *ClientMockGetSavedQueryExpectation {
+	if mmGetSavedQuery.mock.funcGetSavedQuery != nil {
+		mmGetSavedQuery.mock.t.Fatalf("ClientMock.GetSavedQuery mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetSavedQueryExpectation{
+		mock:               mmGetSavedQuery.mock,
+		params:             &ClientMockGetSavedQueryParams{ctx, serviceID, queryID},
+		expectationOrigins: ClientMockGetSavedQueryExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetSavedQuery.expectations = append(mmGetSavedQuery.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetSavedQuery return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetSavedQueryExpectation) Then(sp1 *SavedQuery, err error) *ClientMock {
+	e.results = &ClientMockGetSavedQueryResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetSavedQuery should be invoked
+func (mmGetSavedQuery *mClientMockGetSavedQuery) Times(n uint64) *mClientMockGetSavedQuery {
+	if n == 0 {
+		mmGetSavedQuery.mock.t.Fatalf("Times of ClientMock.GetSavedQuery mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetSavedQuery.expectedInvocations, n)
+	mmGetSavedQuery.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetSavedQuery
+}
+
+func (mmGetSavedQuery *mClientMockGetSavedQuery) invocationsDone() bool {
+	if len(mmGetSavedQuery.expectations) == 0 && mmGetSavedQuery.defaultExpectation == nil && mmGetSavedQuery.mock.funcGetSavedQuery == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetSavedQuery.mock.afterGetSavedQueryCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetSavedQuery.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetSavedQuery implements Client
+func (mmGetSavedQuery *ClientMock) GetSavedQuery(ctx context.Context, serviceID string, queryID string) (sp1 *SavedQuery, err error) {
+	mm_atomic.AddUint64(&mmGetSavedQuery.beforeGetSavedQueryCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetSavedQuery.afterGetSavedQueryCounter, 1)
+
+	mmGetSavedQuery.t.Helper()
+
+	if mmGetSavedQuery.inspectFuncGetSavedQuery != nil {
+		mmGetSavedQuery.inspectFuncGetSavedQuery(ctx, serviceID, queryID)
+	}
+
+	mm_params := ClientMockGetSavedQueryParams{ctx, serviceID, queryID}
+
+	// Record call args
+	mmGetSavedQuery.GetSavedQueryMock.mutex.Lock()
+	mmGetSavedQuery.GetSavedQueryMock.callArgs = append(mmGetSavedQuery.GetSavedQueryMock.callArgs, &mm_params)
+	mmGetSavedQuery.GetSavedQueryMock.mutex.Unlock()
+
+	for _, e := range mmGetSavedQuery.GetSavedQueryMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmGetSavedQuery.GetSavedQueryMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetSavedQuery.GetSavedQueryMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetSavedQuery.GetSavedQueryMock.defaultExpectation.params
+		mm_want_ptrs := mmGetSavedQuery.GetSavedQueryMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetSavedQueryParams{ctx, serviceID, queryID}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetSavedQuery.t.Errorf("ClientMock.GetSavedQuery got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSavedQuery.GetSavedQueryMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmGetSavedQuery.t.Errorf("ClientMock.GetSavedQuery got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSavedQuery.GetSavedQueryMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.queryID != nil && !minimock.Equal(*mm_want_ptrs.queryID, mm_got.queryID) {
+				mmGetSavedQuery.t.Errorf("ClientMock.GetSavedQuery got unexpected parameter queryID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetSavedQuery.GetSavedQueryMock.defaultExpectation.expectationOrigins.originQueryID, *mm_want_ptrs.queryID, mm_got.queryID, minimock.Diff(*mm_want_ptrs.queryID, mm_got.queryID))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetSavedQuery.t.Errorf("ClientMock.GetSavedQuery got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetSavedQuery.GetSavedQueryMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetSavedQuery.GetSavedQueryMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetSavedQuery.t.Fatal("No results are set for the ClientMock.GetSavedQuery")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmGetSavedQuery.funcGetSavedQuery != nil {
+		return mmGetSavedQuery.funcGetSavedQuery(ctx, serviceID, queryID)
+	}
+	mmGetSavedQuery.t.Fatalf("Unexpected call to ClientMock.GetSavedQuery. %v %v %v", ctx, serviceID, queryID)
+	return
+}
+
+// GetSavedQueryAfterCounter returns a count of finished ClientMock.GetSavedQuery invocations
+func (mmGetSavedQuery *ClientMock) GetSavedQueryAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetSavedQuery.afterGetSavedQueryCounter)
+}
+
+// GetSavedQueryBeforeCounter returns a count of ClientMock.GetSavedQuery invocations
+func (mmGetSavedQuery *ClientMock) GetSavedQueryBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetSavedQuery.beforeGetSavedQueryCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetSavedQuery.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetSavedQuery *mClientMockGetSavedQuery) Calls() []*ClientMockGetSavedQueryParams {
+	mmGetSavedQuery.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetSavedQueryParams, len(mmGetSavedQuery.callArgs))
+	copy(argCopy, mmGetSavedQuery.callArgs)
+
+	mmGetSavedQuery.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetSavedQueryDone returns true if the count of the GetSavedQuery invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetSavedQueryDone() bool {
+	if m.GetSavedQueryMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetSavedQueryMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetSavedQueryMock.invocationsDone()
+}
+
+// MinimockGetSavedQueryInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetSavedQueryInspect() {
+	for _, e := range m.GetSavedQueryMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetSavedQuery at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetSavedQueryCounter := mm_atomic.LoadUint64(&m.afterGetSavedQueryCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetSavedQueryMock.defaultExpectation != nil && afterGetSavedQueryCounter < 1 {
+		if m.GetSavedQueryMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetSavedQuery at\n%s", m.GetSavedQueryMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetSavedQuery at\n%s with params: %#v", m.GetSavedQueryMock.defaultExpectation.expectationOrigins.origin, *m.GetSavedQueryMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetSavedQuery != nil && afterGetSavedQueryCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetSavedQuery at\n%s", m.funcGetSavedQueryOrigin)
+	}
+
+	if !m.GetSavedQueryMock.invocationsDone() && afterGetSavedQueryCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetSavedQuery at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetSavedQueryMock.expectedInvocations), m.GetSavedQueryMock.expectedInvocationsOrigin, afterGetSavedQueryCounter)
 	}
 }
 
@@ -27368,6 +28529,411 @@ func (m *ClientMock) MinimockUpdateRoleInspect() {
 	}
 }
 
+type mClientMockUpdateSavedQuery struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateSavedQueryExpectation
+	expectations       []*ClientMockUpdateSavedQueryExpectation
+
+	callArgs []*ClientMockUpdateSavedQueryParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateSavedQueryExpectation specifies expectation struct of the Client.UpdateSavedQuery
+type ClientMockUpdateSavedQueryExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateSavedQueryParams
+	paramPtrs          *ClientMockUpdateSavedQueryParamPtrs
+	expectationOrigins ClientMockUpdateSavedQueryExpectationOrigins
+	results            *ClientMockUpdateSavedQueryResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateSavedQueryParams contains parameters of the Client.UpdateSavedQuery
+type ClientMockUpdateSavedQueryParams struct {
+	ctx       context.Context
+	serviceID string
+	queryID   string
+	query     SavedQueryRequest
+}
+
+// ClientMockUpdateSavedQueryParamPtrs contains pointers to parameters of the Client.UpdateSavedQuery
+type ClientMockUpdateSavedQueryParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	queryID   *string
+	query     *SavedQueryRequest
+}
+
+// ClientMockUpdateSavedQueryResults contains results of the Client.UpdateSavedQuery
+type ClientMockUpdateSavedQueryResults struct {
+	sp1 *SavedQuery
+	err error
+}
+
+// ClientMockUpdateSavedQueryOrigins contains origins of expectations of the Client.UpdateSavedQuery
+type ClientMockUpdateSavedQueryExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+	originQueryID   string
+	originQuery     string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) Optional() *mClientMockUpdateSavedQuery {
+	mmUpdateSavedQuery.optional = true
+	return mmUpdateSavedQuery
+}
+
+// Expect sets up expected params for Client.UpdateSavedQuery
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) Expect(ctx context.Context, serviceID string, queryID string, query SavedQueryRequest) *mClientMockUpdateSavedQuery {
+	if mmUpdateSavedQuery.mock.funcUpdateSavedQuery != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Set")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation == nil {
+		mmUpdateSavedQuery.defaultExpectation = &ClientMockUpdateSavedQueryExpectation{}
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation.paramPtrs != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateSavedQuery.defaultExpectation.params = &ClientMockUpdateSavedQueryParams{ctx, serviceID, queryID, query}
+	mmUpdateSavedQuery.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateSavedQuery.expectations {
+		if minimock.Equal(e.params, mmUpdateSavedQuery.defaultExpectation.params) {
+			mmUpdateSavedQuery.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateSavedQuery.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateSavedQuery
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateSavedQuery
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateSavedQuery {
+	if mmUpdateSavedQuery.mock.funcUpdateSavedQuery != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Set")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation == nil {
+		mmUpdateSavedQuery.defaultExpectation = &ClientMockUpdateSavedQueryExpectation{}
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation.params != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Expect")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmUpdateSavedQuery.defaultExpectation.paramPtrs = &ClientMockUpdateSavedQueryParamPtrs{}
+	}
+	mmUpdateSavedQuery.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateSavedQuery.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateSavedQuery
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.UpdateSavedQuery
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) ExpectServiceIDParam2(serviceID string) *mClientMockUpdateSavedQuery {
+	if mmUpdateSavedQuery.mock.funcUpdateSavedQuery != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Set")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation == nil {
+		mmUpdateSavedQuery.defaultExpectation = &ClientMockUpdateSavedQueryExpectation{}
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation.params != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Expect")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmUpdateSavedQuery.defaultExpectation.paramPtrs = &ClientMockUpdateSavedQueryParamPtrs{}
+	}
+	mmUpdateSavedQuery.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmUpdateSavedQuery.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmUpdateSavedQuery
+}
+
+// ExpectQueryIDParam3 sets up expected param queryID for Client.UpdateSavedQuery
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) ExpectQueryIDParam3(queryID string) *mClientMockUpdateSavedQuery {
+	if mmUpdateSavedQuery.mock.funcUpdateSavedQuery != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Set")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation == nil {
+		mmUpdateSavedQuery.defaultExpectation = &ClientMockUpdateSavedQueryExpectation{}
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation.params != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Expect")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmUpdateSavedQuery.defaultExpectation.paramPtrs = &ClientMockUpdateSavedQueryParamPtrs{}
+	}
+	mmUpdateSavedQuery.defaultExpectation.paramPtrs.queryID = &queryID
+	mmUpdateSavedQuery.defaultExpectation.expectationOrigins.originQueryID = minimock.CallerInfo(1)
+
+	return mmUpdateSavedQuery
+}
+
+// ExpectQueryParam4 sets up expected param query for Client.UpdateSavedQuery
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) ExpectQueryParam4(query SavedQueryRequest) *mClientMockUpdateSavedQuery {
+	if mmUpdateSavedQuery.mock.funcUpdateSavedQuery != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Set")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation == nil {
+		mmUpdateSavedQuery.defaultExpectation = &ClientMockUpdateSavedQueryExpectation{}
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation.params != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Expect")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation.paramPtrs == nil {
+		mmUpdateSavedQuery.defaultExpectation.paramPtrs = &ClientMockUpdateSavedQueryParamPtrs{}
+	}
+	mmUpdateSavedQuery.defaultExpectation.paramPtrs.query = &query
+	mmUpdateSavedQuery.defaultExpectation.expectationOrigins.originQuery = minimock.CallerInfo(1)
+
+	return mmUpdateSavedQuery
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateSavedQuery
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) Inspect(f func(ctx context.Context, serviceID string, queryID string, query SavedQueryRequest)) *mClientMockUpdateSavedQuery {
+	if mmUpdateSavedQuery.mock.inspectFuncUpdateSavedQuery != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateSavedQuery")
+	}
+
+	mmUpdateSavedQuery.mock.inspectFuncUpdateSavedQuery = f
+
+	return mmUpdateSavedQuery
+}
+
+// Return sets up results that will be returned by Client.UpdateSavedQuery
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) Return(sp1 *SavedQuery, err error) *ClientMock {
+	if mmUpdateSavedQuery.mock.funcUpdateSavedQuery != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Set")
+	}
+
+	if mmUpdateSavedQuery.defaultExpectation == nil {
+		mmUpdateSavedQuery.defaultExpectation = &ClientMockUpdateSavedQueryExpectation{mock: mmUpdateSavedQuery.mock}
+	}
+	mmUpdateSavedQuery.defaultExpectation.results = &ClientMockUpdateSavedQueryResults{sp1, err}
+	mmUpdateSavedQuery.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateSavedQuery.mock
+}
+
+// Set uses given function f to mock the Client.UpdateSavedQuery method
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) Set(f func(ctx context.Context, serviceID string, queryID string, query SavedQueryRequest) (sp1 *SavedQuery, err error)) *ClientMock {
+	if mmUpdateSavedQuery.defaultExpectation != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("Default expectation is already set for the Client.UpdateSavedQuery method")
+	}
+
+	if len(mmUpdateSavedQuery.expectations) > 0 {
+		mmUpdateSavedQuery.mock.t.Fatalf("Some expectations are already set for the Client.UpdateSavedQuery method")
+	}
+
+	mmUpdateSavedQuery.mock.funcUpdateSavedQuery = f
+	mmUpdateSavedQuery.mock.funcUpdateSavedQueryOrigin = minimock.CallerInfo(1)
+	return mmUpdateSavedQuery.mock
+}
+
+// When sets expectation for the Client.UpdateSavedQuery which will trigger the result defined by the following
+// Then helper
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) When(ctx context.Context, serviceID string, queryID string, query SavedQueryRequest) *ClientMockUpdateSavedQueryExpectation {
+	if mmUpdateSavedQuery.mock.funcUpdateSavedQuery != nil {
+		mmUpdateSavedQuery.mock.t.Fatalf("ClientMock.UpdateSavedQuery mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateSavedQueryExpectation{
+		mock:               mmUpdateSavedQuery.mock,
+		params:             &ClientMockUpdateSavedQueryParams{ctx, serviceID, queryID, query},
+		expectationOrigins: ClientMockUpdateSavedQueryExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateSavedQuery.expectations = append(mmUpdateSavedQuery.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateSavedQuery return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateSavedQueryExpectation) Then(sp1 *SavedQuery, err error) *ClientMock {
+	e.results = &ClientMockUpdateSavedQueryResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateSavedQuery should be invoked
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) Times(n uint64) *mClientMockUpdateSavedQuery {
+	if n == 0 {
+		mmUpdateSavedQuery.mock.t.Fatalf("Times of ClientMock.UpdateSavedQuery mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateSavedQuery.expectedInvocations, n)
+	mmUpdateSavedQuery.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateSavedQuery
+}
+
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) invocationsDone() bool {
+	if len(mmUpdateSavedQuery.expectations) == 0 && mmUpdateSavedQuery.defaultExpectation == nil && mmUpdateSavedQuery.mock.funcUpdateSavedQuery == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateSavedQuery.mock.afterUpdateSavedQueryCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateSavedQuery.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateSavedQuery implements Client
+func (mmUpdateSavedQuery *ClientMock) UpdateSavedQuery(ctx context.Context, serviceID string, queryID string, query SavedQueryRequest) (sp1 *SavedQuery, err error) {
+	mm_atomic.AddUint64(&mmUpdateSavedQuery.beforeUpdateSavedQueryCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateSavedQuery.afterUpdateSavedQueryCounter, 1)
+
+	mmUpdateSavedQuery.t.Helper()
+
+	if mmUpdateSavedQuery.inspectFuncUpdateSavedQuery != nil {
+		mmUpdateSavedQuery.inspectFuncUpdateSavedQuery(ctx, serviceID, queryID, query)
+	}
+
+	mm_params := ClientMockUpdateSavedQueryParams{ctx, serviceID, queryID, query}
+
+	// Record call args
+	mmUpdateSavedQuery.UpdateSavedQueryMock.mutex.Lock()
+	mmUpdateSavedQuery.UpdateSavedQueryMock.callArgs = append(mmUpdateSavedQuery.UpdateSavedQueryMock.callArgs, &mm_params)
+	mmUpdateSavedQuery.UpdateSavedQueryMock.mutex.Unlock()
+
+	for _, e := range mmUpdateSavedQuery.UpdateSavedQueryMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateSavedQueryParams{ctx, serviceID, queryID, query}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateSavedQuery.t.Errorf("ClientMock.UpdateSavedQuery got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmUpdateSavedQuery.t.Errorf("ClientMock.UpdateSavedQuery got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.queryID != nil && !minimock.Equal(*mm_want_ptrs.queryID, mm_got.queryID) {
+				mmUpdateSavedQuery.t.Errorf("ClientMock.UpdateSavedQuery got unexpected parameter queryID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation.expectationOrigins.originQueryID, *mm_want_ptrs.queryID, mm_got.queryID, minimock.Diff(*mm_want_ptrs.queryID, mm_got.queryID))
+			}
+
+			if mm_want_ptrs.query != nil && !minimock.Equal(*mm_want_ptrs.query, mm_got.query) {
+				mmUpdateSavedQuery.t.Errorf("ClientMock.UpdateSavedQuery got unexpected parameter query, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation.expectationOrigins.originQuery, *mm_want_ptrs.query, mm_got.query, minimock.Diff(*mm_want_ptrs.query, mm_got.query))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateSavedQuery.t.Errorf("ClientMock.UpdateSavedQuery got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateSavedQuery.UpdateSavedQueryMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateSavedQuery.t.Fatal("No results are set for the ClientMock.UpdateSavedQuery")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmUpdateSavedQuery.funcUpdateSavedQuery != nil {
+		return mmUpdateSavedQuery.funcUpdateSavedQuery(ctx, serviceID, queryID, query)
+	}
+	mmUpdateSavedQuery.t.Fatalf("Unexpected call to ClientMock.UpdateSavedQuery. %v %v %v %v", ctx, serviceID, queryID, query)
+	return
+}
+
+// UpdateSavedQueryAfterCounter returns a count of finished ClientMock.UpdateSavedQuery invocations
+func (mmUpdateSavedQuery *ClientMock) UpdateSavedQueryAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateSavedQuery.afterUpdateSavedQueryCounter)
+}
+
+// UpdateSavedQueryBeforeCounter returns a count of ClientMock.UpdateSavedQuery invocations
+func (mmUpdateSavedQuery *ClientMock) UpdateSavedQueryBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateSavedQuery.beforeUpdateSavedQueryCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateSavedQuery.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateSavedQuery *mClientMockUpdateSavedQuery) Calls() []*ClientMockUpdateSavedQueryParams {
+	mmUpdateSavedQuery.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateSavedQueryParams, len(mmUpdateSavedQuery.callArgs))
+	copy(argCopy, mmUpdateSavedQuery.callArgs)
+
+	mmUpdateSavedQuery.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateSavedQueryDone returns true if the count of the UpdateSavedQuery invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateSavedQueryDone() bool {
+	if m.UpdateSavedQueryMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateSavedQueryMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateSavedQueryMock.invocationsDone()
+}
+
+// MinimockUpdateSavedQueryInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateSavedQueryInspect() {
+	for _, e := range m.UpdateSavedQueryMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateSavedQuery at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateSavedQueryCounter := mm_atomic.LoadUint64(&m.afterUpdateSavedQueryCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateSavedQueryMock.defaultExpectation != nil && afterUpdateSavedQueryCounter < 1 {
+		if m.UpdateSavedQueryMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateSavedQuery at\n%s", m.UpdateSavedQueryMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateSavedQuery at\n%s with params: %#v", m.UpdateSavedQueryMock.defaultExpectation.expectationOrigins.origin, *m.UpdateSavedQueryMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateSavedQuery != nil && afterUpdateSavedQueryCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateSavedQuery at\n%s", m.funcUpdateSavedQueryOrigin)
+	}
+
+	if !m.UpdateSavedQueryMock.invocationsDone() && afterUpdateSavedQueryCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateSavedQuery at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateSavedQueryMock.expectedInvocations), m.UpdateSavedQueryMock.expectedInvocationsOrigin, afterUpdateSavedQueryCounter)
+	}
+}
+
 type mClientMockUpdateScheduledScaling struct {
 	optional           bool
 	mock               *ClientMock
@@ -32871,6 +34437,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateSSHKeyInspect()
 
+			m.MinimockCreateSavedQueryInspect()
+
 			m.MinimockCreateServiceInspect()
 
 			m.MinimockCreateUDFInspect()
@@ -32892,6 +34460,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockDeleteRoleInspect()
 
 			m.MinimockDeleteSSHKeyInspect()
+
+			m.MinimockDeleteSavedQueryInspect()
 
 			m.MinimockDeleteScheduledScalingInspect()
 
@@ -32942,6 +34512,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetSSHKeyInspect()
 
 			m.MinimockGetSSHKeyPathInspect()
+
+			m.MinimockGetSavedQueryInspect()
 
 			m.MinimockGetScheduledScalingInspect()
 
@@ -32998,6 +34570,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateReplicaScalingInspect()
 
 			m.MinimockUpdateRoleInspect()
+
+			m.MinimockUpdateSavedQueryInspect()
 
 			m.MinimockUpdateScheduledScalingInspect()
 
@@ -33059,6 +34633,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateReversePrivateEndpointDone() &&
 		m.MinimockCreateRoleDone() &&
 		m.MinimockCreateSSHKeyDone() &&
+		m.MinimockCreateSavedQueryDone() &&
 		m.MinimockCreateServiceDone() &&
 		m.MinimockCreateUDFDone() &&
 		m.MinimockCreateUDFUploadSessionDone() &&
@@ -33070,6 +34645,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteReversePrivateEndpointDone() &&
 		m.MinimockDeleteRoleDone() &&
 		m.MinimockDeleteSSHKeyDone() &&
+		m.MinimockDeleteSavedQueryDone() &&
 		m.MinimockDeleteScheduledScalingDone() &&
 		m.MinimockDeleteServiceDone() &&
 		m.MinimockDeleteUDFDone() &&
@@ -33095,6 +34671,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetRoleDone() &&
 		m.MinimockGetSSHKeyDone() &&
 		m.MinimockGetSSHKeyPathDone() &&
+		m.MinimockGetSavedQueryDone() &&
 		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockGetServiceBaseDone() &&
@@ -33123,6 +34700,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateQueryAPIEndpointDone() &&
 		m.MinimockUpdateReplicaScalingDone() &&
 		m.MinimockUpdateRoleDone() &&
+		m.MinimockUpdateSavedQueryDone() &&
 		m.MinimockUpdateScheduledScalingDone() &&
 		m.MinimockUpdateServiceDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
