@@ -192,6 +192,7 @@ func mkAlert(mods func(*alertResourceModel)) alertResourceModel {
 		Message:               types.StringNull(),
 		Note:                  types.StringNull(),
 		Tags:                  types.ListNull(types.StringType),
+		TagsAll:               types.SetNull(types.StringType),
 	}
 	if mods != nil {
 		mods(&m)
@@ -1143,7 +1144,7 @@ func TestAlertResource_Tags(t *testing.T) {
 	if al, _ := unset.toClient(ctx); al.Tags != nil {
 		t.Errorf("unset tags sent %v, want nil so the server inherits", al.Tags)
 	}
-	unset.applyAlert(ctx, inherited)
+	unset.applyTags(ctx, inherited.Tags, nil)
 	if !unset.Tags.IsNull() {
 		t.Errorf("unset tags = %v after read, want null", unset.Tags)
 	}
@@ -1156,14 +1157,14 @@ func TestAlertResource_Tags(t *testing.T) {
 	set := mkAlert(func(m *alertResourceModel) {
 		m.Tags = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("mine")})
 	})
-	set.applyAlert(ctx, inherited)
+	set.applyTags(ctx, inherited.Tags, nil)
 	var got []string
 	set.Tags.ElementsAs(ctx, &got, false)
 	if !slices.Equal(got, []string{"from-parent"}) {
 		t.Errorf("set tags = %v after read, want the server value so drift shows", got)
 	}
 
-	if d := set.applyAlert(ctx, &client.Alert{ThresholdType: thresholdTypeAbove}); !d.HasError() {
+	if d := set.applyTags(ctx, nil, nil); !d.HasError() {
 		t.Error("a response without tags must fail when tags are set, not store []")
 	}
 }
