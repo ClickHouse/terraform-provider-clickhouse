@@ -5,11 +5,9 @@ subcategory: "ClickHouse Cloud"
 description: |-
   You can use the clickhouse_clickpipes_reverse_private_endpoint resource to create and manage reverse private endpoints for secure ClickPipes data source connections in ClickHouse Cloud.
   Supported endpoint types: VPC_ENDPOINT_SERVICE, VPC_RESOURCE, MSK_MULTI_VPC, and GCP_PSC_SERVICE_ATTACHMENT.
-  ~> Note: Endpoint configuration is immutable after creation. Changes force replacement (destroy and recreate), except for wait_for_ready, which only updates Terraform state.
-  Set wait_for_ready = true for VPC_RESOURCE endpoints when a downstream resource selects an internal DNS target from dns_names. Creation waits up to 10 minutes for Ready status and non-empty dns_names, and fails immediately on Failed, Rejected, or Expired. The default (false) waits only until the endpoint leaves Provisioning, allowing external acceptance to proceed. Imported endpoints default to false.
-  ~> Warning: For VPC_ENDPOINT_SERVICE with acceptance required, wait_for_ready = true combined with an aws_vpc_endpoint_connection_accepter referencing this resource's endpoint_id deadlocks until the timeout: the accepter cannot run until creation finishes, and creation cannot finish until acceptance. Keep wait_for_ready = false in this case.
-  private_dns_mappings exposes the private DNS names and internal targets reported by the endpoint. For a VPC_RESOURCE GROUP with one CHILD per MongoDB node, select each CHILD's name from dns_names by its resource configuration ID substring (for example, .rcfg-097648d8068504966.). The order of dns_names does not match CHILD order. Use a filtered list with [0] so a missing target fails loudly; one(...) returns null for an empty list and would silently use the default target.
+  ~> Note: All fields on this resource are immutable after creation. Any change will force replacement (destroy and recreate).
   Use clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns to manage custom private DNS mappings for a reverse private endpoint.
+  dns_targets lists the DNS targets the endpoint reports, which custom private DNS mappings can reference by target_id. It is populated only for VPC_RESOURCE endpoints, with one entry per VPC resource configuration association; for a GROUP resource configuration, each entry's id is a CHILD resource configuration ID. Targets appear once the endpoint has provisioned them, so the list can be empty right after creation.
 ---
 
 # clickhouse_clickpipes_reverse_private_endpoint (Resource)
@@ -18,15 +16,11 @@ You can use the *clickhouse_clickpipes_reverse_private_endpoint* resource to cre
 
 Supported endpoint types: `VPC_ENDPOINT_SERVICE`, `VPC_RESOURCE`, `MSK_MULTI_VPC`, and `GCP_PSC_SERVICE_ATTACHMENT`.
 
-~> **Note:** Endpoint configuration is immutable after creation. Changes force replacement (destroy and recreate), except for `wait_for_ready`, which only updates Terraform state.
-
-Set `wait_for_ready = true` for `VPC_RESOURCE` endpoints when a downstream resource selects an internal DNS target from `dns_names`. Creation waits up to 10 minutes for `Ready` status and non-empty `dns_names`, and fails immediately on `Failed`, `Rejected`, or `Expired`. The default (`false`) waits only until the endpoint leaves `Provisioning`, allowing external acceptance to proceed. Imported endpoints default to `false`.
-
-~> **Warning:** For `VPC_ENDPOINT_SERVICE` with acceptance required, `wait_for_ready = true` combined with an `aws_vpc_endpoint_connection_accepter` referencing this resource's `endpoint_id` deadlocks until the timeout: the accepter cannot run until creation finishes, and creation cannot finish until acceptance. Keep `wait_for_ready = false` in this case.
-
-`private_dns_mappings` exposes the private DNS names and internal targets reported by the endpoint. For a `VPC_RESOURCE` GROUP with one CHILD per MongoDB node, select each CHILD's name from `dns_names` by its resource configuration ID substring (for example, `.rcfg-097648d8068504966.`). **The order of `dns_names` does not match CHILD order.** Use a filtered list with `[0]` so a missing target fails loudly; `one(...)` returns null for an empty list and would silently use the default target.
+~> **Note:** All fields on this resource are immutable after creation. Any change will force replacement (destroy and recreate).
 
 Use *clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns* to manage custom private DNS mappings for a reverse private endpoint.
+
+`dns_targets` lists the DNS targets the endpoint reports, which custom private DNS mappings can reference by `target_id`. It is populated only for `VPC_RESOURCE` endpoints, with one entry per VPC resource configuration association; for a GROUP resource configuration, each entry's `id` is a CHILD resource configuration ID. Targets appear once the endpoint has provisioned them, so the list can be empty right after creation.
 
 ## Example Usage
 
@@ -42,7 +36,6 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "vpc_resource" {
   service_id                    = "3a10a385-ced2-452e-abb8-908c80976a8f"
   description                   = "VPC_RESOURCE reverse private endpoint for ClickPipes"
   type                          = "VPC_RESOURCE"
-  wait_for_ready                = true
   vpc_resource_configuration_id = "rcfg-1a2b3c4d5e6f7g8h9"
   vpc_resource_share_arn        = "arn:aws:ram:us-east-1:123456789012:resource-share/1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6"
 }
@@ -80,23 +73,33 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "gcp_psc_service_attac
 - `vpc_endpoint_service_name` (String) VPC endpoint service name, required for VPC_ENDPOINT_SERVICE type
 - `vpc_resource_configuration_id` (String) VPC resource configuration ID, required for VPC_RESOURCE type
 - `vpc_resource_share_arn` (String) VPC resource share ARN, required for VPC_RESOURCE type
-- `wait_for_ready` (Boolean) Wait up to 10 minutes for Ready status and non-empty dns_names during creation. Recommended for VPC_RESOURCE when using internal DNS targets. Changing this setting only updates Terraform state.
 
 ### Read-Only
 
 - `dns_names` (List of String) Reverse private endpoint internal DNS names
+- `dns_targets` (Attributes List) DNS targets reported by the reverse private endpoint. Custom private DNS mappings can reference a target by `id` using `target_id`. Only populated for VPC_RESOURCE endpoints, with one target per VPC resource configuration association. (see [below for nested schema](#nestedatt--dns_targets))
 - `endpoint_id` (String) Reverse private endpoint endpoint ID
 - `id` (String) Unique identifier for the reverse private endpoint
-- `private_dns_mappings` (Attributes List) Private DNS names and their internal DNS targets reported by the reverse private endpoint. (see [below for nested schema](#nestedatt--private_dns_mappings))
+- `private_dns_mappings` (Attributes List) Private DNS names and the internal DNS names they resolve to, as reported by the reverse private endpoint. (see [below for nested schema](#nestedatt--private_dns_mappings))
 - `private_dns_names` (List of String) Reverse private endpoint private DNS names
 - `status` (String) Status of the reverse private endpoint
+
+<a id="nestedatt--dns_targets"></a>
+### Nested Schema for `dns_targets`
+
+Read-Only:
+
+- `id` (String) Target ID. For VPC_RESOURCE, the resource configuration ID (`rcfg-...`); for a GROUP, the CHILD resource configuration ID.
+- `internal_dns_name` (String) Internal DNS name of the target.
+- `kind` (String) Target kind, for example `RESOURCE_CONFIGURATION`.
+
 
 <a id="nestedatt--private_dns_mappings"></a>
 ### Nested Schema for `private_dns_mappings`
 
 Read-Only:
 
-- `internal_dns_name` (String) Internal DNS target for the private DNS name.
+- `internal_dns_name` (String) Internal DNS name the private DNS name resolves to.
 - `private_dns_name` (String) Private DNS name.
 
 ## Import

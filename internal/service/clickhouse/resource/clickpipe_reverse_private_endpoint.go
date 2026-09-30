@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -134,28 +133,6 @@ func (r *ClickPipeReversePrivateEndpointResource) Schema(ctx context.Context, re
 				Computed:            true,
 				MarkdownDescription: "Reverse private endpoint endpoint ID",
 			},
-			"wait_for_ready": schema.BoolAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             booldefault.StaticBool(false),
-				MarkdownDescription: "Wait up to 10 minutes for Ready status and non-empty dns_names during creation. Recommended for VPC_RESOURCE when using internal DNS targets. Changing this setting only updates Terraform state.",
-			},
-			"private_dns_mappings": schema.ListNestedAttribute{
-				Computed:            true,
-				MarkdownDescription: "Private DNS names and their internal DNS targets reported by the reverse private endpoint.",
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"private_dns_name": schema.StringAttribute{
-							Computed:            true,
-							MarkdownDescription: "Private DNS name.",
-						},
-						"internal_dns_name": schema.StringAttribute{
-							Computed:            true,
-							MarkdownDescription: "Internal DNS target for the private DNS name.",
-						},
-					},
-				},
-			},
 			"dns_names": schema.ListAttribute{
 				Computed:            true,
 				ElementType:         types.StringType,
@@ -165,6 +142,42 @@ func (r *ClickPipeReversePrivateEndpointResource) Schema(ctx context.Context, re
 				Computed:            true,
 				ElementType:         types.StringType,
 				MarkdownDescription: "Reverse private endpoint private DNS names",
+			},
+			"private_dns_mappings": schema.ListNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "Private DNS names and the internal DNS names they resolve to, as reported by the reverse private endpoint.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"private_dns_name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Private DNS name.",
+						},
+						"internal_dns_name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Internal DNS name the private DNS name resolves to.",
+						},
+					},
+				},
+			},
+			"dns_targets": schema.ListNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "DNS targets reported by the reverse private endpoint. Custom private DNS mappings can reference a target by `id` using `target_id`. Only populated for VPC_RESOURCE endpoints, with one target per VPC resource configuration association.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"id": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Target ID. For VPC_RESOURCE, the resource configuration ID (`rcfg-...`); for a GROUP, the CHILD resource configuration ID.",
+						},
+						"kind": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Target kind, for example `RESOURCE_CONFIGURATION`.",
+						},
+						"internal_dns_name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Internal DNS name of the target.",
+						},
+					},
+				},
 			},
 			"status": schema.StringAttribute{
 				Computed:            true,
@@ -253,18 +266,26 @@ func applyReversePrivateEndpointToModel(ctx context.Context, serviceID string, e
 	diags.Append(d...)
 	data.PrivateDNSNames = privateDNSNames
 
-	mappingValues := make([]attr.Value, len(endpoint.PrivateDNSMappings))
+	privateDNSMappings := make([]attr.Value, len(endpoint.PrivateDNSMappings))
 	for i, mapping := range endpoint.PrivateDNSMappings {
-		mappingValues[i] = models.CustomPrivateDNSMappingModel{
+		privateDNSMappings[i] = models.PrivateDNSMappingModel{
 			PrivateDNSName:  types.StringValue(mapping.PrivateDNSName),
 			InternalDNSName: types.StringValue(mapping.InternalDNSName),
 		}.ObjectValue()
 	}
-	data.PrivateDNSMappings, d = types.ListValue(models.CustomPrivateDNSMappingModel{}.ObjectType(), mappingValues)
+	data.PrivateDNSMappings, d = types.ListValue(models.PrivateDNSMappingModel{}.ObjectType(), privateDNSMappings)
 	diags.Append(d...)
-	if data.WaitForReady.IsNull() {
-		data.WaitForReady = types.BoolValue(false)
+
+	dnsTargets := make([]attr.Value, len(endpoint.DNSTargets))
+	for i, target := range endpoint.DNSTargets {
+		dnsTargets[i] = models.DNSTargetModel{
+			ID:              types.StringValue(target.ID),
+			Kind:            types.StringValue(target.Kind),
+			InternalDNSName: types.StringValue(target.InternalDNSName),
+		}.ObjectValue()
 	}
+	data.DNSTargets, d = types.ListValue(models.DNSTargetModel{}.ObjectType(), dnsTargets)
+	diags.Append(d...)
 
 	return diags
 }
@@ -358,14 +379,12 @@ func (r *ClickPipeReversePrivateEndpointResource) Create(ctx context.Context, re
 		return
 	}
 
-	if data.WaitForReady.ValueBool() {
-		endpoint, err = waitForReversePrivateEndpointReady(ctx, r.client, serviceID, endpoint.ID, true)
-	} else {
-		// Preserve the default behavior, including returning PendingAcceptance.
-		endpoint, err = r.client.WaitForReversePrivateEndpointState(ctx, serviceID, endpoint.ID, func(status string) bool {
-			return status != api.ReversePrivateEndpointStatusProvisioning
-		}, 60*10)
-	}
+	// Wait for the reverse private endpoint status change from provisioning,
+	// We expect the endpoint to be in a ready state, however, it can also be in
+	// pending acceptance or failed. This will be handled by the provider user.
+	endpoint, err = r.client.WaitForReversePrivateEndpointState(ctx, serviceID, endpoint.ID, func(status string) bool {
+		return status != api.ReversePrivateEndpointStatusProvisioning
+	}, 60*10)
 	if err != nil {
 		resp.Diagnostics.AddError("Error waiting for ClickPipe reverse private endpoint to be ready", err.Error())
 		return
@@ -418,31 +437,11 @@ func (r *ClickPipeReversePrivateEndpointResource) Read(ctx context.Context, req 
 }
 
 func (r *ClickPipeReversePrivateEndpointResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state models.ClickPipeReversePrivateEndpointResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if !reversePrivateEndpointConfigurationEqual(plan, state) {
-		resp.Diagnostics.AddError("Update Not Supported", "Only wait_for_ready can be updated. Other ClickPipe reverse private endpoint configuration changes require replacement.")
-		return
-	}
-	state.WaitForReady = plan.WaitForReady
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-}
-
-func reversePrivateEndpointConfigurationEqual(plan, state models.ClickPipeReversePrivateEndpointResourceModel) bool {
-	return plan.ID.Equal(state.ID) &&
-		plan.ServiceID.Equal(state.ServiceID) &&
-		plan.Description.Equal(state.Description) &&
-		plan.Type.Equal(state.Type) &&
-		plan.VPCEndpointServiceName.Equal(state.VPCEndpointServiceName) &&
-		plan.VPCResourceConfigurationID.Equal(state.VPCResourceConfigurationID) &&
-		plan.VPCResourceShareArn.Equal(state.VPCResourceShareArn) &&
-		plan.MSKClusterArn.Equal(state.MSKClusterArn) &&
-		plan.MSKAuthentication.Equal(state.MSKAuthentication) &&
-		plan.GCPServiceAttachment.Equal(state.GCPServiceAttachment)
+	// According to the API, reverse private endpoints don't support updates, so we'll return an error
+	resp.Diagnostics.AddError(
+		"Update Not Supported",
+		"ClickPipe reverse private endpoints do not support updates. To change configuration, please delete and recreate the resource.",
+	)
 }
 
 func (r *ClickPipeReversePrivateEndpointResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -502,5 +501,4 @@ func (r *ClickPipeReversePrivateEndpointResource) ImportState(ctx context.Contex
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_id"), id)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), endpointID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("wait_for_ready"), false)...)
 }

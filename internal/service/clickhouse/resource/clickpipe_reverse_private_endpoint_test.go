@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -10,12 +11,9 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
@@ -27,8 +25,8 @@ func buildCustomPrivateDNSMappingList(t *testing.T, names ...string) types.List 
 	values := make([]attr.Value, len(names))
 	for i, name := range names {
 		values[i] = models.CustomPrivateDNSMappingModel{
-			PrivateDNSName:  types.StringValue(name),
-			InternalDNSName: types.StringNull(),
+			PrivateDNSName: types.StringValue(name),
+			TargetID:       types.StringNull(),
 		}.ObjectValue()
 	}
 
@@ -38,335 +36,6 @@ func buildCustomPrivateDNSMappingList(t *testing.T, names ...string) types.List 
 	}
 
 	return mappingList
-}
-
-func TestCustomPrivateDNSMappingsInternalTargetsRoundTrip(t *testing.T) {
-	want := []api.CustomPrivateDNSMapping{
-		{PrivateDNSName: "node-00-pri.example.com", InternalDNSName: "CHILD.internal.example.com."},
-		{PrivateDNSName: "default.example.com"},
-	}
-	list, diags := customPrivateDNSMappingsToModel(want)
-	if diags.HasError() {
-		t.Fatal(diags)
-	}
-	var mappings []models.CustomPrivateDNSMappingModel
-	if d := list.ElementsAs(context.Background(), &mappings, false); d.HasError() {
-		t.Fatal(d)
-	}
-	if !mappings[1].InternalDNSName.IsNull() {
-		t.Fatal("omitted target must remain null, not an empty string")
-	}
-	got, diags := customPrivateDNSMappingsFromPlan(context.Background(), list)
-	if diags.HasError() || !reflect.DeepEqual(got, want) {
-		t.Fatalf("round trip = %#v, %v; want %#v", got, diags, want)
-	}
-	unknown := models.CustomPrivateDNSMappingModel{
-		PrivateDNSName:  types.StringValue("node.example.com"),
-		InternalDNSName: types.StringUnknown(),
-	}.ObjectValue()
-	_, diags = customPrivateDNSMappingsFromPlan(context.Background(), types.ListValueMust(models.CustomPrivateDNSMappingModel{}.ObjectType(), []attr.Value{unknown}))
-	if !diags.HasError() {
-		t.Fatal("unknown internal target must not silently fall back to default")
-	}
-}
-
-func TestValidateCustomPrivateDNSInternalNames(t *testing.T) {
-	endpoint := &api.ReversePrivateEndpoint{
-		ID:       "rpe-1",
-		DNSNames: []string{"child-00.internal.example.com."},
-		PrivateDNSMappings: []api.PrivateDNSMapping{
-			{PrivateDNSName: "node-01.example.com", InternalDNSName: "CHILD-01.internal.example.com"},
-		},
-	}
-	for _, name := range []string{"", "CHILD-00.INTERNAL.EXAMPLE.COM", "child-00.internal.example.com.", "child-01.internal.example.com."} {
-		t.Run(name, func(t *testing.T) {
-			diags := validateCustomPrivateDNSInternalNames([]api.CustomPrivateDNSMapping{{PrivateDNSName: "node-pri.example.com", InternalDNSName: name}}, endpoint)
-			if diags.HasError() {
-				t.Fatal(diags)
-			}
-		})
-	}
-	diags := validateCustomPrivateDNSInternalNames([]api.CustomPrivateDNSMapping{{PrivateDNSName: "node-pri.example.com", InternalDNSName: "missing.example.com"}}, endpoint)
-	if !diags.HasError() {
-		t.Fatal("expected invalid target diagnostic")
-	}
-	for _, text := range []string{"mapping[0].internal_dns_name", "missing.example.com", "node-pri.example.com", "child-00.internal.example.com.", "CHILD-01.internal.example.com"} {
-		if !strings.Contains(diags[0].Detail(), text) {
-			t.Errorf("diagnostic %q does not include %q", diags[0].Detail(), text)
-		}
-	}
-	diags = validateCustomPrivateDNSInternalNames([]api.CustomPrivateDNSMapping{{InternalDNSName: "missing.example.com"}}, &api.ReversePrivateEndpoint{ID: "rpe-empty"})
-	if !diags.HasError() || !strings.Contains(diags[0].Detail(), "Available internal DNS names: []") {
-		t.Fatalf("empty names diagnostic: %v", diags)
-	}
-}
-
-func TestReversePrivateEndpointReady(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		status     string
-		names      []string
-		requireDNS bool
-		wantReady  bool
-		wantError  bool
-	}{
-		{name: "ready with names", status: api.ReversePrivateEndpointStatusReady, names: []string{"child.internal"}, requireDNS: true, wantReady: true},
-		{name: "ready without names", status: api.ReversePrivateEndpointStatusReady, requireDNS: true},
-		{name: "DNS mapping wait only needs Ready", status: api.ReversePrivateEndpointStatusReady, wantReady: true},
-		{name: "provisioning", status: api.ReversePrivateEndpointStatusProvisioning, requireDNS: true},
-		{name: "pending acceptance", status: api.ReversePrivateEndpointStatusPendingAcceptance, requireDNS: true},
-		{name: "failed", status: api.ReversePrivateEndpointStatusFailed, wantError: true},
-		{name: "rejected", status: api.ReversePrivateEndpointStatusRejected, requireDNS: true, wantError: true},
-		{name: "expired", status: api.ReversePrivateEndpointStatusExpired, requireDNS: true, wantError: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ready, err := reversePrivateEndpointReady(&api.ReversePrivateEndpoint{ID: "rpe-1", Status: tc.status, DNSNames: tc.names}, tc.requireDNS)
-			if ready != tc.wantReady || (err != nil) != tc.wantError {
-				t.Fatalf("ready = %v, err = %v; want %v, error %v", ready, err, tc.wantReady, tc.wantError)
-			}
-			if err != nil && (!strings.Contains(err.Error(), "rpe-1") || !strings.Contains(err.Error(), tc.status)) {
-				t.Fatalf("terminal error lacks endpoint or status: %v", err)
-			}
-		})
-	}
-}
-
-func TestApplyReversePrivateEndpointPrivateDNSMappings(t *testing.T) {
-	ctx := context.Background()
-	endpoint := &api.ReversePrivateEndpoint{
-		PrivateDNSMappings: []api.PrivateDNSMapping{{PrivateDNSName: "node.example.com", InternalDNSName: "child.internal.example.com"}},
-	}
-	state := models.ClickPipeReversePrivateEndpointResourceModel{WaitForReady: types.BoolValue(true)}
-	if d := applyReversePrivateEndpointToModel(ctx, "svc-1", endpoint, &state); d.HasError() {
-		t.Fatal(d)
-	}
-	var mappings []models.CustomPrivateDNSMappingModel
-	if d := state.PrivateDNSMappings.ElementsAs(ctx, &mappings, false); d.HasError() {
-		t.Fatal(d)
-	}
-	if len(mappings) != 1 || mappings[0].PrivateDNSName.ValueString() != "node.example.com" || mappings[0].InternalDNSName.ValueString() != "child.internal.example.com" {
-		t.Fatalf("private_dns_mappings = %#v", mappings)
-	}
-	if !state.WaitForReady.ValueBool() {
-		t.Fatal("read must preserve wait_for_ready")
-	}
-	if d := applyReversePrivateEndpointToModel(ctx, "svc-1", &api.ReversePrivateEndpoint{}, &state); d.HasError() {
-		t.Fatal(d)
-	}
-	if state.PrivateDNSMappings.IsNull() || len(state.PrivateDNSMappings.Elements()) != 0 {
-		t.Fatalf("missing private_dns_mappings should be an empty list: %v", state.PrivateDNSMappings)
-	}
-}
-
-func TestReversePrivateEndpointUpdateWaitForReady(t *testing.T) {
-	ctx := context.Background()
-	r := &ClickPipeReversePrivateEndpointResource{}
-	var schemaResponse resource.SchemaResponse
-	r.Schema(ctx, resource.SchemaRequest{}, &schemaResponse)
-	sch := schemaResponse.Schema
-	waitAttribute := sch.Attributes["wait_for_ready"].(schema.BoolAttribute)
-	if !waitAttribute.Optional || !waitAttribute.Computed || waitAttribute.Default == nil || len(waitAttribute.PlanModifiers) != 0 {
-		t.Fatal("wait_for_ready must be Optional + Computed with a default and no replacement modifier")
-	}
-	var dnsSchemaResponse resource.SchemaResponse
-	(&ClickPipeReversePrivateEndpointCustomPrivateDNSResource{}).Schema(ctx, resource.SchemaRequest{}, &dnsSchemaResponse)
-	internalDNSAttribute := dnsSchemaResponse.Schema.Attributes["mapping"].(schema.ListNestedAttribute).NestedObject.Attributes["internal_dns_name"].(schema.StringAttribute)
-	if !internalDNSAttribute.Optional || internalDNSAttribute.Computed {
-		t.Fatal("internal_dns_name must be Optional only")
-	}
-	var stateModel models.ClickPipeReversePrivateEndpointResourceModel
-	if d := applyReversePrivateEndpointToModel(ctx, "svc-1", &api.ReversePrivateEndpoint{
-		ID: "rpe-1", EndpointID: "vpce-1", Status: api.ReversePrivateEndpointStatusReady, DNSNames: []string{"child.internal"},
-		CreateReversePrivateEndpoint: api.CreateReversePrivateEndpoint{Description: "mongo", Type: api.ReversePrivateEndpointTypeVPCResource},
-	}, &stateModel); d.HasError() {
-		t.Fatal(d)
-	}
-	state := tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
-	if d := state.Set(ctx, &stateModel); d.HasError() {
-		t.Fatal(d)
-	}
-	for _, tc := range []struct {
-		name              string
-		changeDescription bool
-	}{{name: "wait only"}, {name: "immutable change", changeDescription: true}} {
-		t.Run(tc.name, func(t *testing.T) {
-			planModel := stateModel
-			planModel.WaitForReady = types.BoolValue(true)
-			// Computed outputs can be unknown in an update plan.
-			planModel.DNSNames = types.ListUnknown(types.StringType)
-			planModel.Status = types.StringUnknown()
-			if tc.changeDescription {
-				planModel.Description = types.StringValue("changed")
-			}
-			plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
-			if d := plan.Set(ctx, &planModel); d.HasError() {
-				t.Fatal(d)
-			}
-			resp := resource.UpdateResponse{State: state}
-			r.Update(ctx, resource.UpdateRequest{Plan: plan, State: state}, &resp)
-			if tc.changeDescription {
-				if !resp.Diagnostics.HasError() {
-					t.Fatal("immutable configuration must not be updated")
-				}
-				return
-			}
-			if resp.Diagnostics.HasError() {
-				t.Fatal(resp.Diagnostics)
-			}
-			var got models.ClickPipeReversePrivateEndpointResourceModel
-			if d := resp.State.Get(ctx, &got); d.HasError() {
-				t.Fatal(d)
-			}
-			want := stateModel
-			want.WaitForReady = types.BoolValue(true)
-			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("update must only change wait_for_ready: got %#v; want %#v", got, want)
-			}
-		})
-	}
-	importResp := resource.ImportStateResponse{State: tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}}
-	r.ImportState(ctx, resource.ImportStateRequest{ID: "svc-1:rpe-1"}, &importResp)
-	if importResp.Diagnostics.HasError() {
-		t.Fatal(importResp.Diagnostics)
-	}
-	var wait types.Bool
-	if d := importResp.State.GetAttribute(ctx, path.Root("wait_for_ready"), &wait); d.HasError() {
-		t.Fatal(d)
-	}
-	if wait.IsNull() || wait.IsUnknown() || wait.ValueBool() {
-		t.Fatalf("import wait_for_ready = %v; want false", wait)
-	}
-}
-
-func TestReversePrivateEndpointCreateWaitForReady(t *testing.T) {
-	for _, wait := range []bool{false, true} {
-		name := "default allows pending acceptance"
-		if wait {
-			name = "wait captures populated DNS names"
-		}
-		t.Run(name, func(t *testing.T) {
-			ctx := context.Background()
-			configurationID, shareARN := "rcfg-group", "arn:aws:ram:us-east-1:123456789012:resource-share/share-1"
-			gets := 0
-			endpoint := api.ReversePrivateEndpoint{
-				ID: "rpe-1", EndpointID: "vpce-1", Status: api.ReversePrivateEndpointStatusProvisioning,
-				CreateReversePrivateEndpoint: api.CreateReversePrivateEndpoint{
-					Description: "mongo", Type: api.ReversePrivateEndpointTypeVPCResource,
-					VPCResourceConfigurationID: &configurationID, VPCResourceShareArn: &shareARN,
-				},
-			}
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				response := endpoint
-				switch req.Method {
-				case http.MethodPost:
-				case http.MethodGet:
-					gets++
-					response.Status = api.ReversePrivateEndpointStatusPendingAcceptance
-					if wait {
-						response.Status = api.ReversePrivateEndpointStatusReady
-						// Ready alone is not enough: the first GET has no DNS names.
-						if gets > 1 {
-							response.DNSNames = []string{"child-01.internal", "child-00.internal"}
-						}
-					}
-				default:
-					t.Errorf("unexpected request method: %s", req.Method)
-				}
-				_ = json.NewEncoder(w).Encode(api.ResponseWithResult[api.ReversePrivateEndpoint]{Result: response})
-			}))
-			defer server.Close()
-			client, err := api.NewClient(api.ClientConfig{ApiURL: server.URL, OrganizationID: "org-1", TokenKey: "key", TokenSecret: "secret"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			r := &ClickPipeReversePrivateEndpointResource{client: client}
-			var schemaResponse resource.SchemaResponse
-			r.Schema(ctx, resource.SchemaRequest{}, &schemaResponse)
-			sch := schemaResponse.Schema
-			var planModel models.ClickPipeReversePrivateEndpointResourceModel
-			if d := applyReversePrivateEndpointToModel(ctx, "svc-1", &endpoint, &planModel); d.HasError() {
-				t.Fatal(d)
-			}
-			planModel.WaitForReady = types.BoolValue(wait)
-			plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
-			if d := plan.Set(ctx, &planModel); d.HasError() {
-				t.Fatal(d)
-			}
-			resp := resource.CreateResponse{State: tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}}
-			r.Create(ctx, resource.CreateRequest{Plan: plan}, &resp)
-			if resp.Diagnostics.HasError() {
-				t.Fatal(resp.Diagnostics)
-			}
-			var got models.ClickPipeReversePrivateEndpointResourceModel
-			if d := resp.State.Get(ctx, &got); d.HasError() {
-				t.Fatal(d)
-			}
-			if wait {
-				if gets != 2 || got.Status.ValueString() != api.ReversePrivateEndpointStatusReady || len(got.DNSNames.Elements()) != 2 {
-					t.Fatalf("creation returned before DNS names populated: GETs=%d, state=%#v", gets, got)
-				}
-			} else if gets != 1 || got.Status.ValueString() != api.ReversePrivateEndpointStatusPendingAcceptance {
-				t.Fatalf("default must return PendingAcceptance: GETs=%d, status=%v", gets, got.Status)
-			}
-		})
-	}
-}
-
-func TestUpdateCustomPrivateDNSMappingsReadinessAndValidation(t *testing.T) {
-	for _, tc := range []struct {
-		name      string
-		target    string
-		status    string
-		wantGet   int
-		wantPatch int
-		wantError bool
-	}{
-		{name: "default skips wait", status: api.ReversePrivateEndpointStatusProvisioning, wantPatch: 1},
-		{name: "valid target", target: "child.internal.example.com", status: api.ReversePrivateEndpointStatusReady, wantGet: 1, wantPatch: 1},
-		{name: "invalid target", target: "missing.internal.example.com", status: api.ReversePrivateEndpointStatusReady, wantGet: 1, wantError: true},
-		{name: "failed", target: "child.internal.example.com", status: api.ReversePrivateEndpointStatusFailed, wantGet: 1, wantError: true},
-		{name: "rejected", target: "child.internal.example.com", status: api.ReversePrivateEndpointStatusRejected, wantGet: 1, wantError: true},
-		{name: "expired", target: "child.internal.example.com", status: api.ReversePrivateEndpointStatusExpired, wantGet: 1, wantError: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			gets, patches := 0, 0
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				endpoint := api.ReversePrivateEndpoint{ID: "rpe-1", Status: tc.status, DNSNames: []string{"child.internal.example.com"}}
-				switch req.Method {
-				case http.MethodGet:
-					gets++
-				case http.MethodPatch:
-					patches++
-					var payload api.UpdateReversePrivateEndpoint
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Error(err)
-					}
-					if payload.CustomPrivateDNSMappings == nil || (*payload.CustomPrivateDNSMappings)[0].InternalDNSName != tc.target {
-						t.Errorf("unexpected PATCH: %#v", payload)
-					}
-					endpoint.CustomPrivateDNSMappings = *payload.CustomPrivateDNSMappings
-				default:
-					t.Errorf("unexpected method %s", req.Method)
-				}
-				_ = json.NewEncoder(w).Encode(api.ResponseWithResult[api.ReversePrivateEndpoint]{Result: endpoint})
-			}))
-			defer server.Close()
-			client, err := api.NewClient(api.ClientConfig{ApiURL: server.URL, OrganizationID: "org-1", TokenKey: "key", TokenSecret: "secret"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			list, diags := customPrivateDNSMappingsToModel([]api.CustomPrivateDNSMapping{{PrivateDNSName: "node-pri.example.com", InternalDNSName: tc.target}})
-			if diags.HasError() {
-				t.Fatal(diags)
-			}
-			data := models.ClickPipeReversePrivateEndpointCustomPrivateDNSResourceModel{ServiceID: types.StringValue("svc-1"), ReversePrivateEndpointID: types.StringValue("rpe-1"), Mapping: list}
-			r := &ClickPipeReversePrivateEndpointCustomPrivateDNSResource{client: client}
-			_, ok := r.updateCustomPrivateDNSMappings(context.Background(), &data, &diags)
-			if ok == tc.wantError || diags.HasError() != tc.wantError || gets != tc.wantGet || patches != tc.wantPatch {
-				t.Fatalf("ok=%v, diags=%v, GETs=%d, PATCHes=%d; want error=%v, GETs=%d, PATCHes=%d", ok, diags, gets, patches, tc.wantError, tc.wantGet, tc.wantPatch)
-			}
-		})
-	}
 }
 
 func TestCustomPrivateDNSMappingsFromPlan(t *testing.T) {
@@ -455,5 +124,199 @@ func TestApplyReversePrivateEndpointCustomPrivateDNSToModel(t *testing.T) {
 	}
 	if len(mappings) != 1 || mappings[0].PrivateDNSName.ValueString() != "my-service.example.com" {
 		t.Fatalf("mapping = %#v; want my-service.example.com", mappings)
+	}
+}
+
+func TestCustomPrivateDNSMappingsTargetIDRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	want := []api.CustomPrivateDNSMapping{
+		{PrivateDNSName: "node-00-pri.example.com", TargetID: "rcfg-097648d8068504966"},
+		{PrivateDNSName: "default.example.com"},
+	}
+
+	list, diags := customPrivateDNSMappingsToModel(want)
+	if diags.HasError() {
+		t.Fatalf("customPrivateDNSMappingsToModel: %v", diags)
+	}
+
+	var mappings []models.CustomPrivateDNSMappingModel
+	if d := list.ElementsAs(ctx, &mappings, false); d.HasError() {
+		t.Fatalf("ElementsAs: %v", d)
+	}
+	if mappings[0].TargetID.ValueString() != "rcfg-097648d8068504966" {
+		t.Fatalf("target_id = %v; want rcfg-097648d8068504966", mappings[0].TargetID)
+	}
+	if !mappings[1].TargetID.IsNull() {
+		t.Fatalf("target_id = %v; want null so unset config does not drift", mappings[1].TargetID)
+	}
+
+	got, diags := customPrivateDNSMappingsFromPlan(ctx, list)
+	if diags.HasError() {
+		t.Fatalf("customPrivateDNSMappingsFromPlan: %v", diags)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("round trip = %#v; want %#v", got, want)
+	}
+}
+
+func TestCustomPrivateDNSMappingsFromPlan_UnknownTargetID(t *testing.T) {
+	unknown := models.CustomPrivateDNSMappingModel{
+		PrivateDNSName: types.StringValue("node-00-pri.example.com"),
+		TargetID:       types.StringUnknown(),
+	}.ObjectValue()
+	list := types.ListValueMust(models.CustomPrivateDNSMappingModel{}.ObjectType(), []attr.Value{unknown})
+
+	_, diags := customPrivateDNSMappingsFromPlan(context.Background(), list)
+	if !diags.HasError() {
+		t.Fatal("unknown target_id must error instead of falling back to the default target")
+	}
+}
+
+func TestApplyReversePrivateEndpointToModel_DNSTargetsAndPrivateDNSMappings(t *testing.T) {
+	ctx := context.Background()
+	endpoint := &api.ReversePrivateEndpoint{
+		ID:     "rpe-1",
+		Status: api.ReversePrivateEndpointStatusReady,
+		DNSTargets: []api.DNSTarget{
+			{ID: "rcfg-00", Kind: "RESOURCE_CONFIGURATION", InternalDNSName: "vpce-1.rcfg-00.example.on.aws"},
+			{ID: "rcfg-01", Kind: "RESOURCE_CONFIGURATION", InternalDNSName: "vpce-1.rcfg-01.example.on.aws"},
+		},
+		PrivateDNSMappings: []api.PrivateDNSMapping{
+			{PrivateDNSName: "node-00.example.com", InternalDNSName: "vpce-1.rcfg-00.example.on.aws"},
+		},
+	}
+
+	state := models.ClickPipeReversePrivateEndpointResourceModel{}
+	if d := applyReversePrivateEndpointToModel(ctx, "svc-1", endpoint, &state); d.HasError() {
+		t.Fatalf("applyReversePrivateEndpointToModel: %v", d)
+	}
+
+	var targets []models.DNSTargetModel
+	if d := state.DNSTargets.ElementsAs(ctx, &targets, false); d.HasError() {
+		t.Fatalf("DNSTargets.ElementsAs: %v", d)
+	}
+	if len(targets) != 2 ||
+		targets[1].ID.ValueString() != "rcfg-01" ||
+		targets[1].Kind.ValueString() != "RESOURCE_CONFIGURATION" ||
+		targets[1].InternalDNSName.ValueString() != "vpce-1.rcfg-01.example.on.aws" {
+		t.Fatalf("dns_targets = %#v", targets)
+	}
+
+	var private []models.PrivateDNSMappingModel
+	if d := state.PrivateDNSMappings.ElementsAs(ctx, &private, false); d.HasError() {
+		t.Fatalf("PrivateDNSMappings.ElementsAs: %v", d)
+	}
+	if len(private) != 1 ||
+		private[0].PrivateDNSName.ValueString() != "node-00.example.com" ||
+		private[0].InternalDNSName.ValueString() != "vpce-1.rcfg-00.example.on.aws" {
+		t.Fatalf("private_dns_mappings = %#v", private)
+	}
+
+	// Non-VPC_RESOURCE endpoints (and older API responses) report no targets.
+	if d := applyReversePrivateEndpointToModel(ctx, "svc-1", &api.ReversePrivateEndpoint{ID: "rpe-2"}, &state); d.HasError() {
+		t.Fatalf("applyReversePrivateEndpointToModel: %v", d)
+	}
+	if state.DNSTargets.IsNull() || len(state.DNSTargets.Elements()) != 0 {
+		t.Fatalf("dns_targets = %v; want empty list", state.DNSTargets)
+	}
+	if state.PrivateDNSMappings.IsNull() || len(state.PrivateDNSMappings.Elements()) != 0 {
+		t.Fatalf("private_dns_mappings = %v; want empty list", state.PrivateDNSMappings)
+	}
+}
+
+func TestReversePrivateEndpointSchemas_DNSTargetContract(t *testing.T) {
+	ctx := context.Background()
+
+	var rpeSchema resource.SchemaResponse
+	(&ClickPipeReversePrivateEndpointResource{}).Schema(ctx, resource.SchemaRequest{}, &rpeSchema)
+	if _, exists := rpeSchema.Schema.Attributes["wait_for_ready"]; exists {
+		t.Fatal("wait_for_ready must not be exposed")
+	}
+	for _, name := range []string{"dns_targets", "private_dns_mappings"} {
+		attribute, ok := rpeSchema.Schema.Attributes[name].(schema.ListNestedAttribute)
+		if !ok || !attribute.Computed || attribute.Optional || attribute.Required {
+			t.Fatalf("%s must be a computed-only nested list", name)
+		}
+	}
+
+	var dnsSchema resource.SchemaResponse
+	(&ClickPipeReversePrivateEndpointCustomPrivateDNSResource{}).Schema(ctx, resource.SchemaRequest{}, &dnsSchema)
+	mappingAttributes := dnsSchema.Schema.Attributes["mapping"].(schema.ListNestedAttribute).NestedObject.Attributes
+	if _, exists := mappingAttributes["internal_dns_name"]; exists {
+		t.Fatal("internal_dns_name must not be exposed")
+	}
+	targetID, ok := mappingAttributes["target_id"].(schema.StringAttribute)
+	if !ok || !targetID.Optional || targetID.Computed {
+		t.Fatal("target_id must be Optional only")
+	}
+}
+
+func TestUpdateCustomPrivateDNSMappings_SendsTargetIDWithoutReadyWait(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		statusCode int
+		wantError  bool
+	}{
+		{name: "accepted", statusCode: http.StatusOK},
+		{name: "API validation error surfaces", statusCode: http.StatusBadRequest, wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var methods []string
+			var payload api.UpdateReversePrivateEndpoint
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				methods = append(methods, req.Method)
+				if req.Method != http.MethodPatch {
+					t.Errorf("unexpected %s request: no readiness wait expected", req.Method)
+				}
+				if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+					t.Errorf("decode request body: %v", err)
+				}
+				if tc.statusCode != http.StatusOK {
+					w.WriteHeader(tc.statusCode)
+					_, _ = io.WriteString(w, `{"status":400,"error":"targetId is supported only for VPC_RESOURCE"}`)
+					return
+				}
+				endpoint := api.ReversePrivateEndpoint{ID: "rpe-1", Status: api.ReversePrivateEndpointStatusProvisioning}
+				endpoint.CustomPrivateDNSMappings = *payload.CustomPrivateDNSMappings
+				_ = json.NewEncoder(w).Encode(api.ResponseWithResult[api.ReversePrivateEndpoint]{Result: endpoint})
+			}))
+			defer server.Close()
+
+			client, err := api.NewClient(api.ClientConfig{ApiURL: server.URL, OrganizationID: "org-1", TokenKey: "key", TokenSecret: "secret"})
+			if err != nil {
+				t.Fatalf("NewClient: %v", err)
+			}
+
+			list, diags := customPrivateDNSMappingsToModel([]api.CustomPrivateDNSMapping{
+				{PrivateDNSName: "node-00-pri.example.com", TargetID: "rcfg-097648d8068504966"},
+			})
+			if diags.HasError() {
+				t.Fatalf("customPrivateDNSMappingsToModel: %v", diags)
+			}
+			data := models.ClickPipeReversePrivateEndpointCustomPrivateDNSResourceModel{
+				ServiceID:                types.StringValue("svc-1"),
+				ReversePrivateEndpointID: types.StringValue("rpe-1"),
+				Mapping:                  list,
+			}
+
+			r := &ClickPipeReversePrivateEndpointCustomPrivateDNSResource{client: client}
+			endpoint, ok := r.updateCustomPrivateDNSMappings(context.Background(), &data, &diags)
+
+			if !reflect.DeepEqual(methods, []string{http.MethodPatch}) {
+				t.Fatalf("requests = %v; want a single PATCH", methods)
+			}
+			if payload.CustomPrivateDNSMappings == nil || (*payload.CustomPrivateDNSMappings)[0].TargetID != "rcfg-097648d8068504966" {
+				t.Fatalf("PATCH payload = %#v; want targetId", payload)
+			}
+			if tc.wantError {
+				if ok || !diags.HasError() || !strings.Contains(diags[0].Detail(), "targetId is supported only for VPC_RESOURCE") {
+					t.Fatalf("ok = %v, diags = %v; want API error surfaced", ok, diags)
+				}
+				return
+			}
+			if !ok || diags.HasError() || endpoint.CustomPrivateDNSMappings[0].TargetID != "rcfg-097648d8068504966" {
+				t.Fatalf("ok = %v, diags = %v, endpoint = %#v", ok, diags, endpoint)
+			}
+		})
 	}
 }

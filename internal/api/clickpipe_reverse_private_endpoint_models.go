@@ -10,18 +10,26 @@ type ReversePrivateEndpoint struct {
 	DNSNames           []string            `json:"dnsNames,omitempty"`
 	PrivateDNSNames    []string            `json:"privateDnsNames,omitempty"`
 	PrivateDNSMappings []PrivateDNSMapping `json:"privateDnsMappings,omitempty"`
+	DNSTargets         []DNSTarget         `json:"dnsTargets,omitempty"`
 	Status             string              `json:"status,omitempty"`
 }
 
 // CustomPrivateDNSMapping represents a custom DNS name managed by ClickHouse Cloud.
 type CustomPrivateDNSMapping struct {
-	PrivateDNSName  string `json:"privateDnsName,omitempty"`
-	InternalDNSName string `json:"internalDnsName,omitempty"`
+	PrivateDNSName string `json:"privateDnsName,omitempty"`
+	TargetID       string `json:"targetId,omitempty"`
 }
 
 // PrivateDNSMapping describes a read-only private DNS name and its internal target.
 type PrivateDNSMapping struct {
 	PrivateDNSName  string `json:"privateDnsName,omitempty"`
+	InternalDNSName string `json:"internalDnsName,omitempty"`
+}
+
+// DNSTarget describes a read-only DNS target that custom private DNS mappings can reference by ID.
+type DNSTarget struct {
+	ID              string `json:"id,omitempty"`
+	Kind            string `json:"kind,omitempty"`
 	InternalDNSName string `json:"internalDnsName,omitempty"`
 }
 

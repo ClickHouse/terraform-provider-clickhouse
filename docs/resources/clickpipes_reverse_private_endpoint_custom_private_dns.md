@@ -5,8 +5,8 @@ subcategory: "ClickHouse Cloud"
 description: |-
   Use the clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns resource to manage the full set of custom private DNS mappings for an existing ClickPipes reverse private endpoint.
   This resource updates only custom private DNS mappings. The mapping list is a full replacement list, and deleting this resource clears all custom private DNS mappings on the reverse private endpoint.
-  Each mapping can optionally set internal_dns_name to pin its private_dns_name to a specific internal target. If any mapping sets a target, creation and updates wait up to 10 minutes for the endpoint to be Ready, fail immediately on Failed, Rejected, or Expired, and validate all targets against fresh dns_names and private_dns_mappings[].internal_dns_name. Matching is case-insensitive and ignores a trailing dot. Mappings without a target use the default target and do not require a readiness wait.
-  When selecting a target from a VPC_RESOURCE endpoint's dns_names, set wait_for_ready = true on the reverse private endpoint resource. Waiting here cannot fix an empty or incomplete list already captured in that resource's creation state. For a GROUP with one CHILD per MongoDB node, filter by each CHILD's resource configuration ID substring, never by the position in dns_names. Use [0] on the filtered list to fail if no matching name is available; do not use one(...), which returns null for an empty list and silently falls back to the default target.
+  By default, each private_dns_name resolves to the endpoint's default target. For VPC_RESOURCE endpoints, set target_id to a resource configuration ID to resolve the name to that target instead. For a GROUP resource configuration, use the CHILD resource configuration ID, for example to give each database node its own hostname. The reverse private endpoint's dns_targets attribute shows which targets are reported.
+  Because target IDs are known in advance, mappings can be applied right after the reverse private endpoint is created, without waiting for it to become ready. Once the endpoint reports targets, the API rejects a new or changed target_id that is not among them. A mapping whose target cannot be resolved is skipped; it never falls back to the default target. target_id is rejected for other endpoint types.
 ---
 
 # clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns (Resource)
@@ -15,9 +15,9 @@ Use the *clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns* reso
 
 This resource updates only custom private DNS mappings. The mapping list is a full replacement list, and deleting this resource clears all custom private DNS mappings on the reverse private endpoint.
 
-Each mapping can optionally set `internal_dns_name` to pin its `private_dns_name` to a specific internal target. If any mapping sets a target, creation and updates wait up to 10 minutes for the endpoint to be `Ready`, fail immediately on `Failed`, `Rejected`, or `Expired`, and validate all targets against fresh `dns_names` and `private_dns_mappings[].internal_dns_name`. Matching is case-insensitive and ignores a trailing dot. Mappings without a target use the default target and do not require a readiness wait.
+By default, each `private_dns_name` resolves to the endpoint's default target. For `VPC_RESOURCE` endpoints, set `target_id` to a resource configuration ID to resolve the name to that target instead. For a GROUP resource configuration, use the CHILD resource configuration ID, for example to give each database node its own hostname. The reverse private endpoint's `dns_targets` attribute shows which targets are reported.
 
-When selecting a target from a `VPC_RESOURCE` endpoint's `dns_names`, set `wait_for_ready = true` **on the reverse private endpoint resource**. Waiting here cannot fix an empty or incomplete list already captured in that resource's creation state. For a GROUP with one CHILD per MongoDB node, filter by each CHILD's resource configuration ID substring, never by the position in `dns_names`. Use `[0]` on the filtered list to fail if no matching name is available; do not use `one(...)`, which returns null for an empty list and silently falls back to the default target.
+Because target IDs are known in advance, mappings can be applied right after the reverse private endpoint is created, without waiting for it to become ready. Once the endpoint reports targets, the API rejects a new or changed `target_id` that is not among them. A mapping whose target cannot be resolved is skipped; it never falls back to the default target. `target_id` is rejected for other endpoint types.
 
 ## Example Usage
 
@@ -33,13 +33,13 @@ resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "ex
   ]
 }
 
-# MongoDB GROUP with one CHILD per node. Supply an existing resource gateway,
-# the ClickHouse service ID, and the ClickHouse AWS account used for RAM sharing.
-variable "resource_gateway_id" {
+# VPC_RESOURCE GROUP with one CHILD per MongoDB node. Each custom hostname
+# targets its node's CHILD resource configuration by ID.
+variable "service_id" {
   type = string
 }
 
-variable "service_id" {
+variable "resource_gateway_id" {
   type = string
 }
 
@@ -102,11 +102,8 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "mongo" {
   type                          = "VPC_RESOURCE"
   vpc_resource_configuration_id = aws_vpclattice_resource_configuration.mongo.id
   vpc_resource_share_arn        = aws_ram_resource_share.mongo.arn
-  wait_for_ready                = true
 
   depends_on = [
-    aws_vpclattice_resource_configuration.node_00,
-    aws_vpclattice_resource_configuration.node_01,
     aws_ram_resource_association.mongo,
     aws_ram_principal_association.clickhouse,
   ]
@@ -116,18 +113,23 @@ resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "mo
   service_id                  = var.service_id
   reverse_private_endpoint_id = clickhouse_clickpipes_reverse_private_endpoint.mongo.id
 
-  # DNS name order does not match CHILD order. Match the CHILD ID instead.
-  # [0] intentionally fails if no target matches, rather than using a default.
+  # target_id is the CHILD resource configuration ID, so these mappings can be
+  # applied right after the endpoint is created. Once provisioned, the targets
+  # are listed in clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_targets.
   mapping = [
     {
-      private_dns_name  = "node-00-pri.mongo.example.com"
-      internal_dns_name = [for n in clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_names : n if strcontains(n, ".${aws_vpclattice_resource_configuration.node_00.id}.")][0]
+      private_dns_name = "node-00-pri.mongo.example.com"
+      target_id        = aws_vpclattice_resource_configuration.node_00.id
     },
     {
-      private_dns_name  = "node-01-pri.mongo.example.com"
-      internal_dns_name = [for n in clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_names : n if strcontains(n, ".${aws_vpclattice_resource_configuration.node_01.id}.")][0]
+      private_dns_name = "node-01-pri.mongo.example.com"
+      target_id        = aws_vpclattice_resource_configuration.node_01.id
     },
   ]
+}
+
+output "mongo_dns_targets" {
+  value = clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_targets
 }
 ```
 
@@ -153,7 +155,7 @@ Required:
 
 Optional:
 
-- `internal_dns_name` (String) Internal DNS target from the endpoint's dns_names or private_dns_mappings. If set, waits up to 10 minutes for Ready status and validates the target before applying mappings.
+- `target_id` (String) ID of the DNS target this private DNS name resolves to, from the reverse private endpoint's `dns_targets`. Supported only for VPC_RESOURCE endpoints, where it is the resource configuration ID (`rcfg-...`); for a GROUP, use the CHILD resource configuration ID. If unset, the endpoint's default target is used.
 
 ## Import
 

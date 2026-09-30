@@ -9,13 +9,13 @@ resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "ex
   ]
 }
 
-# MongoDB GROUP with one CHILD per node. Supply an existing resource gateway,
-# the ClickHouse service ID, and the ClickHouse AWS account used for RAM sharing.
-variable "resource_gateway_id" {
+# VPC_RESOURCE GROUP with one CHILD per MongoDB node. Each custom hostname
+# targets its node's CHILD resource configuration by ID.
+variable "service_id" {
   type = string
 }
 
-variable "service_id" {
+variable "resource_gateway_id" {
   type = string
 }
 
@@ -78,11 +78,8 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "mongo" {
   type                          = "VPC_RESOURCE"
   vpc_resource_configuration_id = aws_vpclattice_resource_configuration.mongo.id
   vpc_resource_share_arn        = aws_ram_resource_share.mongo.arn
-  wait_for_ready                = true
 
   depends_on = [
-    aws_vpclattice_resource_configuration.node_00,
-    aws_vpclattice_resource_configuration.node_01,
     aws_ram_resource_association.mongo,
     aws_ram_principal_association.clickhouse,
   ]
@@ -92,16 +89,21 @@ resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "mo
   service_id                  = var.service_id
   reverse_private_endpoint_id = clickhouse_clickpipes_reverse_private_endpoint.mongo.id
 
-  # DNS name order does not match CHILD order. Match the CHILD ID instead.
-  # [0] intentionally fails if no target matches, rather than using a default.
+  # target_id is the CHILD resource configuration ID, so these mappings can be
+  # applied right after the endpoint is created. Once provisioned, the targets
+  # are listed in clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_targets.
   mapping = [
     {
-      private_dns_name  = "node-00-pri.mongo.example.com"
-      internal_dns_name = [for n in clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_names : n if strcontains(n, ".${aws_vpclattice_resource_configuration.node_00.id}.")][0]
+      private_dns_name = "node-00-pri.mongo.example.com"
+      target_id        = aws_vpclattice_resource_configuration.node_00.id
     },
     {
-      private_dns_name  = "node-01-pri.mongo.example.com"
-      internal_dns_name = [for n in clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_names : n if strcontains(n, ".${aws_vpclattice_resource_configuration.node_01.id}.")][0]
+      private_dns_name = "node-01-pri.mongo.example.com"
+      target_id        = aws_vpclattice_resource_configuration.node_01.id
     },
   ]
+}
+
+output "mongo_dns_targets" {
+  value = clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_targets
 }
