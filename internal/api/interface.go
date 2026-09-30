@@ -51,6 +51,10 @@ type Client interface {
 	CreateQueryAPIEndpoint(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest) (*QueryAPIEndpoint, error)
 	UpdateQueryAPIEndpoint(ctx context.Context, serviceID, endpointID string, endpoint QueryAPIEndpointRequest) (*QueryAPIEndpoint, error)
 	DeleteQueryAPIEndpoint(ctx context.Context, serviceID, endpointID string) error
+	GetSavedQuery(ctx context.Context, serviceID, queryID string) (*SavedQuery, error)
+	CreateSavedQuery(ctx context.Context, serviceID string, query SavedQueryRequest) (*SavedQuery, error)
+	UpdateSavedQuery(ctx context.Context, serviceID, queryID string, query SavedQueryRequest) (*SavedQuery, error)
+	DeleteSavedQuery(ctx context.Context, serviceID, queryID string) error
 
 	GetClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
 	CreateClickPipe(ctx context.Context, serviceId string, clickPipe ClickPipe) (*ClickPipe, error)
