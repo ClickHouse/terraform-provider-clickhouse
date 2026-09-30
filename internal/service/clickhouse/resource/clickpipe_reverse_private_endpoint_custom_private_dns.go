@@ -81,6 +81,13 @@ func (r *ClickPipeReversePrivateEndpointCustomPrivateDNSResource) Schema(ctx con
 								stringvalidator.LengthAtLeast(1),
 							},
 						},
+						"internal_dns_name": schema.StringAttribute{
+							Optional:            true,
+							MarkdownDescription: "Internal DNS target from the endpoint's dns_names or private_dns_mappings. If set, waits up to 10 minutes for Ready status and validates the target before applying mappings.",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+							},
+						},
 					},
 				},
 			},
@@ -135,8 +142,13 @@ func customPrivateDNSMappingsFromPlan(ctx context.Context, mappings types.List) 
 
 	result := make([]api.CustomPrivateDNSMapping, len(mappingModels))
 	for i, mapping := range mappingModels {
+		if mapping.InternalDNSName.IsUnknown() {
+			diags.AddError("Unknown internal DNS name", fmt.Sprintf("mapping[%d].internal_dns_name must be known before custom private DNS mappings can be applied.", i))
+			return nil, diags
+		}
 		result[i] = api.CustomPrivateDNSMapping{
-			PrivateDNSName: mapping.PrivateDNSName.ValueString(),
+			PrivateDNSName:  mapping.PrivateDNSName.ValueString(),
+			InternalDNSName: mapping.InternalDNSName.ValueString(),
 		}
 	}
 
@@ -148,8 +160,13 @@ func customPrivateDNSMappingsToModel(mappings []api.CustomPrivateDNSMapping) (ty
 
 	mappingValues := make([]attr.Value, len(mappings))
 	for i, mapping := range mappings {
+		internalDNSName := types.StringNull()
+		if mapping.InternalDNSName != "" {
+			internalDNSName = types.StringValue(mapping.InternalDNSName)
+		}
 		mappingValues[i] = models.CustomPrivateDNSMappingModel{
-			PrivateDNSName: types.StringValue(mapping.PrivateDNSName),
+			PrivateDNSName:  types.StringValue(mapping.PrivateDNSName),
+			InternalDNSName: internalDNSName,
 		}.ObjectValue()
 	}
 
@@ -303,6 +320,18 @@ func (r *ClickPipeReversePrivateEndpointCustomPrivateDNSResource) updateCustomPr
 		return nil, false
 	}
 
+	if customPrivateDNSMappingsHaveInternalTarget(mappings) {
+		endpoint, err := waitForReversePrivateEndpointReady(ctx, r.client, serviceID, reversePrivateEndpointID, false)
+		if err != nil {
+			diags.AddError("Error waiting for ClickPipe reverse private endpoint to be ready", err.Error())
+			return nil, false
+		}
+		diags.Append(validateCustomPrivateDNSInternalNames(mappings, endpoint)...)
+		if diags.HasError() {
+			return nil, false
+		}
+	}
+
 	tflog.Debug(ctx, "Updating ClickPipe reverse private endpoint custom private DNS mappings", map[string]interface{}{
 		"service_id":                  serviceID,
 		"reverse_private_endpoint_id": reversePrivateEndpointID,
@@ -317,4 +346,36 @@ func (r *ClickPipeReversePrivateEndpointCustomPrivateDNSResource) updateCustomPr
 	}
 
 	return endpoint, true
+}
+
+func customPrivateDNSMappingsHaveInternalTarget(mappings []api.CustomPrivateDNSMapping) bool {
+	for _, mapping := range mappings {
+		if mapping.InternalDNSName != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func validateCustomPrivateDNSInternalNames(mappings []api.CustomPrivateDNSMapping, endpoint *api.ReversePrivateEndpoint) diag.Diagnostics {
+	var diags diag.Diagnostics
+	available := append([]string{}, endpoint.DNSNames...)
+	for _, mapping := range endpoint.PrivateDNSMappings {
+		if mapping.InternalDNSName != "" {
+			available = append(available, mapping.InternalDNSName)
+		}
+	}
+	normalize := func(name string) string {
+		return strings.ToLower(strings.TrimSuffix(name, "."))
+	}
+	names := make(map[string]bool, len(available))
+	for _, name := range available {
+		names[normalize(name)] = true
+	}
+	for i, mapping := range mappings {
+		if mapping.InternalDNSName != "" && !names[normalize(mapping.InternalDNSName)] {
+			diags.AddError("Invalid internal DNS name", fmt.Sprintf("mapping[%d].internal_dns_name %q for private DNS name %q is not a target of reverse private endpoint %s. Available internal DNS names: %q.", i, mapping.InternalDNSName, mapping.PrivateDNSName, endpoint.ID, available))
+		}
+	}
+	return diags
 }

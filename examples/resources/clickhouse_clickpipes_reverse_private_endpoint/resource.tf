@@ -9,6 +9,7 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "vpc_resource" {
   service_id                    = "3a10a385-ced2-452e-abb8-908c80976a8f"
   description                   = "VPC_RESOURCE reverse private endpoint for ClickPipes"
   type                          = "VPC_RESOURCE"
+  wait_for_ready                = true
   vpc_resource_configuration_id = "rcfg-1a2b3c4d5e6f7g8h9"
   vpc_resource_share_arn        = "arn:aws:ram:us-east-1:123456789012:resource-share/1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6"
 }

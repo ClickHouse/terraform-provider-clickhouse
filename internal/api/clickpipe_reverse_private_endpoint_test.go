@@ -99,7 +99,7 @@ func TestCreateReversePrivateEndpoint_PostsGCPPSCAndCustomDNSMappings(t *testing
 func TestUpdateReversePrivateEndpoint_PatchesCustomDNSMappings(t *testing.T) {
 	expectedPath := "/organizations/org-1/services/svc-1/clickpipesReversePrivateEndpoints/rpe-1"
 	mappings := []CustomPrivateDNSMapping{
-		{PrivateDNSName: "one.example.com"},
+		{PrivateDNSName: "one.example.com", InternalDNSName: "child.internal.example.com"},
 		{PrivateDNSName: "two.example.com"},
 	}
 	request := UpdateReversePrivateEndpoint{CustomPrivateDNSMappings: &mappings}
@@ -146,9 +146,39 @@ func TestUpdateReversePrivateEndpoint_PatchesCustomDNSMappings(t *testing.T) {
 	if mapping["privateDnsName"] != "one.example.com" {
 		t.Errorf("privateDnsName = %v; want one.example.com", mapping["privateDnsName"])
 	}
+	if mapping["internalDnsName"] != "child.internal.example.com" {
+		t.Errorf("internalDnsName = %v; want child.internal.example.com", mapping["internalDnsName"])
+	}
+	defaultMapping := capturedMappings[1].(map[string]any)
+	if _, exists := defaultMapping["internalDnsName"]; exists {
+		t.Errorf("default mapping must omit internalDnsName: %#v", defaultMapping)
+	}
 
 	if len(got.CustomPrivateDNSMappings) != 2 || got.CustomPrivateDNSMappings[1].PrivateDNSName != "two.example.com" {
 		t.Fatalf("CustomPrivateDNSMappings = %#v; want two mappings", got.CustomPrivateDNSMappings)
+	}
+	if got.CustomPrivateDNSMappings[0].InternalDNSName != "child.internal.example.com" {
+		t.Fatalf("InternalDNSName = %q; want child.internal.example.com", got.CustomPrivateDNSMappings[0].InternalDNSName)
+	}
+}
+
+func TestGetReversePrivateEndpoint_DecodesPrivateDNSMappings(t *testing.T) {
+	client, _ := newReversePrivateEndpointTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/organizations/org-1/services/svc-1/clickpipesReversePrivateEndpoints/rpe-1" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"result":{"id":"rpe-1","status":"Ready","dnsNames":["child.internal.example.com"],"privateDnsMappings":[{"privateDnsName":"node.example.com","internalDnsName":"child.internal.example.com"}],"customPrivateDnsMappings":[{"privateDnsName":"node-pri.example.com","internalDnsName":"child.internal.example.com"}]}}`)
+	})
+	got, err := client.GetReversePrivateEndpoint(context.Background(), "svc-1", "rpe-1")
+	if err != nil {
+		t.Fatalf("GetReversePrivateEndpoint: %v", err)
+	}
+	if len(got.PrivateDNSMappings) != 1 || got.PrivateDNSMappings[0] != (PrivateDNSMapping{PrivateDNSName: "node.example.com", InternalDNSName: "child.internal.example.com"}) {
+		t.Fatalf("PrivateDNSMappings = %#v", got.PrivateDNSMappings)
+	}
+	if len(got.CustomPrivateDNSMappings) != 1 || got.CustomPrivateDNSMappings[0].InternalDNSName != "child.internal.example.com" {
+		t.Fatalf("CustomPrivateDNSMappings = %#v", got.CustomPrivateDNSMappings)
 	}
 }
 

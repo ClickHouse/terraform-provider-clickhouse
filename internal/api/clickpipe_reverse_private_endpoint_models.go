@@ -4,17 +4,25 @@ package api
 type ReversePrivateEndpoint struct {
 	CreateReversePrivateEndpoint
 
-	ID              string   `json:"id,omitempty"`
-	ServiceID       string   `json:"serviceId,omitempty"`
-	EndpointID      string   `json:"endpointId,omitempty"`
-	DNSNames        []string `json:"dnsNames,omitempty"`
-	PrivateDNSNames []string `json:"privateDnsNames,omitempty"`
-	Status          string   `json:"status,omitempty"`
+	ID                 string              `json:"id,omitempty"`
+	ServiceID          string              `json:"serviceId,omitempty"`
+	EndpointID         string              `json:"endpointId,omitempty"`
+	DNSNames           []string            `json:"dnsNames,omitempty"`
+	PrivateDNSNames    []string            `json:"privateDnsNames,omitempty"`
+	PrivateDNSMappings []PrivateDNSMapping `json:"privateDnsMappings,omitempty"`
+	Status             string              `json:"status,omitempty"`
 }
 
 // CustomPrivateDNSMapping represents a custom DNS name managed by ClickHouse Cloud.
 type CustomPrivateDNSMapping struct {
-	PrivateDNSName string `json:"privateDnsName,omitempty"`
+	PrivateDNSName  string `json:"privateDnsName,omitempty"`
+	InternalDNSName string `json:"internalDnsName,omitempty"`
+}
+
+// PrivateDNSMapping describes a read-only private DNS name and its internal target.
+type PrivateDNSMapping struct {
+	PrivateDNSName  string `json:"privateDnsName,omitempty"`
+	InternalDNSName string `json:"internalDnsName,omitempty"`
 }
 
 // CreateReversePrivateEndpoint is the request payload for creating a reverse private endpoint

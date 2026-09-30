@@ -1,3 +1,7 @@
 Use the *clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns* resource to manage the full set of custom private DNS mappings for an existing ClickPipes reverse private endpoint.
 
 This resource updates only custom private DNS mappings. The mapping list is a full replacement list, and deleting this resource clears all custom private DNS mappings on the reverse private endpoint.
+
+Each mapping can optionally set `internal_dns_name` to pin its `private_dns_name` to a specific internal target. If any mapping sets a target, creation and updates wait up to 10 minutes for the endpoint to be `Ready`, fail immediately on `Failed`, `Rejected`, or `Expired`, and validate all targets against fresh `dns_names` and `private_dns_mappings[].internal_dns_name`. Matching is case-insensitive and ignores a trailing dot. Mappings without a target use the default target and do not require a readiness wait.
+
+When selecting a target from a `VPC_RESOURCE` endpoint's `dns_names`, set `wait_for_ready = true` **on the reverse private endpoint resource**. Waiting here cannot fix an empty or incomplete list already captured in that resource's creation state. For a GROUP with one CHILD per MongoDB node, filter by each CHILD's resource configuration ID substring, never by the position in `dns_names`. Use `[0]` on the filtered list to fail if no matching name is available; do not use `one(...)`, which returns null for an empty list and silently falls back to the default target.

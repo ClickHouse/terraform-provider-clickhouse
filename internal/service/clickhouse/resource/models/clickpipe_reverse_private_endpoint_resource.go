@@ -8,20 +8,23 @@ import (
 
 // CustomPrivateDNSMappingModel describes a custom private DNS mapping.
 type CustomPrivateDNSMappingModel struct {
-	PrivateDNSName types.String `tfsdk:"private_dns_name"`
+	PrivateDNSName  types.String `tfsdk:"private_dns_name"`
+	InternalDNSName types.String `tfsdk:"internal_dns_name"`
 }
 
 func (m CustomPrivateDNSMappingModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"private_dns_name": types.StringType,
+			"private_dns_name":  types.StringType,
+			"internal_dns_name": types.StringType,
 		},
 	}
 }
 
 func (m CustomPrivateDNSMappingModel) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"private_dns_name": m.PrivateDNSName,
+		"private_dns_name":  m.PrivateDNSName,
+		"internal_dns_name": m.InternalDNSName,
 	})
 }
 
@@ -40,6 +43,8 @@ type ClickPipeReversePrivateEndpointResourceModel struct {
 	EndpointID                 types.String `tfsdk:"endpoint_id"`
 	DNSNames                   types.List   `tfsdk:"dns_names"`
 	PrivateDNSNames            types.List   `tfsdk:"private_dns_names"`
+	PrivateDNSMappings         types.List   `tfsdk:"private_dns_mappings"`
+	WaitForReady               types.Bool   `tfsdk:"wait_for_ready"`
 	Status                     types.String `tfsdk:"status"`
 }
 
