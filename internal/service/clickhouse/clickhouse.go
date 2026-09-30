@@ -33,6 +33,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		resource.NewOrganizationSettingsResource,
 		resource.NewPrivateEndpointRegistrationResource,
 		resource.NewQueryAPIEndpointResource,
+		resource.NewSavedQueryResource,
 		resource.NewRoleResource,
 		resource.NewRoleAssignmentResource,
 		resource.NewServicePrivateEndpointsAttachmentResource,
