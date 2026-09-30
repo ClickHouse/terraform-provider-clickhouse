@@ -84,10 +84,14 @@ var ClickPipeKafkaAuthenticationMethods = []string{
 	ClickPipeKafkaAuthenticationMutualTLS,
 }
 
-const ClickPipeKafkaTombstoneModeDelete = "delete"
+const (
+	ClickPipeKafkaTombstoneModeDelete     = "delete"
+	ClickPipeKafkaTombstoneModeSoftDelete = "soft_delete"
+)
 
 var ClickPipeKafkaTombstoneModes = []string{
 	ClickPipeKafkaTombstoneModeDelete,
+	ClickPipeKafkaTombstoneModeSoftDelete,
 }
 
 const (
