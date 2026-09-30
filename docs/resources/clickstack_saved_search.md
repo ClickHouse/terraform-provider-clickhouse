@@ -52,6 +52,7 @@ resource "clickhouse_clickstack_saved_search" "errors" {
 ### Read-Only
 
 - `id` (String) Identifier of the saved search.
+- `tags_all` (Set of String) All tags on the resource: its own tags plus the provider's `clickstack_default_tags`.
 
 ## Import
 

@@ -30,6 +30,7 @@ var (
 	_ resource.ResourceWithConfigure      = (*savedSearchResource)(nil)
 	_ resource.ResourceWithImportState    = (*savedSearchResource)(nil)
 	_ resource.ResourceWithValidateConfig = (*savedSearchResource)(nil)
+	_ resource.ResourceWithModifyPlan     = (*savedSearchResource)(nil)
 )
 
 // NewSavedSearchResource is a helper to register the resource with the provider.
@@ -39,7 +40,8 @@ func NewSavedSearchResource() resource.Resource {
 
 // savedSearchResource manages a ClickStack saved search.
 type savedSearchResource struct {
-	client *client.Client
+	client      *client.Client
+	defaultTags []string
 }
 
 // savedSearchResourceModel maps the resource schema data. Filters is an opaque
@@ -56,6 +58,7 @@ type savedSearchResourceModel struct {
 	WhereLanguage types.String `tfsdk:"where_language"`
 	OrderBy       types.String `tfsdk:"order_by"`
 	Tags          types.List   `tfsdk:"tags"`
+	TagsAll       types.Set    `tfsdk:"tags_all"`
 	Filters       types.String `tfsdk:"filters"`
 }
 
@@ -123,6 +126,7 @@ func (r *savedSearchResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Description:   "Tags applied to the saved search.",
 				PlanModifiers: []planmodifier.List{listplanmodifier.UseStateForUnknown()},
 			},
+			tagsAllAttr: tagsAllAttribute(""),
 			"filters": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
@@ -156,6 +160,29 @@ func (r *savedSearchResource) Configure(_ context.Context, req resource.Configur
 		return
 	}
 	r.client = providerData.ClickStack
+	r.defaultTags = providerData.ClickStackDefaultTags
+}
+
+// ModifyPlan plans tags_all so a change to the provider's default tags updates the saved search.
+func (r *savedSearchResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var plan, cfg savedSearchResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	all := types.SetUnknown(types.StringType)
+	// toClient sends [] for tags left unset on create, so those are known too.
+	if fullyKnown(plan.Tags) || cfg.Tags.IsNull() {
+		own, d := plan.ownTags(ctx)
+		resp.Diagnostics.Append(d...)
+		all, d = plannedTagsAll(own, r.defaultTags)
+		resp.Diagnostics.Append(d...)
+	}
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(tagsAllAttr), all)...)
 }
 
 // ValidateConfig checks enum and JSON-shape constraints at plan time so invalid
@@ -200,7 +227,7 @@ func (r *savedSearchResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	input, diags := plan.toClient(ctx)
+	input, diags := plan.toClient(ctx, r.defaultTags)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -212,7 +239,7 @@ func (r *savedSearchResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	resp.Diagnostics.Append(plan.applySavedSearch(ss)...)
+	resp.Diagnostics.Append(plan.applySavedSearch(ctx, ss, r.defaultTags)...)
 	tflog.Trace(ctx, "created saved search resource")
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -234,7 +261,7 @@ func (r *savedSearchResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	resp.Diagnostics.Append(state.applySavedSearch(ss)...)
+	resp.Diagnostics.Append(state.applySavedSearch(ctx, ss, r.defaultTags)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -247,7 +274,7 @@ func (r *savedSearchResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	input, diags := plan.toClient(ctx)
+	input, diags := plan.toClient(ctx, r.defaultTags)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -267,7 +294,7 @@ func (r *savedSearchResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	resp.Diagnostics.Append(plan.applySavedSearch(ss)...)
+	resp.Diagnostics.Append(plan.applySavedSearch(ctx, ss, r.defaultTags)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -299,7 +326,16 @@ func (r *savedSearchResource) ImportState(ctx context.Context, req resource.Impo
 
 // --- conversion helpers ---
 
-func (m *savedSearchResourceModel) toClient(ctx context.Context) (client.SavedSearch, diag.Diagnostics) {
+// ownTags is the saved search's own tags, [] when unset or not yet known.
+func (m *savedSearchResourceModel) ownTags(ctx context.Context) ([]string, diag.Diagnostics) {
+	tags := []string{}
+	if !known(m.Tags) {
+		return tags, nil
+	}
+	return tags, m.Tags.ElementsAs(ctx, &tags, false)
+}
+
+func (m *savedSearchResourceModel) toClient(ctx context.Context, defaultTags []string) (client.SavedSearch, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	ss := client.SavedSearch{
 		Name:          m.Name.ValueString(),
@@ -311,11 +347,9 @@ func (m *savedSearchResourceModel) toClient(ctx context.Context) (client.SavedSe
 	}
 
 	// Full-replace PUT: always send tags as an array ([] when unset), never null.
-	tags := []string{}
-	if !m.Tags.IsNull() && !m.Tags.IsUnknown() {
-		diags.Append(m.Tags.ElementsAs(ctx, &tags, false)...)
-	}
-	ss.Tags = tags
+	tags, d := m.ownTags(ctx)
+	diags.Append(d...)
+	ss.Tags = withDefaultTags(tags, defaultTags)
 
 	// Filters is an opaque JSON array string; default to [] so the full-replace
 	// PUT always carries a valid value.
@@ -328,8 +362,12 @@ func (m *savedSearchResourceModel) toClient(ctx context.Context) (client.SavedSe
 	return ss, diags
 }
 
-func (m *savedSearchResourceModel) applySavedSearch(ss *client.SavedSearch) diag.Diagnostics {
+func (m *savedSearchResourceModel) applySavedSearch(ctx context.Context, ss *client.SavedSearch, defaultTags []string) diag.Diagnostics {
 	var diags diag.Diagnostics
+	own, d := m.ownTags(ctx)
+	diags.Append(d...)
+	drop, d := tagsDropList(ctx, m.TagsAll, defaultTags)
+	diags.Append(d...)
 	m.ID = types.StringValue(ss.ID)
 	m.Name = types.StringValue(ss.Name)
 	m.SourceID = types.StringValue(ss.SourceID)
@@ -338,9 +376,10 @@ func (m *savedSearchResourceModel) applySavedSearch(ss *client.SavedSearch) diag
 	m.WhereLanguage = types.StringValue(ss.WhereLanguage)
 	m.OrderBy = types.StringValue(ss.OrderBy)
 
-	list, d := stringSliceToList(ss.Tags)
+	m.Tags, d = stringSliceToList(withoutDefaultTags(ss.Tags, own, drop))
 	diags.Append(d...)
-	m.Tags = list
+	m.TagsAll, d = tagsSet(ss.Tags)
+	diags.Append(d...)
 
 	// Keep the authored filters value (config is the source of truth for this
 	// opaque passthrough). Adopting the server's value would be a hard
