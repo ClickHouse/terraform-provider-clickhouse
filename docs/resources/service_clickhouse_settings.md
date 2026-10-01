@@ -11,7 +11,7 @@ description: |-
   Background merges
   Set merges_enabled = false to stop the service from assigning new background merges and mutations. Table size and read amplification grow while merges are off, so ClickHouse intends this for short-lived debugging windows only. This maps to the shared_merge_tree_disable_merges_and_mutations_assignment setting, which cannot also be set through settings. Changing it triggers a rolling restart of the service. Leave it unset to keep the platform default.
   Values
-  Values are always written as strings in Terraform. The provider sends them to the API in the setting's native type: settings the schema types as string are sent as strings, and other values that parse as an integer are sent as integers.
+  Values are always written as strings in Terraform. The provider sends settings the schema types as integer as integers, and all other settings as strings.
   Disruptive settings
   Some settings, such as compatibility, can cause query failures if changed without testing. The API returns a warning for these, which the provider surfaces as a Terraform warning. Server-level settings (for example keep_alive_timeout) trigger a rolling restart of the service when changed or reset.
   Import
@@ -54,7 +54,7 @@ Set `merges_enabled = false` to stop the service from assigning new background m
 
 ## Values
 
-Values are always written as strings in Terraform. The provider sends them to the API in the setting's native type: settings the schema types as `string` are sent as strings, and other values that parse as an integer are sent as integers.
+Values are always written as strings in Terraform. The provider sends settings the schema types as `integer` as integers, and all other settings as strings.
 
 ## Disruptive settings
 

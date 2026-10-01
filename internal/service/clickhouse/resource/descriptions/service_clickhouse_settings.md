@@ -14,7 +14,7 @@ Set `merges_enabled = false` to stop the service from assigning new background m
 
 ## Values
 
-Values are always written as strings in Terraform. The provider sends them to the API in the setting's native type: settings the schema types as `string` are sent as strings, and other values that parse as an integer are sent as integers.
+Values are always written as strings in Terraform. The provider sends settings the schema types as `integer` as integers, and all other settings as strings.
 
 ## Disruptive settings
 
