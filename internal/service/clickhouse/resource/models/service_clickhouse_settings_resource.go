@@ -11,4 +11,5 @@ type ServiceClickhouseSettingsResourceModel struct {
 	ServiceID     types.String `tfsdk:"service_id"`
 	Settings      types.Map    `tfsdk:"settings"`
 	MergesEnabled types.Bool   `tfsdk:"merges_enabled"`
+	MergeThreads  types.Int64  `tfsdk:"merge_threads"`
 }

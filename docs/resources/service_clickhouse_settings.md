@@ -10,6 +10,8 @@ description: |-
   Use the settings schema endpoint https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-schema-get to discover which settings are configurable on a service and their types.
   Background merges
   Set merges_enabled = false to stop the service from assigning background merges and mutations, for example on a compute group that should only serve reads. This maps to the shared_merge_tree_disable_merges_and_mutations_assignment setting, which cannot also be set through settings. Changing it triggers a rolling restart of the service. Leave it unset to keep the platform default.
+  Merge threads
+  Set merge_threads to change how many threads run background merges and mutations on each replica. This maps to the background_pool_size setting, which cannot also be set through settings. ClickHouse only raises this value at runtime: lowering it takes effect after the service restarts.
   Values
   Values are always written as strings in Terraform. The provider sends them to the API in the setting's native type: settings the schema types as string are sent as strings, and other values that parse as an integer are sent as integers.
   Disruptive settings
@@ -18,7 +20,7 @@ description: |-
   
   terraform import clickhouse_service_clickhouse_settings.example <service_id>
   
-  Import adopts every setting currently configured on the service. Settings with a dedicated attribute, such as merges_enabled, are imported into that attribute. Keep everything in your configuration, otherwise the next apply resets the settings you leave out.
+  Import adopts every setting currently configured on the service. Settings with a dedicated attribute, such as merges_enabled and merge_threads, are imported into that attribute. Keep everything in your configuration, otherwise the next apply resets the settings you leave out.
   Example Usage
   
   resource "clickhouse_service_clickhouse_settings" "example" {
@@ -28,6 +30,8 @@ description: |-
       compatibility  = "26.2"
       max_query_size = "262144"
     }
+  
+    merge_threads = 32
   }
   
   resource "clickhouse_service_clickhouse_settings" "read_only" {
@@ -52,6 +56,10 @@ Use the [settings schema endpoint](https://clickhouse.com/docs/products/cloud/ap
 
 Set `merges_enabled = false` to stop the service from assigning background merges and mutations, for example on a compute group that should only serve reads. This maps to the `shared_merge_tree_disable_merges_and_mutations_assignment` setting, which cannot also be set through `settings`. Changing it triggers a rolling restart of the service. Leave it unset to keep the platform default.
 
+## Merge threads
+
+Set `merge_threads` to change how many threads run background merges and mutations on each replica. This maps to the `background_pool_size` setting, which cannot also be set through `settings`. ClickHouse only raises this value at runtime: lowering it takes effect after the service restarts.
+
 ## Values
 
 Values are always written as strings in Terraform. The provider sends them to the API in the setting's native type: settings the schema types as `string` are sent as strings, and other values that parse as an integer are sent as integers.
@@ -66,7 +74,7 @@ Some settings, such as `compatibility`, can cause query failures if changed with
 terraform import clickhouse_service_clickhouse_settings.example <service_id>
 ```
 
-Import adopts every setting currently configured on the service. Settings with a dedicated attribute, such as `merges_enabled`, are imported into that attribute. Keep everything in your configuration, otherwise the next apply resets the settings you leave out.
+Import adopts every setting currently configured on the service. Settings with a dedicated attribute, such as `merges_enabled` and `merge_threads`, are imported into that attribute. Keep everything in your configuration, otherwise the next apply resets the settings you leave out.
 
 ## Example Usage
 
@@ -78,6 +86,8 @@ resource "clickhouse_service_clickhouse_settings" "example" {
     compatibility  = "26.2"
     max_query_size = "262144"
   }
+
+  merge_threads = 32
 }
 
 resource "clickhouse_service_clickhouse_settings" "read_only" {
@@ -100,6 +110,8 @@ resource "clickhouse_service_clickhouse_settings" "example" {
     compatibility  = "26.2"
     max_query_size = "262144"
   }
+
+  merge_threads = 32
 }
 
 resource "clickhouse_service_clickhouse_settings" "read_only" {
@@ -117,6 +129,7 @@ resource "clickhouse_service_clickhouse_settings" "read_only" {
 
 ### Optional
 
+- `merge_threads` (Number) Number of threads that run background merges and mutations on each replica. Maps to the `background_pool_size` setting. ClickHouse only raises this value at runtime: lowering it takes effect after the service restarts.
 - `merges_enabled` (Boolean) Whether background merges and mutations are assigned on this service. Set to false to stop them, for example on a compute group that should only serve reads. Maps to the `shared_merge_tree_disable_merges_and_mutations_assignment` setting. Changing it triggers a rolling restart of the service.
 - `settings` (Map of String) ClickHouse settings to configure, keyed by setting name. Values are strings; integer settings are sent as integers. Only the settings listed here are managed: removing one resets it to the platform default. Settings that have a dedicated attribute on this resource cannot be set here.
 

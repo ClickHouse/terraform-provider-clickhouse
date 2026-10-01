@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -79,6 +80,13 @@ func (r *ServiceClickhouseSettingsResource) Schema(_ context.Context, _ resource
 			"merges_enabled": schema.BoolAttribute{
 				Description: "Whether background merges and mutations are assigned on this service. Set to false to stop them, for example on a compute group that should only serve reads. Maps to the `" + settingDisableMergesAndMutations + "` setting. Changing it triggers a rolling restart of the service.",
 				Optional:    true,
+			},
+			"merge_threads": schema.Int64Attribute{
+				Description: "Number of threads that run background merges and mutations on each replica. Maps to the `" + settingBackgroundPoolSize + "` setting. ClickHouse only raises this value at runtime: lowering it takes effect after the service restarts.",
+				Optional:    true,
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+				},
 			},
 		},
 	}
@@ -347,7 +355,10 @@ func clickhouseSettingsPayload(settings map[string]string, settingsSchema []api.
 	return payload
 }
 
-const settingDisableMergesAndMutations = "shared_merge_tree_disable_merges_and_mutations_assignment"
+const (
+	settingDisableMergesAndMutations = "shared_merge_tree_disable_merges_and_mutations_assignment"
+	settingBackgroundPoolSize        = "background_pool_size"
+)
 
 // typedClickhouseSetting maps a dedicated resource attribute to the
 // ClickHouse setting it controls.
@@ -382,6 +393,24 @@ var typedClickhouseSettings = []typedClickhouseSetting{
 			}
 			disabled, err := strconv.ParseBool(value)
 			m.MergesEnabled = types.BoolValue(err != nil || !disabled)
+		},
+	},
+	{
+		attribute: "merge_threads",
+		setting:   settingBackgroundPoolSize,
+		toValue: func(m *models.ServiceClickhouseSettingsResourceModel) (string, bool) {
+			if m.MergeThreads.IsNull() || m.MergeThreads.IsUnknown() {
+				return "", false
+			}
+			return strconv.FormatInt(m.MergeThreads.ValueInt64(), 10), true
+		},
+		fromValue: func(m *models.ServiceClickhouseSettingsResourceModel, value string, ok bool) {
+			n, err := strconv.ParseInt(value, 10, 64)
+			if !ok || err != nil {
+				m.MergeThreads = types.Int64Null()
+				return
+			}
+			m.MergeThreads = types.Int64Value(n)
 		},
 	},
 }

@@ -9,6 +9,8 @@ resource "clickhouse_service_clickhouse_settings" "example" {
     compatibility  = "26.2"
     max_query_size = "262144"
   }
+
+  merge_threads = 32
 }
 
 resource "clickhouse_service_clickhouse_settings" "read_only" {

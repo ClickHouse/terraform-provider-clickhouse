@@ -148,6 +148,22 @@ func TestDesiredClickhouseSettings_MapsMergesEnabled(t *testing.T) {
 	}
 }
 
+func TestDesiredClickhouseSettings_MapsMergeThreads(t *testing.T) {
+	m := &models.ServiceClickhouseSettingsResourceModel{
+		Settings:      types.MapNull(types.StringType),
+		MergesEnabled: types.BoolNull(),
+		MergeThreads:  types.Int64Value(32),
+	}
+
+	got, diags := desiredClickhouseSettings(context.Background(), m)
+	if diags.HasError() {
+		t.Fatalf("desiredClickhouseSettings: %v", diags)
+	}
+	if diff := cmp.Diff(map[string]string{settingBackgroundPoolSize: "32"}, got); diff != "" {
+		t.Errorf("desiredClickhouseSettings mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestServiceClickhouseSettingsResource_ImportState_SplitsTypedSettings(t *testing.T) {
 	ctx := context.Background()
 	r, sch := clickhouseSettingsResourceWithSchema(t)
@@ -156,7 +172,7 @@ func TestServiceClickhouseSettingsResource_ImportState_SplitsTypedSettings(t *te
 	r.client = api.NewClientMock(mc).
 		ListServiceClickhouseSettingsMock.
 		Expect(ctx, "svc-1").
-		Return(map[string]string{"compatibility": "26.2", settingDisableMergesAndMutations: "1"}, nil)
+		Return(map[string]string{"compatibility": "26.2", settingDisableMergesAndMutations: "1", settingBackgroundPoolSize: "32"}, nil)
 
 	resp := &resource.ImportStateResponse{State: tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}}
 	r.ImportState(ctx, resource.ImportStateRequest{ID: "svc-1"}, resp)
@@ -170,6 +186,9 @@ func TestServiceClickhouseSettingsResource_ImportState_SplitsTypedSettings(t *te
 	}
 	if state.MergesEnabled.IsNull() || state.MergesEnabled.ValueBool() {
 		t.Errorf("merges_enabled = %v; want false", state.MergesEnabled)
+	}
+	if state.MergeThreads.ValueInt64() != 32 {
+		t.Errorf("merge_threads = %v; want 32", state.MergeThreads)
 	}
 	settings := map[string]string{}
 	state.Settings.ElementsAs(ctx, &settings, false)
@@ -199,5 +218,6 @@ func clickhouseSettingsRaw(ctx context.Context, sch schema.Schema, serviceID str
 		"service_id":     tftypes.NewValue(tftypes.String, serviceID),
 		"settings":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, values),
 		"merges_enabled": tftypes.NewValue(tftypes.Bool, nil),
+		"merge_threads":  tftypes.NewValue(tftypes.Number, nil),
 	})
 }
