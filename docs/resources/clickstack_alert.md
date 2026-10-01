@@ -199,7 +199,7 @@ resource "clickhouse_clickstack_alert" "legacy_single_channel" {
 - `schedule_offset_minutes` (Number) Offset window boundaries by this many minutes (0-1439, and less than the interval). Mutually exclusive with `schedule_start_at`; setting one clears the other.
 - `schedule_start_at` (String) Absolute UTC anchor (RFC3339) for window alignment. Mutually exclusive with a non-zero `schedule_offset_minutes`; setting one clears the other.
 - `source` (String) What the alert evaluates: `saved_search` (default, requires `saved_search_id`), `tile` (requires `dashboard_id` and `tile_id`), or `inline` (requires `chart_config`). Changing this forces replacement.
-- `tags` (List of String) Tags for the alert (up to 50, each at most 32 characters). Requires ClickStack API 2.38.0 or later. When unset, the server copies the saved search or dashboard tags each time the alert is written, and Terraform does not track them. Set `[]` for no tags.
+- `tags` (List of String) Tags for the alert (up to 50, each at most 32 characters). Requires ClickStack API 2.38.0 or later. When unset, the server copies the saved search or dashboard tags, provider default tags included, each time the alert is written, and Terraform does not track them. Set `[]` for no tags of its own; provider default tags still apply.
 - `team` (String) Team ID to manage this alert under (`x-hdx-team`). Changing this forces the alert to be replaced.
 - `threshold_max` (Number) Upper bound, required for `between`/`not_between` and ignored otherwise. Must be >= `threshold`.
 - `tile_id` (String) Server-assigned ID of the tile to alert on. Take it from the dashboard's `tile_ids` map by tile name; ids cannot be chosen in `dashboard_json`. Required together with `dashboard_id` when `source` is `tile`. The alert has no query of its own: the server reads the tile's chart config from the dashboard on every evaluation. The tile must be a line, stacked bar, or number tile. Changing this to a different known value forces replacement.
@@ -207,6 +207,7 @@ resource "clickhouse_clickstack_alert" "legacy_single_channel" {
 ### Read-Only
 
 - `id` (String) Identifier of the alert.
+- `tags_all` (Set of String) All tags on the resource: its own tags plus the provider's `clickstack_default_tags`. Null when `tags` is unset.
 
 <a id="nestedatt--channel"></a>
 ### Nested Schema for `channel`
