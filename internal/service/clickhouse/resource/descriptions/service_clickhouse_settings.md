@@ -16,6 +16,20 @@ Values are always written as strings in Terraform. The provider sends settings t
 
 Some settings, such as `compatibility`, can cause query failures if changed without testing. The API returns a warning for these, which the provider surfaces as a Terraform warning. Server-level settings (for example `keep_alive_timeout`) trigger a rolling restart of the service when changed or reset.
 
+## Pausing background merges
+
+Set `shared_merge_tree_disable_merges_and_mutations_assignment = "1"` to stop new merges and mutations from being assigned. Applying it restarts the service, and table size and read amplification grow while merges are off, so keep it to short debugging windows. Remove it from `settings` to resume merges.
+
+```hcl
+resource "clickhouse_service_clickhouse_settings" "debug" {
+  service_id = clickhouse_service.example.id
+
+  settings = {
+    shared_merge_tree_disable_merges_and_mutations_assignment = "1"
+  }
+}
+```
+
 ## Import
 
 ```sh
