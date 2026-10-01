@@ -202,6 +202,30 @@ func (b BackupConfiguration) ObjectValue() basetypes.ObjectValue {
 	})
 }
 
+type SnapshotConfiguration struct {
+	Enabled   types.Bool  `tfsdk:"enabled"`
+	Gap       types.Int32 `tfsdk:"gap"`
+	TimeFrame types.Int32 `tfsdk:"time_frame"`
+}
+
+func (s SnapshotConfiguration) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"enabled":    types.BoolType,
+			"gap":        types.Int32Type,
+			"time_frame": types.Int32Type,
+		},
+	}
+}
+
+func (s SnapshotConfiguration) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(s.ObjectType().AttrTypes, map[string]attr.Value{
+		"enabled":    s.Enabled,
+		"gap":        s.Gap,
+		"time_frame": s.TimeFrame,
+	})
+}
+
 type ServiceResourceModel struct {
 	ID                              types.String `tfsdk:"id"`
 	BYOCID                          types.String `tfsdk:"byoc_id"`
@@ -239,6 +263,7 @@ type ServiceResourceModel struct {
 	TransparentEncryptionData       types.Object `tfsdk:"transparent_data_encryption"`
 	QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
+	SnapshotConfiguration           types.Object `tfsdk:"snapshot_configuration"`
 	BackupID                        types.String `tfsdk:"backup_id"`
 	ComplianceType                  types.String `tfsdk:"compliance_type"`
 	Tags                            types.Map    `tfsdk:"tags"`
@@ -281,6 +306,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.IpAccessList.Equal(b.IpAccessList) ||
 		!m.QueryAPIEndpoints.Equal(b.QueryAPIEndpoints) ||
 		!m.BackupConfiguration.Equal(b.BackupConfiguration) ||
+		!m.SnapshotConfiguration.Equal(b.SnapshotConfiguration) ||
 		!m.Tags.Equal(b.Tags) ||
 		!m.EnableCoreDumps.Equal(b.EnableCoreDumps) {
 		return false
