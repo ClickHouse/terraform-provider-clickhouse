@@ -10,3 +10,8 @@ resource "clickhouse_service_clickhouse_settings" "example" {
     max_query_size = "262144"
   }
 }
+
+resource "clickhouse_service_clickhouse_settings" "read_only" {
+  service_id     = clickhouse_service.svc.id
+  merges_enabled = false
+}

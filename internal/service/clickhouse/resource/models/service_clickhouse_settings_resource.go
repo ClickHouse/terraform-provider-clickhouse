@@ -7,7 +7,8 @@ import (
 // ServiceClickhouseSettingsResourceModel is the Terraform state model for the
 // clickhouse_service_clickhouse_settings resource.
 type ServiceClickhouseSettingsResourceModel struct {
-	ID        types.String `tfsdk:"id"`
-	ServiceID types.String `tfsdk:"service_id"`
-	Settings  types.Map    `tfsdk:"settings"`
+	ID            types.String `tfsdk:"id"`
+	ServiceID     types.String `tfsdk:"service_id"`
+	Settings      types.Map    `tfsdk:"settings"`
+	MergesEnabled types.Bool   `tfsdk:"merges_enabled"`
 }

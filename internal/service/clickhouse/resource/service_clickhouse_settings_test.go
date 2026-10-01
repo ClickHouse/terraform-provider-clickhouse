@@ -9,9 +9,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
 
 func TestClickhouseSettingsPayload_UsesSchemaTypes(t *testing.T) {
@@ -115,6 +117,67 @@ func TestServiceClickhouseSettingsResource_Create_SurfacesWarnings(t *testing.T)
 	}
 }
 
+func TestDesiredClickhouseSettings_MapsMergesEnabled(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name  string
+		value types.Bool
+		want  map[string]string
+	}{
+		{name: "unset", value: types.BoolNull(), want: map[string]string{"compatibility": "26.2"}},
+		{name: "enabled", value: types.BoolValue(true), want: map[string]string{"compatibility": "26.2", settingDisableMergesAndMutations: "0"}},
+		{name: "disabled", value: types.BoolValue(false), want: map[string]string{"compatibility": "26.2", settingDisableMergesAndMutations: "1"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings, d := types.MapValueFrom(ctx, types.StringType, map[string]string{"compatibility": "26.2"})
+			if d.HasError() {
+				t.Fatalf("MapValueFrom: %v", d)
+			}
+			m := &models.ServiceClickhouseSettingsResourceModel{Settings: settings, MergesEnabled: tc.value}
+
+			got, diags := desiredClickhouseSettings(ctx, m)
+			if diags.HasError() {
+				t.Fatalf("desiredClickhouseSettings: %v", diags)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("desiredClickhouseSettings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestServiceClickhouseSettingsResource_ImportState_SplitsTypedSettings(t *testing.T) {
+	ctx := context.Background()
+	r, sch := clickhouseSettingsResourceWithSchema(t)
+
+	mc := minimock.NewController(t)
+	r.client = api.NewClientMock(mc).
+		ListServiceClickhouseSettingsMock.
+		Expect(ctx, "svc-1").
+		Return(map[string]string{"compatibility": "26.2", settingDisableMergesAndMutations: "1"}, nil)
+
+	resp := &resource.ImportStateResponse{State: tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}}
+	r.ImportState(ctx, resource.ImportStateRequest{ID: "svc-1"}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("ImportState diags: %v", resp.Diagnostics)
+	}
+
+	var state models.ServiceClickhouseSettingsResourceModel
+	if d := resp.State.Get(ctx, &state); d.HasError() {
+		t.Fatalf("State.Get: %v", d)
+	}
+	if state.MergesEnabled.IsNull() || state.MergesEnabled.ValueBool() {
+		t.Errorf("merges_enabled = %v; want false", state.MergesEnabled)
+	}
+	settings := map[string]string{}
+	state.Settings.ElementsAs(ctx, &settings, false)
+	if diff := cmp.Diff(map[string]string{"compatibility": "26.2"}, settings); diff != "" {
+		t.Errorf("settings mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func clickhouseSettingsResourceWithSchema(t *testing.T) (*ServiceClickhouseSettingsResource, schema.Schema) {
 	t.Helper()
 	r := NewServiceClickhouseSettingsResource().(*ServiceClickhouseSettingsResource)
@@ -132,8 +195,9 @@ func clickhouseSettingsRaw(ctx context.Context, sch schema.Schema, serviceID str
 		values[k] = tftypes.NewValue(tftypes.String, v)
 	}
 	return tftypes.NewValue(sch.Type().TerraformType(ctx), map[string]tftypes.Value{
-		"id":         tftypes.NewValue(tftypes.String, serviceID),
-		"service_id": tftypes.NewValue(tftypes.String, serviceID),
-		"settings":   tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, values),
+		"id":             tftypes.NewValue(tftypes.String, serviceID),
+		"service_id":     tftypes.NewValue(tftypes.String, serviceID),
+		"settings":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, values),
+		"merges_enabled": tftypes.NewValue(tftypes.Bool, nil),
 	})
 }
