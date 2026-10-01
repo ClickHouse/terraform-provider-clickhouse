@@ -25,6 +25,9 @@ resource "clickhouse_clickstack_alert" "too_many_errors" {
 
   name    = "Too many production errors"
   message = "Error volume exceeded threshold"
+
+  # Leave unset to copy the saved search's tags.
+  tags = ["production", "errors"]
 }
 
 # A range alert grouped per service, requiring two consecutive breaching windows.

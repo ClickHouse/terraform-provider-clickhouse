@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -187,6 +190,7 @@ type alertResourceModel struct {
 	Name                  types.String  `tfsdk:"name"`
 	Message               types.String  `tfsdk:"message"`
 	Note                  types.String  `tfsdk:"note"`
+	Tags                  types.List    `tfsdk:"tags"`
 }
 
 func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -344,6 +348,17 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"note": schema.StringAttribute{
 				Optional:    true,
 				Description: "Optional markdown note (1-4096 characters).",
+			},
+			"tags": schema.ListAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				Description: "Tags for the alert (up to 50, each at most 32 characters). Requires ClickStack " +
+					"API 2.38.0 or later. When unset, the server copies the saved search or dashboard tags each " +
+					"time the alert is written, and Terraform does not track them. Set `[]` for no tags.",
+				Validators: []validator.List{
+					listvalidator.SizeAtMost(50),
+					listvalidator.ValueStringsAre(stringvalidator.LengthAtMost(32)),
+				},
 			},
 		},
 	}
@@ -878,6 +893,10 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 		v := int(m.NumConsecutiveWindows.ValueInt64())
 		al.NumConsecutiveWindows = &v
 	}
+	if known(m.Tags) {
+		al.Tags = []string{}
+		diags.Append(m.Tags.ElementsAs(ctx, &al.Tags, false)...)
+	}
 	// Scheduling modes are mutually exclusive. schedule_start_at is always sent
 	// (nil -> JSON null clears it, and the server then forces the offset to 0).
 	// Only send an explicit offset when schedule_start_at is NOT set, so:
@@ -980,6 +999,19 @@ func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) d
 	m.Name = types.StringPointerValue(al.Name)
 	m.Message = types.StringPointerValue(al.Message)
 	m.Note = types.StringPointerValue(al.Note)
+	// Null tags mean "inherit from the parent", so the tags the server derived
+	// stay out of state; otherwise every unset alert would diff on its parent's tags.
+	if !m.Tags.IsNull() {
+		// 2.38.0+ always returns the key; older servers drop tags without an error.
+		if al.Tags == nil {
+			diags.AddAttributeError(path.Root("tags"), "Alert tags not supported",
+				"the ClickStack server did not return alert tags; setting tags requires ClickStack API 2.38.0 or later")
+			return diags
+		}
+		list, d := stringSliceToList(al.Tags)
+		diags.Append(d...)
+		m.Tags = list
+	}
 	return diags
 }
 
