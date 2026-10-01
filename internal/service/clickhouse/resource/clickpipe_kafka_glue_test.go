@@ -1,8 +1,10 @@
 package resource
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -391,4 +393,79 @@ func TestClickPipeResource_SyncKafkaSchemaRegistry(t *testing.T) {
 			assert.Equal(t, test.expected, kafka.SchemaRegistry)
 		})
 	}
+}
+
+// kafkaGlueUpdateModel returns the Kafka update fixture with a Glue registry in place of the Confluent one.
+func kafkaGlueUpdateModel(t *testing.T, kafkaPassword string) models.ClickPipeResourceModel {
+	t.Helper()
+	model := kafkaUpdateModel(types.StringNull(), kafkaPassword)
+	var source models.ClickPipeSourceModel
+	require.False(t, model.Source.As(t.Context(), &source, basetypes.ObjectAsOptions{}).HasError())
+	kafkaAttrs := source.Kafka.Attributes()
+	kafkaAttrs["schema_registry"] = kafkaGlueRegistry(types.StringValue(glueRoleArn))
+	source.Kafka = types.ObjectValueMust(models.ClickPipeKafkaSourceModel{}.ObjectType().AttrTypes, kafkaAttrs)
+	model.Source = source.ObjectValue()
+	return model
+}
+
+// Rotating broker credentials on a Glue pipe must not send the immutable registry, and the
+// registry must survive in state after the update.
+func TestClickPipeUpdate_KafkaGlueRegistryKeptAndNotSent(t *testing.T) {
+	ctx := t.Context()
+	state := kafkaGlueUpdateModel(t, "main-pass")
+	plan := kafkaGlueUpdateModel(t, "rotated-pass")
+	apiPipe := &api.ClickPipe{
+		ID:    "test-pipe-id",
+		Name:  "test-pipe",
+		State: api.ClickPipeRunningState,
+		Source: api.ClickPipeSource{
+			Kafka: &api.ClickPipeKafkaSource{
+				Type:           "kafka",
+				Format:         "AvroConfluent",
+				Brokers:        "broker:9092",
+				Topics:         "test-topic",
+				Authentication: "PLAIN",
+				SchemaRegistry: &api.ClickPipeKafkaSchemaRegistry{
+					Type:             api.ClickPipeKafkaSchemaRegistryTypeGlue,
+					GlueRegion:       "eu-west-1",
+					GlueRegistryName: "orders-registry",
+					GlueRoleArn:      strPtr(glueRoleArn),
+				},
+			},
+		},
+		Destination: api.ClickPipeDestination{Database: "default"},
+	}
+
+	var captured *api.ClickPipeUpdate
+	mock := api.NewClientMock(minimock.NewController(t))
+	mock.UpdateClickPipeMock.Set(func(_ context.Context, _, _ string, update api.ClickPipeUpdate) (*api.ClickPipe, error) {
+		captured = &update
+		return apiPipe, nil
+	})
+	mock.WaitForClickPipeStateMock.Set(func(_ context.Context, _, _ string, _ func(string) bool, _ time.Duration) (*api.ClickPipe, error) {
+		return apiPipe, nil
+	})
+	mock.GetClickPipeMock.Set(func(_ context.Context, _, _ string) (*api.ClickPipe, error) {
+		return apiPipe, nil
+	})
+
+	resp := driveClickPipeUpdate(ctx, t, &ClickPipeResource{client: mock}, state, plan)
+	require.False(t, resp.Diagnostics.HasError(), "update failed: %v", resp.Diagnostics.Errors())
+
+	require.NotNil(t, captured, "UpdateClickPipe was not called")
+	require.NotNil(t, captured.Source)
+	kafka := captured.Source.Kafka
+	require.NotNil(t, kafka)
+	require.NotNil(t, kafka.Credentials, "rotated broker credentials must be carried")
+	require.NotNil(t, kafka.Credentials.ClickPipeSourceCredentials)
+	assert.Equal(t, "rotated-pass", kafka.Credentials.Password)
+	assert.Nil(t, kafka.SchemaRegistry, "schema registry must never be sent on update")
+
+	var updated models.ClickPipeResourceModel
+	require.False(t, resp.State.Get(ctx, &updated).HasError())
+	var source models.ClickPipeSourceModel
+	require.False(t, updated.Source.As(ctx, &source, basetypes.ObjectAsOptions{}).HasError())
+	var kafkaModel models.ClickPipeKafkaSourceModel
+	require.False(t, source.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{}).HasError())
+	assert.Equal(t, kafkaGlueRegistry(types.StringValue(glueRoleArn)), kafkaModel.SchemaRegistry)
 }
