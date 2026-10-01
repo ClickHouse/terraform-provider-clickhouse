@@ -13,7 +13,7 @@ import (
 func TestListServiceClickhouseSettings_NormalizesValues(t *testing.T) {
 	expectedPath := "/organizations/org-1/services/svc-1/clickhouseSettings"
 
-	client, _ := newUpgradeWindowTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %q; want GET", r.Method)
 		}
@@ -37,7 +37,7 @@ func TestUpdateServiceClickhouseSettings_SendsNativeTypes(t *testing.T) {
 	expectedPath := "/organizations/org-1/services/svc-1/clickhouseSettings"
 
 	var capturedBody map[string]map[string]any
-	client, _ := newUpgradeWindowTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPatch {
 			t.Errorf("method = %q; want PATCH", r.Method)
 		}
@@ -79,7 +79,7 @@ func TestDeleteServiceClickhouseSetting(t *testing.T) {
 	expectedPath := "/organizations/org-1/services/svc-1/clickhouseSettings/max_query_size"
 	var sawDelete bool
 
-	client, _ := newUpgradeWindowTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			t.Errorf("method = %q; want DELETE", r.Method)
 		}
@@ -101,7 +101,7 @@ func TestDeleteServiceClickhouseSetting(t *testing.T) {
 func TestGetServiceClickhouseSettingsSchema(t *testing.T) {
 	expectedPath := "/organizations/org-1/services/svc-1/clickhouseSettings/schema"
 
-	client, _ := newUpgradeWindowTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != expectedPath {
 			t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
 		}

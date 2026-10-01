@@ -3,76 +3,35 @@
 page_title: "clickhouse_service_clickhouse_settings Resource - clickhouse"
 subcategory: "ClickHouse Cloud"
 description: |-
-  You can use the clickhouse_service_clickhouse_settings resource to configure ClickHouse settings (for example compatibility or max_query_size) on a ClickHouse Cloud service.
-  ~> Note: This resource is in beta and uses a beta API endpoint whose contract may change. The API key needs the control-plane:service:manage permission.
-  Managed settings
-  Only the settings listed in settings are managed. Settings configured on the service outside of Terraform are left untouched and do not show up as drift. Removing a setting from settings, or destroying the resource, resets it to the platform default.
-  Use the settings schema endpoint https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-schema-get to discover which settings are configurable on a service and their types.
-  Values
-  Values are always written as strings in Terraform. The provider sends settings the schema types as integer as integers, and all other settings as strings.
-  Disruptive settings
-  Some settings, such as compatibility, can cause query failures if changed without testing. The API returns a warning for these, which the provider surfaces as a Terraform warning. Server-level settings (for example keep_alive_timeout) trigger a rolling restart of the service when changed or reset.
+  You can use the clickhouse_service_clickhouse_settings resource to configure ClickHouse settings, such as max_query_size, on a ClickHouse Cloud service.
+  For more information, see Update ClickHouse settings https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-update. The settings schema endpoint https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-schema-get lists the settings you can configure, with their types and warnings.
+  ~> Note: This resource is in beta. The ClickHouse settings API must be enabled for your organization. Reach out to ClickHouse support if the API returns 403 FORBIDDEN. Writing settings needs an API key with the control-plane:service:manage permission.
+  Only the settings listed in settings are managed. Settings configured outside Terraform are left alone. Removing a setting from settings, or destroying the resource, resets it to the platform default. Some settings restart the service when changed or reset; the API returns a warning for these, which shows as a Terraform warning.
+  Values are strings. Settings the schema types as integer are sent to the API as integers.
   Pausing background merges
-  Set shared_merge_tree_disable_merges_and_mutations_assignment = "1" to stop new merges and mutations from being assigned. Applying it restarts the service, and table size and read amplification grow while merges are off, so keep it to short debugging windows. Remove it from settings to resume merges.
-  
-  resource "clickhouse_service_clickhouse_settings" "debug" {
-    service_id = clickhouse_service.example.id
-  
-    settings = {
-      shared_merge_tree_disable_merges_and_mutations_assignment = "1"
-    }
-  }
-  
+  Set shared_merge_tree_disable_merges_and_mutations_assignment to "1" to stop new merges and mutations from being assigned, and remove it to resume them. Applying it restarts the service, and table size and read amplification grow while merges are off, so keep it to short debugging windows.
   Import
   
   terraform import clickhouse_service_clickhouse_settings.example <service_id>
   
-  Import adopts every setting currently configured on the service. Keep them all in settings, otherwise the next apply resets the ones you leave out.
-  Example Usage
-  
-  resource "clickhouse_service_clickhouse_settings" "example" {
-    service_id = clickhouse_service.example.id
-  
-    settings = {
-      compatibility  = "26.2"
-      max_query_size = "262144"
-    }
-  }
+  Import adopts every setting currently configured on the service, including ones ClickHouse Cloud manages, such as compatibility. Keep them in settings, otherwise the next apply resets them.
 ---
 
 # clickhouse_service_clickhouse_settings (Resource)
 
-You can use the *clickhouse_service_clickhouse_settings* resource to configure ClickHouse settings (for example `compatibility` or `max_query_size`) on a ClickHouse Cloud service.
+You can use the *clickhouse_service_clickhouse_settings* resource to configure ClickHouse settings, such as `max_query_size`, on a ClickHouse Cloud service.
 
-~> **Note:** This resource is in beta and uses a beta API endpoint whose contract may change. The API key needs the `control-plane:service:manage` permission.
+For more information, see [Update ClickHouse settings](https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-update). The [settings schema endpoint](https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-schema-get) lists the settings you can configure, with their types and warnings.
 
-## Managed settings
+~> **Note:** This resource is in beta. The ClickHouse settings API must be enabled for your organization. Reach out to ClickHouse support if the API returns `403 FORBIDDEN`. Writing settings needs an API key with the `control-plane:service:manage` permission.
 
-Only the settings listed in `settings` are managed. Settings configured on the service outside of Terraform are left untouched and do not show up as drift. Removing a setting from `settings`, or destroying the resource, resets it to the platform default.
+Only the settings listed in `settings` are managed. Settings configured outside Terraform are left alone. Removing a setting from `settings`, or destroying the resource, resets it to the platform default. Some settings restart the service when changed or reset; the API returns a warning for these, which shows as a Terraform warning.
 
-Use the [settings schema endpoint](https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-schema-get) to discover which settings are configurable on a service and their types.
-
-## Values
-
-Values are always written as strings in Terraform. The provider sends settings the schema types as `integer` as integers, and all other settings as strings.
-
-## Disruptive settings
-
-Some settings, such as `compatibility`, can cause query failures if changed without testing. The API returns a warning for these, which the provider surfaces as a Terraform warning. Server-level settings (for example `keep_alive_timeout`) trigger a rolling restart of the service when changed or reset.
+Values are strings. Settings the schema types as `integer` are sent to the API as integers.
 
 ## Pausing background merges
 
-Set `shared_merge_tree_disable_merges_and_mutations_assignment = "1"` to stop new merges and mutations from being assigned. Applying it restarts the service, and table size and read amplification grow while merges are off, so keep it to short debugging windows. Remove it from `settings` to resume merges.
-
-```hcl
-resource "clickhouse_service_clickhouse_settings" "debug" {
-  service_id = clickhouse_service.example.id
-
-  settings = {
-    shared_merge_tree_disable_merges_and_mutations_assignment = "1"
-  }
-}
-```
+Set `shared_merge_tree_disable_merges_and_mutations_assignment` to `"1"` to stop new merges and mutations from being assigned, and remove it to resume them. Applying it restarts the service, and table size and read amplification grow while merges are off, so keep it to short debugging windows.
 
 ## Import
 
@@ -80,34 +39,21 @@ resource "clickhouse_service_clickhouse_settings" "debug" {
 terraform import clickhouse_service_clickhouse_settings.example <service_id>
 ```
 
-Import adopts every setting currently configured on the service. Keep them all in `settings`, otherwise the next apply resets the ones you leave out.
-
-## Example Usage
-
-```hcl
-resource "clickhouse_service_clickhouse_settings" "example" {
-  service_id = clickhouse_service.example.id
-
-  settings = {
-    compatibility  = "26.2"
-    max_query_size = "262144"
-  }
-}
-```
+Import adopts every setting currently configured on the service, including ones ClickHouse Cloud manages, such as `compatibility`. Keep them in `settings`, otherwise the next apply resets them.
 
 ## Example Usage
 
 ```terraform
-resource "clickhouse_service" "svc" {
-  ...
+variable "service_id" {
+  description = "ID of an existing ClickHouse Cloud service."
+  type        = string
 }
 
 resource "clickhouse_service_clickhouse_settings" "example" {
-  service_id = clickhouse_service.svc.id
+  service_id = var.service_id
 
   settings = {
-    compatibility  = "26.2"
-    max_query_size = "262144"
+    max_query_size = "524288"
   }
 }
 ```
@@ -118,7 +64,7 @@ resource "clickhouse_service_clickhouse_settings" "example" {
 ### Required
 
 - `service_id` (String) ClickHouse Cloud service ID these settings apply to.
-- `settings` (Map of String) ClickHouse settings to configure, keyed by setting name. Values are strings; integer settings are sent as integers. Only the settings listed here are managed: removing one resets it to the platform default.
+- `settings` (Map of String) ClickHouse settings keyed by name, with values as strings. Only these settings are managed: removing one resets it to the platform default.
 
 ### Read-Only
 

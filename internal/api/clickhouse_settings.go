@@ -9,24 +9,18 @@ import (
 	"net/url"
 )
 
-// ServiceClickhouseSettingWarning mirrors ServiceClickhouseSettingWarning in
-// the OpenAPI spec: a notice the server returns for settings whose change may
-// be disruptive (e.g. `compatibility`).
 type ServiceClickhouseSettingWarning struct {
 	Name    string `json:"name"`
 	Message string `json:"message"`
 }
 
-// ServiceClickhouseSettingsUpdateResult is the PATCH response. Setting values
-// are normalized to their string form: the API returns either a JSON string or
-// a JSON integer.
+// ServiceClickhouseSettingsUpdateResult holds setting values as strings: the
+// API returns either JSON strings or JSON integers.
 type ServiceClickhouseSettingsUpdateResult struct {
 	Settings map[string]string
 	Warnings []ServiceClickhouseSettingWarning
 }
 
-// ServiceClickhouseSettingSchemaEntry mirrors ServiceClickhouseSettingSchemaEntry
-// in the OpenAPI spec.
 type ServiceClickhouseSettingSchemaEntry struct {
 	Name              string  `json:"name"`
 	Type              string  `json:"type"`
@@ -59,9 +53,7 @@ type serviceClickhouseSettingsSchema struct {
 	Settings []ServiceClickhouseSettingSchemaEntry `json:"settings"`
 }
 
-// ListServiceClickhouseSettings returns the explicitly configured ClickHouse
-// settings of a service, keyed by name. Settings left at their platform
-// default are not included.
+// ListServiceClickhouseSettings returns only settings that were explicitly set.
 func (c *ClientImpl) ListServiceClickhouseSettings(ctx context.Context, serviceId string) (map[string]string, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, "/clickhouseSettings"), nil)
 	if err != nil {
@@ -90,9 +82,6 @@ func (c *ClientImpl) ListServiceClickhouseSettings(ctx context.Context, serviceI
 	return settings, nil
 }
 
-// UpdateServiceClickhouseSettings sets one or more ClickHouse settings. Each
-// value must be a string or an integer, matching the setting's type in
-// GetServiceClickhouseSettingsSchema.
 func (c *ClientImpl) UpdateServiceClickhouseSettings(ctx context.Context, serviceId string, settings map[string]any) (*ServiceClickhouseSettingsUpdateResult, error) {
 	rb, err := json.Marshal(serviceClickhouseSettingsPatchRequest{Settings: settings})
 	if err != nil {
@@ -130,7 +119,6 @@ func (c *ClientImpl) UpdateServiceClickhouseSettings(ctx context.Context, servic
 }
 
 // DeleteServiceClickhouseSetting resets a setting to its platform default.
-// Resetting a setting that was never configured is a no-op on the server.
 func (c *ClientImpl) DeleteServiceClickhouseSetting(ctx context.Context, serviceId string, settingName string) error {
 	req, err := http.NewRequest(http.MethodDelete, c.getServicePath(serviceId, "/clickhouseSettings/"+url.PathEscape(settingName)), nil)
 	if err != nil {
@@ -141,8 +129,6 @@ func (c *ClientImpl) DeleteServiceClickhouseSetting(ctx context.Context, service
 	return err
 }
 
-// GetServiceClickhouseSettingsSchema returns every configurable ClickHouse
-// setting of a service, with its type and constraints.
 func (c *ClientImpl) GetServiceClickhouseSettingsSchema(ctx context.Context, serviceId string) ([]ServiceClickhouseSettingSchemaEntry, error) {
 	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, "/clickhouseSettings/schema"), nil)
 	if err != nil {

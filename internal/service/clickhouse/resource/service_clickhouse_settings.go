@@ -65,7 +65,7 @@ func (r *ServiceClickhouseSettingsResource) Schema(_ context.Context, _ resource
 				},
 			},
 			"settings": schema.MapAttribute{
-				Description: "ClickHouse settings to configure, keyed by setting name. Values are strings; integer settings are sent as integers. Only the settings listed here are managed: removing one resets it to the platform default.",
+				Description: "ClickHouse settings keyed by name, with values as strings. Only these settings are managed: removing one resets it to the platform default.",
 				Required:    true,
 				ElementType: types.StringType,
 				Validators: []validator.Map{
@@ -109,8 +109,7 @@ func (r *ServiceClickhouseSettingsResource) Create(ctx context.Context, req reso
 		return
 	}
 
-	serviceID := plan.ServiceID.ValueString()
-	if !r.applySettings(ctx, serviceID, desired, &resp.Diagnostics) {
+	if !r.applySettings(ctx, plan.ServiceID.ValueString(), desired, &resp.Diagnostics) {
 		return
 	}
 
@@ -182,14 +181,14 @@ func (r *ServiceClickhouseSettingsResource) Update(ctx context.Context, req reso
 		return
 	}
 
+	var removed []string
 	for _, name := range sortedKeys(previous) {
-		if _, ok := desired[name]; ok {
-			continue
+		if _, ok := desired[name]; !ok {
+			removed = append(removed, name)
 		}
-		if err := r.client.DeleteServiceClickhouseSetting(ctx, serviceID, name); err != nil {
-			resp.Diagnostics.AddError(fmt.Sprintf("Error resetting ClickHouse setting %q", name), err.Error())
-			return
-		}
+	}
+	if !r.resetSettings(ctx, serviceID, removed, &resp.Diagnostics) {
+		return
 	}
 
 	plan.ID = plan.ServiceID
@@ -209,17 +208,7 @@ func (r *ServiceClickhouseSettingsResource) Delete(ctx context.Context, req reso
 		return
 	}
 
-	serviceID := state.ServiceID.ValueString()
-	for _, name := range sortedKeys(managed) {
-		err := r.client.DeleteServiceClickhouseSetting(ctx, serviceID, name)
-		if err != nil {
-			if api.IsNotFound(err) {
-				return
-			}
-			resp.Diagnostics.AddError(fmt.Sprintf("Error resetting ClickHouse setting %q", name), err.Error())
-			return
-		}
-	}
+	r.resetSettings(ctx, state.ServiceID.ValueString(), sortedKeys(managed), &resp.Diagnostics)
 }
 
 // ImportState adopts every setting currently configured on the service.
@@ -250,8 +239,8 @@ func (r *ServiceClickhouseSettingsResource) ImportState(ctx context.Context, req
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("settings"), settings)...)
 }
 
-// applySettings PATCHes the given settings and surfaces the server's
-// disruption warnings. It returns false when an error diagnostic was added.
+// applySettings PATCHes the settings and shows the server's warnings. It
+// returns false when it added an error.
 func (r *ServiceClickhouseSettingsResource) applySettings(ctx context.Context, serviceID string, settings map[string]string, diags *diag.Diagnostics) bool {
 	settingsSchema, err := r.client.GetServiceClickhouseSettingsSchema(ctx, serviceID)
 	if err != nil {
@@ -276,6 +265,22 @@ func (r *ServiceClickhouseSettingsResource) applySettings(ctx context.Context, s
 		diags.AddWarning(fmt.Sprintf("ClickHouse setting %q", w.Name), w.Message)
 	}
 
+	return true
+}
+
+// resetSettings reverts settings to their platform default. A 404 means the
+// service is gone, so there is nothing left to reset.
+func (r *ServiceClickhouseSettingsResource) resetSettings(ctx context.Context, serviceID string, names []string, diags *diag.Diagnostics) bool {
+	for _, name := range names {
+		err := r.client.DeleteServiceClickhouseSetting(ctx, serviceID, name)
+		if api.IsNotFound(err) {
+			return true
+		}
+		if err != nil {
+			diags.AddError(fmt.Sprintf("Error resetting ClickHouse setting %q", name), err.Error())
+			return false
+		}
+	}
 	return true
 }
 
