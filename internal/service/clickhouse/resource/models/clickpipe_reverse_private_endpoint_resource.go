@@ -9,12 +9,14 @@ import (
 // CustomPrivateDNSMappingModel describes a custom private DNS mapping.
 type CustomPrivateDNSMappingModel struct {
 	PrivateDNSName types.String `tfsdk:"private_dns_name"`
+	TargetID       types.String `tfsdk:"target_id"`
 }
 
 func (m CustomPrivateDNSMappingModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"private_dns_name": types.StringType,
+			"target_id":        types.StringType,
 		},
 	}
 }
@@ -22,6 +24,54 @@ func (m CustomPrivateDNSMappingModel) ObjectType() types.ObjectType {
 func (m CustomPrivateDNSMappingModel) ObjectValue() basetypes.ObjectValue {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"private_dns_name": m.PrivateDNSName,
+		"target_id":        m.TargetID,
+	})
+}
+
+// PrivateDNSMappingModel describes a read-only private DNS mapping reported by a reverse private endpoint.
+type PrivateDNSMappingModel struct {
+	PrivateDNSName  types.String `tfsdk:"private_dns_name"`
+	InternalDNSName types.String `tfsdk:"internal_dns_name"`
+}
+
+func (m PrivateDNSMappingModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"private_dns_name":  types.StringType,
+			"internal_dns_name": types.StringType,
+		},
+	}
+}
+
+func (m PrivateDNSMappingModel) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"private_dns_name":  m.PrivateDNSName,
+		"internal_dns_name": m.InternalDNSName,
+	})
+}
+
+// DNSTargetModel describes a read-only DNS target reported by a reverse private endpoint.
+type DNSTargetModel struct {
+	ID              types.String `tfsdk:"id"`
+	Kind            types.String `tfsdk:"kind"`
+	InternalDNSName types.String `tfsdk:"internal_dns_name"`
+}
+
+func (m DNSTargetModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"id":                types.StringType,
+			"kind":              types.StringType,
+			"internal_dns_name": types.StringType,
+		},
+	}
+}
+
+func (m DNSTargetModel) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"id":                m.ID,
+		"kind":              m.Kind,
+		"internal_dns_name": m.InternalDNSName,
 	})
 }
 
@@ -40,6 +90,8 @@ type ClickPipeReversePrivateEndpointResourceModel struct {
 	EndpointID                 types.String `tfsdk:"endpoint_id"`
 	DNSNames                   types.List   `tfsdk:"dns_names"`
 	PrivateDNSNames            types.List   `tfsdk:"private_dns_names"`
+	PrivateDNSMappings         types.List   `tfsdk:"private_dns_mappings"`
+	DNSTargets                 types.List   `tfsdk:"dns_targets"`
 	Status                     types.String `tfsdk:"status"`
 }
 
