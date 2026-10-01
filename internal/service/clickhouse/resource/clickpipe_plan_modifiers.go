@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 )
 
 // requiresReplaceIfSourceTypeChanges is a custom plan modifier that requires replacement
@@ -89,6 +91,10 @@ func (r requiresReplaceIfSchemaRegistryChanges) PlanModifyObject(_ context.Conte
 		if planVal.IsUnknown() {
 			addUnknownSchemaRegistryWarning(req.Path, resp)
 			return
+		}
+		// State written before `type` existed holds null, which has always meant a Confluent registry.
+		if name == "type" && stateVal.IsNull() {
+			stateVal = types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent)
 		}
 		if !planVal.Equal(stateVal) {
 			resp.RequiresReplace = true

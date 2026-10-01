@@ -90,9 +90,13 @@ func kafkaSchemaRegistryValue() types.Object {
 		"password_wo_version": types.Int64Null(),
 	}
 	registryAttrs := map[string]attr.Value{
-		"url":            types.StringValue("https://schema-registry.example.com"),
-		"authentication": types.StringValue(api.ClickPipeKafkaAuthenticationPlain),
-		"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credentialAttrs),
+		"url":                types.StringValue("https://schema-registry.example.com"),
+		"authentication":     types.StringValue(api.ClickPipeKafkaAuthenticationPlain),
+		"credentials":        types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credentialAttrs),
+		"type":               types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+		"glue_region":        types.StringNull(),
+		"glue_registry_name": types.StringNull(),
+		"glue_role_arn":      types.StringNull(),
 	}
 
 	return types.ObjectValueMust(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes, registryAttrs)

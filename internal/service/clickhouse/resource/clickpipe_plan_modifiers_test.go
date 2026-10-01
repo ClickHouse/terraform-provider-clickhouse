@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
 
@@ -148,10 +149,32 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 	}
 	sr := func(url, auth string, credentials types.Object) types.Object {
 		return types.ObjectValueMust(srType, map[string]attr.Value{
-			"url":            types.StringValue(url),
-			"authentication": types.StringValue(auth),
-			"credentials":    credentials,
+			"url":                types.StringValue(url),
+			"authentication":     types.StringValue(auth),
+			"credentials":        credentials,
+			"type":               types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+			"glue_region":        types.StringNull(),
+			"glue_registry_name": types.StringNull(),
+			"glue_role_arn":      types.StringNull(),
 		})
+	}
+
+	glueSR := func(registryName string, roleArn types.String) types.Object {
+		return models.ClickPipeKafkaSchemaRegistryModel{
+			Type:             types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeGlue),
+			URL:              types.StringNull(),
+			Authentication:   types.StringNull(),
+			Credentials:      types.ObjectNull(credsType),
+			GlueRegion:       types.StringValue("us-east-1"),
+			GlueRegistryName: types.StringValue(registryName),
+			GlueRoleArn:      roleArn,
+		}.ObjectValue()
+	}
+	// srWithNullType models state written before the provider knew about `type`.
+	srWithNullType := func(credentials types.Object) types.Object {
+		attrs := sr("https://sr.example", "PLAIN", credentials).Attributes()
+		attrs["type"] = types.StringNull()
+		return types.ObjectValueMust(srType, attrs)
 	}
 
 	knownCreds := creds(types.StringValue("sr-user"), types.StringValue("sr-pass"), types.Int64Null())
@@ -229,6 +252,41 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 			expectedRequiresReplace: false,
 			expectedWarning:         true,
 		},
+		"glue-registry-unchanged": {
+			stateRaw:                updateRaw,
+			planRaw:                 updateRaw,
+			stateValue:              glueSR("orders", types.StringValue("arn:aws:iam::123456789012:role/glue")),
+			planValue:               glueSR("orders", types.StringValue("arn:aws:iam::123456789012:role/glue")),
+			expectedRequiresReplace: false,
+		},
+		"glue-registry-name-changed": {
+			stateRaw:                updateRaw,
+			planRaw:                 updateRaw,
+			stateValue:              glueSR("orders", types.StringNull()),
+			planValue:               glueSR("payments", types.StringNull()),
+			expectedRequiresReplace: true,
+		},
+		"glue-role-arn-added": {
+			stateRaw:                updateRaw,
+			planRaw:                 updateRaw,
+			stateValue:              glueSR("orders", types.StringNull()),
+			planValue:               glueSR("orders", types.StringValue("arn:aws:iam::123456789012:role/glue")),
+			expectedRequiresReplace: true,
+		},
+		"confluent-to-glue": {
+			stateRaw:                updateRaw,
+			planRaw:                 updateRaw,
+			stateValue:              sr("https://sr.example", "PLAIN", knownCreds),
+			planValue:               glueSR("orders", types.StringNull()),
+			expectedRequiresReplace: true,
+		},
+		"pre-type-state-matches-confluent-default": {
+			stateRaw:                updateRaw,
+			planRaw:                 updateRaw,
+			stateValue:              srWithNullType(knownCreds),
+			planValue:               sr("https://sr.example", "PLAIN", knownCreds),
+			expectedRequiresReplace: false,
+		},
 		"plan-registry-unknown": {
 			stateRaw:                updateRaw,
 			planRaw:                 updateRaw,
@@ -242,9 +300,13 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 			planRaw:    updateRaw,
 			stateValue: sr("https://sr.example", "PLAIN", knownCreds),
 			planValue: types.ObjectValueMust(srType, map[string]attr.Value{
-				"url":            types.StringUnknown(),
-				"authentication": types.StringValue("PLAIN"),
-				"credentials":    knownCreds,
+				"type":               types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+				"url":                types.StringUnknown(),
+				"authentication":     types.StringValue("PLAIN"),
+				"credentials":        knownCreds,
+				"glue_region":        types.StringNull(),
+				"glue_registry_name": types.StringNull(),
+				"glue_role_arn":      types.StringNull(),
 			}),
 			expectedRequiresReplace: false,
 			expectedWarning:         true,

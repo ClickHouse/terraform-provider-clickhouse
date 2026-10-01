@@ -1084,9 +1084,13 @@ func buildKafkaSchemaRegistryCredentialsPlan(password, passwordWO types.String, 
 			"password_wo_version": passwordWOVersion,
 		}
 		srAttrs := map[string]attr.Value{
-			"url":            types.StringValue("https://schema-registry.example.com"),
-			"authentication": types.StringValue("PLAIN"),
-			"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, srCredAttrs),
+			"url":                types.StringValue("https://schema-registry.example.com"),
+			"authentication":     types.StringValue("PLAIN"),
+			"credentials":        types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, srCredAttrs),
+			"type":               types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+			"glue_region":        types.StringNull(),
+			"glue_registry_name": types.StringNull(),
+			"glue_role_arn":      types.StringNull(),
 		}
 		kafkaAttrs := map[string]attr.Value{
 			"ssh_key_resource_id":          types.StringNull(),
