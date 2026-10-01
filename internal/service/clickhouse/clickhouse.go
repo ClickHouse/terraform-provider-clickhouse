@@ -37,6 +37,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		resource.NewRoleResource,
 		resource.NewRoleAssignmentResource,
 		resource.NewServicePrivateEndpointsAttachmentResource,
+		resource.NewServiceClickhouseSettingsResource,
 		resource.NewServiceScheduledScalingResource,
 		resource.NewServiceTransparentDataEncryptionKeyAssociationResource,
 		resource.NewServiceUpgradeWindowResource,
