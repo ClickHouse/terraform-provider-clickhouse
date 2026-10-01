@@ -194,6 +194,13 @@ type ClientMock struct {
 	beforeDeleteServiceCounter uint64
 	DeleteServiceMock          mClientMockDeleteService
 
+	funcDeleteServiceClickhouseSetting          func(ctx context.Context, serviceId string, settingName string) (err error)
+	funcDeleteServiceClickhouseSettingOrigin    string
+	inspectFuncDeleteServiceClickhouseSetting   func(ctx context.Context, serviceId string, settingName string)
+	afterDeleteServiceClickhouseSettingCounter  uint64
+	beforeDeleteServiceClickhouseSettingCounter uint64
+	DeleteServiceClickhouseSettingMock          mClientMockDeleteServiceClickhouseSetting
+
 	funcDeleteUDF          func(ctx context.Context, functionName string) (err error)
 	funcDeleteUDFOrigin    string
 	inspectFuncDeleteUDF   func(ctx context.Context, functionName string)
@@ -376,6 +383,13 @@ type ClientMock struct {
 	beforeGetServiceBaseCounter uint64
 	GetServiceBaseMock          mClientMockGetServiceBase
 
+	funcGetServiceClickhouseSettingsSchema          func(ctx context.Context, serviceId string) (sa1 []ServiceClickhouseSettingSchemaEntry, err error)
+	funcGetServiceClickhouseSettingsSchemaOrigin    string
+	inspectFuncGetServiceClickhouseSettingsSchema   func(ctx context.Context, serviceId string)
+	afterGetServiceClickhouseSettingsSchemaCounter  uint64
+	beforeGetServiceClickhouseSettingsSchemaCounter uint64
+	GetServiceClickhouseSettingsSchemaMock          mClientMockGetServiceClickhouseSettingsSchema
+
 	funcGetSnapshotConfiguration          func(ctx context.Context, serviceId string) (sp1 *SnapshotConfiguration, err error)
 	funcGetSnapshotConfigurationOrigin    string
 	inspectFuncGetSnapshotConfiguration   func(ctx context.Context, serviceId string)
@@ -438,6 +452,13 @@ type ClientMock struct {
 	afterListSSHKeysCounter  uint64
 	beforeListSSHKeysCounter uint64
 	ListSSHKeysMock          mClientMockListSSHKeys
+
+	funcListServiceClickhouseSettings          func(ctx context.Context, serviceId string) (m1 map[string]string, err error)
+	funcListServiceClickhouseSettingsOrigin    string
+	inspectFuncListServiceClickhouseSettings   func(ctx context.Context, serviceId string)
+	afterListServiceClickhouseSettingsCounter  uint64
+	beforeListServiceClickhouseSettingsCounter uint64
+	ListServiceClickhouseSettingsMock          mClientMockListServiceClickhouseSettings
 
 	funcListServiceProfiles          func(ctx context.Context, regionId string, byocId string) (sa1 []ServiceProfile, err error)
 	funcListServiceProfilesOrigin    string
@@ -578,6 +599,13 @@ type ClientMock struct {
 	afterUpdateServiceCounter  uint64
 	beforeUpdateServiceCounter uint64
 	UpdateServiceMock          mClientMockUpdateService
+
+	funcUpdateServiceClickhouseSettings          func(ctx context.Context, serviceId string, settings map[string]any) (sp1 *ServiceClickhouseSettingsUpdateResult, err error)
+	funcUpdateServiceClickhouseSettingsOrigin    string
+	inspectFuncUpdateServiceClickhouseSettings   func(ctx context.Context, serviceId string, settings map[string]any)
+	afterUpdateServiceClickhouseSettingsCounter  uint64
+	beforeUpdateServiceClickhouseSettingsCounter uint64
+	UpdateServiceClickhouseSettingsMock          mClientMockUpdateServiceClickhouseSettings
 
 	funcUpdateServicePassword          func(ctx context.Context, serviceId string, u ServicePasswordUpdate) (sp1 *ServicePasswordUpdateResult, err error)
 	funcUpdateServicePasswordOrigin    string
@@ -747,6 +775,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.DeleteServiceMock = mClientMockDeleteService{mock: m}
 	m.DeleteServiceMock.callArgs = []*ClientMockDeleteServiceParams{}
 
+	m.DeleteServiceClickhouseSettingMock = mClientMockDeleteServiceClickhouseSetting{mock: m}
+	m.DeleteServiceClickhouseSettingMock.callArgs = []*ClientMockDeleteServiceClickhouseSettingParams{}
+
 	m.DeleteUDFMock = mClientMockDeleteUDF{mock: m}
 	m.DeleteUDFMock.callArgs = []*ClientMockDeleteUDFParams{}
 
@@ -825,6 +856,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetServiceBaseMock = mClientMockGetServiceBase{mock: m}
 	m.GetServiceBaseMock.callArgs = []*ClientMockGetServiceBaseParams{}
 
+	m.GetServiceClickhouseSettingsSchemaMock = mClientMockGetServiceClickhouseSettingsSchema{mock: m}
+	m.GetServiceClickhouseSettingsSchemaMock.callArgs = []*ClientMockGetServiceClickhouseSettingsSchemaParams{}
+
 	m.GetSnapshotConfigurationMock = mClientMockGetSnapshotConfiguration{mock: m}
 	m.GetSnapshotConfigurationMock.callArgs = []*ClientMockGetSnapshotConfigurationParams{}
 
@@ -851,6 +885,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.ListSSHKeysMock = mClientMockListSSHKeys{mock: m}
 	m.ListSSHKeysMock.callArgs = []*ClientMockListSSHKeysParams{}
+
+	m.ListServiceClickhouseSettingsMock = mClientMockListServiceClickhouseSettings{mock: m}
+	m.ListServiceClickhouseSettingsMock.callArgs = []*ClientMockListServiceClickhouseSettingsParams{}
 
 	m.ListServiceProfilesMock = mClientMockListServiceProfiles{mock: m}
 	m.ListServiceProfilesMock.callArgs = []*ClientMockListServiceProfilesParams{}
@@ -911,6 +948,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateServiceMock = mClientMockUpdateService{mock: m}
 	m.UpdateServiceMock.callArgs = []*ClientMockUpdateServiceParams{}
+
+	m.UpdateServiceClickhouseSettingsMock = mClientMockUpdateServiceClickhouseSettings{mock: m}
+	m.UpdateServiceClickhouseSettingsMock.callArgs = []*ClientMockUpdateServiceClickhouseSettingsParams{}
 
 	m.UpdateServicePasswordMock = mClientMockUpdateServicePassword{mock: m}
 	m.UpdateServicePasswordMock.callArgs = []*ClientMockUpdateServicePasswordParams{}
@@ -10017,6 +10057,379 @@ func (m *ClientMock) MinimockDeleteServiceInspect() {
 	}
 }
 
+type mClientMockDeleteServiceClickhouseSetting struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteServiceClickhouseSettingExpectation
+	expectations       []*ClientMockDeleteServiceClickhouseSettingExpectation
+
+	callArgs []*ClientMockDeleteServiceClickhouseSettingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteServiceClickhouseSettingExpectation specifies expectation struct of the Client.DeleteServiceClickhouseSetting
+type ClientMockDeleteServiceClickhouseSettingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteServiceClickhouseSettingParams
+	paramPtrs          *ClientMockDeleteServiceClickhouseSettingParamPtrs
+	expectationOrigins ClientMockDeleteServiceClickhouseSettingExpectationOrigins
+	results            *ClientMockDeleteServiceClickhouseSettingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteServiceClickhouseSettingParams contains parameters of the Client.DeleteServiceClickhouseSetting
+type ClientMockDeleteServiceClickhouseSettingParams struct {
+	ctx         context.Context
+	serviceId   string
+	settingName string
+}
+
+// ClientMockDeleteServiceClickhouseSettingParamPtrs contains pointers to parameters of the Client.DeleteServiceClickhouseSetting
+type ClientMockDeleteServiceClickhouseSettingParamPtrs struct {
+	ctx         *context.Context
+	serviceId   *string
+	settingName *string
+}
+
+// ClientMockDeleteServiceClickhouseSettingResults contains results of the Client.DeleteServiceClickhouseSetting
+type ClientMockDeleteServiceClickhouseSettingResults struct {
+	err error
+}
+
+// ClientMockDeleteServiceClickhouseSettingOrigins contains origins of expectations of the Client.DeleteServiceClickhouseSetting
+type ClientMockDeleteServiceClickhouseSettingExpectationOrigins struct {
+	origin            string
+	originCtx         string
+	originServiceId   string
+	originSettingName string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) Optional() *mClientMockDeleteServiceClickhouseSetting {
+	mmDeleteServiceClickhouseSetting.optional = true
+	return mmDeleteServiceClickhouseSetting
+}
+
+// Expect sets up expected params for Client.DeleteServiceClickhouseSetting
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) Expect(ctx context.Context, serviceId string, settingName string) *mClientMockDeleteServiceClickhouseSetting {
+	if mmDeleteServiceClickhouseSetting.mock.funcDeleteServiceClickhouseSetting != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by Set")
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation == nil {
+		mmDeleteServiceClickhouseSetting.defaultExpectation = &ClientMockDeleteServiceClickhouseSettingExpectation{}
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteServiceClickhouseSetting.defaultExpectation.params = &ClientMockDeleteServiceClickhouseSettingParams{ctx, serviceId, settingName}
+	mmDeleteServiceClickhouseSetting.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteServiceClickhouseSetting.expectations {
+		if minimock.Equal(e.params, mmDeleteServiceClickhouseSetting.defaultExpectation.params) {
+			mmDeleteServiceClickhouseSetting.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteServiceClickhouseSetting.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteServiceClickhouseSetting
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteServiceClickhouseSetting
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteServiceClickhouseSetting {
+	if mmDeleteServiceClickhouseSetting.mock.funcDeleteServiceClickhouseSetting != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by Set")
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation == nil {
+		mmDeleteServiceClickhouseSetting.defaultExpectation = &ClientMockDeleteServiceClickhouseSettingExpectation{}
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation.params != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by Expect")
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs == nil {
+		mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs = &ClientMockDeleteServiceClickhouseSettingParamPtrs{}
+	}
+	mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteServiceClickhouseSetting.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteServiceClickhouseSetting
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.DeleteServiceClickhouseSetting
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) ExpectServiceIdParam2(serviceId string) *mClientMockDeleteServiceClickhouseSetting {
+	if mmDeleteServiceClickhouseSetting.mock.funcDeleteServiceClickhouseSetting != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by Set")
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation == nil {
+		mmDeleteServiceClickhouseSetting.defaultExpectation = &ClientMockDeleteServiceClickhouseSettingExpectation{}
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation.params != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by Expect")
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs == nil {
+		mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs = &ClientMockDeleteServiceClickhouseSettingParamPtrs{}
+	}
+	mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmDeleteServiceClickhouseSetting.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmDeleteServiceClickhouseSetting
+}
+
+// ExpectSettingNameParam3 sets up expected param settingName for Client.DeleteServiceClickhouseSetting
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) ExpectSettingNameParam3(settingName string) *mClientMockDeleteServiceClickhouseSetting {
+	if mmDeleteServiceClickhouseSetting.mock.funcDeleteServiceClickhouseSetting != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by Set")
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation == nil {
+		mmDeleteServiceClickhouseSetting.defaultExpectation = &ClientMockDeleteServiceClickhouseSettingExpectation{}
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation.params != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by Expect")
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs == nil {
+		mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs = &ClientMockDeleteServiceClickhouseSettingParamPtrs{}
+	}
+	mmDeleteServiceClickhouseSetting.defaultExpectation.paramPtrs.settingName = &settingName
+	mmDeleteServiceClickhouseSetting.defaultExpectation.expectationOrigins.originSettingName = minimock.CallerInfo(1)
+
+	return mmDeleteServiceClickhouseSetting
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteServiceClickhouseSetting
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) Inspect(f func(ctx context.Context, serviceId string, settingName string)) *mClientMockDeleteServiceClickhouseSetting {
+	if mmDeleteServiceClickhouseSetting.mock.inspectFuncDeleteServiceClickhouseSetting != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteServiceClickhouseSetting")
+	}
+
+	mmDeleteServiceClickhouseSetting.mock.inspectFuncDeleteServiceClickhouseSetting = f
+
+	return mmDeleteServiceClickhouseSetting
+}
+
+// Return sets up results that will be returned by Client.DeleteServiceClickhouseSetting
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) Return(err error) *ClientMock {
+	if mmDeleteServiceClickhouseSetting.mock.funcDeleteServiceClickhouseSetting != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by Set")
+	}
+
+	if mmDeleteServiceClickhouseSetting.defaultExpectation == nil {
+		mmDeleteServiceClickhouseSetting.defaultExpectation = &ClientMockDeleteServiceClickhouseSettingExpectation{mock: mmDeleteServiceClickhouseSetting.mock}
+	}
+	mmDeleteServiceClickhouseSetting.defaultExpectation.results = &ClientMockDeleteServiceClickhouseSettingResults{err}
+	mmDeleteServiceClickhouseSetting.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteServiceClickhouseSetting.mock
+}
+
+// Set uses given function f to mock the Client.DeleteServiceClickhouseSetting method
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) Set(f func(ctx context.Context, serviceId string, settingName string) (err error)) *ClientMock {
+	if mmDeleteServiceClickhouseSetting.defaultExpectation != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("Default expectation is already set for the Client.DeleteServiceClickhouseSetting method")
+	}
+
+	if len(mmDeleteServiceClickhouseSetting.expectations) > 0 {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("Some expectations are already set for the Client.DeleteServiceClickhouseSetting method")
+	}
+
+	mmDeleteServiceClickhouseSetting.mock.funcDeleteServiceClickhouseSetting = f
+	mmDeleteServiceClickhouseSetting.mock.funcDeleteServiceClickhouseSettingOrigin = minimock.CallerInfo(1)
+	return mmDeleteServiceClickhouseSetting.mock
+}
+
+// When sets expectation for the Client.DeleteServiceClickhouseSetting which will trigger the result defined by the following
+// Then helper
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) When(ctx context.Context, serviceId string, settingName string) *ClientMockDeleteServiceClickhouseSettingExpectation {
+	if mmDeleteServiceClickhouseSetting.mock.funcDeleteServiceClickhouseSetting != nil {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("ClientMock.DeleteServiceClickhouseSetting mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteServiceClickhouseSettingExpectation{
+		mock:               mmDeleteServiceClickhouseSetting.mock,
+		params:             &ClientMockDeleteServiceClickhouseSettingParams{ctx, serviceId, settingName},
+		expectationOrigins: ClientMockDeleteServiceClickhouseSettingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteServiceClickhouseSetting.expectations = append(mmDeleteServiceClickhouseSetting.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteServiceClickhouseSetting return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteServiceClickhouseSettingExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteServiceClickhouseSettingResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteServiceClickhouseSetting should be invoked
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) Times(n uint64) *mClientMockDeleteServiceClickhouseSetting {
+	if n == 0 {
+		mmDeleteServiceClickhouseSetting.mock.t.Fatalf("Times of ClientMock.DeleteServiceClickhouseSetting mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteServiceClickhouseSetting.expectedInvocations, n)
+	mmDeleteServiceClickhouseSetting.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteServiceClickhouseSetting
+}
+
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) invocationsDone() bool {
+	if len(mmDeleteServiceClickhouseSetting.expectations) == 0 && mmDeleteServiceClickhouseSetting.defaultExpectation == nil && mmDeleteServiceClickhouseSetting.mock.funcDeleteServiceClickhouseSetting == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteServiceClickhouseSetting.mock.afterDeleteServiceClickhouseSettingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteServiceClickhouseSetting.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteServiceClickhouseSetting implements Client
+func (mmDeleteServiceClickhouseSetting *ClientMock) DeleteServiceClickhouseSetting(ctx context.Context, serviceId string, settingName string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteServiceClickhouseSetting.beforeDeleteServiceClickhouseSettingCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteServiceClickhouseSetting.afterDeleteServiceClickhouseSettingCounter, 1)
+
+	mmDeleteServiceClickhouseSetting.t.Helper()
+
+	if mmDeleteServiceClickhouseSetting.inspectFuncDeleteServiceClickhouseSetting != nil {
+		mmDeleteServiceClickhouseSetting.inspectFuncDeleteServiceClickhouseSetting(ctx, serviceId, settingName)
+	}
+
+	mm_params := ClientMockDeleteServiceClickhouseSettingParams{ctx, serviceId, settingName}
+
+	// Record call args
+	mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.mutex.Lock()
+	mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.callArgs = append(mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.callArgs, &mm_params)
+	mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.mutex.Unlock()
+
+	for _, e := range mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteServiceClickhouseSettingParams{ctx, serviceId, settingName}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteServiceClickhouseSetting.t.Errorf("ClientMock.DeleteServiceClickhouseSetting got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmDeleteServiceClickhouseSetting.t.Errorf("ClientMock.DeleteServiceClickhouseSetting got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.settingName != nil && !minimock.Equal(*mm_want_ptrs.settingName, mm_got.settingName) {
+				mmDeleteServiceClickhouseSetting.t.Errorf("ClientMock.DeleteServiceClickhouseSetting got unexpected parameter settingName, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.defaultExpectation.expectationOrigins.originSettingName, *mm_want_ptrs.settingName, mm_got.settingName, minimock.Diff(*mm_want_ptrs.settingName, mm_got.settingName))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteServiceClickhouseSetting.t.Errorf("ClientMock.DeleteServiceClickhouseSetting got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteServiceClickhouseSetting.DeleteServiceClickhouseSettingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteServiceClickhouseSetting.t.Fatal("No results are set for the ClientMock.DeleteServiceClickhouseSetting")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteServiceClickhouseSetting.funcDeleteServiceClickhouseSetting != nil {
+		return mmDeleteServiceClickhouseSetting.funcDeleteServiceClickhouseSetting(ctx, serviceId, settingName)
+	}
+	mmDeleteServiceClickhouseSetting.t.Fatalf("Unexpected call to ClientMock.DeleteServiceClickhouseSetting. %v %v %v", ctx, serviceId, settingName)
+	return
+}
+
+// DeleteServiceClickhouseSettingAfterCounter returns a count of finished ClientMock.DeleteServiceClickhouseSetting invocations
+func (mmDeleteServiceClickhouseSetting *ClientMock) DeleteServiceClickhouseSettingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteServiceClickhouseSetting.afterDeleteServiceClickhouseSettingCounter)
+}
+
+// DeleteServiceClickhouseSettingBeforeCounter returns a count of ClientMock.DeleteServiceClickhouseSetting invocations
+func (mmDeleteServiceClickhouseSetting *ClientMock) DeleteServiceClickhouseSettingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteServiceClickhouseSetting.beforeDeleteServiceClickhouseSettingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteServiceClickhouseSetting.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteServiceClickhouseSetting *mClientMockDeleteServiceClickhouseSetting) Calls() []*ClientMockDeleteServiceClickhouseSettingParams {
+	mmDeleteServiceClickhouseSetting.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteServiceClickhouseSettingParams, len(mmDeleteServiceClickhouseSetting.callArgs))
+	copy(argCopy, mmDeleteServiceClickhouseSetting.callArgs)
+
+	mmDeleteServiceClickhouseSetting.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteServiceClickhouseSettingDone returns true if the count of the DeleteServiceClickhouseSetting invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteServiceClickhouseSettingDone() bool {
+	if m.DeleteServiceClickhouseSettingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteServiceClickhouseSettingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteServiceClickhouseSettingMock.invocationsDone()
+}
+
+// MinimockDeleteServiceClickhouseSettingInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteServiceClickhouseSettingInspect() {
+	for _, e := range m.DeleteServiceClickhouseSettingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteServiceClickhouseSetting at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteServiceClickhouseSettingCounter := mm_atomic.LoadUint64(&m.afterDeleteServiceClickhouseSettingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteServiceClickhouseSettingMock.defaultExpectation != nil && afterDeleteServiceClickhouseSettingCounter < 1 {
+		if m.DeleteServiceClickhouseSettingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteServiceClickhouseSetting at\n%s", m.DeleteServiceClickhouseSettingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteServiceClickhouseSetting at\n%s with params: %#v", m.DeleteServiceClickhouseSettingMock.defaultExpectation.expectationOrigins.origin, *m.DeleteServiceClickhouseSettingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteServiceClickhouseSetting != nil && afterDeleteServiceClickhouseSettingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteServiceClickhouseSetting at\n%s", m.funcDeleteServiceClickhouseSettingOrigin)
+	}
+
+	if !m.DeleteServiceClickhouseSettingMock.invocationsDone() && afterDeleteServiceClickhouseSettingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteServiceClickhouseSetting at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteServiceClickhouseSettingMock.expectedInvocations), m.DeleteServiceClickhouseSettingMock.expectedInvocationsOrigin, afterDeleteServiceClickhouseSettingCounter)
+	}
+}
+
 type mClientMockDeleteUDF struct {
 	optional           bool
 	mock               *ClientMock
@@ -19116,6 +19529,349 @@ func (m *ClientMock) MinimockGetServiceBaseInspect() {
 	}
 }
 
+type mClientMockGetServiceClickhouseSettingsSchema struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetServiceClickhouseSettingsSchemaExpectation
+	expectations       []*ClientMockGetServiceClickhouseSettingsSchemaExpectation
+
+	callArgs []*ClientMockGetServiceClickhouseSettingsSchemaParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetServiceClickhouseSettingsSchemaExpectation specifies expectation struct of the Client.GetServiceClickhouseSettingsSchema
+type ClientMockGetServiceClickhouseSettingsSchemaExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetServiceClickhouseSettingsSchemaParams
+	paramPtrs          *ClientMockGetServiceClickhouseSettingsSchemaParamPtrs
+	expectationOrigins ClientMockGetServiceClickhouseSettingsSchemaExpectationOrigins
+	results            *ClientMockGetServiceClickhouseSettingsSchemaResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetServiceClickhouseSettingsSchemaParams contains parameters of the Client.GetServiceClickhouseSettingsSchema
+type ClientMockGetServiceClickhouseSettingsSchemaParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetServiceClickhouseSettingsSchemaParamPtrs contains pointers to parameters of the Client.GetServiceClickhouseSettingsSchema
+type ClientMockGetServiceClickhouseSettingsSchemaParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetServiceClickhouseSettingsSchemaResults contains results of the Client.GetServiceClickhouseSettingsSchema
+type ClientMockGetServiceClickhouseSettingsSchemaResults struct {
+	sa1 []ServiceClickhouseSettingSchemaEntry
+	err error
+}
+
+// ClientMockGetServiceClickhouseSettingsSchemaOrigins contains origins of expectations of the Client.GetServiceClickhouseSettingsSchema
+type ClientMockGetServiceClickhouseSettingsSchemaExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) Optional() *mClientMockGetServiceClickhouseSettingsSchema {
+	mmGetServiceClickhouseSettingsSchema.optional = true
+	return mmGetServiceClickhouseSettingsSchema
+}
+
+// Expect sets up expected params for Client.GetServiceClickhouseSettingsSchema
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) Expect(ctx context.Context, serviceId string) *mClientMockGetServiceClickhouseSettingsSchema {
+	if mmGetServiceClickhouseSettingsSchema.mock.funcGetServiceClickhouseSettingsSchema != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("ClientMock.GetServiceClickhouseSettingsSchema mock is already set by Set")
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation == nil {
+		mmGetServiceClickhouseSettingsSchema.defaultExpectation = &ClientMockGetServiceClickhouseSettingsSchemaExpectation{}
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation.paramPtrs != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("ClientMock.GetServiceClickhouseSettingsSchema mock is already set by ExpectParams functions")
+	}
+
+	mmGetServiceClickhouseSettingsSchema.defaultExpectation.params = &ClientMockGetServiceClickhouseSettingsSchemaParams{ctx, serviceId}
+	mmGetServiceClickhouseSettingsSchema.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetServiceClickhouseSettingsSchema.expectations {
+		if minimock.Equal(e.params, mmGetServiceClickhouseSettingsSchema.defaultExpectation.params) {
+			mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetServiceClickhouseSettingsSchema.defaultExpectation.params)
+		}
+	}
+
+	return mmGetServiceClickhouseSettingsSchema
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetServiceClickhouseSettingsSchema
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) ExpectCtxParam1(ctx context.Context) *mClientMockGetServiceClickhouseSettingsSchema {
+	if mmGetServiceClickhouseSettingsSchema.mock.funcGetServiceClickhouseSettingsSchema != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("ClientMock.GetServiceClickhouseSettingsSchema mock is already set by Set")
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation == nil {
+		mmGetServiceClickhouseSettingsSchema.defaultExpectation = &ClientMockGetServiceClickhouseSettingsSchemaExpectation{}
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation.params != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("ClientMock.GetServiceClickhouseSettingsSchema mock is already set by Expect")
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation.paramPtrs == nil {
+		mmGetServiceClickhouseSettingsSchema.defaultExpectation.paramPtrs = &ClientMockGetServiceClickhouseSettingsSchemaParamPtrs{}
+	}
+	mmGetServiceClickhouseSettingsSchema.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetServiceClickhouseSettingsSchema.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetServiceClickhouseSettingsSchema
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetServiceClickhouseSettingsSchema
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) ExpectServiceIdParam2(serviceId string) *mClientMockGetServiceClickhouseSettingsSchema {
+	if mmGetServiceClickhouseSettingsSchema.mock.funcGetServiceClickhouseSettingsSchema != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("ClientMock.GetServiceClickhouseSettingsSchema mock is already set by Set")
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation == nil {
+		mmGetServiceClickhouseSettingsSchema.defaultExpectation = &ClientMockGetServiceClickhouseSettingsSchemaExpectation{}
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation.params != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("ClientMock.GetServiceClickhouseSettingsSchema mock is already set by Expect")
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation.paramPtrs == nil {
+		mmGetServiceClickhouseSettingsSchema.defaultExpectation.paramPtrs = &ClientMockGetServiceClickhouseSettingsSchemaParamPtrs{}
+	}
+	mmGetServiceClickhouseSettingsSchema.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetServiceClickhouseSettingsSchema.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetServiceClickhouseSettingsSchema
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetServiceClickhouseSettingsSchema
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetServiceClickhouseSettingsSchema {
+	if mmGetServiceClickhouseSettingsSchema.mock.inspectFuncGetServiceClickhouseSettingsSchema != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("Inspect function is already set for ClientMock.GetServiceClickhouseSettingsSchema")
+	}
+
+	mmGetServiceClickhouseSettingsSchema.mock.inspectFuncGetServiceClickhouseSettingsSchema = f
+
+	return mmGetServiceClickhouseSettingsSchema
+}
+
+// Return sets up results that will be returned by Client.GetServiceClickhouseSettingsSchema
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) Return(sa1 []ServiceClickhouseSettingSchemaEntry, err error) *ClientMock {
+	if mmGetServiceClickhouseSettingsSchema.mock.funcGetServiceClickhouseSettingsSchema != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("ClientMock.GetServiceClickhouseSettingsSchema mock is already set by Set")
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation == nil {
+		mmGetServiceClickhouseSettingsSchema.defaultExpectation = &ClientMockGetServiceClickhouseSettingsSchemaExpectation{mock: mmGetServiceClickhouseSettingsSchema.mock}
+	}
+	mmGetServiceClickhouseSettingsSchema.defaultExpectation.results = &ClientMockGetServiceClickhouseSettingsSchemaResults{sa1, err}
+	mmGetServiceClickhouseSettingsSchema.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetServiceClickhouseSettingsSchema.mock
+}
+
+// Set uses given function f to mock the Client.GetServiceClickhouseSettingsSchema method
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) Set(f func(ctx context.Context, serviceId string) (sa1 []ServiceClickhouseSettingSchemaEntry, err error)) *ClientMock {
+	if mmGetServiceClickhouseSettingsSchema.defaultExpectation != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("Default expectation is already set for the Client.GetServiceClickhouseSettingsSchema method")
+	}
+
+	if len(mmGetServiceClickhouseSettingsSchema.expectations) > 0 {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("Some expectations are already set for the Client.GetServiceClickhouseSettingsSchema method")
+	}
+
+	mmGetServiceClickhouseSettingsSchema.mock.funcGetServiceClickhouseSettingsSchema = f
+	mmGetServiceClickhouseSettingsSchema.mock.funcGetServiceClickhouseSettingsSchemaOrigin = minimock.CallerInfo(1)
+	return mmGetServiceClickhouseSettingsSchema.mock
+}
+
+// When sets expectation for the Client.GetServiceClickhouseSettingsSchema which will trigger the result defined by the following
+// Then helper
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) When(ctx context.Context, serviceId string) *ClientMockGetServiceClickhouseSettingsSchemaExpectation {
+	if mmGetServiceClickhouseSettingsSchema.mock.funcGetServiceClickhouseSettingsSchema != nil {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("ClientMock.GetServiceClickhouseSettingsSchema mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetServiceClickhouseSettingsSchemaExpectation{
+		mock:               mmGetServiceClickhouseSettingsSchema.mock,
+		params:             &ClientMockGetServiceClickhouseSettingsSchemaParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetServiceClickhouseSettingsSchemaExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetServiceClickhouseSettingsSchema.expectations = append(mmGetServiceClickhouseSettingsSchema.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetServiceClickhouseSettingsSchema return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetServiceClickhouseSettingsSchemaExpectation) Then(sa1 []ServiceClickhouseSettingSchemaEntry, err error) *ClientMock {
+	e.results = &ClientMockGetServiceClickhouseSettingsSchemaResults{sa1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetServiceClickhouseSettingsSchema should be invoked
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) Times(n uint64) *mClientMockGetServiceClickhouseSettingsSchema {
+	if n == 0 {
+		mmGetServiceClickhouseSettingsSchema.mock.t.Fatalf("Times of ClientMock.GetServiceClickhouseSettingsSchema mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetServiceClickhouseSettingsSchema.expectedInvocations, n)
+	mmGetServiceClickhouseSettingsSchema.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetServiceClickhouseSettingsSchema
+}
+
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) invocationsDone() bool {
+	if len(mmGetServiceClickhouseSettingsSchema.expectations) == 0 && mmGetServiceClickhouseSettingsSchema.defaultExpectation == nil && mmGetServiceClickhouseSettingsSchema.mock.funcGetServiceClickhouseSettingsSchema == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetServiceClickhouseSettingsSchema.mock.afterGetServiceClickhouseSettingsSchemaCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetServiceClickhouseSettingsSchema.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetServiceClickhouseSettingsSchema implements Client
+func (mmGetServiceClickhouseSettingsSchema *ClientMock) GetServiceClickhouseSettingsSchema(ctx context.Context, serviceId string) (sa1 []ServiceClickhouseSettingSchemaEntry, err error) {
+	mm_atomic.AddUint64(&mmGetServiceClickhouseSettingsSchema.beforeGetServiceClickhouseSettingsSchemaCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetServiceClickhouseSettingsSchema.afterGetServiceClickhouseSettingsSchemaCounter, 1)
+
+	mmGetServiceClickhouseSettingsSchema.t.Helper()
+
+	if mmGetServiceClickhouseSettingsSchema.inspectFuncGetServiceClickhouseSettingsSchema != nil {
+		mmGetServiceClickhouseSettingsSchema.inspectFuncGetServiceClickhouseSettingsSchema(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetServiceClickhouseSettingsSchemaParams{ctx, serviceId}
+
+	// Record call args
+	mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.mutex.Lock()
+	mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.callArgs = append(mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.callArgs, &mm_params)
+	mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.mutex.Unlock()
+
+	for _, e := range mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sa1, e.results.err
+		}
+	}
+
+	if mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.params
+		mm_want_ptrs := mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetServiceClickhouseSettingsSchemaParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetServiceClickhouseSettingsSchema.t.Errorf("ClientMock.GetServiceClickhouseSettingsSchema got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetServiceClickhouseSettingsSchema.t.Errorf("ClientMock.GetServiceClickhouseSettingsSchema got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetServiceClickhouseSettingsSchema.t.Errorf("ClientMock.GetServiceClickhouseSettingsSchema got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetServiceClickhouseSettingsSchema.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetServiceClickhouseSettingsSchema.t.Fatal("No results are set for the ClientMock.GetServiceClickhouseSettingsSchema")
+		}
+		return (*mm_results).sa1, (*mm_results).err
+	}
+	if mmGetServiceClickhouseSettingsSchema.funcGetServiceClickhouseSettingsSchema != nil {
+		return mmGetServiceClickhouseSettingsSchema.funcGetServiceClickhouseSettingsSchema(ctx, serviceId)
+	}
+	mmGetServiceClickhouseSettingsSchema.t.Fatalf("Unexpected call to ClientMock.GetServiceClickhouseSettingsSchema. %v %v", ctx, serviceId)
+	return
+}
+
+// GetServiceClickhouseSettingsSchemaAfterCounter returns a count of finished ClientMock.GetServiceClickhouseSettingsSchema invocations
+func (mmGetServiceClickhouseSettingsSchema *ClientMock) GetServiceClickhouseSettingsSchemaAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetServiceClickhouseSettingsSchema.afterGetServiceClickhouseSettingsSchemaCounter)
+}
+
+// GetServiceClickhouseSettingsSchemaBeforeCounter returns a count of ClientMock.GetServiceClickhouseSettingsSchema invocations
+func (mmGetServiceClickhouseSettingsSchema *ClientMock) GetServiceClickhouseSettingsSchemaBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetServiceClickhouseSettingsSchema.beforeGetServiceClickhouseSettingsSchemaCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetServiceClickhouseSettingsSchema.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetServiceClickhouseSettingsSchema *mClientMockGetServiceClickhouseSettingsSchema) Calls() []*ClientMockGetServiceClickhouseSettingsSchemaParams {
+	mmGetServiceClickhouseSettingsSchema.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetServiceClickhouseSettingsSchemaParams, len(mmGetServiceClickhouseSettingsSchema.callArgs))
+	copy(argCopy, mmGetServiceClickhouseSettingsSchema.callArgs)
+
+	mmGetServiceClickhouseSettingsSchema.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetServiceClickhouseSettingsSchemaDone returns true if the count of the GetServiceClickhouseSettingsSchema invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetServiceClickhouseSettingsSchemaDone() bool {
+	if m.GetServiceClickhouseSettingsSchemaMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetServiceClickhouseSettingsSchemaMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetServiceClickhouseSettingsSchemaMock.invocationsDone()
+}
+
+// MinimockGetServiceClickhouseSettingsSchemaInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetServiceClickhouseSettingsSchemaInspect() {
+	for _, e := range m.GetServiceClickhouseSettingsSchemaMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetServiceClickhouseSettingsSchema at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetServiceClickhouseSettingsSchemaCounter := mm_atomic.LoadUint64(&m.afterGetServiceClickhouseSettingsSchemaCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetServiceClickhouseSettingsSchemaMock.defaultExpectation != nil && afterGetServiceClickhouseSettingsSchemaCounter < 1 {
+		if m.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetServiceClickhouseSettingsSchema at\n%s", m.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetServiceClickhouseSettingsSchema at\n%s with params: %#v", m.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.expectationOrigins.origin, *m.GetServiceClickhouseSettingsSchemaMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetServiceClickhouseSettingsSchema != nil && afterGetServiceClickhouseSettingsSchemaCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetServiceClickhouseSettingsSchema at\n%s", m.funcGetServiceClickhouseSettingsSchemaOrigin)
+	}
+
+	if !m.GetServiceClickhouseSettingsSchemaMock.invocationsDone() && afterGetServiceClickhouseSettingsSchemaCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetServiceClickhouseSettingsSchema at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetServiceClickhouseSettingsSchemaMock.expectedInvocations), m.GetServiceClickhouseSettingsSchemaMock.expectedInvocationsOrigin, afterGetServiceClickhouseSettingsSchemaCounter)
+	}
+}
+
 type mClientMockGetSnapshotConfiguration struct {
 	optional           bool
 	mock               *ClientMock
@@ -22138,6 +22894,349 @@ func (m *ClientMock) MinimockListSSHKeysInspect() {
 	if !m.ListSSHKeysMock.invocationsDone() && afterListSSHKeysCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ListSSHKeys at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ListSSHKeysMock.expectedInvocations), m.ListSSHKeysMock.expectedInvocationsOrigin, afterListSSHKeysCounter)
+	}
+}
+
+type mClientMockListServiceClickhouseSettings struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListServiceClickhouseSettingsExpectation
+	expectations       []*ClientMockListServiceClickhouseSettingsExpectation
+
+	callArgs []*ClientMockListServiceClickhouseSettingsParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListServiceClickhouseSettingsExpectation specifies expectation struct of the Client.ListServiceClickhouseSettings
+type ClientMockListServiceClickhouseSettingsExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListServiceClickhouseSettingsParams
+	paramPtrs          *ClientMockListServiceClickhouseSettingsParamPtrs
+	expectationOrigins ClientMockListServiceClickhouseSettingsExpectationOrigins
+	results            *ClientMockListServiceClickhouseSettingsResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListServiceClickhouseSettingsParams contains parameters of the Client.ListServiceClickhouseSettings
+type ClientMockListServiceClickhouseSettingsParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockListServiceClickhouseSettingsParamPtrs contains pointers to parameters of the Client.ListServiceClickhouseSettings
+type ClientMockListServiceClickhouseSettingsParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockListServiceClickhouseSettingsResults contains results of the Client.ListServiceClickhouseSettings
+type ClientMockListServiceClickhouseSettingsResults struct {
+	m1  map[string]string
+	err error
+}
+
+// ClientMockListServiceClickhouseSettingsOrigins contains origins of expectations of the Client.ListServiceClickhouseSettings
+type ClientMockListServiceClickhouseSettingsExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) Optional() *mClientMockListServiceClickhouseSettings {
+	mmListServiceClickhouseSettings.optional = true
+	return mmListServiceClickhouseSettings
+}
+
+// Expect sets up expected params for Client.ListServiceClickhouseSettings
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) Expect(ctx context.Context, serviceId string) *mClientMockListServiceClickhouseSettings {
+	if mmListServiceClickhouseSettings.mock.funcListServiceClickhouseSettings != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("ClientMock.ListServiceClickhouseSettings mock is already set by Set")
+	}
+
+	if mmListServiceClickhouseSettings.defaultExpectation == nil {
+		mmListServiceClickhouseSettings.defaultExpectation = &ClientMockListServiceClickhouseSettingsExpectation{}
+	}
+
+	if mmListServiceClickhouseSettings.defaultExpectation.paramPtrs != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("ClientMock.ListServiceClickhouseSettings mock is already set by ExpectParams functions")
+	}
+
+	mmListServiceClickhouseSettings.defaultExpectation.params = &ClientMockListServiceClickhouseSettingsParams{ctx, serviceId}
+	mmListServiceClickhouseSettings.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListServiceClickhouseSettings.expectations {
+		if minimock.Equal(e.params, mmListServiceClickhouseSettings.defaultExpectation.params) {
+			mmListServiceClickhouseSettings.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListServiceClickhouseSettings.defaultExpectation.params)
+		}
+	}
+
+	return mmListServiceClickhouseSettings
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListServiceClickhouseSettings
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) ExpectCtxParam1(ctx context.Context) *mClientMockListServiceClickhouseSettings {
+	if mmListServiceClickhouseSettings.mock.funcListServiceClickhouseSettings != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("ClientMock.ListServiceClickhouseSettings mock is already set by Set")
+	}
+
+	if mmListServiceClickhouseSettings.defaultExpectation == nil {
+		mmListServiceClickhouseSettings.defaultExpectation = &ClientMockListServiceClickhouseSettingsExpectation{}
+	}
+
+	if mmListServiceClickhouseSettings.defaultExpectation.params != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("ClientMock.ListServiceClickhouseSettings mock is already set by Expect")
+	}
+
+	if mmListServiceClickhouseSettings.defaultExpectation.paramPtrs == nil {
+		mmListServiceClickhouseSettings.defaultExpectation.paramPtrs = &ClientMockListServiceClickhouseSettingsParamPtrs{}
+	}
+	mmListServiceClickhouseSettings.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListServiceClickhouseSettings.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListServiceClickhouseSettings
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.ListServiceClickhouseSettings
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) ExpectServiceIdParam2(serviceId string) *mClientMockListServiceClickhouseSettings {
+	if mmListServiceClickhouseSettings.mock.funcListServiceClickhouseSettings != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("ClientMock.ListServiceClickhouseSettings mock is already set by Set")
+	}
+
+	if mmListServiceClickhouseSettings.defaultExpectation == nil {
+		mmListServiceClickhouseSettings.defaultExpectation = &ClientMockListServiceClickhouseSettingsExpectation{}
+	}
+
+	if mmListServiceClickhouseSettings.defaultExpectation.params != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("ClientMock.ListServiceClickhouseSettings mock is already set by Expect")
+	}
+
+	if mmListServiceClickhouseSettings.defaultExpectation.paramPtrs == nil {
+		mmListServiceClickhouseSettings.defaultExpectation.paramPtrs = &ClientMockListServiceClickhouseSettingsParamPtrs{}
+	}
+	mmListServiceClickhouseSettings.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmListServiceClickhouseSettings.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmListServiceClickhouseSettings
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListServiceClickhouseSettings
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockListServiceClickhouseSettings {
+	if mmListServiceClickhouseSettings.mock.inspectFuncListServiceClickhouseSettings != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("Inspect function is already set for ClientMock.ListServiceClickhouseSettings")
+	}
+
+	mmListServiceClickhouseSettings.mock.inspectFuncListServiceClickhouseSettings = f
+
+	return mmListServiceClickhouseSettings
+}
+
+// Return sets up results that will be returned by Client.ListServiceClickhouseSettings
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) Return(m1 map[string]string, err error) *ClientMock {
+	if mmListServiceClickhouseSettings.mock.funcListServiceClickhouseSettings != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("ClientMock.ListServiceClickhouseSettings mock is already set by Set")
+	}
+
+	if mmListServiceClickhouseSettings.defaultExpectation == nil {
+		mmListServiceClickhouseSettings.defaultExpectation = &ClientMockListServiceClickhouseSettingsExpectation{mock: mmListServiceClickhouseSettings.mock}
+	}
+	mmListServiceClickhouseSettings.defaultExpectation.results = &ClientMockListServiceClickhouseSettingsResults{m1, err}
+	mmListServiceClickhouseSettings.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListServiceClickhouseSettings.mock
+}
+
+// Set uses given function f to mock the Client.ListServiceClickhouseSettings method
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) Set(f func(ctx context.Context, serviceId string) (m1 map[string]string, err error)) *ClientMock {
+	if mmListServiceClickhouseSettings.defaultExpectation != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("Default expectation is already set for the Client.ListServiceClickhouseSettings method")
+	}
+
+	if len(mmListServiceClickhouseSettings.expectations) > 0 {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("Some expectations are already set for the Client.ListServiceClickhouseSettings method")
+	}
+
+	mmListServiceClickhouseSettings.mock.funcListServiceClickhouseSettings = f
+	mmListServiceClickhouseSettings.mock.funcListServiceClickhouseSettingsOrigin = minimock.CallerInfo(1)
+	return mmListServiceClickhouseSettings.mock
+}
+
+// When sets expectation for the Client.ListServiceClickhouseSettings which will trigger the result defined by the following
+// Then helper
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) When(ctx context.Context, serviceId string) *ClientMockListServiceClickhouseSettingsExpectation {
+	if mmListServiceClickhouseSettings.mock.funcListServiceClickhouseSettings != nil {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("ClientMock.ListServiceClickhouseSettings mock is already set by Set")
+	}
+
+	expectation := &ClientMockListServiceClickhouseSettingsExpectation{
+		mock:               mmListServiceClickhouseSettings.mock,
+		params:             &ClientMockListServiceClickhouseSettingsParams{ctx, serviceId},
+		expectationOrigins: ClientMockListServiceClickhouseSettingsExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListServiceClickhouseSettings.expectations = append(mmListServiceClickhouseSettings.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListServiceClickhouseSettings return parameters for the expectation previously defined by the When method
+func (e *ClientMockListServiceClickhouseSettingsExpectation) Then(m1 map[string]string, err error) *ClientMock {
+	e.results = &ClientMockListServiceClickhouseSettingsResults{m1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListServiceClickhouseSettings should be invoked
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) Times(n uint64) *mClientMockListServiceClickhouseSettings {
+	if n == 0 {
+		mmListServiceClickhouseSettings.mock.t.Fatalf("Times of ClientMock.ListServiceClickhouseSettings mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListServiceClickhouseSettings.expectedInvocations, n)
+	mmListServiceClickhouseSettings.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListServiceClickhouseSettings
+}
+
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) invocationsDone() bool {
+	if len(mmListServiceClickhouseSettings.expectations) == 0 && mmListServiceClickhouseSettings.defaultExpectation == nil && mmListServiceClickhouseSettings.mock.funcListServiceClickhouseSettings == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListServiceClickhouseSettings.mock.afterListServiceClickhouseSettingsCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListServiceClickhouseSettings.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListServiceClickhouseSettings implements Client
+func (mmListServiceClickhouseSettings *ClientMock) ListServiceClickhouseSettings(ctx context.Context, serviceId string) (m1 map[string]string, err error) {
+	mm_atomic.AddUint64(&mmListServiceClickhouseSettings.beforeListServiceClickhouseSettingsCounter, 1)
+	defer mm_atomic.AddUint64(&mmListServiceClickhouseSettings.afterListServiceClickhouseSettingsCounter, 1)
+
+	mmListServiceClickhouseSettings.t.Helper()
+
+	if mmListServiceClickhouseSettings.inspectFuncListServiceClickhouseSettings != nil {
+		mmListServiceClickhouseSettings.inspectFuncListServiceClickhouseSettings(ctx, serviceId)
+	}
+
+	mm_params := ClientMockListServiceClickhouseSettingsParams{ctx, serviceId}
+
+	// Record call args
+	mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.mutex.Lock()
+	mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.callArgs = append(mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.callArgs, &mm_params)
+	mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.mutex.Unlock()
+
+	for _, e := range mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.m1, e.results.err
+		}
+	}
+
+	if mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.defaultExpectation.Counter, 1)
+		mm_want := mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.defaultExpectation.params
+		mm_want_ptrs := mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListServiceClickhouseSettingsParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListServiceClickhouseSettings.t.Errorf("ClientMock.ListServiceClickhouseSettings got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmListServiceClickhouseSettings.t.Errorf("ClientMock.ListServiceClickhouseSettings got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListServiceClickhouseSettings.t.Errorf("ClientMock.ListServiceClickhouseSettings got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListServiceClickhouseSettings.ListServiceClickhouseSettingsMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListServiceClickhouseSettings.t.Fatal("No results are set for the ClientMock.ListServiceClickhouseSettings")
+		}
+		return (*mm_results).m1, (*mm_results).err
+	}
+	if mmListServiceClickhouseSettings.funcListServiceClickhouseSettings != nil {
+		return mmListServiceClickhouseSettings.funcListServiceClickhouseSettings(ctx, serviceId)
+	}
+	mmListServiceClickhouseSettings.t.Fatalf("Unexpected call to ClientMock.ListServiceClickhouseSettings. %v %v", ctx, serviceId)
+	return
+}
+
+// ListServiceClickhouseSettingsAfterCounter returns a count of finished ClientMock.ListServiceClickhouseSettings invocations
+func (mmListServiceClickhouseSettings *ClientMock) ListServiceClickhouseSettingsAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListServiceClickhouseSettings.afterListServiceClickhouseSettingsCounter)
+}
+
+// ListServiceClickhouseSettingsBeforeCounter returns a count of ClientMock.ListServiceClickhouseSettings invocations
+func (mmListServiceClickhouseSettings *ClientMock) ListServiceClickhouseSettingsBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListServiceClickhouseSettings.beforeListServiceClickhouseSettingsCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListServiceClickhouseSettings.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListServiceClickhouseSettings *mClientMockListServiceClickhouseSettings) Calls() []*ClientMockListServiceClickhouseSettingsParams {
+	mmListServiceClickhouseSettings.mutex.RLock()
+
+	argCopy := make([]*ClientMockListServiceClickhouseSettingsParams, len(mmListServiceClickhouseSettings.callArgs))
+	copy(argCopy, mmListServiceClickhouseSettings.callArgs)
+
+	mmListServiceClickhouseSettings.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListServiceClickhouseSettingsDone returns true if the count of the ListServiceClickhouseSettings invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListServiceClickhouseSettingsDone() bool {
+	if m.ListServiceClickhouseSettingsMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListServiceClickhouseSettingsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListServiceClickhouseSettingsMock.invocationsDone()
+}
+
+// MinimockListServiceClickhouseSettingsInspect logs each unmet expectation
+func (m *ClientMock) MinimockListServiceClickhouseSettingsInspect() {
+	for _, e := range m.ListServiceClickhouseSettingsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListServiceClickhouseSettings at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListServiceClickhouseSettingsCounter := mm_atomic.LoadUint64(&m.afterListServiceClickhouseSettingsCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListServiceClickhouseSettingsMock.defaultExpectation != nil && afterListServiceClickhouseSettingsCounter < 1 {
+		if m.ListServiceClickhouseSettingsMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListServiceClickhouseSettings at\n%s", m.ListServiceClickhouseSettingsMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListServiceClickhouseSettings at\n%s with params: %#v", m.ListServiceClickhouseSettingsMock.defaultExpectation.expectationOrigins.origin, *m.ListServiceClickhouseSettingsMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListServiceClickhouseSettings != nil && afterListServiceClickhouseSettingsCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListServiceClickhouseSettings at\n%s", m.funcListServiceClickhouseSettingsOrigin)
+	}
+
+	if !m.ListServiceClickhouseSettingsMock.invocationsDone() && afterListServiceClickhouseSettingsCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListServiceClickhouseSettings at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListServiceClickhouseSettingsMock.expectedInvocations), m.ListServiceClickhouseSettingsMock.expectedInvocationsOrigin, afterListServiceClickhouseSettingsCounter)
 	}
 }
 
@@ -29682,6 +30781,380 @@ func (m *ClientMock) MinimockUpdateServiceInspect() {
 	}
 }
 
+type mClientMockUpdateServiceClickhouseSettings struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateServiceClickhouseSettingsExpectation
+	expectations       []*ClientMockUpdateServiceClickhouseSettingsExpectation
+
+	callArgs []*ClientMockUpdateServiceClickhouseSettingsParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateServiceClickhouseSettingsExpectation specifies expectation struct of the Client.UpdateServiceClickhouseSettings
+type ClientMockUpdateServiceClickhouseSettingsExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateServiceClickhouseSettingsParams
+	paramPtrs          *ClientMockUpdateServiceClickhouseSettingsParamPtrs
+	expectationOrigins ClientMockUpdateServiceClickhouseSettingsExpectationOrigins
+	results            *ClientMockUpdateServiceClickhouseSettingsResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateServiceClickhouseSettingsParams contains parameters of the Client.UpdateServiceClickhouseSettings
+type ClientMockUpdateServiceClickhouseSettingsParams struct {
+	ctx       context.Context
+	serviceId string
+	settings  map[string]any
+}
+
+// ClientMockUpdateServiceClickhouseSettingsParamPtrs contains pointers to parameters of the Client.UpdateServiceClickhouseSettings
+type ClientMockUpdateServiceClickhouseSettingsParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	settings  *map[string]any
+}
+
+// ClientMockUpdateServiceClickhouseSettingsResults contains results of the Client.UpdateServiceClickhouseSettings
+type ClientMockUpdateServiceClickhouseSettingsResults struct {
+	sp1 *ServiceClickhouseSettingsUpdateResult
+	err error
+}
+
+// ClientMockUpdateServiceClickhouseSettingsOrigins contains origins of expectations of the Client.UpdateServiceClickhouseSettings
+type ClientMockUpdateServiceClickhouseSettingsExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originSettings  string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) Optional() *mClientMockUpdateServiceClickhouseSettings {
+	mmUpdateServiceClickhouseSettings.optional = true
+	return mmUpdateServiceClickhouseSettings
+}
+
+// Expect sets up expected params for Client.UpdateServiceClickhouseSettings
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) Expect(ctx context.Context, serviceId string, settings map[string]any) *mClientMockUpdateServiceClickhouseSettings {
+	if mmUpdateServiceClickhouseSettings.mock.funcUpdateServiceClickhouseSettings != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by Set")
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation == nil {
+		mmUpdateServiceClickhouseSettings.defaultExpectation = &ClientMockUpdateServiceClickhouseSettingsExpectation{}
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateServiceClickhouseSettings.defaultExpectation.params = &ClientMockUpdateServiceClickhouseSettingsParams{ctx, serviceId, settings}
+	mmUpdateServiceClickhouseSettings.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateServiceClickhouseSettings.expectations {
+		if minimock.Equal(e.params, mmUpdateServiceClickhouseSettings.defaultExpectation.params) {
+			mmUpdateServiceClickhouseSettings.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateServiceClickhouseSettings.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateServiceClickhouseSettings
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateServiceClickhouseSettings
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateServiceClickhouseSettings {
+	if mmUpdateServiceClickhouseSettings.mock.funcUpdateServiceClickhouseSettings != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by Set")
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation == nil {
+		mmUpdateServiceClickhouseSettings.defaultExpectation = &ClientMockUpdateServiceClickhouseSettingsExpectation{}
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation.params != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by Expect")
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs == nil {
+		mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs = &ClientMockUpdateServiceClickhouseSettingsParamPtrs{}
+	}
+	mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateServiceClickhouseSettings.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateServiceClickhouseSettings
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateServiceClickhouseSettings
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateServiceClickhouseSettings {
+	if mmUpdateServiceClickhouseSettings.mock.funcUpdateServiceClickhouseSettings != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by Set")
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation == nil {
+		mmUpdateServiceClickhouseSettings.defaultExpectation = &ClientMockUpdateServiceClickhouseSettingsExpectation{}
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation.params != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by Expect")
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs == nil {
+		mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs = &ClientMockUpdateServiceClickhouseSettingsParamPtrs{}
+	}
+	mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmUpdateServiceClickhouseSettings.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmUpdateServiceClickhouseSettings
+}
+
+// ExpectSettingsParam3 sets up expected param settings for Client.UpdateServiceClickhouseSettings
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) ExpectSettingsParam3(settings map[string]any) *mClientMockUpdateServiceClickhouseSettings {
+	if mmUpdateServiceClickhouseSettings.mock.funcUpdateServiceClickhouseSettings != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by Set")
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation == nil {
+		mmUpdateServiceClickhouseSettings.defaultExpectation = &ClientMockUpdateServiceClickhouseSettingsExpectation{}
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation.params != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by Expect")
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs == nil {
+		mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs = &ClientMockUpdateServiceClickhouseSettingsParamPtrs{}
+	}
+	mmUpdateServiceClickhouseSettings.defaultExpectation.paramPtrs.settings = &settings
+	mmUpdateServiceClickhouseSettings.defaultExpectation.expectationOrigins.originSettings = minimock.CallerInfo(1)
+
+	return mmUpdateServiceClickhouseSettings
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateServiceClickhouseSettings
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) Inspect(f func(ctx context.Context, serviceId string, settings map[string]any)) *mClientMockUpdateServiceClickhouseSettings {
+	if mmUpdateServiceClickhouseSettings.mock.inspectFuncUpdateServiceClickhouseSettings != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateServiceClickhouseSettings")
+	}
+
+	mmUpdateServiceClickhouseSettings.mock.inspectFuncUpdateServiceClickhouseSettings = f
+
+	return mmUpdateServiceClickhouseSettings
+}
+
+// Return sets up results that will be returned by Client.UpdateServiceClickhouseSettings
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) Return(sp1 *ServiceClickhouseSettingsUpdateResult, err error) *ClientMock {
+	if mmUpdateServiceClickhouseSettings.mock.funcUpdateServiceClickhouseSettings != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by Set")
+	}
+
+	if mmUpdateServiceClickhouseSettings.defaultExpectation == nil {
+		mmUpdateServiceClickhouseSettings.defaultExpectation = &ClientMockUpdateServiceClickhouseSettingsExpectation{mock: mmUpdateServiceClickhouseSettings.mock}
+	}
+	mmUpdateServiceClickhouseSettings.defaultExpectation.results = &ClientMockUpdateServiceClickhouseSettingsResults{sp1, err}
+	mmUpdateServiceClickhouseSettings.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateServiceClickhouseSettings.mock
+}
+
+// Set uses given function f to mock the Client.UpdateServiceClickhouseSettings method
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) Set(f func(ctx context.Context, serviceId string, settings map[string]any) (sp1 *ServiceClickhouseSettingsUpdateResult, err error)) *ClientMock {
+	if mmUpdateServiceClickhouseSettings.defaultExpectation != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("Default expectation is already set for the Client.UpdateServiceClickhouseSettings method")
+	}
+
+	if len(mmUpdateServiceClickhouseSettings.expectations) > 0 {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("Some expectations are already set for the Client.UpdateServiceClickhouseSettings method")
+	}
+
+	mmUpdateServiceClickhouseSettings.mock.funcUpdateServiceClickhouseSettings = f
+	mmUpdateServiceClickhouseSettings.mock.funcUpdateServiceClickhouseSettingsOrigin = minimock.CallerInfo(1)
+	return mmUpdateServiceClickhouseSettings.mock
+}
+
+// When sets expectation for the Client.UpdateServiceClickhouseSettings which will trigger the result defined by the following
+// Then helper
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) When(ctx context.Context, serviceId string, settings map[string]any) *ClientMockUpdateServiceClickhouseSettingsExpectation {
+	if mmUpdateServiceClickhouseSettings.mock.funcUpdateServiceClickhouseSettings != nil {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("ClientMock.UpdateServiceClickhouseSettings mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateServiceClickhouseSettingsExpectation{
+		mock:               mmUpdateServiceClickhouseSettings.mock,
+		params:             &ClientMockUpdateServiceClickhouseSettingsParams{ctx, serviceId, settings},
+		expectationOrigins: ClientMockUpdateServiceClickhouseSettingsExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateServiceClickhouseSettings.expectations = append(mmUpdateServiceClickhouseSettings.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateServiceClickhouseSettings return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateServiceClickhouseSettingsExpectation) Then(sp1 *ServiceClickhouseSettingsUpdateResult, err error) *ClientMock {
+	e.results = &ClientMockUpdateServiceClickhouseSettingsResults{sp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateServiceClickhouseSettings should be invoked
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) Times(n uint64) *mClientMockUpdateServiceClickhouseSettings {
+	if n == 0 {
+		mmUpdateServiceClickhouseSettings.mock.t.Fatalf("Times of ClientMock.UpdateServiceClickhouseSettings mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateServiceClickhouseSettings.expectedInvocations, n)
+	mmUpdateServiceClickhouseSettings.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateServiceClickhouseSettings
+}
+
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) invocationsDone() bool {
+	if len(mmUpdateServiceClickhouseSettings.expectations) == 0 && mmUpdateServiceClickhouseSettings.defaultExpectation == nil && mmUpdateServiceClickhouseSettings.mock.funcUpdateServiceClickhouseSettings == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateServiceClickhouseSettings.mock.afterUpdateServiceClickhouseSettingsCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateServiceClickhouseSettings.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateServiceClickhouseSettings implements Client
+func (mmUpdateServiceClickhouseSettings *ClientMock) UpdateServiceClickhouseSettings(ctx context.Context, serviceId string, settings map[string]any) (sp1 *ServiceClickhouseSettingsUpdateResult, err error) {
+	mm_atomic.AddUint64(&mmUpdateServiceClickhouseSettings.beforeUpdateServiceClickhouseSettingsCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateServiceClickhouseSettings.afterUpdateServiceClickhouseSettingsCounter, 1)
+
+	mmUpdateServiceClickhouseSettings.t.Helper()
+
+	if mmUpdateServiceClickhouseSettings.inspectFuncUpdateServiceClickhouseSettings != nil {
+		mmUpdateServiceClickhouseSettings.inspectFuncUpdateServiceClickhouseSettings(ctx, serviceId, settings)
+	}
+
+	mm_params := ClientMockUpdateServiceClickhouseSettingsParams{ctx, serviceId, settings}
+
+	// Record call args
+	mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.mutex.Lock()
+	mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.callArgs = append(mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.callArgs, &mm_params)
+	mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.mutex.Unlock()
+
+	for _, e := range mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.sp1, e.results.err
+		}
+	}
+
+	if mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateServiceClickhouseSettingsParams{ctx, serviceId, settings}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateServiceClickhouseSettings.t.Errorf("ClientMock.UpdateServiceClickhouseSettings got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateServiceClickhouseSettings.t.Errorf("ClientMock.UpdateServiceClickhouseSettings got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.settings != nil && !minimock.Equal(*mm_want_ptrs.settings, mm_got.settings) {
+				mmUpdateServiceClickhouseSettings.t.Errorf("ClientMock.UpdateServiceClickhouseSettings got unexpected parameter settings, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.defaultExpectation.expectationOrigins.originSettings, *mm_want_ptrs.settings, mm_got.settings, minimock.Diff(*mm_want_ptrs.settings, mm_got.settings))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateServiceClickhouseSettings.t.Errorf("ClientMock.UpdateServiceClickhouseSettings got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateServiceClickhouseSettings.UpdateServiceClickhouseSettingsMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateServiceClickhouseSettings.t.Fatal("No results are set for the ClientMock.UpdateServiceClickhouseSettings")
+		}
+		return (*mm_results).sp1, (*mm_results).err
+	}
+	if mmUpdateServiceClickhouseSettings.funcUpdateServiceClickhouseSettings != nil {
+		return mmUpdateServiceClickhouseSettings.funcUpdateServiceClickhouseSettings(ctx, serviceId, settings)
+	}
+	mmUpdateServiceClickhouseSettings.t.Fatalf("Unexpected call to ClientMock.UpdateServiceClickhouseSettings. %v %v %v", ctx, serviceId, settings)
+	return
+}
+
+// UpdateServiceClickhouseSettingsAfterCounter returns a count of finished ClientMock.UpdateServiceClickhouseSettings invocations
+func (mmUpdateServiceClickhouseSettings *ClientMock) UpdateServiceClickhouseSettingsAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateServiceClickhouseSettings.afterUpdateServiceClickhouseSettingsCounter)
+}
+
+// UpdateServiceClickhouseSettingsBeforeCounter returns a count of ClientMock.UpdateServiceClickhouseSettings invocations
+func (mmUpdateServiceClickhouseSettings *ClientMock) UpdateServiceClickhouseSettingsBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateServiceClickhouseSettings.beforeUpdateServiceClickhouseSettingsCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateServiceClickhouseSettings.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateServiceClickhouseSettings *mClientMockUpdateServiceClickhouseSettings) Calls() []*ClientMockUpdateServiceClickhouseSettingsParams {
+	mmUpdateServiceClickhouseSettings.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateServiceClickhouseSettingsParams, len(mmUpdateServiceClickhouseSettings.callArgs))
+	copy(argCopy, mmUpdateServiceClickhouseSettings.callArgs)
+
+	mmUpdateServiceClickhouseSettings.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateServiceClickhouseSettingsDone returns true if the count of the UpdateServiceClickhouseSettings invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateServiceClickhouseSettingsDone() bool {
+	if m.UpdateServiceClickhouseSettingsMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateServiceClickhouseSettingsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateServiceClickhouseSettingsMock.invocationsDone()
+}
+
+// MinimockUpdateServiceClickhouseSettingsInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateServiceClickhouseSettingsInspect() {
+	for _, e := range m.UpdateServiceClickhouseSettingsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateServiceClickhouseSettings at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateServiceClickhouseSettingsCounter := mm_atomic.LoadUint64(&m.afterUpdateServiceClickhouseSettingsCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateServiceClickhouseSettingsMock.defaultExpectation != nil && afterUpdateServiceClickhouseSettingsCounter < 1 {
+		if m.UpdateServiceClickhouseSettingsMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateServiceClickhouseSettings at\n%s", m.UpdateServiceClickhouseSettingsMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateServiceClickhouseSettings at\n%s with params: %#v", m.UpdateServiceClickhouseSettingsMock.defaultExpectation.expectationOrigins.origin, *m.UpdateServiceClickhouseSettingsMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateServiceClickhouseSettings != nil && afterUpdateServiceClickhouseSettingsCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateServiceClickhouseSettings at\n%s", m.funcUpdateServiceClickhouseSettingsOrigin)
+	}
+
+	if !m.UpdateServiceClickhouseSettingsMock.invocationsDone() && afterUpdateServiceClickhouseSettingsCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateServiceClickhouseSettings at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateServiceClickhouseSettingsMock.expectedInvocations), m.UpdateServiceClickhouseSettingsMock.expectedInvocationsOrigin, afterUpdateServiceClickhouseSettingsCounter)
+	}
+}
+
 type mClientMockUpdateServicePassword struct {
 	optional           bool
 	mock               *ClientMock
@@ -34467,6 +35940,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockDeleteServiceInspect()
 
+			m.MinimockDeleteServiceClickhouseSettingInspect()
+
 			m.MinimockDeleteUDFInspect()
 
 			m.MinimockDeleteUpgradeWindowInspect()
@@ -34519,6 +35994,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetServiceBaseInspect()
 
+			m.MinimockGetServiceClickhouseSettingsSchemaInspect()
+
 			m.MinimockGetSnapshotConfigurationInspect()
 
 			m.MinimockGetUDFInspect()
@@ -34536,6 +36013,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockListRolesInspect()
 
 			m.MinimockListSSHKeysInspect()
+
+			m.MinimockListServiceClickhouseSettingsInspect()
 
 			m.MinimockListServiceProfilesInspect()
 
@@ -34576,6 +36055,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateScheduledScalingInspect()
 
 			m.MinimockUpdateServiceInspect()
+
+			m.MinimockUpdateServiceClickhouseSettingsInspect()
 
 			m.MinimockUpdateServicePasswordInspect()
 
@@ -34648,6 +36129,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteSavedQueryDone() &&
 		m.MinimockDeleteScheduledScalingDone() &&
 		m.MinimockDeleteServiceDone() &&
+		m.MinimockDeleteServiceClickhouseSettingDone() &&
 		m.MinimockDeleteUDFDone() &&
 		m.MinimockDeleteUpgradeWindowDone() &&
 		m.MinimockDetachUDFDone() &&
@@ -34674,6 +36156,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetScheduledScalingDone() &&
 		m.MinimockGetServiceDone() &&
 		m.MinimockGetServiceBaseDone() &&
+		m.MinimockGetServiceClickhouseSettingsSchemaDone() &&
 		m.MinimockGetSnapshotConfigurationDone() &&
 		m.MinimockGetUDFDone() &&
 		m.MinimockGetUDFAttachmentDone() &&
@@ -34683,6 +36166,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockListReversePrivateEndpointsDone() &&
 		m.MinimockListRolesDone() &&
 		m.MinimockListSSHKeysDone() &&
+		m.MinimockListServiceClickhouseSettingsDone() &&
 		m.MinimockListServiceProfilesDone() &&
 		m.MinimockListServicesDone() &&
 		m.MinimockReplacePostgresConfigDone() &&
@@ -34703,6 +36187,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateSavedQueryDone() &&
 		m.MinimockUpdateScheduledScalingDone() &&
 		m.MinimockUpdateServiceDone() &&
+		m.MinimockUpdateServiceClickhouseSettingsDone() &&
 		m.MinimockUpdateServicePasswordDone() &&
 		m.MinimockUpdateSnapshotConfigurationDone() &&
 		m.MinimockUpdateUpgradeWindowDone() &&

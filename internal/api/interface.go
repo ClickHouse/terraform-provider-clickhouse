@@ -23,6 +23,10 @@ type Client interface {
 	GetUpgradeWindow(ctx context.Context, serviceId string) (*UpgradeWindow, error)
 	UpdateUpgradeWindow(ctx context.Context, serviceId string, u UpgradeWindowUpdate) (*UpgradeWindow, error)
 	DeleteUpgradeWindow(ctx context.Context, serviceId string) error
+	ListServiceClickhouseSettings(ctx context.Context, serviceId string) (map[string]string, error)
+	UpdateServiceClickhouseSettings(ctx context.Context, serviceId string, settings map[string]any) (*ServiceClickhouseSettingsUpdateResult, error)
+	DeleteServiceClickhouseSetting(ctx context.Context, serviceId string, settingName string) error
+	GetServiceClickhouseSettingsSchema(ctx context.Context, serviceId string) ([]ServiceClickhouseSettingSchemaEntry, error)
 	UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error)
 	DeleteService(ctx context.Context, serviceId string) (*Service, error)
 	GetOrganization(ctx context.Context) (*OrgResult, error)
