@@ -279,26 +279,23 @@ func (r *ServiceClickhouseSettingsResource) applySettings(ctx context.Context, s
 	return true
 }
 
-// clickhouseSettingsPayload converts Terraform's string values to the native
-// JSON type the API expects: settings the schema types as "string" stay
-// strings, anything else that parses as an integer is sent as one.
+// clickhouseSettingsPayload sends settings the schema types as "integer" as
+// JSON integers, and everything else as strings.
 func clickhouseSettingsPayload(settings map[string]string, settingsSchema []api.ServiceClickhouseSettingSchemaEntry) map[string]any {
-	settingTypes := make(map[string]string, len(settingsSchema))
+	integers := map[string]bool{}
 	for _, entry := range settingsSchema {
-		settingTypes[entry.Name] = entry.Type
+		integers[entry.Name] = entry.Type == "integer"
 	}
 
 	payload := make(map[string]any, len(settings))
 	for name, value := range settings {
-		if settingTypes[name] == "string" {
-			payload[name] = value
+		payload[name] = value
+		if !integers[name] {
 			continue
 		}
 		if n, err := strconv.ParseInt(value, 10, 64); err == nil {
 			payload[name] = n
-			continue
 		}
-		payload[name] = value
 	}
 
 	return payload
