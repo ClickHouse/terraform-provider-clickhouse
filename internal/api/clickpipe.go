@@ -85,6 +85,16 @@ var ClickPipeKafkaAuthenticationMethods = []string{
 }
 
 const (
+	ClickPipeKafkaSchemaRegistryTypeConfluent = "confluent"
+	ClickPipeKafkaSchemaRegistryTypeGlue      = "glue"
+)
+
+var ClickPipeKafkaSchemaRegistryTypes = []string{
+	ClickPipeKafkaSchemaRegistryTypeConfluent,
+	ClickPipeKafkaSchemaRegistryTypeGlue,
+}
+
+const (
 	ClickPipeKafkaTombstoneModeDelete     = "delete"
 	ClickPipeKafkaTombstoneModeSoftDelete = "soft_delete"
 )

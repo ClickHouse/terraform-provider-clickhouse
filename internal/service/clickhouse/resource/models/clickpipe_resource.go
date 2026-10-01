@@ -52,26 +52,38 @@ func (m ClickPipeKafkaOffsetModel) ObjectValue() types.Object {
 }
 
 type ClickPipeKafkaSchemaRegistryModel struct {
-	URL            types.String `tfsdk:"url"`
-	Authentication types.String `tfsdk:"authentication"`
-	Credentials    types.Object `tfsdk:"credentials"`
+	Type             types.String `tfsdk:"type"`
+	URL              types.String `tfsdk:"url"`
+	Authentication   types.String `tfsdk:"authentication"`
+	Credentials      types.Object `tfsdk:"credentials"`
+	GlueRegion       types.String `tfsdk:"glue_region"`
+	GlueRegistryName types.String `tfsdk:"glue_registry_name"`
+	GlueRoleArn      types.String `tfsdk:"glue_role_arn"`
 }
 
 func (m ClickPipeKafkaSchemaRegistryModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"url":            types.StringType,
-			"authentication": types.StringType,
-			"credentials":    ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"type":               types.StringType,
+			"url":                types.StringType,
+			"authentication":     types.StringType,
+			"credentials":        ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"glue_region":        types.StringType,
+			"glue_registry_name": types.StringType,
+			"glue_role_arn":      types.StringType,
 		},
 	}
 }
 
 func (m ClickPipeKafkaSchemaRegistryModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"url":            m.URL,
-		"authentication": m.Authentication,
-		"credentials":    m.Credentials,
+		"type":               m.Type,
+		"url":                m.URL,
+		"authentication":     m.Authentication,
+		"credentials":        m.Credentials,
+		"glue_region":        m.GlueRegion,
+		"glue_registry_name": m.GlueRegistryName,
+		"glue_role_arn":      m.GlueRoleArn,
 	})
 }
 

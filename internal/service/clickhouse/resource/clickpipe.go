@@ -313,19 +313,34 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"schema_registry": schema.SingleNestedAttribute{
-								MarkdownDescription: "The schema registry for the Kafka source. Immutable: any change forces pipe replacement.",
-								Optional:            true,
+								MarkdownDescription: "The schema registry for the Kafka source: a Confluent-compatible registry (`url`, `authentication`, `credentials`) " +
+									"or an AWS Glue schema registry (`type = \"glue\"` with the `glue_*` fields). Immutable: any change forces pipe replacement.",
+								Optional: true,
 								PlanModifiers: []planmodifier.Object{
 									requiresReplaceIfSchemaRegistryChanges{},
 								},
 								Attributes: map[string]schema.Attribute{
+									"type": schema.StringAttribute{
+										MarkdownDescription: fmt.Sprintf(
+											"The type of the schema registry. (%s). Default is `%s`. "+
+												"The AWS Glue schema registry must be enabled for the organization.",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKafkaSchemaRegistryTypes),
+											api.ClickPipeKafkaSchemaRegistryTypeConfluent,
+										),
+										Optional: true,
+										Computed: true,
+										Default:  stringdefault.StaticString(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipeKafkaSchemaRegistryTypes...),
+										},
+									},
 									"url": schema.StringAttribute{
-										Description: "The URL of the schema registry.",
-										Required:    true,
+										Description: "The URL of the schema registry. Required for `confluent` registries.",
+										Optional:    true,
 									},
 									"authentication": schema.StringAttribute{
-										Description: "The authentication method for the Schema Registry. Only supported is `PLAIN`.",
-										Required:    true,
+										Description: "The authentication method for the Schema Registry. Only supported is `PLAIN`. Required for `confluent` registries.",
+										Optional:    true,
 										Validators: []validator.String{
 											stringvalidator.OneOf("PLAIN"),
 										},
@@ -334,9 +349,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									// so we enforce `AtLeastOneOf(password, password_wo)` at the schema level here.
 									// Other sources (Kafka, Postgres, MySQL, MongoDB) defer this requirement to runtime
 									// validation in extractSourceFromPlan because it's conditional on the `authentication` field.
+									// Whether credentials are present at all depends on `type` and is checked by kafkaSchemaRegistryValidator.
 									"credentials": schema.SingleNestedAttribute{
-										MarkdownDescription: "The credentials for the Schema Registry. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement.",
-										Required:            true,
+										MarkdownDescription: "The credentials for the Schema Registry. Required for `confluent` registries. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement.",
+										Optional:            true,
 										Sensitive:           true,
 										Attributes: map[string]schema.Attribute{
 											"username": schema.StringAttribute{
@@ -377,6 +393,28 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 													int64validator.AlsoRequires(path.MatchRelative().AtParent().AtName("password_wo")),
 												},
 											},
+										},
+									},
+									"glue_region": schema.StringAttribute{
+										Description: "The AWS region of the Glue schema registry. Required for `glue` registries.",
+										Optional:    true,
+										Validators: []validator.String{
+											stringvalidator.RegexMatches(trimmedNonEmptyRegex, "must not be empty or have leading or trailing whitespace"),
+										},
+									},
+									"glue_registry_name": schema.StringAttribute{
+										Description: "The name of the Glue schema registry. Required for `glue` registries.",
+										Optional:    true,
+										Validators: []validator.String{
+											stringvalidator.RegexMatches(trimmedNonEmptyRegex, "must not be empty or have leading or trailing whitespace"),
+										},
+									},
+									"glue_role_arn": schema.StringAttribute{
+										MarkdownDescription: "The IAM role to assume for Glue schema registry access. Defaults to the IAM identity of the Kafka source, " +
+											"so it is required for `glue` registries unless the Kafka source uses `IAM_ROLE` or `IAM_USER` authentication.",
+										Optional: true,
+										Validators: []validator.String{
+											stringvalidator.RegexMatches(iamRoleArnRegex, "must be an IAM role ARN"),
 										},
 									},
 								},
@@ -3233,30 +3271,41 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !kafkaModel.SchemaRegistry.IsNull() {
 			schemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{}
 			diagnostics.Append(kafkaModel.SchemaRegistry.As(ctx, &schemaRegistryModel, basetypes.ObjectAsOptions{})...)
-			credentialsModel := models.ClickPipeSourceCredentialsModel{}
-			diagnostics.Append(schemaRegistryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+			if schemaRegistryModel.Type.ValueString() == api.ClickPipeKafkaSchemaRegistryTypeGlue {
+				// Glue authenticates with IAM, so no URL or credentials are sent.
+				source.Kafka.SchemaRegistry = &api.ClickPipeKafkaSchemaRegistry{
+					Type:             api.ClickPipeKafkaSchemaRegistryTypeGlue,
+					GlueRegion:       schemaRegistryModel.GlueRegion.ValueString(),
+					GlueRegistryName: schemaRegistryModel.GlueRegistryName.ValueString(),
+					GlueRoleArn:      schemaRegistryModel.GlueRoleArn.ValueStringPointer(),
+				}
+			} else {
+				credentialsModel := models.ClickPipeSourceCredentialsModel{}
+				diagnostics.Append(schemaRegistryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
 
-			var configSchemaRegistryCreds models.ClickPipeSourceCredentialsModel
-			if !configSourceModel.Kafka.IsNull() && !configSourceModel.Kafka.IsUnknown() {
-				configKafkaModel := models.ClickPipeKafkaSourceModel{}
-				diagnostics.Append(configSourceModel.Kafka.As(ctx, &configKafkaModel, basetypes.ObjectAsOptions{})...)
-				if !configKafkaModel.SchemaRegistry.IsNull() && !configKafkaModel.SchemaRegistry.IsUnknown() {
-					configSchemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{}
-					diagnostics.Append(configKafkaModel.SchemaRegistry.As(ctx, &configSchemaRegistryModel, basetypes.ObjectAsOptions{})...)
-					if !configSchemaRegistryModel.Credentials.IsNull() && !configSchemaRegistryModel.Credentials.IsUnknown() {
-						diagnostics.Append(configSchemaRegistryModel.Credentials.As(ctx, &configSchemaRegistryCreds, basetypes.ObjectAsOptions{})...)
+				var configSchemaRegistryCreds models.ClickPipeSourceCredentialsModel
+				if !configSourceModel.Kafka.IsNull() && !configSourceModel.Kafka.IsUnknown() {
+					configKafkaModel := models.ClickPipeKafkaSourceModel{}
+					diagnostics.Append(configSourceModel.Kafka.As(ctx, &configKafkaModel, basetypes.ObjectAsOptions{})...)
+					if !configKafkaModel.SchemaRegistry.IsNull() && !configKafkaModel.SchemaRegistry.IsUnknown() {
+						configSchemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{}
+						diagnostics.Append(configKafkaModel.SchemaRegistry.As(ctx, &configSchemaRegistryModel, basetypes.ObjectAsOptions{})...)
+						if !configSchemaRegistryModel.Credentials.IsNull() && !configSchemaRegistryModel.Credentials.IsUnknown() {
+							diagnostics.Append(configSchemaRegistryModel.Credentials.As(ctx, &configSchemaRegistryCreds, basetypes.ObjectAsOptions{})...)
+						}
 					}
 				}
-			}
-			credentialsModel.Password = overlayPasswordWO(credentialsModel.Password, configSchemaRegistryCreds.PasswordWO)
+				credentialsModel.Password = overlayPasswordWO(credentialsModel.Password, configSchemaRegistryCreds.PasswordWO)
 
-			source.Kafka.SchemaRegistry = &api.ClickPipeKafkaSchemaRegistry{
-				URL:            schemaRegistryModel.URL.ValueString(),
-				Authentication: schemaRegistryModel.Authentication.ValueString(),
-				Credentials: &api.ClickPipeSourceCredentials{
-					Username: credentialsModel.Username.ValueString(),
-					Password: credentialsModel.Password.ValueString(),
-				},
+				// Confluent registries omit `type` on the wire, keeping the request identical to the pre-Glue API.
+				source.Kafka.SchemaRegistry = &api.ClickPipeKafkaSchemaRegistry{
+					URL:            schemaRegistryModel.URL.ValueString(),
+					Authentication: schemaRegistryModel.Authentication.ValueString(),
+					Credentials: &api.ClickPipeSourceCredentials{
+						Username: credentialsModel.Username.ValueString(),
+						Password: credentialsModel.Password.ValueString(),
+					},
+				}
 			}
 		}
 
@@ -4340,10 +4389,29 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				stateSchemaRegistryModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
 			}
 
-			schemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{
-				URL:            types.StringValue(clickPipe.Source.Kafka.SchemaRegistry.URL),
-				Authentication: types.StringValue(clickPipe.Source.Kafka.SchemaRegistry.Authentication),
-				Credentials:    stateSchemaRegistryModel.Credentials,
+			schemaRegistry := clickPipe.Source.Kafka.SchemaRegistry
+			var schemaRegistryModel models.ClickPipeKafkaSchemaRegistryModel
+			if schemaRegistry.Type == api.ClickPipeKafkaSchemaRegistryTypeGlue {
+				schemaRegistryModel = models.ClickPipeKafkaSchemaRegistryModel{
+					Type:             types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeGlue),
+					URL:              types.StringNull(),
+					Authentication:   types.StringNull(),
+					Credentials:      types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes),
+					GlueRegion:       types.StringValue(schemaRegistry.GlueRegion),
+					GlueRegistryName: types.StringValue(schemaRegistry.GlueRegistryName),
+					GlueRoleArn:      types.StringPointerValue(schemaRegistry.GlueRoleArn),
+				}
+			} else {
+				// The API omits `type` for Confluent registries.
+				schemaRegistryModel = models.ClickPipeKafkaSchemaRegistryModel{
+					Type:             types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+					URL:              types.StringValue(schemaRegistry.URL),
+					Authentication:   types.StringValue(schemaRegistry.Authentication),
+					Credentials:      stateSchemaRegistryModel.Credentials,
+					GlueRegion:       types.StringNull(),
+					GlueRegistryName: types.StringNull(),
+					GlueRoleArn:      types.StringNull(),
+				}
 			}
 
 			kafkaModel.SchemaRegistry = schemaRegistryModel.ObjectValue()
