@@ -658,6 +658,8 @@ func (m ClickPipeBigQueryTableMappingModel) ObjectValue() types.Object {
 
 type ClickPipeBigQuerySourceModel struct {
 	SnapshotStagingPath types.String `tfsdk:"snapshot_staging_path"`
+	Authentication      types.String `tfsdk:"authentication"`
+	ProjectID           types.String `tfsdk:"project_id"`
 	Settings            types.Object `tfsdk:"settings"`
 	TableMappings       types.List   `tfsdk:"table_mappings"`
 	Credentials         types.Object `tfsdk:"credentials"`
@@ -667,6 +669,8 @@ func (m ClickPipeBigQuerySourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"snapshot_staging_path": types.StringType,
+			"authentication":        types.StringType,
+			"project_id":            types.StringType,
 			"settings":              ClickPipeBigQuerySettingsModel{}.ObjectType(),
 			"table_mappings":        types.ListType{ElemType: ClickPipeBigQueryTableMappingModel{}.ObjectType()},
 			"credentials":           ClickPipeServiceAccountModel{}.ObjectType(),
@@ -677,6 +681,8 @@ func (m ClickPipeBigQuerySourceModel) ObjectType() types.ObjectType {
 func (m ClickPipeBigQuerySourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"snapshot_staging_path": m.SnapshotStagingPath,
+		"authentication":        m.Authentication,
+		"project_id":            m.ProjectID,
 		"settings":              m.Settings,
 		"table_mappings":        m.TableMappings,
 		"credentials":           m.Credentials,

@@ -54,6 +54,7 @@ func (servicePackage) DataSources() []func() upstreamdatasource.DataSource {
 		datasource.NewUserDataSource,
 		datasource.NewServiceDataSource,
 		datasource.NewServicesDataSource,
+		datasource.NewClickPipesServiceContextDataSource,
 		datasource.NewServiceProfilesDataSource,
 	}
 }
