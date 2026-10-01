@@ -9,7 +9,7 @@ description: |-
   Only the settings listed in settings are managed. Settings configured on the service outside of Terraform are left untouched and do not show up as drift. Removing a setting from settings, or destroying the resource, resets it to the platform default.
   Use the settings schema endpoint https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-schema-get to discover which settings are configurable on a service and their types.
   Background merges
-  Set merges_enabled = false to stop the service from assigning background merges and mutations, for example on a compute group that should only serve reads. This maps to the shared_merge_tree_disable_merges_and_mutations_assignment setting, which cannot also be set through settings. Changing it triggers a rolling restart of the service. Leave it unset to keep the platform default.
+  Set merges_enabled = false to stop the service from assigning new background merges and mutations. Table size and read amplification grow while merges are off, so ClickHouse intends this for short-lived debugging windows only. This maps to the shared_merge_tree_disable_merges_and_mutations_assignment setting, which cannot also be set through settings. Changing it triggers a rolling restart of the service. Leave it unset to keep the platform default.
   Values
   Values are always written as strings in Terraform. The provider sends them to the API in the setting's native type: settings the schema types as string are sent as strings, and other values that parse as an integer are sent as integers.
   Disruptive settings
@@ -50,7 +50,7 @@ Use the [settings schema endpoint](https://clickhouse.com/docs/products/cloud/ap
 
 ## Background merges
 
-Set `merges_enabled = false` to stop the service from assigning background merges and mutations, for example on a compute group that should only serve reads. This maps to the `shared_merge_tree_disable_merges_and_mutations_assignment` setting, which cannot also be set through `settings`. Changing it triggers a rolling restart of the service. Leave it unset to keep the platform default.
+Set `merges_enabled = false` to stop the service from assigning new background merges and mutations. Table size and read amplification grow while merges are off, so ClickHouse intends this for short-lived debugging windows only. This maps to the `shared_merge_tree_disable_merges_and_mutations_assignment` setting, which cannot also be set through `settings`. Changing it triggers a rolling restart of the service. Leave it unset to keep the platform default.
 
 ## Values
 
@@ -117,7 +117,7 @@ resource "clickhouse_service_clickhouse_settings" "read_only" {
 
 ### Optional
 
-- `merges_enabled` (Boolean) Whether background merges and mutations are assigned on this service. Set to false to stop them, for example on a compute group that should only serve reads. Maps to the `shared_merge_tree_disable_merges_and_mutations_assignment` setting. Changing it triggers a rolling restart of the service.
+- `merges_enabled` (Boolean) Whether background merges and mutations are assigned on this service. Set to false to stop them during a short debugging window: table size and read amplification grow while merges are off. Maps to the `shared_merge_tree_disable_merges_and_mutations_assignment` setting. Changing it triggers a rolling restart of the service.
 - `settings` (Map of String) ClickHouse settings to configure, keyed by setting name. Values are strings; integer settings are sent as integers. Only the settings listed here are managed: removing one resets it to the platform default. Settings that have a dedicated attribute on this resource cannot be set here.
 
 ### Read-Only

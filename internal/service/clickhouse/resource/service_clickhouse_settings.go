@@ -73,11 +73,11 @@ func (r *ServiceClickhouseSettingsResource) Schema(_ context.Context, _ resource
 				ElementType: types.StringType,
 				Validators: []validator.Map{
 					mapvalidator.SizeAtLeast(1),
-					mapvalidator.KeysAre(stringvalidator.NoneOf(typedClickhouseSettingNames()...)),
+					mapvalidator.KeysAre(stringvalidator.NoneOf(settingDisableMergesAndMutations)),
 				},
 			},
 			"merges_enabled": schema.BoolAttribute{
-				Description: "Whether background merges and mutations are assigned on this service. Set to false to stop them, for example on a compute group that should only serve reads. Maps to the `" + settingDisableMergesAndMutations + "` setting. Changing it triggers a rolling restart of the service.",
+				Description: "Whether background merges and mutations are assigned on this service. Set to false to stop them during a short debugging window: table size and read amplification grow while merges are off. Maps to the `" + settingDisableMergesAndMutations + "` setting. Changing it triggers a rolling restart of the service.",
 				Optional:    true,
 			},
 		},
@@ -85,12 +85,11 @@ func (r *ServiceClickhouseSettingsResource) Schema(_ context.Context, _ resource
 }
 
 func (r *ServiceClickhouseSettingsResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
-	paths := []path.Expression{path.MatchRoot("settings")}
-	for _, t := range typedClickhouseSettings {
-		paths = append(paths, path.MatchRoot(t.attribute))
-	}
 	return []resource.ConfigValidator{
-		resourcevalidator.AtLeastOneOf(paths...),
+		resourcevalidator.AtLeastOneOf(
+			path.MatchRoot("settings"),
+			path.MatchRoot("merges_enabled"),
+		),
 	}
 }
 
@@ -166,12 +165,8 @@ func (r *ServiceClickhouseSettingsResource) Read(ctx context.Context, req resour
 		}
 		state.Settings = settings
 	}
-
-	for _, t := range typedClickhouseSettings {
-		if _, managed := t.toValue(&state); managed {
-			value, ok := current[t.setting]
-			t.fromValue(&state, value, ok)
-		}
+	if !state.MergesEnabled.IsNull() {
+		state.MergesEnabled = mergesEnabledFromSettings(current)
 	}
 
 	state.ID = state.ServiceID
@@ -266,21 +261,18 @@ func (r *ServiceClickhouseSettingsResource) ImportState(ctx context.Context, req
 	}
 
 	state := models.ServiceClickhouseSettingsResourceModel{
-		ID:        types.StringValue(req.ID),
-		ServiceID: types.StringValue(req.ID),
-		Settings:  types.MapNull(types.StringType),
+		ID:            types.StringValue(req.ID),
+		ServiceID:     types.StringValue(req.ID),
+		Settings:      types.MapNull(types.StringType),
+		MergesEnabled: mergesEnabledFromSettings(current),
 	}
 
 	untyped := map[string]string{}
 	for name, value := range current {
-		untyped[name] = value
+		if name != settingDisableMergesAndMutations {
+			untyped[name] = value
+		}
 	}
-	for _, t := range typedClickhouseSettings {
-		value, ok := current[t.setting]
-		t.fromValue(&state, value, ok)
-		delete(untyped, t.setting)
-	}
-
 	if len(untyped) > 0 {
 		settings, diags := types.MapValueFrom(ctx, types.StringType, untyped)
 		resp.Diagnostics.Append(diags...)
@@ -349,51 +341,6 @@ func clickhouseSettingsPayload(settings map[string]string, settingsSchema []api.
 
 const settingDisableMergesAndMutations = "shared_merge_tree_disable_merges_and_mutations_assignment"
 
-// typedClickhouseSetting maps a dedicated resource attribute to the
-// ClickHouse setting it controls.
-type typedClickhouseSetting struct {
-	attribute string
-	setting   string
-	// toValue returns the setting value for the model, and false when the
-	// attribute is null and the setting is not managed.
-	toValue func(m *models.ServiceClickhouseSettingsResourceModel) (string, bool)
-	// fromValue sets the attribute from the service's value, or to null when
-	// the setting is not configured on the service.
-	fromValue func(m *models.ServiceClickhouseSettingsResourceModel, value string, ok bool)
-}
-
-var typedClickhouseSettings = []typedClickhouseSetting{
-	{
-		attribute: "merges_enabled",
-		setting:   settingDisableMergesAndMutations,
-		toValue: func(m *models.ServiceClickhouseSettingsResourceModel) (string, bool) {
-			if m.MergesEnabled.IsNull() || m.MergesEnabled.IsUnknown() {
-				return "", false
-			}
-			if m.MergesEnabled.ValueBool() {
-				return "0", true
-			}
-			return "1", true
-		},
-		fromValue: func(m *models.ServiceClickhouseSettingsResourceModel, value string, ok bool) {
-			if !ok {
-				m.MergesEnabled = types.BoolNull()
-				return
-			}
-			disabled, err := strconv.ParseBool(value)
-			m.MergesEnabled = types.BoolValue(err != nil || !disabled)
-		},
-	},
-}
-
-func typedClickhouseSettingNames() []string {
-	names := make([]string, 0, len(typedClickhouseSettings))
-	for _, t := range typedClickhouseSettings {
-		names = append(names, t.setting)
-	}
-	return names
-}
-
 // desiredClickhouseSettings merges the settings map with the dedicated
 // attributes into the full set of settings the model manages.
 func desiredClickhouseSettings(ctx context.Context, m *models.ServiceClickhouseSettingsResourceModel) (map[string]string, diag.Diagnostics) {
@@ -402,12 +349,22 @@ func desiredClickhouseSettings(ctx context.Context, m *models.ServiceClickhouseS
 	if !m.Settings.IsNull() && !m.Settings.IsUnknown() {
 		diags.Append(m.Settings.ElementsAs(ctx, &settings, false)...)
 	}
-	for _, t := range typedClickhouseSettings {
-		if value, ok := t.toValue(m); ok {
-			settings[t.setting] = value
+	if !m.MergesEnabled.IsNull() && !m.MergesEnabled.IsUnknown() {
+		settings[settingDisableMergesAndMutations] = "0"
+		if !m.MergesEnabled.ValueBool() {
+			settings[settingDisableMergesAndMutations] = "1"
 		}
 	}
 	return settings, diags
+}
+
+func mergesEnabledFromSettings(current map[string]string) types.Bool {
+	value, ok := current[settingDisableMergesAndMutations]
+	if !ok {
+		return types.BoolNull()
+	}
+	disabled, err := strconv.ParseBool(value)
+	return types.BoolValue(err != nil || !disabled)
 }
 
 // managedClickhouseSettings narrows the server's settings to the keys this

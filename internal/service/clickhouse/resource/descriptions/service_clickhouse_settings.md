@@ -10,7 +10,7 @@ Use the [settings schema endpoint](https://clickhouse.com/docs/products/cloud/ap
 
 ## Background merges
 
-Set `merges_enabled = false` to stop the service from assigning background merges and mutations, for example on a compute group that should only serve reads. This maps to the `shared_merge_tree_disable_merges_and_mutations_assignment` setting, which cannot also be set through `settings`. Changing it triggers a rolling restart of the service. Leave it unset to keep the platform default.
+Set `merges_enabled = false` to stop the service from assigning new background merges and mutations. Table size and read amplification grow while merges are off, so ClickHouse intends this for short-lived debugging windows only. This maps to the `shared_merge_tree_disable_merges_and_mutations_assignment` setting, which cannot also be set through `settings`. Changing it triggers a rolling restart of the service. Leave it unset to keep the platform default.
 
 ## Values
 
