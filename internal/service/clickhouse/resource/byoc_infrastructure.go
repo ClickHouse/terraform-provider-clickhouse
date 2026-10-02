@@ -31,10 +31,35 @@ const (
 )
 
 var (
-	_ resource.Resource                = (*ByocInfrastructureResource)(nil)
-	_ resource.ResourceWithConfigure   = (*ByocInfrastructureResource)(nil)
-	_ resource.ResourceWithImportState = (*ByocInfrastructureResource)(nil)
+	_ resource.Resource                   = (*ByocInfrastructureResource)(nil)
+	_ resource.ResourceWithConfigure      = (*ByocInfrastructureResource)(nil)
+	_ resource.ResourceWithImportState    = (*ByocInfrastructureResource)(nil)
+	_ resource.ResourceWithValidateConfig = (*ByocInfrastructureResource)(nil)
 )
+
+// Write-only creation parameters are never returned by the API, so an
+// imported state holds null for them. Replacing only when a previously
+// recorded value changes lets the owner re-add them after import without
+// destroying the infrastructure.
+const byocAdoptDescription = "Requires replacement when a previously recorded value changes; a value configured over a null (imported) state is adopted in place."
+
+func byocStringRequiresReplaceUnlessAdopted() planmodifier.String {
+	return stringplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !req.StateValue.IsNull()
+		},
+		byocAdoptDescription, byocAdoptDescription,
+	)
+}
+
+func byocListRequiresReplaceUnlessAdopted() planmodifier.List {
+	return listplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.ListRequest, resp *listplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !req.StateValue.IsNull()
+		},
+		byocAdoptDescription, byocAdoptDescription,
+	)
+}
 
 //go:embed descriptions/byoc_infrastructure.md
 var byocInfrastructureResourceDescription string
@@ -99,21 +124,21 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Description: "AWS only: ExternalID of the onboarding IAM role trust policy. Write-only; not returned by the API.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					byocStringRequiresReplaceUnlessAdopted(),
 				},
 			},
 			"tenant_id": schema.StringAttribute{
 				Description: "Azure only: Entra tenant ID of the subscription. Write-only; not returned by the API.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					byocStringRequiresReplaceUnlessAdopted(),
 				},
 			},
 			"service_principal_client_id": schema.StringAttribute{
 				Description: "Azure only: client ID of the onboarding service principal. Write-only; not returned by the API.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					byocStringRequiresReplaceUnlessAdopted(),
 				},
 			},
 			"vpc_cidr_range": schema.StringAttribute{
@@ -130,14 +155,14 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Optional:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
-					listplanmodifier.RequiresReplace(),
+					byocListRequiresReplaceUnlessAdopted(),
 				},
 			},
 			"vpc_id": schema.StringAttribute{
 				Description: "BYO-VPC: ID of the customer-managed VPC to deploy into instead of a ClickHouse-managed one.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					byocStringRequiresReplaceUnlessAdopted(),
 				},
 			},
 			"private_subnet_ids": schema.ListAttribute{
@@ -145,7 +170,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Optional:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
-					listplanmodifier.RequiresReplace(),
+					byocListRequiresReplaceUnlessAdopted(),
 				},
 			},
 			"public_subnet_ids": schema.ListAttribute{
@@ -153,7 +178,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Optional:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
-					listplanmodifier.RequiresReplace(),
+					byocListRequiresReplaceUnlessAdopted(),
 				},
 			},
 			"gcp_pod_cidr_range_names": schema.ListAttribute{
@@ -161,14 +186,14 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Optional:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
-					listplanmodifier.RequiresReplace(),
+					byocListRequiresReplaceUnlessAdopted(),
 				},
 			},
 			"gcp_shared_vpc_host_project_id": schema.StringAttribute{
 				Description: "GCP BYO-VPC: host project ID when the customer-managed VPC is a shared VPC.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					byocStringRequiresReplaceUnlessAdopted(),
 				},
 			},
 			"enable_private_link": schema.BoolAttribute{
@@ -224,6 +249,27 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Optional:    true,
 			},
 		},
+	}
+}
+
+// ValidateConfig rejects gcp_psc_subnet_id without an explicit
+// enable_private_link = true: the API only accepts the subnet together with
+// private link enabled, and an omitted toggle must not silently flip it on.
+func (r *ByocInfrastructureResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config models.ByocInfrastructureResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if config.GcpPscSubnetID.IsNull() || config.GcpPscSubnetID.IsUnknown() || config.EnablePrivateLink.IsUnknown() {
+		return
+	}
+	if !config.EnablePrivateLink.ValueBool() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("gcp_psc_subnet_id"),
+			"gcp_psc_subnet_id requires enable_private_link = true",
+			"The API only accepts a Private Service Connect subnet together with private link enabled. Set enable_private_link = true explicitly in the configuration.",
+		)
 	}
 }
 
@@ -306,7 +352,7 @@ func (r *ByocInfrastructureResource) Create(ctx context.Context, req resource.Cr
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error waiting for BYOC infrastructure to provision",
-			fmt.Sprintf("BYOC infrastructure %s did not finish provisioning: %s\n\nThe infrastructure is tracked in state; run terraform apply again to continue waiting.", infra.Id, err.Error()),
+			fmt.Sprintf("BYOC infrastructure %s did not finish provisioning: %s\n\nProvisioning continues in the background and the infrastructure is tracked in state, but Terraform marks it tainted, so the next apply would destroy and recreate it. To keep it, run 'terraform untaint <resource address>', wait for the infrastructure to reach the %q state (check the ClickHouse Cloud console or the clickhouse_byoc_infrastructure data source), then run terraform apply to finish aligning the configuration.", infra.Id, err.Error(), api.ByocStateReady),
 		)
 		return
 	}
@@ -593,14 +639,10 @@ func byocPostCreatePatch(config *models.ByocInfrastructureResourceModel, details
 	}
 	if isKnown(config.GcpPscSubnetID) && stringDiffers(config.GcpPscSubnetID.ValueString(), details.GcpPscSubnetId) {
 		patch.GcpPscSubnetId = config.GcpPscSubnetID.ValueStringPointer()
-		// The API only accepts gcpPscSubnetId together with enablePrivateLink.
-		if patch.EnablePrivateLink == nil {
-			enabled := true
-			if isKnown(config.EnablePrivateLink) {
-				enabled = config.EnablePrivateLink.ValueBool()
-			}
-			patch.EnablePrivateLink = &enabled
-		}
+		// The API only accepts gcpPscSubnetId together with enablePrivateLink
+		// = true; ValidateConfig guarantees the configuration agrees.
+		enabled := true
+		patch.EnablePrivateLink = &enabled
 		hasPatch = true
 	}
 
@@ -630,13 +672,10 @@ func byocUpdateRequestFromModels(ctx context.Context, plan *models.ByocInfrastru
 	}
 	if isKnown(plan.GcpPscSubnetID) && !plan.GcpPscSubnetID.Equal(state.GcpPscSubnetID) {
 		patch.GcpPscSubnetId = plan.GcpPscSubnetID.ValueStringPointer()
-		if patch.EnablePrivateLink == nil {
-			enabled := true
-			if isKnown(plan.EnablePrivateLink) {
-				enabled = plan.EnablePrivateLink.ValueBool()
-			}
-			patch.EnablePrivateLink = &enabled
-		}
+		// The API only accepts gcpPscSubnetId together with enablePrivateLink
+		// = true; ValidateConfig guarantees the configuration agrees.
+		enabled := true
+		patch.EnablePrivateLink = &enabled
 		hasPatch = true
 	}
 	if isKnown(plan.Tags) && !plan.Tags.Equal(state.Tags) {
@@ -645,7 +684,7 @@ func byocUpdateRequestFromModels(ctx context.Context, plan *models.ByocInfrastru
 		if diags.HasError() {
 			return patch, false, diags
 		}
-		patch.Tags = tags
+		patch.Tags = &tags
 		hasPatch = true
 	}
 

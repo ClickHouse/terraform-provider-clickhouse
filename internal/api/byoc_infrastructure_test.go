@@ -188,6 +188,30 @@ func TestUpdateByocInfrastructure_SendsOnlySetFields(t *testing.T) {
 	}
 }
 
+func TestUpdateByocInfrastructure_EmptyTagsSerializesAsEmptyObject(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		got := map[string]any{}
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("request body is not JSON: %v", err)
+		}
+		tags, present := got["tags"]
+		if !present {
+			t.Errorf("tags must be sent when explicitly set to an empty map; body = %s", body)
+		} else if m, ok := tags.(map[string]any); !ok || len(m) != 0 {
+			t.Errorf("tags = %v; want empty object", tags)
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[ByocInfrastructure]{Result: ByocInfrastructure{Id: "byoc-1"}})
+	})
+
+	emptyTags := map[string]string{}
+	if _, err := client.UpdateByocInfrastructure(context.Background(), "byoc-1", ByocInfrastructureUpdateRequest{
+		Tags: &emptyTags,
+	}); err != nil {
+		t.Fatalf("UpdateByocInfrastructure: %v", err)
+	}
+}
+
 func TestDeleteByocInfrastructure_HappyPath(t *testing.T) {
 	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {

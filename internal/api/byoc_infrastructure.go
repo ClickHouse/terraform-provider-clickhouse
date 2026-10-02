@@ -99,13 +99,15 @@ type ByocInfrastructureValidateRequest struct {
 // ByocInfrastructureUpdateRequest is the payload for updating a BYOC
 // infrastructure. Only set fields are sent; Tags replaces the full tag map.
 // GcpPscSubnetId is only accepted together with EnablePrivateLink = true.
+// Tags is a pointer so an explicit empty map serializes as "tags":{} and
+// clears the server-side tags instead of being dropped by omitempty.
 type ByocInfrastructureUpdateRequest struct {
-	DisplayName               *string           `json:"displayName,omitempty"`
-	EnablePrivateLink         *bool             `json:"enablePrivateLink,omitempty"`
-	EnablePrivateLoadBalancer *bool             `json:"enablePrivateLoadBalancer,omitempty"`
-	EnablePublicLoadBalancer  *bool             `json:"enablePublicLoadBalancer,omitempty"`
-	GcpPscSubnetId            *string           `json:"gcpPscSubnetId,omitempty"`
-	Tags                      map[string]string `json:"tags,omitempty"`
+	DisplayName               *string            `json:"displayName,omitempty"`
+	EnablePrivateLink         *bool              `json:"enablePrivateLink,omitempty"`
+	EnablePrivateLoadBalancer *bool              `json:"enablePrivateLoadBalancer,omitempty"`
+	EnablePublicLoadBalancer  *bool              `json:"enablePublicLoadBalancer,omitempty"`
+	GcpPscSubnetId            *string            `json:"gcpPscSubnetId,omitempty"`
+	Tags                      *map[string]string `json:"tags,omitempty"`
 }
 
 // ByocInfrastructureValidation is the outcome of the preflight validation.

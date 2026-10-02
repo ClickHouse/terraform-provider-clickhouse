@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -271,6 +273,15 @@ func TestByocInfrastructureResourceCreateSkipsPreflight(t *testing.T) {
 	}
 }
 
+func byocInfraConfig(t *testing.T, schemaResp resource.SchemaResponse, model *models.ByocInfrastructureResourceModel) tfsdk.Config {
+	t.Helper()
+	plan := tfsdk.Plan{Schema: schemaResp.Schema}
+	if diags := plan.Set(context.Background(), model); diags.HasError() {
+		t.Fatalf("set config: %v", diags)
+	}
+	return tfsdk.Config{Schema: schemaResp.Schema, Raw: plan.Raw}
+}
+
 func byocInfraState(t *testing.T, schemaResp resource.SchemaResponse) tfsdk.State {
 	t.Helper()
 	ctx := context.Background()
@@ -514,6 +525,127 @@ func TestByocPostCreatePatchForcesPrivateLinkWithPscSubnet(t *testing.T) {
 	}
 	if patch.EnablePrivateLink == nil || !*patch.EnablePrivateLink {
 		t.Error("enablePrivateLink must accompany gcpPscSubnetId")
+	}
+}
+
+func TestByocUpdateRequestForcesPrivateLinkWithPscSubnet(t *testing.T) {
+	// The private-link toggle in the plan is known-false via
+	// UseStateForUnknown when omitted from config; the PSC subnet patch must
+	// still carry enablePrivateLink = true, which ValidateConfig guarantees
+	// the configuration agrees with.
+	state := byocInfraModel()
+	state.EnablePrivateLink = types.BoolValue(false)
+	plan := byocInfraModel()
+	plan.EnablePrivateLink = types.BoolValue(false)
+	plan.GcpPscSubnetID = types.StringValue("psc-subnet")
+
+	patch, hasPatch, diags := byocUpdateRequestFromModels(context.Background(), &plan, &state)
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if !hasPatch {
+		t.Fatal("expected a patch for the added PSC subnet")
+	}
+	if patch.EnablePrivateLink == nil || !*patch.EnablePrivateLink {
+		t.Error("enablePrivateLink must be true alongside gcpPscSubnetId")
+	}
+}
+
+func TestByocUpdateRequestEmptyTagsClearsServerTags(t *testing.T) {
+	state := byocInfraModel()
+	state.Tags = types.MapValueMust(types.StringType, map[string]attr.Value{"env": types.StringValue("prod")})
+	plan := byocInfraModel()
+	plan.Tags = types.MapValueMust(types.StringType, map[string]attr.Value{})
+
+	patch, hasPatch, diags := byocUpdateRequestFromModels(context.Background(), &plan, &state)
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if !hasPatch {
+		t.Fatal("expected a patch for the emptied tags")
+	}
+	if patch.Tags == nil || len(*patch.Tags) != 0 {
+		t.Errorf("tags = %v; want pointer to empty map", patch.Tags)
+	}
+}
+
+func TestByocInfrastructureResourceValidateConfigRejectsPscSubnetWithoutPrivateLink(t *testing.T) {
+	ctx := context.Background()
+	r, schemaResp := byocInfraSchema(t)
+
+	for name, enablePrivateLink := range map[string]types.Bool{
+		"omitted":        types.BoolNull(),
+		"explicit false": types.BoolValue(false),
+	} {
+		t.Run(name, func(t *testing.T) {
+			model := byocInfraModel()
+			model.GcpPscSubnetID = types.StringValue("psc-subnet")
+			model.EnablePrivateLink = enablePrivateLink
+			cfg := byocInfraConfig(t, schemaResp, &model)
+
+			resp := resource.ValidateConfigResponse{}
+			r.ValidateConfig(ctx, resource.ValidateConfigRequest{Config: cfg}, &resp)
+			if !resp.Diagnostics.HasError() {
+				t.Fatal("ValidateConfig should reject gcp_psc_subnet_id without enable_private_link = true")
+			}
+		})
+	}
+
+	model := byocInfraModel()
+	model.GcpPscSubnetID = types.StringValue("psc-subnet")
+	model.EnablePrivateLink = types.BoolValue(true)
+	cfg := byocInfraConfig(t, schemaResp, &model)
+	resp := resource.ValidateConfigResponse{}
+	r.ValidateConfig(ctx, resource.ValidateConfigRequest{Config: cfg}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("ValidateConfig diagnostics: %v", resp.Diagnostics)
+	}
+}
+
+func TestByocWriteOnlyAttributesAdoptedOverNullState(t *testing.T) {
+	ctx := context.Background()
+	_, schemaResp := byocInfraSchema(t)
+	raw := byocInfraState(t, schemaResp).Raw
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: raw}
+	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: raw}
+
+	stringModifier := byocStringRequiresReplaceUnlessAdopted()
+
+	adoptReq := planmodifier.StringRequest{
+		State:      state,
+		Plan:       plan,
+		StateValue: types.StringNull(),
+		PlanValue:  types.StringValue("external-id-1"),
+	}
+	adoptResp := &planmodifier.StringResponse{PlanValue: adoptReq.PlanValue}
+	stringModifier.PlanModifyString(ctx, adoptReq, adoptResp)
+	if adoptResp.RequiresReplace {
+		t.Error("configuring a value over a null (imported) state must not require replacement")
+	}
+
+	changeReq := planmodifier.StringRequest{
+		State:      state,
+		Plan:       plan,
+		StateValue: types.StringValue("old"),
+		PlanValue:  types.StringValue("new"),
+	}
+	changeResp := &planmodifier.StringResponse{PlanValue: changeReq.PlanValue}
+	stringModifier.PlanModifyString(ctx, changeReq, changeResp)
+	if !changeResp.RequiresReplace {
+		t.Error("changing a previously recorded value must require replacement")
+	}
+
+	listModifier := byocListRequiresReplaceUnlessAdopted()
+	listAdoptReq := planmodifier.ListRequest{
+		State:      state,
+		Plan:       plan,
+		StateValue: types.ListNull(types.StringType),
+		PlanValue:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("subnet-1")}),
+	}
+	listAdoptResp := &planmodifier.ListResponse{PlanValue: listAdoptReq.PlanValue}
+	listModifier.PlanModifyList(ctx, listAdoptReq, listAdoptResp)
+	if listAdoptResp.RequiresReplace {
+		t.Error("configuring a list over a null (imported) state must not require replacement")
 	}
 }
 

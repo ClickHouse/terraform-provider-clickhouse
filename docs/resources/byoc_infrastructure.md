@@ -22,7 +22,7 @@ description: |-
   documentation https://clickhouse.com/docs/cloud/reference/byoc for details.
   ~> Note: This resource is in beta. Its behavior may change in future provider versions.
   Known limitations:
-  Write-only creation parameters (external_id, tenant_id, service_principal_client_id, availability_zone_suffixes, public_subnet_ids, vpc_id, private_subnet_ids, gcp_pod_cidr_range_names, gcp_shared_vpc_host_project_id) are not returned by the API. After terraform import they are unset in state; set them in the configuration to match what the infrastructure was created with.
+  Write-only creation parameters (external_id, tenant_id, service_principal_client_id, availability_zone_suffixes, public_subnet_ids, vpc_id, private_subnet_ids, gcp_pod_cidr_range_names, gcp_shared_vpc_host_project_id) are not returned by the API. After terraform import they are unset in state; add them to the configuration to match what the infrastructure was created with — they are adopted in place without replacement. Changing a previously recorded value still requires replacement.
 ---
 
 # clickhouse_byoc_infrastructure (Resource)
@@ -52,7 +52,7 @@ documentation](https://clickhouse.com/docs/cloud/reference/byoc) for details.
 
 Known limitations:
 
-- Write-only creation parameters (`external_id`, `tenant_id`, `service_principal_client_id`, `availability_zone_suffixes`, `public_subnet_ids`, `vpc_id`, `private_subnet_ids`, `gcp_pod_cidr_range_names`, `gcp_shared_vpc_host_project_id`) are not returned by the API. After `terraform import` they are unset in state; set them in the configuration to match what the infrastructure was created with.
+- Write-only creation parameters (`external_id`, `tenant_id`, `service_principal_client_id`, `availability_zone_suffixes`, `public_subnet_ids`, `vpc_id`, `private_subnet_ids`, `gcp_pod_cidr_range_names`, `gcp_shared_vpc_host_project_id`) are not returned by the API. After `terraform import` they are unset in state; add them to the configuration to match what the infrastructure was created with — they are adopted in place without replacement. Changing a previously recorded value still requires replacement.
 
 ## Example Usage
 
@@ -137,6 +137,7 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 #!/bin/bash
 # Import by BYOC infrastructure ID. Write-only creation parameters
 # (external_id, tenant_id, service_principal_client_id, vpc_id, subnet lists)
-# are not returned by the API; set them in the configuration after importing.
+# are not returned by the API; add them to the configuration after importing.
+# They are adopted in place — only changing a recorded value forces replacement.
 terraform import clickhouse_byoc_infrastructure.example 44444444-4444-4444-4444-444444444444
 ```
