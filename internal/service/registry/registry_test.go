@@ -43,8 +43,8 @@ func TestServicePackages(t *testing.T) {
 	// Bump these numbers deliberately when a group gains or loses a
 	// resource/data source.
 	const (
-		wantResources   = 28 // 18 clickhouse + 1 postgres + 9 clickstack
-		wantDataSources = 14 // 9 clickhouse + 3 postgres + 2 clickstack
+		wantResources   = 29 // 19 clickhouse + 1 postgres + 9 clickstack
+		wantDataSources = 15 // 10 clickhouse + 3 postgres + 2 clickstack
 	)
 	if len(resTypes) != wantResources {
 		t.Errorf("registered resource count = %d, want %d (a factory was added or dropped?)", len(resTypes), wantResources)
