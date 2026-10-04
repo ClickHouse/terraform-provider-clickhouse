@@ -375,6 +375,39 @@ func TestByocInfrastructureResourceReadRemovesTerminatedInfra(t *testing.T) {
 	}
 }
 
+func TestByocInfrastructureResourceReadKeepsTerminatingInfra(t *testing.T) {
+	ctx := context.Background()
+	r, schemaResp := byocInfraSchema(t)
+	state := byocInfraState(t, schemaResp)
+
+	mc := minimock.NewController(t)
+	client := api.NewClientMock(mc)
+	client.GetByocInfrastructureMock.
+		Expect(ctx, byocInfraID).
+		Return(byocInfraDetails(api.ByocStateTerminating), nil)
+	client.GetByocInfrastructureTagsMock.
+		Expect(ctx, byocInfraID).
+		Return(map[string]string{}, nil)
+	r.client = client
+
+	resp := resource.ReadResponse{State: state}
+	r.Read(ctx, resource.ReadRequest{State: state}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Read diagnostics: %v", resp.Diagnostics)
+	}
+	if resp.State.Raw.IsNull() {
+		t.Fatal("terminating infrastructure must stay in state until it is gone")
+	}
+
+	var got models.ByocInfrastructureResourceModel
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("read state: %v", diags)
+	}
+	if got.State.ValueString() != api.ByocStateTerminating {
+		t.Errorf("state = %q; want %q", got.State.ValueString(), api.ByocStateTerminating)
+	}
+}
+
 func TestByocInfrastructureResourceUpdate(t *testing.T) {
 	t.Setenv(utils.SuppressBetaWarningsEnvVar, "true")
 	ctx := context.Background()
@@ -510,13 +543,17 @@ func TestByocInfrastructureResourceImport(t *testing.T) {
 	}
 }
 
-func TestByocPostCreatePatchForcesPrivateLinkWithPscSubnet(t *testing.T) {
+func TestByocPostCreatePatchSendsPrivateLinkWithPscSubnet(t *testing.T) {
 	config := models.ByocInfrastructureResourceModel{
-		GcpPscSubnetID: types.StringValue("psc-subnet"),
+		GcpPscSubnetID:    types.StringValue("psc-subnet"),
+		EnablePrivateLink: types.BoolValue(true),
 	}
 	details := byocInfraDetails(api.ByocStateReady)
 
-	patch, hasPatch := byocPostCreatePatch(&config, details)
+	patch, hasPatch, diags := byocPostCreatePatch(&config, details)
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
 	if !hasPatch {
 		t.Fatal("expected a patch for the configured PSC subnet")
 	}
@@ -528,15 +565,35 @@ func TestByocPostCreatePatchForcesPrivateLinkWithPscSubnet(t *testing.T) {
 	}
 }
 
-func TestByocUpdateRequestForcesPrivateLinkWithPscSubnet(t *testing.T) {
-	// The private-link toggle in the plan is known-false via
-	// UseStateForUnknown when omitted from config; the PSC subnet patch must
-	// still carry enablePrivateLink = true, which ValidateConfig guarantees
-	// the configuration agrees with.
+func TestByocPostCreatePatchRejectsPscSubnetWithoutPrivateLink(t *testing.T) {
+	// Unknown interpolations bypass ValidateConfig, so the resolved values
+	// must be re-checked instead of forcing enablePrivateLink = true.
+	for name, enablePrivateLink := range map[string]types.Bool{
+		"omitted":        types.BoolNull(),
+		"explicit false": types.BoolValue(false),
+	} {
+		t.Run(name, func(t *testing.T) {
+			config := models.ByocInfrastructureResourceModel{
+				GcpPscSubnetID:    types.StringValue("psc-subnet"),
+				EnablePrivateLink: enablePrivateLink,
+			}
+
+			_, hasPatch, diags := byocPostCreatePatch(&config, byocInfraDetails(api.ByocStateReady))
+			if !diags.HasError() {
+				t.Fatal("expected an error for gcp_psc_subnet_id without enable_private_link = true")
+			}
+			if hasPatch {
+				t.Error("expected no patch when the PSC subnet invariant fails")
+			}
+		})
+	}
+}
+
+func TestByocUpdateRequestSendsPrivateLinkWithPscSubnet(t *testing.T) {
 	state := byocInfraModel()
-	state.EnablePrivateLink = types.BoolValue(false)
+	state.EnablePrivateLink = types.BoolValue(true)
 	plan := byocInfraModel()
-	plan.EnablePrivateLink = types.BoolValue(false)
+	plan.EnablePrivateLink = types.BoolValue(true)
 	plan.GcpPscSubnetID = types.StringValue("psc-subnet")
 
 	patch, hasPatch, diags := byocUpdateRequestFromModels(context.Background(), &plan, &state)
@@ -546,8 +603,27 @@ func TestByocUpdateRequestForcesPrivateLinkWithPscSubnet(t *testing.T) {
 	if !hasPatch {
 		t.Fatal("expected a patch for the added PSC subnet")
 	}
+	if patch.GcpPscSubnetId == nil || *patch.GcpPscSubnetId != "psc-subnet" {
+		t.Errorf("gcpPscSubnetId = %v; want psc-subnet", patch.GcpPscSubnetId)
+	}
 	if patch.EnablePrivateLink == nil || !*patch.EnablePrivateLink {
 		t.Error("enablePrivateLink must be true alongside gcpPscSubnetId")
+	}
+}
+
+func TestByocUpdateRequestRejectsPscSubnetWithoutPrivateLink(t *testing.T) {
+	state := byocInfraModel()
+	state.EnablePrivateLink = types.BoolValue(false)
+	plan := byocInfraModel()
+	plan.EnablePrivateLink = types.BoolValue(false)
+	plan.GcpPscSubnetID = types.StringValue("psc-subnet")
+
+	_, hasPatch, diags := byocUpdateRequestFromModels(context.Background(), &plan, &state)
+	if !diags.HasError() {
+		t.Fatal("expected an error for gcp_psc_subnet_id without enable_private_link = true")
+	}
+	if hasPatch {
+		t.Error("expected no patch when the PSC subnet invariant fails")
 	}
 }
 
@@ -651,7 +727,10 @@ func TestByocWriteOnlyAttributesAdoptedOverNullState(t *testing.T) {
 
 func TestByocPostCreatePatchNoopWhenNothingConfigured(t *testing.T) {
 	config := models.ByocInfrastructureResourceModel{}
-	_, hasPatch := byocPostCreatePatch(&config, byocInfraDetails(api.ByocStateReady))
+	_, hasPatch, diags := byocPostCreatePatch(&config, byocInfraDetails(api.ByocStateReady))
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
 	if hasPatch {
 		t.Error("expected no patch when no toggles are configured")
 	}

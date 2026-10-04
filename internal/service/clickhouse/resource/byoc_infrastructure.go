@@ -255,6 +255,8 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 // ValidateConfig rejects gcp_psc_subnet_id without an explicit
 // enable_private_link = true: the API only accepts the subnet together with
 // private link enabled, and an omitted toggle must not silently flip it on.
+// Unknown values pass here and are re-checked with resolved values when the
+// patch is built in Create and Update.
 func (r *ByocInfrastructureResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var config models.ByocInfrastructureResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
@@ -377,7 +379,11 @@ func (r *ByocInfrastructureResource) Create(ctx context.Context, req resource.Cr
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	patch, hasPatch := byocPostCreatePatch(&config, details)
+	patch, hasPatch, patchDiags := byocPostCreatePatch(&config, details)
+	resp.Diagnostics.Append(patchDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	if hasPatch {
 		if _, err := r.client.UpdateByocInfrastructure(ctx, infra.Id, patch); err != nil {
 			resp.Diagnostics.AddError("Error applying BYOC infrastructure settings after create", err.Error())
@@ -406,7 +412,9 @@ func (r *ByocInfrastructureResource) Read(ctx context.Context, req resource.Read
 		resp.Diagnostics.AddError("Error reading BYOC infrastructure", err.Error())
 		return
 	}
-	if details.State == api.ByocStateTerminated || details.State == api.ByocStateTerminating {
+	// Termination is asynchronous (up to an hour); keep tracking until the
+	// infrastructure is actually gone so a replacement cannot overlap it.
+	if details.State == api.ByocStateTerminated {
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -619,9 +627,25 @@ func byocValidateRequestFromCreate(r api.ByocInfrastructureCreateRequest) api.By
 	}
 }
 
+// byocRequirePrivateLinkForPscSubnet re-checks the PSC-subnet invariant with
+// resolved values: unknown interpolations bypass ValidateConfig, and silently
+// forcing enablePrivateLink = true would contradict an explicit false.
+func byocRequirePrivateLinkForPscSubnet(enablePrivateLink types.Bool, diags *diag.Diagnostics) bool {
+	if isKnown(enablePrivateLink) && enablePrivateLink.ValueBool() {
+		return true
+	}
+	diags.AddAttributeError(
+		path.Root("gcp_psc_subnet_id"),
+		"gcp_psc_subnet_id requires enable_private_link = true",
+		"The API only accepts a Private Service Connect subnet together with private link enabled. Set enable_private_link = true explicitly in the configuration.",
+	)
+	return false
+}
+
 // byocPostCreatePatch returns the update needed to align the provisioned
 // infrastructure with explicitly configured toggles and PSC subnet.
-func byocPostCreatePatch(config *models.ByocInfrastructureResourceModel, details *api.ByocInfrastructureDetails) (api.ByocInfrastructureUpdateRequest, bool) {
+func byocPostCreatePatch(config *models.ByocInfrastructureResourceModel, details *api.ByocInfrastructureDetails) (api.ByocInfrastructureUpdateRequest, bool, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	patch := api.ByocInfrastructureUpdateRequest{}
 	hasPatch := false
 
@@ -638,15 +662,15 @@ func byocPostCreatePatch(config *models.ByocInfrastructureResourceModel, details
 		hasPatch = true
 	}
 	if isKnown(config.GcpPscSubnetID) && stringDiffers(config.GcpPscSubnetID.ValueString(), details.GcpPscSubnetId) {
+		if !byocRequirePrivateLinkForPscSubnet(config.EnablePrivateLink, &diags) {
+			return patch, false, diags
+		}
 		patch.GcpPscSubnetId = config.GcpPscSubnetID.ValueStringPointer()
-		// The API only accepts gcpPscSubnetId together with enablePrivateLink
-		// = true; ValidateConfig guarantees the configuration agrees.
-		enabled := true
-		patch.EnablePrivateLink = &enabled
+		patch.EnablePrivateLink = config.EnablePrivateLink.ValueBoolPointer()
 		hasPatch = true
 	}
 
-	return patch, hasPatch
+	return patch, hasPatch, diags
 }
 
 func byocUpdateRequestFromModels(ctx context.Context, plan *models.ByocInfrastructureResourceModel, state *models.ByocInfrastructureResourceModel) (api.ByocInfrastructureUpdateRequest, bool, diag.Diagnostics) {
@@ -671,11 +695,11 @@ func byocUpdateRequestFromModels(ctx context.Context, plan *models.ByocInfrastru
 		hasPatch = true
 	}
 	if isKnown(plan.GcpPscSubnetID) && !plan.GcpPscSubnetID.Equal(state.GcpPscSubnetID) {
+		if !byocRequirePrivateLinkForPscSubnet(plan.EnablePrivateLink, &diags) {
+			return patch, false, diags
+		}
 		patch.GcpPscSubnetId = plan.GcpPscSubnetID.ValueStringPointer()
-		// The API only accepts gcpPscSubnetId together with enablePrivateLink
-		// = true; ValidateConfig guarantees the configuration agrees.
-		enabled := true
-		patch.EnablePrivateLink = &enabled
+		patch.EnablePrivateLink = plan.EnablePrivateLink.ValueBoolPointer()
 		hasPatch = true
 	}
 	if isKnown(plan.Tags) && !plan.Tags.Equal(state.Tags) {
