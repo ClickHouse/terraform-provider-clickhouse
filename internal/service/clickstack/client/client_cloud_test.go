@@ -442,3 +442,42 @@ func TestCloudValidateDegrades(t *testing.T) {
 		t.Errorf("expected ErrValidateUnsupported, got %v", err)
 	}
 }
+
+// TestCloudSetSourceLinksListsAndFilters guards the raw GET fallback: the Cloud
+// API has no GET-by-id for sources, so SetSourceLinks must find the source in
+// the list before writing it back.
+func TestCloudSetSourceLinksListsAndFilters(t *testing.T) {
+	t.Parallel()
+
+	var put map[string]any
+	c := newCloudTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/organizations/org1/services/svc1/clickstack/sources":
+			_, _ = io.WriteString(w, `{"status":200,"requestId":"r","result":[`+
+				`{"id":"s1","kind":"log","name":"a"},{"id":"s2","kind":"log","name":"b","seriesTable":"x"}]}`)
+		case r.Method == http.MethodPut && r.URL.Path == "/organizations/org1/services/svc1/clickstack/sources/s2":
+			if err := json.NewDecoder(r.Body).Decode(&put); err != nil {
+				t.Fatalf("decode PUT body: %v", err)
+			}
+			_, _ = io.WriteString(w, `{"status":200,"requestId":"r","result":{"id":"s2","kind":"log","name":"b","traceSourceId":"t1"}}`)
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	t1 := "t1"
+	src, err := c.SetSourceLinks(context.Background(), "s2", map[string]*string{LinkKeyTraceSource: &t1})
+	if err != nil {
+		t.Fatalf("SetSourceLinks: %v", err)
+	}
+	if put["name"] != "b" || put["seriesTable"] != "x" || put["traceSourceId"] != "t1" {
+		t.Errorf("unexpected PUT body: %v", put)
+	}
+	if src.TraceSourceID == nil || *src.TraceSourceID != "t1" {
+		t.Errorf("returned traceSourceId = %v, want t1", src.TraceSourceID)
+	}
+	if _, err := c.SetSourceLinks(context.Background(), "missing", nil); !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound for a missing source, got %v", err)
+	}
+}

@@ -25,6 +25,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		NewConnectionResource,
 		NewDashboardResource,
 		NewSourceResource,
+		NewSourceLinksResource,
 		NewRoleResource,
 		NewTeamResource,
 		NewTeamMemberResource,
