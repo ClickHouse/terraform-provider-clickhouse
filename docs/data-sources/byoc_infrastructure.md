@@ -47,6 +47,12 @@ resource "clickhouse_service" "byoc" {
   cloud_provider = data.clickhouse_byoc_infrastructure.this.cloud_provider
   region         = data.clickhouse_byoc_infrastructure.this.region_id
   byoc_id        = data.clickhouse_byoc_infrastructure.this.id
+
+  # BYOC services use custom instance profiles; discover the available
+  # profiles with the clickhouse_service_profiles data source.
+  profile               = "v1-standard-byoc-4"
+  min_replica_memory_gb = 8 # must equal the profile's memory_gi
+  max_replica_memory_gb = 8
 }
 
 output "byoc_state" {
