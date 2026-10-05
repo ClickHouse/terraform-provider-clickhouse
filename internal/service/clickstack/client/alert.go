@@ -90,7 +90,7 @@ type Alert struct {
 	Name                  *string         `json:"name,omitempty"`
 	Message               *string         `json:"message,omitempty"`
 	Note                  *string         `json:"note,omitempty"`
-	Tags                  []string        `json:"tags"`
+	Tags                  *[]string       `json:"tags,omitempty"`
 	NumConsecutiveWindows *int            `json:"numConsecutiveWindows,omitempty"`
 	ScheduleOffsetMinutes *int            `json:"scheduleOffsetMinutes,omitempty"`
 	// ScheduleStartAt is always serialized (no omitempty): a nil pointer sends

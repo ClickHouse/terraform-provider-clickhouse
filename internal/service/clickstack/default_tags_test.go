@@ -122,7 +122,7 @@ func TestAlertDefaultTags(t *testing.T) {
 	m := mkAlert(func(m *alertResourceModel) {
 		m.Tags = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("mine")})
 	})
-	m.applyTags(ctx, []string{"mine", "tf"}, r.defaultTags)
+	m.applyTags(ctx, &[]string{"mine", "tf"}, r.defaultTags)
 	var got []string
 	m.Tags.ElementsAs(ctx, &got, false)
 	if !slices.Equal(got, []string{"mine"}) {

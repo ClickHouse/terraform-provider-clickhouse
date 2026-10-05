@@ -815,11 +815,12 @@ func (r *alertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 // tagsToSend adds the provider defaults to explicit tags. Nil stays nil:
 // the server then copies the parent's tags, which already carry the defaults.
-func (r *alertResource) tagsToSend(tags []string) []string {
+func (r *alertResource) tagsToSend(tags *[]string) *[]string {
 	if tags == nil {
 		return nil
 	}
-	return withDefaultTags(tags, r.defaultTags)
+	merged := withDefaultTags(*tags, r.defaultTags)
+	return &merged
 }
 
 // ModifyPlan plans tags_all so a change to the provider's default tags updates alerts that set tags.
@@ -939,8 +940,9 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 		al.NumConsecutiveWindows = &v
 	}
 	if known(m.Tags) {
-		al.Tags = []string{}
-		diags.Append(m.Tags.ElementsAs(ctx, &al.Tags, false)...)
+		tags := []string{}
+		diags.Append(m.Tags.ElementsAs(ctx, &tags, false)...)
+		al.Tags = &tags
 	}
 	// Scheduling modes are mutually exclusive. schedule_start_at is always sent
 	// (nil -> JSON null clears it, and the server then forces the offset to 0).
@@ -1049,7 +1051,7 @@ func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) d
 
 // applyTags stores the server's tags, minus the provider defaults the alert did
 // not list itself.
-func (m *alertResourceModel) applyTags(ctx context.Context, server, defaultTags []string) diag.Diagnostics {
+func (m *alertResourceModel) applyTags(ctx context.Context, server *[]string, defaultTags []string) diag.Diagnostics {
 	var diags diag.Diagnostics
 	// Null tags mean "copy the parent's", so the copy stays out of state;
 	// otherwise every unset alert would diff on its parent's tags.
@@ -1067,9 +1069,9 @@ func (m *alertResourceModel) applyTags(ctx context.Context, server, defaultTags 
 	diags.Append(m.Tags.ElementsAs(ctx, &own, false)...)
 	drop, d := tagsDropList(ctx, m.TagsAll, defaultTags)
 	diags.Append(d...)
-	m.Tags, d = stringSliceToList(withoutDefaultTags(server, own, drop))
+	m.Tags, d = stringSliceToList(withoutDefaultTags(*server, own, drop))
 	diags.Append(d...)
-	m.TagsAll, d = tagsSet(server)
+	m.TagsAll, d = tagsSet(*server)
 	diags.Append(d...)
 	return diags
 }

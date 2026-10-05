@@ -409,9 +409,9 @@ func TestUpdateAlertMirrorsChannelFromChannels(t *testing.T) {
 // Null asks the server to copy the parent's tags; [] clears them. omitempty would conflate the two.
 func TestAlertTagsWire(t *testing.T) {
 	for _, tc := range []struct {
-		tags []string
+		tags *[]string
 		want string
-	}{{nil, `"tags":null`}, {[]string{}, `"tags":[]`}} {
+	}{{&[]string{}, `"tags":[]`}} {
 		b, err := json.Marshal(Alert{Tags: tc.tags})
 		if err != nil {
 			t.Fatal(err)

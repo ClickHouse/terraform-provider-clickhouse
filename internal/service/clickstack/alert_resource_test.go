@@ -1138,7 +1138,7 @@ func TestAlertResource_ApplyAlert_ChartConfigOnlyForInline(t *testing.T) {
 func TestAlertResource_Tags(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	inherited := &client.Alert{ThresholdType: thresholdTypeAbove, Tags: []string{"from-parent"}}
+	inherited := &client.Alert{ThresholdType: thresholdTypeAbove, Tags: &[]string{"from-parent"}}
 
 	unset := mkAlert(nil)
 	if al, _ := unset.toClient(ctx); al.Tags != nil {
@@ -1150,7 +1150,7 @@ func TestAlertResource_Tags(t *testing.T) {
 	}
 
 	empty := mkAlert(func(m *alertResourceModel) { m.Tags = types.ListValueMust(types.StringType, nil) })
-	if al, _ := empty.toClient(ctx); al.Tags == nil || len(al.Tags) != 0 {
+	if al, _ := empty.toClient(ctx); al.Tags == nil || len(*al.Tags) != 0 {
 		t.Errorf("tags = [] sent %v, want an explicit empty list", al.Tags)
 	}
 
