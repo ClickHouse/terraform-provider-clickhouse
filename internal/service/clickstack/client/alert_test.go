@@ -406,22 +406,18 @@ func TestUpdateAlertMirrorsChannelFromChannels(t *testing.T) {
 	}
 }
 
-// An omitted key asks the server to copy the parent's tags; [] clears them. Servers without alert
-// tags reject the key even as null, so unset must leave it out entirely.
+// Null asks the server to copy the parent's tags; [] clears them. omitempty would conflate the two.
 func TestAlertTagsWire(t *testing.T) {
-	b, err := json.Marshal(Alert{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(b), `"tags"`) {
-		t.Errorf("Marshal(unset tags) = %s, want no tags key", b)
-	}
-
-	b, err = json.Marshal(Alert{Tags: &[]string{}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(b), `"tags":[]`) {
-		t.Errorf("Marshal(Tags=[]) = %s, want \"tags\":[]", b)
+	for _, tc := range []struct {
+		tags *[]string
+		want string
+	}{{&[]string{}, `"tags":[]`}} {
+		b, err := json.Marshal(Alert{Tags: tc.tags})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), tc.want) {
+			t.Errorf("Marshal(Tags=%#v) = %s, want %s", tc.tags, b, tc.want)
+		}
 	}
 }
