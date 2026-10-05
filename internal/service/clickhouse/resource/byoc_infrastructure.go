@@ -391,9 +391,24 @@ func (r *ByocInfrastructureResource) Create(ctx context.Context, req resource.Cr
 		}
 	}
 
-	if r.syncByocResourceState(ctx, infra.Id, &plan, &resp.Diagnostics) {
-		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	// Persist state even when this refresh fails: the pre-wait snapshot
+	// (infra-provisioning, pre-patch toggles) must not outlive the create.
+	if !r.syncByocResourceState(ctx, infra.Id, &plan, &resp.Diagnostics) {
+		plan.State = types.StringValue(details.State)
+		if patch.EnablePrivateLink != nil {
+			plan.EnablePrivateLink = types.BoolPointerValue(patch.EnablePrivateLink)
+		}
+		if patch.EnablePrivateLoadBalancer != nil {
+			plan.EnablePrivateLoadBalancer = types.BoolPointerValue(patch.EnablePrivateLoadBalancer)
+		}
+		if patch.EnablePublicLoadBalancer != nil {
+			plan.EnablePublicLoadBalancer = types.BoolPointerValue(patch.EnablePublicLoadBalancer)
+		}
+		if patch.GcpPscSubnetId != nil {
+			plan.GcpPscSubnetID = types.StringPointerValue(patch.GcpPscSubnetId)
+		}
 	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *ByocInfrastructureResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

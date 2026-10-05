@@ -173,6 +173,68 @@ func TestByocInfrastructureResourceCreate(t *testing.T) {
 	}
 }
 
+func TestByocInfrastructureResourceCreateKeepsPostWaitStateWhenRefreshFails(t *testing.T) {
+	t.Setenv(utils.SuppressBetaWarningsEnvVar, "true")
+	ctx := context.Background()
+	r, schemaResp := byocInfraSchema(t)
+	model := byocInfraModel()
+	model.EnablePrivateLink = types.BoolValue(true)
+	plan := tfsdk.Plan{Schema: schemaResp.Schema}
+	if diags := plan.Set(ctx, &model); diags.HasError() {
+		t.Fatalf("set plan: %v", diags)
+	}
+
+	getCalls := 0
+	mc := minimock.NewController(t)
+	client := api.NewClientMock(mc)
+	client.ValidateByocInfrastructureMock.
+		Return(passingByocValidation(), nil)
+	client.CreateByocInfrastructureMock.
+		Return(&api.ByocInfrastructure{Id: byocInfraID, State: api.ByocStateProvisioning}, nil)
+	client.GetByocInfrastructureMock.
+		Set(func(_ context.Context, byocId string) (*api.ByocInfrastructureDetails, error) {
+			getCalls++
+			switch getCalls {
+			case 1:
+				return byocInfraDetails(api.ByocStateProvisioning), nil
+			case 2:
+				return byocInfraDetails(api.ByocStateReady), nil
+			default:
+				return nil, errors.New("status: 500, body: transient")
+			}
+		})
+	client.GetByocInfrastructureTagsMock.
+		Return(map[string]string{}, nil)
+	client.WaitForByocInfrastructureStateMock.
+		Return(nil)
+	client.UpdateByocInfrastructureMock.
+		Expect(ctx, byocInfraID, api.ByocInfrastructureUpdateRequest{
+			EnablePrivateLink: boolPtr(true),
+		}).
+		Return(&api.ByocInfrastructure{Id: byocInfraID, State: api.ByocStateReady}, nil)
+	r.client = client
+
+	resp := resource.CreateResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
+	r.Create(ctx, resource.CreateRequest{Plan: plan, Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: plan.Raw}}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Create diagnostics: %v", resp.Diagnostics)
+	}
+	if getCalls != 3 {
+		t.Fatalf("GetByocInfrastructure calls = %d; want 3", getCalls)
+	}
+
+	var state models.ByocInfrastructureResourceModel
+	if diags := resp.State.Get(ctx, &state); diags.HasError() {
+		t.Fatalf("read state: %v", diags)
+	}
+	if state.State.ValueString() != api.ByocStateReady {
+		t.Errorf("state = %q; want %q despite the failed refresh", state.State.ValueString(), api.ByocStateReady)
+	}
+	if !state.EnablePrivateLink.ValueBool() {
+		t.Error("enable_private_link must record the applied patch value despite the failed refresh")
+	}
+}
+
 func TestByocInfrastructureResourceCreateFailsPreflight(t *testing.T) {
 	ctx := context.Background()
 	r, schemaResp := byocInfraSchema(t)
