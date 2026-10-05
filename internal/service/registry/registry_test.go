@@ -44,7 +44,7 @@ func TestServicePackages(t *testing.T) {
 	// resource/data source.
 	const (
 		wantResources   = 29 // 19 clickhouse + 1 postgres + 9 clickstack
-		wantDataSources = 15 // 10 clickhouse + 3 postgres + 2 clickstack
+		wantDataSources = 16 // 11 clickhouse + 3 postgres + 2 clickstack
 	)
 	if len(resTypes) != wantResources {
 		t.Errorf("registered resource count = %d, want %d (a factory was added or dropped?)", len(resTypes), wantResources)

@@ -58,5 +58,6 @@ func (servicePackage) DataSources() []func() upstreamdatasource.DataSource {
 		datasource.NewClickPipesServiceContextDataSource,
 		datasource.NewServiceProfilesDataSource,
 		datasource.NewByocInfrastructureDataSource,
+		datasource.NewByocInfrastructuresDataSource,
 	}
 }
