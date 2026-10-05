@@ -28,6 +28,7 @@ var (
 	_ resource.ResourceWithConfigure      = (*dashboardResource)(nil)
 	_ resource.ResourceWithImportState    = (*dashboardResource)(nil)
 	_ resource.ResourceWithValidateConfig = (*dashboardResource)(nil)
+	_ resource.ResourceWithModifyPlan     = (*dashboardResource)(nil)
 )
 
 // NewDashboardResource is a helper to register the resource with the provider.
@@ -37,7 +38,8 @@ func NewDashboardResource() resource.Resource {
 
 // dashboardResource manages a ClickStack dashboard via its JSON body.
 type dashboardResource struct {
-	client *client.Client
+	client      *client.Client
+	defaultTags []string
 }
 
 // dashboardResourceModel maps the resource schema data.
@@ -47,6 +49,7 @@ type dashboardResourceModel struct {
 	DashboardJSON  types.String `tfsdk:"dashboard_json"`
 	NormalizedJSON types.String `tfsdk:"normalized_json"`
 	TileIDs        types.Map    `tfsdk:"tile_ids"`
+	TagsAll        types.Set    `tfsdk:"tags_all"`
 }
 
 func (r *dashboardResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -113,6 +116,7 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					"map, so an alert still referencing it fails at plan time with an invalid index.",
 				PlanModifiers: []planmodifier.Map{tileIDsPlanModifier{}},
 			},
+			tagsAllAttr: tagsAllAttribute(""),
 		},
 	}
 }
@@ -294,6 +298,74 @@ func (r *dashboardResource) Configure(_ context.Context, req resource.ConfigureR
 		return
 	}
 	r.client = providerData.ClickStack
+	r.defaultTags = providerData.ClickStackDefaultTags
+}
+
+// ModifyPlan plans tags_all from the body's tags and the provider defaults, so
+// changing the defaults updates the dashboard even when dashboard_json did not change.
+func (r *dashboardResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var body types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root(dashboardJSONAttr), &body)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	all := types.SetUnknown(types.StringType)
+	if known(body) {
+		if own, err := dashboardTags([]byte(body.ValueString())); err == nil {
+			var d diag.Diagnostics
+			all, d = plannedTagsAll(own, r.defaultTags)
+			resp.Diagnostics.Append(d...)
+		}
+	}
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(tagsAllAttr), all)...)
+	if req.State.Raw.IsNull() || !known(body) {
+		return
+	}
+	var prior types.Set
+	var priorNormalized types.String
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(tagsAllAttr), &prior)...)
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(normalizedJSONAttr), &priorNormalized)...)
+	if all.Equal(prior) || resp.Diagnostics.HasError() {
+		return
+	}
+	// A tags-only update still sends the body, so the attributes pinned for an
+	// unchanged body are planned as the changed-body path would plan them.
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(normalizedJSONAttr), types.StringUnknown())...)
+	tileIDs := types.MapUnknown(types.StringType)
+	if known(priorNormalized) {
+		if elems, err := plannedTileIDs([]byte(body.ValueString()), []byte(priorNormalized.ValueString())); err == nil {
+			var d diag.Diagnostics
+			tileIDs, d = types.MapValue(types.StringType, elems)
+			resp.Diagnostics.Append(d...)
+		}
+	}
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(tileIDsAttr), tileIDs)...)
+}
+
+// bodyWithDefaultTags adds the provider defaults to a dashboard body's tags and
+// returns the body to send along with the tags it now carries.
+func (r *dashboardResource) bodyWithDefaultTags(body []byte) ([]byte, types.Set, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	own, err := dashboardTags(body)
+	if err != nil {
+		diags.AddError("Invalid Dashboard JSON", err.Error())
+		return body, types.SetNull(types.StringType), diags
+	}
+	tags := withDefaultTags(own, r.defaultTags)
+	all, d := tagsSet(tags)
+	diags.Append(d...)
+	if len(r.defaultTags) == 0 {
+		return body, all, diags
+	}
+	merged, err := setDashboardTags(body, tags)
+	if err != nil {
+		diags.AddError("Invalid Dashboard JSON", err.Error())
+		return body, all, diags
+	}
+	return merged, all, diags
 }
 
 func (r *dashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -305,14 +377,20 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	body, err := r.client.WithTeam(plan.Team.ValueString()).
-		CreateDashboard(ctx, json.RawMessage(plan.DashboardJSON.ValueString()))
+	authored, tagsAll, diags := r.bodyWithDefaultTags([]byte(plan.DashboardJSON.ValueString()))
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.TagsAll = tagsAll
+
+	body, err := r.client.WithTeam(plan.Team.ValueString()).CreateDashboard(ctx, authored)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Creating Dashboard", err.Error())
 		return
 	}
 
-	diags := plan.applyDashboardBody(ctx, body)
+	diags = plan.applyDashboardBody(ctx, body)
 	resp.Diagnostics.Append(diags...)
 	if diags.HasError() {
 		// applyDashboardBody fails only when the POST-success body cannot be read
@@ -353,6 +431,26 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
+	// Kept from the last apply, like dashboard_json: tags changed in the UI are
+	// not drift. State from before tags_all existed takes the authored tags, so
+	// only newly configured defaults plan an update; an import takes the server's.
+	serverTags, err := dashboardTags(body)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid Dashboard Response", err.Error())
+		return
+	}
+	if state.TagsAll.IsNull() {
+		fill := serverTags
+		if known(state.DashboardJSON) {
+			if authored, err := dashboardTags([]byte(state.DashboardJSON.ValueString())); err == nil {
+				fill = authored
+			}
+		}
+		var d diag.Diagnostics
+		state.TagsAll, d = tagsSet(fill)
+		resp.Diagnostics.Append(d...)
+	}
+
 	// On import, dashboard_json is null/unknown because no config value exists
 	// yet. Populate it from the fetched body so the imported state is
 	// re-appliable without an immediate diff. The dashboard id and filter ids
@@ -370,6 +468,14 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 			authored = cleaned
 		} else {
 			tflog.Warn(ctx, "could not drop invalid select fields from the imported dashboard body: "+err.Error())
+		}
+		// The provider adds the defaults back on every write, so they stay out of the authored body.
+		if len(r.defaultTags) > 0 {
+			if own, err := setDashboardTags(authored, withoutDefaultTags(serverTags, nil, r.defaultTags)); err == nil {
+				authored = own
+			} else {
+				tflog.Warn(ctx, "could not drop default tags from the imported dashboard body: "+err.Error())
+			}
 		}
 		state.DashboardJSON = types.StringValue(string(authored))
 	}
@@ -396,7 +502,12 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 	// on create), so mergeFilterIDs carries existing ids forward and mints
 	// placeholders for new ones. Each step is best effort: if it fails, that
 	// step's ids are left as authored and only that transformation is skipped.
-	body := json.RawMessage(plan.DashboardJSON.ValueString())
+	body, tagsAll, diags := r.bodyWithDefaultTags([]byte(plan.DashboardJSON.ValueString()))
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.TagsAll = tagsAll
 	if !state.NormalizedJSON.IsNull() && !state.NormalizedJSON.IsUnknown() {
 		prior := json.RawMessage(state.NormalizedJSON.ValueString())
 		if merged, err := mergeTileIDs(body, prior); err == nil {
