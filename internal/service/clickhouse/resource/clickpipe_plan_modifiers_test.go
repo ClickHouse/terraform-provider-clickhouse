@@ -149,25 +149,25 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 	}
 	sr := func(url, auth string, credentials types.Object) types.Object {
 		return types.ObjectValueMust(srType, map[string]attr.Value{
-			"url":                types.StringValue(url),
-			"authentication":     types.StringValue(auth),
-			"credentials":        credentials,
-			"type":               types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
-			"glue_region":        types.StringNull(),
-			"glue_registry_name": types.StringNull(),
-			"glue_role_arn":      types.StringNull(),
+			"url":            types.StringValue(url),
+			"authentication": types.StringValue(auth),
+			"credentials":    credentials,
+			"type":           types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+			"glue":           types.ObjectNull(models.ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType().AttrTypes),
 		})
 	}
 
 	glueSR := func(registryName string, roleArn types.String) types.Object {
 		return models.ClickPipeKafkaSchemaRegistryModel{
-			Type:             types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeGlue),
-			URL:              types.StringNull(),
-			Authentication:   types.StringNull(),
-			Credentials:      types.ObjectNull(credsType),
-			GlueRegion:       types.StringValue("us-east-1"),
-			GlueRegistryName: types.StringValue(registryName),
-			GlueRoleArn:      roleArn,
+			Type:           types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeGlue),
+			URL:            types.StringNull(),
+			Authentication: types.StringNull(),
+			Credentials:    types.ObjectNull(credsType),
+			Glue: models.ClickPipeKafkaGlueSchemaRegistryModel{
+				Region:       types.StringValue("us-east-1"),
+				RegistryName: types.StringValue(registryName),
+				RoleArn:      roleArn,
+			}.ObjectValue(),
 		}.ObjectValue()
 	}
 	// srWithNullType models state written before the provider knew about `type`.
@@ -280,6 +280,15 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 			planValue:               glueSR("orders", types.StringNull()),
 			expectedRequiresReplace: true,
 		},
+		// The glue block itself is known while role_arn waits on another resource's output.
+		"glue-role-arn-unknown": {
+			stateRaw:                updateRaw,
+			planRaw:                 updateRaw,
+			stateValue:              glueSR("orders", types.StringValue("arn:aws:iam::123456789012:role/glue")),
+			planValue:               glueSR("orders", types.StringUnknown()),
+			expectedRequiresReplace: false,
+			expectedWarning:         true,
+		},
 		"pre-type-state-matches-confluent-default": {
 			stateRaw:                updateRaw,
 			planRaw:                 updateRaw,
@@ -300,13 +309,11 @@ func TestRequiresReplaceIfSchemaRegistryChanges(t *testing.T) {
 			planRaw:    updateRaw,
 			stateValue: sr("https://sr.example", "PLAIN", knownCreds),
 			planValue: types.ObjectValueMust(srType, map[string]attr.Value{
-				"type":               types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
-				"url":                types.StringUnknown(),
-				"authentication":     types.StringValue("PLAIN"),
-				"credentials":        knownCreds,
-				"glue_region":        types.StringNull(),
-				"glue_registry_name": types.StringNull(),
-				"glue_role_arn":      types.StringNull(),
+				"type":           types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+				"url":            types.StringUnknown(),
+				"authentication": types.StringValue("PLAIN"),
+				"credentials":    knownCreds,
+				"glue":           types.ObjectNull(models.ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType().AttrTypes),
 			}),
 			expectedRequiresReplace: false,
 			expectedWarning:         true,

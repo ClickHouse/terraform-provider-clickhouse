@@ -20,16 +20,23 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
 
+// kafkaGlueBlock returns the `glue` block of a Kafka schema registry with an optional role override.
+func kafkaGlueBlock(roleArn types.String) types.Object {
+	return models.ClickPipeKafkaGlueSchemaRegistryModel{
+		Region:       types.StringValue("eu-west-1"),
+		RegistryName: types.StringValue("orders-registry"),
+		RoleArn:      roleArn,
+	}.ObjectValue()
+}
+
 // kafkaGlueRegistry returns a Kafka AWS Glue schema registry object with an optional role override.
 func kafkaGlueRegistry(roleArn types.String) types.Object {
 	return models.ClickPipeKafkaSchemaRegistryModel{
-		Type:             types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeGlue),
-		URL:              types.StringNull(),
-		Authentication:   types.StringNull(),
-		Credentials:      types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes),
-		GlueRegion:       types.StringValue("eu-west-1"),
-		GlueRegistryName: types.StringValue("orders-registry"),
-		GlueRoleArn:      roleArn,
+		Type:           types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeGlue),
+		URL:            types.StringNull(),
+		Authentication: types.StringNull(),
+		Credentials:    types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes),
+		Glue:           kafkaGlueBlock(roleArn),
 	}.ObjectValue()
 }
 
@@ -129,12 +136,12 @@ func TestClickPipeResource_ValidatesKafkaSchemaRegistryConfiguration(t *testing.
 			expectedDetail: "credentials is required for a confluent schema registry.",
 		},
 		{
-			name:           "rejects glue fields on a confluent registry",
+			name:           "rejects a glue block on a confluent registry",
 			authentication: plain,
 			registry: func(t *testing.T) types.Object {
-				return withKafkaRegistryAttrs(t, kafkaSchemaRegistryValue(), map[string]any{"glue_region": types.StringValue("eu-west-1")})
+				return withKafkaRegistryAttrs(t, kafkaSchemaRegistryValue(), map[string]any{"glue": kafkaGlueBlock(types.StringNull())})
 			},
-			expectedDetail: "glue_region is supported only when type is glue.",
+			expectedDetail: "glue is supported only when type is glue.",
 		},
 		{
 			name:           "accepts a glue registry on an IAM broker without a role",
@@ -150,13 +157,13 @@ func TestClickPipeResource_ValidatesKafkaSchemaRegistryConfiguration(t *testing.
 			name:           "requires a role for a glue registry on a PLAIN broker",
 			authentication: plain,
 			registry:       func(*testing.T) types.Object { return kafkaGlueRegistry(types.StringNull()) },
-			expectedDetail: "glue_role_arn is required for a glue schema registry unless the Kafka source uses IAM_ROLE or IAM_USER authentication.",
+			expectedDetail: "glue.role_arn is required for a glue schema registry unless the Kafka source uses IAM_ROLE or IAM_USER authentication.",
 		},
 		{
 			name:           "requires a role when broker authentication defaults to PLAIN",
 			authentication: types.StringNull(),
 			registry:       func(*testing.T) types.Object { return kafkaGlueRegistry(types.StringNull()) },
-			expectedDetail: "glue_role_arn is required for a glue schema registry unless the Kafka source uses IAM_ROLE or IAM_USER authentication.",
+			expectedDetail: "glue.role_arn is required for a glue schema registry unless the Kafka source uses IAM_ROLE or IAM_USER authentication.",
 		},
 		{
 			name:           "defers the role check while broker authentication is unknown",
@@ -164,12 +171,14 @@ func TestClickPipeResource_ValidatesKafkaSchemaRegistryConfiguration(t *testing.
 			registry:       func(*testing.T) types.Object { return kafkaGlueRegistry(types.StringNull()) },
 		},
 		{
-			name:           "requires a registry name for a glue registry",
+			name:           "requires a glue block for a glue registry",
 			authentication: iamRole,
 			registry: func(t *testing.T) types.Object {
-				return withKafkaRegistryAttrs(t, kafkaGlueRegistry(types.StringNull()), map[string]any{"glue_registry_name": types.StringNull()})
+				return withKafkaRegistryAttrs(t, kafkaGlueRegistry(types.StringNull()), map[string]any{
+					"glue": types.ObjectNull(models.ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType().AttrTypes),
+				})
 			},
-			expectedDetail: "glue_registry_name is required for a glue schema registry.",
+			expectedDetail: "glue is required for a glue schema registry.",
 		},
 		{
 			name:           "rejects confluent fields on a glue registry",
@@ -178,6 +187,15 @@ func TestClickPipeResource_ValidatesKafkaSchemaRegistryConfiguration(t *testing.
 				return withKafkaRegistryAttrs(t, kafkaGlueRegistry(types.StringNull()), map[string]any{"url": types.StringValue("https://registry.example.com")})
 			},
 			expectedDetail: "url is not supported for a glue schema registry, which authenticates with IAM.",
+		},
+		{
+			name:           "defers the role check while the glue block is unknown",
+			authentication: plain,
+			registry: func(t *testing.T) types.Object {
+				return withKafkaRegistryAttrs(t, kafkaGlueRegistry(types.StringNull()), map[string]any{
+					"glue": types.ObjectUnknown(models.ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType().AttrTypes),
+				})
+			},
 		},
 		{
 			name:           "defers validation while the type is unknown",
@@ -255,10 +273,16 @@ func TestClickPipeResource_KafkaSchemaRegistrySchema(t *testing.T) {
 
 	// Every type-specific attribute is optional at the schema level; kafkaSchemaRegistryValidator
 	// decides which ones the chosen type requires.
-	for _, name := range []string{"url", "authentication", "credentials", "glue_region", "glue_registry_name", "glue_role_arn"} {
+	for _, name := range []string{"url", "authentication", "credentials", "glue"} {
 		assert.True(t, registry.Attributes[name].IsOptional(), "%s should be optional", name)
 		assert.False(t, registry.Attributes[name].IsRequired(), "%s should not be required", name)
 	}
+
+	glue, ok := registry.Attributes["glue"].(resourceschema.SingleNestedAttribute)
+	require.True(t, ok)
+	assert.True(t, glue.Attributes["region"].IsRequired())
+	assert.True(t, glue.Attributes["registry_name"].IsRequired())
+	assert.True(t, glue.Attributes["role_arn"].IsOptional())
 }
 
 func TestExtractSourceFromPlan_KafkaGlueSchemaRegistry(t *testing.T) {

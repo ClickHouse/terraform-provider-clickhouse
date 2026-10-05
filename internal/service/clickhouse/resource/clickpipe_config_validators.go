@@ -150,8 +150,8 @@ type schemaRegistryField struct {
 }
 
 // kafkaSchemaRegistryValidator enforces the per-type Kafka schema registry rules exposed by the OpenAPI:
-// a Confluent registry needs url, authentication and credentials, while an AWS Glue registry needs its
-// region and registry name and authenticates with IAM instead.
+// a Confluent registry needs url, authentication and credentials, while an AWS Glue registry needs a glue
+// block and authenticates with IAM instead.
 type kafkaSchemaRegistryValidator struct{}
 
 // Description returns a plain-text summary of the Kafka schema registry validation.
@@ -210,33 +210,23 @@ func (v kafkaSchemaRegistryValidator) ValidateResource(ctx context.Context, req 
 				)
 			}
 		}
-		for _, field := range []schemaRegistryField{
-			{"glue_region", registryModel.GlueRegion},
-			{"glue_registry_name", registryModel.GlueRegistryName},
-			{"glue_role_arn", registryModel.GlueRoleArn},
-		} {
-			if isSet(field.value) {
-				resp.Diagnostics.AddAttributeError(
-					registryPath.AtName(field.name),
-					"Invalid Kafka schema registry attribute",
-					fmt.Sprintf("%s is supported only when type is glue.", field.name),
-				)
-			}
+		if isSet(registryModel.Glue) {
+			resp.Diagnostics.AddAttributeError(
+				registryPath.AtName("glue"),
+				"Invalid Kafka schema registry attribute",
+				"glue is supported only when type is glue.",
+			)
 		}
 		return
 	}
 
-	for _, field := range []schemaRegistryField{
-		{"glue_region", registryModel.GlueRegion},
-		{"glue_registry_name", registryModel.GlueRegistryName},
-	} {
-		if isMissing(field.value) {
-			resp.Diagnostics.AddAttributeError(
-				registryPath.AtName(field.name),
-				"Missing Kafka schema registry attribute",
-				fmt.Sprintf("%s is required for a glue schema registry.", field.name),
-			)
-		}
+	// The schema requires region and registry_name inside the block, so only its presence is checked here.
+	if isMissing(registryModel.Glue) {
+		resp.Diagnostics.AddAttributeError(
+			registryPath.AtName("glue"),
+			"Missing Kafka schema registry attribute",
+			"glue is required for a glue schema registry.",
+		)
 	}
 	for _, field := range []schemaRegistryField{
 		{"url", registryModel.URL},
@@ -264,17 +254,26 @@ func (v kafkaSchemaRegistryValidator) ValidateResource(ctx context.Context, req 
 		}
 	}
 
+	if !isSet(registryModel.Glue) {
+		return
+	}
+	var glueModel models.ClickPipeKafkaGlueSchemaRegistryModel
+	resp.Diagnostics.Append(registryModel.Glue.As(ctx, &glueModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// Glue defaults to the broker's IAM identity, so a non-IAM broker must name a role.
 	// A null authentication means the PLAIN default.
-	if !isMissing(registryModel.GlueRoleArn) || kafkaModel.Authentication.IsUnknown() {
+	if !isMissing(glueModel.RoleArn) || kafkaModel.Authentication.IsUnknown() {
 		return
 	}
 	authentication := kafkaModel.Authentication.ValueString()
 	if authentication != api.ClickPipeAuthenticationIAMRole && authentication != api.ClickPipeAuthenticationIAMUser {
 		resp.Diagnostics.AddAttributeError(
-			registryPath.AtName("glue_role_arn"),
+			registryPath.AtName("glue").AtName("role_arn"),
 			"Missing Kafka schema registry attribute",
-			"glue_role_arn is required for a glue schema registry unless the Kafka source uses IAM_ROLE or IAM_USER authentication.",
+			"glue.role_arn is required for a glue schema registry unless the Kafka source uses IAM_ROLE or IAM_USER authentication.",
 		)
 	}
 }

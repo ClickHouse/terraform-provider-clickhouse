@@ -15,12 +15,14 @@ resource "clickhouse_clickpipe" "kafka_glue" {
       iam_role       = "arn:aws:iam::123456789012:role/clickpipes"
 
       schema_registry = {
-        type               = "glue"
-        glue_region        = "us-east-1"
-        glue_registry_name = "orders-registry"
-        # Optional with IAM broker authentication, where it defaults to the broker's IAM identity.
-        # Required for any other broker authentication.
-        glue_role_arn = "arn:aws:iam::123456789012:role/GlueRegistryAccess"
+        type = "glue"
+        glue = {
+          region        = "us-east-1"
+          registry_name = "orders-registry"
+          # Optional with IAM broker authentication, where it defaults to the broker's IAM identity.
+          # Required for any other broker authentication.
+          role_arn = "arn:aws:iam::123456789012:role/GlueRegistryAccess"
+        }
       }
     }
   }
