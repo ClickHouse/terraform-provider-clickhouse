@@ -894,8 +894,9 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 		al.NumConsecutiveWindows = &v
 	}
 	if known(m.Tags) {
-		al.Tags = []string{}
-		diags.Append(m.Tags.ElementsAs(ctx, &al.Tags, false)...)
+		tags := []string{}
+		diags.Append(m.Tags.ElementsAs(ctx, &tags, false)...)
+		al.Tags = &tags
 	}
 	// Scheduling modes are mutually exclusive. schedule_start_at is always sent
 	// (nil -> JSON null clears it, and the server then forces the offset to 0).
@@ -1008,7 +1009,7 @@ func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) d
 				"the ClickStack server did not return alert tags; setting tags requires ClickStack API 2.38.0 or later")
 			return diags
 		}
-		list, d := stringSliceToList(al.Tags)
+		list, d := stringSliceToList(*al.Tags)
 		diags.Append(d...)
 		m.Tags = list
 	}
