@@ -463,6 +463,57 @@ func TestByocInfrastructureResourceUpdate(t *testing.T) {
 	}
 }
 
+func TestByocInfrastructureResourceUpdateKeepsPlanWhenRefreshFails(t *testing.T) {
+	t.Setenv(utils.SuppressBetaWarningsEnvVar, "true")
+	ctx := context.Background()
+	r, schemaResp := byocInfraSchema(t)
+	state := byocInfraState(t, schemaResp)
+
+	model := byocInfraModel()
+	model.ID = types.StringValue(byocInfraID)
+	model.State = types.StringValue(api.ByocStateReady)
+	model.CloudProvider = types.StringValue("aws")
+	model.DisplayName = types.StringValue("renamed-byoc")
+	plan := tfsdk.Plan{Schema: schemaResp.Schema}
+	if diags := plan.Set(ctx, &model); diags.HasError() {
+		t.Fatalf("set plan: %v", diags)
+	}
+
+	mc := minimock.NewController(t)
+	client := api.NewClientMock(mc)
+	client.UpdateByocInfrastructureMock.
+		Expect(ctx, byocInfraID, api.ByocInfrastructureUpdateRequest{
+			DisplayName: strPtr("renamed-byoc"),
+		}).
+		Return(&api.ByocInfrastructure{Id: byocInfraID, State: api.ByocStateReady}, nil)
+	client.GetByocInfrastructureMock.
+		Expect(ctx, byocInfraID).
+		Return(nil, errors.New("status: 500, body: transient"))
+	r.client = client
+
+	resp := resource.UpdateResponse{
+		State: tfsdk.State{
+			Schema: schemaResp.Schema,
+			Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
+		},
+	}
+	r.Update(ctx, resource.UpdateRequest{Plan: plan, State: state}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Update diagnostics: %v", resp.Diagnostics)
+	}
+	if resp.State.Raw.IsNull() {
+		t.Fatal("a successful update must set state even when the refresh fails")
+	}
+
+	var got models.ByocInfrastructureResourceModel
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("read state: %v", diags)
+	}
+	if got.DisplayName.ValueString() != "renamed-byoc" {
+		t.Errorf("display_name = %q; want the plan value renamed-byoc", got.DisplayName.ValueString())
+	}
+}
+
 func TestByocInfrastructureResourceDeleteWaitsForTermination(t *testing.T) {
 	ctx := context.Background()
 	r, schemaResp := byocInfraSchema(t)

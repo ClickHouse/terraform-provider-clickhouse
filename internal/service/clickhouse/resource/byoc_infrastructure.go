@@ -455,9 +455,10 @@ func (r *ByocInfrastructureResource) Update(ctx context.Context, req resource.Up
 		}
 	}
 
-	if r.syncByocResourceState(ctx, state.ID.ValueString(), &plan, &resp.Diagnostics) {
-		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-	}
+	// Persist the plan even when the refresh fails: returning without state
+	// after a successful update is a framework error.
+	r.syncByocResourceState(ctx, state.ID.ValueString(), &plan, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *ByocInfrastructureResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
