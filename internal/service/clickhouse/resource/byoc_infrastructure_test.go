@@ -3,13 +3,17 @@ package resource
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -92,6 +96,107 @@ func TestByocInfrastructureResourceSchema(t *testing.T) {
 	_, resp := byocInfraSchema(t)
 	if diags := resp.Schema.ValidateImplementation(ctx); diags.HasError() {
 		t.Fatalf("invalid schema implementation: %v", diags)
+	}
+}
+
+func TestByocInfrastructureResourceVpcCidrConflictsWithByoVpc(t *testing.T) {
+	ctx := context.Background()
+	_, schemaResp := byocInfraSchema(t)
+	attrSchema, ok := schemaResp.Schema.Attributes["vpc_cidr_range"].(schema.StringAttribute)
+	if !ok {
+		t.Fatal("vpc_cidr_range is not a string attribute")
+	}
+
+	validate := func(t *testing.T, model models.ByocInfrastructureResourceModel) bool {
+		t.Helper()
+		cfg := tfsdk.Plan{Schema: schemaResp.Schema}
+		if diags := cfg.Set(ctx, &model); diags.HasError() {
+			t.Fatalf("set config: %v", diags)
+		}
+		req := validator.StringRequest{
+			Path:        path.Root("vpc_cidr_range"),
+			ConfigValue: model.VpcCidrRange,
+			Config:      tfsdk.Config{Schema: schemaResp.Schema, Raw: cfg.Raw},
+		}
+		resp := &validator.StringResponse{}
+		for _, v := range attrSchema.Validators {
+			v.ValidateString(ctx, req, resp)
+		}
+		return resp.Diagnostics.HasError()
+	}
+
+	managedOnly := byocInfraModel()
+	managedOnly.VpcCidrRange = types.StringValue("10.0.0.0/16")
+	if validate(t, managedOnly) {
+		t.Error("vpc_cidr_range alone must pass validation")
+	}
+
+	byoVpcVariants := map[string]func(*models.ByocInfrastructureResourceModel){
+		"vpc_id": func(m *models.ByocInfrastructureResourceModel) {
+			m.VpcID = types.StringValue("vpc-123")
+		},
+		"private_subnet_ids": func(m *models.ByocInfrastructureResourceModel) {
+			m.PrivateSubnetIDs = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("subnet-1")})
+		},
+		"public_subnet_ids": func(m *models.ByocInfrastructureResourceModel) {
+			m.PublicSubnetIDs = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("subnet-2")})
+		},
+		"gcp_pod_cidr_range_names": func(m *models.ByocInfrastructureResourceModel) {
+			m.GcpPodCidrRangeNames = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("pods")})
+		},
+		"gcp_shared_vpc_host_project_id": func(m *models.ByocInfrastructureResourceModel) {
+			m.GcpSharedVpcHostProjectID = types.StringValue("host-project")
+		},
+	}
+	for attrName, set := range byoVpcVariants {
+		t.Run(attrName, func(t *testing.T) {
+			model := byocInfraModel()
+			model.VpcCidrRange = types.StringValue("10.0.0.0/16")
+			set(&model)
+			if !validate(t, model) {
+				t.Errorf("vpc_cidr_range together with %s must fail validation", attrName)
+			}
+		})
+	}
+}
+
+func TestByocInfrastructureResourceTagsLimitedTo50(t *testing.T) {
+	ctx := context.Background()
+	_, schemaResp := byocInfraSchema(t)
+	attrSchema, ok := schemaResp.Schema.Attributes["tags"].(schema.MapAttribute)
+	if !ok {
+		t.Fatal("tags is not a map attribute")
+	}
+
+	validate := func(t *testing.T, size int) bool {
+		t.Helper()
+		elems := map[string]attr.Value{}
+		for i := 0; i < size; i++ {
+			elems[fmt.Sprintf("key-%d", i)] = types.StringValue("value")
+		}
+		model := byocInfraModel()
+		model.Tags = types.MapValueMust(types.StringType, elems)
+		cfg := tfsdk.Plan{Schema: schemaResp.Schema}
+		if diags := cfg.Set(ctx, &model); diags.HasError() {
+			t.Fatalf("set config: %v", diags)
+		}
+		req := validator.MapRequest{
+			Path:        path.Root("tags"),
+			ConfigValue: model.Tags,
+			Config:      tfsdk.Config{Schema: schemaResp.Schema, Raw: cfg.Raw},
+		}
+		resp := &validator.MapResponse{}
+		for _, v := range attrSchema.Validators {
+			v.ValidateMap(ctx, req, resp)
+		}
+		return resp.Diagnostics.HasError()
+	}
+
+	if validate(t, 50) {
+		t.Error("50 tags must pass validation")
+	}
+	if !validate(t, 51) {
+		t.Error("51 tags must fail validation")
 	}
 }
 
