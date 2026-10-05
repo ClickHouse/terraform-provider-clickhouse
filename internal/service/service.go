@@ -48,4 +48,6 @@ type Metadata struct {
 type ProviderData struct {
 	API        api.Client               // ClickHouse Cloud OpenAPI (Basic auth); nil if not configured
 	ClickStack *clickstackclient.Client // ClickStack API (Bearer auth); nil if not configured
+	// ClickStackDefaultTags are added to the tags of every taggable ClickStack resource.
+	ClickStackDefaultTags []string
 }
