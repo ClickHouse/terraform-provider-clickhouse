@@ -471,8 +471,14 @@ func (r *ByocInfrastructureResource) Update(ctx context.Context, req resource.Up
 	}
 
 	// Persist the plan even when the refresh fails: returning without state
-	// after a successful update is a framework error.
-	r.syncByocResourceState(ctx, state.ID.ValueString(), &plan, &resp.Diagnostics)
+	// after a successful update is a framework error. state is the only
+	// computed attribute without UseStateForUnknown (it is volatile; pinning
+	// it to the prior value in the plan would make Terraform reject any
+	// server-side transition as an inconsistent result), so the plan carries
+	// it as unknown — resolve it from prior state before writing.
+	if !r.syncByocResourceState(ctx, state.ID.ValueString(), &plan, &resp.Diagnostics) {
+		plan.State = state.State
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

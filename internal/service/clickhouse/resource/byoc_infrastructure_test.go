@@ -533,7 +533,8 @@ func TestByocInfrastructureResourceUpdateKeepsPlanWhenRefreshFails(t *testing.T)
 
 	model := byocInfraModel()
 	model.ID = types.StringValue(byocInfraID)
-	model.State = types.StringValue(api.ByocStateReady)
+	// state has no UseStateForUnknown, so real update plans carry it unknown.
+	model.State = types.StringUnknown()
 	model.CloudProvider = types.StringValue("aws")
 	model.DisplayName = types.StringValue("renamed-byoc")
 	plan := tfsdk.Plan{Schema: schemaResp.Schema}
@@ -573,6 +574,9 @@ func TestByocInfrastructureResourceUpdateKeepsPlanWhenRefreshFails(t *testing.T)
 	}
 	if got.DisplayName.ValueString() != "renamed-byoc" {
 		t.Errorf("display_name = %q; want the plan value renamed-byoc", got.DisplayName.ValueString())
+	}
+	if got.State.IsUnknown() || got.State.ValueString() != api.ByocStateReady {
+		t.Errorf("state = %v; want the prior state value %q, never unknown", got.State, api.ByocStateReady)
 	}
 }
 
