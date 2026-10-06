@@ -605,13 +605,16 @@ func (r *ByocInfrastructureResource) Create(ctx context.Context, req resource.Cr
 	}
 
 	// Connectivity toggles and the PSC subnet are not creation parameters;
-	// apply configured values that differ from the provisioned defaults.
-	var config models.ByocInfrastructureResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	// apply planned values that differ from the provisioned defaults. Read
+	// from the plan, not the config: config may retain unknown interpolation
+	// values at apply time, and the pre-wait refresh overwrote the earlier
+	// plan variable with API values.
+	var planned models.ByocInfrastructureResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &planned)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	patch, hasPatch, patchDiags := byocPostCreatePatch(&config, details)
+	patch, hasPatch, patchDiags := byocPostCreatePatch(&planned, details)
 	resp.Diagnostics.Append(patchDiags...)
 	if resp.Diagnostics.HasError() {
 		return
