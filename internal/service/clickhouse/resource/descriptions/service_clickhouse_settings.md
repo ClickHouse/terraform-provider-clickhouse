@@ -1,0 +1,25 @@
+You can use the *clickhouse_service_clickhouse_settings* resource to manage the ClickHouse settings of a ClickHouse Cloud service, such as `compatibility` or `max_query_size`.
+
+~> **Note:** This resource is in beta. The ClickHouse settings API is enabled per organization during its beta — reach out to ClickHouse support if the API returns `403 FORBIDDEN`. The set of settings the API exposes may change while it is in beta.
+
+## Managed settings
+
+The resource manages only the settings named in `settings`. Settings that ClickHouse Cloud sets itself, or that were set outside Terraform, are never changed and never show as drift unless you name them; only an import reads them into state. Use one resource per service: two resources that name the same setting overwrite each other on every apply.
+
+Values are strings in configuration. Before writing, the provider reads the service's settings schema and sends each value with the type the schema gives it, so an integer setting written as `"262144"` is sent as a number. A setting the schema does not list is sent as a string, and the API decides whether to accept it.
+
+## Resetting settings
+
+Removing a setting from `settings` resets it to its platform default through the API, and destroying the resource resets every setting it manages. Changing `service_id` replaces the resource, which resets every managed setting on the old service. The plan warns, naming each setting, when it removes a setting, destroys the resource or changes `service_id`; it stays silent while `settings` is not known until apply.
+
+A replacement forced with `terraform apply -replace`, a tainted resource or a `replace_triggered_by` rule also resets every managed setting and then sets it again, in Terraform's default destroy-then-create order, and the plan cannot warn about it. Do not set `create_before_destroy` on this resource or on a resource that depends on it, which passes it on: Terraform then creates the replacement before destroying the old instance, so the last step resets the settings just written and the service keeps its platform defaults until the next apply sets them again. Add a `moved` block when you rename the resource; otherwise Terraform destroys the old address, resetting the settings, independently of creating the new one.
+
+Take particular care with `compatibility`: ClickHouse Cloud sets it when it creates a service, and resetting it changes the behavior of the service's queries.
+
+## Restarts and API warnings
+
+Changing or resetting some settings may require or trigger a restart of the service, and each reset is a separate API call. When the API returns warnings for a change, the provider surfaces them as Terraform warnings.
+
+## Importing existing settings
+
+Import takes the service ID and adopts every setting the API lists as explicitly set on the service, which can include settings ClickHouse Cloud set itself, so the first plan after import shows exactly what Cloud has set. A setting your configuration does not name shows as a removal, and the plan warns that applying it resets that setting; add it to `settings` to keep it.
