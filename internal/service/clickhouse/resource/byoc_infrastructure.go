@@ -91,6 +91,30 @@ func byocListRequiresReplaceUnlessAdopted() planmodifier.List {
 	)
 }
 
+const byocReplaceIfKnownDescription = "Requires replacement only when the planned value is known and differs from state; framework-injected unknowns for unconfigured computed attributes must not force replacement."
+
+// byocStringRequiresReplaceIfKnown is RequiresReplace gated on a known plan
+// value: an unconfigured computed attribute is planned unknown on every
+// update, and Terraform core treats an unknown at a RequiresReplace path as
+// a change, which would replace the infrastructure on unrelated updates.
+func byocStringRequiresReplaceIfKnown() planmodifier.String {
+	return stringplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = isKnown(req.PlanValue)
+		},
+		byocReplaceIfKnownDescription, byocReplaceIfKnownDescription,
+	)
+}
+
+func byocListRequiresReplaceIfKnown() planmodifier.List {
+	return listplanmodifier.RequiresReplaceIf(
+		func(_ context.Context, req planmodifier.ListRequest, resp *listplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = isKnown(req.PlanValue)
+		},
+		byocReplaceIfKnownDescription, byocReplaceIfKnownDescription,
+	)
+}
+
 const byocVpcCidrModifierDescription = "Uses the prior state value unless BYO-VPC inputs are configured; a recorded managed-VPC CIDR must not leak into a BYO-VPC create."
 
 // byocVpcCidrUseStateForUnknown is UseStateForUnknown except when BYO-VPC
@@ -336,8 +360,8 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 					),
 				},
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					byocVpcCidrUseStateForUnknown(),
+					byocStringRequiresReplaceIfKnown(),
 				},
 			},
 			"availability_zone_suffixes": schema.ListAttribute{
@@ -354,7 +378,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					byocByoVpcStringUseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
+					byocStringRequiresReplaceIfKnown(),
 				},
 			},
 			"private_subnet_ids": schema.ListAttribute{
@@ -364,7 +388,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
 					byocByoVpcListUseStateForUnknown(),
-					listplanmodifier.RequiresReplace(),
+					byocListRequiresReplaceIfKnown(),
 				},
 			},
 			"public_subnet_ids": schema.ListAttribute{
@@ -382,7 +406,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
 					byocByoVpcListUseStateForUnknown(),
-					listplanmodifier.RequiresReplace(),
+					byocListRequiresReplaceIfKnown(),
 				},
 			},
 			"gcp_shared_vpc_host_project_id": schema.StringAttribute{
@@ -391,7 +415,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					byocByoVpcStringUseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
+					byocStringRequiresReplaceIfKnown(),
 				},
 			},
 			"enable_private_link": schema.BoolAttribute{

@@ -1193,6 +1193,53 @@ func TestByocWriteOnlyAttributesReplaceWithoutImportMarker(t *testing.T) {
 
 // fakeByocPrivateState stands in for the framework's private state, whose
 // concrete type lives in an internal package and cannot be constructed here.
+func TestByocRequiresReplaceIfKnown(t *testing.T) {
+	ctx := context.Background()
+	_, schemaResp := byocInfraSchema(t)
+	raw := byocInfraState(t, schemaResp).Raw
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: raw}
+	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: raw}
+
+	stringModifier := byocStringRequiresReplaceIfKnown()
+
+	unknownReq := planmodifier.StringRequest{
+		State:      state,
+		Plan:       plan,
+		StateValue: types.StringNull(),
+		PlanValue:  types.StringUnknown(),
+	}
+	unknownResp := &planmodifier.StringResponse{PlanValue: unknownReq.PlanValue}
+	stringModifier.PlanModifyString(ctx, unknownReq, unknownResp)
+	if unknownResp.RequiresReplace {
+		t.Error("an unknown planned value must not force replacement")
+	}
+
+	knownReq := planmodifier.StringRequest{
+		State:      state,
+		Plan:       plan,
+		StateValue: types.StringValue("10.0.0.0/16"),
+		PlanValue:  types.StringValue("10.1.0.0/16"),
+	}
+	knownResp := &planmodifier.StringResponse{PlanValue: knownReq.PlanValue}
+	stringModifier.PlanModifyString(ctx, knownReq, knownResp)
+	if !knownResp.RequiresReplace {
+		t.Error("a known planned value differing from state must force replacement")
+	}
+
+	listModifier := byocListRequiresReplaceIfKnown()
+	listUnknownReq := planmodifier.ListRequest{
+		State:      state,
+		Plan:       plan,
+		StateValue: types.ListValueMust(types.StringType, []attr.Value{types.StringValue("subnet-1")}),
+		PlanValue:  types.ListUnknown(types.StringType),
+	}
+	listUnknownResp := &planmodifier.ListResponse{PlanValue: listUnknownReq.PlanValue}
+	listModifier.PlanModifyList(ctx, listUnknownReq, listUnknownResp)
+	if listUnknownResp.RequiresReplace {
+		t.Error("an unknown planned list must not force replacement")
+	}
+}
+
 type fakeByocPrivateState struct {
 	data map[string][]byte
 }
