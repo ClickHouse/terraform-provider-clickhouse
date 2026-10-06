@@ -15,6 +15,7 @@ locals {
 
 resource "clickhouse_service" "byoc" {
   name           = "byoc service"
+  password_hash  = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
   cloud_provider = local.prod_byoc.cloud_provider
   region         = local.prod_byoc.region_id
   byoc_id        = local.prod_byoc.id

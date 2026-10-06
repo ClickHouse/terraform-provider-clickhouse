@@ -83,6 +83,7 @@ resource "clickhouse_byoc_infrastructure" "example" {
 # Deploy a service into the BYOC infrastructure once it is ready.
 resource "clickhouse_service" "byoc" {
   name           = "byoc service"
+  password_hash  = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
   cloud_provider = "aws"
   region         = clickhouse_byoc_infrastructure.example.region_id
   byoc_id        = clickhouse_byoc_infrastructure.example.id

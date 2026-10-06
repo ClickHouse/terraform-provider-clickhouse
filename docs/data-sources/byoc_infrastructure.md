@@ -44,6 +44,7 @@ data "clickhouse_byoc_infrastructure" "this" {
 # Deploy a service into the existing BYOC infrastructure.
 resource "clickhouse_service" "byoc" {
   name           = "byoc service"
+  password_hash  = "n4bQgYhMfWWaL+qgxVrQFaO/TxsrC4Is0V1sFbDwCgg=" # base64 encoded sha256 hash of "test"
   cloud_provider = data.clickhouse_byoc_infrastructure.this.cloud_provider
   region         = data.clickhouse_byoc_infrastructure.this.region_id
   byoc_id        = data.clickhouse_byoc_infrastructure.this.id

@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
@@ -127,6 +128,71 @@ func (m byocVpcCidrUseStateForUnknownModifier) PlanModifyString(ctx context.Cont
 		if resp.Diagnostics.HasError() || !v.IsNull() {
 			return
 		}
+	}
+	resp.PlanValue = req.StateValue
+}
+
+const byocByoVpcModifierDescription = "Uses the prior state value unless the replacement changes topology (vpc_cidr_range configured, region_id changed, or a different vpc_id configured); stale BYO-VPC wiring must not leak into the new infrastructure."
+
+// byocByoVpcUseStateForUnknown is UseStateForUnknown except when the plan
+// changes topology: a BYO-VPC -> managed replacement, a region change, or a
+// switch to a different vpc_id would otherwise restore stale BYO-VPC wiring
+// from state and send it with the replacement create.
+func byocByoVpcStringUseStateForUnknown() planmodifier.String {
+	return byocByoVpcUseStateForUnknownModifier{}
+}
+
+func byocByoVpcListUseStateForUnknown() planmodifier.List {
+	return byocByoVpcUseStateForUnknownModifier{}
+}
+
+type byocByoVpcUseStateForUnknownModifier struct{}
+
+func (m byocByoVpcUseStateForUnknownModifier) Description(context.Context) string {
+	return byocByoVpcModifierDescription
+}
+
+func (m byocByoVpcUseStateForUnknownModifier) MarkdownDescription(context.Context) string {
+	return byocByoVpcModifierDescription
+}
+
+type byocByoVpcTopologyArgs struct {
+	config tfsdk.Config
+	plan   tfsdk.Plan
+	state  tfsdk.State
+}
+
+func byocByoVpcTopologyChanged(ctx context.Context, args byocByoVpcTopologyArgs, diags *diag.Diagnostics) bool {
+	var cidr, configVpcID, stateVpcID, planRegion, stateRegion types.String
+	diags.Append(args.config.GetAttribute(ctx, path.Root("vpc_cidr_range"), &cidr)...)
+	diags.Append(args.config.GetAttribute(ctx, path.Root("vpc_id"), &configVpcID)...)
+	diags.Append(args.state.GetAttribute(ctx, path.Root("vpc_id"), &stateVpcID)...)
+	diags.Append(args.plan.GetAttribute(ctx, path.Root("region_id"), &planRegion)...)
+	diags.Append(args.state.GetAttribute(ctx, path.Root("region_id"), &stateRegion)...)
+	if diags.HasError() {
+		return true
+	}
+	return !cidr.IsNull() ||
+		!planRegion.Equal(stateRegion) ||
+		(!configVpcID.IsNull() && !configVpcID.Equal(stateVpcID))
+}
+
+func (m byocByoVpcUseStateForUnknownModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.StateValue.IsNull() || !req.PlanValue.IsUnknown() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if byocByoVpcTopologyChanged(ctx, byocByoVpcTopologyArgs{config: req.Config, plan: req.Plan, state: req.State}, &resp.Diagnostics) {
+		return
+	}
+	resp.PlanValue = req.StateValue
+}
+
+func (m byocByoVpcUseStateForUnknownModifier) PlanModifyList(ctx context.Context, req planmodifier.ListRequest, resp *planmodifier.ListResponse) {
+	if req.StateValue.IsNull() || !req.PlanValue.IsUnknown() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if byocByoVpcTopologyChanged(ctx, byocByoVpcTopologyArgs{config: req.Config, plan: req.Plan, state: req.State}, &resp.Diagnostics) {
+		return
 	}
 	resp.PlanValue = req.StateValue
 }
@@ -287,7 +353,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					byocByoVpcStringUseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
@@ -297,7 +363,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Computed:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
-					listplanmodifier.UseStateForUnknown(),
+					byocByoVpcListUseStateForUnknown(),
 					listplanmodifier.RequiresReplace(),
 				},
 			},
@@ -315,7 +381,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Computed:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
-					listplanmodifier.UseStateForUnknown(),
+					byocByoVpcListUseStateForUnknown(),
 					listplanmodifier.RequiresReplace(),
 				},
 			},
@@ -324,7 +390,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					byocByoVpcStringUseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},

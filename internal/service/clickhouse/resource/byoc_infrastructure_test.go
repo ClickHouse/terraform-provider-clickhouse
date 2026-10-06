@@ -292,6 +292,116 @@ func TestByocVpcCidrUseStateForUnknownModifier(t *testing.T) {
 	}
 }
 
+func byocRunListModifier(t *testing.T, args byocListModifierArgs) types.List {
+	t.Helper()
+	ctx := context.Background()
+	_, schemaResp := byocInfraSchema(t)
+
+	stateData := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := stateData.Set(ctx, &args.stateModel); diags.HasError() {
+		t.Fatalf("set state: %v", diags)
+	}
+	configData := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := configData.Set(ctx, &args.configModel); diags.HasError() {
+		t.Fatalf("set config: %v", diags)
+	}
+
+	req := planmodifier.ListRequest{
+		Path:        args.path,
+		Config:      tfsdk.Config{Schema: schemaResp.Schema, Raw: configData.Raw},
+		ConfigValue: types.ListNull(types.StringType),
+		Plan:        tfsdk.Plan{Schema: schemaResp.Schema, Raw: configData.Raw},
+		PlanValue:   types.ListUnknown(types.StringType),
+		State:       stateData,
+		StateValue:  args.stateValue,
+	}
+	resp := &planmodifier.ListResponse{PlanValue: req.PlanValue}
+	args.modifier.PlanModifyList(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("modifier diagnostics: %v", resp.Diagnostics)
+	}
+	return resp.PlanValue
+}
+
+type byocListModifierArgs struct {
+	modifier    planmodifier.List
+	path        path.Path
+	stateValue  types.List
+	stateModel  models.ByocInfrastructureResourceModel
+	configModel models.ByocInfrastructureResourceModel
+}
+
+func TestByocByoVpcUseStateForUnknownModifier(t *testing.T) {
+	subnets := types.ListValueMust(types.StringType, []attr.Value{types.StringValue("subnet-1")})
+
+	stateModel := byocInfraModel()
+	stateModel.ID = types.StringValue(byocInfraID)
+	stateModel.State = types.StringValue(api.ByocStateReady)
+	stateModel.CloudProvider = types.StringValue("aws")
+	stateModel.VpcID = types.StringValue("vpc-123")
+	stateModel.PrivateSubnetIDs = subnets
+
+	runString := func(t *testing.T, configModel models.ByocInfrastructureResourceModel) types.String {
+		t.Helper()
+		return byocRunStringModifier(t, byocStringModifierArgs{
+			modifier:    byocByoVpcStringUseStateForUnknown(),
+			path:        path.Root("vpc_id"),
+			stateValue:  types.StringValue("vpc-123"),
+			stateModel:  stateModel,
+			configModel: configModel,
+		})
+	}
+	runList := func(t *testing.T, configModel models.ByocInfrastructureResourceModel) types.List {
+		t.Helper()
+		return byocRunListModifier(t, byocListModifierArgs{
+			modifier:    byocByoVpcListUseStateForUnknown(),
+			path:        path.Root("private_subnet_ids"),
+			stateValue:  subnets,
+			stateModel:  stateModel,
+			configModel: configModel,
+		})
+	}
+
+	t.Run("unchanged topology keeps the prior values", func(t *testing.T) {
+		if got := runString(t, byocInfraModel()); got.ValueString() != "vpc-123" {
+			t.Errorf("vpc_id plan = %v; want the prior state value", got)
+		}
+		if got := runList(t, byocInfraModel()); !got.Equal(subnets) {
+			t.Errorf("private_subnet_ids plan = %v; want the prior state value", got)
+		}
+	})
+
+	t.Run("configured vpc_cidr_range leaves the BYO fields unknown", func(t *testing.T) {
+		configModel := byocInfraModel()
+		configModel.VpcCidrRange = types.StringValue("10.0.0.0/16")
+		if got := runString(t, configModel); !got.IsUnknown() {
+			t.Errorf("vpc_id plan = %v; stale BYO wiring must not leak into a managed-VPC create", got)
+		}
+		if got := runList(t, configModel); !got.IsUnknown() {
+			t.Errorf("private_subnet_ids plan = %v; stale BYO wiring must not leak into a managed-VPC create", got)
+		}
+	})
+
+	t.Run("changed region leaves the BYO fields unknown", func(t *testing.T) {
+		configModel := byocInfraModel()
+		configModel.RegionID = types.StringValue("eu-west-1")
+		if got := runString(t, configModel); !got.IsUnknown() {
+			t.Errorf("vpc_id plan = %v; region-scoped wiring must not survive a region change", got)
+		}
+		if got := runList(t, configModel); !got.IsUnknown() {
+			t.Errorf("private_subnet_ids plan = %v; region-scoped wiring must not survive a region change", got)
+		}
+	})
+
+	t.Run("different configured vpc_id leaves dependent fields unknown", func(t *testing.T) {
+		configModel := byocInfraModel()
+		configModel.VpcID = types.StringValue("vpc-456")
+		if got := runList(t, configModel); !got.IsUnknown() {
+			t.Errorf("private_subnet_ids plan = %v; subnets of the old VPC must not be restored for a new vpc_id", got)
+		}
+	})
+}
+
 func TestByocPscSubnetUseStateForUnknownModifier(t *testing.T) {
 	stateModel := byocInfraModel()
 	stateModel.ID = types.StringValue(byocInfraID)
