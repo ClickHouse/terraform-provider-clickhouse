@@ -1081,26 +1081,37 @@ func TestByocWriteOnlyAttributesReplaceWithoutImportMarker(t *testing.T) {
 	}
 }
 
-type fakeByocPrivateGetter struct {
+// fakeByocPrivateState stands in for the framework's private state, whose
+// concrete type lives in an internal package and cannot be constructed here.
+type fakeByocPrivateState struct {
 	data map[string][]byte
 }
 
-func (f *fakeByocPrivateGetter) GetKey(_ context.Context, key string) ([]byte, diag.Diagnostics) {
+func (f *fakeByocPrivateState) GetKey(_ context.Context, key string) ([]byte, diag.Diagnostics) {
 	return f.data[key], nil
 }
 
-func TestByocWasImported(t *testing.T) {
+func (f *fakeByocPrivateState) SetKey(_ context.Context, key string, value []byte) diag.Diagnostics {
+	f.data[key] = value
+	return nil
+}
+
+func TestByocImportMarkerRoundTrip(t *testing.T) {
 	ctx := context.Background()
+	private := &fakeByocPrivateState{data: map[string][]byte{}}
 
 	var diags diag.Diagnostics
-	imported := &fakeByocPrivateGetter{data: map[string][]byte{byocImportedPrivateKey: []byte("true")}}
-	if !byocWasImported(ctx, imported, &diags) {
-		t.Error("expected true when the import marker is present")
+	if byocWasImported(ctx, private, &diags) {
+		t.Error("expected false before the import marker is written")
 	}
 
-	notImported := &fakeByocPrivateGetter{data: map[string][]byte{}}
-	if byocWasImported(ctx, notImported, &diags) {
-		t.Error("expected false when the import marker is absent")
+	byocMarkImported(ctx, private, &diags)
+	if len(private.data[byocImportedPrivateKey]) == 0 {
+		t.Fatalf("expected ImportState marker under %q, got keys %v", byocImportedPrivateKey, private.data)
+	}
+
+	if !byocWasImported(ctx, private, &diags) {
+		t.Error("expected true after byocMarkImported wrote the marker")
 	}
 	if diags.HasError() {
 		t.Errorf("unexpected diags: %v", diags)

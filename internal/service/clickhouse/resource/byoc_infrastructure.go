@@ -58,10 +58,18 @@ type byocPrivateGetter interface {
 	GetKey(ctx context.Context, key string) ([]byte, diag.Diagnostics)
 }
 
+type byocPrivateSetter interface {
+	SetKey(ctx context.Context, key string, value []byte) diag.Diagnostics
+}
+
 func byocWasImported(ctx context.Context, private byocPrivateGetter, diags *diag.Diagnostics) bool {
 	data, d := private.GetKey(ctx, byocImportedPrivateKey)
 	diags.Append(d...)
 	return len(data) > 0
+}
+
+func byocMarkImported(ctx context.Context, private byocPrivateSetter, diags *diag.Diagnostics) {
+	diags.Append(private.SetKey(ctx, byocImportedPrivateKey, []byte("true"))...)
 }
 
 func byocStringRequiresReplaceUnlessAdopted() planmodifier.String {
@@ -642,7 +650,7 @@ func (r *ByocInfrastructureResource) ImportState(ctx context.Context, req resour
 	// Unlocks adopting write-only creation parameters over the imported null
 	// state; nil only in hand-built test responses.
 	if resp.Private != nil {
-		resp.Diagnostics.Append(resp.Private.SetKey(ctx, byocImportedPrivateKey, []byte("true"))...)
+		byocMarkImported(ctx, resp.Private, &resp.Diagnostics)
 	}
 }
 
