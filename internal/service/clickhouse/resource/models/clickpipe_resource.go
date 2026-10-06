@@ -622,6 +622,11 @@ func (m ClickPipeServiceAccountModel) ObjectValue() types.Object {
 
 type ClickPipeBigQuerySettingsModel struct {
 	ReplicationMode                types.String `tfsdk:"replication_mode"`
+	ReplicationMethod              types.String `tfsdk:"replication_method"`
+	SyncIntervalSeconds            types.Int64  `tfsdk:"sync_interval_seconds"`
+	QueryCDCPullSyncParallelism    types.Int64  `tfsdk:"query_cdc_pull_sync_parallelism"`
+	SyncDelaySeconds               types.Int64  `tfsdk:"sync_delay_seconds"`
+	PullWindowSizeSeconds          types.Int64  `tfsdk:"pull_window_size_seconds"`
 	AllowNullableColumns           types.Bool   `tfsdk:"allow_nullable_columns"`
 	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
 	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
@@ -632,6 +637,11 @@ func (m ClickPipeBigQuerySettingsModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"replication_mode":                   types.StringType,
+			"replication_method":                 types.StringType,
+			"sync_interval_seconds":              types.Int64Type,
+			"query_cdc_pull_sync_parallelism":    types.Int64Type,
+			"sync_delay_seconds":                 types.Int64Type,
+			"pull_window_size_seconds":           types.Int64Type,
 			"allow_nullable_columns":             types.BoolType,
 			"initial_load_parallelism":           types.Int64Type,
 			"snapshot_num_rows_per_partition":    types.Int64Type,
@@ -643,6 +653,11 @@ func (m ClickPipeBigQuerySettingsModel) ObjectType() types.ObjectType {
 func (m ClickPipeBigQuerySettingsModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"replication_mode":                   m.ReplicationMode,
+		"replication_method":                 m.ReplicationMethod,
+		"sync_interval_seconds":              m.SyncIntervalSeconds,
+		"query_cdc_pull_sync_parallelism":    m.QueryCDCPullSyncParallelism,
+		"sync_delay_seconds":                 m.SyncDelaySeconds,
+		"pull_window_size_seconds":           m.PullWindowSizeSeconds,
 		"allow_nullable_columns":             m.AllowNullableColumns,
 		"initial_load_parallelism":           m.InitialLoadParallelism,
 		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
@@ -658,6 +673,9 @@ type ClickPipeBigQueryTableMappingModel struct {
 	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
 	SortingKeys         types.List   `tfsdk:"sorting_keys"`
 	TableEngine         types.String `tfsdk:"table_engine"`
+
+	QueryCDCWatermarkColumn types.String `tfsdk:"query_cdc_watermark_column"`
+	EventsFunction          types.String `tfsdk:"events_function"`
 }
 
 func (m ClickPipeBigQueryTableMappingModel) ObjectType() types.ObjectType {
@@ -670,6 +688,9 @@ func (m ClickPipeBigQueryTableMappingModel) ObjectType() types.ObjectType {
 			"use_custom_sorting_key": types.BoolType,
 			"sorting_keys":           types.ListType{ElemType: types.StringType},
 			"table_engine":           types.StringType,
+
+			"query_cdc_watermark_column": types.StringType,
+			"events_function":            types.StringType,
 		},
 	}
 }
@@ -683,6 +704,9 @@ func (m ClickPipeBigQueryTableMappingModel) ObjectValue() types.Object {
 		"use_custom_sorting_key": m.UseCustomSortingKey,
 		"sorting_keys":           m.SortingKeys,
 		"table_engine":           m.TableEngine,
+
+		"query_cdc_watermark_column": m.QueryCDCWatermarkColumn,
+		"events_function":            m.EventsFunction,
 	})
 }
 

@@ -28,3 +28,15 @@ variable "bigquery_table_names" {
   description = "Source BigQuery table names"
   type        = list(string)
 }
+
+variable "bigquery_watermark_column" {
+  description = "TIMESTAMP column present in every source table, used as the CDC watermark"
+  type        = string
+  default     = "updated_at"
+}
+
+variable "sync_interval_seconds" {
+  description = "Interval in seconds between CDC syncs"
+  type        = number
+  default     = 60
+}
