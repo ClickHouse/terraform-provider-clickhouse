@@ -2,10 +2,14 @@ package datasource
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 )
@@ -99,6 +103,127 @@ func TestByocInfrastructureDetailsToModel_NilTagsIsKnownEmptyMap(t *testing.T) {
 	}
 	if !model.EnablePrivateLink.IsNull() {
 		t.Error("enable_private_link should be null when absent")
+	}
+}
+
+func byocInfraReadSetup(t *testing.T, privateLink bool) (*byocInfrastructureDataSource, datasource.ReadRequest, *datasource.ReadResponse, *api.ClientMock) {
+	t.Helper()
+	ctx := context.Background()
+	d := NewByocInfrastructureDataSource().(*byocInfrastructureDataSource)
+	schemaResp := datasource.SchemaResponse{}
+	d.Schema(ctx, datasource.SchemaRequest{}, &schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("Schema diagnostics: %v", schemaResp.Diagnostics)
+	}
+
+	cfgModel := byocInfrastructureDataSourceModel{
+		ID:                      types.StringValue("byoc-1"),
+		VpcAvailabilityZoneList: types.ListNull(types.StringType),
+		ByoVpcPrivateSubnetIDs:  types.ListNull(types.StringType),
+		ByoVpcPodCidrRangeNames: types.ListNull(types.StringType),
+		Tags:                    types.MapNull(types.StringType),
+		PrivateEndpointConfig:   types.ObjectNull(byocPrivateEndpointConfigObjectType().AttrTypes),
+	}
+	cfgState := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := cfgState.Set(ctx, &cfgModel); diags.HasError() {
+		t.Fatalf("set config: %v", diags)
+	}
+
+	mc := minimock.NewController(t)
+	client := api.NewClientMock(mc)
+	client.GetByocInfrastructureMock.
+		Expect(ctx, "byoc-1").
+		Return(&api.ByocInfrastructureDetails{
+			Id:                "byoc-1",
+			State:             api.ByocStateReady,
+			AccountId:         "123456789012",
+			RegionId:          "us-east-1",
+			CloudProvider:     "aws",
+			DisplayName:       "prod-byoc",
+			EnablePrivateLink: boolPointer(privateLink),
+		}, nil)
+	client.GetByocInfrastructureTagsMock.
+		Expect(ctx, "byoc-1").
+		Return(map[string]string{}, nil)
+	d.client = client
+
+	req := datasource.ReadRequest{Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: cfgState.Raw}}
+	resp := &datasource.ReadResponse{
+		State: tfsdk.State{
+			Schema: schemaResp.Schema,
+			Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
+		},
+	}
+	return d, req, resp, client
+}
+
+func TestByocInfrastructureDataSourceReadSkipsEndpointConfigWhenPrivateLinkDisabled(t *testing.T) {
+	ctx := context.Background()
+	d, req, resp, client := byocInfraReadSetup(t, false)
+
+	d.Read(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Read diagnostics: %v", resp.Diagnostics)
+	}
+	if n := len(client.GetByocInfrastructurePrivateEndpointConfigMock.Calls()); n != 0 {
+		t.Errorf("private endpoint config calls = %d; want none when private link is disabled", n)
+	}
+
+	var got byocInfrastructureDataSourceModel
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("read state: %v", diags)
+	}
+	if !got.PrivateEndpointConfig.IsNull() {
+		t.Errorf("private_endpoint_config = %v; want null", got.PrivateEndpointConfig)
+	}
+}
+
+func TestByocInfrastructureDataSourceReadFetchesEndpointConfigWhenPrivateLinkEnabled(t *testing.T) {
+	ctx := context.Background()
+	d, req, resp, client := byocInfraReadSetup(t, true)
+	client.GetByocInfrastructurePrivateEndpointConfigMock.
+		Expect(ctx, "byoc-1").
+		Return(&api.ByocInfrastructurePrivateEndpointConfig{
+			EndpointName:       "com.amazonaws.vpce.us-east-1.vpce-svc-1",
+			PrivateDnsHostname: "byoc-1.us-east-1.vpce.clickhouse.cloud",
+		}, nil)
+
+	d.Read(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Read diagnostics: %v", resp.Diagnostics)
+	}
+
+	var got byocInfrastructureDataSourceModel
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("read state: %v", diags)
+	}
+	attrs := got.PrivateEndpointConfig.Attributes()
+	if got := attrs["endpoint_name"].(types.String).ValueString(); got != "com.amazonaws.vpce.us-east-1.vpce-svc-1" {
+		t.Errorf("endpoint_name = %q", got)
+	}
+	if got := attrs["private_dns_hostname"].(types.String).ValueString(); got != "byoc-1.us-east-1.vpce.clickhouse.cloud" {
+		t.Errorf("private_dns_hostname = %q", got)
+	}
+}
+
+func TestByocInfrastructureDataSourceReadTreatsEndpointConfig404AsNull(t *testing.T) {
+	ctx := context.Background()
+	d, req, resp, client := byocInfraReadSetup(t, true)
+	client.GetByocInfrastructurePrivateEndpointConfigMock.
+		Expect(ctx, "byoc-1").
+		Return(nil, errors.New("status: 404, body: not found"))
+
+	d.Read(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("a 404 during provisioning must not be an error: %v", resp.Diagnostics)
+	}
+
+	var got byocInfrastructureDataSourceModel
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("read state: %v", diags)
+	}
+	if !got.PrivateEndpointConfig.IsNull() {
+		t.Errorf("private_endpoint_config = %v; want null on provisioning 404", got.PrivateEndpointConfig)
 	}
 }
 

@@ -200,6 +200,139 @@ func TestByocInfrastructureResourceTagsLimitedTo50(t *testing.T) {
 	}
 }
 
+func byocRunStringModifier(t *testing.T, args byocStringModifierArgs) types.String {
+	t.Helper()
+	ctx := context.Background()
+	_, schemaResp := byocInfraSchema(t)
+
+	stateData := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := stateData.Set(ctx, &args.stateModel); diags.HasError() {
+		t.Fatalf("set state: %v", diags)
+	}
+	configData := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := configData.Set(ctx, &args.configModel); diags.HasError() {
+		t.Fatalf("set config: %v", diags)
+	}
+
+	req := planmodifier.StringRequest{
+		Path:        args.path,
+		Config:      tfsdk.Config{Schema: schemaResp.Schema, Raw: configData.Raw},
+		ConfigValue: types.StringNull(),
+		Plan:        tfsdk.Plan{Schema: schemaResp.Schema, Raw: configData.Raw},
+		PlanValue:   types.StringUnknown(),
+		State:       stateData,
+		StateValue:  args.stateValue,
+	}
+	resp := &planmodifier.StringResponse{PlanValue: req.PlanValue}
+	args.modifier.PlanModifyString(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("modifier diagnostics: %v", resp.Diagnostics)
+	}
+	return resp.PlanValue
+}
+
+type byocStringModifierArgs struct {
+	modifier    planmodifier.String
+	path        path.Path
+	stateValue  types.String
+	stateModel  models.ByocInfrastructureResourceModel
+	configModel models.ByocInfrastructureResourceModel
+}
+
+func TestByocVpcCidrUseStateForUnknownModifier(t *testing.T) {
+	stateModel := byocInfraModel()
+	stateModel.ID = types.StringValue(byocInfraID)
+	stateModel.State = types.StringValue(api.ByocStateReady)
+	stateModel.CloudProvider = types.StringValue("aws")
+	stateModel.VpcCidrRange = types.StringValue("10.0.0.0/16")
+
+	run := func(t *testing.T, configModel models.ByocInfrastructureResourceModel) types.String {
+		t.Helper()
+		return byocRunStringModifier(t, byocStringModifierArgs{
+			modifier:    byocVpcCidrUseStateForUnknown(),
+			path:        path.Root("vpc_cidr_range"),
+			stateValue:  types.StringValue("10.0.0.0/16"),
+			stateModel:  stateModel,
+			configModel: configModel,
+		})
+	}
+
+	t.Run("managed VPC keeps the prior CIDR", func(t *testing.T) {
+		if got := run(t, byocInfraModel()); got.ValueString() != "10.0.0.0/16" {
+			t.Errorf("plan value = %v; want the prior state CIDR", got)
+		}
+	})
+
+	byoVpcVariants := map[string]func(*models.ByocInfrastructureResourceModel){
+		"vpc_id": func(m *models.ByocInfrastructureResourceModel) {
+			m.VpcID = types.StringValue("vpc-123")
+		},
+		"private_subnet_ids": func(m *models.ByocInfrastructureResourceModel) {
+			m.PrivateSubnetIDs = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("subnet-1")})
+		},
+		"public_subnet_ids": func(m *models.ByocInfrastructureResourceModel) {
+			m.PublicSubnetIDs = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("subnet-2")})
+		},
+		"gcp_pod_cidr_range_names": func(m *models.ByocInfrastructureResourceModel) {
+			m.GcpPodCidrRangeNames = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("pods")})
+		},
+		"gcp_shared_vpc_host_project_id": func(m *models.ByocInfrastructureResourceModel) {
+			m.GcpSharedVpcHostProjectID = types.StringValue("host-project")
+		},
+	}
+	for attrName, set := range byoVpcVariants {
+		t.Run(attrName+" leaves the CIDR unknown", func(t *testing.T) {
+			configModel := byocInfraModel()
+			set(&configModel)
+			if got := run(t, configModel); !got.IsUnknown() {
+				t.Errorf("plan value = %v; the recorded CIDR must not leak into a BYO-VPC create", got)
+			}
+		})
+	}
+}
+
+func TestByocPscSubnetUseStateForUnknownModifier(t *testing.T) {
+	stateModel := byocInfraModel()
+	stateModel.ID = types.StringValue(byocInfraID)
+	stateModel.State = types.StringValue(api.ByocStateReady)
+	stateModel.CloudProvider = types.StringValue("gcp")
+	stateModel.EnablePrivateLink = types.BoolValue(true)
+	stateModel.GcpPscSubnetID = types.StringValue("psc-subnet")
+
+	run := func(t *testing.T, configModel models.ByocInfrastructureResourceModel) types.String {
+		t.Helper()
+		return byocRunStringModifier(t, byocStringModifierArgs{
+			modifier:    byocPscSubnetUseStateForUnknown(),
+			path:        path.Root("gcp_psc_subnet_id"),
+			stateValue:  types.StringValue("psc-subnet"),
+			stateModel:  stateModel,
+			configModel: configModel,
+		})
+	}
+
+	t.Run("disabling private link plans the subnet null", func(t *testing.T) {
+		configModel := byocInfraModel()
+		configModel.EnablePrivateLink = types.BoolValue(false)
+		if got := run(t, configModel); !got.IsNull() {
+			t.Errorf("plan value = %v; want null because the API clears the subnet", got)
+		}
+	})
+
+	t.Run("unset private link keeps the prior subnet", func(t *testing.T) {
+		if got := run(t, byocInfraModel()); got.ValueString() != "psc-subnet" {
+			t.Errorf("plan value = %v; want the prior state subnet", got)
+		}
+	})
+
+	t.Run("enabled private link keeps the prior subnet", func(t *testing.T) {
+		configModel := byocInfraModel()
+		configModel.EnablePrivateLink = types.BoolValue(true)
+		if got := run(t, configModel); got.ValueString() != "psc-subnet" {
+			t.Errorf("plan value = %v; want the prior state subnet", got)
+		}
+	})
+}
+
 func TestByocInfrastructureResourceCreate(t *testing.T) {
 	t.Setenv(utils.SuppressBetaWarningsEnvVar, "false")
 	ctx := context.Background()

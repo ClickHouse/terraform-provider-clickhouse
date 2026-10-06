@@ -64,6 +64,92 @@ func byocListRequiresReplaceUnlessAdopted() planmodifier.List {
 	)
 }
 
+const byocVpcCidrModifierDescription = "Uses the prior state value unless BYO-VPC inputs are configured; a recorded managed-VPC CIDR must not leak into a BYO-VPC create."
+
+// byocVpcCidrUseStateForUnknown is UseStateForUnknown except when BYO-VPC
+// inputs are configured: during a managed-VPC -> BYO-VPC replacement the old
+// CIDR would otherwise be planned as known and sent alongside vpc_id, which
+// the API rejects as mutually exclusive.
+func byocVpcCidrUseStateForUnknown() planmodifier.String {
+	return byocVpcCidrUseStateForUnknownModifier{}
+}
+
+type byocVpcCidrUseStateForUnknownModifier struct{}
+
+func (m byocVpcCidrUseStateForUnknownModifier) Description(context.Context) string {
+	return byocVpcCidrModifierDescription
+}
+
+func (m byocVpcCidrUseStateForUnknownModifier) MarkdownDescription(context.Context) string {
+	return byocVpcCidrModifierDescription
+}
+
+func (m byocVpcCidrUseStateForUnknownModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.StateValue.IsNull() || !req.PlanValue.IsUnknown() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	for _, p := range []path.Path{path.Root("vpc_id"), path.Root("gcp_shared_vpc_host_project_id")} {
+		var v types.String
+		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, p, &v)...)
+		if resp.Diagnostics.HasError() || !v.IsNull() {
+			return
+		}
+	}
+	for _, p := range []path.Path{path.Root("private_subnet_ids"), path.Root("public_subnet_ids"), path.Root("gcp_pod_cidr_range_names")} {
+		var v types.List
+		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, p, &v)...)
+		if resp.Diagnostics.HasError() || !v.IsNull() {
+			return
+		}
+	}
+	resp.PlanValue = req.StateValue
+}
+
+const byocPscSubnetModifierDescription = "Uses the prior state value unless private link is planned disabled, in which case the API clears the subnet and the plan becomes null."
+
+// byocPscSubnetUseStateForUnknown is UseStateForUnknown except when private
+// link is planned disabled: the API clears the subnet then, so preserving the
+// recorded value would plan a known value that the read-back contradicts.
+func byocPscSubnetUseStateForUnknown() planmodifier.String {
+	return byocPscSubnetUseStateForUnknownModifier{}
+}
+
+type byocPscSubnetUseStateForUnknownModifier struct{}
+
+func (m byocPscSubnetUseStateForUnknownModifier) Description(context.Context) string {
+	return byocPscSubnetModifierDescription
+}
+
+func (m byocPscSubnetUseStateForUnknownModifier) MarkdownDescription(context.Context) string {
+	return byocPscSubnetModifierDescription
+}
+
+func (m byocPscSubnetUseStateForUnknownModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.StateValue.IsNull() || !req.PlanValue.IsUnknown() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	var configPrivateLink, statePrivateLink types.Bool
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("enable_private_link"), &configPrivateLink)...)
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("enable_private_link"), &statePrivateLink)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	// enable_private_link may not have run its own modifiers yet, so resolve
+	// its effective planned value the same way: config wins, else prior state.
+	effective := configPrivateLink
+	if effective.IsNull() {
+		effective = statePrivateLink
+	}
+	if effective.IsUnknown() {
+		return
+	}
+	if !effective.IsNull() && !effective.ValueBool() {
+		resp.PlanValue = types.StringNull()
+		return
+	}
+	resp.PlanValue = req.StateValue
+}
+
 //go:embed descriptions/byoc_infrastructure.md
 var byocInfrastructureResourceDescription string
 
@@ -159,7 +245,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
-					stringplanmodifier.UseStateForUnknown(),
+					byocVpcCidrUseStateForUnknown(),
 				},
 			},
 			"availability_zone_suffixes": schema.ListAttribute{
@@ -237,7 +323,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					byocPscSubnetUseStateForUnknown(),
 				},
 			},
 			"tags": schema.MapAttribute{

@@ -61,6 +61,26 @@ func TestCreateByocInfrastructure_HappyPath(t *testing.T) {
 	}
 }
 
+func TestCreateByocInfrastructure_DoesNotRetry(t *testing.T) {
+	var requests atomic.Int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"transient"}`))
+	})
+
+	_, err := client.CreateByocInfrastructure(context.Background(), ByocInfrastructureCreateRequest{
+		RegionId:  "us-east-2",
+		AccountId: "123456789012",
+	})
+	if err == nil {
+		t.Fatal("CreateByocInfrastructure must fail on a 5xx response")
+	}
+	if got := requests.Load(); got != 1 {
+		t.Errorf("requests = %d; the non-idempotent create must never be retried", got)
+	}
+}
+
 func TestValidateByocInfrastructure_HappyPath(t *testing.T) {
 	want := ByocInfrastructureValidation{
 		CloudProvider: "aws",
