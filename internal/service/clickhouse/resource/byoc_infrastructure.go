@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -43,13 +44,30 @@ var (
 // Write-only creation parameters are never returned by the API, so an
 // imported state holds null for them. Replacing only when a previously
 // recorded value changes lets the owner re-add them after import without
-// destroying the infrastructure.
-const byocAdoptDescription = "Requires replacement when a previously recorded value changes; a value configured over a null (imported) state is adopted in place."
+// destroying the infrastructure. Adoption is gated on the import marker in
+// private state: a resource created by Terraform also stores null for omitted
+// creation-only options, and adding one later must replace — recording it
+// without an API call would silently diverge state from the infrastructure.
+const byocAdoptDescription = "Requires replacement when the value changes; after import, a value configured over the null imported state is adopted in place without replacement."
+
+const byocImportedPrivateKey = "imported"
+
+// byocPrivateGetter matches the framework's private state accessor so the
+// import check stays testable (the concrete type is framework-internal).
+type byocPrivateGetter interface {
+	GetKey(ctx context.Context, key string) ([]byte, diag.Diagnostics)
+}
+
+func byocWasImported(ctx context.Context, private byocPrivateGetter, diags *diag.Diagnostics) bool {
+	data, d := private.GetKey(ctx, byocImportedPrivateKey)
+	diags.Append(d...)
+	return len(data) > 0
+}
 
 func byocStringRequiresReplaceUnlessAdopted() planmodifier.String {
 	return stringplanmodifier.RequiresReplaceIf(
-		func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
-			resp.RequiresReplace = !req.StateValue.IsNull()
+		func(ctx context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !req.StateValue.IsNull() || !byocWasImported(ctx, req.Private, &resp.Diagnostics)
 		},
 		byocAdoptDescription, byocAdoptDescription,
 	)
@@ -57,8 +75,8 @@ func byocStringRequiresReplaceUnlessAdopted() planmodifier.String {
 
 func byocListRequiresReplaceUnlessAdopted() planmodifier.List {
 	return listplanmodifier.RequiresReplaceIf(
-		func(_ context.Context, req planmodifier.ListRequest, resp *listplanmodifier.RequiresReplaceIfFuncResponse) {
-			resp.RequiresReplace = !req.StateValue.IsNull()
+		func(ctx context.Context, req planmodifier.ListRequest, resp *listplanmodifier.RequiresReplaceIfFuncResponse) {
+			resp.RequiresReplace = !req.StateValue.IsNull() || !byocWasImported(ctx, req.Private, &resp.Diagnostics)
 		},
 		byocAdoptDescription, byocAdoptDescription,
 	)
@@ -259,16 +277,20 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 			"vpc_id": schema.StringAttribute{
 				Description: "BYO-VPC: ID of the customer-managed VPC to deploy into instead of a ClickHouse-managed one.",
 				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					byocStringRequiresReplaceUnlessAdopted(),
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"private_subnet_ids": schema.ListAttribute{
 				Description: "BYO-VPC: private subnet IDs to deploy into.",
 				Optional:    true,
+				Computed:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
-					byocListRequiresReplaceUnlessAdopted(),
+					listplanmodifier.UseStateForUnknown(),
+					listplanmodifier.RequiresReplace(),
 				},
 			},
 			"public_subnet_ids": schema.ListAttribute{
@@ -282,16 +304,20 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 			"gcp_pod_cidr_range_names": schema.ListAttribute{
 				Description: "GCP BYO-VPC: names of the secondary ranges used for pod IPs.",
 				Optional:    true,
+				Computed:    true,
 				ElementType: types.StringType,
 				PlanModifiers: []planmodifier.List{
-					byocListRequiresReplaceUnlessAdopted(),
+					listplanmodifier.UseStateForUnknown(),
+					listplanmodifier.RequiresReplace(),
 				},
 			},
 			"gcp_shared_vpc_host_project_id": schema.StringAttribute{
 				Description: "GCP BYO-VPC: host project ID when the customer-managed VPC is a shared VPC.",
 				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					byocStringRequiresReplaceUnlessAdopted(),
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"enable_private_link": schema.BoolAttribute{
@@ -613,6 +639,11 @@ func (r *ByocInfrastructureResource) Delete(ctx context.Context, req resource.De
 func (r *ByocInfrastructureResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	utils.BetaWarning("clickhouse_byoc_infrastructure", &resp.Diagnostics)
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	// Unlocks adopting write-only creation parameters over the imported null
+	// state; nil only in hand-built test responses.
+	if resp.Private != nil {
+		resp.Diagnostics.Append(resp.Private.SetKey(ctx, byocImportedPrivateKey, []byte("true"))...)
+	}
 }
 
 // syncByocResourceState refreshes the API-returned attributes of the model
@@ -652,6 +683,14 @@ func applyByocDetailsToResourceState(ctx context.Context, details *api.ByocInfra
 	model.GcpPscSubnetID = types.StringPointerValue(details.GcpPscSubnetId)
 	model.VpcCidrRange = types.StringPointerValue(details.VpcCidrRange)
 	model.IsByoVpc = types.BoolPointerValue(details.IsByoVpc)
+	model.VpcID = types.StringPointerValue(details.ByoVpcId)
+	model.GcpSharedVpcHostProjectID = types.StringPointerValue(details.ByoVpcSharedVpcHostProjectId)
+
+	var d diag.Diagnostics
+	model.PrivateSubnetIDs, d = stringSliceToList(details.ByoVpcPrivateSubnetIds)
+	diags.Append(d...)
+	model.GcpPodCidrRangeNames, d = stringSliceToList(details.ByoVpcPodCidrRangeNames)
+	diags.Append(d...)
 
 	if tags == nil {
 		tags = map[string]string{}
@@ -673,6 +712,18 @@ func applyByocSummaryFallback(infra *api.ByocInfrastructure, model *models.ByocI
 	model.DisplayName = types.StringValue(infra.DisplayName)
 	if model.VpcCidrRange.IsUnknown() {
 		model.VpcCidrRange = types.StringNull()
+	}
+	if model.VpcID.IsUnknown() {
+		model.VpcID = types.StringNull()
+	}
+	if model.GcpSharedVpcHostProjectID.IsUnknown() {
+		model.GcpSharedVpcHostProjectID = types.StringNull()
+	}
+	if model.PrivateSubnetIDs.IsUnknown() {
+		model.PrivateSubnetIDs = types.ListNull(types.StringType)
+	}
+	if model.GcpPodCidrRangeNames.IsUnknown() {
+		model.GcpPodCidrRangeNames = types.ListNull(types.StringType)
 	}
 	if model.EnablePrivateLink.IsUnknown() {
 		model.EnablePrivateLink = types.BoolNull()
@@ -698,13 +749,17 @@ func byocCreateRequestFromModel(ctx context.Context, model *models.ByocInfrastru
 	var diags diag.Diagnostics
 
 	request := api.ByocInfrastructureCreateRequest{
-		RegionId:                  model.RegionID.ValueString(),
-		AccountId:                 model.AccountID.ValueString(),
-		ExternalId:                model.ExternalID.ValueStringPointer(),
-		TenantId:                  model.TenantID.ValueStringPointer(),
-		ServicePrincipalClientId:  model.ServicePrincipalClientID.ValueStringPointer(),
-		VpcId:                     model.VpcID.ValueStringPointer(),
-		GcpSharedVpcHostProjectId: model.GcpSharedVpcHostProjectID.ValueStringPointer(),
+		RegionId:                 model.RegionID.ValueString(),
+		AccountId:                model.AccountID.ValueString(),
+		ExternalId:               model.ExternalID.ValueStringPointer(),
+		TenantId:                 model.TenantID.ValueStringPointer(),
+		ServicePrincipalClientId: model.ServicePrincipalClientID.ValueStringPointer(),
+	}
+	if isKnown(model.VpcID) {
+		request.VpcId = model.VpcID.ValueStringPointer()
+	}
+	if isKnown(model.GcpSharedVpcHostProjectID) {
+		request.GcpSharedVpcHostProjectId = model.GcpSharedVpcHostProjectID.ValueStringPointer()
 	}
 	if isKnown(model.DisplayName) {
 		request.DisplayName = model.DisplayName.ValueStringPointer()
@@ -881,4 +936,15 @@ func stringListFromModel(ctx context.Context, list types.List) ([]string, diag.D
 	var out []string
 	diags.Append(list.ElementsAs(ctx, &out, false)...)
 	return out, diags
+}
+
+func stringSliceToList(values []string) (types.List, diag.Diagnostics) {
+	if values == nil {
+		return types.ListNull(types.StringType), nil
+	}
+	elements := make([]attr.Value, 0, len(values))
+	for _, v := range values {
+		elements = append(elements, types.StringValue(v))
+	}
+	return types.ListValue(types.StringType, elements)
 }

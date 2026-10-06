@@ -9,6 +9,7 @@ import (
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -1033,7 +1034,7 @@ func TestByocInfrastructureResourceValidateConfigRejectsPscSubnetWithoutPrivateL
 	}
 }
 
-func TestByocWriteOnlyAttributesAdoptedOverNullState(t *testing.T) {
+func TestByocWriteOnlyAttributesReplaceWithoutImportMarker(t *testing.T) {
 	ctx := context.Background()
 	_, schemaResp := byocInfraSchema(t)
 	raw := byocInfraState(t, schemaResp).Raw
@@ -1042,16 +1043,16 @@ func TestByocWriteOnlyAttributesAdoptedOverNullState(t *testing.T) {
 
 	stringModifier := byocStringRequiresReplaceUnlessAdopted()
 
-	adoptReq := planmodifier.StringRequest{
+	nullStateReq := planmodifier.StringRequest{
 		State:      state,
 		Plan:       plan,
 		StateValue: types.StringNull(),
 		PlanValue:  types.StringValue("external-id-1"),
 	}
-	adoptResp := &planmodifier.StringResponse{PlanValue: adoptReq.PlanValue}
-	stringModifier.PlanModifyString(ctx, adoptReq, adoptResp)
-	if adoptResp.RequiresReplace {
-		t.Error("configuring a value over a null (imported) state must not require replacement")
+	nullStateResp := &planmodifier.StringResponse{PlanValue: nullStateReq.PlanValue}
+	stringModifier.PlanModifyString(ctx, nullStateReq, nullStateResp)
+	if !nullStateResp.RequiresReplace {
+		t.Error("configuring a value over a null state without the import marker must require replacement")
 	}
 
 	changeReq := planmodifier.StringRequest{
@@ -1067,16 +1068,82 @@ func TestByocWriteOnlyAttributesAdoptedOverNullState(t *testing.T) {
 	}
 
 	listModifier := byocListRequiresReplaceUnlessAdopted()
-	listAdoptReq := planmodifier.ListRequest{
+	listNullStateReq := planmodifier.ListRequest{
 		State:      state,
 		Plan:       plan,
 		StateValue: types.ListNull(types.StringType),
 		PlanValue:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("subnet-1")}),
 	}
-	listAdoptResp := &planmodifier.ListResponse{PlanValue: listAdoptReq.PlanValue}
-	listModifier.PlanModifyList(ctx, listAdoptReq, listAdoptResp)
-	if listAdoptResp.RequiresReplace {
-		t.Error("configuring a list over a null (imported) state must not require replacement")
+	listNullStateResp := &planmodifier.ListResponse{PlanValue: listNullStateReq.PlanValue}
+	listModifier.PlanModifyList(ctx, listNullStateReq, listNullStateResp)
+	if !listNullStateResp.RequiresReplace {
+		t.Error("configuring a list over a null state without the import marker must require replacement")
+	}
+}
+
+type fakeByocPrivateGetter struct {
+	data map[string][]byte
+}
+
+func (f *fakeByocPrivateGetter) GetKey(_ context.Context, key string) ([]byte, diag.Diagnostics) {
+	return f.data[key], nil
+}
+
+func TestByocWasImported(t *testing.T) {
+	ctx := context.Background()
+
+	var diags diag.Diagnostics
+	imported := &fakeByocPrivateGetter{data: map[string][]byte{byocImportedPrivateKey: []byte("true")}}
+	if !byocWasImported(ctx, imported, &diags) {
+		t.Error("expected true when the import marker is present")
+	}
+
+	notImported := &fakeByocPrivateGetter{data: map[string][]byte{}}
+	if byocWasImported(ctx, notImported, &diags) {
+		t.Error("expected false when the import marker is absent")
+	}
+	if diags.HasError() {
+		t.Errorf("unexpected diags: %v", diags)
+	}
+}
+
+func TestByocDetailsMapByoVpcFieldsToResourceState(t *testing.T) {
+	ctx := context.Background()
+
+	details := byocInfraDetails(api.ByocStateReady)
+	details.IsByoVpc = boolPtr(true)
+	details.ByoVpcId = strPtr("vpc-123")
+	details.ByoVpcPrivateSubnetIds = []string{"subnet-1", "subnet-2"}
+	details.ByoVpcPodCidrRangeNames = []string{"pods-a"}
+	details.ByoVpcSharedVpcHostProjectId = strPtr("host-project")
+
+	model := models.ByocInfrastructureResourceModel{}
+	if diags := applyByocDetailsToResourceState(ctx, details, nil, &model); diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+
+	if got := model.VpcID; !got.Equal(types.StringValue("vpc-123")) {
+		t.Errorf("VpcID = %v, want vpc-123", got)
+	}
+	if got := model.GcpSharedVpcHostProjectID; !got.Equal(types.StringValue("host-project")) {
+		t.Errorf("GcpSharedVpcHostProjectID = %v, want host-project", got)
+	}
+	wantSubnets := types.ListValueMust(types.StringType, []attr.Value{types.StringValue("subnet-1"), types.StringValue("subnet-2")})
+	if got := model.PrivateSubnetIDs; !got.Equal(wantSubnets) {
+		t.Errorf("PrivateSubnetIDs = %v, want %v", got, wantSubnets)
+	}
+	wantRanges := types.ListValueMust(types.StringType, []attr.Value{types.StringValue("pods-a")})
+	if got := model.GcpPodCidrRangeNames; !got.Equal(wantRanges) {
+		t.Errorf("GcpPodCidrRangeNames = %v, want %v", got, wantRanges)
+	}
+
+	managed := models.ByocInfrastructureResourceModel{}
+	if diags := applyByocDetailsToResourceState(ctx, byocInfraDetails(api.ByocStateReady), nil, &managed); diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if !managed.VpcID.IsNull() || !managed.GcpSharedVpcHostProjectID.IsNull() ||
+		!managed.PrivateSubnetIDs.IsNull() || !managed.GcpPodCidrRangeNames.IsNull() {
+		t.Error("managed-VPC details must map the BYO-VPC attributes to null")
 	}
 }
 
