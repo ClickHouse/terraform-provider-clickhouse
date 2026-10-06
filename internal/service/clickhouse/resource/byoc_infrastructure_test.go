@@ -904,8 +904,13 @@ func TestByocInfrastructureResourceUpdateKeepsPlanWhenRefreshFails(t *testing.T)
 
 	model := byocInfraModel()
 	model.ID = types.StringValue(byocInfraID)
-	// state has no UseStateForUnknown, so real update plans carry it unknown.
+	// state has no UseStateForUnknown, so real update plans carry it unknown;
+	// null-state computed attributes also stay unknown because the custom
+	// modifiers have nothing to restore.
 	model.State = types.StringUnknown()
+	model.VpcID = types.StringUnknown()
+	model.PrivateSubnetIDs = types.ListUnknown(types.StringType)
+	model.GcpPscSubnetID = types.StringUnknown()
 	model.CloudProvider = types.StringValue("aws")
 	model.DisplayName = types.StringValue("renamed-byoc")
 	plan := tfsdk.Plan{Schema: schemaResp.Schema}
@@ -948,6 +953,15 @@ func TestByocInfrastructureResourceUpdateKeepsPlanWhenRefreshFails(t *testing.T)
 	}
 	if got.State.IsUnknown() || got.State.ValueString() != api.ByocStateReady {
 		t.Errorf("state = %v; want the prior state value %q, never unknown", got.State, api.ByocStateReady)
+	}
+	if !got.VpcID.IsNull() {
+		t.Errorf("vpc_id = %v; want null from prior state, never unknown", got.VpcID)
+	}
+	if !got.PrivateSubnetIDs.IsNull() {
+		t.Errorf("private_subnet_ids = %v; want null from prior state, never unknown", got.PrivateSubnetIDs)
+	}
+	if !got.GcpPscSubnetID.IsNull() {
+		t.Errorf("gcp_psc_subnet_id = %v; want null from prior state, never unknown", got.GcpPscSubnetID)
 	}
 }
 

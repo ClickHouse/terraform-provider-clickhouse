@@ -706,15 +706,66 @@ func (r *ByocInfrastructureResource) Update(ctx context.Context, req resource.Up
 	}
 
 	// Persist the plan even when the refresh fails: returning without state
-	// after a successful update is a framework error. state is the only
-	// computed attribute without UseStateForUnknown (it is volatile; pinning
-	// it to the prior value in the plan would make Terraform reject any
-	// server-side transition as an inconsistent result), so the plan carries
-	// it as unknown — resolve it from prior state before writing.
+	// after a successful update is a framework error. The plan can carry
+	// unknowns — volatile state has no UseStateForUnknown, and the custom
+	// modifiers leave null-state attributes unknown — so resolve them from
+	// prior state before writing.
 	if !r.syncByocResourceState(ctx, state.ID.ValueString(), &plan, &resp.Diagnostics) {
-		plan.State = state.State
+		resolveUnknownComputedFromState(&plan, &state)
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+// resolveUnknownComputedFromState resolves computed attributes the plan left
+// unknown from prior state: writing an unknown value to state is a framework
+// error, and null-state attributes have nothing for UseStateForUnknown to
+// restore.
+func resolveUnknownComputedFromState(plan, state *models.ByocInfrastructureResourceModel) {
+	if plan.ID.IsUnknown() {
+		plan.ID = state.ID
+	}
+	if plan.State.IsUnknown() {
+		plan.State = state.State
+	}
+	if plan.CloudProvider.IsUnknown() {
+		plan.CloudProvider = state.CloudProvider
+	}
+	if plan.DisplayName.IsUnknown() {
+		plan.DisplayName = state.DisplayName
+	}
+	if plan.VpcCidrRange.IsUnknown() {
+		plan.VpcCidrRange = state.VpcCidrRange
+	}
+	if plan.VpcID.IsUnknown() {
+		plan.VpcID = state.VpcID
+	}
+	if plan.PrivateSubnetIDs.IsUnknown() {
+		plan.PrivateSubnetIDs = state.PrivateSubnetIDs
+	}
+	if plan.GcpPodCidrRangeNames.IsUnknown() {
+		plan.GcpPodCidrRangeNames = state.GcpPodCidrRangeNames
+	}
+	if plan.GcpSharedVpcHostProjectID.IsUnknown() {
+		plan.GcpSharedVpcHostProjectID = state.GcpSharedVpcHostProjectID
+	}
+	if plan.EnablePrivateLink.IsUnknown() {
+		plan.EnablePrivateLink = state.EnablePrivateLink
+	}
+	if plan.EnablePrivateLoadBalancer.IsUnknown() {
+		plan.EnablePrivateLoadBalancer = state.EnablePrivateLoadBalancer
+	}
+	if plan.EnablePublicLoadBalancer.IsUnknown() {
+		plan.EnablePublicLoadBalancer = state.EnablePublicLoadBalancer
+	}
+	if plan.GcpPscSubnetID.IsUnknown() {
+		plan.GcpPscSubnetID = state.GcpPscSubnetID
+	}
+	if plan.Tags.IsUnknown() {
+		plan.Tags = state.Tags
+	}
+	if plan.IsByoVpc.IsUnknown() {
+		plan.IsByoVpc = state.IsByoVpc
+	}
 }
 
 func (r *ByocInfrastructureResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

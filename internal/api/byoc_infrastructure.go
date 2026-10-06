@@ -310,5 +310,11 @@ func (c *ClientImpl) WaitForByocInfrastructureState(ctx context.Context, byocId 
 		maxWaitSeconds = 5
 	}
 
+	// Deadline on the context, not just a retry count: each GET can itself
+	// retry transport failures for about a minute, which would otherwise
+	// stretch the budget to a multiple of maxWaitSeconds.
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(maxWaitSeconds)*time.Second)
+	defer cancel()
+
 	return backoff.Retry(checkState, backoff.WithContext(backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), uint64(maxWaitSeconds/5)), ctx)) //nolint:gosec
 }
