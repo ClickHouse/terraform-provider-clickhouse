@@ -335,11 +335,16 @@ type ClickPipeServiceAccount struct {
 }
 
 type ClickPipeBigQuerySettings struct {
-	ReplicationMode                string `json:"replicationMode,omitempty"`
-	AllowNullableColumns           *bool  `json:"allowNullableColumns,omitempty"`
-	InitialLoadParallelism         *int   `json:"initialLoadParallelism,omitempty"`
-	SnapshotNumRowsPerPartition    *int   `json:"snapshotNumRowsPerPartition,omitempty"`
-	SnapshotNumberOfParallelTables *int   `json:"snapshotNumberOfParallelTables,omitempty"`
+	ReplicationMode                string  `json:"replicationMode,omitempty"`
+	ReplicationMethod              *string `json:"replicationMethod,omitempty"`
+	SyncIntervalSeconds            *int    `json:"syncIntervalSeconds,omitempty"`
+	QueryCDCPullSyncParallelism    *int    `json:"queryCdcPullSyncParallelism,omitempty"`
+	SyncDelaySeconds               *int    `json:"syncDelaySeconds,omitempty"`
+	PullWindowSizeSeconds          *int    `json:"pullWindowSizeSeconds,omitempty"`
+	AllowNullableColumns           *bool   `json:"allowNullableColumns,omitempty"`
+	InitialLoadParallelism         *int    `json:"initialLoadParallelism,omitempty"`
+	SnapshotNumRowsPerPartition    *int    `json:"snapshotNumRowsPerPartition,omitempty"`
+	SnapshotNumberOfParallelTables *int    `json:"snapshotNumberOfParallelTables,omitempty"`
 }
 
 type ClickPipeBigQueryTableMapping struct {
@@ -350,6 +355,9 @@ type ClickPipeBigQueryTableMapping struct {
 	UseCustomSortingKey *bool    `json:"useCustomSortingKey,omitempty"`
 	SortingKeys         []string `json:"sortingKeys,omitempty"`
 	TableEngine         *string  `json:"tableEngine,omitempty"`
+
+	QueryCDCWatermarkColumn *string `json:"queryCdcWatermarkColumn,omitempty"`
+	EventsFunction          *string `json:"eventsFunction,omitempty"`
 }
 
 type ClickPipeBigQuerySource struct {

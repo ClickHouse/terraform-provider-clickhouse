@@ -1661,6 +1661,63 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											stringplanmodifier.RequiresReplace(),
 										},
 									},
+									"replication_method": schema.StringAttribute{
+										MarkdownDescription: fmt.Sprintf(
+											"How changes are captured from BigQuery. (%s). `query_based` polls each table using a watermark timestamp column (see `query_cdc_watermark_column` in `table_mappings`), `events_based` reads the BigQuery change history using the `APPENDS` or `CHANGES` table function (see `events_function` in `table_mappings`). Required when `replication_mode` is `cdc` or `cdc_only`, and must be omitted for `snapshot`.",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryReplicationMethods),
+										),
+										Optional: true,
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipeBigQueryReplicationMethods...),
+										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
+									},
+									"sync_interval_seconds": schema.Int64Attribute{
+										Description: "Interval in seconds between CDC syncs. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+										},
+									},
+									"query_cdc_pull_sync_parallelism": schema.Int64Attribute{
+										Description: "Number of tables pulled in parallel during a CDC sync. Must be omitted when replication_mode is `snapshot`. Defaults to 4 for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+										},
+									},
+									"sync_delay_seconds": schema.Int64Attribute{
+										Description: "Each CDC sync reads data only up to now minus this delay, giving recently written rows time to become visible in BigQuery. Increase it if your tables are loaded via batch jobs or Google Cloud Dataflow; if set too low, late-visible rows may be skipped. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(0),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+										},
+									},
+									"pull_window_size_seconds": schema.Int64Attribute{
+										Description: "Maximum amount of time one pull (query) can cover. Applies when the pipe has fallen behind, e.g. on the first CDC sync or when resuming after a pause: with a 6 hour limit, a pipe that is 3 days behind catches up in 12 smaller pulls instead of one large query. If a pull fails, only that pull is retried. Must be omitted when replication_mode is `snapshot`. Defaults to 86400 (24 hours) for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+										},
+									},
 									"allow_nullable_columns": schema.BoolAttribute{
 										Description: "Allow nullable columns in the destination table.",
 										Optional:    true,
@@ -1758,6 +1815,20 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Computed: true,
 											Validators: []validator.String{
 												stringvalidator.OneOf(api.ClickPipeBigQueryTableEngines...),
+											},
+										},
+										"query_cdc_watermark_column": schema.StringAttribute{
+											MarkdownDescription: "Source column of type `TIMESTAMP` used as the CDC watermark. Required for every table when `replication_method` is `query_based`; must be omitted otherwise.",
+											Optional:            true,
+										},
+										"events_function": schema.StringAttribute{
+											MarkdownDescription: fmt.Sprintf(
+												"BigQuery table function used to read changes. (%s). Required for every table when `replication_method` is `events_based`; must be omitted otherwise.",
+												wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryEventsFunctions),
+											),
+											Optional: true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(api.ClickPipeBigQueryEventsFunctions...),
 											},
 										},
 									},
@@ -3258,6 +3329,30 @@ func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
 	return source.BigQuery != nil && source.BigQuery.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity
 }
 
+// knownInt64ToIntPointer returns nil for null/unknown values so unset settings are left out of the API request.
+func knownInt64ToIntPointer(v types.Int64) *int {
+	if v.IsNull() || v.IsUnknown() {
+		return nil
+	}
+	val := int(v.ValueInt64())
+	return &val
+}
+
+func intPointerToInt64Value(v *int) types.Int64 {
+	if v == nil {
+		return types.Int64Null()
+	}
+	return types.Int64Value(int64(*v))
+}
+
+// nonEmptyStringValue maps a nil or empty string from the API to null.
+func nonEmptyStringValue(v *string) types.String {
+	if v == nil || *v == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(*v)
+}
+
 // overlayPasswordWO returns the write-only password from config when set, else the plan password. The framework leaves write-only attrs in req.Plan and req.Config, but nulls them in req.State; we read from config to keep the source of truth explicit.
 func overlayPasswordWO(planPassword, configPasswordWO types.String) types.String {
 	if !configPasswordWO.IsNull() && !configPasswordWO.IsUnknown() {
@@ -3665,6 +3760,14 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			ReplicationMode: settingsModel.ReplicationMode.ValueString(),
 		}
 
+		if !settingsModel.ReplicationMethod.IsNull() && !settingsModel.ReplicationMethod.IsUnknown() {
+			settings.ReplicationMethod = settingsModel.ReplicationMethod.ValueStringPointer()
+		}
+		settings.SyncIntervalSeconds = knownInt64ToIntPointer(settingsModel.SyncIntervalSeconds)
+		settings.QueryCDCPullSyncParallelism = knownInt64ToIntPointer(settingsModel.QueryCDCPullSyncParallelism)
+		settings.SyncDelaySeconds = knownInt64ToIntPointer(settingsModel.SyncDelaySeconds)
+		settings.PullWindowSizeSeconds = knownInt64ToIntPointer(settingsModel.PullWindowSizeSeconds)
+
 		if !settingsModel.AllowNullableColumns.IsNull() {
 			val := settingsModel.AllowNullableColumns.ValueBool()
 			settings.AllowNullableColumns = &val
@@ -3713,6 +3816,14 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 
 			if !mappingModel.TableEngine.IsNull() {
 				mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
+			}
+
+			if !mappingModel.QueryCDCWatermarkColumn.IsNull() && !mappingModel.QueryCDCWatermarkColumn.IsUnknown() {
+				mapping.QueryCDCWatermarkColumn = mappingModel.QueryCDCWatermarkColumn.ValueStringPointer()
+			}
+
+			if !mappingModel.EventsFunction.IsNull() && !mappingModel.EventsFunction.IsUnknown() {
+				mapping.EventsFunction = mappingModel.EventsFunction.ValueStringPointer()
 			}
 
 			tableMappings[i] = mapping
@@ -4345,14 +4456,22 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 		return isClickPipeStoppedOrPaused
 	}
 
-	// Check if this is a snapshot-only DB pipe (Postgres/MySQL snapshot mode or BigQuery)
+	// Check if this is a snapshot-only DB pipe (snapshot replication mode)
 	isDBPipe := false
 	isSnapshotOnly := false
 	var sourceModel models.ClickPipeSourceModel
 	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
-		// BigQuery is always snapshot-only
 		if !sourceModel.BigQuery.IsNull() {
-			isSnapshotOnly = true
+			isDBPipe = true
+			var bigQuerySource models.ClickPipeBigQuerySourceModel
+			if diags := sourceModel.BigQuery.As(ctx, &bigQuerySource, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				if !bigQuerySource.Settings.IsNull() {
+					var settings models.ClickPipeBigQuerySettingsModel
+					if diags := bigQuerySource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipeReplicationModeSnapshot
+					}
+				}
+			}
 		} else if !sourceModel.Postgres.IsNull() {
 			isDBPipe = true
 			var postgresSource models.ClickPipePostgresSourceModel
@@ -5478,7 +5597,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		// Settings - preserve null values from state for optional fields
 		settingsModel := models.ClickPipeBigQuerySettingsModel{
-			ReplicationMode: types.StringValue(clickPipe.Source.BigQuery.Settings.ReplicationMode),
+			ReplicationMode:             types.StringValue(clickPipe.Source.BigQuery.Settings.ReplicationMode),
+			ReplicationMethod:           types.StringPointerValue(clickPipe.Source.BigQuery.Settings.ReplicationMethod),
+			SyncIntervalSeconds:         intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.SyncIntervalSeconds),
+			QueryCDCPullSyncParallelism: intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.QueryCDCPullSyncParallelism),
+			SyncDelaySeconds:            intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.SyncDelaySeconds),
+			PullWindowSizeSeconds:       intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.PullWindowSizeSeconds),
 		}
 
 		if clickPipe.Source.BigQuery.Settings.AllowNullableColumns != nil {
@@ -5565,6 +5689,10 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			} else {
 				tableMappingModel.TableEngine = types.StringNull()
 			}
+
+			tableMappingModel.QueryCDCWatermarkColumn = nonEmptyStringValue(mapping.QueryCDCWatermarkColumn)
+
+			tableMappingModel.EventsFunction = nonEmptyStringValue(mapping.EventsFunction)
 
 			tableMappingList[i] = tableMappingModel.ObjectValue()
 		}
