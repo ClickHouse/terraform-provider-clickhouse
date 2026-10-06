@@ -187,10 +187,12 @@ type byocByoVpcTopologyArgs struct {
 }
 
 func byocByoVpcTopologyChanged(ctx context.Context, args byocByoVpcTopologyArgs, diags *diag.Diagnostics) bool {
-	var cidr, configVpcID, stateVpcID types.String
+	var cidr, configVpcID, stateVpcID, configHostProject, stateHostProject types.String
 	diags.Append(args.config.GetAttribute(ctx, path.Root("vpc_cidr_range"), &cidr)...)
 	diags.Append(args.config.GetAttribute(ctx, path.Root("vpc_id"), &configVpcID)...)
 	diags.Append(args.state.GetAttribute(ctx, path.Root("vpc_id"), &stateVpcID)...)
+	diags.Append(args.config.GetAttribute(ctx, path.Root("gcp_shared_vpc_host_project_id"), &configHostProject)...)
+	diags.Append(args.state.GetAttribute(ctx, path.Root("gcp_shared_vpc_host_project_id"), &stateHostProject)...)
 	var planRegion, stateRegion, planAccount, stateAccount types.String
 	diags.Append(args.plan.GetAttribute(ctx, path.Root("region_id"), &planRegion)...)
 	diags.Append(args.state.GetAttribute(ctx, path.Root("region_id"), &stateRegion)...)
@@ -202,7 +204,8 @@ func byocByoVpcTopologyChanged(ctx context.Context, args byocByoVpcTopologyArgs,
 	return !cidr.IsNull() ||
 		!planRegion.Equal(stateRegion) ||
 		!planAccount.Equal(stateAccount) ||
-		(!configVpcID.IsNull() && !configVpcID.Equal(stateVpcID))
+		(!configVpcID.IsNull() && !configVpcID.Equal(stateVpcID)) ||
+		(!configHostProject.IsNull() && !configHostProject.Equal(stateHostProject))
 }
 
 func (m byocByoVpcUseStateForUnknownModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {

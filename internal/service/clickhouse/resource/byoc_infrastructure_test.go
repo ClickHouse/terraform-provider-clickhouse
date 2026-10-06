@@ -411,6 +411,17 @@ func TestByocByoVpcUseStateForUnknownModifier(t *testing.T) {
 			t.Errorf("private_subnet_ids plan = %v; subnets of the old VPC must not be restored for a new vpc_id", got)
 		}
 	})
+
+	t.Run("different configured host project leaves dependent fields unknown", func(t *testing.T) {
+		configModel := byocInfraModel()
+		configModel.GcpSharedVpcHostProjectID = types.StringValue("new-host-project")
+		if got := runString(t, configModel); !got.IsUnknown() {
+			t.Errorf("vpc_id plan = %v; wiring scoped to the old host project must not be restored", got)
+		}
+		if got := runList(t, configModel); !got.IsUnknown() {
+			t.Errorf("private_subnet_ids plan = %v; wiring scoped to the old host project must not be restored", got)
+		}
+	})
 }
 
 func TestByocPscSubnetUseStateForUnknownModifier(t *testing.T) {
