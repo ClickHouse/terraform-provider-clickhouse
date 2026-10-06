@@ -22,11 +22,16 @@ import (
 func uint32Ptr(v uint32) *uint32 { return &v }
 
 func buildMySQLServerIDPlan(serverID types.Int64) models.ClickPipeResourceModel {
+	return buildMySQLPlanWithType(api.ClickPipeMySQLSourceTypeMySQL, serverID)
+}
+
+// buildMySQLPlanWithType is buildMySQLServerIDPlan for an arbitrary MySQL source type.
+func buildMySQLPlanWithType(sourceType string, serverID types.Int64) models.ClickPipeResourceModel {
 	settingsModel := models.ClickPipeMySQLSettingsModel{
 		ReplicationMode: types.StringValue(api.ClickPipeReplicationModeCDC),
 	}
 	mysqlAttrs := map[string]attr.Value{
-		"type":                   types.StringValue("mysql"),
+		"type":                   types.StringValue(sourceType),
 		"host":                   types.StringValue("mysql.example.com"),
 		"port":                   types.Int64Value(3306),
 		"authentication":         types.StringValue(clickPipeAuthBasic),
