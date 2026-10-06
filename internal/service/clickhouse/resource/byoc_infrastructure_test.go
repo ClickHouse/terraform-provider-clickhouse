@@ -393,6 +393,17 @@ func TestByocByoVpcUseStateForUnknownModifier(t *testing.T) {
 		}
 	})
 
+	t.Run("changed account leaves the BYO fields unknown", func(t *testing.T) {
+		configModel := byocInfraModel()
+		configModel.AccountID = types.StringValue("210987654321")
+		if got := runString(t, configModel); !got.IsUnknown() {
+			t.Errorf("vpc_id plan = %v; account-scoped wiring must not survive an account change", got)
+		}
+		if got := runList(t, configModel); !got.IsUnknown() {
+			t.Errorf("private_subnet_ids plan = %v; account-scoped wiring must not survive an account change", got)
+		}
+	})
+
 	t.Run("different configured vpc_id leaves dependent fields unknown", func(t *testing.T) {
 		configModel := byocInfraModel()
 		configModel.VpcID = types.StringValue("vpc-456")

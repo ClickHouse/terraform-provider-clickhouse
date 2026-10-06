@@ -187,17 +187,21 @@ type byocByoVpcTopologyArgs struct {
 }
 
 func byocByoVpcTopologyChanged(ctx context.Context, args byocByoVpcTopologyArgs, diags *diag.Diagnostics) bool {
-	var cidr, configVpcID, stateVpcID, planRegion, stateRegion types.String
+	var cidr, configVpcID, stateVpcID types.String
 	diags.Append(args.config.GetAttribute(ctx, path.Root("vpc_cidr_range"), &cidr)...)
 	diags.Append(args.config.GetAttribute(ctx, path.Root("vpc_id"), &configVpcID)...)
 	diags.Append(args.state.GetAttribute(ctx, path.Root("vpc_id"), &stateVpcID)...)
+	var planRegion, stateRegion, planAccount, stateAccount types.String
 	diags.Append(args.plan.GetAttribute(ctx, path.Root("region_id"), &planRegion)...)
 	diags.Append(args.state.GetAttribute(ctx, path.Root("region_id"), &stateRegion)...)
+	diags.Append(args.plan.GetAttribute(ctx, path.Root("account_id"), &planAccount)...)
+	diags.Append(args.state.GetAttribute(ctx, path.Root("account_id"), &stateAccount)...)
 	if diags.HasError() {
 		return true
 	}
 	return !cidr.IsNull() ||
 		!planRegion.Equal(stateRegion) ||
+		!planAccount.Equal(stateAccount) ||
 		(!configVpcID.IsNull() && !configVpcID.Equal(stateVpcID))
 }
 
