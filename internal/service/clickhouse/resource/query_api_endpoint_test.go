@@ -17,6 +17,7 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 func TestQueryAPIEndpointResourceSchema(t *testing.T) {
@@ -224,6 +225,8 @@ func TestQueryAPIEndpointResourceReadRemovesMissingEndpoint(t *testing.T) {
 }
 
 func TestQueryAPIEndpointResourceRead(t *testing.T) {
+	t.Setenv(utils.SuppressBetaWarningsEnvVar, "false")
+
 	ctx := context.Background()
 	r, schemaResp := queryAPIEndpointSchema(t)
 	model := queryAPIEndpointModel(t)
@@ -242,7 +245,7 @@ func TestQueryAPIEndpointResourceRead(t *testing.T) {
 
 	resp := resource.ReadResponse{State: state}
 	r.Read(ctx, resource.ReadRequest{State: state}, &resp)
-	if resp.Diagnostics.HasError() {
+	if len(resp.Diagnostics) != 0 {
 		t.Fatalf("Read diagnostics: %v", resp.Diagnostics)
 	}
 
