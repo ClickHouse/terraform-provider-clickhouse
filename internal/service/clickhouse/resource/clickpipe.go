@@ -6116,8 +6116,11 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				source.Kafka.ProtobufSchema = nil
 			}
 
-			// For Pub/Sub, only re-send the service_account_key when it changed
-			// (key rotation). Sending an unchanged value would re-encrypt without effect.
+			// For Pub/Sub, only authentication, service_account_key and ack_deadline are
+			// patchable; every other field carries RequiresReplace and never changes in
+			// Update. The API rejects immutable fields even when unchanged ("format is
+			// immutable for Pub/Sub sources"), so omit them from the PATCH, and
+			// re-send the service_account_key only when it changed (key rotation).
 			if source.PubSub != nil && !planSourceModel.PubSub.IsNull() && !stateSourceModel.PubSub.IsNull() {
 				planPubSubModel := models.ClickPipePubSubSourceModel{}
 				response.Diagnostics.Append(planSourceModel.PubSub.As(ctx, &planPubSubModel, basetypes.ObjectAsOptions{})...)
@@ -6126,6 +6129,14 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				if planPubSubModel.ServiceAccountKey.Equal(statePubSubModel.ServiceAccountKey) {
 					source.PubSub.ServiceAccountKey = nil
 				}
+				// Omit all immutable fields from update payload
+				source.PubSub.Format = ""
+				source.PubSub.ProjectID = ""
+				source.PubSub.Topic = ""
+				source.PubSub.SeekType = ""
+				source.PubSub.SeekTimestamp = nil
+				source.PubSub.Filter = nil
+				source.PubSub.EnableOrdering = nil
 			}
 
 			// For Kinesis, omit the unchanged access_key from the PATCH so we do not

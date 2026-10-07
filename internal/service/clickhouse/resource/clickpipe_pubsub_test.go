@@ -144,8 +144,10 @@ func TestExtractSourceFromPlan_PubSub_UpdateIncludesAllFields(t *testing.T) {
 
 	assert.False(t, diagnostics.HasError())
 	assert.NotNil(t, source.PubSub)
-	// Immutable (RequiresReplace) fields still populated on update — values match state
-	// because the framework would have forced replacement if they had changed.
+	// extractSourceFromPlan still populates the immutable (RequiresReplace) fields on
+	// update — values match state because the framework would have forced replacement
+	// if they had changed. Update itself strips them before the PATCH; see
+	// clickpipe_pubsub_update_payload_test.go.
 	assert.Equal(t, api.ClickPipeJSONEachRowFormat, source.PubSub.Format)
 	assert.Equal(t, "my-gcp-project", source.PubSub.ProjectID)
 	assert.Equal(t, "events", source.PubSub.Topic)
