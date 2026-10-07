@@ -12,6 +12,14 @@ type Client interface {
 	GetServiceBase(ctx context.Context, serviceId string) (*Service, error)
 	ListServices(ctx context.Context, filters []string) ([]Service, error)
 	ListServiceProfiles(ctx context.Context, regionId string, byocId string) ([]ServiceProfile, error)
+	CreateByocInfrastructure(ctx context.Context, r ByocInfrastructureCreateRequest) (*ByocInfrastructure, error)
+	ValidateByocInfrastructure(ctx context.Context, r ByocInfrastructureValidateRequest) (*ByocInfrastructureValidation, error)
+	GetByocInfrastructure(ctx context.Context, byocId string) (*ByocInfrastructureDetails, error)
+	UpdateByocInfrastructure(ctx context.Context, byocId string, r ByocInfrastructureUpdateRequest) (*ByocInfrastructure, error)
+	DeleteByocInfrastructure(ctx context.Context, byocId string) error
+	GetByocInfrastructureTags(ctx context.Context, byocId string) (map[string]string, error)
+	GetByocInfrastructurePrivateEndpointConfig(ctx context.Context, byocId string) (*ByocInfrastructurePrivateEndpointConfig, error)
+	WaitForByocInfrastructureState(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) error
 	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
 	CreateService(ctx context.Context, s Service) (*Service, string, error)
 	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error

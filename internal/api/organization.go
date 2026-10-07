@@ -19,6 +19,7 @@ type OrgResult struct {
 	PrivateEndpoints []PrivateEndpoint         `json:"privateEndpoints,omitempty"`
 	EnableCoreDumps  *bool                     `json:"enableCoreDumps,omitempty"`
 	Capabilities     *OrganizationCapabilities `json:"capabilities,omitempty"`
+	ByocConfig       []ByocInfrastructure      `json:"byocConfig,omitempty"`
 }
 
 // OrganizationCapabilities reports per-capability eligibility for gated features. Pointer fields: an API version
