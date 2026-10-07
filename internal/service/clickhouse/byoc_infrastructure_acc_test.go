@@ -3,6 +3,7 @@ package clickhouse_test
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,14 +32,25 @@ type byocMockInfra struct {
 	tags    map[string]string
 }
 
+// byocCreateCall records one create request: the typed payload for value
+// assertions, the raw body for key-presence assertions (a typed decode cannot
+// tell an omitted key from null or empty, and the API rejects mutually
+// exclusive topology fields by presence), and how many preflight validations
+// had run before it, so validate-before-create ordering is assertable.
+type byocCreateCall struct {
+	request        api.ByocInfrastructureCreateRequest
+	rawBody        map[string]json.RawMessage
+	priorValidates int
+}
+
 type byocMockAPI struct {
 	t *testing.T
 
-	mu             sync.Mutex
-	nextID         int
-	infras         map[string]*byocMockInfra
-	createRequests []api.ByocInfrastructureCreateRequest
-	validateCount  int
+	mu            sync.Mutex
+	nextID        int
+	infras        map[string]*byocMockInfra
+	createCalls   []byocCreateCall
+	validateCount int
 
 	server *httptest.Server
 }
@@ -105,13 +117,29 @@ func (m *byocMockAPI) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *byocMockAPI) handleCreate(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		m.t.Errorf("failed to read create BYOC infrastructure payload: %s", err)
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
 	var req api.ByocInfrastructureCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var rawBody map[string]json.RawMessage
+	if err := json.Unmarshal(body, &req); err != nil {
 		m.t.Errorf("invalid create BYOC infrastructure payload: %s", err)
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	m.createRequests = append(m.createRequests, req)
+	if err := json.Unmarshal(body, &rawBody); err != nil {
+		m.t.Errorf("create BYOC infrastructure payload is not a JSON object: %s", err)
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	m.createCalls = append(m.createCalls, byocCreateCall{
+		request:        req,
+		rawBody:        rawBody,
+		priorValidates: m.validateCount,
+	})
 
 	m.nextID++
 	id := fmt.Sprintf("byoc-mock-%d", m.nextID)
@@ -214,13 +242,22 @@ func (m *byocMockAPI) seed(details api.ByocInfrastructureDetails) {
 func (m *byocMockAPI) createCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return len(m.createRequests)
+	return len(m.createCalls)
 }
 
-func (m *byocMockAPI) lastCreateRequest() api.ByocInfrastructureCreateRequest {
+func (m *byocMockAPI) lastCreateCall() byocCreateCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.createRequests[len(m.createRequests)-1]
+	return m.createCalls[len(m.createCalls)-1]
+}
+
+func (call byocCreateCall) requireAbsentKeys(keys ...string) error {
+	for _, key := range keys {
+		if raw, present := call.rawBody[key]; present {
+			return fmt.Errorf("create payload must not contain key %q, got %s", key, raw)
+		}
+	}
+	return nil
 }
 
 func (m *byocMockAPI) checkCreateCount(want int) resource.TestCheckFunc {
@@ -338,9 +375,7 @@ resource "clickhouse_byoc_infrastructure" "test" {
 					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "is_byo_vpc", "false"),
 					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "tags.env", "acc"),
 					func(*terraform.State) error {
-						mock.mu.Lock()
-						defer mock.mu.Unlock()
-						if mock.validateCount == 0 {
+						if call := mock.lastCreateCall(); call.priorValidates == 0 {
 							return fmt.Errorf("expected the preflight validation endpoint to be called before create")
 						}
 						return nil
@@ -435,14 +470,11 @@ resource "clickhouse_byoc_infrastructure" "test" {
 					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "private_subnet_ids.#", "2"),
 					resource.TestCheckNoResourceAttr("clickhouse_byoc_infrastructure.test", "vpc_cidr_range"),
 					func(*terraform.State) error {
-						req := mock.lastCreateRequest()
-						if req.VpcId == nil || *req.VpcId != "vpc-0123456789abcdef0" {
-							return fmt.Errorf("BYO-VPC create payload is missing the configured vpcId: %+v", req)
+						call := mock.lastCreateCall()
+						if call.request.VpcId == nil || *call.request.VpcId != "vpc-0123456789abcdef0" {
+							return fmt.Errorf("BYO-VPC create payload is missing the configured vpcId: %+v", call.request)
 						}
-						if req.VpcCidrRange != nil {
-							return fmt.Errorf("managed-VPC CIDR %q leaked into the BYO-VPC create payload", *req.VpcCidrRange)
-						}
-						return nil
+						return call.requireAbsentKeys("vpcCidrRange")
 					},
 				),
 			},
@@ -466,17 +498,11 @@ resource "clickhouse_byoc_infrastructure" "test" {
 					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "is_byo_vpc", "false"),
 					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "vpc_cidr_range", "172.21.0.0/16"),
 					func(*terraform.State) error {
-						req := mock.lastCreateRequest()
-						if req.VpcCidrRange == nil || *req.VpcCidrRange != "172.21.0.0/16" {
-							return fmt.Errorf("managed-VPC create payload is missing the configured vpcCidrRange: %+v", req)
+						call := mock.lastCreateCall()
+						if call.request.VpcCidrRange == nil || *call.request.VpcCidrRange != "172.21.0.0/16" {
+							return fmt.Errorf("managed-VPC create payload is missing the configured vpcCidrRange: %+v", call.request)
 						}
-						if req.VpcId != nil {
-							return fmt.Errorf("stale BYO-VPC ID %q leaked into the managed-VPC create payload", *req.VpcId)
-						}
-						if len(req.PrivateSubnetIds) != 0 {
-							return fmt.Errorf("stale BYO-VPC subnets %v leaked into the managed-VPC create payload", req.PrivateSubnetIds)
-						}
-						return nil
+						return call.requireAbsentKeys("vpcId", "privateSubnetIds")
 					},
 				),
 			},
@@ -564,9 +590,9 @@ resource "clickhouse_byoc_infrastructure" "test" {
 					mock.checkCreateCount(1),
 					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "external_id", "ext-rotated"),
 					func(*terraform.State) error {
-						req := mock.lastCreateRequest()
-						if req.ExternalId == nil || *req.ExternalId != "ext-rotated" {
-							return fmt.Errorf("replacement create payload is missing the rotated externalId: %+v", req)
+						call := mock.lastCreateCall()
+						if call.request.ExternalId == nil || *call.request.ExternalId != "ext-rotated" {
+							return fmt.Errorf("replacement create payload is missing the rotated externalId: %+v", call.request)
 						}
 						return nil
 					},
