@@ -162,7 +162,7 @@ provider "clickhouse" { # self-hosted ClickStack
 terraform {
   required_providers {
     clickhouse = {
-      version = "3.34.0"
+      version = "3.35.0"
       source  = "ClickHouse/clickhouse"
     }
   }
@@ -184,6 +184,7 @@ provider "clickhouse" {
 
 - `api_url` (String) API URL of the ClickHouse OpenAPI the provider will interact with. Alternatively, can be configured using the `CLICKHOUSE_API_URL` environment variable. Only specify if you have a specific deployment of the ClickHouse OpenAPI you want to run against.
 - `clickstack_api_key` (String, Sensitive) Personal API access key for a self-hosted ClickStack API, used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_API_KEY` environment variable. ClickStack on ClickHouse Cloud does not accept API keys; use `clickstack_service_id` with the Cloud credentials instead.
+- `clickstack_default_tags` (List of String) Tags added to every clickhouse_clickstack_dashboard and clickhouse_clickstack_saved_search, and to every clickhouse_clickstack_alert that sets `tags`, e.g. `["terraform-managed"]`. They appear in each resource's `tags_all`, not in its own tags, and changing them updates every affected resource. An alert without `tags` copies its parent's tags, so it picks up a change to these only on its next update. Must be known at plan time.
 - `clickstack_endpoint` (String) Endpoint of a self-hosted ClickStack API used by clickhouse_clickstack_* resources, e.g. http://localhost:8000. Required together with `clickstack_api_key`. Alternatively use the `CLICKSTACK_ENDPOINT` environment variable. For ClickStack on ClickHouse Cloud, leave unset and use `clickstack_service_id` instead.
 - `clickstack_service_id` (String) ID of the ClickHouse Cloud service running managed ClickStack. When set, clickhouse_clickstack_* resources are served through the ClickHouse Cloud API, authenticating with `organization_id`, `token_key` and `token_secret`. Alternatively use the `CLICKSTACK_SERVICE_ID` environment variable. Mutually exclusive with `clickstack_api_key` and `clickstack_endpoint`.
 - `organization_id` (String) ID of the organization the provider will create services under. Alternatively, can be configured using the `CLICKHOUSE_ORG_ID` environment variable.

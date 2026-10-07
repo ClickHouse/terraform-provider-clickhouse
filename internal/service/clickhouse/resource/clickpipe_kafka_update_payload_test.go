@@ -37,6 +37,8 @@ func kafkaUpdateModel(caCertificate types.String, kafkaPassword string) models.C
 		"url":            types.StringValue("https://schema-registry.example.com"),
 		"authentication": types.StringValue("PLAIN"),
 		"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, srCredAttrs),
+		"type":           types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+		"glue":           types.ObjectNull(models.ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType().AttrTypes),
 	}
 	kafkaAttrs := map[string]attr.Value{
 		"ssh_key_resource_id":          types.StringNull(),

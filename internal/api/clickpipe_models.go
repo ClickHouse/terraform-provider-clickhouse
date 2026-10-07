@@ -95,10 +95,17 @@ type ClickPipeKafkaOffset struct {
 	Timestamp *string `json:"timestamp,omitempty"`
 }
 
+// ClickPipeKafkaSchemaRegistry is the schema registry of a Kafka source: either a Confluent-compatible
+// registry (URL, Authentication, Credentials) or an AWS Glue registry (the Glue fields), selected by Type.
+// The API omits Type for Confluent registries, so an empty Type means Confluent.
 type ClickPipeKafkaSchemaRegistry struct {
-	URL            string                      `json:"url"`
-	Authentication string                      `json:"authentication"`
-	Credentials    *ClickPipeSourceCredentials `json:"credentials,omitempty"`
+	Type             string                      `json:"type,omitempty"`
+	URL              string                      `json:"url,omitempty"`
+	Authentication   string                      `json:"authentication,omitempty"`
+	Credentials      *ClickPipeSourceCredentials `json:"credentials,omitempty"`
+	GlueRegion       string                      `json:"glueRegion,omitempty"`
+	GlueRegistryName string                      `json:"glueRegistryName,omitempty"`
+	GlueRoleArn      *string                     `json:"glueRoleArn,omitempty"`
 }
 
 type ClickPipeKafkaSource struct {

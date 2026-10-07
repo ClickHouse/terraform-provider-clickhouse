@@ -77,6 +77,7 @@ variable "connection_id" { type = string }
 
 - `id` (String) Identifier of the dashboard.
 - `normalized_json` (String) Server-canonical dashboard body returned by the API (defaults applied, server-assigned tile IDs).
+- `tags_all` (Set of String) All tags on the resource: its own tags plus the provider's `clickstack_default_tags`.
 - `tile_ids` (Map of String) Server-assigned tile ids keyed by tile name, for tiles whose name is non-empty and unique within the dashboard. Reference these from `clickhouse_clickstack_alert` (`source = "tile"`): `tile_id = clickhouse_clickstack_dashboard.x.tile_ids["<tile name>"]`. Tile ids cannot be chosen in `dashboard_json`; the server assigns them and keeps them across updates for tiles that keep their unique name. Position only decides which id a blank- or duplicate-named tile gets, and only among those tiles: a named tile's id is never taken by position. A tile that keeps its unique name keeps its id at plan time; a new or renamed tile's id is known only after apply, and a name that disappears leaves the map, so an alert still referencing it fails at plan time with an invalid index.
 
 ## Import

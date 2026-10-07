@@ -253,7 +253,7 @@ Optional:
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
 - `protobuf_schema` (String, Sensitive) Base64-encoded Protobuf schema used instead of `schema_registry`. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Requires `format = "Protobuf"` and forces replacement when changed.
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
-- `schema_registry` (Attributes) The schema registry for the Kafka source. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
+- `schema_registry` (Attributes) The schema registry for the Kafka source: a Confluent-compatible registry (`url`, `authentication`, `credentials`) or an AWS Glue schema registry (`type = "glue"` with a `glue` block). Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tombstone_mode` (String) How Kafka tombstone records are handled. Set to `delete` to delete the matching destination row using field mappings sourced from `_key` or `_key.<field>`; this requires `exactly_once = true`. Set to `soft_delete` to write a row with the `_is_deleted` virtual column set to `true`; exactly-once delivery is not required. This setting is create-only; changing it forces ClickPipe replacement.
 - `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.
@@ -289,11 +289,13 @@ Optional:
 <a id="nestedatt--source--kafka--schema_registry"></a>
 ### Nested Schema for `source.kafka.schema_registry`
 
-Required:
+Optional:
 
-- `authentication` (String) The authentication method for the Schema Registry. Only supported is `PLAIN`.
-- `credentials` (Attributes, Sensitive) The credentials for the Schema Registry. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--credentials))
-- `url` (String) The URL of the schema registry.
+- `authentication` (String) The authentication method for the Schema Registry. Only supported is `PLAIN`. Required for `confluent` registries.
+- `credentials` (Attributes, Sensitive) The credentials for the Schema Registry. Required for `confluent` registries. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--credentials))
+- `glue` (Attributes) The AWS Glue schema registry. Required for `glue` registries. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--glue))
+- `type` (String) The type of the schema registry. (`confluent`, `glue`). Default is `confluent`. The AWS Glue schema registry must be enabled for the organization.
+- `url` (String) The URL of the schema registry. Required for `confluent` registries.
 
 <a id="nestedatt--source--kafka--schema_registry--credentials"></a>
 ### Nested Schema for `source.kafka.schema_registry.credentials`
@@ -307,6 +309,19 @@ Optional:
 - `password` (String, Sensitive) The password for the Schema Registry. Either `password` or `password_wo` must be provided.
 - `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version`; changing schema registry credentials forces pipe replacement.
 - `password_wo_version` (Number) Version trigger for `password_wo`. Incrementing signals a new password, which forces pipe replacement - schema registry credentials cannot be updated in place.
+
+
+<a id="nestedatt--source--kafka--schema_registry--glue"></a>
+### Nested Schema for `source.kafka.schema_registry.glue`
+
+Required:
+
+- `region` (String) The AWS region of the Glue schema registry.
+- `registry_name` (String) The name of the Glue schema registry.
+
+Optional:
+
+- `role_arn` (String) The IAM role to assume for Glue schema registry access. Defaults to the IAM identity of the Kafka source, so it is required unless the Kafka source uses `IAM_ROLE` or `IAM_USER` authentication.
 
 
 

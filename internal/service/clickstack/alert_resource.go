@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -32,6 +35,7 @@ var (
 	_ resource.ResourceWithConfigure      = (*alertResource)(nil)
 	_ resource.ResourceWithImportState    = (*alertResource)(nil)
 	_ resource.ResourceWithValidateConfig = (*alertResource)(nil)
+	_ resource.ResourceWithModifyPlan     = (*alertResource)(nil)
 )
 
 // Threshold type values referenced in more than one place.
@@ -139,7 +143,8 @@ func NewAlertResource() resource.Resource {
 // alertResource manages a ClickStack alert on a saved search, a dashboard tile,
 // or its own chart config.
 type alertResource struct {
-	client *client.Client
+	client      *client.Client
+	defaultTags []string
 }
 
 // alertChannelModel maps the nested channel block.
@@ -187,6 +192,8 @@ type alertResourceModel struct {
 	Name                  types.String  `tfsdk:"name"`
 	Message               types.String  `tfsdk:"message"`
 	Note                  types.String  `tfsdk:"note"`
+	Tags                  types.List    `tfsdk:"tags"`
+	TagsAll               types.Set     `tfsdk:"tags_all"`
 }
 
 func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -345,6 +352,19 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:    true,
 				Description: "Optional markdown note (1-4096 characters).",
 			},
+			"tags": schema.ListAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				Description: "Tags for the alert (up to 50, each at most 32 characters). Requires ClickStack " +
+					"API 2.38.0 or later. When unset, the server copies the saved search or dashboard tags, " +
+					"provider default tags included, each time the alert is written, and Terraform does not track " +
+					"them. Set `[]` for no tags of its own; provider default tags still apply.",
+				Validators: []validator.List{
+					listvalidator.SizeAtMost(50),
+					listvalidator.ValueStringsAre(stringvalidator.LengthAtMost(32)),
+				},
+			},
+			tagsAllAttr: tagsAllAttribute(" Null when `tags` is unset."),
 		},
 	}
 }
@@ -413,6 +433,7 @@ func (r *alertResource) Configure(_ context.Context, req resource.ConfigureReque
 		return
 	}
 	r.client = providerData.ClickStack
+	r.defaultTags = providerData.ClickStackDefaultTags
 }
 
 // ValidateConfig enforces the alert's cross-field rules at plan time. Every rule
@@ -692,6 +713,7 @@ func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	in.Tags = r.tagsToSend(in.Tags)
 
 	al, err := r.client.WithTeam(plan.Team.ValueString()).CreateAlert(ctx, in)
 	if err != nil {
@@ -700,6 +722,7 @@ func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	resp.Diagnostics.Append(plan.applyAlert(ctx, al)...)
+	resp.Diagnostics.Append(plan.applyTags(ctx, al.Tags, r.defaultTags)...)
 	tflog.Trace(ctx, "created alert resource")
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -748,6 +771,7 @@ func (r *alertResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 
 	resp.Diagnostics.Append(state.applyAlert(ctx, al)...)
+	resp.Diagnostics.Append(state.applyTags(ctx, al.Tags, r.defaultTags)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -765,6 +789,7 @@ func (r *alertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	in.Tags = r.tagsToSend(in.Tags)
 
 	al, err := r.client.WithTeam(plan.Team.ValueString()).UpdateAlert(ctx, plan.ID.ValueString(), in)
 	if err != nil {
@@ -784,7 +809,43 @@ func (r *alertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	}
 
 	resp.Diagnostics.Append(plan.applyAlert(ctx, al)...)
+	resp.Diagnostics.Append(plan.applyTags(ctx, al.Tags, r.defaultTags)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+// tagsToSend adds the provider defaults to explicit tags. Nil stays nil:
+// the server then copies the parent's tags, which already carry the defaults.
+func (r *alertResource) tagsToSend(tags *[]string) *[]string {
+	if tags == nil {
+		return nil
+	}
+	merged := withDefaultTags(*tags, r.defaultTags)
+	return &merged
+}
+
+// ModifyPlan plans tags_all so a change to the provider's default tags updates alerts that set tags.
+func (r *alertResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var tags types.List
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("tags"), &tags)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	all := types.SetNull(types.StringType)
+	switch {
+	case tags.IsNull():
+	case !fullyKnown(tags):
+		all = types.SetUnknown(types.StringType)
+	default:
+		var own []string
+		resp.Diagnostics.Append(tags.ElementsAs(ctx, &own, false)...)
+		var d diag.Diagnostics
+		all, d = plannedTagsAll(own, r.defaultTags)
+		resp.Diagnostics.Append(d...)
+	}
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(tagsAllAttr), all)...)
 }
 
 func (r *alertResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -877,6 +938,11 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 	if known(m.NumConsecutiveWindows) {
 		v := int(m.NumConsecutiveWindows.ValueInt64())
 		al.NumConsecutiveWindows = &v
+	}
+	if known(m.Tags) {
+		tags := []string{}
+		diags.Append(m.Tags.ElementsAs(ctx, &tags, false)...)
+		al.Tags = &tags
 	}
 	// Scheduling modes are mutually exclusive. schedule_start_at is always sent
 	// (nil -> JSON null clears it, and the server then forces the offset to 0).
@@ -980,6 +1046,33 @@ func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) d
 	m.Name = types.StringPointerValue(al.Name)
 	m.Message = types.StringPointerValue(al.Message)
 	m.Note = types.StringPointerValue(al.Note)
+	return diags
+}
+
+// applyTags stores the server's tags, minus the provider defaults the alert did
+// not list itself.
+func (m *alertResourceModel) applyTags(ctx context.Context, server *[]string, defaultTags []string) diag.Diagnostics {
+	var diags diag.Diagnostics
+	// Null tags mean "copy the parent's", so the copy stays out of state;
+	// otherwise every unset alert would diff on its parent's tags.
+	if m.Tags.IsNull() {
+		m.TagsAll = types.SetNull(types.StringType)
+		return diags
+	}
+	// 2.38.0+ always returns the key; older servers drop tags without an error.
+	if server == nil {
+		diags.AddAttributeError(path.Root("tags"), "Alert tags not supported",
+			"the ClickStack server did not return alert tags; setting tags requires ClickStack API 2.38.0 or later")
+		return diags
+	}
+	var own []string
+	diags.Append(m.Tags.ElementsAs(ctx, &own, false)...)
+	drop, d := tagsDropList(ctx, m.TagsAll, defaultTags)
+	diags.Append(d...)
+	m.Tags, d = stringSliceToList(withoutDefaultTags(*server, own, drop))
+	diags.Append(d...)
+	m.TagsAll, d = tagsSet(*server)
+	diags.Append(d...)
 	return diags
 }
 
