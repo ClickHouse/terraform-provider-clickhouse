@@ -145,7 +145,7 @@ Optional:
 
 - `partition_by` (String) The column to partition the table by.
 - `primary_key` (String) The primary key of the table.
-- `sorting_key` (List of String) The list of columns for the sorting key.
+- `sorting_key` (List of String) The list of columns for the sorting key. Required when engine type is `ReplacingMergeTree` and the pipe is being created.
 - `ttl` (String) ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.
 
 <a id="nestedatt--destination--table_definition--engine"></a>
@@ -158,7 +158,7 @@ Required:
 Optional:
 
 - `column_ids` (List of String) Column IDs to sum for SummingMergeTree engine. Required when engine type is `SummingMergeTree`.
-- `version_column_id` (String) Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.
+- `version_column_id` (String) Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree` and the pipe is being created.
 
 
 
