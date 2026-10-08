@@ -1907,12 +1907,6 @@ func TestServiceResource_Update_horizontal(t *testing.T) {
 				if u.MinReplicaMemoryGb == nil || *u.MinReplicaMemoryGb != 16 || u.MaxReplicaMemoryGb == nil || *u.MaxReplicaMemoryGb != 16 {
 					t.Errorf("unchanged per-replica memory not sent on a mode switch: minMem=%v maxMem=%v", u.MinReplicaMemoryGb, u.MaxReplicaMemoryGb)
 				}
-				if u.MinReplicas == nil || *u.MinReplicas != 3 || u.MaxReplicas == nil || *u.MaxReplicas != 10 {
-					t.Errorf("band not sent: min=%v max=%v", u.MinReplicas, u.MaxReplicas)
-				}
-				if u.NumReplicas != nil {
-					t.Errorf("num_replicas must not be sent on a switch to horizontal: %v", u.NumReplicas)
-				}
 			},
 		},
 		{

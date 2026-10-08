@@ -2003,8 +2003,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Include the plan's resolved autoscaling_mode (including a token ModifyPlan wrote) in the PATCH body so
 	// the API applies the mode rather than inferring it from field presence (UC-1173). A mode difference also
 	// forces the PATCH; when only another scaling field changed, the mode rides along on that PATCH.
-	// The API requires the target mode's sizing fields on a mode switch even when their values are unchanged
-	// (e.g. "minReplicaMemoryGb and maxReplicaMemoryGb are required to switch to autoscalingMode horizontal").
+	// The API rejects a mode switch that omits the target mode's sizing fields, so send them even when unchanged.
 	modeSwitch := false
 	if !plan.AutoscalingMode.IsNull() && !plan.AutoscalingMode.IsUnknown() {
 		replicaScaling.AutoscalingMode = plan.AutoscalingMode.ValueStringPointer()
