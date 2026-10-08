@@ -18,9 +18,11 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 func TestUDFAttachmentCreateAttachesRequestedVersionAndPolls(t *testing.T) {
+	t.Setenv(utils.SuppressBetaWarningsEnvVar, "false")
 	ctx := context.Background()
 	r := NewUDFAttachmentResource().(*UDFAttachmentResource)
 	schemaResp := &resource.SchemaResponse{}
@@ -66,6 +68,9 @@ func TestUDFAttachmentCreateAttachesRequestedVersionAndPolls(t *testing.T) {
 	r.Create(ctx, resource.CreateRequest{Plan: plan}, resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("Create diagnostics: %v", resp.Diagnostics)
+	}
+	if len(resp.Diagnostics.Warnings()) != 0 {
+		t.Fatalf("unexpected warnings: %v", resp.Diagnostics.Warnings())
 	}
 
 	var state models.UDFAttachmentResourceModel
