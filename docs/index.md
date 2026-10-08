@@ -18,6 +18,8 @@ description: |-
   Resources that are not generally available yet emit a Beta Resource warning when they are created, updated or imported — the operations that bring one under management or change it. Nothing is emitted during terraform plan, including a plan that creates or changes a beta resource; the notice appears in the apply output instead. Beta data sources are the exception: they warn when read, which happens on every plan.
   To acknowledge beta status once and stop the notices altogether, set CLICKHOUSE_SUPPRESS_BETA_WARNINGS=true in the environment Terraform runs in. Other warnings are unaffected.
   Breaking changes
+  UDF resources (GA)
+  clickhouse_udf and clickhouse_udf_attachment are now generally available. The sandbox_version attribute has been removed from clickhouse_udf. Remove it from your configuration before upgrading.
   Note: we only provide upgrade path from consecutive major releases of our terraform provider.
   If you are upgrading, please be sure to not skip any major release while you do so.
   For example:
@@ -90,6 +92,10 @@ Resources that are not generally available yet emit a `Beta Resource` warning wh
 To acknowledge beta status once and stop the notices altogether, set `CLICKHOUSE_SUPPRESS_BETA_WARNINGS=true` in the environment Terraform runs in. Other warnings are unaffected.
 
 ## Breaking changes
+
+### UDF resources (GA)
+
+`clickhouse_udf` and `clickhouse_udf_attachment` are now generally available. The `sandbox_version` attribute has been removed from `clickhouse_udf`. Remove it from your configuration before upgrading.
 
 Note: we only provide upgrade path from consecutive major releases of our terraform provider.
 If you are upgrading, please be sure to not skip any major release while you do so.
