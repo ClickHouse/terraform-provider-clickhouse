@@ -51,7 +51,7 @@ var sensitiveBodyContainers = map[string]struct{}{
 
 // redactSensitiveBody returns body with values of known sensitive keys replaced
 // by a placeholder string. Walks JSON recursively; arrays and nested objects
-// are traversed. Containers named "secrets" or "credentials" have their entire
+// are traversed. Containers listed in sensitiveBodyContainers have their entire
 // subtree replaced by a scalar placeholder.
 //
 // Empty input is returned unchanged. Malformed JSON returns a generic placeholder

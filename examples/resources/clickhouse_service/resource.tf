@@ -50,8 +50,9 @@ resource "clickhouse_service" "horizontal_service" {
 }
 
 # Restore a backup stored in your own bucket into a new service. backup_encryption_config is the
-# encryption_config.json from that bucket, passed through unchanged. It is write-only (Terraform >= 1.11),
-# and the restored service always has TDE enabled, so transparent_data_encryption.enabled must be true.
+# encryption_config.json from that bucket. It is write-only (Terraform >= 1.11), and the restored
+# service always has TDE enabled, so transparent_data_encryption.enabled must be true. backup_id cannot
+# be changed on an existing service: to restore a different backup, destroy the service and create a new one.
 resource "clickhouse_service" "restored_service" {
   name           = "My Restored Service"
   cloud_provider = "aws"

@@ -1131,7 +1131,7 @@ func TestServiceResource_ValidateConfig(t *testing.T) {
 	})
 
 	t.Run("backup_encryption_config that is not a JSON object is rejected", func(t *testing.T) {
-		for _, raw := range []string{`not json`, `[{"a":1}]`, `"a string"`, `42`, `null`} {
+		for _, raw := range []string{``, `not json`, `[{"a":1}]`, `"a string"`, `42`, `null`} {
 			cfg := byobRestore(types.StringValue(raw), tdeEnabled(types.BoolValue(true)))
 			if !detailContains(run(t, cfg), "backup_encryption_config must be a JSON object") {
 				t.Errorf("backup_encryption_config %q must be rejected", raw)
@@ -1170,22 +1170,29 @@ func TestServiceResource_Create_backupEncryptionConfig(t *testing.T) {
 	sch := buildServiceSchema(t, ctx, r)
 
 	backupID := "11111111-2222-3333-4444-555555555555"
-	encryptionConfig := `{"schema_version": 1, "restore_key_pairs": [{"wrapped_dek": "abc"}]}`
+	// Includes characters json.Marshal re-escapes, so the request is compared by meaning, not by bytes.
+	encryptionConfig := `{"schema_version": 1, "restore_key_pairs": [{"wrapped_dek": "a<b>&c"}]}`
 
 	tests := []struct {
 		name      string
 		configVal types.String
 		wantSent  string
+		wantErr   bool
 	}{
 		{
-			name:      "configured value is sent to the API byte-for-byte",
+			name:      "configured value is sent in the request body",
 			configVal: types.StringValue(encryptionConfig),
 			wantSent:  encryptionConfig,
 		},
 		{
-			name:      "unset value is omitted from the API payload",
+			name:      "unset value is omitted from the request body",
 			configVal: types.StringNull(),
-			wantSent:  "",
+		},
+		{
+			// A value unknown at plan time skips ValidateConfig, so Create must reject it before calling the API.
+			name:      "invalid value known only at apply is rejected without calling the API",
+			configVal: types.StringValue(`[1, 2]`),
+			wantErr:   true,
 		},
 	}
 
@@ -1196,15 +1203,22 @@ func TestServiceResource_Create_backupEncryptionConfig(t *testing.T) {
 			createResp.HasTransparentDataEncryption = true
 			syncResp := createResp
 
-			var sent api.Service
+			var sentBody []byte
 			mc := minimock.NewController(t)
-			apiClientMock := api.NewClientMock(mc).
-				CreateServiceMock.Set(func(_ context.Context, s api.Service) (*api.Service, string, error) {
-				sent = s
-				return &createResp, "api-generated-secret", nil
-			}).
-				WaitForServiceStateMock.Return(nil).
-				GetServiceMock.Return(&syncResp, nil)
+			apiClientMock := api.NewClientMock(mc)
+			if !tt.wantErr {
+				apiClientMock.
+					CreateServiceMock.Set(func(_ context.Context, s api.Service) (*api.Service, string, error) {
+					body, err := json.Marshal(s)
+					if err != nil {
+						t.Fatalf("marshalling request: %v", err)
+					}
+					sentBody = body
+					return &createResp, "api-generated-secret", nil
+				}).
+					WaitForServiceStateMock.Return(nil).
+					GetServiceMock.Return(&syncResp, nil)
+			}
 
 			r.client = apiClientMock
 
@@ -1235,28 +1249,39 @@ func TestServiceResource_Create_backupEncryptionConfig(t *testing.T) {
 			}
 			resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
 			r.Create(ctx, req, resp)
+			if tt.wantErr {
+				if !detailContains(resp.Diagnostics, "backup_encryption_config must be a JSON object") {
+					t.Errorf("Create must reject a non-object backup_encryption_config, got: %v", resp.Diagnostics)
+				}
+				return
+			}
 			if resp.Diagnostics.HasError() {
 				t.Fatalf("Create returned errors: %v", resp.Diagnostics.Errors())
 			}
 
-			if got := string(sent.BackupEncryptionConfig); got != tt.wantSent {
-				t.Errorf("backupEncryptionConfig sent to API = %q, want %q", got, tt.wantSent)
+			var body map[string]json.RawMessage
+			if err := json.Unmarshal(sentBody, &body); err != nil {
+				t.Fatalf("decoding request body: %v", err)
 			}
-			if sent.BackupID == nil || *sent.BackupID != backupID {
-				t.Errorf("backupId sent to API = %v, want %q", sent.BackupID, backupID)
+			if got := string(body["backupId"]); got != `"`+backupID+`"` {
+				t.Errorf("backupId in request body = %s, want %q", got, backupID)
 			}
-			if body, err := json.Marshal(sent); err != nil {
-				t.Fatalf("marshalling request: %v", err)
-			} else if tt.wantSent == "" && strings.Contains(string(body), "backupEncryptionConfig") {
-				t.Errorf("unset backupEncryptionConfig must be omitted from the request body, got %s", body)
+			got, present := body["backupEncryptionConfig"]
+			if tt.wantSent == "" {
+				if present {
+					t.Errorf("unset backupEncryptionConfig must be omitted from the request body, got %s", got)
+				}
+				return
 			}
-
-			var out models.ServiceResourceModel
-			if d := resp.State.Get(ctx, &out); d.HasError() {
-				t.Fatalf("decoding post-apply state: %v", d.Errors())
+			var gotVal, wantVal any
+			if err := json.Unmarshal(got, &gotVal); err != nil {
+				t.Fatalf("decoding sent backupEncryptionConfig: %v", err)
 			}
-			if !out.BackupEncryptionConfig.IsNull() {
-				t.Errorf("backup_encryption_config must never be stored in state, got %v", out.BackupEncryptionConfig)
+			if err := json.Unmarshal([]byte(tt.wantSent), &wantVal); err != nil {
+				t.Fatalf("decoding expected backupEncryptionConfig: %v", err)
+			}
+			if !reflect.DeepEqual(gotVal, wantVal) {
+				t.Errorf("backupEncryptionConfig in request body = %s, want the same JSON as %s", got, tt.wantSent)
 			}
 		})
 	}

@@ -86,12 +86,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"backup_encryption_config": schema.StringAttribute{
-				Description: "Contents of the `encryption_config.json` file from your own bucket, as a JSON string (e.g. `file(\"encryption_config.json\")`), passed to the API unchanged. Required when `backup_id` refers to a backup stored in your own bucket, and rejected otherwise. Only used when the service is created: it is write-only (requires Terraform >= 1.11) and never stored in state, so changing it alone does not recreate the service — change `backup_id` to restore again. A service restored from your own bucket always has Transparent Data Encryption enabled, so `transparent_data_encryption.enabled` must be set to true. Requires the bring-your-own-bucket TDE feature to be enabled for your organization.",
+				Description: "Contents of the `encryption_config.json` file from your own bucket, as a JSON string (e.g. `file(\"encryption_config.json\")`), passed to the API without interpretation. Required when `backup_id` refers to a backup stored in your own bucket, and rejected otherwise. Only used when the service is created: it is write-only (requires Terraform >= 1.11) and never stored in state, so changing it has no effect on an existing service. `backup_id` cannot be changed on an existing service; to restore a different backup, destroy the service and create a new one. A service restored from your own bucket always has Transparent Data Encryption enabled, so `transparent_data_encryption.enabled` must be set to true. Requires the bring-your-own-bucket TDE feature to be enabled for your organization.",
 				Optional:    true,
 				Sensitive:   true,
 				WriteOnly:   true,
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
 					stringvalidator.AlsoRequires(path.MatchRoot("backup_id")),
 					stringvalidator.ConflictsWith(path.MatchRoot("warehouse_id")),
 				},
@@ -1419,13 +1418,11 @@ func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.Valid
 	}
 
 	if !config.BackupEncryptionConfig.IsNull() && !config.BackupEncryptionConfig.IsUnknown() {
-		// Only the top-level shape is checked: the data plane owns and versions the file's contents.
-		var obj map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(config.BackupEncryptionConfig.ValueString()), &obj); err != nil || obj == nil {
+		if !isJSONObject(config.BackupEncryptionConfig.ValueString()) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("backup_encryption_config"),
 				"Invalid Configuration",
-				"backup_encryption_config must be a JSON object (the contents of encryption_config.json).",
+				invalidBackupEncryptionConfigDetail,
 			)
 		}
 
@@ -1446,6 +1443,14 @@ func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.Valid
 			)
 		}
 	}
+}
+
+const invalidBackupEncryptionConfigDetail = "backup_encryption_config must be a JSON object (the contents of encryption_config.json)."
+
+// isJSONObject only checks the top-level shape: the data plane owns and versions the file's contents.
+func isJSONObject(s string) bool {
+	var obj map[string]json.RawMessage
+	return json.Unmarshal([]byte(s), &obj) == nil && obj != nil
 }
 
 // toAPISnapshotConfiguration maps the model to the API payload, skipping Unknown fields: for an omitted (Unknown)
@@ -1502,7 +1507,17 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Write-only, so it is only present in config.
 	if !config.BackupEncryptionConfig.IsNull() && !config.BackupEncryptionConfig.IsUnknown() {
-		service.BackupEncryptionConfig = json.RawMessage(config.BackupEncryptionConfig.ValueString())
+		raw := config.BackupEncryptionConfig.ValueString()
+		// ValidateConfig skips values unknown at plan time; without this, invalid JSON fails inside json.Marshal.
+		if !isJSONObject(raw) {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("backup_encryption_config"),
+				"Invalid Configuration",
+				invalidBackupEncryptionConfigDetail,
+			)
+			return
+		}
+		service.BackupEncryptionConfig = json.RawMessage(raw)
 	}
 
 	if !plan.ReleaseChannel.IsUnknown() && !plan.ReleaseChannel.IsNull() {
