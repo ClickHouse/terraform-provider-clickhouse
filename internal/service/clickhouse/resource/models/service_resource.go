@@ -265,6 +265,7 @@ type ServiceResourceModel struct {
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
 	SnapshotConfiguration           types.Object `tfsdk:"snapshot_configuration"`
 	BackupID                        types.String `tfsdk:"backup_id"`
+	BackupEncryptionConfig          types.String `tfsdk:"backup_encryption_config"`
 	ComplianceType                  types.String `tfsdk:"compliance_type"`
 	Tags                            types.Map    `tfsdk:"tags"`
 	EnableCoreDumps                 types.Bool   `tfsdk:"enable_core_dumps"`

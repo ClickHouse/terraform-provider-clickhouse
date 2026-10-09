@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -1110,6 +1111,155 @@ func TestServiceResource_ValidateConfig(t *testing.T) {
 			t.Errorf("a disabled config with a swapped pair must not be rejected at plan time, got: %v", diags.Errors())
 		}
 	})
+
+	byobRestore := func(encryptionConfig types.String, tde types.Object) models.ServiceResourceModel {
+		return horizontal(func(s *models.ServiceResourceModel) {
+			s.BackupID = types.StringValue("11111111-2222-3333-4444-555555555555")
+			s.BackupEncryptionConfig = encryptionConfig
+			s.TransparentEncryptionData = tde
+		})
+	}
+	tdeEnabled := func(v types.Bool) types.Object {
+		return models.TransparentEncryptionData{Enabled: v, RoleID: types.StringNull()}.ObjectValue()
+	}
+	validEncryptionConfig := types.StringValue(`{"schema_version":1,"restore_key_pairs":[{"wrapped_dek":"abc"}]}`)
+
+	t.Run("backup_encryption_config with TDE enabled passes", func(t *testing.T) {
+		if diags := run(t, byobRestore(validEncryptionConfig, tdeEnabled(types.BoolValue(true)))); diags.HasError() {
+			t.Errorf("a JSON object with TDE enabled should pass, got: %v", diags.Errors())
+		}
+	})
+
+	t.Run("backup_encryption_config that is not a JSON object is rejected", func(t *testing.T) {
+		for _, raw := range []string{`not json`, `[{"a":1}]`, `"a string"`, `42`, `null`} {
+			cfg := byobRestore(types.StringValue(raw), tdeEnabled(types.BoolValue(true)))
+			if !detailContains(run(t, cfg), "backup_encryption_config must be a JSON object") {
+				t.Errorf("backup_encryption_config %q must be rejected", raw)
+			}
+		}
+	})
+
+	t.Run("backup_encryption_config with an unknown value defers to apply", func(t *testing.T) {
+		if diags := run(t, byobRestore(types.StringUnknown(), tdeEnabled(types.BoolValue(true)))); diags.HasError() {
+			t.Errorf("an unknown backup_encryption_config must not be rejected at plan time, got: %v", diags.Errors())
+		}
+	})
+
+	t.Run("backup_encryption_config without TDE enabled is rejected", func(t *testing.T) {
+		for name, tde := range map[string]types.Object{
+			"TDE block omitted":  types.ObjectNull(models.TransparentEncryptionData{}.ObjectType().AttrTypes),
+			"TDE enabled false":  tdeEnabled(types.BoolValue(false)),
+			"TDE enabled absent": tdeEnabled(types.BoolNull()),
+		} {
+			if !detailContains(run(t, byobRestore(validEncryptionConfig, tde)), "always enables Transparent Data Encryption") {
+				t.Errorf("%s: backup_encryption_config must require TDE enabled", name)
+			}
+		}
+	})
+
+	t.Run("backup_encryption_config with an unknown TDE flag defers to apply", func(t *testing.T) {
+		if diags := run(t, byobRestore(validEncryptionConfig, tdeEnabled(types.BoolUnknown()))); diags.HasError() {
+			t.Errorf("an unknown transparent_data_encryption.enabled must not be rejected at plan time, got: %v", diags.Errors())
+		}
+	})
+}
+
+func TestServiceResource_Create_backupEncryptionConfig(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	backupID := "11111111-2222-3333-4444-555555555555"
+	encryptionConfig := `{"schema_version": 1, "restore_key_pairs": [{"wrapped_dek": "abc"}]}`
+
+	tests := []struct {
+		name      string
+		configVal types.String
+		wantSent  string
+	}{
+		{
+			name:      "configured value is sent to the API byte-for-byte",
+			configVal: types.StringValue(encryptionConfig),
+			wantSent:  encryptionConfig,
+		},
+		{
+			name:      "unset value is omitted from the API payload",
+			configVal: types.StringNull(),
+			wantSent:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			createResp := getBaseResponse("svc-new")
+			createResp.State = api.StateRunning
+			createResp.HasTransparentDataEncryption = true
+			syncResp := createResp
+
+			var sent api.Service
+			mc := minimock.NewController(t)
+			apiClientMock := api.NewClientMock(mc).
+				CreateServiceMock.Set(func(_ context.Context, s api.Service) (*api.Service, string, error) {
+				sent = s
+				return &createResp, "api-generated-secret", nil
+			}).
+				WaitForServiceStateMock.Return(nil).
+				GetServiceMock.Return(&syncResp, nil)
+
+			r.client = apiClientMock
+
+			base := func(mut func(*models.ServiceResourceModel)) models.ServiceResourceModel {
+				return test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+					s.BackupID = types.StringValue(backupID)
+					s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+					s.TransparentEncryptionData = models.TransparentEncryptionData{Enabled: types.BoolValue(true), RoleID: types.StringUnknown()}.ObjectValue()
+					s.GeneratedPassword = types.StringUnknown()
+					mut(s)
+				}).Get()
+			}
+			// Write-only: Terraform always plans the attribute as null; only the config carries the value.
+			plan := base(func(s *models.ServiceResourceModel) { s.BackupEncryptionConfig = types.StringNull() })
+			config := base(func(s *models.ServiceResourceModel) { s.BackupEncryptionConfig = tt.configVal })
+
+			planVal := tfsdk.Plan{Schema: sch}
+			if d := planVal.Set(ctx, &plan); d.HasError() {
+				t.Fatalf("encoding plan: %v", d.Errors())
+			}
+			configVal := tfsdk.Plan{Schema: sch}
+			if d := configVal.Set(ctx, &config); d.HasError() {
+				t.Fatalf("encoding config: %v", d.Errors())
+			}
+			req := resource.CreateRequest{
+				Plan:   planVal,
+				Config: tfsdk.Config{Schema: sch, Raw: configVal.Raw},
+			}
+			resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
+			r.Create(ctx, req, resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("Create returned errors: %v", resp.Diagnostics.Errors())
+			}
+
+			if got := string(sent.BackupEncryptionConfig); got != tt.wantSent {
+				t.Errorf("backupEncryptionConfig sent to API = %q, want %q", got, tt.wantSent)
+			}
+			if sent.BackupID == nil || *sent.BackupID != backupID {
+				t.Errorf("backupId sent to API = %v, want %q", sent.BackupID, backupID)
+			}
+			if body, err := json.Marshal(sent); err != nil {
+				t.Fatalf("marshalling request: %v", err)
+			} else if tt.wantSent == "" && strings.Contains(string(body), "backupEncryptionConfig") {
+				t.Errorf("unset backupEncryptionConfig must be omitted from the request body, got %s", body)
+			}
+
+			var out models.ServiceResourceModel
+			if d := resp.State.Get(ctx, &out); d.HasError() {
+				t.Fatalf("decoding post-apply state: %v", d.Errors())
+			}
+			if !out.BackupEncryptionConfig.IsNull() {
+				t.Errorf("backup_encryption_config must never be stored in state, got %v", out.BackupEncryptionConfig)
+			}
+		})
+	}
 }
 
 func TestResolveIsHorizontal(t *testing.T) {

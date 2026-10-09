@@ -45,6 +45,8 @@ var sensitiveBodyKeys = map[string]struct{}{
 var sensitiveBodyContainers = map[string]struct{}{
 	"secrets":     {},
 	"credentials": {},
+	// Carries the KMS key reference and wrapped DEK for a bring-your-own-bucket restore.
+	"backupEncryptionConfig": {},
 }
 
 // redactSensitiveBody returns body with values of known sensitive keys replaced

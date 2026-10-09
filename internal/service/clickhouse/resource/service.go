@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -82,6 +83,17 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"backup_encryption_config": schema.StringAttribute{
+				Description: "Contents of the `encryption_config.json` file from your own bucket, as a JSON string (e.g. `file(\"encryption_config.json\")`), passed to the API unchanged. Required when `backup_id` refers to a backup stored in your own bucket, and rejected otherwise. Only used when the service is created: it is write-only (requires Terraform >= 1.11) and never stored in state, so changing it alone does not recreate the service — change `backup_id` to restore again. A service restored from your own bucket always has Transparent Data Encryption enabled, so `transparent_data_encryption.enabled` must be set to true. Requires the bring-your-own-bucket TDE feature to be enabled for your organization.",
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+					stringvalidator.AlsoRequires(path.MatchRoot("backup_id")),
+					stringvalidator.ConflictsWith(path.MatchRoot("warehouse_id")),
 				},
 			},
 			"byoc_id": schema.StringAttribute{
@@ -1405,6 +1417,35 @@ func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.Valid
 			}
 		}
 	}
+
+	if !config.BackupEncryptionConfig.IsNull() && !config.BackupEncryptionConfig.IsUnknown() {
+		// Only the top-level shape is checked: the data plane owns and versions the file's contents.
+		var obj map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(config.BackupEncryptionConfig.ValueString()), &obj); err != nil || obj == nil {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("backup_encryption_config"),
+				"Invalid Configuration",
+				"backup_encryption_config must be a JSON object (the contents of encryption_config.json).",
+			)
+		}
+
+		// The restore always enables TDE; planning it as disabled would fail after apply with an inconsistent result.
+		tdeEnabled := false
+		tdeUnknown := config.TransparentEncryptionData.IsUnknown()
+		if !config.TransparentEncryptionData.IsNull() && !tdeUnknown {
+			tde := models.TransparentEncryptionData{}
+			resp.Diagnostics.Append(config.TransparentEncryptionData.As(ctx, &tde, basetypes.ObjectAsOptions{})...)
+			tdeUnknown = tde.Enabled.IsUnknown()
+			tdeEnabled = tde.Enabled.ValueBool()
+		}
+		if !tdeUnknown && !tdeEnabled {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("transparent_data_encryption").AtName("enabled"),
+				"Invalid Configuration",
+				"Restoring a backup stored in your own bucket always enables Transparent Data Encryption. Set transparent_data_encryption.enabled to true when backup_encryption_config is set.",
+			)
+		}
+	}
 }
 
 // toAPISnapshotConfiguration maps the model to the API payload, skipping Unknown fields: for an omitted (Unknown)
@@ -1457,6 +1498,11 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	if !plan.BackupID.IsUnknown() && !plan.BackupID.IsNull() {
 		service.BackupID = plan.BackupID.ValueStringPointer()
+	}
+
+	// Write-only, so it is only present in config.
+	if !config.BackupEncryptionConfig.IsNull() && !config.BackupEncryptionConfig.IsUnknown() {
+		service.BackupEncryptionConfig = json.RawMessage(config.BackupEncryptionConfig.ValueString())
 	}
 
 	if !plan.ReleaseChannel.IsUnknown() && !plan.ReleaseChannel.IsNull() {
