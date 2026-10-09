@@ -309,8 +309,9 @@ func (r *ApiKeyResource) Delete(ctx context.Context, req resource.DeleteRequest,
 func planToCreateRequest(ctx context.Context, plan models.ApiKeyResourceModel) (api.ApiKeyCreateRequest, diag.Diagnostics) {
 	ipList, diags := ipAccessListFromPlan(ctx, plan.IpAccessList)
 	req := api.ApiKeyCreateRequest{
-		Name:         plan.Name.ValueString(),
-		IpAccessList: ipList,
+		Name:            plan.Name.ValueString(),
+		IpAccessList:    ipList,
+		AssignedRoleIds: []string{},
 	}
 	if !plan.State.IsNull() && !plan.State.IsUnknown() {
 		req.State = plan.State.ValueString()

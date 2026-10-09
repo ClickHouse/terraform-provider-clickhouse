@@ -43,6 +43,10 @@ type ApiKeyCreateRequest struct {
 	// silently drop the field and leave the server value unchanged.
 	ExpireAt     *string              `json:"expireAt"`
 	IpAccessList *[]IpAccessListEntry `json:"ipAccessList,omitempty"`
+	// Required by the API on create; always sent as [] (no omitempty, never
+	// nil) so roles are managed only by clickhouse_role_assignment. The
+	// deprecated `roles` field is not sent.
+	AssignedRoleIds []string `json:"assignedRoleIds"`
 }
 
 type ApiKeyUpdateRequest struct {

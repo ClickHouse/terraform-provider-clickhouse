@@ -172,3 +172,39 @@ func TestApiKeyResource_clearPathMarshalsExplicitly(t *testing.T) {
 		t.Fatalf("expected explicit \"ipAccessList\":[], got %s", body)
 	}
 }
+
+// TestApiKeyResource_createSendsEmptyAssignedRoleIds locks the create body:
+// the API requires assignedRoleIds, roles come from clickhouse_role_assignment,
+// and updates must never send it (that would wipe existing assignments).
+func TestApiKeyResource_createSendsEmptyAssignedRoleIds(t *testing.T) {
+	ctx := context.Background()
+	plan := models.ApiKeyResourceModel{
+		Name:         types.StringValue("monitoring"),
+		ExpireAt:     types.StringNull(),
+		IpAccessList: types.ListNull(models.IPAccessList{}.ObjectType()),
+	}
+
+	createReq, diags := planToCreateRequest(ctx, plan)
+	if diags.HasError() {
+		t.Fatalf("planToCreateRequest: %v", diags)
+	}
+	got, err := json.Marshal(createReq)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if body := string(got); !strings.Contains(body, `"assignedRoleIds":[]`) || strings.Contains(body, `"roles"`) {
+		t.Fatalf("expected \"assignedRoleIds\":[] and no \"roles\", got %s", body)
+	}
+
+	updateReq, diags := planToUpdateRequest(ctx, plan)
+	if diags.HasError() {
+		t.Fatalf("planToUpdateRequest: %v", diags)
+	}
+	got, err = json.Marshal(updateReq)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if body := string(got); strings.Contains(body, "assignedRoleIds") || strings.Contains(body, `"roles"`) {
+		t.Fatalf("update body must not touch role assignments, got %s", body)
+	}
+}
