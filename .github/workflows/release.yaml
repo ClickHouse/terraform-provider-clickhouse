@@ -615,7 +615,7 @@ jobs:
   # guardrail). Dispatch explicitly instead.
   trigger-release-notes:
     needs: [ "goreleaser" ]
-    if: ${{ needs.goreleaser.result == 'success' }}
+    if: ${{ always() && needs.goreleaser.result == 'success' }}
     runs-on: k8s-nano
     permissions:
       actions: write
