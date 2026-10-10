@@ -5,6 +5,7 @@ subcategory: "ClickHouse Cloud"
 description: |-
   Use the clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns resource to manage the full set of custom private DNS mappings for an existing ClickPipes reverse private endpoint.
   This resource updates only custom private DNS mappings. The mapping list is a full replacement list, and deleting this resource clears all custom private DNS mappings on the reverse private endpoint.
+  By default, each private_dns_name resolves to the endpoint's default target. For VPC_RESOURCE endpoints, set target_id to a resource configuration ID to resolve the name to that target instead. For a GROUP resource configuration, use the CHILD resource configuration ID, for example to give each database node its own hostname. The reverse private endpoint's dns_targets attribute shows which targets are reported.
 ---
 
 # clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns (Resource)
@@ -12,6 +13,8 @@ description: |-
 Use the *clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns* resource to manage the full set of custom private DNS mappings for an existing ClickPipes reverse private endpoint.
 
 This resource updates only custom private DNS mappings. The mapping list is a full replacement list, and deleting this resource clears all custom private DNS mappings on the reverse private endpoint.
+
+By default, each `private_dns_name` resolves to the endpoint's default target. For `VPC_RESOURCE` endpoints, set `target_id` to a resource configuration ID to resolve the name to that target instead. For a GROUP resource configuration, use the CHILD resource configuration ID, for example to give each database node its own hostname. The reverse private endpoint's `dns_targets` attribute shows which targets are reported.
 
 ## Example Usage
 
@@ -25,6 +28,105 @@ resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "ex
       private_dns_name = "my-service.example.com"
     }
   ]
+}
+
+# VPC_RESOURCE GROUP with one CHILD per MongoDB node. Each custom hostname
+# targets its node's CHILD resource configuration by ID.
+variable "service_id" {
+  type = string
+}
+
+variable "resource_gateway_id" {
+  type = string
+}
+
+variable "clickhouse_aws_account_id" {
+  type = string
+}
+
+resource "aws_vpclattice_resource_configuration" "mongo" {
+  name                        = "mongo"
+  type                        = "GROUP"
+  resource_gateway_identifier = var.resource_gateway_id
+  protocol                    = "TCP"
+  port_ranges                 = ["27017"]
+}
+
+resource "aws_vpclattice_resource_configuration" "node_00" {
+  name                            = "mongo-node-00"
+  type                            = "CHILD"
+  resource_configuration_group_id = aws_vpclattice_resource_configuration.mongo.id
+
+  resource_configuration_definition {
+    dns_resource {
+      domain_name     = "node-00.mongo.example.com"
+      ip_address_type = "IPV4"
+    }
+  }
+}
+
+resource "aws_vpclattice_resource_configuration" "node_01" {
+  name                            = "mongo-node-01"
+  type                            = "CHILD"
+  resource_configuration_group_id = aws_vpclattice_resource_configuration.mongo.id
+
+  resource_configuration_definition {
+    dns_resource {
+      domain_name     = "node-01.mongo.example.com"
+      ip_address_type = "IPV4"
+    }
+  }
+}
+
+resource "aws_ram_resource_share" "mongo" {
+  name                      = "mongo-clickpipes"
+  allow_external_principals = true
+}
+
+resource "aws_ram_resource_association" "mongo" {
+  resource_arn       = aws_vpclattice_resource_configuration.mongo.arn
+  resource_share_arn = aws_ram_resource_share.mongo.arn
+}
+
+resource "aws_ram_principal_association" "clickhouse" {
+  principal          = var.clickhouse_aws_account_id
+  resource_share_arn = aws_ram_resource_share.mongo.arn
+}
+
+resource "clickhouse_clickpipes_reverse_private_endpoint" "mongo" {
+  service_id                    = var.service_id
+  description                   = "MongoDB GROUP reverse private endpoint"
+  type                          = "VPC_RESOURCE"
+  vpc_resource_configuration_id = aws_vpclattice_resource_configuration.mongo.id
+  vpc_resource_share_arn        = aws_ram_resource_share.mongo.arn
+
+  depends_on = [
+    aws_ram_resource_association.mongo,
+    aws_ram_principal_association.clickhouse,
+  ]
+}
+
+resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "mongo" {
+  service_id                  = var.service_id
+  reverse_private_endpoint_id = clickhouse_clickpipes_reverse_private_endpoint.mongo.id
+
+  # target_id is the CHILD resource configuration ID, so these mappings can be
+  # applied right after the endpoint is created. Once provisioned, the targets
+  # are listed in clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_targets.
+  mapping = [
+    {
+      private_dns_name = "node-00-pri.mongo.example.com"
+      target_id        = aws_vpclattice_resource_configuration.node_00.id
+    },
+    {
+      private_dns_name = "node-01-pri.mongo.example.com"
+      target_id        = aws_vpclattice_resource_configuration.node_01.id
+    },
+  ]
+}
+
+output "mongo_dns_targets" {
+  value = clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_targets
 }
 ```
 
@@ -47,6 +149,10 @@ resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "ex
 Required:
 
 - `private_dns_name` (String) Custom private DNS name managed by ClickHouse Cloud.
+
+Optional:
+
+- `target_id` (String) ID of the DNS target this private DNS name resolves to, from the reverse private endpoint's `dns_targets`. Supported only for VPC_RESOURCE endpoints, where it is the resource configuration ID (`rcfg-...`); for a GROUP, use the CHILD resource configuration ID. If unset, the endpoint's default target is used.
 
 ## Import
 

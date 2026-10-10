@@ -9,6 +9,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -142,6 +143,42 @@ func (r *ClickPipeReversePrivateEndpointResource) Schema(ctx context.Context, re
 				ElementType:         types.StringType,
 				MarkdownDescription: "Reverse private endpoint private DNS names",
 			},
+			"private_dns_mappings": schema.ListNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "Private DNS names and the internal DNS names they resolve to, as reported by the reverse private endpoint.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"private_dns_name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Private DNS name.",
+						},
+						"internal_dns_name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Internal DNS name the private DNS name resolves to.",
+						},
+					},
+				},
+			},
+			"dns_targets": schema.ListNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "DNS targets reported by the reverse private endpoint. Custom private DNS mappings can reference a target by `id` using `target_id`. Only populated for VPC_RESOURCE endpoints, with one target per VPC resource configuration association.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"id": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Target ID. For VPC_RESOURCE, the resource configuration ID (`rcfg-...`); for a GROUP, the CHILD resource configuration ID.",
+						},
+						"kind": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Target kind, for example `RESOURCE_CONFIGURATION`.",
+						},
+						"internal_dns_name": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Internal DNS name of the target.",
+						},
+					},
+				},
+			},
 			"status": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Status of the reverse private endpoint",
@@ -228,6 +265,27 @@ func applyReversePrivateEndpointToModel(ctx context.Context, serviceID string, e
 	privateDNSNames, d := types.ListValueFrom(ctx, types.StringType, endpoint.PrivateDNSNames)
 	diags.Append(d...)
 	data.PrivateDNSNames = privateDNSNames
+
+	privateDNSMappings := make([]attr.Value, len(endpoint.PrivateDNSMappings))
+	for i, mapping := range endpoint.PrivateDNSMappings {
+		privateDNSMappings[i] = models.PrivateDNSMappingModel{
+			PrivateDNSName:  types.StringValue(mapping.PrivateDNSName),
+			InternalDNSName: types.StringValue(mapping.InternalDNSName),
+		}.ObjectValue()
+	}
+	data.PrivateDNSMappings, d = types.ListValue(models.PrivateDNSMappingModel{}.ObjectType(), privateDNSMappings)
+	diags.Append(d...)
+
+	dnsTargets := make([]attr.Value, len(endpoint.DNSTargets))
+	for i, target := range endpoint.DNSTargets {
+		dnsTargets[i] = models.DNSTargetModel{
+			ID:              types.StringValue(target.ID),
+			Kind:            types.StringValue(target.Kind),
+			InternalDNSName: types.StringValue(target.InternalDNSName),
+		}.ObjectValue()
+	}
+	data.DNSTargets, d = types.ListValue(models.DNSTargetModel{}.ObjectType(), dnsTargets)
+	diags.Append(d...)
 
 	return diags
 }
