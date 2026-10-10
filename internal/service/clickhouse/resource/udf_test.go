@@ -1469,6 +1469,56 @@ func TestShouldRetryUDFUploadStopsForCanceledContext(t *testing.T) {
 	}
 }
 
+// TestUDFErrorClassificationSurvivesWrapping pins the status classification the
+// UDF paths depend on. The status is recovered by api.StatusFromMessage, and
+// these cases guard the delegation: the UDF code wraps errors with context
+// before classifying them, so a status that is no longer a prefix must still be
+// found. api.IsNotFound deliberately does not handle that (it matches a prefix
+// on the outermost error only), which is why the UDF predicates exist.
+func TestUDFErrorClassificationSurvivesWrapping(t *testing.T) {
+	notFound := fmt.Errorf("check whether UDF %q already exists: %w", "my_fn",
+		errors.New(`status: 404, body: {"error":"function not found"}`))
+	gone := fmt.Errorf("publish UDF version: %w",
+		errors.New("status: 410, body: upload expired"))
+	serverError := fmt.Errorf("wait for UDF build: %w",
+		errors.New("status: 502, body: bad gateway"))
+	transport := fmt.Errorf("upload UDF source archive: %w",
+		errors.New("dial tcp 10.0.0.1:443: connect: connection refused"))
+
+	if status, _, _, _ := udfErrorInfo(notFound); status != 404 {
+		t.Errorf("udfErrorInfo(wrapped 404) status = %d; want 404", status)
+	}
+	if !isUDFNotFound(notFound) {
+		t.Error("isUDFNotFound(wrapped 404) = false; want true")
+	}
+	if !isUDFHTTPStatus(gone, 410) {
+		t.Error("isUDFHTTPStatus(wrapped 410, 410) = false; want true")
+	}
+	if !isUDFServerError(serverError) {
+		t.Error("isUDFServerError(wrapped 502) = false; want true")
+	}
+	if isUDFServerError(notFound) {
+		t.Error("isUDFServerError(wrapped 404) = true; want false")
+	}
+	if !isUDFTransportError(transport) {
+		t.Error("isUDFTransportError(no status) = false; want true")
+	}
+	if isUDFTransportError(gone) {
+		t.Error("isUDFTransportError(wrapped 410) = true; want false")
+	}
+
+	// The UDF-specific carve-out: a 404 whose body says the API could not
+	// perform the operation is not resource drift, so it must not be treated
+	// as a missing UDF.
+	cannotGet := errors.New(`status: 404, body: {"error":"cannot get function my_fn"}`)
+	if isUDFNotFound(cannotGet) {
+		t.Error(`isUDFNotFound("cannot get") = true; want false`)
+	}
+	if !isUDFHTTPStatus(cannotGet, 404) {
+		t.Error("isUDFHTTPStatus(cannot-get 404, 404) = false; want true")
+	}
+}
+
 func TestUDFBuildErrorKeepsOnlyActionableCause(t *testing.T) {
 	raw := "Build Failure: failed at ECS build task: Task completed with non-zero exit code: 1\nReason: {\"success\":false,\"error\":\"panic: [X] Failed to extract source zip file: main.py was not found in the zip archive\"}"
 	detail := udfBuildFailureDetail("my_fn", 1, true, types.Int64Null(), true, raw)
