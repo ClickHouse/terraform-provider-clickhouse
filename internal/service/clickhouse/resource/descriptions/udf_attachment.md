@@ -1,7 +1,5 @@
 You can use the *clickhouse_udf_attachment* resource to attach a UDF version to a ClickHouse Cloud service.
 
-~> **Note:** This resource is in beta. Its behavior may change in future provider versions.
-
 A service can only have one version of a function attached at a time. `version` supports two ways to pick what gets attached:
 
 - **Pin a version:** set `version` to a fixed number. Terraform keeps that version attached until you change it.

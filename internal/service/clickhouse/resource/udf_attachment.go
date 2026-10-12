@@ -24,7 +24,6 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 var (
@@ -114,8 +113,6 @@ func (r *UDFAttachmentResource) Configure(_ context.Context, req resource.Config
 }
 
 func (r *UDFAttachmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.BetaWarning("clickhouse_udf_attachment", &resp.Diagnostics)
-
 	var plan models.UDFAttachmentResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -159,8 +156,6 @@ func (r *UDFAttachmentResource) Read(ctx context.Context, req resource.ReadReque
 }
 
 func (r *UDFAttachmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	utils.BetaWarning("clickhouse_udf_attachment", &resp.Diagnostics)
-
 	var plan models.UDFAttachmentResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -190,8 +185,6 @@ func (r *UDFAttachmentResource) Delete(ctx context.Context, req resource.DeleteR
 }
 
 func (r *UDFAttachmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	utils.BetaWarning("clickhouse_udf_attachment", &resp.Diagnostics)
-
 	parts := strings.Split(req.ID, "/")
 	if len(parts) != 2 || !udfNamePattern.MatchString(parts[0]) || !uuidPattern.MatchString(parts[1]) {
 		resp.Diagnostics.AddError(
