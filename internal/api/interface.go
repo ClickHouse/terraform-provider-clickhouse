@@ -7,11 +7,23 @@ import (
 
 type Client interface {
 	GetApiKeyID(ctx context.Context, name *string) (*ApiKey, error)
+	CreateApiKey(ctx context.Context, req ApiKeyCreateRequest) (*ApiKeyCreateResult, error)
+	GetApiKey(ctx context.Context, keyId string) (*ApiKey, error)
+	UpdateApiKey(ctx context.Context, keyId string, req ApiKeyUpdateRequest) (*ApiKey, error)
+	DeleteApiKey(ctx context.Context, keyId string) error
 
 	GetService(ctx context.Context, serviceId string) (*Service, error)
 	GetServiceBase(ctx context.Context, serviceId string) (*Service, error)
 	ListServices(ctx context.Context, filters []string) ([]Service, error)
 	ListServiceProfiles(ctx context.Context, regionId string, byocId string) ([]ServiceProfile, error)
+	CreateByocInfrastructure(ctx context.Context, r ByocInfrastructureCreateRequest) (*ByocInfrastructure, error)
+	ValidateByocInfrastructure(ctx context.Context, r ByocInfrastructureValidateRequest) (*ByocInfrastructureValidation, error)
+	GetByocInfrastructure(ctx context.Context, byocId string) (*ByocInfrastructureDetails, error)
+	UpdateByocInfrastructure(ctx context.Context, byocId string, r ByocInfrastructureUpdateRequest) (*ByocInfrastructure, error)
+	DeleteByocInfrastructure(ctx context.Context, byocId string) error
+	GetByocInfrastructureTags(ctx context.Context, byocId string) (map[string]string, error)
+	GetByocInfrastructurePrivateEndpointConfig(ctx context.Context, byocId string) (*ByocInfrastructurePrivateEndpointConfig, error)
+	WaitForByocInfrastructureState(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) error
 	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
 	CreateService(ctx context.Context, s Service) (*Service, string, error)
 	WaitForServiceState(ctx context.Context, serviceId string, stateChecker func(string) bool, maxWaitSeconds int) error
@@ -31,6 +43,8 @@ type Client interface {
 	UpdateOrganizationPrivateEndpoints(ctx context.Context, orgUpdate OrganizationUpdate) (*[]PrivateEndpoint, error)
 	GetBackupConfiguration(ctx context.Context, serviceId string) (*BackupConfiguration, error)
 	UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (*BackupConfiguration, error)
+	GetSnapshotConfiguration(ctx context.Context, serviceId string) (*SnapshotConfiguration, error)
+	UpdateSnapshotConfiguration(ctx context.Context, serviceId string, s SnapshotConfiguration) (*SnapshotConfiguration, error)
 	RotateTDEKey(ctx context.Context, serviceId string, keyId string) error
 
 	CreateUDFUploadSession(ctx context.Context) (*UDFUploadSession, error)
@@ -51,8 +65,14 @@ type Client interface {
 	CreateQueryAPIEndpoint(ctx context.Context, serviceID string, endpoint QueryAPIEndpointRequest) (*QueryAPIEndpoint, error)
 	UpdateQueryAPIEndpoint(ctx context.Context, serviceID, endpointID string, endpoint QueryAPIEndpointRequest) (*QueryAPIEndpoint, error)
 	DeleteQueryAPIEndpoint(ctx context.Context, serviceID, endpointID string) error
+	GetSavedQuery(ctx context.Context, serviceID, queryID string) (*SavedQuery, error)
+	CreateSavedQuery(ctx context.Context, serviceID string, query SavedQueryRequest) (*SavedQuery, error)
+	UpdateSavedQuery(ctx context.Context, serviceID, queryID string, query SavedQueryRequest) (*SavedQuery, error)
+	DeleteSavedQuery(ctx context.Context, serviceID, queryID string) error
 
 	GetClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
+	GetClickPipesServiceContext(ctx context.Context, serviceId string) (*ClickPipesServiceContext, error)
+	WaitForClickPipesGCPWorkloadIdentity(ctx context.Context, serviceId string, maxWait time.Duration) (*ClickPipesGCPWorkloadIdentityContext, error)
 	CreateClickPipe(ctx context.Context, serviceId string, clickPipe ClickPipe) (*ClickPipe, error)
 	UpdateClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeUpdate) (*ClickPipe, error)
 	WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWait time.Duration) (*ClickPipe, error)

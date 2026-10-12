@@ -57,6 +57,8 @@ type AlertChannel struct {
 //     threshold types (and applyAlert does not reconcile it for other types).
 //   - savedSearchId, dashboardId, tileId: an omitted id keeps the current target,
 //     which is why the resource rejects "" at plan time instead of sending it.
+//   - tags: nil sends null, which re-derives them from the saved search or
+//     dashboard; [] is sent as-is so an alert can opt out of inherited tags.
 //   - chartConfig: required by the API on every inline write, so it is always
 //     sent in full for that source and never partially updated.
 type Alert struct {
@@ -88,6 +90,7 @@ type Alert struct {
 	Name                  *string         `json:"name,omitempty"`
 	Message               *string         `json:"message,omitempty"`
 	Note                  *string         `json:"note,omitempty"`
+	Tags                  *[]string       `json:"tags,omitempty"`
 	NumConsecutiveWindows *int            `json:"numConsecutiveWindows,omitempty"`
 	ScheduleOffsetMinutes *int            `json:"scheduleOffsetMinutes,omitempty"`
 	// ScheduleStartAt is always serialized (no omitempty): a nil pointer sends

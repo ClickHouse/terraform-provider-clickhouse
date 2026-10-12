@@ -108,6 +108,7 @@ resource "clickhouse_clickstack_source" "metrics" {
 - `duration_expression` (String) Expression to extract span duration. Required for `trace`.
 - `duration_precision` (Number) Number of decimal digits in the duration value (3=ms, 6=us, 9=ns). Defaults to 3. Applies to `trace`.
 - `event_attributes_expression` (String) Expression to extract event-level attributes.
+- `filter_settings` (Attributes) Required source filters: values for the listed columns must be supplied on every query against this source, with candidate values sourced from a dictionary table. (see [below for nested schema](#nestedatt--filter_settings))
 - `highlighted_row_attribute_expressions` (Attributes List) Attributes displayed in the row side panel for the selected row. (see [below for nested schema](#nestedatt--highlighted_row_attribute_expressions))
 - `highlighted_trace_attribute_expressions` (Attributes List) Attributes displayed in the trace view for the selected trace. (see [below for nested schema](#nestedatt--highlighted_trace_attribute_expressions))
 - `implicit_column_expression` (String) Column used for full-text search when no property is specified in a Lucene search.
@@ -151,6 +152,29 @@ Required:
 Optional:
 
 - `table_name` (String) ClickHouse table name. Required for all kinds except `metric` (which locates tables via `metric_tables`).
+
+
+<a id="nestedatt--filter_settings"></a>
+### Nested Schema for `filter_settings`
+
+Required:
+
+- `columns` (Attributes List) Columns that must be filtered on every query against this source. (see [below for nested schema](#nestedatt--filter_settings--columns))
+- `database_name` (String) Database of the dictionary table backing the filter values.
+- `table_name` (String) Dictionary table backing the filter values.
+
+<a id="nestedatt--filter_settings--columns"></a>
+### Nested Schema for `filter_settings.columns`
+
+Required:
+
+- `name` (String) Column name to filter on.
+
+Optional:
+
+- `allow_all` (Boolean) Whether an "all values" selection is offered for this column instead of requiring explicit values. Defaults to false.
+- `label` (String) Optional display label for the filter in the UI.
+
 
 
 <a id="nestedatt--highlighted_row_attribute_expressions"></a>

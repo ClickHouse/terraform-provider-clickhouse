@@ -33,12 +33,19 @@ linters:
       # goconst flags Terraform schema attribute keys (idiomatic string literals)
       # throughout the schema-definition packages. Keep goconst active only on the
       # client/logic code (internal/api, internal/...), where magic-string detection has value.
-      - path: (internal/service/[^/]+/resource|internal/service/[^/]+/datasource)
+      # Covers both the resource/ + datasource/ subpackages and the flat
+      # <name>_resource.go / <name>_data_source.go files (e.g. the clickstack service).
+      - path: (internal/service/[^/]+/resource|internal/service/[^/]+/datasource|internal/service/[^/]+/[^/]*(resource|data_source)\.go)
         linters:
           - goconst
       # Postgres and MySQL ClickPipe sources are intentionally implemented as parallel
       # code paths (distinct model/API types). The resulting duplication is accepted.
       - path: internal/service/clickhouse/resource/clickpipe\.go
+        linters:
+          - dupl
+      # backup_configuration.go and snapshot_configuration.go are deliberate parallel
+      # API-client mirrors over distinct config types. The resulting duplication is accepted.
+      - path: internal/api/(backup|snapshot)_configuration\.go
         linters:
           - dupl
 

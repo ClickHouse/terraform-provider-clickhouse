@@ -12,6 +12,7 @@ import (
 )
 
 func intPtr(v int) *int       { return &v }
+func int32Ptr(v int32) *int32 { return &v }
 func boolPtr(v bool) *bool    { return &v }
 func strPtr(v string) *string { return &v }
 

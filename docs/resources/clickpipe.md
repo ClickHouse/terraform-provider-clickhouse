@@ -145,7 +145,7 @@ Optional:
 
 - `partition_by` (String) The column to partition the table by.
 - `primary_key` (String) The primary key of the table.
-- `sorting_key` (List of String) The list of columns for the sorting key.
+- `sorting_key` (List of String) The list of columns for the sorting key. Required when engine type is `ReplacingMergeTree` and the pipe is being created.
 - `ttl` (String) ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.
 
 <a id="nestedatt--destination--table_definition--engine"></a>
@@ -158,7 +158,7 @@ Required:
 Optional:
 
 - `column_ids` (List of String) Column IDs to sum for SummingMergeTree engine. Required when engine type is `SummingMergeTree`.
-- `version_column_id` (String) Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.
+- `version_column_id` (String) Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree` and the pipe is being created.
 
 
 
@@ -182,18 +182,15 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for BigQuery access. (see [below for nested schema](#nestedatt--source--bigquery--credentials))
 - `settings` (Attributes) Settings for the BigQuery pipe. (see [below for nested schema](#nestedatt--source--bigquery--settings))
 - `snapshot_staging_path` (String) GCS bucket path for staging snapshot data (e.g., gs://my-bucket/staging/). Data will be automatically cleaned up after initial load.
 - `table_mappings` (Attributes List) Table mappings from BigQuery source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--bigquery--table_mappings))
 
-<a id="nestedatt--source--bigquery--credentials"></a>
-### Nested Schema for `source.bigquery.credentials`
+Optional:
 
-Required:
-
-- `service_account_file` (String, Sensitive) Google Cloud service account JSON key file content, base64 encoded.
-
+- `authentication` (String) Authentication method for the BigQuery source. (`SERVICE_ACCOUNT`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.
+- `credentials` (Attributes, Sensitive) The credentials for BigQuery access. Required with `SERVICE_ACCOUNT` authentication and must be omitted with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. (see [below for nested schema](#nestedatt--source--bigquery--credentials))
+- `project_id` (String) GCP project ID that owns the BigQuery resources. Required with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication.
 
 <a id="nestedatt--source--bigquery--settings"></a>
 ### Nested Schema for `source.bigquery.settings`
@@ -227,6 +224,14 @@ Optional:
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
 
 
+<a id="nestedatt--source--bigquery--credentials"></a>
+### Nested Schema for `source.bigquery.credentials`
+
+Required:
+
+- `service_account_file` (String, Sensitive) Google Cloud service account JSON key file content, base64 encoded.
+
+
 
 <a id="nestedatt--source--kafka"></a>
 ### Nested Schema for `source.kafka`
@@ -239,7 +244,7 @@ Required:
 
 Optional:
 
-- `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `IAM_ROLE`, `IAM_USER`, `MUTUAL_TLS`). Default is `PLAIN`.
+- `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `IAM_ROLE`, `IAM_USER`, `MUTUAL_TLS`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). Default is `PLAIN`. `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview and is supported only for GCMK.
 - `ca_certificate` (String) PEM encoded CA certificates to validate the broker's certificate.
 - `consumer_group` (String) Consumer group of the Kafka source. If not provided `clickpipes-<ID>` will be used.
 - `credentials` (Attributes) The credentials for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--credentials))
@@ -248,9 +253,9 @@ Optional:
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
 - `protobuf_schema` (String, Sensitive) Base64-encoded Protobuf schema used instead of `schema_registry`. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Requires `format = "Protobuf"` and forces replacement when changed.
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
-- `schema_registry` (Attributes) The schema registry for the Kafka source. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
+- `schema_registry` (Attributes) The schema registry for the Kafka source: a Confluent-compatible registry (`url`, `authentication`, `credentials`) or an AWS Glue schema registry (`type = "glue"` with a `glue` block). Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
-- `tombstone_mode` (String) How Kafka tombstone records are handled. Set to `delete` to delete the matching destination row using field mappings sourced from `_key` or `_key.<field>`. Requires `exactly_once = true`. This setting is create-only; changing it forces ClickPipe replacement.
+- `tombstone_mode` (String) How Kafka tombstone records are handled. Set to `delete` to delete the matching destination row using field mappings sourced from `_key` or `_key.<field>`; this requires `exactly_once = true`. Set to `soft_delete` to write a row with the `_is_deleted` virtual column set to `true`; exactly-once delivery is not required. This setting is create-only; changing it forces ClickPipe replacement.
 - `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.
 
 <a id="nestedatt--source--kafka--credentials"></a>
@@ -284,11 +289,13 @@ Optional:
 <a id="nestedatt--source--kafka--schema_registry"></a>
 ### Nested Schema for `source.kafka.schema_registry`
 
-Required:
+Optional:
 
-- `authentication` (String) The authentication method for the Schema Registry. Only supported is `PLAIN`.
-- `credentials` (Attributes, Sensitive) The credentials for the Schema Registry. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--credentials))
-- `url` (String) The URL of the schema registry.
+- `authentication` (String) The authentication method for the Schema Registry. Only supported is `PLAIN`. Required for `confluent` registries.
+- `credentials` (Attributes, Sensitive) The credentials for the Schema Registry. Required for `confluent` registries. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--credentials))
+- `glue` (Attributes) The AWS Glue schema registry. Required for `glue` registries. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--glue))
+- `type` (String) The type of the schema registry. (`confluent`, `glue`). Default is `confluent`. The AWS Glue schema registry must be enabled for the organization.
+- `url` (String) The URL of the schema registry. Required for `confluent` registries.
 
 <a id="nestedatt--source--kafka--schema_registry--credentials"></a>
 ### Nested Schema for `source.kafka.schema_registry.credentials`
@@ -302,6 +309,19 @@ Optional:
 - `password` (String, Sensitive) The password for the Schema Registry. Either `password` or `password_wo` must be provided.
 - `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version`; changing schema registry credentials forces pipe replacement.
 - `password_wo_version` (Number) Version trigger for `password_wo`. Incrementing signals a new password, which forces pipe replacement - schema registry credentials cannot be updated in place.
+
+
+<a id="nestedatt--source--kafka--schema_registry--glue"></a>
+### Nested Schema for `source.kafka.schema_registry.glue`
+
+Required:
+
+- `region` (String) The AWS region of the Glue schema registry.
+- `registry_name` (String) The name of the Glue schema registry.
+
+Optional:
+
+- `role_arn` (String) The IAM role to assume for Glue schema registry access. Defaults to the IAM identity of the Kafka source, so it is required unless the Kafka source uses `IAM_ROLE` or `IAM_USER` authentication.
 
 
 
@@ -503,7 +523,7 @@ Required:
 Optional:
 
 - `access_key` (Attributes) Access key (see [below for nested schema](#nestedatt--source--object_storage--access_key))
-- `authentication` (String) CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER and SERVICE_ACCOUNT are for GCS. If not provided, no authentication is used
+- `authentication` (String) CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER, SERVICE_ACCOUNT, and the Private Preview SERVICE_ACCOUNT_WORKLOAD_IDENTITY are for GCS. If not provided, no authentication is used.
 - `azure_container_name` (String) Container name for Azure Blob Storage. Required when type is azureblobstorage. Example: `mycontainer`
 - `compression` (String) Compression algorithm used for the files.. (`none`, `auto`, `gzip`, `brotli`, `br`, `xz`, `LZMA`, `zstd`)
 - `connection_string` (String, Sensitive) Connection string for Azure Blob Storage authentication. Required when authentication is CONNECTION_STRING. Example: `DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=mykey;EndpointSuffix=core.windows.net`
@@ -611,11 +631,10 @@ Optional:
 
 Required:
 
-- `authentication` (String) The authentication method for the Pub/Sub source. Currently only `SERVICE_ACCOUNT` is supported.
+- `authentication` (String) The authentication method for the Pub/Sub source. (`SERVICE_ACCOUNT`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.
 - `format` (String) The message format of the Pub/Sub topic. (`JSONEachRow`, `Avro`, `Protobuf`)
 - `project_id` (String) The GCP project ID that owns the Pub/Sub topic.
 - `seek_type` (String) The starting position for consuming the subscription. (`latest`, `earliest`, `timestamp`)
-- `service_account_key` (Attributes) GCP service account credentials. Required on create; provide a new value on update to rotate the key. (see [below for nested schema](#nestedatt--source--pubsub--service_account_key))
 - `topic` (String) The Pub/Sub topic name (not the fully-qualified path).
 
 Optional:
@@ -624,6 +643,7 @@ Optional:
 - `enable_ordering` (Boolean) Whether to enable ordered message delivery. Immutable — changing it requires destroy+create because ordered delivery is a property of the subscription at creation time.
 - `filter` (String) Optional Pub/Sub subscription filter expression (CEL). Max 256 characters. Immutable — changing it requires destroy+create because the underlying subscription filter cannot be edited in place.
 - `seek_timestamp` (String) RFC 3339 timestamp (e.g. `2026-04-10T12:00:00Z`). Required when `seek_type = "timestamp"`; must be omitted otherwise.
+- `service_account_key` (Attributes) GCP service account credentials. Required with `SERVICE_ACCOUNT` and prohibited with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`; provide a new value on update to rotate the key. (see [below for nested schema](#nestedatt--source--pubsub--service_account_key))
 
 <a id="nestedatt--source--pubsub--service_account_key"></a>
 ### Nested Schema for `source.pubsub.service_account_key`

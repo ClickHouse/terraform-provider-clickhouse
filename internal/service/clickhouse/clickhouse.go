@@ -24,7 +24,9 @@ func (servicePackage) Meta() service.Metadata {
 
 func (servicePackage) Resources() []func() upstreamresource.Resource {
 	return []func() upstreamresource.Resource{
+		resource.NewApiKeyResource,
 		resource.NewServiceResource,
+		resource.NewByocInfrastructureResource,
 		resource.NewClickPipeResource,
 		resource.NewClickPipeCdcInfrastructureResource,
 		resource.NewClickPipeReversePrivateEndpointResource,
@@ -33,6 +35,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		resource.NewOrganizationSettingsResource,
 		resource.NewPrivateEndpointRegistrationResource,
 		resource.NewQueryAPIEndpointResource,
+		resource.NewSavedQueryResource,
 		resource.NewRoleResource,
 		resource.NewRoleAssignmentResource,
 		resource.NewServicePrivateEndpointsAttachmentResource,
@@ -53,6 +56,9 @@ func (servicePackage) DataSources() []func() upstreamdatasource.DataSource {
 		datasource.NewUserDataSource,
 		datasource.NewServiceDataSource,
 		datasource.NewServicesDataSource,
+		datasource.NewClickPipesServiceContextDataSource,
 		datasource.NewServiceProfilesDataSource,
+		datasource.NewByocInfrastructureDataSource,
+		datasource.NewByocInfrastructuresDataSource,
 	}
 }

@@ -67,6 +67,18 @@ type ClickPipeSourceAccessKey struct {
 	SecretKey   string `json:"secretKey,omitempty"`
 }
 
+// ClickPipesGCPWorkloadIdentityContext describes the tenant identity used to access customer GCP sources.
+type ClickPipesGCPWorkloadIdentityContext struct {
+	Supported bool    `json:"supported"`
+	Ready     *bool   `json:"ready,omitempty"`
+	Principal *string `json:"principal,omitempty"`
+}
+
+// ClickPipesServiceContext describes service-level ClickPipes capabilities.
+type ClickPipesServiceContext struct {
+	GCPWorkloadIdentity ClickPipesGCPWorkloadIdentityContext `json:"gcpWorkloadIdentity"`
+}
+
 type ClickPipeKafkaSourceCredentials struct {
 	*ClickPipeSourceCredentials
 	*ClickPipeSourceAccessKey
@@ -83,10 +95,17 @@ type ClickPipeKafkaOffset struct {
 	Timestamp *string `json:"timestamp,omitempty"`
 }
 
+// ClickPipeKafkaSchemaRegistry is the schema registry of a Kafka source: either a Confluent-compatible
+// registry (URL, Authentication, Credentials) or an AWS Glue registry (the Glue fields), selected by Type.
+// The API omits Type for Confluent registries, so an empty Type means Confluent.
 type ClickPipeKafkaSchemaRegistry struct {
-	URL            string                      `json:"url"`
-	Authentication string                      `json:"authentication"`
-	Credentials    *ClickPipeSourceCredentials `json:"credentials,omitempty"`
+	Type             string                      `json:"type,omitempty"`
+	URL              string                      `json:"url,omitempty"`
+	Authentication   string                      `json:"authentication,omitempty"`
+	Credentials      *ClickPipeSourceCredentials `json:"credentials,omitempty"`
+	GlueRegion       string                      `json:"glueRegion,omitempty"`
+	GlueRegistryName string                      `json:"glueRegistryName,omitempty"`
+	GlueRoleArn      *string                     `json:"glueRoleArn,omitempty"`
 }
 
 type ClickPipeKafkaSource struct {
@@ -173,12 +192,15 @@ type ClickPipeKinesisSource struct {
 }
 
 type ClickPipePubSubSource struct {
-	Format         string `json:"format"`
-	ProjectID      string `json:"projectId"`
-	Topic          string `json:"topic"`
+	// format, projectId, topic and seekType are required on POST. They are immutable,
+	// like seekTimestamp, filter and enableOrdering, so PATCH must omit them: the API
+	// rejects them even when unchanged.
+	Format         string `json:"format,omitempty"`
+	ProjectID      string `json:"projectId,omitempty"`
+	Topic          string `json:"topic,omitempty"`
 	Authentication string `json:"authentication"`
 
-	SeekType      string  `json:"seekType"`
+	SeekType      string  `json:"seekType,omitempty"`
 	SeekTimestamp *string `json:"seekTimestamp,omitempty"`
 
 	Filter         *string `json:"filter,omitempty"`
@@ -335,6 +357,8 @@ type ClickPipeBigQueryTableMapping struct {
 
 type ClickPipeBigQuerySource struct {
 	SnapshotStagingPath   string                          `json:"snapshotStagingPath,omitempty"`
+	Authentication        string                          `json:"authentication,omitempty"`
+	ProjectID             *string                         `json:"projectId,omitempty"`
 	Settings              ClickPipeBigQuerySettings       `json:"settings"`
 	Mappings              []ClickPipeBigQueryTableMapping `json:"tableMappings"`
 	TableMappingsToRemove []ClickPipeBigQueryTableMapping `json:"tableMappingsToRemove,omitempty"`

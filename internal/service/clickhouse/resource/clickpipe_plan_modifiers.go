@@ -3,10 +3,13 @@ package resource
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 )
 
 // requiresReplaceIfSourceTypeChanges is a custom plan modifier that requires replacement
@@ -86,9 +89,15 @@ func (r requiresReplaceIfSchemaRegistryChanges) PlanModifyObject(_ context.Conte
 		}
 		// A value not known until apply (e.g. url from another resource's output) can't
 		// prove a change; warn rather than force a destructive replacement on a guess.
-		if planVal.IsUnknown() {
+		// The glue block is known even when one of its attributes (e.g. role_arn from an
+		// aws_iam_role output) is not, so check inside it too.
+		if containsUnknown(planVal) {
 			addUnknownSchemaRegistryWarning(req.Path, resp)
 			return
+		}
+		// State written before `type` existed holds null, which has always meant a Confluent registry.
+		if name == "type" && stateVal.IsNull() {
+			stateVal = types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent)
 		}
 		if !planVal.Equal(stateVal) {
 			resp.RequiresReplace = true
@@ -114,6 +123,23 @@ func (r requiresReplaceIfSchemaRegistryChanges) PlanModifyObject(_ context.Conte
 	if credentialsObjectChanged(planCreds, stateCreds) {
 		resp.RequiresReplace = true
 	}
+}
+
+// containsUnknown reports whether value is unknown or is an object with an unknown attribute at any depth.
+func containsUnknown(value attr.Value) bool {
+	if value.IsUnknown() {
+		return true
+	}
+	object, ok := value.(types.Object)
+	if !ok || object.IsNull() {
+		return false
+	}
+	for _, attribute := range object.Attributes() {
+		if containsUnknown(attribute) {
+			return true
+		}
+	}
+	return false
 }
 
 func addUnknownSchemaRegistryWarning(p path.Path, resp *planmodifier.ObjectResponse) {
