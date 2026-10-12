@@ -7,6 +7,10 @@ import (
 
 type Client interface {
 	GetApiKeyID(ctx context.Context, name *string) (*ApiKey, error)
+	CreateApiKey(ctx context.Context, req ApiKeyCreateRequest) (*ApiKeyCreateResult, error)
+	GetApiKey(ctx context.Context, keyId string) (*ApiKey, error)
+	UpdateApiKey(ctx context.Context, keyId string, req ApiKeyUpdateRequest) (*ApiKey, error)
+	DeleteApiKey(ctx context.Context, keyId string) error
 
 	GetService(ctx context.Context, serviceId string) (*Service, error)
 	GetServiceBase(ctx context.Context, serviceId string) (*Service, error)
