@@ -44,6 +44,10 @@ type Client interface {
 	CreateJWTProvider(ctx context.Context, serviceID string, provider JWTProvider) (*JWTProvider, error)
 	UpdateJWTProvider(ctx context.Context, serviceID, name string, update JWTProviderUpdate) (*JWTProvider, error)
 	DeleteJWTProvider(ctx context.Context, serviceID, name string) error
+	GetBackupBucket(ctx context.Context, serviceId string) (*BackupBucket, error)
+	CreateBackupBucket(ctx context.Context, serviceId string, r BackupBucketRequest) (*BackupBucket, error)
+	UpdateBackupBucket(ctx context.Context, serviceId string, r BackupBucketRequest) (*BackupBucket, error)
+	DeleteBackupBucket(ctx context.Context, serviceId string) error
 	UpdateServicePassword(ctx context.Context, serviceId string, u ServicePasswordUpdate) (*ServicePasswordUpdateResult, error)
 	DeleteService(ctx context.Context, serviceId string) (*Service, error)
 	GetOrganization(ctx context.Context) (*OrgResult, error)
