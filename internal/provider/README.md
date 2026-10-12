@@ -26,6 +26,10 @@ To acknowledge beta status once and stop the notices altogether, set `CLICKHOUSE
 
 ## Breaking changes
 
+### UDF resources (GA)
+
+`clickhouse_udf` and `clickhouse_udf_attachment` are now generally available. The `sandbox_version` attribute has been removed from `clickhouse_udf`. Remove it from your configuration before upgrading.
+
 Note: we only provide upgrade path from consecutive major releases of our terraform provider.
 If you are upgrading, please be sure to not skip any major release while you do so.
 
