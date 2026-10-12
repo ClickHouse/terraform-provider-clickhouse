@@ -21,21 +21,22 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 	"clickhouse": providerserver.NewProtocol6WithError(provider.NewBuilder(registry.ServicePackages())()),
 }
 
-func testAccClickHousePreCheck(t *testing.T) {
+func testAccClickHousePreCheck(t *testing.T, additionalVariables ...string) {
 	t.Helper()
 
 	if os.Getenv("CLICKHOUSE_ACC_ALLOW_MUTATION") != "yes" {
 		t.Fatal("refusing ClickHouse Cloud acceptance mutations: set CLICKHOUSE_ACC_ALLOW_MUTATION=yes after selecting a disposable development target")
 	}
 
-	for _, name := range []string{
+	requiredVariables := []string{
 		"CLICKHOUSE_API_URL",
 		"CLICKHOUSE_ORG_ID",
 		"CLICKHOUSE_CLOUD_API_KEY",
 		"CLICKHOUSE_CLOUD_API_SECRET",
 		"CLICKHOUSE_TEST_SERVICE_ID",
-		"CLICKHOUSE_TEST_DATABASE_ROLE",
-	} {
+	}
+	requiredVariables = append(requiredVariables, additionalVariables...)
+	for _, name := range requiredVariables {
 		if strings.TrimSpace(os.Getenv(name)) == "" {
 			t.Fatalf("%s must be set for ClickHouse Cloud acceptance tests", name)
 		}
@@ -90,7 +91,7 @@ func TestAccQueryAPIEndpointResource(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccClickHousePreCheck(t) },
+		PreCheck:                 func() { testAccClickHousePreCheck(t, "CLICKHOUSE_TEST_DATABASE_ROLE") },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{

@@ -41,6 +41,28 @@ resource "clickhouse_role_assignment" "example" {
 }
 ```
 
+For custom SQL console access, set `grants` instead of `role`:
+
+```hcl
+resource "clickhouse_role" "custom_sql" {
+  name = "custom-sql-access"
+
+  policies = [
+    {
+      effect      = "ALLOW"
+      permissions = ["sql-console:database:access"]
+      resources   = ["instance/<service-id>"]
+      tags = {
+        grants = [
+          "GRANT SELECT ON default.*",
+          "REVOKE SELECT ON default.secret",
+        ]
+      }
+    },
+  ]
+}
+```
+
 ## Permission reconciliation
 
 The provider only tracks the permissions you declare in configuration.

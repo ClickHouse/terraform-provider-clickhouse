@@ -31,6 +31,7 @@ func buildKinesisResourceModel(authentication string, accessKeyID, secretKey, ia
 	kinesisAttrs := map[string]attr.Value{
 		"format":               types.StringValue("JSONEachRow"),
 		"protobuf_schema":      types.StringNull(),
+		"schema_registry":      types.ObjectNull(models.ClickPipeKinesisSchemaRegistryModel{}.ObjectType().AttrTypes),
 		"stream_name":          types.StringValue("my-stream"),
 		"region":               types.StringValue("us-east-1"),
 		"iterator_type":        types.StringValue("TRIM_HORIZON"),
@@ -142,6 +143,7 @@ func getKinesisSyncState(authentication string, accessKey types.Object, iamRole 
 	kinesisAttrs := map[string]attr.Value{
 		"format":               types.StringValue("JSONEachRow"),
 		"protobuf_schema":      types.StringNull(),
+		"schema_registry":      types.ObjectNull(models.ClickPipeKinesisSchemaRegistryModel{}.ObjectType().AttrTypes),
 		"stream_name":          types.StringValue("my-stream"),
 		"region":               types.StringValue("us-east-1"),
 		"iterator_type":        types.StringValue("TRIM_HORIZON"),

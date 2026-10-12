@@ -43,6 +43,26 @@ description: |-
     user_ids = [data.clickhouse_user.alice.id]
   }
   
+  For custom SQL console access, set grants instead of role:
+  
+  resource "clickhouse_role" "custom_sql" {
+    name = "custom-sql-access"
+  
+    policies = [
+      {
+        effect      = "ALLOW"
+        permissions = ["sql-console:database:access"]
+        resources   = ["instance/<service-id>"]
+        tags = {
+          grants = [
+            "GRANT SELECT ON default.*",
+            "REVOKE SELECT ON default.secret",
+          ]
+        }
+      },
+    ]
+  }
+  
   Permission reconciliation
   The provider only tracks the permissions you declare in configuration.
   The backend may auto-grant additional permissions as a side effect of a declared one (for example, granting control-plane:service:manage may also grant a related permission). Those extra permissions are intentionally not recorded in state.
@@ -95,6 +115,28 @@ resource "clickhouse_role_assignment" "example" {
 }
 ```
 
+For custom SQL console access, set `grants` instead of `role`:
+
+```hcl
+resource "clickhouse_role" "custom_sql" {
+  name = "custom-sql-access"
+
+  policies = [
+    {
+      effect      = "ALLOW"
+      permissions = ["sql-console:database:access"]
+      resources   = ["instance/<service-id>"]
+      tags = {
+        grants = [
+          "GRANT SELECT ON default.*",
+          "REVOKE SELECT ON default.secret",
+        ]
+      }
+    },
+  ]
+}
+```
+
 ## Permission reconciliation
 
 The provider only tracks the permissions you declare in configuration.
@@ -123,6 +165,18 @@ resource "clickhouse_role" "example" {
       effect      = "ALLOW"
       permissions = ["control-plane:service:view-backups"]
       resources   = ["instance/<service-id>"]
+    },
+    # Custom SQL console access scoped to a specific service
+    {
+      effect      = "ALLOW"
+      permissions = ["sql-console:database:access"]
+      resources   = ["instance/<service-id>"]
+      tags = {
+        grants = [
+          "GRANT SELECT ON default.*",
+          "REVOKE SELECT ON default.secret",
+        ]
+      }
     },
   ]
 }
@@ -159,7 +213,7 @@ Required:
 
 Optional:
 
-- `tags` (Attributes) Optional tags for additional policy metadata. (see [below for nested schema](#nestedatt--policies--tags))
+- `tags` (Attributes) Optional SQL console access configuration. Set exactly one of role or grants. (see [below for nested schema](#nestedatt--policies--tags))
 
 Read-Only:
 
@@ -170,8 +224,9 @@ Read-Only:
 <a id="nestedatt--policies--tags"></a>
 ### Nested Schema for `policies.tags`
 
-Required:
+Optional:
 
+- `grants` (List of String) Ordered SQL GRANT and REVOKE statements for custom SQL console access.
 - `role` (String) SQL console role level for passwordless DB access. One of: sql-console-admin (full access), sql-console-readonly (read-only).
 
 ## Import

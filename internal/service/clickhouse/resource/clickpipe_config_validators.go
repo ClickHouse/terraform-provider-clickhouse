@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -15,6 +16,49 @@ import (
 )
 
 const maxClickPipeProtobufSchemaEncodedSize = 1 << 20 // 1 MiB in bytes
+
+// kafkaTombstoneModeValidator enforces the hard-delete exactly-once requirement exposed by the OpenAPI.
+type kafkaTombstoneModeValidator struct{}
+
+func (v kafkaTombstoneModeValidator) Description(_ context.Context) string {
+	return "Validates Kafka tombstone handling configuration."
+}
+
+func (v kafkaTombstoneModeValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v kafkaTombstoneModeValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data models.ClickPipeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() || data.Source.IsNull() || data.Source.IsUnknown() {
+		return
+	}
+
+	var sourceModel models.ClickPipeSourceModel
+	resp.Diagnostics.Append(data.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || sourceModel.Kafka.IsNull() || sourceModel.Kafka.IsUnknown() {
+		return
+	}
+
+	var kafkaModel models.ClickPipeKafkaSourceModel
+	resp.Diagnostics.Append(sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || kafkaModel.TombstoneMode.IsNull() || kafkaModel.TombstoneMode.IsUnknown() {
+		return
+	}
+
+	if kafkaModel.TombstoneMode.ValueString() != api.ClickPipeKafkaTombstoneModeDelete || kafkaModel.ExactlyOnce.IsUnknown() {
+		return
+	}
+
+	if kafkaModel.ExactlyOnce.IsNull() || !kafkaModel.ExactlyOnce.ValueBool() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("source").AtName("kafka").AtName("tombstone_mode"),
+			"Invalid Kafka tombstone configuration",
+			"tombstone_mode = \"delete\" requires exactly_once = true.",
+		)
+	}
+}
 
 // kafkaProtobufSchemaValidator enforces the Kafka Protobuf schema rules exposed by the OpenAPI.
 type kafkaProtobufSchemaValidator struct{}
@@ -99,12 +143,148 @@ func (v kafkaProtobufSchemaValidator) ValidateResource(ctx context.Context, req 
 	}
 }
 
-// kinesisProtobufSchemaValidator enforces the Kinesis Protobuf schema rules exposed by the OpenAPI.
+// schemaRegistryField pairs a schema registry attribute name with its configured value.
+type schemaRegistryField struct {
+	name  string
+	value attr.Value
+}
+
+// kafkaSchemaRegistryValidator enforces the per-type Kafka schema registry rules exposed by the OpenAPI:
+// a Confluent registry needs url, authentication and credentials, while an AWS Glue registry needs a glue
+// block and authenticates with IAM instead.
+type kafkaSchemaRegistryValidator struct{}
+
+// Description returns a plain-text summary of the Kafka schema registry validation.
+func (v kafkaSchemaRegistryValidator) Description(_ context.Context) string {
+	return "Validates Kafka Confluent and AWS Glue schema registry configuration."
+}
+
+// MarkdownDescription returns the Kafka schema registry validation summary as Markdown.
+func (v kafkaSchemaRegistryValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+// ValidateResource checks that the schema registry carries exactly the fields of its type.
+// Checks on values Terraform has not resolved yet are deferred.
+func (v kafkaSchemaRegistryValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data models.ClickPipeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() || data.Source.IsNull() || data.Source.IsUnknown() {
+		return
+	}
+
+	var sourceModel models.ClickPipeSourceModel
+	resp.Diagnostics.Append(data.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || sourceModel.Kafka.IsNull() || sourceModel.Kafka.IsUnknown() {
+		return
+	}
+
+	var kafkaModel models.ClickPipeKafkaSourceModel
+	resp.Diagnostics.Append(sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || kafkaModel.SchemaRegistry.IsNull() || kafkaModel.SchemaRegistry.IsUnknown() {
+		return
+	}
+
+	var registryModel models.ClickPipeKafkaSchemaRegistryModel
+	resp.Diagnostics.Append(kafkaModel.SchemaRegistry.As(ctx, &registryModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || registryModel.Type.IsUnknown() {
+		return
+	}
+
+	registryPath := path.Root("source").AtName("kafka").AtName("schema_registry")
+	isSet := func(value attr.Value) bool { return !value.IsUnknown() && !value.IsNull() }
+	isMissing := func(value attr.Value) bool { return !value.IsUnknown() && value.IsNull() }
+
+	// Config sees the raw value, before the `confluent` default is applied.
+	if registryModel.Type.ValueString() != api.ClickPipeKafkaSchemaRegistryTypeGlue {
+		for _, field := range []schemaRegistryField{
+			{"url", registryModel.URL},
+			{"authentication", registryModel.Authentication},
+			{"credentials", registryModel.Credentials},
+		} {
+			if isMissing(field.value) {
+				resp.Diagnostics.AddAttributeError(
+					registryPath.AtName(field.name),
+					"Missing Kafka schema registry attribute",
+					fmt.Sprintf("%s is required for a confluent schema registry.", field.name),
+				)
+			}
+		}
+		if isSet(registryModel.Glue) {
+			resp.Diagnostics.AddAttributeError(
+				registryPath.AtName("glue"),
+				"Invalid Kafka schema registry attribute",
+				"glue is supported only when type is glue.",
+			)
+		}
+		return
+	}
+
+	// The schema requires region and registry_name inside the block, so only its presence is checked here.
+	if isMissing(registryModel.Glue) {
+		resp.Diagnostics.AddAttributeError(
+			registryPath.AtName("glue"),
+			"Missing Kafka schema registry attribute",
+			"glue is required for a glue schema registry.",
+		)
+	}
+	for _, field := range []schemaRegistryField{
+		{"url", registryModel.URL},
+		{"authentication", registryModel.Authentication},
+		{"credentials", registryModel.Credentials},
+	} {
+		if isSet(field.value) {
+			resp.Diagnostics.AddAttributeError(
+				registryPath.AtName(field.name),
+				"Invalid Kafka schema registry attribute",
+				fmt.Sprintf("%s is not supported for a glue schema registry, which authenticates with IAM.", field.name),
+			)
+		}
+	}
+
+	// The platform only strips the Glue wire header on its Avro and Protobuf record paths.
+	if !kafkaModel.Format.IsNull() && !kafkaModel.Format.IsUnknown() {
+		format := kafkaModel.Format.ValueString()
+		if format != api.ClickPipeAvroConfluentFormat && format != api.ClickPipeProtobufFormat {
+			resp.Diagnostics.AddAttributeError(
+				registryPath,
+				"Invalid Kafka schema registry configuration",
+				"a glue schema registry is supported only when format is AvroConfluent or Protobuf.",
+			)
+		}
+	}
+
+	if !isSet(registryModel.Glue) {
+		return
+	}
+	var glueModel models.ClickPipeKafkaGlueSchemaRegistryModel
+	resp.Diagnostics.Append(registryModel.Glue.As(ctx, &glueModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Glue defaults to the broker's IAM identity, so a non-IAM broker must name a role.
+	// A null authentication means the PLAIN default.
+	if !isMissing(glueModel.RoleArn) || kafkaModel.Authentication.IsUnknown() {
+		return
+	}
+	authentication := kafkaModel.Authentication.ValueString()
+	if authentication != api.ClickPipeAuthenticationIAMRole && authentication != api.ClickPipeAuthenticationIAMUser {
+		resp.Diagnostics.AddAttributeError(
+			registryPath.AtName("glue").AtName("role_arn"),
+			"Missing Kafka schema registry attribute",
+			"glue.role_arn is required for a glue schema registry unless the Kafka source uses IAM_ROLE or IAM_USER authentication.",
+		)
+	}
+}
+
+// kinesisProtobufSchemaValidator enforces the Kinesis schema source rules exposed by the OpenAPI:
+// an uploaded Protobuf schema and an AWS Glue schema registry are alternatives, each tied to specific formats.
 type kinesisProtobufSchemaValidator struct{}
 
-// Description returns a plain-text summary of the Kinesis Protobuf schema validation.
+// Description returns a plain-text summary of the Kinesis schema source validation.
 func (v kinesisProtobufSchemaValidator) Description(_ context.Context) string {
-	return "Validates direct Kinesis Protobuf schema configuration."
+	return "Validates Kinesis Protobuf schema and AWS Glue schema registry configuration."
 }
 
 // MarkdownDescription returns the validation summary for the supplied context.
@@ -157,6 +337,17 @@ func (v kinesisProtobufSchemaValidator) ValidateResource(
 		}
 	}
 
+	schemaRegistryPath := path.Root("source").AtName("kinesis").AtName("schema_registry")
+	schemaRegistryKnown := !kinesisModel.SchemaRegistry.IsUnknown()
+	schemaRegistrySet := schemaRegistryKnown && !kinesisModel.SchemaRegistry.IsNull()
+	if protobufSchemaSet && schemaRegistrySet {
+		resp.Diagnostics.AddAttributeError(
+			schemaRegistryPath,
+			"Invalid Kinesis schema configuration",
+			"protobuf_schema cannot be combined with schema_registry.",
+		)
+	}
+
 	if kinesisModel.Format.IsNull() || kinesisModel.Format.IsUnknown() {
 		return
 	}
@@ -169,12 +360,27 @@ func (v kinesisProtobufSchemaValidator) ValidateResource(
 			"protobuf_schema is supported only when format is Protobuf.",
 		)
 	}
+	if schemaRegistrySet && format != api.ClickPipeAvroConfluentFormat && format != api.ClickPipeProtobufFormat {
+		resp.Diagnostics.AddAttributeError(
+			schemaRegistryPath,
+			"Invalid Kinesis schema registry configuration",
+			"schema_registry is supported only when format is AvroConfluent or Protobuf.",
+		)
+	}
+	schemaRegistryMissing := schemaRegistryKnown && !schemaRegistrySet
+	if format == api.ClickPipeAvroConfluentFormat && schemaRegistryMissing {
+		resp.Diagnostics.AddAttributeError(
+			schemaRegistryPath,
+			"Missing Kinesis schema registry",
+			"AvroConfluent format requires schema_registry.",
+		)
+	}
 	protobufSchemaMissing := protobufSchemaKnown && !protobufSchemaSet
-	if format == api.ClickPipeProtobufFormat && protobufSchemaMissing {
+	if format == api.ClickPipeProtobufFormat && protobufSchemaMissing && schemaRegistryMissing {
 		resp.Diagnostics.AddAttributeError(
 			protobufSchemaPath,
 			"Missing Kinesis Protobuf schema",
-			"Protobuf format requires protobuf_schema.",
+			"Protobuf format requires either protobuf_schema or schema_registry.",
 		)
 	}
 }
@@ -309,7 +515,9 @@ func (v cdcClickPipeScalingValidator) ValidateResource(ctx context.Context, req 
 
 func (c *ClickPipeResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
+		kafkaTombstoneModeValidator{},
 		kafkaProtobufSchemaValidator{},
+		kafkaSchemaRegistryValidator{},
 		kinesisProtobufSchemaValidator{},
 		pubsubSeekValidator{},
 		cdcClickPipeScalingValidator{},

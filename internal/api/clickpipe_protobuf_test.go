@@ -41,3 +41,28 @@ func TestClickPipeKinesisSource_OmitsUnsetProtobufSchema(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(payload), "protobufSchema")
 }
+
+func TestClickPipeKinesisSource_SchemaRegistryJSON(t *testing.T) {
+	roleArn := "arn:aws:iam::123456789012:role/GlueRegistryAccess"
+	payload, err := json.Marshal(ClickPipeKinesisSource{
+		Format: ClickPipeAvroConfluentFormat,
+		SchemaRegistry: &ClickPipeKinesisSchemaRegistry{
+			Type:             ClickPipeKinesisSchemaRegistryTypeGlue,
+			GlueRegion:       "us-east-1",
+			GlueRegistryName: "orders-registry",
+			GlueRoleArn:      &roleArn,
+		},
+	})
+	require.NoError(t, err)
+	assert.Contains(t, string(payload), `"schemaRegistry":{"type":"glue","glueRegion":"us-east-1","glueRegistryName":"orders-registry","glueRoleArn":"`+roleArn+`"}`)
+}
+
+func TestClickPipeKinesisSource_OmitsUnsetSchemaRegistryAndRole(t *testing.T) {
+	payload, err := json.Marshal(ClickPipeKinesisSource{Format: ClickPipeJSONEachRowFormat})
+	require.NoError(t, err)
+	assert.NotContains(t, string(payload), "schemaRegistry")
+
+	payload, err = json.Marshal(ClickPipeKinesisSchemaRegistry{Type: ClickPipeKinesisSchemaRegistryTypeGlue, GlueRegion: "us-east-1", GlueRegistryName: "orders-registry"})
+	require.NoError(t, err)
+	assert.NotContains(t, string(payload), "glueRoleArn")
+}

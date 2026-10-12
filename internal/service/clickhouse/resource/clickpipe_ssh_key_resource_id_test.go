@@ -33,6 +33,7 @@ func buildKafkaSSHKeyResourcePlan(sshKeyResourceID types.String) models.ClickPip
 		"ca_certificate":               types.StringNull(),
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 types.BoolNull(),
+		"tombstone_mode":               types.StringNull(),
 		"ssh_key_resource_id":          sshKeyResourceID,
 	}
 	sourceModel := models.ClickPipeSourceModel{

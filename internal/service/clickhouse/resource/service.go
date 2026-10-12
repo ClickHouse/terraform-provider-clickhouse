@@ -105,6 +105,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 						path.MatchRoot("password_wo"),
 						path.MatchRoot("password_hash"),
 						path.MatchRoot("backup_configuration"),
+						path.MatchRoot("snapshot_configuration"),
 					}...),
 				},
 			},
@@ -548,6 +549,42 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"snapshot_configuration": schema.SingleNestedAttribute{
+				Description: "Configuration of service snapshot settings. Snapshots are a beta feature that requires the snapshots feature enabled for your organization, a PPv2 tier, and the backups entitlement. When enabling snapshots, an ineligible organization is rejected at plan time (when the organization API reports eligibility); otherwise an ineligible organization can still fail at apply. When enabled, gap and time_frame must be supplied together as a supported preset: (gap 30, time_frame 1440) or (gap 60, time_frame 2880).",
+				Optional:    true,
+				Computed:    true,
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Description: "Whether scheduled snapshots are enabled for the service. When true, gap and time_frame are required.",
+						Required:    true,
+					},
+					"gap": schema.Int32Attribute{
+						Description: "Interval in minutes between snapshots. Required when enabled, and paired with time_frame: only the presets (gap 30, time_frame 1440) and (gap 60, time_frame 2880) are accepted.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.Int32{
+							int32validator.OneOf([]int32{30, 60}...),
+						},
+						PlanModifiers: []planmodifier.Int32{
+							int32planmodifier.UseStateForUnknown(),
+						},
+					},
+					"time_frame": schema.Int32Attribute{
+						Description: "Retention window in minutes the snapshots cover. Required when enabled, and paired with gap: only the presets (gap 30, time_frame 1440) and (gap 60, time_frame 2880) are accepted.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.Int32{
+							int32validator.OneOf([]int32{1440, 2880}...),
+						},
+						PlanModifiers: []planmodifier.Int32{
+							int32planmodifier.UseStateForUnknown(),
+						},
+					},
+				},
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"compliance_type": schema.StringAttribute{
 				Description: "Compliance type of the service. Can be 'hipaa', 'pci'. Required for organizations that wish to deploy their services in the hipaa/pci compliant environment. NOTE: hipaa/pci compliance should be enabled for your ClickHouse organization before using this field.",
 				Optional:    true,
@@ -977,6 +1014,13 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 
+		if !plan.SnapshotConfiguration.IsNull() && !plan.SnapshotConfiguration.IsUnknown() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"snapshot_configuration cannot be defined if the service tier is development",
+			)
+		}
+
 		if !plan.ReleaseChannel.IsUnknown() && plan.ReleaseChannel.ValueString() != api.ReleaseChannelDefault {
 			resp.Diagnostics.AddError(
 				"Invalid Configuration",
@@ -1255,7 +1299,46 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			)
 		}
 		plan.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+		if !config.SnapshotConfiguration.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid configuration",
+				"snapshot_configuration cannot be specified when warehouse_id is set",
+			)
+		}
+		if !state.SnapshotConfiguration.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid state for service",
+				"snapshot_configuration cannot co-exist in terraform state for a service with warehouse_id set",
+			)
+		}
+		plan.SnapshotConfiguration = types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes)
 		resp.Plan.Set(ctx, plan)
+	}
+
+	// Plan-time snapshot eligibility: on create or a changed snapshot block, if snapshots are enabled, ask the
+	// org API whether this org can use them so an ineligible org fails at plan instead of creating the service and
+	// then erroring on the PATCH. Only an affirmative "ineligible" blocks — a nil client (validate phase), an API
+	// error, or an API too old to report the capability defer to apply. Scoped to a new or changed block so an
+	// unchanged config on a no-op replan neither re-hits the org API nor hard-fails if the org's eligibility lapses
+	// later (apply skips the unchanged PATCH, so such a plan would have succeeded). A forced replace-create with an
+	// unchanged block skips this too and falls back to the apply-time check.
+	if r.client != nil && !resp.Diagnostics.HasError() &&
+		!config.SnapshotConfiguration.IsNull() && !config.SnapshotConfiguration.IsUnknown() &&
+		(!hasState || !plan.SnapshotConfiguration.Equal(state.SnapshotConfiguration)) {
+		sc := models.SnapshotConfiguration{}
+		diag := config.SnapshotConfiguration.As(ctx, &sc, basetypes.ObjectAsOptions{})
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag...)
+		} else if !sc.Enabled.IsUnknown() && sc.Enabled.ValueBool() {
+			if org, err := r.client.GetOrganization(ctx); err == nil &&
+				org.Capabilities != nil && org.Capabilities.Snapshots != nil && !*org.Capabilities.Snapshots {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("snapshot_configuration"),
+					"Organization not eligible for snapshots",
+					"This organization can't use service snapshots: it must have the snapshots feature enabled, be on a PPv2 tier, and have the backups entitlement. This change to snapshot_configuration would fail at apply.",
+				)
+			}
+		}
 	}
 }
 
@@ -1289,6 +1372,59 @@ func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.Valid
 			"min_replica_memory_gb must be less than or equal to max_replica_memory_gb.",
 		)
 	}
+
+	// The cadence is only validated when snapshots are enabled: the API accepts any gap/time_frame on a disabled
+	// config, so rejecting a mismatched pair on a disabled config here would be stricter than the server.
+	if !config.SnapshotConfiguration.IsNull() && !config.SnapshotConfiguration.IsUnknown() {
+		sc := models.SnapshotConfiguration{}
+		diag := config.SnapshotConfiguration.As(ctx, &sc, basetypes.ObjectAsOptions{})
+		if diag.HasError() {
+			resp.Diagnostics.Append(diag...)
+		} else {
+			knownInt := func(v types.Int32) bool { return !v.IsNull() && !v.IsUnknown() }
+			if !sc.Enabled.IsUnknown() && sc.Enabled.ValueBool() {
+				// Require an explicit cadence when enabling: the provider deliberately does not rely on the server
+				// merging a stored cadence onto a bare {enabled:true}, keeping config and state in agreement on what's set.
+				if sc.Gap.IsNull() || sc.TimeFrame.IsNull() {
+					resp.Diagnostics.AddAttributeError(
+						path.Root("snapshot_configuration"),
+						"Invalid Configuration",
+						"snapshot_configuration gap and time_frame are required when snapshots are enabled.",
+					)
+				}
+				// The per-field OneOf validators only bound each value; this rejects a mismatched pair
+				// (e.g. gap 30 with time_frame 2880) at plan time rather than at apply.
+				if knownInt(sc.Gap) && knownInt(sc.TimeFrame) {
+					gap, timeFrame := sc.Gap.ValueInt32(), sc.TimeFrame.ValueInt32()
+					isSupportedPreset := (gap == 30 && timeFrame == 1440) || (gap == 60 && timeFrame == 2880)
+					if !isSupportedPreset {
+						resp.Diagnostics.AddAttributeError(
+							path.Root("snapshot_configuration"),
+							"Invalid Configuration",
+							"snapshot_configuration gap and time_frame must be a supported preset: (gap 30, time_frame 1440) or (gap 60, time_frame 2880).",
+						)
+					}
+				}
+			}
+		}
+	}
+}
+
+// toAPISnapshotConfiguration maps the model to the API payload, skipping Unknown fields: for an omitted (Unknown)
+// gap/time_frame, ValueInt32Pointer() returns a pointer to 0 that omitempty can't drop, which the API would reject
+// as an unsupported cadence.
+func toAPISnapshotConfiguration(sc models.SnapshotConfiguration) api.SnapshotConfiguration {
+	out := api.SnapshotConfiguration{}
+	if !sc.Enabled.IsUnknown() {
+		out.Enabled = sc.Enabled.ValueBoolPointer()
+	}
+	if !sc.Gap.IsUnknown() {
+		out.Gap = sc.Gap.ValueInt32Pointer()
+	}
+	if !sc.TimeFrame.IsUnknown() {
+		out.TimeFrame = sc.TimeFrame.ValueInt32Pointer()
+	}
+	return out
 }
 
 // Create a new resource
@@ -1574,6 +1710,32 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 				return
 			}
 		}
+
+		// Set snapshot settings.
+		if !plan.SnapshotConfiguration.IsNull() && !plan.SnapshotConfiguration.IsUnknown() {
+			sc := models.SnapshotConfiguration{}
+			diag := plan.SnapshotConfiguration.As(ctx, &sc, basetypes.ObjectAsOptions{
+				UnhandledNullAsEmpty:    false,
+				UnhandledUnknownAsEmpty: false,
+			})
+			if diag.HasError() {
+				resp.Diagnostics.Append(diag.Errors()...)
+				return
+			}
+
+			// Like the backup and query-endpoint create paths, a failure here errors the apply after the service is
+			// already created but before state is written, leaving it untracked. The ModifyPlan eligibility gate
+			// catches the common ineligible-org case at plan; this residual path remains only when the gate deferred
+			// — a transient GetOrganization error, an API version predating capabilities.snapshots, or eligibility
+			// lapsing between plan and apply.
+			if _, err = r.client.UpdateSnapshotConfiguration(ctx, s.Id, toAPISnapshotConfiguration(sc)); err != nil {
+				resp.Diagnostics.AddError(
+					"Error setting service snapshot configuration",
+					"Could not set service snapshot settings after creation, unexpected error: "+err.Error(),
+				)
+				return
+			}
+		}
 	} else {
 		// Secondary/hydra services share the parent instance's default user
 		// and never get their own password, generated or otherwise.
@@ -1844,10 +2006,13 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Include the plan's resolved autoscaling_mode (including a token ModifyPlan wrote) in the PATCH body so
 	// the API applies the mode rather than inferring it from field presence (UC-1173). A mode difference also
 	// forces the PATCH; when only another scaling field changed, the mode rides along on that PATCH.
+	// The API rejects a mode switch that omits the target mode's sizing fields, so send them even when unchanged.
+	modeSwitch := false
 	if !plan.AutoscalingMode.IsNull() && !plan.AutoscalingMode.IsUnknown() {
 		replicaScaling.AutoscalingMode = plan.AutoscalingMode.ValueStringPointer()
 		if plan.AutoscalingMode != state.AutoscalingMode {
 			scalingChange = true
+			modeSwitch = true
 		}
 	}
 	if plan.MinTotalMemoryGb != state.MinTotalMemoryGb {
@@ -1870,21 +2035,21 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			replicaScaling.MaxReplicaMemoryGb = &maxTotalMemoryGb
 		}
 	}
-	if !plan.MinReplicaMemoryGb.IsUnknown() && plan.MinReplicaMemoryGb != state.MinReplicaMemoryGb {
+	if !plan.MinReplicaMemoryGb.IsUnknown() && (modeSwitch || plan.MinReplicaMemoryGb != state.MinReplicaMemoryGb) {
 		scalingChange = true
 		if !plan.MinReplicaMemoryGb.IsNull() {
 			minReplicaMemoryGb := int(plan.MinReplicaMemoryGb.ValueInt64())
 			replicaScaling.MinReplicaMemoryGb = &minReplicaMemoryGb
 		}
 	}
-	if !plan.MaxReplicaMemoryGb.IsUnknown() && plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb {
+	if !plan.MaxReplicaMemoryGb.IsUnknown() && (modeSwitch || plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb) {
 		scalingChange = true
 		if !plan.MaxReplicaMemoryGb.IsNull() {
 			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
 			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
 	}
-	if !plan.NumReplicas.IsUnknown() && plan.NumReplicas != state.NumReplicas {
+	if !plan.NumReplicas.IsUnknown() && (modeSwitch || plan.NumReplicas != state.NumReplicas) {
 		scalingChange = true
 
 		if !plan.NumReplicas.IsNull() {
@@ -1897,14 +2062,14 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// The API clears the dropped fields server-side: both modes write the same min/max replica + per-replica
 	// memory storage (num_replicas is derived on read, not stored), and the switch requires the new mode's
 	// fields, so sending them overwrites the old shape — no explicit nulls needed (confirmed against UC-1173).
-	if !plan.MinReplicas.IsUnknown() && plan.MinReplicas != state.MinReplicas {
+	if !plan.MinReplicas.IsUnknown() && (modeSwitch || plan.MinReplicas != state.MinReplicas) {
 		scalingChange = true
 		if !plan.MinReplicas.IsNull() {
 			minReplicas := int(plan.MinReplicas.ValueInt64())
 			replicaScaling.MinReplicas = &minReplicas
 		}
 	}
-	if !plan.MaxReplicas.IsUnknown() && plan.MaxReplicas != state.MaxReplicas {
+	if !plan.MaxReplicas.IsUnknown() && (modeSwitch || plan.MaxReplicas != state.MaxReplicas) {
 		scalingChange = true
 		if !plan.MaxReplicas.IsNull() {
 			maxReplicas := int(plan.MaxReplicas.ValueInt64())
@@ -2079,6 +2244,30 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 				resp.Diagnostics.AddError(
 					"Error setting service backup configuration",
 					"Could not update service backup settings, unexpected error: "+err.Error(),
+				)
+				return
+			}
+		}
+	}
+
+	// Set snapshot settings.
+	{
+		if !plan.SnapshotConfiguration.IsNull() && !plan.SnapshotConfiguration.IsUnknown() && !plan.SnapshotConfiguration.Equal(state.SnapshotConfiguration) {
+			sc := models.SnapshotConfiguration{}
+			diag := plan.SnapshotConfiguration.As(ctx, &sc, basetypes.ObjectAsOptions{
+				UnhandledNullAsEmpty:    false,
+				UnhandledUnknownAsEmpty: false,
+			})
+			if diag.HasError() {
+				resp.Diagnostics.Append(diag.Errors()...)
+				return
+			}
+
+			_, err := r.client.UpdateSnapshotConfiguration(ctx, serviceId, toAPISnapshotConfiguration(sc))
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error setting service snapshot configuration",
+					"Could not update service snapshot settings, unexpected error: "+err.Error(),
 				)
 				return
 			}
@@ -2440,8 +2629,10 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					EncryptionAssumedRoleIdentifier: priorStateData.EncryptionAssumedRoleIdentifier,
 					QueryAPIEndpoints:               priorStateData.QueryAPIEndpoints,
 					BackupConfiguration:             priorStateData.BackupConfiguration,
-					TransparentEncryptionData:       models.TransparentEncryptionData{}.ObjectValue(),
-					Tags:                            types.MapNull(types.StringType),
+					// Not present in V0 state; left null here and populated from the API on the next refresh.
+					SnapshotConfiguration:     types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes),
+					TransparentEncryptionData: models.TransparentEncryptionData{}.ObjectValue(),
+					Tags:                      types.MapNull(types.StringType),
 				}
 
 				resp.Diagnostics.Append(resp.State.Set(ctx, upgradedStateData)...)
@@ -2666,6 +2857,32 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		}
 	} else {
 		state.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+	}
+
+	if service.Tier == api.TierProduction || service.Tier == api.TierPPv2 {
+		if service.SnapshotConfiguration != nil {
+			snapshotConfiguration := models.SnapshotConfiguration{
+				Enabled:   types.BoolValue(false),
+				Gap:       types.Int32Null(),
+				TimeFrame: types.Int32Null(),
+			}
+
+			if service.SnapshotConfiguration.Enabled != nil {
+				snapshotConfiguration.Enabled = types.BoolValue(*service.SnapshotConfiguration.Enabled)
+			}
+			if service.SnapshotConfiguration.Gap != nil && *service.SnapshotConfiguration.Gap > 0 {
+				snapshotConfiguration.Gap = types.Int32Value(*service.SnapshotConfiguration.Gap)
+			}
+			if service.SnapshotConfiguration.TimeFrame != nil && *service.SnapshotConfiguration.TimeFrame > 0 {
+				snapshotConfiguration.TimeFrame = types.Int32Value(*service.SnapshotConfiguration.TimeFrame)
+			}
+
+			state.SnapshotConfiguration = snapshotConfiguration.ObjectValue()
+		} else {
+			state.SnapshotConfiguration = types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes)
+		}
+	} else {
+		state.SnapshotConfiguration = types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes)
 	}
 
 	if service.ComplianceType != nil {

@@ -17,6 +17,13 @@ curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
   "$CLICKSTACK_ENDPOINT/api/v2/alerts" \
   | jq -r '.data[] | select(.source == "tile") | "\(.id)\t\(.dashboardId)\t\(.tileId)\t\(.name)"'
 
+# Inline alerts (source = "inline") import the same way. chart_config comes back
+# in the server's canonical form, so a hand-written jsonencode(...) block will
+# show one diff on the next plan before it settles. List them:
+curl -s -H "Authorization: Bearer $CLICKSTACK_API_KEY" \
+  "$CLICKSTACK_ENDPOINT/api/v2/alerts" \
+  | jq -r '.data[] | select(.source == "inline") | "\(.id)\t\(.displayName)"'
+
 # `terraform plan -generate-config-out=...` writes the alert with literal ids for
 # dashboard_id, tile_id and the webhook_id inside channels. Terraform generates
 # config from state alone and cannot know those ids belong to other resources, so

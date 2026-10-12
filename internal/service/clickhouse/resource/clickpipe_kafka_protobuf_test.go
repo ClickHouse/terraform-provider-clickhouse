@@ -52,6 +52,7 @@ func buildKafkaProtobufPlan(format string, protobufSchema types.String, schemaRe
 		"ca_certificate":               types.StringNull(),
 		"reverse_private_endpoint_ids": types.ListNull(types.StringType),
 		"exactly_once":                 types.BoolNull(),
+		"tombstone_mode":               types.StringNull(),
 		"ssh_key_resource_id":          types.StringNull(),
 	}
 	sourceModel := models.ClickPipeSourceModel{
@@ -92,6 +93,8 @@ func kafkaSchemaRegistryValue() types.Object {
 		"url":            types.StringValue("https://schema-registry.example.com"),
 		"authentication": types.StringValue(api.ClickPipeKafkaAuthenticationPlain),
 		"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credentialAttrs),
+		"type":           types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+		"glue":           types.ObjectNull(models.ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType().AttrTypes),
 	}
 
 	return types.ObjectValueMust(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes, registryAttrs)

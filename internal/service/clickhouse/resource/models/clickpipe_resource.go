@@ -51,27 +51,57 @@ func (m ClickPipeKafkaOffsetModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeKafkaGlueSchemaRegistryModel struct {
+	Region       types.String `tfsdk:"region"`
+	RegistryName types.String `tfsdk:"registry_name"`
+	RoleArn      types.String `tfsdk:"role_arn"`
+}
+
+func (m ClickPipeKafkaGlueSchemaRegistryModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"region":        types.StringType,
+			"registry_name": types.StringType,
+			"role_arn":      types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeKafkaGlueSchemaRegistryModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"region":        m.Region,
+		"registry_name": m.RegistryName,
+		"role_arn":      m.RoleArn,
+	})
+}
+
 type ClickPipeKafkaSchemaRegistryModel struct {
+	Type           types.String `tfsdk:"type"`
 	URL            types.String `tfsdk:"url"`
 	Authentication types.String `tfsdk:"authentication"`
 	Credentials    types.Object `tfsdk:"credentials"`
+	Glue           types.Object `tfsdk:"glue"`
 }
 
 func (m ClickPipeKafkaSchemaRegistryModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
+			"type":           types.StringType,
 			"url":            types.StringType,
 			"authentication": types.StringType,
 			"credentials":    ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"glue":           ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType(),
 		},
 	}
 }
 
 func (m ClickPipeKafkaSchemaRegistryModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"type":           m.Type,
 		"url":            m.URL,
 		"authentication": m.Authentication,
 		"credentials":    m.Credentials,
+		"glue":           m.Glue,
 	})
 }
 
@@ -188,7 +218,8 @@ type ClickPipeKafkaSourceModel struct {
 
 	ReversePrivateEndpointIDs types.List `tfsdk:"reverse_private_endpoint_ids"`
 
-	ExactlyOnce types.Bool `tfsdk:"exactly_once"`
+	ExactlyOnce   types.Bool   `tfsdk:"exactly_once"`
+	TombstoneMode types.String `tfsdk:"tombstone_mode"`
 
 	SSHKeyResourceID types.String `tfsdk:"ssh_key_resource_id"`
 }
@@ -210,6 +241,7 @@ func (m ClickPipeKafkaSourceModel) ObjectType() types.ObjectType {
 			"ca_certificate":               types.StringType,
 			"reverse_private_endpoint_ids": types.ListType{ElemType: types.StringType},
 			"exactly_once":                 types.BoolType,
+			"tombstone_mode":               types.StringType,
 			"ssh_key_resource_id":          types.StringType,
 		},
 	}
@@ -231,13 +263,42 @@ func (m ClickPipeKafkaSourceModel) ObjectValue() types.Object {
 		"ca_certificate":               m.CACertificate,
 		"reverse_private_endpoint_ids": m.ReversePrivateEndpointIDs,
 		"exactly_once":                 m.ExactlyOnce,
+		"tombstone_mode":               m.TombstoneMode,
 		"ssh_key_resource_id":          m.SSHKeyResourceID,
+	})
+}
+
+type ClickPipeKinesisSchemaRegistryModel struct {
+	Type             types.String `tfsdk:"type"`
+	GlueRegion       types.String `tfsdk:"glue_region"`
+	GlueRegistryName types.String `tfsdk:"glue_registry_name"`
+	GlueRoleArn      types.String `tfsdk:"glue_role_arn"`
+}
+
+func (m ClickPipeKinesisSchemaRegistryModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"type":               types.StringType,
+			"glue_region":        types.StringType,
+			"glue_registry_name": types.StringType,
+			"glue_role_arn":      types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeKinesisSchemaRegistryModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"type":               m.Type,
+		"glue_region":        m.GlueRegion,
+		"glue_registry_name": m.GlueRegistryName,
+		"glue_role_arn":      m.GlueRoleArn,
 	})
 }
 
 type ClickPipeKinesisSourceModel struct {
 	Format            types.String `tfsdk:"format"`
 	ProtobufSchema    types.String `tfsdk:"protobuf_schema"`
+	SchemaRegistry    types.Object `tfsdk:"schema_registry"`
 	StreamName        types.String `tfsdk:"stream_name"`
 	Region            types.String `tfsdk:"region"`
 	IteratorType      types.String `tfsdk:"iterator_type"`
@@ -253,6 +314,7 @@ func (m ClickPipeKinesisSourceModel) ObjectType() types.ObjectType {
 		AttrTypes: map[string]attr.Type{
 			"format":               types.StringType,
 			"protobuf_schema":      types.StringType,
+			"schema_registry":      ClickPipeKinesisSchemaRegistryModel{}.ObjectType(),
 			"stream_name":          types.StringType,
 			"region":               types.StringType,
 			"iterator_type":        types.StringType,
@@ -269,6 +331,7 @@ func (m ClickPipeKinesisSourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"format":               m.Format,
 		"protobuf_schema":      m.ProtobufSchema,
+		"schema_registry":      m.SchemaRegistry,
 		"stream_name":          m.StreamName,
 		"region":               m.Region,
 		"iterator_type":        m.IteratorType,
@@ -625,6 +688,8 @@ func (m ClickPipeBigQueryTableMappingModel) ObjectValue() types.Object {
 
 type ClickPipeBigQuerySourceModel struct {
 	SnapshotStagingPath types.String `tfsdk:"snapshot_staging_path"`
+	Authentication      types.String `tfsdk:"authentication"`
+	ProjectID           types.String `tfsdk:"project_id"`
 	Settings            types.Object `tfsdk:"settings"`
 	TableMappings       types.List   `tfsdk:"table_mappings"`
 	Credentials         types.Object `tfsdk:"credentials"`
@@ -634,6 +699,8 @@ func (m ClickPipeBigQuerySourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"snapshot_staging_path": types.StringType,
+			"authentication":        types.StringType,
+			"project_id":            types.StringType,
 			"settings":              ClickPipeBigQuerySettingsModel{}.ObjectType(),
 			"table_mappings":        types.ListType{ElemType: ClickPipeBigQueryTableMappingModel{}.ObjectType()},
 			"credentials":           ClickPipeServiceAccountModel{}.ObjectType(),
@@ -644,6 +711,8 @@ func (m ClickPipeBigQuerySourceModel) ObjectType() types.ObjectType {
 func (m ClickPipeBigQuerySourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"snapshot_staging_path": m.SnapshotStagingPath,
+		"authentication":        m.Authentication,
+		"project_id":            m.ProjectID,
 		"settings":              m.Settings,
 		"table_mappings":        m.TableMappings,
 		"credentials":           m.Credentials,

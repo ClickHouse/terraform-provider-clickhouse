@@ -20,4 +20,5 @@ const (
 	tileIDsAttr        = "tile_ids"
 	sourceAttr         = "source"
 	savedSearchIDAttr  = "saved_search_id"
+	chartConfigAttr    = "chart_config"
 )

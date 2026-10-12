@@ -122,7 +122,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: "go.mod"
           cache: true
@@ -608,3 +608,22 @@ jobs:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GORELEASER_PREVIOUS_TAG: ${{ steps.prev_tag.outputs.tag }}
 
+  # Kick off release-notes.yaml for the draft goreleaser just created.
+  # release-notes.yaml's own push-tag trigger never fires: the tag above is
+  # pushed with the default GITHUB_TOKEN, and GitHub Actions doesn't let
+  # GITHUB_TOKEN-authored pushes trigger other workflows (anti-recursion
+  # guardrail). Dispatch explicitly instead.
+  trigger-release-notes:
+    needs: [ "goreleaser" ]
+    if: ${{ needs.goreleaser.result == 'success' }}
+    runs-on: k8s-nano
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch release-notes workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run release-notes.yaml \
+            --repo ${{ github.repository }} \
+            -f tag="v${{ inputs.version }}"
