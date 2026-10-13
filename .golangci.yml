@@ -48,6 +48,11 @@ linters:
       - path: internal/api/(backup|snapshot)_configuration\.go
         linters:
           - dupl
+      # These resources use the same create flow with distinct model and API types.
+      - path: internal/service/clickhouse/resource/(saved_query|query_api_endpoint)\.go
+        source: '^func \(r \*(SavedQueryResource|QueryAPIEndpointResource)\) Create\('
+        linters:
+          - dupl
 
 formatters:
   enable:
