@@ -7,11 +7,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	upstreamdatasource "github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	upstreamresource "github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	retryablehttp "github.com/hashicorp/go-retryablehttp"
@@ -43,14 +46,15 @@ type clickhouseProvider struct {
 }
 
 type clickhouseProviderModel struct {
-	ApiUrl              types.String `tfsdk:"api_url"`
-	OrganizationID      types.String `tfsdk:"organization_id"`
-	TokenKey            types.String `tfsdk:"token_key"`
-	TokenSecret         types.String `tfsdk:"token_secret"`
-	TimeoutSeconds      types.Int32  `tfsdk:"timeout_seconds"`
-	ClickStackEndpoint  types.String `tfsdk:"clickstack_endpoint"`
-	ClickStackAPIKey    types.String `tfsdk:"clickstack_api_key"`
-	ClickStackServiceID types.String `tfsdk:"clickstack_service_id"`
+	ApiUrl                types.String `tfsdk:"api_url"`
+	OrganizationID        types.String `tfsdk:"organization_id"`
+	TokenKey              types.String `tfsdk:"token_key"`
+	TokenSecret           types.String `tfsdk:"token_secret"`
+	TimeoutSeconds        types.Int32  `tfsdk:"timeout_seconds"`
+	ClickStackEndpoint    types.String `tfsdk:"clickstack_endpoint"`
+	ClickStackAPIKey      types.String `tfsdk:"clickstack_api_key"`
+	ClickStackServiceID   types.String `tfsdk:"clickstack_service_id"`
+	ClickStackDefaultTags types.List   `tfsdk:"clickstack_default_tags"`
 }
 
 // Metadata returns the provider type name.
@@ -95,6 +99,18 @@ func (p *clickhouseProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 			"clickstack_service_id": schema.StringAttribute{
 				Description: "ID of the ClickHouse Cloud service running managed ClickStack. When set, clickhouse_clickstack_* resources are served through the ClickHouse Cloud API, authenticating with `organization_id`, `token_key` and `token_secret`. Alternatively use the `CLICKSTACK_SERVICE_ID` environment variable. Mutually exclusive with `clickstack_api_key` and `clickstack_endpoint`.",
 				Optional:    true,
+			},
+			"clickstack_default_tags": schema.ListAttribute{
+				Description: "Tags added to every clickhouse_clickstack_dashboard and clickhouse_clickstack_saved_search, " +
+					"and to every clickhouse_clickstack_alert that sets `tags`, e.g. `[\"terraform-managed\"]`. " +
+					"They appear in each resource's `tags_all`, not in its own tags, and changing them updates every " +
+					"affected resource. An alert without `tags` copies its parent's tags, so it picks up a change to " +
+					"these only on its next update. Must be known at plan time.",
+				ElementType: types.StringType,
+				Optional:    true,
+				Validators: []validator.List{
+					listvalidator.ValueStringsAre(stringvalidator.LengthAtMost(32)),
+				},
 			},
 		},
 		MarkdownDescription: providerDescription,
@@ -166,6 +182,11 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 					"Either target apply the source of the value first, set the value statically in the configuration, or use the corresponding CLICKSTACK_* environment variable.",
 			)
 		}
+	}
+
+	if config.ClickStackDefaultTags.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(path.Root("clickstack_default_tags"), "Unknown ClickStack default tags",
+			"clickstack_default_tags must be known when the provider is configured; set it statically in the configuration.")
 	}
 
 	if resp.Diagnostics.HasError() {
@@ -275,6 +296,7 @@ func (p *clickhouseProvider) Configure(ctx context.Context, req provider.Configu
 	clickstackConfigured := clickstackAPIKey != "" || clickstackServiceID != ""
 
 	data := &service.ProviderData{}
+	resp.Diagnostics.Append(config.ClickStackDefaultTags.ElementsAs(ctx, &data.ClickStackDefaultTags, false)...)
 
 	// Validate and build the ClickHouse Cloud client only when cloud credentials
 	// are (partially) provided, or when nothing at all is configured — a bare

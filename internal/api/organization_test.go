@@ -24,3 +24,30 @@ func TestOrgResultUnmarshalsCapabilities(t *testing.T) {
 		t.Errorf("capabilities = %+v, want nil when absent from the response", without.Capabilities)
 	}
 }
+
+// The organization payload carries both accountId and its deprecated alias
+// accountName; decoding must read accountId.
+func TestOrgResultUnmarshalsByocConfigAccountId(t *testing.T) {
+	payload := `{
+		"id": "o1",
+		"byocConfig": [{
+			"id": "byoc-1",
+			"state": "ready",
+			"accountId": "123456789012",
+			"accountName": "123456789012",
+			"regionId": "us-east-1",
+			"cloudProvider": "aws",
+			"displayName": "prod"
+		}]
+	}`
+	var org OrgResult
+	if err := json.Unmarshal([]byte(payload), &org); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(org.ByocConfig) != 1 {
+		t.Fatalf("byocConfig length = %d, want 1", len(org.ByocConfig))
+	}
+	if got := org.ByocConfig[0].AccountId; got != "123456789012" {
+		t.Errorf("accountId = %q, want 123456789012", got)
+	}
+}

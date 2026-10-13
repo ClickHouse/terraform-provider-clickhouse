@@ -192,9 +192,12 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"generated_password": schema.StringAttribute{
-				Description: "The password the API assigned to the default user at creation time, when no `password`/`password_hash` was supplied and `password_wo` was set to an empty string (one of `password`, `password_hash`, or `password_wo` must still be present per the schema's validation — omitting all three is rejected at plan time, so set `password_wo = \"\"` explicitly; `password_wo_version` must also be set, e.g. to `1`, since `password_wo` requires it whenever it has any non-null value, including an empty string). Only populated on create, and cleared again if a later apply changes the password through this provider. It is *not* tracked if the password is changed outside Terraform, in which case it goes stale and no longer reflects the current password. Useful for a one-time handoff — e.g. a caller that can create a service but has no permission to reset its password later.",
-				Computed:    true,
-				Sensitive:   true,
+				Description: "The password ClickHouse assigned to the default user at creation, when you don't supply your own (`password` and `password_hash` unset, and `password_wo = \"\"`).\n\n" +
+					"To use this: set `password_wo = \"\"` and `password_wo_version` (e.g. `1`) — the schema still requires one of `password`/`password_hash`/`password_wo` to be set, so this is how you opt into an auto-generated password instead of choosing your own.\n\n" +
+					"Only set right after creation. It goes blank again if you later change the password through this provider, and it isn't updated if the password changes outside Terraform (console, another tool) — so treat it as a one-time value to capture at creation, not a live mirror of the current password.\n\n" +
+					"Useful when the caller creating the service shouldn't need permission to reset its password afterward.",
+				Computed:  true,
+				Sensitive: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -2003,10 +2006,13 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Include the plan's resolved autoscaling_mode (including a token ModifyPlan wrote) in the PATCH body so
 	// the API applies the mode rather than inferring it from field presence (UC-1173). A mode difference also
 	// forces the PATCH; when only another scaling field changed, the mode rides along on that PATCH.
+	// The API rejects a mode switch that omits the target mode's sizing fields, so send them even when unchanged.
+	modeSwitch := false
 	if !plan.AutoscalingMode.IsNull() && !plan.AutoscalingMode.IsUnknown() {
 		replicaScaling.AutoscalingMode = plan.AutoscalingMode.ValueStringPointer()
 		if plan.AutoscalingMode != state.AutoscalingMode {
 			scalingChange = true
+			modeSwitch = true
 		}
 	}
 	if plan.MinTotalMemoryGb != state.MinTotalMemoryGb {
@@ -2029,21 +2035,21 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			replicaScaling.MaxReplicaMemoryGb = &maxTotalMemoryGb
 		}
 	}
-	if !plan.MinReplicaMemoryGb.IsUnknown() && plan.MinReplicaMemoryGb != state.MinReplicaMemoryGb {
+	if !plan.MinReplicaMemoryGb.IsUnknown() && (modeSwitch || plan.MinReplicaMemoryGb != state.MinReplicaMemoryGb) {
 		scalingChange = true
 		if !plan.MinReplicaMemoryGb.IsNull() {
 			minReplicaMemoryGb := int(plan.MinReplicaMemoryGb.ValueInt64())
 			replicaScaling.MinReplicaMemoryGb = &minReplicaMemoryGb
 		}
 	}
-	if !plan.MaxReplicaMemoryGb.IsUnknown() && plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb {
+	if !plan.MaxReplicaMemoryGb.IsUnknown() && (modeSwitch || plan.MaxReplicaMemoryGb != state.MaxReplicaMemoryGb) {
 		scalingChange = true
 		if !plan.MaxReplicaMemoryGb.IsNull() {
 			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
 			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
 	}
-	if !plan.NumReplicas.IsUnknown() && plan.NumReplicas != state.NumReplicas {
+	if !plan.NumReplicas.IsUnknown() && (modeSwitch || plan.NumReplicas != state.NumReplicas) {
 		scalingChange = true
 
 		if !plan.NumReplicas.IsNull() {
@@ -2056,14 +2062,14 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// The API clears the dropped fields server-side: both modes write the same min/max replica + per-replica
 	// memory storage (num_replicas is derived on read, not stored), and the switch requires the new mode's
 	// fields, so sending them overwrites the old shape — no explicit nulls needed (confirmed against UC-1173).
-	if !plan.MinReplicas.IsUnknown() && plan.MinReplicas != state.MinReplicas {
+	if !plan.MinReplicas.IsUnknown() && (modeSwitch || plan.MinReplicas != state.MinReplicas) {
 		scalingChange = true
 		if !plan.MinReplicas.IsNull() {
 			minReplicas := int(plan.MinReplicas.ValueInt64())
 			replicaScaling.MinReplicas = &minReplicas
 		}
 	}
-	if !plan.MaxReplicas.IsUnknown() && plan.MaxReplicas != state.MaxReplicas {
+	if !plan.MaxReplicas.IsUnknown() && (modeSwitch || plan.MaxReplicas != state.MaxReplicas) {
 		scalingChange = true
 		if !plan.MaxReplicas.IsNull() {
 			maxReplicas := int(plan.MaxReplicas.ValueInt64())

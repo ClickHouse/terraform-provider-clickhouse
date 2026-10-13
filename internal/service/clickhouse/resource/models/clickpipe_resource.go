@@ -51,27 +51,57 @@ func (m ClickPipeKafkaOffsetModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeKafkaGlueSchemaRegistryModel struct {
+	Region       types.String `tfsdk:"region"`
+	RegistryName types.String `tfsdk:"registry_name"`
+	RoleArn      types.String `tfsdk:"role_arn"`
+}
+
+func (m ClickPipeKafkaGlueSchemaRegistryModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"region":        types.StringType,
+			"registry_name": types.StringType,
+			"role_arn":      types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeKafkaGlueSchemaRegistryModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"region":        m.Region,
+		"registry_name": m.RegistryName,
+		"role_arn":      m.RoleArn,
+	})
+}
+
 type ClickPipeKafkaSchemaRegistryModel struct {
+	Type           types.String `tfsdk:"type"`
 	URL            types.String `tfsdk:"url"`
 	Authentication types.String `tfsdk:"authentication"`
 	Credentials    types.Object `tfsdk:"credentials"`
+	Glue           types.Object `tfsdk:"glue"`
 }
 
 func (m ClickPipeKafkaSchemaRegistryModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
+			"type":           types.StringType,
 			"url":            types.StringType,
 			"authentication": types.StringType,
 			"credentials":    ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"glue":           ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType(),
 		},
 	}
 }
 
 func (m ClickPipeKafkaSchemaRegistryModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"type":           m.Type,
 		"url":            m.URL,
 		"authentication": m.Authentication,
 		"credentials":    m.Credentials,
+		"glue":           m.Glue,
 	})
 }
 

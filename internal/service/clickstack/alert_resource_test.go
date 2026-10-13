@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -189,6 +191,8 @@ func mkAlert(mods func(*alertResourceModel)) alertResourceModel {
 		Name:                  types.StringNull(),
 		Message:               types.StringNull(),
 		Note:                  types.StringNull(),
+		Tags:                  types.ListNull(types.StringType),
+		TagsAll:               types.SetNull(types.StringType),
 	}
 	if mods != nil {
 		mods(&m)
@@ -1129,6 +1133,40 @@ func TestAlertResource_ApplyAlert_ChartConfigOnlyForInline(t *testing.T) {
 			t.Errorf("chart_config = %s, want the planned value kept", m.ChartConfig.ValueString())
 		}
 	})
+}
+
+func TestAlertResource_Tags(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	inherited := &client.Alert{ThresholdType: thresholdTypeAbove, Tags: &[]string{"from-parent"}}
+
+	unset := mkAlert(nil)
+	if al, _ := unset.toClient(ctx); al.Tags != nil {
+		t.Errorf("unset tags sent %v, want nil so the server inherits", al.Tags)
+	}
+	unset.applyTags(ctx, inherited.Tags, nil)
+	if !unset.Tags.IsNull() {
+		t.Errorf("unset tags = %v after read, want null", unset.Tags)
+	}
+
+	empty := mkAlert(func(m *alertResourceModel) { m.Tags = types.ListValueMust(types.StringType, nil) })
+	if al, _ := empty.toClient(ctx); al.Tags == nil || len(*al.Tags) != 0 {
+		t.Errorf("tags = [] sent %v, want an explicit empty list", al.Tags)
+	}
+
+	set := mkAlert(func(m *alertResourceModel) {
+		m.Tags = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("mine")})
+	})
+	set.applyTags(ctx, inherited.Tags, nil)
+	var got []string
+	set.Tags.ElementsAs(ctx, &got, false)
+	if !slices.Equal(got, []string{"from-parent"}) {
+		t.Errorf("set tags = %v after read, want the server value so drift shows", got)
+	}
+
+	if d := set.applyTags(ctx, nil, nil); !d.HasError() {
+		t.Error("a response without tags must fail when tags are set, not store []")
+	}
 }
 
 func TestAlertResource_ApplyAlert_ScheduleStartAtCanonicalization(t *testing.T) {

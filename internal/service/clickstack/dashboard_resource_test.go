@@ -287,6 +287,7 @@ func TestTileIDsPlanModifier(t *testing.T) {
 				dashboardJSONAttr:  tftypes.NewValue(tftypes.String, tc.plan),
 				normalizedJSONAttr: tftypes.NewValue(tftypes.String, nil),
 				tileIDsAttr:        tftypes.NewValue(tileIDsTFType, tftypes.UnknownValue),
+				tagsAllAttr:        tftypes.NewValue(tagsAllTFType, tftypes.UnknownValue),
 			})
 			req := planmodifier.MapRequest{
 				Path:       path.Root(tileIDsAttr),
@@ -339,6 +340,7 @@ func dashboardValidateConfigRequest(t *testing.T, dashboardJSON string) fwresour
 		dashboardJSONAttr:  tftypes.NewValue(tftypes.String, dashboardJSON),
 		normalizedJSONAttr: tftypes.NewValue(tftypes.String, nil),
 		tileIDsAttr:        tftypes.NewValue(tileIDsTFType, nil),
+		tagsAllAttr:        tftypes.NewValue(tagsAllTFType, nil),
 	})
 
 	return fwresource.ValidateConfigRequest{
@@ -397,6 +399,7 @@ func TestNormalizedJSONPlanModifier(t *testing.T) {
 				dashboardJSONAttr:  tc.plan,
 				normalizedJSONAttr: tftypes.NewValue(tftypes.String, tftypes.UnknownValue),
 				tileIDsAttr:        tftypes.NewValue(tileIDsTFType, tftypes.UnknownValue),
+				tagsAllAttr:        tftypes.NewValue(tagsAllTFType, tftypes.UnknownValue),
 			})
 			req := planmodifier.StringRequest{
 				Path:       path.Root(normalizedJSONAttr),
@@ -426,12 +429,14 @@ func TestNormalizedJSONPlanModifier(t *testing.T) {
 // Config/Plan/State value built here has the exact shape the framework expects.
 var (
 	tileIDsTFType       = tftypes.Map{ElementType: tftypes.String}
+	tagsAllTFType       = tftypes.Set{ElementType: tftypes.String}
 	dashboardObjectType = tftypes.Object{AttributeTypes: map[string]tftypes.Type{
 		idAttr:             tftypes.String,
 		teamAttr:           tftypes.String,
 		dashboardJSONAttr:  tftypes.String,
 		normalizedJSONAttr: tftypes.String,
 		tileIDsAttr:        tileIDsTFType,
+		tagsAllAttr:        tagsAllTFType,
 	}}
 )
 
@@ -586,6 +591,7 @@ func dashboardObjectValue(id, team, dashJSON, normJSON *string) tftypes.Value {
 		dashboardJSONAttr:  str(dashJSON),
 		normalizedJSONAttr: str(normJSON),
 		tileIDsAttr:        tftypes.NewValue(tileIDsTFType, nil),
+		tagsAllAttr:        tftypes.NewValue(tagsAllTFType, nil),
 	})
 }
 
