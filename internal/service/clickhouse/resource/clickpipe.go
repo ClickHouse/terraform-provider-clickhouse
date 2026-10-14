@@ -2027,7 +2027,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 									},
 									"version_column_id": schema.StringAttribute{
-										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.",
+										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree` and the pipe is being created.",
 										Optional:            true,
 									},
 									"column_ids": schema.ListAttribute{
@@ -2038,11 +2038,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"sorting_key": schema.ListAttribute{
-								MarkdownDescription: "The list of columns for the sorting key.",
+								MarkdownDescription: "The list of columns for the sorting key. Required when engine type is `ReplacingMergeTree` and the pipe is being created.",
 								Optional:            true,
 								Computed:            true,
 								ElementType:         types.StringType,
-								Default:             listdefault.StaticValue(tfutils.CreateEmptyList(types.StringType)),
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"partition_by": schema.StringAttribute{
 								MarkdownDescription: "The column to partition the table by.",
@@ -2169,7 +2171,15 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		destinationModel := models.ClickPipeDestinationModel{}
 		response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
 
-		if !destinationModel.TableDefinition.IsNull() {
+		// table_definition is only sent on create
+		tableDefinitionChanged := true
+		if !state.Destination.IsNull() {
+			stateDestinationModel := models.ClickPipeDestinationModel{}
+			response.Diagnostics.Append(state.Destination.As(ctx, &stateDestinationModel, basetypes.ObjectAsOptions{})...)
+			tableDefinitionChanged = !destinationModel.TableDefinition.Equal(stateDestinationModel.TableDefinition)
+		}
+
+		if tableDefinitionChanged && !destinationModel.TableDefinition.IsNull() {
 			tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{}
 			response.Diagnostics.Append(destinationModel.TableDefinition.As(ctx, &tableDefinitionModel, basetypes.ObjectAsOptions{})...)
 
@@ -6116,8 +6126,11 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				source.Kafka.ProtobufSchema = nil
 			}
 
-			// For Pub/Sub, only re-send the service_account_key when it changed
-			// (key rotation). Sending an unchanged value would re-encrypt without effect.
+			// For Pub/Sub, only authentication, service_account_key and ack_deadline are
+			// patchable; every other field carries RequiresReplace and never changes in
+			// Update. The API rejects immutable fields even when unchanged ("format is
+			// immutable for Pub/Sub sources"), so omit them from the PATCH, and
+			// re-send the service_account_key only when it changed (key rotation).
 			if source.PubSub != nil && !planSourceModel.PubSub.IsNull() && !stateSourceModel.PubSub.IsNull() {
 				planPubSubModel := models.ClickPipePubSubSourceModel{}
 				response.Diagnostics.Append(planSourceModel.PubSub.As(ctx, &planPubSubModel, basetypes.ObjectAsOptions{})...)
@@ -6126,6 +6139,14 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				if planPubSubModel.ServiceAccountKey.Equal(statePubSubModel.ServiceAccountKey) {
 					source.PubSub.ServiceAccountKey = nil
 				}
+				// Omit all immutable fields from update payload
+				source.PubSub.Format = ""
+				source.PubSub.ProjectID = ""
+				source.PubSub.Topic = ""
+				source.PubSub.SeekType = ""
+				source.PubSub.SeekTimestamp = nil
+				source.PubSub.Filter = nil
+				source.PubSub.EnableOrdering = nil
 			}
 
 			// For Kinesis, omit the unchanged access_key from the PATCH so we do not
