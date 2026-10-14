@@ -247,3 +247,35 @@ func TestUpdateClickPipeSettings_PreservesKafkaReadCommittedBoolean(t *testing.T
 		})
 	}
 }
+
+func TestClickPipeDrainRequest(t *testing.T) {
+	for _, drain := range []bool{false, true} {
+		t.Run(fmt.Sprintf("drain=%t", drain), func(t *testing.T) {
+			client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPatch || !strings.HasSuffix(r.URL.Path, "/clickpipes/pipe-1/state") {
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+				}
+				var body map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				if body["command"] != "stop" {
+					t.Errorf("unexpected command: %v", body)
+				}
+				if drain && body["drain"] != true || !drain && body["drain"] != nil {
+					t.Errorf("unexpected drain field: %v", body)
+				}
+				_ = json.NewEncoder(w).Encode(ResponseWithResult[ClickPipe]{Result: ClickPipe{State: ClickPipeDrainingState}})
+			})
+			var err error
+			if drain {
+				_, err = client.DrainClickPipe(t.Context(), testServiceID, "pipe-1")
+			} else {
+				_, err = client.ChangeClickPipeState(t.Context(), testServiceID, "pipe-1", ClickPipeStateStop)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

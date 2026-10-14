@@ -77,6 +77,7 @@ type Client interface {
 	UpdateClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeUpdate) (*ClickPipe, error)
 	WaitForClickPipeState(ctx context.Context, serviceId string, clickPipeId string, stateChecker func(string) bool, maxWait time.Duration) (*ClickPipe, error)
 	ScalingClickPipe(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeScalingRequest) (*ClickPipe, error)
+	DrainClickPipe(ctx context.Context, serviceId string, clickPipeId string) (*ClickPipe, error)
 	ChangeClickPipeState(ctx context.Context, serviceId string, clickPipeId string, command string) (*ClickPipe, error)
 	DeleteClickPipe(ctx context.Context, serviceId string, clickPipeId string) error
 	GetClickPipeSettings(ctx context.Context, serviceId string, clickPipeId string) (map[string]any, error)

@@ -72,6 +72,7 @@ const (
 
 const (
 	clickPipeStateChangeMaxWait               = time.Second * 60 * 2
+	clickPipeDrainMaxWait                     = 30 * time.Minute
 	clickPipesGCPWorkloadIdentityReadyTimeout = 30 * time.Second
 
 	// clickPipeMustBePausedError identifies the 400 the ClickPipes API returns
@@ -200,6 +201,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				},
 				Optional: true,
 			},
+			"drain": schema.BoolAttribute{
+				MarkdownDescription: "Drain checkpointed PostgreSQL CDC data into ClickHouse when stopping. Default is `false`. With `stopped = true`, waits through `Draining` until `Paused`; an incomplete drain fails the apply after 30 minutes. If it completes after a failed apply, resume and drain again to verify completion. Supported for PostgreSQL `cdc` and `cdc_only` replication modes. Apply configuration edits separately before draining. Resume a normally paused pipe before requesting a drain. Set `stopped = false` to resume, including during a drain. Set `stopped = true` and `drain = false` to interrupt draining and finish a normal pause.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
 			"stopped": schema.BoolAttribute{
 				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running). Cannot be set to `true` on creation — the ClickPipe must be created in a running state and then stopped via a subsequent apply.",
 				Computed:            true,
@@ -207,7 +214,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Default:             booldefault.StaticBool(false),
 			},
 			"state": schema.StringAttribute{
-				MarkdownDescription: "The current state of the ClickPipe. This is a read-only field that reports the actual state from ClickHouse Cloud. Possible values include `Running`, `Stopped`, `Paused`, `Provisioning`, `Failed`, `InternalError`, etc.",
+				MarkdownDescription: "The current state of the ClickPipe. This is a read-only field that reports the actual state from ClickHouse Cloud. Possible values include `Running`, `Stopped`, `Paused`, `Draining`, `Provisioning`, `Failed`, `InternalError`, etc.",
 				Computed:            true,
 			},
 			"source": schema.SingleNestedAttribute{
@@ -2143,6 +2150,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		return
 	}
 
+	validateClickPipeDrain(ctx, plan, &response.Diagnostics)
 	validateGCPWorkloadIdentityConfiguration(ctx, plan.Source, &response.Diagnostics)
 	if response.Diagnostics.HasError() {
 		return
@@ -5821,6 +5829,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			plan.FieldMappings.Equal(state.FieldMappings) &&
 			plan.Settings.Equal(state.Settings) &&
 			plan.Stopped.Equal(state.Stopped) &&
+			plan.Drain.Equal(state.Drain) &&
 			plan.Scaling.Equal(state.Scaling)
 
 		if !isOnlyResync {
@@ -6247,6 +6256,16 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	// when certain fields change — in which case we must trust the UpdateClickPipe
 	// response, not the stale prior state, to decide whether to issue stop/start.
 	liveState := state.State.ValueString()
+	if plan.Stopped.ValueBool() && plan.Drain.ValueBool() {
+		if pipeChanged || config.TriggerResync.ValueBool() {
+			response.Diagnostics.AddError("Cannot edit and drain together", "Apply configuration edits or resync with stopped = false first, then set stopped = true to drain.")
+			return
+		}
+		if (isClickPipeStoppedOrPaused(liveState) || liveState == api.ClickPipePausingState) && !(state.Stopped.ValueBool() && state.Drain.ValueBool()) {
+			response.Diagnostics.AddError("ClickPipe must be running to drain", "A normal pause does not guarantee normalization has finished. Apply stopped = false first, then stopped = true with drain = true.")
+			return
+		}
+	}
 
 	if pipeChanged && clickPipeUpdate.Source != nil && clickPipeSourceUsesGCPWorkloadIdentity(clickPipeUpdate.Source) {
 		if _, err := c.client.WaitForClickPipesGCPWorkloadIdentity(ctx, state.ServiceID.ValueString(), clickPipesGCPWorkloadIdentityReadyTimeout); err != nil {
@@ -6341,13 +6360,16 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	isStopped := currentState == api.ClickPipeStoppedState ||
 		currentState == api.ClickPipeStoppingState ||
 		currentState == api.ClickPipePausedState ||
-		currentState == api.ClickPipePausingState
+		currentState == api.ClickPipePausingState ||
+		currentState == api.ClickPipeDrainingState
 	isFailed := currentState == api.ClickPipeFailedState
 
 	var command string
 	switch {
 	case !desiredStopped && (isStopped || isFailed):
 		command = api.ClickPipeStateStart
+	case desiredStopped && !plan.Drain.ValueBool() && currentState == api.ClickPipeDrainingState:
+		command = api.ClickPipeStateStop
 	case desiredStopped && pipeChanged:
 		// Certain source edits (e.g., credential rotation) cause the API to auto-resume a
 		// paused pipe so it can apply the change. The UpdateClickPipe response can return
@@ -6360,7 +6382,13 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	if command != "" {
-		if _, err := c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), command); err != nil {
+		var err error
+		if command == api.ClickPipeStateStop && plan.Drain.ValueBool() {
+			_, err = c.client.DrainClickPipe(ctx, state.ServiceID.ValueString(), state.ID.ValueString())
+		} else {
+			_, err = c.client.ChangeClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), command)
+		}
+		if err != nil {
 			// The API auto-resumes a paused pipe after validating an edit, and that
 			// transition can land before this start does. "already running" is the
 			// state a start seeks, so treat it as success; the wait below still
@@ -6430,7 +6458,23 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	// Determine expected state(s) based on configuration
 	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
 
-	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), stateCheckFunc, clickPipeStateChangeMaxWait)
+	waitTimeout := clickPipeStateChangeMaxWait
+	if plan.Stopped.ValueBool() && plan.Drain.ValueBool() {
+		waitTimeout = clickPipeDrainMaxWait
+	}
+	finalClickPipe, err := c.client.WaitForClickPipeState(ctx, state.ServiceID.ValueString(), state.ID.ValueString(), stateCheckFunc, waitTimeout)
+	if plan.Stopped.ValueBool() && plan.Drain.ValueBool() && (finalClickPipe == nil || finalClickPipe.State != api.ClickPipePausedState) {
+		// Record the pause, but leave the drain unfulfilled so the next apply
+		// must retry verification (or can resume with stopped = false).
+		plan.Drain = types.BoolValue(false)
+		plan.State = state.State
+		if finalClickPipe != nil {
+			plan.State = types.StringValue(finalClickPipe.State)
+		}
+		response.Diagnostics.Append(response.State.Set(ctx, plan)...)
+		response.Diagnostics.AddError("ClickPipe drain did not complete", fmt.Sprintf("Expected Paused after draining. Retry while Draining to continue waiting, or apply stopped = false to resume before draining again. Last wait error: %v", err))
+		return
+	}
 	if err != nil {
 		// Only warn if the final state is not acceptable
 		if finalClickPipe == nil || !stateCheckFunc(finalClickPipe.State) {
@@ -6508,4 +6552,32 @@ func (r *ClickPipeResource) ImportState(ctx context.Context, req resource.Import
 			"Schema registry credentials are immutable and never sent on update: the apply records your configured values in state without server-side verification, so ensure they match the registry credentials the pipe already uses.\n"+
 			"Protobuf schemas aren't imported. Adding `protobuf_schema` after import forces ClickPipe replacement.",
 	)
+}
+
+func validateClickPipeDrain(ctx context.Context, plan models.ClickPipeResourceModel, diagnostics *diag.Diagnostics) {
+	if !plan.Drain.ValueBool() || plan.Source.IsUnknown() || plan.Source.IsNull() {
+		return
+	}
+	var source models.ClickPipeSourceModel
+	diagnostics.Append(plan.Source.As(ctx, &source, basetypes.ObjectAsOptions{})...)
+	if diagnostics.HasError() || source.Postgres.IsUnknown() {
+		return
+	}
+	if source.Postgres.IsNull() {
+		diagnostics.AddAttributeError(path.Root("drain"), "Unsupported drain source", "drain = true requires a PostgreSQL CDC ClickPipe.")
+		return
+	}
+	var postgres models.ClickPipePostgresSourceModel
+	diagnostics.Append(source.Postgres.As(ctx, &postgres, basetypes.ObjectAsOptions{})...)
+	if diagnostics.HasError() || postgres.Settings.IsUnknown() || postgres.Settings.IsNull() {
+		return
+	}
+	var settings models.ClickPipePostgresSettingsModel
+	diagnostics.Append(postgres.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{})...)
+	if diagnostics.HasError() || settings.ReplicationMode.IsUnknown() {
+		return
+	}
+	if mode := settings.ReplicationMode.ValueString(); mode != api.ClickPipeReplicationModeCDC && mode != api.ClickPipeReplicationModeCDCOnly {
+		diagnostics.AddAttributeError(path.Root("drain"), "Unsupported drain replication mode", "drain = true requires PostgreSQL replication_mode = cdc or cdc_only.")
+	}
 }

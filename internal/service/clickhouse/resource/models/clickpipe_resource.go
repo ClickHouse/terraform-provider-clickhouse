@@ -1153,6 +1153,7 @@ type ClickPipeResourceModel struct {
 	Name          types.String  `tfsdk:"name"`
 	Scaling       types.Object  `tfsdk:"scaling"`
 	State         types.String  `tfsdk:"state"`
+	Drain         types.Bool    `tfsdk:"drain"`
 	Stopped       types.Bool    `tfsdk:"stopped"`
 	Source        types.Object  `tfsdk:"source"`
 	Destination   types.Object  `tfsdk:"destination"`

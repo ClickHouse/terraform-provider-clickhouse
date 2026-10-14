@@ -167,7 +167,8 @@ func (c *ClickPipeResource) planStateAttribute(ctx context.Context, request reso
 	var priorState types.String
 	response.Diagnostics.Append(request.State.GetAttribute(ctx, path.Root("state"), &priorState)...)
 	response.Diagnostics.Append(response.Plan.SetAttribute(ctx, path.Root("state"), priorState)...)
-	if !response.Plan.Raw.Equal(request.State.Raw) {
+	// An interrupted apply must reconcile an ongoing drain even without config changes.
+	if priorState.ValueString() == api.ClickPipeDrainingState || !response.Plan.Raw.Equal(request.State.Raw) {
 		response.Diagnostics.Append(response.Plan.SetAttribute(ctx, path.Root("state"), types.StringUnknown())...)
 	}
 }

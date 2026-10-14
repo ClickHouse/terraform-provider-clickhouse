@@ -243,6 +243,13 @@ type ClientMock struct {
 	beforeDetachUDFCounter uint64
 	DetachUDFMock          mClientMockDetachUDF
 
+	funcDrainClickPipe          func(ctx context.Context, serviceId string, clickPipeId string) (cp1 *ClickPipe, err error)
+	funcDrainClickPipeOrigin    string
+	inspectFuncDrainClickPipe   func(ctx context.Context, serviceId string, clickPipeId string)
+	afterDrainClickPipeCounter  uint64
+	beforeDrainClickPipeCounter uint64
+	DrainClickPipeMock          mClientMockDrainClickPipe
+
 	funcGetApiKey          func(ctx context.Context, keyId string) (ap1 *ApiKey, err error)
 	funcGetApiKeyOrigin    string
 	inspectFuncGetApiKey   func(ctx context.Context, keyId string)
@@ -865,6 +872,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DetachUDFMock = mClientMockDetachUDF{mock: m}
 	m.DetachUDFMock.callArgs = []*ClientMockDetachUDFParams{}
+
+	m.DrainClickPipeMock = mClientMockDrainClickPipe{mock: m}
+	m.DrainClickPipeMock.callArgs = []*ClientMockDrainClickPipeParams{}
 
 	m.GetApiKeyMock = mClientMockGetApiKey{mock: m}
 	m.GetApiKeyMock.callArgs = []*ClientMockGetApiKeyParams{}
@@ -12581,6 +12591,380 @@ func (m *ClientMock) MinimockDetachUDFInspect() {
 	if !m.DetachUDFMock.invocationsDone() && afterDetachUDFCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DetachUDF at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DetachUDFMock.expectedInvocations), m.DetachUDFMock.expectedInvocationsOrigin, afterDetachUDFCounter)
+	}
+}
+
+type mClientMockDrainClickPipe struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDrainClickPipeExpectation
+	expectations       []*ClientMockDrainClickPipeExpectation
+
+	callArgs []*ClientMockDrainClickPipeParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDrainClickPipeExpectation specifies expectation struct of the Client.DrainClickPipe
+type ClientMockDrainClickPipeExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDrainClickPipeParams
+	paramPtrs          *ClientMockDrainClickPipeParamPtrs
+	expectationOrigins ClientMockDrainClickPipeExpectationOrigins
+	results            *ClientMockDrainClickPipeResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDrainClickPipeParams contains parameters of the Client.DrainClickPipe
+type ClientMockDrainClickPipeParams struct {
+	ctx         context.Context
+	serviceId   string
+	clickPipeId string
+}
+
+// ClientMockDrainClickPipeParamPtrs contains pointers to parameters of the Client.DrainClickPipe
+type ClientMockDrainClickPipeParamPtrs struct {
+	ctx         *context.Context
+	serviceId   *string
+	clickPipeId *string
+}
+
+// ClientMockDrainClickPipeResults contains results of the Client.DrainClickPipe
+type ClientMockDrainClickPipeResults struct {
+	cp1 *ClickPipe
+	err error
+}
+
+// ClientMockDrainClickPipeOrigins contains origins of expectations of the Client.DrainClickPipe
+type ClientMockDrainClickPipeExpectationOrigins struct {
+	origin            string
+	originCtx         string
+	originServiceId   string
+	originClickPipeId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDrainClickPipe *mClientMockDrainClickPipe) Optional() *mClientMockDrainClickPipe {
+	mmDrainClickPipe.optional = true
+	return mmDrainClickPipe
+}
+
+// Expect sets up expected params for Client.DrainClickPipe
+func (mmDrainClickPipe *mClientMockDrainClickPipe) Expect(ctx context.Context, serviceId string, clickPipeId string) *mClientMockDrainClickPipe {
+	if mmDrainClickPipe.mock.funcDrainClickPipe != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by Set")
+	}
+
+	if mmDrainClickPipe.defaultExpectation == nil {
+		mmDrainClickPipe.defaultExpectation = &ClientMockDrainClickPipeExpectation{}
+	}
+
+	if mmDrainClickPipe.defaultExpectation.paramPtrs != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by ExpectParams functions")
+	}
+
+	mmDrainClickPipe.defaultExpectation.params = &ClientMockDrainClickPipeParams{ctx, serviceId, clickPipeId}
+	mmDrainClickPipe.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDrainClickPipe.expectations {
+		if minimock.Equal(e.params, mmDrainClickPipe.defaultExpectation.params) {
+			mmDrainClickPipe.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDrainClickPipe.defaultExpectation.params)
+		}
+	}
+
+	return mmDrainClickPipe
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DrainClickPipe
+func (mmDrainClickPipe *mClientMockDrainClickPipe) ExpectCtxParam1(ctx context.Context) *mClientMockDrainClickPipe {
+	if mmDrainClickPipe.mock.funcDrainClickPipe != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by Set")
+	}
+
+	if mmDrainClickPipe.defaultExpectation == nil {
+		mmDrainClickPipe.defaultExpectation = &ClientMockDrainClickPipeExpectation{}
+	}
+
+	if mmDrainClickPipe.defaultExpectation.params != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by Expect")
+	}
+
+	if mmDrainClickPipe.defaultExpectation.paramPtrs == nil {
+		mmDrainClickPipe.defaultExpectation.paramPtrs = &ClientMockDrainClickPipeParamPtrs{}
+	}
+	mmDrainClickPipe.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDrainClickPipe.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDrainClickPipe
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.DrainClickPipe
+func (mmDrainClickPipe *mClientMockDrainClickPipe) ExpectServiceIdParam2(serviceId string) *mClientMockDrainClickPipe {
+	if mmDrainClickPipe.mock.funcDrainClickPipe != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by Set")
+	}
+
+	if mmDrainClickPipe.defaultExpectation == nil {
+		mmDrainClickPipe.defaultExpectation = &ClientMockDrainClickPipeExpectation{}
+	}
+
+	if mmDrainClickPipe.defaultExpectation.params != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by Expect")
+	}
+
+	if mmDrainClickPipe.defaultExpectation.paramPtrs == nil {
+		mmDrainClickPipe.defaultExpectation.paramPtrs = &ClientMockDrainClickPipeParamPtrs{}
+	}
+	mmDrainClickPipe.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmDrainClickPipe.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmDrainClickPipe
+}
+
+// ExpectClickPipeIdParam3 sets up expected param clickPipeId for Client.DrainClickPipe
+func (mmDrainClickPipe *mClientMockDrainClickPipe) ExpectClickPipeIdParam3(clickPipeId string) *mClientMockDrainClickPipe {
+	if mmDrainClickPipe.mock.funcDrainClickPipe != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by Set")
+	}
+
+	if mmDrainClickPipe.defaultExpectation == nil {
+		mmDrainClickPipe.defaultExpectation = &ClientMockDrainClickPipeExpectation{}
+	}
+
+	if mmDrainClickPipe.defaultExpectation.params != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by Expect")
+	}
+
+	if mmDrainClickPipe.defaultExpectation.paramPtrs == nil {
+		mmDrainClickPipe.defaultExpectation.paramPtrs = &ClientMockDrainClickPipeParamPtrs{}
+	}
+	mmDrainClickPipe.defaultExpectation.paramPtrs.clickPipeId = &clickPipeId
+	mmDrainClickPipe.defaultExpectation.expectationOrigins.originClickPipeId = minimock.CallerInfo(1)
+
+	return mmDrainClickPipe
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DrainClickPipe
+func (mmDrainClickPipe *mClientMockDrainClickPipe) Inspect(f func(ctx context.Context, serviceId string, clickPipeId string)) *mClientMockDrainClickPipe {
+	if mmDrainClickPipe.mock.inspectFuncDrainClickPipe != nil {
+		mmDrainClickPipe.mock.t.Fatalf("Inspect function is already set for ClientMock.DrainClickPipe")
+	}
+
+	mmDrainClickPipe.mock.inspectFuncDrainClickPipe = f
+
+	return mmDrainClickPipe
+}
+
+// Return sets up results that will be returned by Client.DrainClickPipe
+func (mmDrainClickPipe *mClientMockDrainClickPipe) Return(cp1 *ClickPipe, err error) *ClientMock {
+	if mmDrainClickPipe.mock.funcDrainClickPipe != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by Set")
+	}
+
+	if mmDrainClickPipe.defaultExpectation == nil {
+		mmDrainClickPipe.defaultExpectation = &ClientMockDrainClickPipeExpectation{mock: mmDrainClickPipe.mock}
+	}
+	mmDrainClickPipe.defaultExpectation.results = &ClientMockDrainClickPipeResults{cp1, err}
+	mmDrainClickPipe.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDrainClickPipe.mock
+}
+
+// Set uses given function f to mock the Client.DrainClickPipe method
+func (mmDrainClickPipe *mClientMockDrainClickPipe) Set(f func(ctx context.Context, serviceId string, clickPipeId string) (cp1 *ClickPipe, err error)) *ClientMock {
+	if mmDrainClickPipe.defaultExpectation != nil {
+		mmDrainClickPipe.mock.t.Fatalf("Default expectation is already set for the Client.DrainClickPipe method")
+	}
+
+	if len(mmDrainClickPipe.expectations) > 0 {
+		mmDrainClickPipe.mock.t.Fatalf("Some expectations are already set for the Client.DrainClickPipe method")
+	}
+
+	mmDrainClickPipe.mock.funcDrainClickPipe = f
+	mmDrainClickPipe.mock.funcDrainClickPipeOrigin = minimock.CallerInfo(1)
+	return mmDrainClickPipe.mock
+}
+
+// When sets expectation for the Client.DrainClickPipe which will trigger the result defined by the following
+// Then helper
+func (mmDrainClickPipe *mClientMockDrainClickPipe) When(ctx context.Context, serviceId string, clickPipeId string) *ClientMockDrainClickPipeExpectation {
+	if mmDrainClickPipe.mock.funcDrainClickPipe != nil {
+		mmDrainClickPipe.mock.t.Fatalf("ClientMock.DrainClickPipe mock is already set by Set")
+	}
+
+	expectation := &ClientMockDrainClickPipeExpectation{
+		mock:               mmDrainClickPipe.mock,
+		params:             &ClientMockDrainClickPipeParams{ctx, serviceId, clickPipeId},
+		expectationOrigins: ClientMockDrainClickPipeExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDrainClickPipe.expectations = append(mmDrainClickPipe.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DrainClickPipe return parameters for the expectation previously defined by the When method
+func (e *ClientMockDrainClickPipeExpectation) Then(cp1 *ClickPipe, err error) *ClientMock {
+	e.results = &ClientMockDrainClickPipeResults{cp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.DrainClickPipe should be invoked
+func (mmDrainClickPipe *mClientMockDrainClickPipe) Times(n uint64) *mClientMockDrainClickPipe {
+	if n == 0 {
+		mmDrainClickPipe.mock.t.Fatalf("Times of ClientMock.DrainClickPipe mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDrainClickPipe.expectedInvocations, n)
+	mmDrainClickPipe.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDrainClickPipe
+}
+
+func (mmDrainClickPipe *mClientMockDrainClickPipe) invocationsDone() bool {
+	if len(mmDrainClickPipe.expectations) == 0 && mmDrainClickPipe.defaultExpectation == nil && mmDrainClickPipe.mock.funcDrainClickPipe == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDrainClickPipe.mock.afterDrainClickPipeCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDrainClickPipe.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DrainClickPipe implements Client
+func (mmDrainClickPipe *ClientMock) DrainClickPipe(ctx context.Context, serviceId string, clickPipeId string) (cp1 *ClickPipe, err error) {
+	mm_atomic.AddUint64(&mmDrainClickPipe.beforeDrainClickPipeCounter, 1)
+	defer mm_atomic.AddUint64(&mmDrainClickPipe.afterDrainClickPipeCounter, 1)
+
+	mmDrainClickPipe.t.Helper()
+
+	if mmDrainClickPipe.inspectFuncDrainClickPipe != nil {
+		mmDrainClickPipe.inspectFuncDrainClickPipe(ctx, serviceId, clickPipeId)
+	}
+
+	mm_params := ClientMockDrainClickPipeParams{ctx, serviceId, clickPipeId}
+
+	// Record call args
+	mmDrainClickPipe.DrainClickPipeMock.mutex.Lock()
+	mmDrainClickPipe.DrainClickPipeMock.callArgs = append(mmDrainClickPipe.DrainClickPipeMock.callArgs, &mm_params)
+	mmDrainClickPipe.DrainClickPipeMock.mutex.Unlock()
+
+	for _, e := range mmDrainClickPipe.DrainClickPipeMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.cp1, e.results.err
+		}
+	}
+
+	if mmDrainClickPipe.DrainClickPipeMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDrainClickPipe.DrainClickPipeMock.defaultExpectation.Counter, 1)
+		mm_want := mmDrainClickPipe.DrainClickPipeMock.defaultExpectation.params
+		mm_want_ptrs := mmDrainClickPipe.DrainClickPipeMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDrainClickPipeParams{ctx, serviceId, clickPipeId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDrainClickPipe.t.Errorf("ClientMock.DrainClickPipe got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDrainClickPipe.DrainClickPipeMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmDrainClickPipe.t.Errorf("ClientMock.DrainClickPipe got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDrainClickPipe.DrainClickPipeMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.clickPipeId != nil && !minimock.Equal(*mm_want_ptrs.clickPipeId, mm_got.clickPipeId) {
+				mmDrainClickPipe.t.Errorf("ClientMock.DrainClickPipe got unexpected parameter clickPipeId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDrainClickPipe.DrainClickPipeMock.defaultExpectation.expectationOrigins.originClickPipeId, *mm_want_ptrs.clickPipeId, mm_got.clickPipeId, minimock.Diff(*mm_want_ptrs.clickPipeId, mm_got.clickPipeId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDrainClickPipe.t.Errorf("ClientMock.DrainClickPipe got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDrainClickPipe.DrainClickPipeMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDrainClickPipe.DrainClickPipeMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDrainClickPipe.t.Fatal("No results are set for the ClientMock.DrainClickPipe")
+		}
+		return (*mm_results).cp1, (*mm_results).err
+	}
+	if mmDrainClickPipe.funcDrainClickPipe != nil {
+		return mmDrainClickPipe.funcDrainClickPipe(ctx, serviceId, clickPipeId)
+	}
+	mmDrainClickPipe.t.Fatalf("Unexpected call to ClientMock.DrainClickPipe. %v %v %v", ctx, serviceId, clickPipeId)
+	return
+}
+
+// DrainClickPipeAfterCounter returns a count of finished ClientMock.DrainClickPipe invocations
+func (mmDrainClickPipe *ClientMock) DrainClickPipeAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDrainClickPipe.afterDrainClickPipeCounter)
+}
+
+// DrainClickPipeBeforeCounter returns a count of ClientMock.DrainClickPipe invocations
+func (mmDrainClickPipe *ClientMock) DrainClickPipeBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDrainClickPipe.beforeDrainClickPipeCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DrainClickPipe.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDrainClickPipe *mClientMockDrainClickPipe) Calls() []*ClientMockDrainClickPipeParams {
+	mmDrainClickPipe.mutex.RLock()
+
+	argCopy := make([]*ClientMockDrainClickPipeParams, len(mmDrainClickPipe.callArgs))
+	copy(argCopy, mmDrainClickPipe.callArgs)
+
+	mmDrainClickPipe.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDrainClickPipeDone returns true if the count of the DrainClickPipe invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDrainClickPipeDone() bool {
+	if m.DrainClickPipeMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DrainClickPipeMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DrainClickPipeMock.invocationsDone()
+}
+
+// MinimockDrainClickPipeInspect logs each unmet expectation
+func (m *ClientMock) MinimockDrainClickPipeInspect() {
+	for _, e := range m.DrainClickPipeMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DrainClickPipe at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDrainClickPipeCounter := mm_atomic.LoadUint64(&m.afterDrainClickPipeCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DrainClickPipeMock.defaultExpectation != nil && afterDrainClickPipeCounter < 1 {
+		if m.DrainClickPipeMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DrainClickPipe at\n%s", m.DrainClickPipeMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DrainClickPipe at\n%s with params: %#v", m.DrainClickPipeMock.defaultExpectation.expectationOrigins.origin, *m.DrainClickPipeMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDrainClickPipe != nil && afterDrainClickPipeCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DrainClickPipe at\n%s", m.funcDrainClickPipeOrigin)
+	}
+
+	if !m.DrainClickPipeMock.invocationsDone() && afterDrainClickPipeCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DrainClickPipe at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DrainClickPipeMock.expectedInvocations), m.DrainClickPipeMock.expectedInvocationsOrigin, afterDrainClickPipeCounter)
 	}
 }
 
@@ -39575,6 +39959,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockDetachUDFInspect()
 
+			m.MinimockDrainClickPipeInspect()
+
 			m.MinimockGetApiKeyInspect()
 
 			m.MinimockGetApiKeyIDInspect()
@@ -39777,6 +40163,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteUDFDone() &&
 		m.MinimockDeleteUpgradeWindowDone() &&
 		m.MinimockDetachUDFDone() &&
+		m.MinimockDrainClickPipeDone() &&
 		m.MinimockGetApiKeyDone() &&
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&

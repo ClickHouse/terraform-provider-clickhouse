@@ -21,6 +21,7 @@ const (
 	ClickPipeStoppingState      = "Stopping"
 	ClickPipeStoppedState       = "Stopped"
 	ClickPipePausingState       = "Pausing"
+	ClickPipeDrainingState      = "Draining"
 	ClickPipePausedState        = "Paused"
 	ClickPipeFailedState        = "Failed"
 	ClickPipeCompletedState     = "Completed"
@@ -409,6 +410,7 @@ type ClickPipeScalingRequest struct {
 
 type ClickPipeStateRequest struct {
 	Command string `json:"command"`
+	Drain   bool   `json:"drain,omitzero"`
 }
 
 func (c *ClientImpl) getClickPipePath(serviceId, clickPipeId, path string) string {
@@ -614,10 +616,17 @@ func (c *ClientImpl) ScalingClickPipe(ctx context.Context, serviceId string, cli
 }
 
 func (c *ClientImpl) ChangeClickPipeState(ctx context.Context, serviceId string, clickPipeId string, command string) (*ClickPipe, error) {
+	return c.changeClickPipeState(ctx, serviceId, clickPipeId, ClickPipeStateRequest{Command: command})
+}
+
+// DrainClickPipe pauses after all checkpointed CDC data has been normalized.
+func (c *ClientImpl) DrainClickPipe(ctx context.Context, serviceId, clickPipeId string) (*ClickPipe, error) {
+	return c.changeClickPipeState(ctx, serviceId, clickPipeId, ClickPipeStateRequest{Command: ClickPipeStateStop, Drain: true})
+}
+
+func (c *ClientImpl) changeClickPipeState(ctx context.Context, serviceId, clickPipeId string, request ClickPipeStateRequest) (*ClickPipe, error) {
 	var payload bytes.Buffer
-	if err := json.NewEncoder(&payload).Encode(ClickPipeStateRequest{
-		Command: command,
-	}); err != nil {
+	if err := json.NewEncoder(&payload).Encode(request); err != nil {
 		return nil, fmt.Errorf("failed to encode ClickPipe: %w", err)
 	}
 
