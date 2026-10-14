@@ -2,12 +2,17 @@ package clickstack
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
@@ -235,4 +240,101 @@ func TestSourceResource_OptionalAttributesPlanToConfig(t *testing.T) {
 		}
 	}
 	check("", resp.Schema.Attributes)
+}
+
+// TestSourceModel_LinksLeftUnsetAreNotManaged guards the split with
+// clickhouse_clickstack_source_links: a link null in config must stay null in
+// state whatever the server holds, or every plan would remove a link the links
+// resource set. A link the config does set still reports drift.
+func TestSourceModel_LinksLeftUnsetAreNotManaged(t *testing.T) {
+	t.Parallel()
+
+	m := sourceResourceModel{TraceSourceID: types.StringValue("t1")}
+	m.applySource(&client.Source{Kind: "log", TraceSourceID: strPtr("t2"), MetricSourceID: strPtr("m1")})
+	if !m.MetricSourceID.IsNull() {
+		t.Errorf("metric_source_id = %v, want null: config does not set it", m.MetricSourceID)
+	}
+	if m.TraceSourceID.ValueString() != "t2" {
+		t.Errorf("trace_source_id = %v, want the server's t2", m.TraceSourceID)
+	}
+}
+
+// TestSourceResource_UpdateKeepsUnmanagedLinks guards that an update, which is
+// a full replace, sends back the links this resource does not manage, and
+// still clears a link removed from config.
+func TestSourceResource_UpdateKeepsUnmanagedLinks(t *testing.T) {
+	t.Parallel()
+
+	var put client.Source
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			_, _ = io.WriteString(w, `{"data":{"id":"t1","kind":"trace","name":"traces",`+
+				`"logSourceId":"l1","sessionSourceId":"s1","metricSourceId":"m1"}}`)
+		case http.MethodPut:
+			if err := json.NewDecoder(r.Body).Decode(&put); err != nil {
+				t.Errorf("decode PUT body: %v", err)
+			}
+			put.ID = "t1"
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": put})
+		default:
+			t.Errorf("unexpected method %s", r.Method)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	c, err := client.New(srv.URL, "test-key", srv.Client())
+	if err != nil {
+		t.Fatalf("client.New: %v", err)
+	}
+
+	schResp := &fwresource.SchemaResponse{}
+	NewSourceResource().Schema(context.Background(), fwresource.SchemaRequest{}, schResp)
+	sch := schResp.Schema
+
+	base := sourceResourceModel{
+		ID:                       types.StringValue("t1"),
+		Name:                     types.StringValue("traces"),
+		Kind:                     types.StringValue("trace"),
+		Connection:               types.StringValue("conn1"),
+		From:                     &sourceFromModel{DatabaseName: types.StringValue("otel"), TableName: types.StringValue("otel_traces")},
+		TimestampValueExpression: types.StringValue("Timestamp"),
+		Disabled:                 types.BoolValue(false),
+		DurationPrecision:        types.Int64Value(3),
+	}
+	// Prior state: metric_source_id was set inline and is now removed from
+	// config; log and session are owned by the links resource.
+	prior := base
+	prior.MetricSourceID = types.StringValue("m1")
+
+	state := tfsdk.State{Schema: sch}
+	plan := tfsdk.State{Schema: sch}
+	if diags := state.Set(context.Background(), &prior); diags.HasError() {
+		t.Fatalf("set state: %s", diags)
+	}
+	if diags := plan.Set(context.Background(), &base); diags.HasError() {
+		t.Fatalf("set plan: %s", diags)
+	}
+
+	resp := &fwresource.UpdateResponse{State: tfsdk.State{Schema: sch}}
+	(&sourceResource{client: c}).Update(context.Background(), fwresource.UpdateRequest{
+		Plan:  tfsdk.Plan{Schema: sch, Raw: plan.Raw},
+		State: state,
+	}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Update: %s", resp.Diagnostics)
+	}
+
+	if put.LogSourceID == nil || *put.LogSourceID != "l1" || put.SessionSourceID == nil || *put.SessionSourceID != "s1" {
+		t.Errorf("unmanaged links not sent back: log=%v session=%v", put.LogSourceID, put.SessionSourceID)
+	}
+	if put.MetricSourceID != nil {
+		t.Errorf("metric_source_id = %v, want it cleared: it was removed from config", *put.MetricSourceID)
+	}
+
+	var got sourceResourceModel
+	resp.Diagnostics.Append(resp.State.Get(context.Background(), &got)...)
+	if !got.LogSourceID.IsNull() || !got.SessionSourceID.IsNull() {
+		t.Errorf("unmanaged links leaked into state: log=%v session=%v", got.LogSourceID, got.SessionSourceID)
+	}
 }

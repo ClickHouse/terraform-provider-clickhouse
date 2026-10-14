@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 )
 
 const sourcesPath = "/api/v2/sources"
@@ -223,6 +224,128 @@ func (c *Client) UpdateSource(ctx context.Context, id string, input Source) (*So
 		return nil, fmt.Errorf("encode source: %w", err)
 	}
 
+	raw, err := c.do(ctx, http.MethodPut, sourcesPath+"/"+url.PathEscape(id), body)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp sourceEnvelope
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, fmt.Errorf("decode source: %w", err)
+	}
+	return &resp.Data, nil
+}
+
+// Source kinds.
+const (
+	SourceKindLog     = "log"
+	SourceKindTrace   = "trace"
+	SourceKindSession = "session"
+	SourceKindMetric  = "metric"
+)
+
+// Correlated-source keys accepted by the sources API. Which ones apply depends
+// on the source kind; see SourceLinkKeysForKind.
+const (
+	LinkKeyLogSource     = "logSourceId"
+	LinkKeyTraceSource   = "traceSourceId"
+	LinkKeyMetricSource  = "metricSourceId"
+	LinkKeySessionSource = "sessionSourceId"
+)
+
+// SourceLinkKeysForKind returns the correlated-source keys the API stores for
+// a source kind. The API silently strips keys that do not apply to the kind,
+// so writing any other key is a no-op that would surface as drift.
+func SourceLinkKeysForKind(kind string) []string {
+	switch kind {
+	case SourceKindLog:
+		return []string{LinkKeyMetricSource, LinkKeyTraceSource}
+	case SourceKindTrace:
+		return []string{LinkKeyLogSource, LinkKeyMetricSource, LinkKeySessionSource}
+	case SourceKindSession:
+		return []string{LinkKeyTraceSource}
+	case SourceKindMetric:
+		return []string{LinkKeyLogSource}
+	default:
+		return nil
+	}
+}
+
+// getRawSource fetches a source as the API's own JSON object, keeping fields
+// the Source struct does not model.
+func (c *Client) getRawSource(ctx context.Context, id string) (map[string]json.RawMessage, error) {
+	if c.cloud {
+		raw, err := c.do(ctx, http.MethodGet, sourcesPath, nil)
+		if err != nil {
+			return nil, err
+		}
+		var resp struct {
+			Data []map[string]json.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			return nil, fmt.Errorf("decode sources: %w", err)
+		}
+		for _, src := range resp.Data {
+			var srcID string
+			if err := json.Unmarshal(src["id"], &srcID); err == nil && srcID == id {
+				return src, nil
+			}
+		}
+		return nil, fmt.Errorf("get source %s: %w", id, ErrNotFound)
+	}
+
+	raw, err := c.do(ctx, http.MethodGet, sourcesPath+"/"+url.PathEscape(id), nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Data map[string]json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, fmt.Errorf("decode source: %w", err)
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("get source %s: empty response", id)
+	}
+	return resp.Data, nil
+}
+
+// SetSourceLinks rewrites only the given correlated-source keys of a source and
+// returns the updated source. A nil value removes the key; keys not in links
+// are left as the API holds them. The PUT is a full replace that drops any
+// field missing from the body, so the body is the API's own JSON for the
+// source rather than a Source struct, which would lose unmodeled fields.
+// It returns an error wrapping ErrNotFound when the source does not exist.
+func (c *Client) SetSourceLinks(ctx context.Context, id string, links map[string]*string) (*Source, error) {
+	src, err := c.getRawSource(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var kind string
+	if err := json.Unmarshal(src["kind"], &kind); err != nil {
+		return nil, fmt.Errorf("decode source %s kind: %w", id, err)
+	}
+	allowed := SourceLinkKeysForKind(kind)
+	for key, v := range links {
+		if v == nil {
+			delete(src, key)
+			continue
+		}
+		if !slices.Contains(allowed, key) {
+			return nil, fmt.Errorf("source %s is of kind %q, which does not support %s (supported: %v)", id, kind, key, allowed)
+		}
+		enc, err := json.Marshal(*v)
+		if err != nil {
+			return nil, fmt.Errorf("encode %s: %w", key, err)
+		}
+		src[key] = enc
+	}
+
+	body, err := json.Marshal(src)
+	if err != nil {
+		return nil, fmt.Errorf("encode source: %w", err)
+	}
 	raw, err := c.do(ctx, http.MethodPut, sourcesPath+"/"+url.PathEscape(id), body)
 	if err != nil {
 		return nil, err
