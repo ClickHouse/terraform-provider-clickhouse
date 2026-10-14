@@ -47,15 +47,16 @@ func (r *ApiKeyResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 		MarkdownDescription: apiKeyResourceDescription,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Description: "Unique identifier for the API key (same value as key_id).",
+				Description: "Unique identifier (UUID) of the API key.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"key_id": schema.StringAttribute{
-				Description: "Unique identifier for the API key.",
+				Description: "The generated key ID, used together with key_secret as API credentials. Returned only at creation and stored in state. Empty for imported keys.",
 				Computed:    true,
+				Sensitive:   true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -152,13 +153,10 @@ func (r *ApiKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	// Capture the one-time secret and the server key id before mapping the rest.
+	// Capture the one-time key ID/secret pair before mapping the rest.
+	plan.KeyID = types.StringValue(result.KeyID)
 	plan.KeySecret = types.StringValue(result.KeySecret)
-	key := result.Key
-	if key.ID == "" {
-		key.ID = result.KeyID
-	}
-	resp.Diagnostics.Append(applyApiKeyToState(&key, &plan)...)
+	resp.Diagnostics.Append(applyApiKeyToState(&result.Key, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -203,13 +201,12 @@ func (r *ApiKeyResource) syncApiKeyState(ctx context.Context, state *models.ApiK
 }
 
 // applyApiKeyToState maps an API ApiKey into the Terraform state model.
-// It deliberately does NOT set KeySecret: the secret is only available at
+// It deliberately does NOT set KeyID or KeySecret: they are only available at
 // create time and must be preserved from prior state on every read.
 func applyApiKeyToState(key *api.ApiKey, state *models.ApiKeyResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	state.ID = types.StringValue(key.ID)
-	state.KeyID = types.StringValue(key.ID)
 	state.Name = types.StringValue(key.Name)
 	state.State = types.StringValue(key.State)
 	state.KeySuffix = types.StringValue(key.KeySuffix)
@@ -283,7 +280,8 @@ func (r *ApiKeyResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	// Secret is immutable and not returned by update; carry it forward.
+	// Key ID and secret are immutable and not returned by update; carry them forward.
+	plan.KeyID = state.KeyID
 	plan.KeySecret = state.KeySecret
 	resp.Diagnostics.Append(applyApiKeyToState(key, &plan)...)
 	if resp.Diagnostics.HasError() {
