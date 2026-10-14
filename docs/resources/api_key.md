@@ -82,8 +82,8 @@ resource "clickhouse_role_assignment" "monitoring" {
 
 ### Read-Only
 
-- `id` (String) Unique identifier for the API key (same value as key_id).
-- `key_id` (String) Unique identifier for the API key.
+- `id` (String) Unique identifier (UUID) of the API key.
+- `key_id` (String, Sensitive) The generated key ID, used together with key_secret as API credentials. Returned only at creation and stored in state. Empty for imported keys.
 - `key_secret` (String, Sensitive) The generated key secret. Returned only at creation and stored in state. Empty for imported keys.
 - `key_suffix` (String) Last characters of the key, for identification.
 

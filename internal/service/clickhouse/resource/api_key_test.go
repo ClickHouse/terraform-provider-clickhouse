@@ -28,9 +28,10 @@ func TestApiKeyResource_syncApiKeyState(t *testing.T) {
 		wantState   models.ApiKeyResourceModel
 	}{
 		{
-			name: "maps fields and preserves secret",
+			name: "maps fields and preserves key id and secret",
 			state: models.ApiKeyResourceModel{
 				ID:        types.StringValue("key-1"),
+				KeyID:     types.StringValue("preserved-key-id"),
 				KeySecret: types.StringValue("preserved-secret"),
 			},
 			response: &api.ApiKey{
@@ -42,7 +43,7 @@ func TestApiKeyResource_syncApiKeyState(t *testing.T) {
 			},
 			wantState: models.ApiKeyResourceModel{
 				ID:           types.StringValue("key-1"),
-				KeyID:        types.StringValue("key-1"),
+				KeyID:        types.StringValue("preserved-key-id"),
 				Name:         types.StringValue("monitoring"),
 				State:        types.StringValue("enabled"),
 				ExpireAt:     types.StringValue("2027-01-01T00:00:00Z"),
@@ -55,9 +56,10 @@ func TestApiKeyResource_syncApiKeyState(t *testing.T) {
 			// After `terraform import` the state carries only the ID (passthrough).
 			// Read hydrates the rest; key_secret has no prior value and the API
 			// never returns it, so it stays empty — the documented import limitation.
-			name: "import with no prior secret leaves key_secret empty",
+			name: "import with no prior secret leaves key_id and key_secret empty",
 			state: models.ApiKeyResourceModel{
 				ID:        types.StringValue("key-2"),
+				KeyID:     types.StringNull(),
 				KeySecret: types.StringNull(),
 			},
 			response: &api.ApiKey{
@@ -68,7 +70,7 @@ func TestApiKeyResource_syncApiKeyState(t *testing.T) {
 			},
 			wantState: models.ApiKeyResourceModel{
 				ID:           types.StringValue("key-2"),
-				KeyID:        types.StringValue("key-2"),
+				KeyID:        types.StringNull(),
 				Name:         types.StringValue("imported"),
 				State:        types.StringValue("enabled"),
 				ExpireAt:     types.StringNull(),
