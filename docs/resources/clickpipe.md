@@ -457,7 +457,7 @@ Optional:
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MySQL connection.
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
-- `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
+- `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `cloudsqlmysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
 
 <a id="nestedatt--source--mysql--credentials"></a>
 ### Nested Schema for `source.mysql.credentials`
