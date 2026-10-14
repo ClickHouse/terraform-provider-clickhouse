@@ -220,10 +220,9 @@ func TestSavedQueryResourceCreate(t *testing.T) {
 
 	resp := resource.CreateResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
 	r.Create(ctx, resource.CreateRequest{Plan: plan}, &resp)
-	if resp.Diagnostics.HasError() {
+	if len(resp.Diagnostics) != 0 {
 		t.Fatalf("Create diagnostics: %v", resp.Diagnostics)
 	}
-	assertBetaWarning(t, resp.Diagnostics)
 
 	var state models.SavedQueryResourceModel
 	if diags := resp.State.Get(ctx, &state); diags.HasError() {
@@ -264,10 +263,9 @@ func TestSavedQueryResourceUpdate(t *testing.T) {
 
 	resp := resource.UpdateResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
 	r.Update(ctx, resource.UpdateRequest{Plan: plan}, &resp)
-	if resp.Diagnostics.HasError() {
+	if len(resp.Diagnostics) != 0 {
 		t.Fatalf("Update diagnostics: %v", resp.Diagnostics)
 	}
-	assertBetaWarning(t, resp.Diagnostics)
 
 	var state models.SavedQueryResourceModel
 	if diags := resp.State.Get(ctx, &state); diags.HasError() {
@@ -541,10 +539,9 @@ func TestSavedQueryResourceImport(t *testing.T) {
 	r.ImportState(ctx, resource.ImportStateRequest{
 		ID: savedQueryServiceID + ":" + savedQueryID,
 	}, &resp)
-	if resp.Diagnostics.HasError() {
+	if len(resp.Diagnostics) != 0 {
 		t.Fatalf("ImportState diagnostics: %v", resp.Diagnostics)
 	}
-	assertBetaWarning(t, resp.Diagnostics)
 
 	for attribute, want := range map[string]string{
 		"service_id": savedQueryServiceID,
