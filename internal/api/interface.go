@@ -45,6 +45,8 @@ type Client interface {
 	UpdateBackupConfiguration(ctx context.Context, serviceId string, b BackupConfiguration) (*BackupConfiguration, error)
 	GetSnapshotConfiguration(ctx context.Context, serviceId string) (*SnapshotConfiguration, error)
 	UpdateSnapshotConfiguration(ctx context.Context, serviceId string, s SnapshotConfiguration) (*SnapshotConfiguration, error)
+	GetReplicaAwareRouting(ctx context.Context, serviceId string) (*ReplicaAwareRouting, error)
+	UpdateReplicaAwareRouting(ctx context.Context, serviceId string, routing ReplicaAwareRouting) (*ReplicaAwareRouting, error)
 	RotateTDEKey(ctx context.Context, serviceId string, keyId string) error
 
 	CreateUDFUploadSession(ctx context.Context) (*UDFUploadSession, error)
