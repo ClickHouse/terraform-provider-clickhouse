@@ -32,7 +32,7 @@ resource "clickhouse_postgres_service" "primary" {
   name             = var.service_name
   cloud_provider   = "gcp"
   region           = var.region
-  size             = "c4-highmem-lssd-4"
+  size             = "n2-highmem-2xlssd-4"
   postgres_version = "18"
   ha_type          = "async"
 
@@ -58,7 +58,7 @@ resource "clickhouse_postgres_service" "replica" {
   name            = "${var.service_name}-replica"
   cloud_provider  = "gcp"
   region          = var.region
-  size            = "c4-highmem-lssd-4"
+  size            = "n2-highmem-2xlssd-4"
   read_replica_of = clickhouse_postgres_service.primary.id
 }
 
