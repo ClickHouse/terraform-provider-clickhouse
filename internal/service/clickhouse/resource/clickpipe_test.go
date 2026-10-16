@@ -113,6 +113,30 @@ func TestGetSourceType(t *testing.T) {
 	}
 }
 
+func TestClickPipeResource_ModifyPlan_RejectsCreateStoppedDatabasePipe(t *testing.T) {
+	ctx := context.Background()
+	r := &ClickPipeResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+
+	model := postgresPlanWithTableDefinition(false)
+	model.Stopped = types.BoolValue(true)
+	plan := tfsdk.Plan{Schema: schemaResp.Schema}
+	if diags := plan.Set(ctx, &model); diags.HasError() {
+		t.Fatalf("encoding plan: %v", diags.Errors())
+	}
+	req := resource.ModifyPlanRequest{
+		State:  tfsdk.State{Schema: schemaResp.Schema},
+		Plan:   plan,
+		Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: plan.Raw},
+	}
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+	r.ModifyPlan(ctx, req, resp)
+
+	assert.True(t, errorDetailContains(resp.Diagnostics, "Database ClickPipes must be created running."),
+		"got diagnostics: %v", resp.Diagnostics.Errors())
+}
+
 func TestClickPipeResource_syncClickPipeState_Postgres(t *testing.T) {
 	ctx := context.Background()
 

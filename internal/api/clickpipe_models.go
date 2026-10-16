@@ -426,6 +426,8 @@ type ClickPipe struct {
 	Settings      map[string]any          `json:"settings,omitempty"`
 	CreatedAt     *time.Time              `json:"createdAt,omitempty"`
 	UpdatedAt     *time.Time              `json:"updatedAt,omitempty"`
+	// StartPaused is a create-only option; the API reports the live state in State.
+	StartPaused bool `json:"startPaused,omitempty"`
 }
 
 type ClickPipeUpdate struct {
