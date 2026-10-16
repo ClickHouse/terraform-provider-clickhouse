@@ -1,5 +1,7 @@
 package api
 
+import "encoding/json"
+
 const (
 	EndpointProtocolNativeSecure = "nativesecure"
 	EndpointProtocolHTTPS        = "https"
@@ -87,6 +89,7 @@ type Service struct {
 	CreatedAt                       string                        `json:"createdAt,omitempty"`
 	QueryAPIEndpoints               *ServiceQueryEndpoint         `json:"-"`
 	BackupID                        *string                       `json:"backupId,omitempty"`
+	BackupEncryptionConfig          json.RawMessage               `json:"backupEncryptionConfig,omitempty"`
 	ComplianceType                  *string                       `json:"complianceType,omitempty"`
 	Tags                            []Tag                         `json:"tags,omitempty"`
 	EnableCoreDumps                 *bool                         `json:"enableCoreDumps,omitempty"`
