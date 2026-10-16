@@ -201,7 +201,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional: true,
 			},
 			"stopped": schema.BoolAttribute{
-				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running). Cannot be set to `true` on creation — the ClickPipe must be created in a running state and then stopped via a subsequent apply.",
+				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false`. For streaming and object-storage ClickPipes, set to `true` to create the pipe without starting ingestion, then set to `false` and apply to start it. Database ClickPipes cannot be created stopped. This is the configured intent; `state` reports the live status.",
 				Computed:            true,
 				Optional:            true,
 				Default:             booldefault.StaticBool(false),
@@ -2148,24 +2148,6 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		return
 	}
 
-	// Reject `stopped = true` on creation. The API does not support provisioning a pipe
-	// in a stopped state; the pipe must be created running and then stopped via update.
-	// An Unknown value (e.g. `stopped` derived from an apply-time computed expression)
-	// is also rejected: we cannot prove it will resolve to false, and a true would put
-	// us in the unsupported create-stopped path. Require a known false on creation.
-	if request.State.Raw.IsNull() && (plan.Stopped.IsUnknown() || plan.Stopped.ValueBool()) {
-		detail := "`stopped = true` is not allowed when creating a new ClickPipe. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
-		if plan.Stopped.IsUnknown() {
-			detail = "`stopped` must be a known value (false) when creating a new ClickPipe; it cannot be derived from an apply-time computed value. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
-		}
-		response.Diagnostics.AddAttributeError(
-			path.Root("stopped"),
-			"Cannot create a ClickPipe in a stopped state",
-			detail,
-		)
-		return
-	}
-
 	// Validate table engine configuration
 	if !plan.Destination.IsNull() {
 		destinationModel := models.ClickPipeDestinationModel{}
@@ -2271,10 +2253,21 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Validate object storage configuration
+	// Validate source configuration
 	if !plan.Source.IsNull() {
 		sourceModel := models.ClickPipeSourceModel{}
 		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+		isDBPipe := !sourceModel.Postgres.IsNull() || !sourceModel.MySQL.IsNull() ||
+			!sourceModel.BigQuery.IsNull() || !sourceModel.MongoDB.IsNull()
+		if request.State.Raw.IsNull() && plan.Stopped.ValueBool() && isDBPipe {
+			response.Diagnostics.AddAttributeError(
+				path.Root("stopped"),
+				"Cannot create a database ClickPipe in a stopped state",
+				"`stopped = true` on creation is only supported for streaming and object-storage ClickPipes. Database ClickPipes must be created running.",
+			)
+			return
+		}
 
 		if !sourceModel.ObjectStorage.IsNull() {
 			objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
@@ -2899,7 +2892,8 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	serviceID := plan.ServiceID.ValueString()
 
 	clickPipe := api.ClickPipe{
-		Name: plan.Name.ValueString(),
+		Name:        plan.Name.ValueString(),
+		StartPaused: plan.Stopped.ValueBool(),
 	}
 
 	if source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, false); source != nil {
@@ -3103,16 +3097,6 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 				)
 				return
 			}
-		}
-	}
-
-	if plan.Stopped.ValueBool() {
-		if _, err := c.client.ChangeClickPipeState(ctx, serviceID, createdClickPipe.ID, api.ClickPipeStateStop); err != nil {
-			response.Diagnostics.AddError(
-				"Error Stopping ClickPipe",
-				"Could not stop ClickPipe, unexpected error: "+err.Error(),
-			)
-			return
 		}
 	}
 
