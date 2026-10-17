@@ -376,6 +376,13 @@ type ClientMock struct {
 	beforeGetQueryEndpointCounter uint64
 	GetQueryEndpointMock          mClientMockGetQueryEndpoint
 
+	funcGetReplicaAwareRouting          func(ctx context.Context, serviceId string) (rp1 *ReplicaAwareRouting, err error)
+	funcGetReplicaAwareRoutingOrigin    string
+	inspectFuncGetReplicaAwareRouting   func(ctx context.Context, serviceId string)
+	afterGetReplicaAwareRoutingCounter  uint64
+	beforeGetReplicaAwareRoutingCounter uint64
+	GetReplicaAwareRoutingMock          mClientMockGetReplicaAwareRouting
+
 	funcGetReversePrivateEndpoint          func(ctx context.Context, serviceId string, reversePrivateEndpointId string) (rp1 *ReversePrivateEndpoint, err error)
 	funcGetReversePrivateEndpointOrigin    string
 	inspectFuncGetReversePrivateEndpoint   func(ctx context.Context, serviceId string, reversePrivateEndpointId string)
@@ -620,6 +627,13 @@ type ClientMock struct {
 	afterUpdateQueryAPIEndpointCounter  uint64
 	beforeUpdateQueryAPIEndpointCounter uint64
 	UpdateQueryAPIEndpointMock          mClientMockUpdateQueryAPIEndpoint
+
+	funcUpdateReplicaAwareRouting          func(ctx context.Context, serviceId string, routing ReplicaAwareRouting) (rp1 *ReplicaAwareRouting, err error)
+	funcUpdateReplicaAwareRoutingOrigin    string
+	inspectFuncUpdateReplicaAwareRouting   func(ctx context.Context, serviceId string, routing ReplicaAwareRouting)
+	afterUpdateReplicaAwareRoutingCounter  uint64
+	beforeUpdateReplicaAwareRoutingCounter uint64
+	UpdateReplicaAwareRoutingMock          mClientMockUpdateReplicaAwareRouting
 
 	funcUpdateReplicaScaling          func(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (sp1 *Service, err error)
 	funcUpdateReplicaScalingOrigin    string
@@ -923,6 +937,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetQueryEndpointMock = mClientMockGetQueryEndpoint{mock: m}
 	m.GetQueryEndpointMock.callArgs = []*ClientMockGetQueryEndpointParams{}
 
+	m.GetReplicaAwareRoutingMock = mClientMockGetReplicaAwareRouting{mock: m}
+	m.GetReplicaAwareRoutingMock.callArgs = []*ClientMockGetReplicaAwareRoutingParams{}
+
 	m.GetReversePrivateEndpointMock = mClientMockGetReversePrivateEndpoint{mock: m}
 	m.GetReversePrivateEndpointMock.callArgs = []*ClientMockGetReversePrivateEndpointParams{}
 
@@ -1027,6 +1044,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateQueryAPIEndpointMock = mClientMockUpdateQueryAPIEndpoint{mock: m}
 	m.UpdateQueryAPIEndpointMock.callArgs = []*ClientMockUpdateQueryAPIEndpointParams{}
+
+	m.UpdateReplicaAwareRoutingMock = mClientMockUpdateReplicaAwareRouting{mock: m}
+	m.UpdateReplicaAwareRoutingMock.callArgs = []*ClientMockUpdateReplicaAwareRoutingParams{}
 
 	m.UpdateReplicaScalingMock = mClientMockUpdateReplicaScaling{mock: m}
 	m.UpdateReplicaScalingMock.callArgs = []*ClientMockUpdateReplicaScalingParams{}
@@ -19163,6 +19183,349 @@ func (m *ClientMock) MinimockGetQueryEndpointInspect() {
 	}
 }
 
+type mClientMockGetReplicaAwareRouting struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetReplicaAwareRoutingExpectation
+	expectations       []*ClientMockGetReplicaAwareRoutingExpectation
+
+	callArgs []*ClientMockGetReplicaAwareRoutingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetReplicaAwareRoutingExpectation specifies expectation struct of the Client.GetReplicaAwareRouting
+type ClientMockGetReplicaAwareRoutingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetReplicaAwareRoutingParams
+	paramPtrs          *ClientMockGetReplicaAwareRoutingParamPtrs
+	expectationOrigins ClientMockGetReplicaAwareRoutingExpectationOrigins
+	results            *ClientMockGetReplicaAwareRoutingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetReplicaAwareRoutingParams contains parameters of the Client.GetReplicaAwareRouting
+type ClientMockGetReplicaAwareRoutingParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetReplicaAwareRoutingParamPtrs contains pointers to parameters of the Client.GetReplicaAwareRouting
+type ClientMockGetReplicaAwareRoutingParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetReplicaAwareRoutingResults contains results of the Client.GetReplicaAwareRouting
+type ClientMockGetReplicaAwareRoutingResults struct {
+	rp1 *ReplicaAwareRouting
+	err error
+}
+
+// ClientMockGetReplicaAwareRoutingOrigins contains origins of expectations of the Client.GetReplicaAwareRouting
+type ClientMockGetReplicaAwareRoutingExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) Optional() *mClientMockGetReplicaAwareRouting {
+	mmGetReplicaAwareRouting.optional = true
+	return mmGetReplicaAwareRouting
+}
+
+// Expect sets up expected params for Client.GetReplicaAwareRouting
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) Expect(ctx context.Context, serviceId string) *mClientMockGetReplicaAwareRouting {
+	if mmGetReplicaAwareRouting.mock.funcGetReplicaAwareRouting != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("ClientMock.GetReplicaAwareRouting mock is already set by Set")
+	}
+
+	if mmGetReplicaAwareRouting.defaultExpectation == nil {
+		mmGetReplicaAwareRouting.defaultExpectation = &ClientMockGetReplicaAwareRoutingExpectation{}
+	}
+
+	if mmGetReplicaAwareRouting.defaultExpectation.paramPtrs != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("ClientMock.GetReplicaAwareRouting mock is already set by ExpectParams functions")
+	}
+
+	mmGetReplicaAwareRouting.defaultExpectation.params = &ClientMockGetReplicaAwareRoutingParams{ctx, serviceId}
+	mmGetReplicaAwareRouting.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetReplicaAwareRouting.expectations {
+		if minimock.Equal(e.params, mmGetReplicaAwareRouting.defaultExpectation.params) {
+			mmGetReplicaAwareRouting.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetReplicaAwareRouting.defaultExpectation.params)
+		}
+	}
+
+	return mmGetReplicaAwareRouting
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetReplicaAwareRouting
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) ExpectCtxParam1(ctx context.Context) *mClientMockGetReplicaAwareRouting {
+	if mmGetReplicaAwareRouting.mock.funcGetReplicaAwareRouting != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("ClientMock.GetReplicaAwareRouting mock is already set by Set")
+	}
+
+	if mmGetReplicaAwareRouting.defaultExpectation == nil {
+		mmGetReplicaAwareRouting.defaultExpectation = &ClientMockGetReplicaAwareRoutingExpectation{}
+	}
+
+	if mmGetReplicaAwareRouting.defaultExpectation.params != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("ClientMock.GetReplicaAwareRouting mock is already set by Expect")
+	}
+
+	if mmGetReplicaAwareRouting.defaultExpectation.paramPtrs == nil {
+		mmGetReplicaAwareRouting.defaultExpectation.paramPtrs = &ClientMockGetReplicaAwareRoutingParamPtrs{}
+	}
+	mmGetReplicaAwareRouting.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetReplicaAwareRouting.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetReplicaAwareRouting
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetReplicaAwareRouting
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) ExpectServiceIdParam2(serviceId string) *mClientMockGetReplicaAwareRouting {
+	if mmGetReplicaAwareRouting.mock.funcGetReplicaAwareRouting != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("ClientMock.GetReplicaAwareRouting mock is already set by Set")
+	}
+
+	if mmGetReplicaAwareRouting.defaultExpectation == nil {
+		mmGetReplicaAwareRouting.defaultExpectation = &ClientMockGetReplicaAwareRoutingExpectation{}
+	}
+
+	if mmGetReplicaAwareRouting.defaultExpectation.params != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("ClientMock.GetReplicaAwareRouting mock is already set by Expect")
+	}
+
+	if mmGetReplicaAwareRouting.defaultExpectation.paramPtrs == nil {
+		mmGetReplicaAwareRouting.defaultExpectation.paramPtrs = &ClientMockGetReplicaAwareRoutingParamPtrs{}
+	}
+	mmGetReplicaAwareRouting.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetReplicaAwareRouting.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetReplicaAwareRouting
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetReplicaAwareRouting
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetReplicaAwareRouting {
+	if mmGetReplicaAwareRouting.mock.inspectFuncGetReplicaAwareRouting != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("Inspect function is already set for ClientMock.GetReplicaAwareRouting")
+	}
+
+	mmGetReplicaAwareRouting.mock.inspectFuncGetReplicaAwareRouting = f
+
+	return mmGetReplicaAwareRouting
+}
+
+// Return sets up results that will be returned by Client.GetReplicaAwareRouting
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) Return(rp1 *ReplicaAwareRouting, err error) *ClientMock {
+	if mmGetReplicaAwareRouting.mock.funcGetReplicaAwareRouting != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("ClientMock.GetReplicaAwareRouting mock is already set by Set")
+	}
+
+	if mmGetReplicaAwareRouting.defaultExpectation == nil {
+		mmGetReplicaAwareRouting.defaultExpectation = &ClientMockGetReplicaAwareRoutingExpectation{mock: mmGetReplicaAwareRouting.mock}
+	}
+	mmGetReplicaAwareRouting.defaultExpectation.results = &ClientMockGetReplicaAwareRoutingResults{rp1, err}
+	mmGetReplicaAwareRouting.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetReplicaAwareRouting.mock
+}
+
+// Set uses given function f to mock the Client.GetReplicaAwareRouting method
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) Set(f func(ctx context.Context, serviceId string) (rp1 *ReplicaAwareRouting, err error)) *ClientMock {
+	if mmGetReplicaAwareRouting.defaultExpectation != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("Default expectation is already set for the Client.GetReplicaAwareRouting method")
+	}
+
+	if len(mmGetReplicaAwareRouting.expectations) > 0 {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("Some expectations are already set for the Client.GetReplicaAwareRouting method")
+	}
+
+	mmGetReplicaAwareRouting.mock.funcGetReplicaAwareRouting = f
+	mmGetReplicaAwareRouting.mock.funcGetReplicaAwareRoutingOrigin = minimock.CallerInfo(1)
+	return mmGetReplicaAwareRouting.mock
+}
+
+// When sets expectation for the Client.GetReplicaAwareRouting which will trigger the result defined by the following
+// Then helper
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) When(ctx context.Context, serviceId string) *ClientMockGetReplicaAwareRoutingExpectation {
+	if mmGetReplicaAwareRouting.mock.funcGetReplicaAwareRouting != nil {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("ClientMock.GetReplicaAwareRouting mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetReplicaAwareRoutingExpectation{
+		mock:               mmGetReplicaAwareRouting.mock,
+		params:             &ClientMockGetReplicaAwareRoutingParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetReplicaAwareRoutingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetReplicaAwareRouting.expectations = append(mmGetReplicaAwareRouting.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetReplicaAwareRouting return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetReplicaAwareRoutingExpectation) Then(rp1 *ReplicaAwareRouting, err error) *ClientMock {
+	e.results = &ClientMockGetReplicaAwareRoutingResults{rp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetReplicaAwareRouting should be invoked
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) Times(n uint64) *mClientMockGetReplicaAwareRouting {
+	if n == 0 {
+		mmGetReplicaAwareRouting.mock.t.Fatalf("Times of ClientMock.GetReplicaAwareRouting mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetReplicaAwareRouting.expectedInvocations, n)
+	mmGetReplicaAwareRouting.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetReplicaAwareRouting
+}
+
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) invocationsDone() bool {
+	if len(mmGetReplicaAwareRouting.expectations) == 0 && mmGetReplicaAwareRouting.defaultExpectation == nil && mmGetReplicaAwareRouting.mock.funcGetReplicaAwareRouting == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetReplicaAwareRouting.mock.afterGetReplicaAwareRoutingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetReplicaAwareRouting.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetReplicaAwareRouting implements Client
+func (mmGetReplicaAwareRouting *ClientMock) GetReplicaAwareRouting(ctx context.Context, serviceId string) (rp1 *ReplicaAwareRouting, err error) {
+	mm_atomic.AddUint64(&mmGetReplicaAwareRouting.beforeGetReplicaAwareRoutingCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetReplicaAwareRouting.afterGetReplicaAwareRoutingCounter, 1)
+
+	mmGetReplicaAwareRouting.t.Helper()
+
+	if mmGetReplicaAwareRouting.inspectFuncGetReplicaAwareRouting != nil {
+		mmGetReplicaAwareRouting.inspectFuncGetReplicaAwareRouting(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetReplicaAwareRoutingParams{ctx, serviceId}
+
+	// Record call args
+	mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.mutex.Lock()
+	mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.callArgs = append(mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.callArgs, &mm_params)
+	mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.mutex.Unlock()
+
+	for _, e := range mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.rp1, e.results.err
+		}
+	}
+
+	if mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.defaultExpectation.params
+		mm_want_ptrs := mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetReplicaAwareRoutingParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetReplicaAwareRouting.t.Errorf("ClientMock.GetReplicaAwareRouting got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetReplicaAwareRouting.t.Errorf("ClientMock.GetReplicaAwareRouting got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetReplicaAwareRouting.t.Errorf("ClientMock.GetReplicaAwareRouting got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetReplicaAwareRouting.GetReplicaAwareRoutingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetReplicaAwareRouting.t.Fatal("No results are set for the ClientMock.GetReplicaAwareRouting")
+		}
+		return (*mm_results).rp1, (*mm_results).err
+	}
+	if mmGetReplicaAwareRouting.funcGetReplicaAwareRouting != nil {
+		return mmGetReplicaAwareRouting.funcGetReplicaAwareRouting(ctx, serviceId)
+	}
+	mmGetReplicaAwareRouting.t.Fatalf("Unexpected call to ClientMock.GetReplicaAwareRouting. %v %v", ctx, serviceId)
+	return
+}
+
+// GetReplicaAwareRoutingAfterCounter returns a count of finished ClientMock.GetReplicaAwareRouting invocations
+func (mmGetReplicaAwareRouting *ClientMock) GetReplicaAwareRoutingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetReplicaAwareRouting.afterGetReplicaAwareRoutingCounter)
+}
+
+// GetReplicaAwareRoutingBeforeCounter returns a count of ClientMock.GetReplicaAwareRouting invocations
+func (mmGetReplicaAwareRouting *ClientMock) GetReplicaAwareRoutingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetReplicaAwareRouting.beforeGetReplicaAwareRoutingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetReplicaAwareRouting.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetReplicaAwareRouting *mClientMockGetReplicaAwareRouting) Calls() []*ClientMockGetReplicaAwareRoutingParams {
+	mmGetReplicaAwareRouting.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetReplicaAwareRoutingParams, len(mmGetReplicaAwareRouting.callArgs))
+	copy(argCopy, mmGetReplicaAwareRouting.callArgs)
+
+	mmGetReplicaAwareRouting.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetReplicaAwareRoutingDone returns true if the count of the GetReplicaAwareRouting invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetReplicaAwareRoutingDone() bool {
+	if m.GetReplicaAwareRoutingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetReplicaAwareRoutingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetReplicaAwareRoutingMock.invocationsDone()
+}
+
+// MinimockGetReplicaAwareRoutingInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetReplicaAwareRoutingInspect() {
+	for _, e := range m.GetReplicaAwareRoutingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetReplicaAwareRouting at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetReplicaAwareRoutingCounter := mm_atomic.LoadUint64(&m.afterGetReplicaAwareRoutingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetReplicaAwareRoutingMock.defaultExpectation != nil && afterGetReplicaAwareRoutingCounter < 1 {
+		if m.GetReplicaAwareRoutingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetReplicaAwareRouting at\n%s", m.GetReplicaAwareRoutingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetReplicaAwareRouting at\n%s with params: %#v", m.GetReplicaAwareRoutingMock.defaultExpectation.expectationOrigins.origin, *m.GetReplicaAwareRoutingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetReplicaAwareRouting != nil && afterGetReplicaAwareRoutingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetReplicaAwareRouting at\n%s", m.funcGetReplicaAwareRoutingOrigin)
+	}
+
+	if !m.GetReplicaAwareRoutingMock.invocationsDone() && afterGetReplicaAwareRoutingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetReplicaAwareRouting at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetReplicaAwareRoutingMock.expectedInvocations), m.GetReplicaAwareRoutingMock.expectedInvocationsOrigin, afterGetReplicaAwareRoutingCounter)
+	}
+}
+
 type mClientMockGetReversePrivateEndpoint struct {
 	optional           bool
 	mock               *ClientMock
@@ -31754,6 +32117,380 @@ func (m *ClientMock) MinimockUpdateQueryAPIEndpointInspect() {
 	}
 }
 
+type mClientMockUpdateReplicaAwareRouting struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateReplicaAwareRoutingExpectation
+	expectations       []*ClientMockUpdateReplicaAwareRoutingExpectation
+
+	callArgs []*ClientMockUpdateReplicaAwareRoutingParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateReplicaAwareRoutingExpectation specifies expectation struct of the Client.UpdateReplicaAwareRouting
+type ClientMockUpdateReplicaAwareRoutingExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateReplicaAwareRoutingParams
+	paramPtrs          *ClientMockUpdateReplicaAwareRoutingParamPtrs
+	expectationOrigins ClientMockUpdateReplicaAwareRoutingExpectationOrigins
+	results            *ClientMockUpdateReplicaAwareRoutingResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateReplicaAwareRoutingParams contains parameters of the Client.UpdateReplicaAwareRouting
+type ClientMockUpdateReplicaAwareRoutingParams struct {
+	ctx       context.Context
+	serviceId string
+	routing   ReplicaAwareRouting
+}
+
+// ClientMockUpdateReplicaAwareRoutingParamPtrs contains pointers to parameters of the Client.UpdateReplicaAwareRouting
+type ClientMockUpdateReplicaAwareRoutingParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	routing   *ReplicaAwareRouting
+}
+
+// ClientMockUpdateReplicaAwareRoutingResults contains results of the Client.UpdateReplicaAwareRouting
+type ClientMockUpdateReplicaAwareRoutingResults struct {
+	rp1 *ReplicaAwareRouting
+	err error
+}
+
+// ClientMockUpdateReplicaAwareRoutingOrigins contains origins of expectations of the Client.UpdateReplicaAwareRouting
+type ClientMockUpdateReplicaAwareRoutingExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originRouting   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) Optional() *mClientMockUpdateReplicaAwareRouting {
+	mmUpdateReplicaAwareRouting.optional = true
+	return mmUpdateReplicaAwareRouting
+}
+
+// Expect sets up expected params for Client.UpdateReplicaAwareRouting
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) Expect(ctx context.Context, serviceId string, routing ReplicaAwareRouting) *mClientMockUpdateReplicaAwareRouting {
+	if mmUpdateReplicaAwareRouting.mock.funcUpdateReplicaAwareRouting != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by Set")
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation == nil {
+		mmUpdateReplicaAwareRouting.defaultExpectation = &ClientMockUpdateReplicaAwareRoutingExpectation{}
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateReplicaAwareRouting.defaultExpectation.params = &ClientMockUpdateReplicaAwareRoutingParams{ctx, serviceId, routing}
+	mmUpdateReplicaAwareRouting.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateReplicaAwareRouting.expectations {
+		if minimock.Equal(e.params, mmUpdateReplicaAwareRouting.defaultExpectation.params) {
+			mmUpdateReplicaAwareRouting.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateReplicaAwareRouting.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateReplicaAwareRouting
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateReplicaAwareRouting
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateReplicaAwareRouting {
+	if mmUpdateReplicaAwareRouting.mock.funcUpdateReplicaAwareRouting != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by Set")
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation == nil {
+		mmUpdateReplicaAwareRouting.defaultExpectation = &ClientMockUpdateReplicaAwareRoutingExpectation{}
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation.params != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by Expect")
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs == nil {
+		mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs = &ClientMockUpdateReplicaAwareRoutingParamPtrs{}
+	}
+	mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateReplicaAwareRouting.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateReplicaAwareRouting
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateReplicaAwareRouting
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateReplicaAwareRouting {
+	if mmUpdateReplicaAwareRouting.mock.funcUpdateReplicaAwareRouting != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by Set")
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation == nil {
+		mmUpdateReplicaAwareRouting.defaultExpectation = &ClientMockUpdateReplicaAwareRoutingExpectation{}
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation.params != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by Expect")
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs == nil {
+		mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs = &ClientMockUpdateReplicaAwareRoutingParamPtrs{}
+	}
+	mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmUpdateReplicaAwareRouting.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmUpdateReplicaAwareRouting
+}
+
+// ExpectRoutingParam3 sets up expected param routing for Client.UpdateReplicaAwareRouting
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) ExpectRoutingParam3(routing ReplicaAwareRouting) *mClientMockUpdateReplicaAwareRouting {
+	if mmUpdateReplicaAwareRouting.mock.funcUpdateReplicaAwareRouting != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by Set")
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation == nil {
+		mmUpdateReplicaAwareRouting.defaultExpectation = &ClientMockUpdateReplicaAwareRoutingExpectation{}
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation.params != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by Expect")
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs == nil {
+		mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs = &ClientMockUpdateReplicaAwareRoutingParamPtrs{}
+	}
+	mmUpdateReplicaAwareRouting.defaultExpectation.paramPtrs.routing = &routing
+	mmUpdateReplicaAwareRouting.defaultExpectation.expectationOrigins.originRouting = minimock.CallerInfo(1)
+
+	return mmUpdateReplicaAwareRouting
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateReplicaAwareRouting
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) Inspect(f func(ctx context.Context, serviceId string, routing ReplicaAwareRouting)) *mClientMockUpdateReplicaAwareRouting {
+	if mmUpdateReplicaAwareRouting.mock.inspectFuncUpdateReplicaAwareRouting != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateReplicaAwareRouting")
+	}
+
+	mmUpdateReplicaAwareRouting.mock.inspectFuncUpdateReplicaAwareRouting = f
+
+	return mmUpdateReplicaAwareRouting
+}
+
+// Return sets up results that will be returned by Client.UpdateReplicaAwareRouting
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) Return(rp1 *ReplicaAwareRouting, err error) *ClientMock {
+	if mmUpdateReplicaAwareRouting.mock.funcUpdateReplicaAwareRouting != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by Set")
+	}
+
+	if mmUpdateReplicaAwareRouting.defaultExpectation == nil {
+		mmUpdateReplicaAwareRouting.defaultExpectation = &ClientMockUpdateReplicaAwareRoutingExpectation{mock: mmUpdateReplicaAwareRouting.mock}
+	}
+	mmUpdateReplicaAwareRouting.defaultExpectation.results = &ClientMockUpdateReplicaAwareRoutingResults{rp1, err}
+	mmUpdateReplicaAwareRouting.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateReplicaAwareRouting.mock
+}
+
+// Set uses given function f to mock the Client.UpdateReplicaAwareRouting method
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) Set(f func(ctx context.Context, serviceId string, routing ReplicaAwareRouting) (rp1 *ReplicaAwareRouting, err error)) *ClientMock {
+	if mmUpdateReplicaAwareRouting.defaultExpectation != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("Default expectation is already set for the Client.UpdateReplicaAwareRouting method")
+	}
+
+	if len(mmUpdateReplicaAwareRouting.expectations) > 0 {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("Some expectations are already set for the Client.UpdateReplicaAwareRouting method")
+	}
+
+	mmUpdateReplicaAwareRouting.mock.funcUpdateReplicaAwareRouting = f
+	mmUpdateReplicaAwareRouting.mock.funcUpdateReplicaAwareRoutingOrigin = minimock.CallerInfo(1)
+	return mmUpdateReplicaAwareRouting.mock
+}
+
+// When sets expectation for the Client.UpdateReplicaAwareRouting which will trigger the result defined by the following
+// Then helper
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) When(ctx context.Context, serviceId string, routing ReplicaAwareRouting) *ClientMockUpdateReplicaAwareRoutingExpectation {
+	if mmUpdateReplicaAwareRouting.mock.funcUpdateReplicaAwareRouting != nil {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("ClientMock.UpdateReplicaAwareRouting mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateReplicaAwareRoutingExpectation{
+		mock:               mmUpdateReplicaAwareRouting.mock,
+		params:             &ClientMockUpdateReplicaAwareRoutingParams{ctx, serviceId, routing},
+		expectationOrigins: ClientMockUpdateReplicaAwareRoutingExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateReplicaAwareRouting.expectations = append(mmUpdateReplicaAwareRouting.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateReplicaAwareRouting return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateReplicaAwareRoutingExpectation) Then(rp1 *ReplicaAwareRouting, err error) *ClientMock {
+	e.results = &ClientMockUpdateReplicaAwareRoutingResults{rp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateReplicaAwareRouting should be invoked
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) Times(n uint64) *mClientMockUpdateReplicaAwareRouting {
+	if n == 0 {
+		mmUpdateReplicaAwareRouting.mock.t.Fatalf("Times of ClientMock.UpdateReplicaAwareRouting mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateReplicaAwareRouting.expectedInvocations, n)
+	mmUpdateReplicaAwareRouting.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateReplicaAwareRouting
+}
+
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) invocationsDone() bool {
+	if len(mmUpdateReplicaAwareRouting.expectations) == 0 && mmUpdateReplicaAwareRouting.defaultExpectation == nil && mmUpdateReplicaAwareRouting.mock.funcUpdateReplicaAwareRouting == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateReplicaAwareRouting.mock.afterUpdateReplicaAwareRoutingCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateReplicaAwareRouting.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateReplicaAwareRouting implements Client
+func (mmUpdateReplicaAwareRouting *ClientMock) UpdateReplicaAwareRouting(ctx context.Context, serviceId string, routing ReplicaAwareRouting) (rp1 *ReplicaAwareRouting, err error) {
+	mm_atomic.AddUint64(&mmUpdateReplicaAwareRouting.beforeUpdateReplicaAwareRoutingCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateReplicaAwareRouting.afterUpdateReplicaAwareRoutingCounter, 1)
+
+	mmUpdateReplicaAwareRouting.t.Helper()
+
+	if mmUpdateReplicaAwareRouting.inspectFuncUpdateReplicaAwareRouting != nil {
+		mmUpdateReplicaAwareRouting.inspectFuncUpdateReplicaAwareRouting(ctx, serviceId, routing)
+	}
+
+	mm_params := ClientMockUpdateReplicaAwareRoutingParams{ctx, serviceId, routing}
+
+	// Record call args
+	mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.mutex.Lock()
+	mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.callArgs = append(mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.callArgs, &mm_params)
+	mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.mutex.Unlock()
+
+	for _, e := range mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.rp1, e.results.err
+		}
+	}
+
+	if mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateReplicaAwareRoutingParams{ctx, serviceId, routing}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateReplicaAwareRouting.t.Errorf("ClientMock.UpdateReplicaAwareRouting got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateReplicaAwareRouting.t.Errorf("ClientMock.UpdateReplicaAwareRouting got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.routing != nil && !minimock.Equal(*mm_want_ptrs.routing, mm_got.routing) {
+				mmUpdateReplicaAwareRouting.t.Errorf("ClientMock.UpdateReplicaAwareRouting got unexpected parameter routing, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.defaultExpectation.expectationOrigins.originRouting, *mm_want_ptrs.routing, mm_got.routing, minimock.Diff(*mm_want_ptrs.routing, mm_got.routing))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateReplicaAwareRouting.t.Errorf("ClientMock.UpdateReplicaAwareRouting got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateReplicaAwareRouting.UpdateReplicaAwareRoutingMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateReplicaAwareRouting.t.Fatal("No results are set for the ClientMock.UpdateReplicaAwareRouting")
+		}
+		return (*mm_results).rp1, (*mm_results).err
+	}
+	if mmUpdateReplicaAwareRouting.funcUpdateReplicaAwareRouting != nil {
+		return mmUpdateReplicaAwareRouting.funcUpdateReplicaAwareRouting(ctx, serviceId, routing)
+	}
+	mmUpdateReplicaAwareRouting.t.Fatalf("Unexpected call to ClientMock.UpdateReplicaAwareRouting. %v %v %v", ctx, serviceId, routing)
+	return
+}
+
+// UpdateReplicaAwareRoutingAfterCounter returns a count of finished ClientMock.UpdateReplicaAwareRouting invocations
+func (mmUpdateReplicaAwareRouting *ClientMock) UpdateReplicaAwareRoutingAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateReplicaAwareRouting.afterUpdateReplicaAwareRoutingCounter)
+}
+
+// UpdateReplicaAwareRoutingBeforeCounter returns a count of ClientMock.UpdateReplicaAwareRouting invocations
+func (mmUpdateReplicaAwareRouting *ClientMock) UpdateReplicaAwareRoutingBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateReplicaAwareRouting.beforeUpdateReplicaAwareRoutingCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateReplicaAwareRouting.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateReplicaAwareRouting *mClientMockUpdateReplicaAwareRouting) Calls() []*ClientMockUpdateReplicaAwareRoutingParams {
+	mmUpdateReplicaAwareRouting.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateReplicaAwareRoutingParams, len(mmUpdateReplicaAwareRouting.callArgs))
+	copy(argCopy, mmUpdateReplicaAwareRouting.callArgs)
+
+	mmUpdateReplicaAwareRouting.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateReplicaAwareRoutingDone returns true if the count of the UpdateReplicaAwareRouting invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateReplicaAwareRoutingDone() bool {
+	if m.UpdateReplicaAwareRoutingMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateReplicaAwareRoutingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateReplicaAwareRoutingMock.invocationsDone()
+}
+
+// MinimockUpdateReplicaAwareRoutingInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateReplicaAwareRoutingInspect() {
+	for _, e := range m.UpdateReplicaAwareRoutingMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateReplicaAwareRouting at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateReplicaAwareRoutingCounter := mm_atomic.LoadUint64(&m.afterUpdateReplicaAwareRoutingCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateReplicaAwareRoutingMock.defaultExpectation != nil && afterUpdateReplicaAwareRoutingCounter < 1 {
+		if m.UpdateReplicaAwareRoutingMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateReplicaAwareRouting at\n%s", m.UpdateReplicaAwareRoutingMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateReplicaAwareRouting at\n%s with params: %#v", m.UpdateReplicaAwareRoutingMock.defaultExpectation.expectationOrigins.origin, *m.UpdateReplicaAwareRoutingMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateReplicaAwareRouting != nil && afterUpdateReplicaAwareRoutingCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateReplicaAwareRouting at\n%s", m.funcUpdateReplicaAwareRoutingOrigin)
+	}
+
+	if !m.UpdateReplicaAwareRoutingMock.invocationsDone() && afterUpdateReplicaAwareRoutingCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateReplicaAwareRouting at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateReplicaAwareRoutingMock.expectedInvocations), m.UpdateReplicaAwareRoutingMock.expectedInvocationsOrigin, afterUpdateReplicaAwareRoutingCounter)
+	}
+}
+
 type mClientMockUpdateReplicaScaling struct {
 	optional           bool
 	mock               *ClientMock
@@ -39613,6 +40350,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetQueryEndpointInspect()
 
+			m.MinimockGetReplicaAwareRoutingInspect()
+
 			m.MinimockGetReversePrivateEndpointInspect()
 
 			m.MinimockGetReversePrivateEndpointPathInspect()
@@ -39682,6 +40421,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdatePostgresInspect()
 
 			m.MinimockUpdateQueryAPIEndpointInspect()
+
+			m.MinimockUpdateReplicaAwareRoutingInspect()
 
 			m.MinimockUpdateReplicaScalingInspect()
 
@@ -39796,6 +40537,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetPostgresConfigDone() &&
 		m.MinimockGetQueryAPIEndpointDone() &&
 		m.MinimockGetQueryEndpointDone() &&
+		m.MinimockGetReplicaAwareRoutingDone() &&
 		m.MinimockGetReversePrivateEndpointDone() &&
 		m.MinimockGetReversePrivateEndpointPathDone() &&
 		m.MinimockGetRoleDone() &&
@@ -39831,6 +40573,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdatePostgresDone() &&
 		m.MinimockUpdateQueryAPIEndpointDone() &&
+		m.MinimockUpdateReplicaAwareRoutingDone() &&
 		m.MinimockUpdateReplicaScalingDone() &&
 		m.MinimockUpdateRoleDone() &&
 		m.MinimockUpdateSavedQueryDone() &&
