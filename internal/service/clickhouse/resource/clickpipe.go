@@ -2896,11 +2896,12 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		StartPaused: plan.Stopped.ValueBool(),
 	}
 
-	if source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, false); source != nil {
-		clickPipe.Source = *source
-	} else {
+	// extractSourceFromPlan reports validation errors through diagnostics while still returning a source.
+	source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, false)
+	if source == nil || response.Diagnostics.HasError() {
 		return
 	}
+	clickPipe.Source = *source
 
 	destinationModel := models.ClickPipeDestinationModel{}
 	response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
@@ -6289,6 +6290,11 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	// when certain fields change — in which case we must trust the UpdateClickPipe
 	// response, not the stale prior state, to decide whether to issue stop/start.
 	liveState := state.State.ValueString()
+
+	// Don't send an update built from a plan that failed validation.
+	if response.Diagnostics.HasError() {
+		return
+	}
 
 	if pipeChanged && clickPipeUpdate.Source != nil && clickPipeSourceUsesGCPWorkloadIdentity(clickPipeUpdate.Source) {
 		if _, err := c.client.WaitForClickPipesGCPWorkloadIdentity(ctx, state.ServiceID.ValueString(), clickPipesGCPWorkloadIdentityReadyTimeout); err != nil {
