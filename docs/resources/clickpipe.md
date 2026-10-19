@@ -105,7 +105,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 - `field_mappings` (Attributes List) Field mapping between source and destination table. (see [below for nested schema](#nestedatt--field_mappings))
 - `scaling` (Attributes) (see [below for nested schema](#nestedatt--scaling))
 - `settings` (Dynamic) Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the OpenAPI documentation at https://clickhouse.com/docs/cloud/manage/api/swagger (search for the ClickPipes settings endpoint).
-- `stopped` (Boolean) Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running). Cannot be set to `true` on creation — the ClickPipe must be created in a running state and then stopped via a subsequent apply.
+- `stopped` (Boolean) Whether the ClickPipe should be stopped. Default is `false`. For streaming and object-storage ClickPipes, set to `true` to create the pipe without starting ingestion, then set to `false` and apply to start it. Database ClickPipes cannot be created stopped. This is the configured intent; `state` reports the live status.
 - `trigger_resync` (Boolean) Set to `true` to trigger a resync operation. Only applicable for Postgres pipes. Automatically resets to `false` after the resync is triggered. **Note:** This will always show a diff in `terraform plan` after setting to `true` since it resets to `false` in state.
 
 ### Read-Only
@@ -145,7 +145,7 @@ Optional:
 
 - `partition_by` (String) The column to partition the table by.
 - `primary_key` (String) The primary key of the table.
-- `sorting_key` (List of String) The list of columns for the sorting key.
+- `sorting_key` (List of String) The list of columns for the sorting key. Required when engine type is `ReplacingMergeTree` and the pipe is being created.
 - `ttl` (String) ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.
 
 <a id="nestedatt--destination--table_definition--engine"></a>
@@ -158,7 +158,7 @@ Required:
 Optional:
 
 - `column_ids` (List of String) Column IDs to sum for SummingMergeTree engine. Required when engine type is `SummingMergeTree`.
-- `version_column_id` (String) Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.
+- `version_column_id` (String) Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree` and the pipe is being created.
 
 
 
@@ -464,7 +464,7 @@ Optional:
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MySQL connection.
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
-- `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
+- `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `cloudsqlmysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
 
 <a id="nestedatt--source--mysql--credentials"></a>
 ### Nested Schema for `source.mysql.credentials`

@@ -201,7 +201,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional: true,
 			},
 			"stopped": schema.BoolAttribute{
-				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running). Cannot be set to `true` on creation — the ClickPipe must be created in a running state and then stopped via a subsequent apply.",
+				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false`. For streaming and object-storage ClickPipes, set to `true` to create the pipe without starting ingestion, then set to `false` and apply to start it. Database ClickPipes cannot be created stopped. This is the configured intent; `state` reports the live status.",
 				Computed:            true,
 				Optional:            true,
 				Default:             booldefault.StaticBool(false),
@@ -2098,7 +2098,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 									},
 									"version_column_id": schema.StringAttribute{
-										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.",
+										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree` and the pipe is being created.",
 										Optional:            true,
 									},
 									"column_ids": schema.ListAttribute{
@@ -2109,11 +2109,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"sorting_key": schema.ListAttribute{
-								MarkdownDescription: "The list of columns for the sorting key.",
+								MarkdownDescription: "The list of columns for the sorting key. Required when engine type is `ReplacingMergeTree` and the pipe is being created.",
 								Optional:            true,
 								Computed:            true,
 								ElementType:         types.StringType,
-								Default:             listdefault.StaticValue(tfutils.CreateEmptyList(types.StringType)),
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"partition_by": schema.StringAttribute{
 								MarkdownDescription: "The column to partition the table by.",
@@ -2217,30 +2219,20 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		return
 	}
 
-	// Reject `stopped = true` on creation. The API does not support provisioning a pipe
-	// in a stopped state; the pipe must be created running and then stopped via update.
-	// An Unknown value (e.g. `stopped` derived from an apply-time computed expression)
-	// is also rejected: we cannot prove it will resolve to false, and a true would put
-	// us in the unsupported create-stopped path. Require a known false on creation.
-	if request.State.Raw.IsNull() && (plan.Stopped.IsUnknown() || plan.Stopped.ValueBool()) {
-		detail := "`stopped = true` is not allowed when creating a new ClickPipe. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
-		if plan.Stopped.IsUnknown() {
-			detail = "`stopped` must be a known value (false) when creating a new ClickPipe; it cannot be derived from an apply-time computed value. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
-		}
-		response.Diagnostics.AddAttributeError(
-			path.Root("stopped"),
-			"Cannot create a ClickPipe in a stopped state",
-			detail,
-		)
-		return
-	}
-
 	// Validate table engine configuration
 	if !plan.Destination.IsNull() {
 		destinationModel := models.ClickPipeDestinationModel{}
 		response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
 
-		if !destinationModel.TableDefinition.IsNull() {
+		// table_definition is only sent on create
+		tableDefinitionChanged := true
+		if !state.Destination.IsNull() {
+			stateDestinationModel := models.ClickPipeDestinationModel{}
+			response.Diagnostics.Append(state.Destination.As(ctx, &stateDestinationModel, basetypes.ObjectAsOptions{})...)
+			tableDefinitionChanged = !destinationModel.TableDefinition.Equal(stateDestinationModel.TableDefinition)
+		}
+
+		if tableDefinitionChanged && !destinationModel.TableDefinition.IsNull() {
 			tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{}
 			response.Diagnostics.Append(destinationModel.TableDefinition.As(ctx, &tableDefinitionModel, basetypes.ObjectAsOptions{})...)
 
@@ -2332,10 +2324,21 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Validate object storage configuration
+	// Validate source configuration
 	if !plan.Source.IsNull() {
 		sourceModel := models.ClickPipeSourceModel{}
 		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+		isDBPipe := !sourceModel.Postgres.IsNull() || !sourceModel.MySQL.IsNull() ||
+			!sourceModel.BigQuery.IsNull() || !sourceModel.MongoDB.IsNull()
+		if request.State.Raw.IsNull() && plan.Stopped.ValueBool() && isDBPipe {
+			response.Diagnostics.AddAttributeError(
+				path.Root("stopped"),
+				"Cannot create a database ClickPipe in a stopped state",
+				"`stopped = true` on creation is only supported for streaming and object-storage ClickPipes. Database ClickPipes must be created running.",
+			)
+			return
+		}
 
 		if !sourceModel.ObjectStorage.IsNull() {
 			objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
@@ -2960,7 +2963,8 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	serviceID := plan.ServiceID.ValueString()
 
 	clickPipe := api.ClickPipe{
-		Name: plan.Name.ValueString(),
+		Name:        plan.Name.ValueString(),
+		StartPaused: plan.Stopped.ValueBool(),
 	}
 
 	if source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, false); source != nil {
@@ -3164,16 +3168,6 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 				)
 				return
 			}
-		}
-	}
-
-	if plan.Stopped.ValueBool() {
-		if _, err := c.client.ChangeClickPipeState(ctx, serviceID, createdClickPipe.ID, api.ClickPipeStateStop); err != nil {
-			response.Diagnostics.AddError(
-				"Error Stopping ClickPipe",
-				"Could not stop ClickPipe, unexpected error: "+err.Error(),
-			)
-			return
 		}
 	}
 
@@ -6244,8 +6238,11 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				source.Kafka.ProtobufSchema = nil
 			}
 
-			// For Pub/Sub, only re-send the service_account_key when it changed
-			// (key rotation). Sending an unchanged value would re-encrypt without effect.
+			// For Pub/Sub, only authentication, service_account_key and ack_deadline are
+			// patchable; every other field carries RequiresReplace and never changes in
+			// Update. The API rejects immutable fields even when unchanged ("format is
+			// immutable for Pub/Sub sources"), so omit them from the PATCH, and
+			// re-send the service_account_key only when it changed (key rotation).
 			if source.PubSub != nil && !planSourceModel.PubSub.IsNull() && !stateSourceModel.PubSub.IsNull() {
 				planPubSubModel := models.ClickPipePubSubSourceModel{}
 				response.Diagnostics.Append(planSourceModel.PubSub.As(ctx, &planPubSubModel, basetypes.ObjectAsOptions{})...)
@@ -6254,6 +6251,14 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				if planPubSubModel.ServiceAccountKey.Equal(statePubSubModel.ServiceAccountKey) {
 					source.PubSub.ServiceAccountKey = nil
 				}
+				// Omit all immutable fields from update payload
+				source.PubSub.Format = ""
+				source.PubSub.ProjectID = ""
+				source.PubSub.Topic = ""
+				source.PubSub.SeekType = ""
+				source.PubSub.SeekTimestamp = nil
+				source.PubSub.Filter = nil
+				source.PubSub.EnableOrdering = nil
 			}
 
 			// For Kinesis, omit the unchanged access_key from the PATCH so we do not

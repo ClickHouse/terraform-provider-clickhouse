@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -19,11 +20,64 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
+
+func TestUDFResourceUpgradeStateDropsSandboxVersion(t *testing.T) {
+	ctx := context.Background()
+	r := &UDFResource{}
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	if schemaResp.Schema.Version != 1 {
+		t.Fatalf("schema version = %d; want 1", schemaResp.Schema.Version)
+	}
+
+	old := map[string]any{
+		"function_name": "geocode", "runtime": "python3.11", "arguments": []any{},
+		"return_type": "String", "type": "executable_pool", "pool_size": 3,
+		"source_archive_path": "function.zip", "source_archive_hash": "hash", "return_name": nil,
+		"command_read_timeout": 10000, "command_write_timeout": 10000, "max_command_execution_time": 10,
+		"send_chunk_header": false, "format": "TabSeparated", "sandbox_type": "basic",
+		"fail_on_build_error": true, "version": 7, "status": "ready", "error": nil,
+		"created_at": "2026-07-21T10:00:00.000Z", "updated_at": "2026-07-21T10:00:00.000Z",
+	}
+	want := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
+	want.PoolSize = types.Int64Value(3)
+	want.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
+	want.Version = types.Int64Value(7)
+	want.Status = types.StringValue(api.UDFStatusReady)
+	want.CreatedAt = types.StringValue("2026-07-21T10:00:00.000Z")
+	want.UpdatedAt = want.CreatedAt
+	wantState := tfsdk.State{Schema: schemaResp.Schema}
+	if diags := wantState.Set(ctx, want); diags.HasError() {
+		t.Fatalf("set expected state: %v", diags)
+	}
+
+	for _, version := range []any{"v1", "v2", "v3", nil} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			old["sandbox_version"] = version
+			raw, err := json.Marshal(old)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp := resource.UpgradeStateResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
+			r.UpgradeState(ctx)[0].StateUpgrader(ctx, resource.UpgradeStateRequest{
+				RawState: &tfprotov6.RawState{JSON: raw},
+			}, &resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("upgrade diagnostics: %v", resp.Diagnostics)
+			}
+			if !resp.State.Raw.Equal(wantState.Raw) {
+				t.Fatalf("upgraded state = %s; want %s", resp.State.Raw, wantState.Raw)
+			}
+		})
+	}
+}
 
 func TestUDFResourceSchemaMatchesPublicUX(t *testing.T) {
 	ctx := context.Background()
@@ -41,7 +95,7 @@ func TestUDFResourceSchemaMatchesPublicUX(t *testing.T) {
 		"function_name", "runtime", "arguments", "return_type", "type", "pool_size",
 		"source_archive_path", "source_archive_hash", "return_name", "command_read_timeout",
 		"command_write_timeout", "max_command_execution_time", "send_chunk_header", "format",
-		"sandbox_type", "sandbox_version", "fail_on_build_error", "version", "status", "error",
+		"sandbox_type", "fail_on_build_error", "version", "status", "error",
 		"created_at", "updated_at",
 	}
 	if len(resp.Schema.Attributes) != len(wantAttributes) {
@@ -111,6 +165,7 @@ func TestUDFResourceValidateConfigRejectsPoolFieldsForExecutable(t *testing.T) {
 }
 
 func TestUDFResourceCreateUploadsPublishesAndPolls(t *testing.T) {
+	t.Setenv(utils.SuppressBetaWarningsEnvVar, "false")
 	ctx := context.Background()
 	archive := []byte("zip bytes")
 	archivePath := filepath.Join(t.TempDir(), "geocode.zip")
@@ -126,7 +181,6 @@ func TestUDFResourceCreateUploadsPublishesAndPolls(t *testing.T) {
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -167,6 +221,10 @@ func TestUDFResourceCreateUploadsPublishesAndPolls(t *testing.T) {
 		t.Fatalf("Create diagnostics: %v", resp.Diagnostics)
 	}
 
+	if len(resp.Diagnostics.Warnings()) != 0 {
+		t.Fatalf("unexpected warnings: %v", resp.Diagnostics.Warnings())
+	}
+
 	var state models.UDFResourceModel
 	if diags := resp.State.Get(ctx, &state); diags.HasError() {
 		t.Fatalf("read created state: %v", diags)
@@ -192,7 +250,6 @@ func TestUDFResourceCreateRestartsWithFreshUploadAfterGone(t *testing.T) {
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -280,7 +337,6 @@ func TestUDFResourceCreateRetriesTransientUploadFailure(t *testing.T) {
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -360,7 +416,6 @@ func TestUDFResourceCreateStopsAfterUnknownPublish(t *testing.T) {
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -406,7 +461,6 @@ func TestUDFPublishUploadTransientThenConflictDoesNotReconcile(t *testing.T) {
 	plan := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	plan.PoolSize = types.Int64Value(3)
 	plan.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	plan.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 
 	mc := minimock.NewController(t)
 	client := api.NewClientMock(mc)
@@ -446,8 +500,8 @@ func TestUDFPublishUnknownCreateAdoptsOnlyMatchingSettings(t *testing.T) {
 	plan := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	plan.PoolSize = types.Int64Value(3)
 	plan.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	plan.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	matched := testAPIUDF(api.UDFStatusBuilding, 1)
+	matched.SandboxVersion = api.UDFSandboxVersionV3
 
 	mc := minimock.NewController(t)
 	client := api.NewClientMock(mc)
@@ -471,7 +525,6 @@ func TestUDFPublishUnknownRejectsMismatchedVersionAndSettings(t *testing.T) {
 	plan := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	plan.PoolSize = types.Int64Value(3)
 	plan.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	plan.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	observed := testAPIUDF(api.UDFStatusReady, 4)
 	observed.ReturnType = "Int64"
 
@@ -501,7 +554,6 @@ func TestUDFPublishUnknownUpdateAdoptsExpectedNextVersion(t *testing.T) {
 	plan := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	plan.PoolSize = types.Int64Value(3)
 	plan.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	plan.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	matched := testAPIUDF(api.UDFStatusBuilding, 2)
 
 	mc := minimock.NewController(t)
@@ -534,7 +586,6 @@ func TestUDFResourceCreateConflictDoesNotAdoptPreexistingFunction(t *testing.T) 
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -585,7 +636,6 @@ func TestUDFResourceCreateAdoptsAfterUnknownResponse(t *testing.T) {
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -652,7 +702,6 @@ func TestUDFResourceCreateRejectsPreexistingFunction(t *testing.T) {
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -698,7 +747,6 @@ func TestUDFResourceCreateFailsAndRetainsFailedBuild(t *testing.T) {
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -771,7 +819,6 @@ func TestUDFResourceCreateRetainsFailedBuildWithWarningWhenFailOnBuildErrorFalse
 	planModel.SourceArchivePath = types.StringValue(archivePath)
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	planModel.FailOnBuildError = types.BoolValue(false)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
@@ -840,7 +887,6 @@ func TestUDFResourceUpdateFailsAndRetainsFailedVersion(t *testing.T) {
 	planModel.SourceArchiveHash = types.StringValue("invalid-v2-hash")
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -904,7 +950,6 @@ func TestUDFResourceUpdatePolicyOnlyDoesNotPublish(t *testing.T) {
 	stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	stateModel.PoolSize = types.Int64Value(3)
 	stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	stateModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	stateModel.Version = types.Int64Value(7)
 	stateModel.Status = types.StringValue(api.UDFStatusError)
 	buildMessage := "previous build failed"
@@ -964,7 +1009,6 @@ func TestUDFResourceModifyPlanPreservesBuildAttributesForPolicyOnlyChange(t *tes
 	stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	stateModel.PoolSize = types.Int64Value(3)
 	stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	stateModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	stateModel.Version = types.Int64Value(7)
 	stateModel.Status = types.StringValue(api.UDFStatusError)
 	stateModel.Error = types.StringValue("previous build failed")
@@ -1020,7 +1064,6 @@ func TestUDFResourceReadRefreshesFailedStatusWithoutError(t *testing.T) {
 	stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	stateModel.PoolSize = types.Int64Value(3)
 	stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	stateModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	stateModel.Version = types.Int64Value(7)
 	stateModel.Status = types.StringValue(api.UDFStatusBuilding)
 	stateModel.FailOnBuildError = types.BoolValue(true)
@@ -1059,7 +1102,6 @@ func TestUDFPublishInputsChangedIgnoresFailOnBuildError(t *testing.T) {
 	base := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	base.PoolSize = types.Int64Value(3)
 	base.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	base.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 
 	otherPolicy := base
 	otherPolicy.FailOnBuildError = types.BoolValue(false)
@@ -1091,7 +1133,6 @@ func TestUDFResourceUpdateDoesNotAdoptAConcurrentNewerVersion(t *testing.T) {
 	planModel.SourceArchiveHash = types.StringValue("v2-hash")
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -1156,7 +1197,6 @@ func TestUDFResourceUpdateAdoptsAfterUnknownResponse(t *testing.T) {
 	planModel.SourceArchiveHash = types.StringValue("v2-hash")
 	planModel.PoolSize = types.Int64Value(3)
 	planModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	planModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	plan := tfsdk.Plan{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
 	if diags := plan.Set(ctx, &planModel); diags.HasError() {
 		t.Fatalf("set plan fixture: %v", diags)
@@ -1221,31 +1261,28 @@ func TestUDFResourceModifyPlanAppliesTypeAndRuntimeDefaults(t *testing.T) {
 	sch := schemaResp.Schema
 
 	tests := []struct {
-		name               string
-		runtime            string
-		udfType            string
-		wantPoolSize       types.Int64
-		wantMaxExecution   types.Int64
-		wantSandboxType    string
-		wantSandboxVersion string
+		name             string
+		runtime          string
+		udfType          string
+		wantPoolSize     types.Int64
+		wantMaxExecution types.Int64
+		wantSandboxType  string
 	}{
 		{
-			name:               "python executable pool",
-			runtime:            api.UDFRuntimePython311,
-			udfType:            api.UDFTypeExecutablePool,
-			wantPoolSize:       types.Int64Value(3),
-			wantMaxExecution:   types.Int64Value(10),
-			wantSandboxType:    api.UDFSandboxTypeBasic,
-			wantSandboxVersion: api.UDFSandboxVersionV2,
+			name:             "python executable pool",
+			runtime:          api.UDFRuntimePython311,
+			udfType:          api.UDFTypeExecutablePool,
+			wantPoolSize:     types.Int64Value(3),
+			wantMaxExecution: types.Int64Value(10),
+			wantSandboxType:  api.UDFSandboxTypeBasic,
 		},
 		{
-			name:               "native executable",
-			runtime:            api.UDFRuntimeNative,
-			udfType:            api.UDFTypeExecutable,
-			wantPoolSize:       types.Int64Null(),
-			wantMaxExecution:   types.Int64Null(),
-			wantSandboxType:    api.UDFSandboxTypeBasic,
-			wantSandboxVersion: api.UDFSandboxVersionV1,
+			name:             "native executable",
+			runtime:          api.UDFRuntimeNative,
+			udfType:          api.UDFTypeExecutable,
+			wantPoolSize:     types.Int64Null(),
+			wantMaxExecution: types.Int64Null(),
+			wantSandboxType:  api.UDFSandboxTypeBasic,
 		},
 	}
 
@@ -1272,7 +1309,7 @@ func TestUDFResourceModifyPlanAppliesTypeAndRuntimeDefaults(t *testing.T) {
 			}
 
 			var poolSize, maxExecutionTime types.Int64
-			var sandboxType, sandboxVersion types.String
+			var sandboxType types.String
 			if diags := resp.Plan.GetAttribute(ctx, path.Root("pool_size"), &poolSize); diags.HasError() {
 				t.Fatalf("read pool_size: %v", diags)
 			}
@@ -1282,17 +1319,14 @@ func TestUDFResourceModifyPlanAppliesTypeAndRuntimeDefaults(t *testing.T) {
 			if diags := resp.Plan.GetAttribute(ctx, path.Root("sandbox_type"), &sandboxType); diags.HasError() {
 				t.Fatalf("read sandbox_type: %v", diags)
 			}
-			if diags := resp.Plan.GetAttribute(ctx, path.Root("sandbox_version"), &sandboxVersion); diags.HasError() {
-				t.Fatalf("read sandbox_version: %v", diags)
-			}
 			if !poolSize.Equal(tc.wantPoolSize) {
 				t.Errorf("pool_size = %v; want %v", poolSize, tc.wantPoolSize)
 			}
 			if !maxExecutionTime.Equal(tc.wantMaxExecution) {
 				t.Errorf("max_command_execution_time = %v; want %v", maxExecutionTime, tc.wantMaxExecution)
 			}
-			if sandboxType.ValueString() != tc.wantSandboxType || sandboxVersion.ValueString() != tc.wantSandboxVersion {
-				t.Errorf("sandbox = %s/%s; want %s/%s", sandboxType.ValueString(), sandboxVersion.ValueString(), tc.wantSandboxType, tc.wantSandboxVersion)
+			if sandboxType.ValueString() != tc.wantSandboxType {
+				t.Errorf("sandbox_type = %s; want %s", sandboxType.ValueString(), tc.wantSandboxType)
 			}
 		})
 	}
@@ -1740,7 +1774,6 @@ func TestUDFResourceUpdatePathOnlyChangeDoesNotPublish(t *testing.T) {
 	stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	stateModel.PoolSize = types.Int64Value(3)
 	stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	stateModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	stateModel.SourceArchivePath = types.StringValue("old/path/function.zip")
 	stateModel.Version = types.Int64Value(4)
 	stateModel.Status = types.StringValue(api.UDFStatusReady)
@@ -1796,7 +1829,6 @@ func TestUDFResourceModifyPlanFreezesBuildAttributesForPathOnlyChange(t *testing
 	stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	stateModel.PoolSize = types.Int64Value(3)
 	stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	stateModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	stateModel.SourceArchivePath = types.StringValue("old/path.zip")
 	stateModel.Version = types.Int64Value(5)
 	stateModel.Status = types.StringValue(api.UDFStatusReady)
@@ -1891,7 +1923,6 @@ func TestUDFResourceUpdateAdoptsImportedSourceWithoutPublishing(t *testing.T) {
 	stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	stateModel.PoolSize = types.Int64Value(3)
 	stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	stateModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	stateModel.SourceArchivePath = types.StringNull()
 	stateModel.SourceArchiveHash = types.StringNull()
 	stateModel.Version = types.Int64Value(1)
@@ -1955,7 +1986,6 @@ func TestUDFResourceUpdatePublishesWhenImportedAndAnotherInputChanged(t *testing
 	stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	stateModel.PoolSize = types.Int64Value(3)
 	stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	stateModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	stateModel.SourceArchivePath = types.StringNull()
 	stateModel.SourceArchiveHash = types.StringNull()
 	stateModel.Version = types.Int64Value(1)
@@ -2023,7 +2053,6 @@ func TestUDFResourceUpdateHashChangeStillPublishes(t *testing.T) {
 	stateModel := testUDFResourceModel(t, api.UDFRuntimePython311, api.UDFTypeExecutablePool)
 	stateModel.PoolSize = types.Int64Value(3)
 	stateModel.SandboxType = types.StringValue(api.UDFSandboxTypeBasic)
-	stateModel.SandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
 	stateModel.SourceArchivePath = types.StringValue(archivePath)
 	stateModel.SourceArchiveHash = types.StringValue("v1-hash")
 	stateModel.Version = types.Int64Value(1)
@@ -2176,7 +2205,6 @@ func testUDFResourceModel(t *testing.T, runtime, udfType string) models.UDFResou
 		SendChunkHeader:         types.BoolValue(false),
 		Format:                  types.StringValue("TabSeparated"),
 		SandboxType:             types.StringNull(),
-		SandboxVersion:          types.StringNull(),
 		FailOnBuildError:        types.BoolValue(true),
 		Version:                 types.Int64Null(),
 		Status:                  types.StringNull(),

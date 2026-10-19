@@ -192,12 +192,15 @@ type ClickPipeKinesisSource struct {
 }
 
 type ClickPipePubSubSource struct {
-	Format         string `json:"format"`
-	ProjectID      string `json:"projectId"`
-	Topic          string `json:"topic"`
+	// format, projectId, topic and seekType are required on POST. They are immutable,
+	// like seekTimestamp, filter and enableOrdering, so PATCH must omit them: the API
+	// rejects them even when unchanged.
+	Format         string `json:"format,omitempty"`
+	ProjectID      string `json:"projectId,omitempty"`
+	Topic          string `json:"topic,omitempty"`
 	Authentication string `json:"authentication"`
 
-	SeekType      string  `json:"seekType"`
+	SeekType      string  `json:"seekType,omitempty"`
 	SeekTimestamp *string `json:"seekTimestamp,omitempty"`
 
 	Filter         *string `json:"filter,omitempty"`
@@ -431,6 +434,8 @@ type ClickPipe struct {
 	Settings      map[string]any          `json:"settings,omitempty"`
 	CreatedAt     *time.Time              `json:"createdAt,omitempty"`
 	UpdatedAt     *time.Time              `json:"updatedAt,omitempty"`
+	// StartPaused is a create-only option; the API reports the live state in State.
+	StartPaused bool `json:"startPaused,omitempty"`
 }
 
 type ClickPipeUpdate struct {

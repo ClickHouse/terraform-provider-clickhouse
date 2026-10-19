@@ -351,6 +351,7 @@ const (
 	ClickPipeMySQLSourceTypeMySQL            = "mysql"
 	ClickPipeMySQLSourceTypeRDSMySQL         = "rdsmysql"
 	ClickPipeMySQLSourceTypeAuroraMySQL      = "auroramysql"
+	ClickPipeMySQLSourceTypeCloudSQLMySQL    = "cloudsqlmysql"
 	ClickPipeMySQLSourceTypePlanetScaleVites = "planetscalevitess"
 	ClickPipeMySQLSourceTypeMariaDB          = "mariadb"
 	ClickPipeMySQLSourceTypeRDSMariaDB       = "rdsmariadb"
@@ -360,6 +361,7 @@ var ClickPipeMySQLSourceTypes = []string{
 	ClickPipeMySQLSourceTypeMySQL,
 	ClickPipeMySQLSourceTypeRDSMySQL,
 	ClickPipeMySQLSourceTypeAuroraMySQL,
+	ClickPipeMySQLSourceTypeCloudSQLMySQL,
 	ClickPipeMySQLSourceTypePlanetScaleVites,
 	ClickPipeMySQLSourceTypeMariaDB,
 	ClickPipeMySQLSourceTypeRDSMariaDB,
