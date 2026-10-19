@@ -295,6 +295,7 @@ var ClickPipePostgresTableEngines = []string{
 var ClickPipePostgresAuthenticationMethods = []string{
 	"basic",
 	ClickPipeAuthenticationIAMRole,
+	ClickPipeAuthenticationServiceAccountWorkloadIdentity,
 }
 
 var ClickPipeBigQueryTableEngines = []string{
@@ -328,6 +329,7 @@ var ClickPipeMySQLTableEngines = []string{
 var ClickPipeMySQLAuthenticationMethods = []string{
 	"basic",
 	"IAM_ROLE",
+	ClickPipeAuthenticationServiceAccountWorkloadIdentity,
 }
 
 const (

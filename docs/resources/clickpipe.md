@@ -441,15 +441,15 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. (see [below for nested schema](#nestedatt--source--mysql--credentials))
-- `host` (String) The hostname of the MySQL instance.
+- `host` (String) The hostname of the MySQL instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).
 - `settings` (Attributes) Settings for the MySQL CDC pipe. (see [below for nested schema](#nestedatt--source--mysql--settings))
 - `table_mappings` (Attributes Set) Table mappings from MySQL source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--mysql--table_mappings))
 
 Optional:
 
-- `authentication` (String) Authentication method for MySQL connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.
+- `authentication` (String) Authentication method for MySQL connection. Supported values: `basic`, `IAM_ROLE`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. Default is `basic`.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the MySQL server certificate.
+- `credentials` (Attributes, Sensitive) The credentials for the MySQL instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted. (see [below for nested schema](#nestedatt--source--mysql--credentials))
 - `disable_tls` (Boolean) Disable TLS for the MySQL connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the MySQL instance. Default is 3306.
@@ -553,16 +553,16 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. (see [below for nested schema](#nestedatt--source--postgres--credentials))
 - `database` (String) The database name of the Postgres instance.
-- `host` (String) The hostname of the Postgres instance.
+- `host` (String) The hostname of the Postgres instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).
 - `settings` (Attributes) Settings for the Postgres CDC pipe. (see [below for nested schema](#nestedatt--source--postgres--settings))
 - `table_mappings` (Attributes Set) Table mappings from Postgres source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--postgres--table_mappings))
 
 Optional:
 
-- `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.
+- `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. Default is `basic`.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the Postgres server certificate.
+- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted. (see [below for nested schema](#nestedatt--source--postgres--credentials))
 - `disable_tls` (Boolean) Disable TLS for the Postgres connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the Postgres instance. Default is 5432.

@@ -1007,8 +1007,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"host": schema.StringAttribute{
-								Description: "The hostname of the Postgres instance.",
-								Required:    true,
+								MarkdownDescription: "The hostname of the Postgres instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).",
+								Required:            true,
 							},
 							"port": schema.Int64Attribute{
 								Description: "The port of the Postgres instance. Default is 5432.",
@@ -1060,8 +1060,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Default:     booldefault.StaticBool(false),
 							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
-								Required:            true,
+								MarkdownDescription: "The credentials for the Postgres instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted.",
+								Optional:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"username": schema.StringAttribute{
@@ -1313,8 +1313,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"host": schema.StringAttribute{
-								Description: "The hostname of the MySQL instance.",
-								Required:    true,
+								MarkdownDescription: "The hostname of the MySQL instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).",
+								Required:            true,
 							},
 							"port": schema.Int64Attribute{
 								Description: "The port of the MySQL instance. Default is 3306.",
@@ -1380,8 +1380,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
-								Required:            true,
+								MarkdownDescription: "The credentials for the MySQL instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted.",
+								Optional:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"username": schema.StringAttribute{
@@ -3198,6 +3198,18 @@ func validateGCPWorkloadIdentityConfiguration(ctx context.Context, sourceValue t
 		}
 	}
 
+	if !source.Postgres.IsNull() && !source.Postgres.IsUnknown() {
+		var postgres models.ClickPipePostgresSourceModel
+		diagnostics.Append(source.Postgres.As(ctx, &postgres, basetypes.ObjectAsOptions{})...)
+		validateCloudSQLWorkloadIdentity(ctx, "Postgres", api.ClickPipePostgresCloudSQLSourceType, postgres.Authentication, postgres.Type, postgres.IAMRole, postgres.Credentials, diagnostics)
+	}
+
+	if !source.MySQL.IsNull() && !source.MySQL.IsUnknown() {
+		var mysql models.ClickPipeMySQLSourceModel
+		diagnostics.Append(source.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{})...)
+		validateCloudSQLWorkloadIdentity(ctx, "MySQL", api.ClickPipeMySQLSourceTypeCloudSQLMySQL, mysql.Authentication, mysql.Type, mysql.IAMRole, mysql.Credentials, diagnostics)
+	}
+
 	if !source.PubSub.IsNull() && !source.PubSub.IsUnknown() {
 		var pubsub models.ClickPipePubSubSourceModel
 		diagnostics.Append(source.PubSub.As(ctx, &pubsub, basetypes.ObjectAsOptions{})...)
@@ -3236,6 +3248,28 @@ func validateGCPWorkloadIdentityConfiguration(ctx context.Context, sourceValue t
 	}
 }
 
+// validateCloudSQLWorkloadIdentity checks a Postgres or MySQL source using GCP workload identity:
+// only the Cloud SQL type is supported, and only a username may be passed in credentials.
+func validateCloudSQLWorkloadIdentity(ctx context.Context, sourceName, cloudSQLType string, authentication, sourceType, iamRole types.String, credentials types.Object, diagnostics *diag.Diagnostics) {
+	if authentication.IsUnknown() || authentication.ValueString() != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return
+	}
+	if !sourceType.IsUnknown() && sourceType.ValueString() != cloudSQLType {
+		diagnostics.AddError("Invalid GCP workload identity configuration", fmt.Sprintf("SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication is only supported for %s %s sources", cloudSQLType, sourceName))
+	}
+	if !iamRole.IsNull() && !iamRole.IsUnknown() && iamRole.ValueString() != "" {
+		diagnostics.AddError("Invalid GCP workload identity configuration", fmt.Sprintf("%s iam_role must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication", sourceName))
+	}
+	if credentials.IsNull() || credentials.IsUnknown() {
+		return
+	}
+	var creds models.ClickPipeSourceCredentialsModel
+	diagnostics.Append(credentials.As(ctx, &creds, basetypes.ObjectAsOptions{})...)
+	if (!creds.Password.IsNull() && !creds.Password.IsUnknown()) || !creds.PasswordWOVersion.IsNull() {
+		diagnostics.AddError("Invalid GCP workload identity configuration", fmt.Sprintf("%s password (or password_wo) must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication", sourceName))
+	}
+}
+
 func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
 	if source == nil {
 		return false
@@ -3247,6 +3281,12 @@ func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
 		return true
 	}
 	if source.PubSub != nil && source.PubSub.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	if source.Postgres != nil && source.Postgres.Authentication != nil && *source.Postgres.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	if source.MySQL != nil && source.MySQL.Authentication != nil && *source.MySQL.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
 		return true
 	}
 	return source.BigQuery != nil && source.BigQuery.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity
@@ -3759,6 +3799,15 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			authentication = postgresModel.Authentication.ValueString()
 		}
 
+		// Credentials are optional only for GCP workload identity. On update the block may be
+		// null after an import with ignore_changes, so only enforce this on create.
+		if !isUpdate && postgresModel.Credentials.IsNull() && authentication != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			diagnostics.AddError(
+				"Missing required attribute",
+				"Credentials are required unless authentication is set to 'SERVICE_ACCOUNT_WORKLOAD_IDENTITY'.",
+			)
+		}
+
 		if authentication == clickPipeAuthBasic {
 			if credentialsKnown && credentialsModel.Password.IsNull() && !credentialsModel.Password.IsUnknown() {
 				diagnostics.AddError(
@@ -3962,6 +4011,15 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		authentication := clickPipeAuthBasic // default
 		if !mysqlModel.Authentication.IsNull() {
 			authentication = mysqlModel.Authentication.ValueString()
+		}
+
+		// Credentials are optional only for GCP workload identity. On update the block may be
+		// null after an import with ignore_changes, so only enforce this on create.
+		if !isUpdate && mysqlModel.Credentials.IsNull() && authentication != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			diagnostics.AddError(
+				"Missing required attribute",
+				"Credentials are required unless authentication is set to 'SERVICE_ACCOUNT_WORKLOAD_IDENTITY'.",
+			)
 		}
 
 		if authentication == clickPipeAuthBasic {
