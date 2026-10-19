@@ -7,6 +7,7 @@ description: |-
   Supported endpoint types: VPC_ENDPOINT_SERVICE, VPC_RESOURCE, MSK_MULTI_VPC, and GCP_PSC_SERVICE_ATTACHMENT.
   ~> Note: All fields on this resource are immutable after creation. Any change will force replacement (destroy and recreate).
   Use clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns to manage custom private DNS mappings for a reverse private endpoint.
+  dns_targets lists the DNS targets the endpoint reports, which custom private DNS mappings can reference by target_id. It is populated only for VPC_RESOURCE endpoints, with one entry per VPC resource configuration association; for a GROUP resource configuration, each entry's id is a CHILD resource configuration ID. Targets appear once the endpoint has provisioned them, so the list can be empty right after creation.
 ---
 
 # clickhouse_clickpipes_reverse_private_endpoint (Resource)
@@ -18,6 +19,8 @@ Supported endpoint types: `VPC_ENDPOINT_SERVICE`, `VPC_RESOURCE`, `MSK_MULTI_VPC
 ~> **Note:** All fields on this resource are immutable after creation. Any change will force replacement (destroy and recreate).
 
 Use *clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns* to manage custom private DNS mappings for a reverse private endpoint.
+
+`dns_targets` lists the DNS targets the endpoint reports, which custom private DNS mappings can reference by `target_id`. It is populated only for `VPC_RESOURCE` endpoints, with one entry per VPC resource configuration association; for a GROUP resource configuration, each entry's `id` is a CHILD resource configuration ID. Targets appear once the endpoint has provisioned them, so the list can be empty right after creation.
 
 ## Example Usage
 
@@ -74,10 +77,30 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "gcp_psc_service_attac
 ### Read-Only
 
 - `dns_names` (List of String) Reverse private endpoint internal DNS names
+- `dns_targets` (Attributes List) DNS targets reported by the reverse private endpoint. Custom private DNS mappings can reference a target by `id` using `target_id`. Only populated for VPC_RESOURCE endpoints, with one target per VPC resource configuration association. (see [below for nested schema](#nestedatt--dns_targets))
 - `endpoint_id` (String) Reverse private endpoint endpoint ID
 - `id` (String) Unique identifier for the reverse private endpoint
+- `private_dns_mappings` (Attributes List) Private DNS names and the internal DNS names they resolve to, as reported by the reverse private endpoint. (see [below for nested schema](#nestedatt--private_dns_mappings))
 - `private_dns_names` (List of String) Reverse private endpoint private DNS names
 - `status` (String) Status of the reverse private endpoint
+
+<a id="nestedatt--dns_targets"></a>
+### Nested Schema for `dns_targets`
+
+Read-Only:
+
+- `id` (String) Target ID. For VPC_RESOURCE, the resource configuration ID (`rcfg-...`); for a GROUP, the CHILD resource configuration ID.
+- `internal_dns_name` (String) Internal DNS name of the target.
+- `kind` (String) Target kind, for example `RESOURCE_CONFIGURATION`.
+
+
+<a id="nestedatt--private_dns_mappings"></a>
+### Nested Schema for `private_dns_mappings`
+
+Read-Only:
+
+- `internal_dns_name` (String) Internal DNS name the private DNS name resolves to.
+- `private_dns_name` (String) Private DNS name.
 
 ## Import
 
