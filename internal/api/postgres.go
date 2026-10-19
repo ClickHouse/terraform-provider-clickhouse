@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -451,33 +450,11 @@ func errIndicatesReplicaNotReady(err error) bool {
 // CA CERTIFICATES (raw PEM response)
 // ---------------------------------------------------------------------------
 
-// GetPostgresCaCertificates returns the PEM-encoded CA chain. Bypasses
-// doRequest because the server emits raw PEM (not JSON) and we don't want
-// it flowing through the JSON pretty-printer.
-//
-// Trade-offs vs other client methods: no User-Agent header, no 429/5xx
-// retry, no tflog logging, manual basic-auth setup.
-//
-// FIXME: when the matching data source lands, add a doRawRequest sibling in
-// common.go that mirrors doRequest's retry/logging/auth machinery but returns
-// bytes directly, and route this method through it. Public signature is stable.
+// GetPostgresCaCertificates returns the PEM-encoded CA chain.
 func (c *ClientImpl) GetPostgresCaCertificates(ctx context.Context, postgresId string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.getPostgresPath(postgresId, "/caCertificates"), nil)
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth(c.TokenKey, c.TokenSecret)
-	res, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status: %d, body: %s", res.StatusCode, body)
-	}
-	return body, nil
+	return c.doRequest(ctx, req)
 }
