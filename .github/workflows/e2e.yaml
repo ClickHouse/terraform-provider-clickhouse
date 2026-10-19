@@ -172,6 +172,7 @@ jobs:
       - name: Get API details for env
         id: credentials
         env:
+          example_regions_production: ${{ vars[matrix.test.name == 'postgres' && 'POSTGRES_REGIONS_PRODUCTION' || 'EXAMPLE_REGIONS_PRODUCTION'] }}
           api_env: "${{ inputs.api_env }}"
           api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"
@@ -184,7 +185,7 @@ jobs:
           azure_region: "${{ inputs.azure_region }}"
           gcp_region: "${{ inputs.gcp_region }}"
         run: |
-          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }} ${{ matrix.test.name }}
+          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
       - name: E2E
         id: e2e
@@ -270,6 +271,7 @@ jobs:
       - name: Get API details for env
         id: credentials
         env:
+          example_regions_production: ${{ vars[matrix.test.name == 'postgres' && 'POSTGRES_REGIONS_PRODUCTION' || 'EXAMPLE_REGIONS_PRODUCTION'] }}
           api_env: "${{ inputs.api_env }}"
           api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"
@@ -282,7 +284,7 @@ jobs:
           azure_region: "${{ inputs.azure_region }}"
           gcp_region: "${{ inputs.gcp_region }}"
         run: |
-          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }} ${{ matrix.test.name }}
+          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
 
       - name: Upgrade
         if: ${{ inputs.run_upgrade_test }}
