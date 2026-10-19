@@ -1723,7 +1723,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 									},
 									"sync_cron": schema.StringAttribute{
-										Description: "Standard 5-field cron expression (or a descriptor such as `@hourly`) that schedules CDC syncs, e.g. `0 * * * *` to sync every hour sharp. Evaluated in UTC unless prefixed with `CRON_TZ=<zone>`. Must not fire more than once a minute. When set, it replaces `sync_interval_seconds` as the sync cadence. Must be omitted when replication_mode is `snapshot`.",
+										Description: "Standard 5-field cron expression (or a descriptor such as `@hourly`) that schedules CDC syncs, e.g. `0 * * * *` to sync every hour sharp. Evaluated in UTC unless prefixed with `CRON_TZ=<zone>`. Must not fire more than once a minute. Syncs run on this schedule instead of every `sync_interval_seconds`, so the two cannot both be set. Must be omitted when replication_mode is `snapshot`.",
 										Optional:    true,
 										Validators: []validator.String{
 											stringvalidator.LengthAtLeast(1),

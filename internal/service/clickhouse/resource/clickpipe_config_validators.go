@@ -623,6 +623,14 @@ func (v bigQueryCDCValidator) ValidateResource(ctx context.Context, req resource
 		return
 	}
 
+	if !settings.SyncCron.IsNull() && !settings.SyncIntervalSeconds.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			settingsPath.AtName("sync_cron"),
+			"Invalid BigQuery replication configuration",
+			"sync_cron and sync_interval_seconds cannot both be set.",
+		)
+	}
+
 	if settings.ReplicationMethod.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			settingsPath.AtName("replication_method"),

@@ -430,6 +430,24 @@ func TestClickPipeResource_ValidatesBigQueryCDCConfig(t *testing.T) {
 			mappings: []bigQueryCDCTestMapping{watermark},
 		},
 		{
+			name:     "query based with sync_cron",
+			mode:     api.ClickPipeReplicationModeCDC,
+			method:   types.StringValue(api.ClickPipeBigQueryReplicationMethodQueryBased),
+			tweak:    func(s *models.ClickPipeBigQuerySettingsModel) { s.SyncCron = types.StringValue("0 * * * *") },
+			mappings: []bigQueryCDCTestMapping{watermark},
+		},
+		{
+			name:   "sync_cron rejects sync_interval_seconds",
+			mode:   api.ClickPipeReplicationModeCDC,
+			method: types.StringValue(api.ClickPipeBigQueryReplicationMethodQueryBased),
+			tweak: func(s *models.ClickPipeBigQuerySettingsModel) {
+				s.SyncCron = types.StringValue("0 * * * *")
+				s.SyncIntervalSeconds = types.Int64Value(60)
+			},
+			mappings:  []bigQueryCDCTestMapping{watermark},
+			wantError: "cannot both be set",
+		},
+		{
 			name:      "query based requires watermark column",
 			mode:      api.ClickPipeReplicationModeCDC,
 			method:    types.StringValue(api.ClickPipeBigQueryReplicationMethodQueryBased),
