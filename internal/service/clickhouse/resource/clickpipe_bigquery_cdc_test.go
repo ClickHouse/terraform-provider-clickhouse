@@ -8,10 +8,14 @@ import (
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -266,7 +270,11 @@ func TestClickPipeResource_syncClickPipeState_BigQuerySnapshotHasNoCDCFields(t *
 				BigQuery: &api.ClickPipeBigQuerySource{
 					SnapshotStagingPath: "gs://staging-bucket/clickpipes/",
 					Authentication:      api.ClickPipeAuthenticationServiceAccount,
-					Settings:            api.ClickPipeBigQuerySettings{ReplicationMode: api.ClickPipeReplicationModeSnapshot},
+					Settings: api.ClickPipeBigQuerySettings{
+						ReplicationMode: api.ClickPipeReplicationModeSnapshot,
+						// The API may return an empty method for snapshot pipes; it must map to null.
+						ReplicationMethod: func() *string { v := ""; return &v }(),
+					},
 					Mappings: []api.ClickPipeBigQueryTableMapping{{
 						SourceDatasetName: "dataset",
 						SourceTable:       "table",
@@ -292,6 +300,46 @@ func TestClickPipeResource_syncClickPipeState_BigQuerySnapshotHasNoCDCFields(t *
 	assert.True(t, settings.QueryCDCPullSyncParallelism.IsNull())
 	assert.True(t, settings.SyncDelaySeconds.IsNull())
 	assert.True(t, settings.PullWindowSizeSeconds.IsNull())
+}
+
+// Unconfigured computed CDC settings must keep their state value on unrelated
+// changes (rename, stop, scaling). Otherwise they plan as unknown, the source
+// diff becomes non-empty and Update rejects it as an unsupported BigQuery edit.
+func TestClickPipeResource_BigQueryCDCSettingsUseStateForUnknown(t *testing.T) {
+	ctx := context.Background()
+	schemaResponse := &resource.SchemaResponse{}
+	(&ClickPipeResource{}).Schema(ctx, resource.SchemaRequest{}, schemaResponse)
+	require.False(t, schemaResponse.Diagnostics.HasError())
+
+	source := schemaResponse.Schema.Attributes["source"].(schema.SingleNestedAttribute)
+	bigQuery := source.Attributes["bigquery"].(schema.SingleNestedAttribute)
+	settings := bigQuery.Attributes["settings"].(schema.SingleNestedAttribute)
+
+	// Any non-null raw state marks the resource as existing.
+	existingState := tfsdk.State{Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{})}
+
+	for _, name := range []string{"sync_interval_seconds", "query_cdc_pull_sync_parallelism", "sync_delay_seconds", "pull_window_size_seconds"} {
+		for _, stateValue := range []types.Int64{types.Int64Value(60), types.Int64Null()} {
+			t.Run(name+"/"+stateValue.String(), func(t *testing.T) {
+				attribute := settings.Attributes[name].(schema.Int64Attribute)
+				req := planmodifier.Int64Request{
+					Path:        path.Root("source").AtName("bigquery").AtName("settings").AtName(name),
+					ConfigValue: types.Int64Null(),
+					PlanValue:   types.Int64Unknown(),
+					StateValue:  stateValue,
+					State:       existingState,
+				}
+				resp := &planmodifier.Int64Response{PlanValue: req.PlanValue}
+				for _, modifier := range attribute.PlanModifiers {
+					modifier.PlanModifyInt64(ctx, req, resp)
+					req.PlanValue = resp.PlanValue
+				}
+				require.False(t, resp.Diagnostics.HasError())
+				assert.False(t, resp.RequiresReplace)
+				assert.Equal(t, stateValue, resp.PlanValue)
+			})
+		}
+	}
 }
 
 func validateBigQueryCDCConfig(t *testing.T, configModel models.ClickPipeResourceModel) diag.Diagnostics {

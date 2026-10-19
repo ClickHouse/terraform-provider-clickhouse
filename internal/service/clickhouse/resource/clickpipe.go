@@ -1683,6 +1683,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
 										},
 									},
 									"query_cdc_pull_sync_parallelism": schema.Int64Attribute{
@@ -1694,6 +1695,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
 										},
 									},
 									"sync_delay_seconds": schema.Int64Attribute{
@@ -1705,6 +1707,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
 										},
 									},
 									"pull_window_size_seconds": schema.Int64Attribute{
@@ -1716,6 +1719,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 										PlanModifiers: []planmodifier.Int64{
 											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
 										},
 									},
 									"allow_nullable_columns": schema.BoolAttribute{
@@ -5592,7 +5596,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 		// Settings - preserve null values from state for optional fields
 		settingsModel := models.ClickPipeBigQuerySettingsModel{
 			ReplicationMode:             types.StringValue(clickPipe.Source.BigQuery.Settings.ReplicationMode),
-			ReplicationMethod:           types.StringPointerValue(clickPipe.Source.BigQuery.Settings.ReplicationMethod),
+			ReplicationMethod:           nonEmptyStringValue(clickPipe.Source.BigQuery.Settings.ReplicationMethod),
 			SyncIntervalSeconds:         intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.SyncIntervalSeconds),
 			QueryCDCPullSyncParallelism: intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.QueryCDCPullSyncParallelism),
 			SyncDelaySeconds:            intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.SyncDelaySeconds),
