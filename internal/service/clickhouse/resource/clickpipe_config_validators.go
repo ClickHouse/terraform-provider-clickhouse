@@ -513,6 +513,166 @@ func (v cdcClickPipeScalingValidator) ValidateResource(ctx context.Context, req 
 	)
 }
 
+// bigQueryCDCValidator enforces the cross-field rules between the BigQuery
+// replication mode, replication method and per-table CDC options. The server
+// rejects mismatches with a 400; this surfaces the same errors at plan time.
+type bigQueryCDCValidator struct{}
+
+func (v bigQueryCDCValidator) Description(_ context.Context) string {
+	return "Validates that BigQuery CDC settings match the chosen replication mode and method."
+}
+
+func (v bigQueryCDCValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v bigQueryCDCValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data models.ClickPipeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.Source.IsNull() || data.Source.IsUnknown() {
+		return
+	}
+
+	sourceModel := models.ClickPipeSourceModel{}
+	resp.Diagnostics.Append(data.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if sourceModel.BigQuery.IsNull() || sourceModel.BigQuery.IsUnknown() {
+		return
+	}
+
+	bigQueryModel := models.ClickPipeBigQuerySourceModel{}
+	resp.Diagnostics.Append(sourceModel.BigQuery.As(ctx, &bigQueryModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if bigQueryModel.Settings.IsNull() || bigQueryModel.Settings.IsUnknown() {
+		return
+	}
+
+	settings := models.ClickPipeBigQuerySettingsModel{}
+	resp.Diagnostics.Append(bigQueryModel.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Skip if replication_mode is unknown — the framework will re-run validation once known.
+	if settings.ReplicationMode.IsNull() || settings.ReplicationMode.IsUnknown() {
+		return
+	}
+
+	settingsPath := path.Root("source").AtName("bigquery").AtName("settings")
+	mode := settings.ReplicationMode.ValueString()
+
+	var mappings []models.ClickPipeBigQueryTableMappingModel
+	if !bigQueryModel.TableMappings.IsNull() && !bigQueryModel.TableMappings.IsUnknown() {
+		mappings = make([]models.ClickPipeBigQueryTableMappingModel, len(bigQueryModel.TableMappings.Elements()))
+		resp.Diagnostics.Append(bigQueryModel.TableMappings.ElementsAs(ctx, &mappings, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	mappingsPath := path.Root("source").AtName("bigquery").AtName("table_mappings")
+
+	if mode == api.ClickPipeReplicationModeSnapshot {
+		cdcOnlySettings := []struct {
+			name  string
+			isSet bool
+		}{
+			{"replication_method", !settings.ReplicationMethod.IsNull()},
+			{"sync_interval_seconds", !settings.SyncIntervalSeconds.IsNull()},
+			{"query_cdc_pull_sync_parallelism", !settings.QueryCDCPullSyncParallelism.IsNull()},
+			{"sync_delay_seconds", !settings.SyncDelaySeconds.IsNull()},
+			{"pull_window_size_seconds", !settings.PullWindowSizeSeconds.IsNull()},
+		}
+		for _, setting := range cdcOnlySettings {
+			if setting.isSet {
+				resp.Diagnostics.AddAttributeError(
+					settingsPath.AtName(setting.name),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("%s must not be set when replication_mode is %q.", setting.name, mode),
+				)
+			}
+		}
+
+		for i, mapping := range mappings {
+			elemPath := mappingsPath.AtListIndex(i)
+			if !mapping.QueryCDCWatermarkColumn.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("query_cdc_watermark_column"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("query_cdc_watermark_column must not be set when replication_mode is %q.", mode),
+				)
+			}
+			if !mapping.EventsFunction.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("events_function"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("events_function must not be set when replication_mode is %q.", mode),
+				)
+			}
+		}
+		return
+	}
+
+	if settings.ReplicationMethod.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			settingsPath.AtName("replication_method"),
+			"Invalid BigQuery replication configuration",
+			fmt.Sprintf("replication_method is required when replication_mode is %q.", mode),
+		)
+		return
+	}
+	// Skip the per-table checks if replication_method is unknown.
+	if settings.ReplicationMethod.IsUnknown() {
+		return
+	}
+
+	method := settings.ReplicationMethod.ValueString()
+	for i, mapping := range mappings {
+		elemPath := mappingsPath.AtListIndex(i)
+		switch method {
+		case api.ClickPipeBigQueryReplicationMethodQueryBased:
+			if mapping.QueryCDCWatermarkColumn.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("query_cdc_watermark_column"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("query_cdc_watermark_column is required for every table when replication_method is %q.", method),
+				)
+			}
+			if !mapping.EventsFunction.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("events_function"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("events_function is only allowed when replication_method is %q.", api.ClickPipeBigQueryReplicationMethodEventsBased),
+				)
+			}
+		case api.ClickPipeBigQueryReplicationMethodEventsBased:
+			if mapping.EventsFunction.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("events_function"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("events_function is required for every table when replication_method is %q.", method),
+				)
+			}
+			if !mapping.QueryCDCWatermarkColumn.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("query_cdc_watermark_column"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("query_cdc_watermark_column is only allowed when replication_method is %q.", api.ClickPipeBigQueryReplicationMethodQueryBased),
+				)
+			}
+		}
+	}
+}
+
 func (c *ClickPipeResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		kafkaTombstoneModeValidator{},
@@ -521,5 +681,6 @@ func (c *ClickPipeResource) ConfigValidators(_ context.Context) []resource.Confi
 		kinesisProtobufSchemaValidator{},
 		pubsubSeekValidator{},
 		cdcClickPipeScalingValidator{},
+		bigQueryCDCValidator{},
 	}
 }
