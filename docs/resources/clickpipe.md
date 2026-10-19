@@ -459,20 +459,6 @@ Optional:
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `cloudsqlmysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
 
-<a id="nestedatt--source--mysql--credentials"></a>
-### Nested Schema for `source.mysql.credentials`
-
-Required:
-
-- `username` (String, Sensitive) The username for the MySQL instance.
-
-Optional:
-
-- `password` (String, Sensitive) The password for the MySQL instance. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
-- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
-
-
 <a id="nestedatt--source--mysql--settings"></a>
 ### Nested Schema for `source.mysql.settings`
 
@@ -510,6 +496,20 @@ Optional:
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
+
+
+<a id="nestedatt--source--mysql--credentials"></a>
+### Nested Schema for `source.mysql.credentials`
+
+Required:
+
+- `username` (String, Sensitive) The username for the MySQL instance.
+
+Optional:
+
+- `password` (String, Sensitive) The password for the MySQL instance. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
 
@@ -571,20 +571,6 @@ Optional:
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of the Postgres source. (`postgres`, `supabase`, `neon`, `alloydb`, `planetscale`, `rdspostgres`, `aurorapostgres`, `cloudsqlpostgres`, `azurepostgres`, `crunchybridge`, `tigerdata`). Default is `postgres`.
 
-<a id="nestedatt--source--postgres--credentials"></a>
-### Nested Schema for `source.postgres.credentials`
-
-Required:
-
-- `username` (String, Sensitive) The username for the Postgres instance.
-
-Optional:
-
-- `password` (String, Sensitive) The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
-- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
-
-
 <a id="nestedatt--source--postgres--settings"></a>
 ### Nested Schema for `source.postgres.settings`
 
@@ -623,6 +609,20 @@ Optional:
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
+
+
+<a id="nestedatt--source--postgres--credentials"></a>
+### Nested Schema for `source.postgres.credentials`
+
+Required:
+
+- `username` (String, Sensitive) The username for the Postgres instance.
+
+Optional:
+
+- `password` (String, Sensitive) The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
 
