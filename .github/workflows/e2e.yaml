@@ -184,7 +184,7 @@ jobs:
           azure_region: "${{ inputs.azure_region }}"
           gcp_region: "${{ inputs.gcp_region }}"
         run: |
-          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
+          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }} ${{ matrix.test.name }}
 
       - name: E2E
         id: e2e
@@ -282,7 +282,7 @@ jobs:
           azure_region: "${{ inputs.azure_region }}"
           gcp_region: "${{ inputs.gcp_region }}"
         run: |
-          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
+          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }} ${{ matrix.test.name }}
 
       - name: Upgrade
         if: ${{ inputs.run_upgrade_test }}

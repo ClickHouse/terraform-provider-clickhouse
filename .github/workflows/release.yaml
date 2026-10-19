@@ -179,7 +179,7 @@ jobs:
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"
           api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
         run: |
-          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
+          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }} ${{ matrix.test.name }}
 
       - name: E2E
         uses: ./.github/actions/e2e
@@ -267,7 +267,7 @@ jobs:
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"
           api_env_development: "${{ secrets.API_ENV_DEVELOPMENT }}"
         run: |
-          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }}
+          bash ./.github/scripts/set_api_env.sh ${{ matrix.test.cloud }} ${{ matrix.test.name }}
 
       - name: Upgrade
         if: ${{inputs.test_upgrade }}

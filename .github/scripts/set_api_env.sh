@@ -15,6 +15,7 @@ azure_region=${azure_region:-""}
 gcp_region=${gcp_region:-""}
 
 cloud="${1:-""}"
+test_name="${2:-""}"
 region=""
 compliance_region=""
 
@@ -28,7 +29,16 @@ Production)
   api_key_id="$(echo "${api_env_production}" | jq -r .api_key_id)"
   api_key_secret="$(echo "${api_env_production}" | jq -r .api_key_secret)"
   if [[ -n "${cloud}" ]]; then
-    region="$(echo "${example_regions_production:?"EXAMPLE_REGIONS_PRODUCTION not set"}" | jq -rc --arg cloud "${cloud}" '.regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
+    regions="$(echo "${example_regions_production:?"EXAMPLE_REGIONS_PRODUCTION not set"}" | jq -c --arg cloud "${cloud}" '.regions[$cloud]')"
+    if [[ "${cloud}" == "aws" && "${test_name}" == "postgres" ]]; then
+      # These ClickHouse regions do not support Postgres creation.
+      regions="$(echo "${regions}" | jq -c '. - ["af-south-1", "ca-central-1", "il-central-1"]')"
+      if [[ "${regions}" == "[]" ]]; then
+        echo "No supported AWS Postgres regions configured" >&2
+        exit 1
+      fi
+    fi
+    region="$(echo "${regions}" | jq -c '.[]' | shuf -n 1 | jq -r .)"
     compliance_region="$(echo "${example_regions_production:?"EXAMPLE_REGIONS_PRODUCTION not set"}" | jq -rc --arg cloud "${cloud}" '.compliance_regions[$cloud]' | jq -c '.[]' | shuf -n 1 | jq -r .)"
   fi
   ;;
