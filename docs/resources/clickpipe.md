@@ -208,6 +208,7 @@ Optional:
 - `replication_method` (String) How changes are captured from BigQuery. (`query_based`, `events_based`). `query_based` polls each table using a watermark timestamp column (see `query_cdc_watermark_column` in `table_mappings`), `events_based` reads the BigQuery change history using the `APPENDS` or `CHANGES` table function (see `events_function` in `table_mappings`). Required when `replication_mode` is `cdc` or `cdc_only`, and must be omitted for `snapshot`.
 - `snapshot_num_rows_per_partition` (Number) Number of rows to snapshot per partition.
 - `snapshot_number_of_parallel_tables` (Number) Number of parallel tables to snapshot.
+- `sync_cron` (String) Standard 5-field cron expression (or a descriptor such as `@hourly`) that schedules CDC syncs, e.g. `0 * * * *` to sync every hour sharp. Evaluated in UTC unless prefixed with `CRON_TZ=<zone>`. Must not fire more than once a minute. When set, it replaces `sync_interval_seconds` as the sync cadence. Must be omitted when replication_mode is `snapshot`.
 - `sync_delay_seconds` (Number) Each CDC sync reads data only up to now minus this delay, giving recently written rows time to become visible in BigQuery. Increase it if your tables are loaded via batch jobs or Google Cloud Dataflow; if set too low, late-visible rows may be skipped. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.
 - `sync_interval_seconds` (Number) Interval in seconds between CDC syncs. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.
 

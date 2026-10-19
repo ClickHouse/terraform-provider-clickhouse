@@ -627,6 +627,7 @@ type ClickPipeBigQuerySettingsModel struct {
 	QueryCDCPullSyncParallelism    types.Int64  `tfsdk:"query_cdc_pull_sync_parallelism"`
 	SyncDelaySeconds               types.Int64  `tfsdk:"sync_delay_seconds"`
 	PullWindowSizeSeconds          types.Int64  `tfsdk:"pull_window_size_seconds"`
+	SyncCron                       types.String `tfsdk:"sync_cron"`
 	AllowNullableColumns           types.Bool   `tfsdk:"allow_nullable_columns"`
 	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
 	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
@@ -642,6 +643,7 @@ func (m ClickPipeBigQuerySettingsModel) ObjectType() types.ObjectType {
 			"query_cdc_pull_sync_parallelism":    types.Int64Type,
 			"sync_delay_seconds":                 types.Int64Type,
 			"pull_window_size_seconds":           types.Int64Type,
+			"sync_cron":                          types.StringType,
 			"allow_nullable_columns":             types.BoolType,
 			"initial_load_parallelism":           types.Int64Type,
 			"snapshot_num_rows_per_partition":    types.Int64Type,
@@ -658,6 +660,7 @@ func (m ClickPipeBigQuerySettingsModel) ObjectValue() types.Object {
 		"query_cdc_pull_sync_parallelism":    m.QueryCDCPullSyncParallelism,
 		"sync_delay_seconds":                 m.SyncDelaySeconds,
 		"pull_window_size_seconds":           m.PullWindowSizeSeconds,
+		"sync_cron":                          m.SyncCron,
 		"allow_nullable_columns":             m.AllowNullableColumns,
 		"initial_load_parallelism":           m.InitialLoadParallelism,
 		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,

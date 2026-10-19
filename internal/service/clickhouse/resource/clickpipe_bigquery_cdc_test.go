@@ -85,6 +85,7 @@ func bigQuerySettings(mode string) models.ClickPipeBigQuerySettingsModel {
 		QueryCDCPullSyncParallelism:    types.Int64Null(),
 		SyncDelaySeconds:               types.Int64Null(),
 		PullWindowSizeSeconds:          types.Int64Null(),
+		SyncCron:                       types.StringNull(),
 		AllowNullableColumns:           types.BoolValue(false),
 		InitialLoadParallelism:         types.Int64Value(4),
 		SnapshotNumRowsPerPartition:    types.Int64Value(100_000),
@@ -100,6 +101,7 @@ func TestExtractSourceFromPlan_BigQuery_QueryBasedCDC(t *testing.T) {
 	settings.ReplicationMethod = types.StringValue(api.ClickPipeBigQueryReplicationMethodQueryBased)
 	settings.SyncIntervalSeconds = types.Int64Value(30)
 	settings.SyncDelaySeconds = types.Int64Value(120)
+	settings.SyncCron = types.StringValue("0 * * * *")
 	// computed attributes are unknown in the plan when omitted from the config
 	settings.QueryCDCPullSyncParallelism = types.Int64Unknown()
 	settings.PullWindowSizeSeconds = types.Int64Unknown()
@@ -123,6 +125,8 @@ func TestExtractSourceFromPlan_BigQuery_QueryBasedCDC(t *testing.T) {
 	assert.Equal(t, 30, *got.SyncIntervalSeconds)
 	require.NotNil(t, got.SyncDelaySeconds)
 	assert.Equal(t, 120, *got.SyncDelaySeconds)
+	require.NotNil(t, got.SyncCron)
+	assert.Equal(t, "0 * * * *", *got.SyncCron)
 	assert.Nil(t, got.QueryCDCPullSyncParallelism)
 	assert.Nil(t, got.PullWindowSizeSeconds)
 
@@ -214,6 +218,7 @@ func TestClickPipeResource_syncClickPipeState_BigQueryCDC(t *testing.T) {
 						QueryCDCPullSyncParallelism: intPtr(4),
 						SyncDelaySeconds:            intPtr(120),
 						PullWindowSizeSeconds:       intPtr(86400),
+						SyncCron:                    strPtr("0 * * * *"),
 					},
 					Mappings: []api.ClickPipeBigQueryTableMapping{{
 						SourceDatasetName:       "dataset",
@@ -242,6 +247,7 @@ func TestClickPipeResource_syncClickPipeState_BigQueryCDC(t *testing.T) {
 	assert.Equal(t, int64(4), settings.QueryCDCPullSyncParallelism.ValueInt64())
 	assert.Equal(t, int64(120), settings.SyncDelaySeconds.ValueInt64())
 	assert.Equal(t, int64(86400), settings.PullWindowSizeSeconds.ValueInt64())
+	assert.Equal(t, "0 * * * *", settings.SyncCron.ValueString())
 
 	var mappings []models.ClickPipeBigQueryTableMappingModel
 	require.False(t, bigQueryModel.TableMappings.ElementsAs(ctx, &mappings, false).HasError())
@@ -300,6 +306,7 @@ func TestClickPipeResource_syncClickPipeState_BigQuerySnapshotHasNoCDCFields(t *
 	assert.True(t, settings.QueryCDCPullSyncParallelism.IsNull())
 	assert.True(t, settings.SyncDelaySeconds.IsNull())
 	assert.True(t, settings.PullWindowSizeSeconds.IsNull())
+	assert.True(t, settings.SyncCron.IsNull())
 }
 
 // Unconfigured computed CDC settings must keep their state value on unrelated
@@ -393,6 +400,14 @@ func TestClickPipeResource_ValidatesBigQueryCDCConfig(t *testing.T) {
 			tweak:     func(s *models.ClickPipeBigQuerySettingsModel) { s.SyncDelaySeconds = types.Int64Value(10) },
 			mappings:  []bigQueryCDCTestMapping{plain},
 			wantError: "sync_delay_seconds must not be set",
+		},
+		{
+			name:      "snapshot rejects sync_cron",
+			mode:      api.ClickPipeReplicationModeSnapshot,
+			method:    types.StringNull(),
+			tweak:     func(s *models.ClickPipeBigQuerySettingsModel) { s.SyncCron = types.StringValue("0 * * * *") },
+			mappings:  []bigQueryCDCTestMapping{plain},
+			wantError: "sync_cron must not be set",
 		},
 		{
 			name:      "snapshot rejects watermark column",
