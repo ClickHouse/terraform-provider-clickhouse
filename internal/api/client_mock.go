@@ -54,6 +54,13 @@ type ClientMock struct {
 	beforeCreateClickPipeCounter uint64
 	CreateClickPipeMock          mClientMockCreateClickPipe
 
+	funcCreateJWTProvider          func(ctx context.Context, serviceID string, provider JWTProvider) (jp1 *JWTProvider, err error)
+	funcCreateJWTProviderOrigin    string
+	inspectFuncCreateJWTProvider   func(ctx context.Context, serviceID string, provider JWTProvider)
+	afterCreateJWTProviderCounter  uint64
+	beforeCreateJWTProviderCounter uint64
+	CreateJWTProviderMock          mClientMockCreateJWTProvider
+
 	funcCreatePostgres          func(ctx context.Context, body PostgresCreate) (pp1 *Postgres, s1 string, err error)
 	funcCreatePostgresOrigin    string
 	inspectFuncCreatePostgres   func(ctx context.Context, body PostgresCreate)
@@ -158,6 +165,13 @@ type ClientMock struct {
 	afterDeleteClickPipeCounter  uint64
 	beforeDeleteClickPipeCounter uint64
 	DeleteClickPipeMock          mClientMockDeleteClickPipe
+
+	funcDeleteJWTProvider          func(ctx context.Context, serviceID string, name string) (err error)
+	funcDeleteJWTProviderOrigin    string
+	inspectFuncDeleteJWTProvider   func(ctx context.Context, serviceID string, name string)
+	afterDeleteJWTProviderCounter  uint64
+	beforeDeleteJWTProviderCounter uint64
+	DeleteJWTProviderMock          mClientMockDeleteJWTProvider
 
 	funcDeletePostgres          func(ctx context.Context, postgresId string) (err error)
 	funcDeletePostgresOrigin    string
@@ -312,6 +326,13 @@ type ClientMock struct {
 	afterGetClickPipesServiceContextCounter  uint64
 	beforeGetClickPipesServiceContextCounter uint64
 	GetClickPipesServiceContextMock          mClientMockGetClickPipesServiceContext
+
+	funcGetJWTProvider          func(ctx context.Context, serviceID string, name string) (jp1 *JWTProvider, err error)
+	funcGetJWTProviderOrigin    string
+	inspectFuncGetJWTProvider   func(ctx context.Context, serviceID string, name string)
+	afterGetJWTProviderCounter  uint64
+	beforeGetJWTProviderCounter uint64
+	GetJWTProviderMock          mClientMockGetJWTProvider
 
 	funcGetMember          func(ctx context.Context, userID string) (mp1 *Member, err error)
 	funcGetMemberOrigin    string
@@ -593,6 +614,13 @@ type ClientMock struct {
 	beforeUpdateClickPipeSettingsCounter uint64
 	UpdateClickPipeSettingsMock          mClientMockUpdateClickPipeSettings
 
+	funcUpdateJWTProvider          func(ctx context.Context, serviceID string, name string, update JWTProviderUpdate) (jp1 *JWTProvider, err error)
+	funcUpdateJWTProviderOrigin    string
+	inspectFuncUpdateJWTProvider   func(ctx context.Context, serviceID string, name string, update JWTProviderUpdate)
+	afterUpdateJWTProviderCounter  uint64
+	beforeUpdateJWTProviderCounter uint64
+	UpdateJWTProviderMock          mClientMockUpdateJWTProvider
+
 	funcUpdateOrganization          func(ctx context.Context, orgUpdate OrganizationUpdate) (op1 *OrgResult, err error)
 	funcUpdateOrganizationOrigin    string
 	inspectFuncUpdateOrganization   func(ctx context.Context, orgUpdate OrganizationUpdate)
@@ -785,6 +813,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateClickPipeMock = mClientMockCreateClickPipe{mock: m}
 	m.CreateClickPipeMock.callArgs = []*ClientMockCreateClickPipeParams{}
 
+	m.CreateJWTProviderMock = mClientMockCreateJWTProvider{mock: m}
+	m.CreateJWTProviderMock.callArgs = []*ClientMockCreateJWTProviderParams{}
+
 	m.CreatePostgresMock = mClientMockCreatePostgres{mock: m}
 	m.CreatePostgresMock.callArgs = []*ClientMockCreatePostgresParams{}
 
@@ -829,6 +860,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeleteClickPipeMock = mClientMockDeleteClickPipe{mock: m}
 	m.DeleteClickPipeMock.callArgs = []*ClientMockDeleteClickPipeParams{}
+
+	m.DeleteJWTProviderMock = mClientMockDeleteJWTProvider{mock: m}
+	m.DeleteJWTProviderMock.callArgs = []*ClientMockDeleteJWTProviderParams{}
 
 	m.DeletePostgresMock = mClientMockDeletePostgres{mock: m}
 	m.DeletePostgresMock.callArgs = []*ClientMockDeletePostgresParams{}
@@ -895,6 +929,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetClickPipesServiceContextMock = mClientMockGetClickPipesServiceContext{mock: m}
 	m.GetClickPipesServiceContextMock.callArgs = []*ClientMockGetClickPipesServiceContextParams{}
+
+	m.GetJWTProviderMock = mClientMockGetJWTProvider{mock: m}
+	m.GetJWTProviderMock.callArgs = []*ClientMockGetJWTProviderParams{}
 
 	m.GetMemberMock = mClientMockGetMember{mock: m}
 	m.GetMemberMock.callArgs = []*ClientMockGetMemberParams{}
@@ -1015,6 +1052,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateClickPipeSettingsMock = mClientMockUpdateClickPipeSettings{mock: m}
 	m.UpdateClickPipeSettingsMock.callArgs = []*ClientMockUpdateClickPipeSettingsParams{}
+
+	m.UpdateJWTProviderMock = mClientMockUpdateJWTProvider{mock: m}
+	m.UpdateJWTProviderMock.callArgs = []*ClientMockUpdateJWTProviderParams{}
 
 	m.UpdateOrganizationMock = mClientMockUpdateOrganization{mock: m}
 	m.UpdateOrganizationMock.callArgs = []*ClientMockUpdateOrganizationParams{}
@@ -2960,6 +3000,380 @@ func (m *ClientMock) MinimockCreateClickPipeInspect() {
 	if !m.CreateClickPipeMock.invocationsDone() && afterCreateClickPipeCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateClickPipe at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateClickPipeMock.expectedInvocations), m.CreateClickPipeMock.expectedInvocationsOrigin, afterCreateClickPipeCounter)
+	}
+}
+
+type mClientMockCreateJWTProvider struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateJWTProviderExpectation
+	expectations       []*ClientMockCreateJWTProviderExpectation
+
+	callArgs []*ClientMockCreateJWTProviderParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateJWTProviderExpectation specifies expectation struct of the Client.CreateJWTProvider
+type ClientMockCreateJWTProviderExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateJWTProviderParams
+	paramPtrs          *ClientMockCreateJWTProviderParamPtrs
+	expectationOrigins ClientMockCreateJWTProviderExpectationOrigins
+	results            *ClientMockCreateJWTProviderResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateJWTProviderParams contains parameters of the Client.CreateJWTProvider
+type ClientMockCreateJWTProviderParams struct {
+	ctx       context.Context
+	serviceID string
+	provider  JWTProvider
+}
+
+// ClientMockCreateJWTProviderParamPtrs contains pointers to parameters of the Client.CreateJWTProvider
+type ClientMockCreateJWTProviderParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	provider  *JWTProvider
+}
+
+// ClientMockCreateJWTProviderResults contains results of the Client.CreateJWTProvider
+type ClientMockCreateJWTProviderResults struct {
+	jp1 *JWTProvider
+	err error
+}
+
+// ClientMockCreateJWTProviderOrigins contains origins of expectations of the Client.CreateJWTProvider
+type ClientMockCreateJWTProviderExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+	originProvider  string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) Optional() *mClientMockCreateJWTProvider {
+	mmCreateJWTProvider.optional = true
+	return mmCreateJWTProvider
+}
+
+// Expect sets up expected params for Client.CreateJWTProvider
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) Expect(ctx context.Context, serviceID string, provider JWTProvider) *mClientMockCreateJWTProvider {
+	if mmCreateJWTProvider.mock.funcCreateJWTProvider != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by Set")
+	}
+
+	if mmCreateJWTProvider.defaultExpectation == nil {
+		mmCreateJWTProvider.defaultExpectation = &ClientMockCreateJWTProviderExpectation{}
+	}
+
+	if mmCreateJWTProvider.defaultExpectation.paramPtrs != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by ExpectParams functions")
+	}
+
+	mmCreateJWTProvider.defaultExpectation.params = &ClientMockCreateJWTProviderParams{ctx, serviceID, provider}
+	mmCreateJWTProvider.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateJWTProvider.expectations {
+		if minimock.Equal(e.params, mmCreateJWTProvider.defaultExpectation.params) {
+			mmCreateJWTProvider.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateJWTProvider.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateJWTProvider
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateJWTProvider
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) ExpectCtxParam1(ctx context.Context) *mClientMockCreateJWTProvider {
+	if mmCreateJWTProvider.mock.funcCreateJWTProvider != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by Set")
+	}
+
+	if mmCreateJWTProvider.defaultExpectation == nil {
+		mmCreateJWTProvider.defaultExpectation = &ClientMockCreateJWTProviderExpectation{}
+	}
+
+	if mmCreateJWTProvider.defaultExpectation.params != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by Expect")
+	}
+
+	if mmCreateJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmCreateJWTProvider.defaultExpectation.paramPtrs = &ClientMockCreateJWTProviderParamPtrs{}
+	}
+	mmCreateJWTProvider.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateJWTProvider.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateJWTProvider
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.CreateJWTProvider
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) ExpectServiceIDParam2(serviceID string) *mClientMockCreateJWTProvider {
+	if mmCreateJWTProvider.mock.funcCreateJWTProvider != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by Set")
+	}
+
+	if mmCreateJWTProvider.defaultExpectation == nil {
+		mmCreateJWTProvider.defaultExpectation = &ClientMockCreateJWTProviderExpectation{}
+	}
+
+	if mmCreateJWTProvider.defaultExpectation.params != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by Expect")
+	}
+
+	if mmCreateJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmCreateJWTProvider.defaultExpectation.paramPtrs = &ClientMockCreateJWTProviderParamPtrs{}
+	}
+	mmCreateJWTProvider.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmCreateJWTProvider.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmCreateJWTProvider
+}
+
+// ExpectProviderParam3 sets up expected param provider for Client.CreateJWTProvider
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) ExpectProviderParam3(provider JWTProvider) *mClientMockCreateJWTProvider {
+	if mmCreateJWTProvider.mock.funcCreateJWTProvider != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by Set")
+	}
+
+	if mmCreateJWTProvider.defaultExpectation == nil {
+		mmCreateJWTProvider.defaultExpectation = &ClientMockCreateJWTProviderExpectation{}
+	}
+
+	if mmCreateJWTProvider.defaultExpectation.params != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by Expect")
+	}
+
+	if mmCreateJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmCreateJWTProvider.defaultExpectation.paramPtrs = &ClientMockCreateJWTProviderParamPtrs{}
+	}
+	mmCreateJWTProvider.defaultExpectation.paramPtrs.provider = &provider
+	mmCreateJWTProvider.defaultExpectation.expectationOrigins.originProvider = minimock.CallerInfo(1)
+
+	return mmCreateJWTProvider
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateJWTProvider
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) Inspect(f func(ctx context.Context, serviceID string, provider JWTProvider)) *mClientMockCreateJWTProvider {
+	if mmCreateJWTProvider.mock.inspectFuncCreateJWTProvider != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateJWTProvider")
+	}
+
+	mmCreateJWTProvider.mock.inspectFuncCreateJWTProvider = f
+
+	return mmCreateJWTProvider
+}
+
+// Return sets up results that will be returned by Client.CreateJWTProvider
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) Return(jp1 *JWTProvider, err error) *ClientMock {
+	if mmCreateJWTProvider.mock.funcCreateJWTProvider != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by Set")
+	}
+
+	if mmCreateJWTProvider.defaultExpectation == nil {
+		mmCreateJWTProvider.defaultExpectation = &ClientMockCreateJWTProviderExpectation{mock: mmCreateJWTProvider.mock}
+	}
+	mmCreateJWTProvider.defaultExpectation.results = &ClientMockCreateJWTProviderResults{jp1, err}
+	mmCreateJWTProvider.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateJWTProvider.mock
+}
+
+// Set uses given function f to mock the Client.CreateJWTProvider method
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) Set(f func(ctx context.Context, serviceID string, provider JWTProvider) (jp1 *JWTProvider, err error)) *ClientMock {
+	if mmCreateJWTProvider.defaultExpectation != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("Default expectation is already set for the Client.CreateJWTProvider method")
+	}
+
+	if len(mmCreateJWTProvider.expectations) > 0 {
+		mmCreateJWTProvider.mock.t.Fatalf("Some expectations are already set for the Client.CreateJWTProvider method")
+	}
+
+	mmCreateJWTProvider.mock.funcCreateJWTProvider = f
+	mmCreateJWTProvider.mock.funcCreateJWTProviderOrigin = minimock.CallerInfo(1)
+	return mmCreateJWTProvider.mock
+}
+
+// When sets expectation for the Client.CreateJWTProvider which will trigger the result defined by the following
+// Then helper
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) When(ctx context.Context, serviceID string, provider JWTProvider) *ClientMockCreateJWTProviderExpectation {
+	if mmCreateJWTProvider.mock.funcCreateJWTProvider != nil {
+		mmCreateJWTProvider.mock.t.Fatalf("ClientMock.CreateJWTProvider mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateJWTProviderExpectation{
+		mock:               mmCreateJWTProvider.mock,
+		params:             &ClientMockCreateJWTProviderParams{ctx, serviceID, provider},
+		expectationOrigins: ClientMockCreateJWTProviderExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateJWTProvider.expectations = append(mmCreateJWTProvider.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateJWTProvider return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateJWTProviderExpectation) Then(jp1 *JWTProvider, err error) *ClientMock {
+	e.results = &ClientMockCreateJWTProviderResults{jp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateJWTProvider should be invoked
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) Times(n uint64) *mClientMockCreateJWTProvider {
+	if n == 0 {
+		mmCreateJWTProvider.mock.t.Fatalf("Times of ClientMock.CreateJWTProvider mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateJWTProvider.expectedInvocations, n)
+	mmCreateJWTProvider.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateJWTProvider
+}
+
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) invocationsDone() bool {
+	if len(mmCreateJWTProvider.expectations) == 0 && mmCreateJWTProvider.defaultExpectation == nil && mmCreateJWTProvider.mock.funcCreateJWTProvider == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateJWTProvider.mock.afterCreateJWTProviderCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateJWTProvider.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateJWTProvider implements Client
+func (mmCreateJWTProvider *ClientMock) CreateJWTProvider(ctx context.Context, serviceID string, provider JWTProvider) (jp1 *JWTProvider, err error) {
+	mm_atomic.AddUint64(&mmCreateJWTProvider.beforeCreateJWTProviderCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateJWTProvider.afterCreateJWTProviderCounter, 1)
+
+	mmCreateJWTProvider.t.Helper()
+
+	if mmCreateJWTProvider.inspectFuncCreateJWTProvider != nil {
+		mmCreateJWTProvider.inspectFuncCreateJWTProvider(ctx, serviceID, provider)
+	}
+
+	mm_params := ClientMockCreateJWTProviderParams{ctx, serviceID, provider}
+
+	// Record call args
+	mmCreateJWTProvider.CreateJWTProviderMock.mutex.Lock()
+	mmCreateJWTProvider.CreateJWTProviderMock.callArgs = append(mmCreateJWTProvider.CreateJWTProviderMock.callArgs, &mm_params)
+	mmCreateJWTProvider.CreateJWTProviderMock.mutex.Unlock()
+
+	for _, e := range mmCreateJWTProvider.CreateJWTProviderMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.jp1, e.results.err
+		}
+	}
+
+	if mmCreateJWTProvider.CreateJWTProviderMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateJWTProvider.CreateJWTProviderMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateJWTProvider.CreateJWTProviderMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateJWTProvider.CreateJWTProviderMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateJWTProviderParams{ctx, serviceID, provider}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateJWTProvider.t.Errorf("ClientMock.CreateJWTProvider got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateJWTProvider.CreateJWTProviderMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmCreateJWTProvider.t.Errorf("ClientMock.CreateJWTProvider got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateJWTProvider.CreateJWTProviderMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.provider != nil && !minimock.Equal(*mm_want_ptrs.provider, mm_got.provider) {
+				mmCreateJWTProvider.t.Errorf("ClientMock.CreateJWTProvider got unexpected parameter provider, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateJWTProvider.CreateJWTProviderMock.defaultExpectation.expectationOrigins.originProvider, *mm_want_ptrs.provider, mm_got.provider, minimock.Diff(*mm_want_ptrs.provider, mm_got.provider))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateJWTProvider.t.Errorf("ClientMock.CreateJWTProvider got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateJWTProvider.CreateJWTProviderMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateJWTProvider.CreateJWTProviderMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateJWTProvider.t.Fatal("No results are set for the ClientMock.CreateJWTProvider")
+		}
+		return (*mm_results).jp1, (*mm_results).err
+	}
+	if mmCreateJWTProvider.funcCreateJWTProvider != nil {
+		return mmCreateJWTProvider.funcCreateJWTProvider(ctx, serviceID, provider)
+	}
+	mmCreateJWTProvider.t.Fatalf("Unexpected call to ClientMock.CreateJWTProvider. %v %v %v", ctx, serviceID, provider)
+	return
+}
+
+// CreateJWTProviderAfterCounter returns a count of finished ClientMock.CreateJWTProvider invocations
+func (mmCreateJWTProvider *ClientMock) CreateJWTProviderAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateJWTProvider.afterCreateJWTProviderCounter)
+}
+
+// CreateJWTProviderBeforeCounter returns a count of ClientMock.CreateJWTProvider invocations
+func (mmCreateJWTProvider *ClientMock) CreateJWTProviderBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateJWTProvider.beforeCreateJWTProviderCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateJWTProvider.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateJWTProvider *mClientMockCreateJWTProvider) Calls() []*ClientMockCreateJWTProviderParams {
+	mmCreateJWTProvider.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateJWTProviderParams, len(mmCreateJWTProvider.callArgs))
+	copy(argCopy, mmCreateJWTProvider.callArgs)
+
+	mmCreateJWTProvider.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateJWTProviderDone returns true if the count of the CreateJWTProvider invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateJWTProviderDone() bool {
+	if m.CreateJWTProviderMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateJWTProviderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateJWTProviderMock.invocationsDone()
+}
+
+// MinimockCreateJWTProviderInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateJWTProviderInspect() {
+	for _, e := range m.CreateJWTProviderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateJWTProvider at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateJWTProviderCounter := mm_atomic.LoadUint64(&m.afterCreateJWTProviderCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateJWTProviderMock.defaultExpectation != nil && afterCreateJWTProviderCounter < 1 {
+		if m.CreateJWTProviderMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateJWTProvider at\n%s", m.CreateJWTProviderMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateJWTProvider at\n%s with params: %#v", m.CreateJWTProviderMock.defaultExpectation.expectationOrigins.origin, *m.CreateJWTProviderMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateJWTProvider != nil && afterCreateJWTProviderCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateJWTProvider at\n%s", m.funcCreateJWTProviderOrigin)
+	}
+
+	if !m.CreateJWTProviderMock.invocationsDone() && afterCreateJWTProviderCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateJWTProvider at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateJWTProviderMock.expectedInvocations), m.CreateJWTProviderMock.expectedInvocationsOrigin, afterCreateJWTProviderCounter)
 	}
 }
 
@@ -8321,6 +8735,379 @@ func (m *ClientMock) MinimockDeleteClickPipeInspect() {
 	if !m.DeleteClickPipeMock.invocationsDone() && afterDeleteClickPipeCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteClickPipe at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteClickPipeMock.expectedInvocations), m.DeleteClickPipeMock.expectedInvocationsOrigin, afterDeleteClickPipeCounter)
+	}
+}
+
+type mClientMockDeleteJWTProvider struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteJWTProviderExpectation
+	expectations       []*ClientMockDeleteJWTProviderExpectation
+
+	callArgs []*ClientMockDeleteJWTProviderParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteJWTProviderExpectation specifies expectation struct of the Client.DeleteJWTProvider
+type ClientMockDeleteJWTProviderExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteJWTProviderParams
+	paramPtrs          *ClientMockDeleteJWTProviderParamPtrs
+	expectationOrigins ClientMockDeleteJWTProviderExpectationOrigins
+	results            *ClientMockDeleteJWTProviderResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteJWTProviderParams contains parameters of the Client.DeleteJWTProvider
+type ClientMockDeleteJWTProviderParams struct {
+	ctx       context.Context
+	serviceID string
+	name      string
+}
+
+// ClientMockDeleteJWTProviderParamPtrs contains pointers to parameters of the Client.DeleteJWTProvider
+type ClientMockDeleteJWTProviderParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	name      *string
+}
+
+// ClientMockDeleteJWTProviderResults contains results of the Client.DeleteJWTProvider
+type ClientMockDeleteJWTProviderResults struct {
+	err error
+}
+
+// ClientMockDeleteJWTProviderOrigins contains origins of expectations of the Client.DeleteJWTProvider
+type ClientMockDeleteJWTProviderExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+	originName      string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) Optional() *mClientMockDeleteJWTProvider {
+	mmDeleteJWTProvider.optional = true
+	return mmDeleteJWTProvider
+}
+
+// Expect sets up expected params for Client.DeleteJWTProvider
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) Expect(ctx context.Context, serviceID string, name string) *mClientMockDeleteJWTProvider {
+	if mmDeleteJWTProvider.mock.funcDeleteJWTProvider != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by Set")
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation == nil {
+		mmDeleteJWTProvider.defaultExpectation = &ClientMockDeleteJWTProviderExpectation{}
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation.paramPtrs != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteJWTProvider.defaultExpectation.params = &ClientMockDeleteJWTProviderParams{ctx, serviceID, name}
+	mmDeleteJWTProvider.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteJWTProvider.expectations {
+		if minimock.Equal(e.params, mmDeleteJWTProvider.defaultExpectation.params) {
+			mmDeleteJWTProvider.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteJWTProvider.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteJWTProvider
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteJWTProvider
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteJWTProvider {
+	if mmDeleteJWTProvider.mock.funcDeleteJWTProvider != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by Set")
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation == nil {
+		mmDeleteJWTProvider.defaultExpectation = &ClientMockDeleteJWTProviderExpectation{}
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation.params != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by Expect")
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmDeleteJWTProvider.defaultExpectation.paramPtrs = &ClientMockDeleteJWTProviderParamPtrs{}
+	}
+	mmDeleteJWTProvider.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteJWTProvider.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteJWTProvider
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.DeleteJWTProvider
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) ExpectServiceIDParam2(serviceID string) *mClientMockDeleteJWTProvider {
+	if mmDeleteJWTProvider.mock.funcDeleteJWTProvider != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by Set")
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation == nil {
+		mmDeleteJWTProvider.defaultExpectation = &ClientMockDeleteJWTProviderExpectation{}
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation.params != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by Expect")
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmDeleteJWTProvider.defaultExpectation.paramPtrs = &ClientMockDeleteJWTProviderParamPtrs{}
+	}
+	mmDeleteJWTProvider.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmDeleteJWTProvider.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmDeleteJWTProvider
+}
+
+// ExpectNameParam3 sets up expected param name for Client.DeleteJWTProvider
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) ExpectNameParam3(name string) *mClientMockDeleteJWTProvider {
+	if mmDeleteJWTProvider.mock.funcDeleteJWTProvider != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by Set")
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation == nil {
+		mmDeleteJWTProvider.defaultExpectation = &ClientMockDeleteJWTProviderExpectation{}
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation.params != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by Expect")
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmDeleteJWTProvider.defaultExpectation.paramPtrs = &ClientMockDeleteJWTProviderParamPtrs{}
+	}
+	mmDeleteJWTProvider.defaultExpectation.paramPtrs.name = &name
+	mmDeleteJWTProvider.defaultExpectation.expectationOrigins.originName = minimock.CallerInfo(1)
+
+	return mmDeleteJWTProvider
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteJWTProvider
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) Inspect(f func(ctx context.Context, serviceID string, name string)) *mClientMockDeleteJWTProvider {
+	if mmDeleteJWTProvider.mock.inspectFuncDeleteJWTProvider != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteJWTProvider")
+	}
+
+	mmDeleteJWTProvider.mock.inspectFuncDeleteJWTProvider = f
+
+	return mmDeleteJWTProvider
+}
+
+// Return sets up results that will be returned by Client.DeleteJWTProvider
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) Return(err error) *ClientMock {
+	if mmDeleteJWTProvider.mock.funcDeleteJWTProvider != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by Set")
+	}
+
+	if mmDeleteJWTProvider.defaultExpectation == nil {
+		mmDeleteJWTProvider.defaultExpectation = &ClientMockDeleteJWTProviderExpectation{mock: mmDeleteJWTProvider.mock}
+	}
+	mmDeleteJWTProvider.defaultExpectation.results = &ClientMockDeleteJWTProviderResults{err}
+	mmDeleteJWTProvider.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteJWTProvider.mock
+}
+
+// Set uses given function f to mock the Client.DeleteJWTProvider method
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) Set(f func(ctx context.Context, serviceID string, name string) (err error)) *ClientMock {
+	if mmDeleteJWTProvider.defaultExpectation != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("Default expectation is already set for the Client.DeleteJWTProvider method")
+	}
+
+	if len(mmDeleteJWTProvider.expectations) > 0 {
+		mmDeleteJWTProvider.mock.t.Fatalf("Some expectations are already set for the Client.DeleteJWTProvider method")
+	}
+
+	mmDeleteJWTProvider.mock.funcDeleteJWTProvider = f
+	mmDeleteJWTProvider.mock.funcDeleteJWTProviderOrigin = minimock.CallerInfo(1)
+	return mmDeleteJWTProvider.mock
+}
+
+// When sets expectation for the Client.DeleteJWTProvider which will trigger the result defined by the following
+// Then helper
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) When(ctx context.Context, serviceID string, name string) *ClientMockDeleteJWTProviderExpectation {
+	if mmDeleteJWTProvider.mock.funcDeleteJWTProvider != nil {
+		mmDeleteJWTProvider.mock.t.Fatalf("ClientMock.DeleteJWTProvider mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteJWTProviderExpectation{
+		mock:               mmDeleteJWTProvider.mock,
+		params:             &ClientMockDeleteJWTProviderParams{ctx, serviceID, name},
+		expectationOrigins: ClientMockDeleteJWTProviderExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteJWTProvider.expectations = append(mmDeleteJWTProvider.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteJWTProvider return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteJWTProviderExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteJWTProviderResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteJWTProvider should be invoked
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) Times(n uint64) *mClientMockDeleteJWTProvider {
+	if n == 0 {
+		mmDeleteJWTProvider.mock.t.Fatalf("Times of ClientMock.DeleteJWTProvider mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteJWTProvider.expectedInvocations, n)
+	mmDeleteJWTProvider.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteJWTProvider
+}
+
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) invocationsDone() bool {
+	if len(mmDeleteJWTProvider.expectations) == 0 && mmDeleteJWTProvider.defaultExpectation == nil && mmDeleteJWTProvider.mock.funcDeleteJWTProvider == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteJWTProvider.mock.afterDeleteJWTProviderCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteJWTProvider.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteJWTProvider implements Client
+func (mmDeleteJWTProvider *ClientMock) DeleteJWTProvider(ctx context.Context, serviceID string, name string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteJWTProvider.beforeDeleteJWTProviderCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteJWTProvider.afterDeleteJWTProviderCounter, 1)
+
+	mmDeleteJWTProvider.t.Helper()
+
+	if mmDeleteJWTProvider.inspectFuncDeleteJWTProvider != nil {
+		mmDeleteJWTProvider.inspectFuncDeleteJWTProvider(ctx, serviceID, name)
+	}
+
+	mm_params := ClientMockDeleteJWTProviderParams{ctx, serviceID, name}
+
+	// Record call args
+	mmDeleteJWTProvider.DeleteJWTProviderMock.mutex.Lock()
+	mmDeleteJWTProvider.DeleteJWTProviderMock.callArgs = append(mmDeleteJWTProvider.DeleteJWTProviderMock.callArgs, &mm_params)
+	mmDeleteJWTProvider.DeleteJWTProviderMock.mutex.Unlock()
+
+	for _, e := range mmDeleteJWTProvider.DeleteJWTProviderMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteJWTProvider.DeleteJWTProviderMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteJWTProvider.DeleteJWTProviderMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteJWTProvider.DeleteJWTProviderMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteJWTProvider.DeleteJWTProviderMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteJWTProviderParams{ctx, serviceID, name}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteJWTProvider.t.Errorf("ClientMock.DeleteJWTProvider got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteJWTProvider.DeleteJWTProviderMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmDeleteJWTProvider.t.Errorf("ClientMock.DeleteJWTProvider got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteJWTProvider.DeleteJWTProviderMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.name != nil && !minimock.Equal(*mm_want_ptrs.name, mm_got.name) {
+				mmDeleteJWTProvider.t.Errorf("ClientMock.DeleteJWTProvider got unexpected parameter name, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteJWTProvider.DeleteJWTProviderMock.defaultExpectation.expectationOrigins.originName, *mm_want_ptrs.name, mm_got.name, minimock.Diff(*mm_want_ptrs.name, mm_got.name))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteJWTProvider.t.Errorf("ClientMock.DeleteJWTProvider got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteJWTProvider.DeleteJWTProviderMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteJWTProvider.DeleteJWTProviderMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteJWTProvider.t.Fatal("No results are set for the ClientMock.DeleteJWTProvider")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteJWTProvider.funcDeleteJWTProvider != nil {
+		return mmDeleteJWTProvider.funcDeleteJWTProvider(ctx, serviceID, name)
+	}
+	mmDeleteJWTProvider.t.Fatalf("Unexpected call to ClientMock.DeleteJWTProvider. %v %v %v", ctx, serviceID, name)
+	return
+}
+
+// DeleteJWTProviderAfterCounter returns a count of finished ClientMock.DeleteJWTProvider invocations
+func (mmDeleteJWTProvider *ClientMock) DeleteJWTProviderAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteJWTProvider.afterDeleteJWTProviderCounter)
+}
+
+// DeleteJWTProviderBeforeCounter returns a count of ClientMock.DeleteJWTProvider invocations
+func (mmDeleteJWTProvider *ClientMock) DeleteJWTProviderBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteJWTProvider.beforeDeleteJWTProviderCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteJWTProvider.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteJWTProvider *mClientMockDeleteJWTProvider) Calls() []*ClientMockDeleteJWTProviderParams {
+	mmDeleteJWTProvider.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteJWTProviderParams, len(mmDeleteJWTProvider.callArgs))
+	copy(argCopy, mmDeleteJWTProvider.callArgs)
+
+	mmDeleteJWTProvider.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteJWTProviderDone returns true if the count of the DeleteJWTProvider invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteJWTProviderDone() bool {
+	if m.DeleteJWTProviderMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteJWTProviderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteJWTProviderMock.invocationsDone()
+}
+
+// MinimockDeleteJWTProviderInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteJWTProviderInspect() {
+	for _, e := range m.DeleteJWTProviderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteJWTProvider at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteJWTProviderCounter := mm_atomic.LoadUint64(&m.afterDeleteJWTProviderCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteJWTProviderMock.defaultExpectation != nil && afterDeleteJWTProviderCounter < 1 {
+		if m.DeleteJWTProviderMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteJWTProvider at\n%s", m.DeleteJWTProviderMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteJWTProvider at\n%s with params: %#v", m.DeleteJWTProviderMock.defaultExpectation.expectationOrigins.origin, *m.DeleteJWTProviderMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteJWTProvider != nil && afterDeleteJWTProviderCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteJWTProvider at\n%s", m.funcDeleteJWTProviderOrigin)
+	}
+
+	if !m.DeleteJWTProviderMock.invocationsDone() && afterDeleteJWTProviderCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteJWTProvider at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteJWTProviderMock.expectedInvocations), m.DeleteJWTProviderMock.expectedInvocationsOrigin, afterDeleteJWTProviderCounter)
 	}
 }
 
@@ -16073,6 +16860,380 @@ func (m *ClientMock) MinimockGetClickPipesServiceContextInspect() {
 	if !m.GetClickPipesServiceContextMock.invocationsDone() && afterGetClickPipesServiceContextCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetClickPipesServiceContext at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetClickPipesServiceContextMock.expectedInvocations), m.GetClickPipesServiceContextMock.expectedInvocationsOrigin, afterGetClickPipesServiceContextCounter)
+	}
+}
+
+type mClientMockGetJWTProvider struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetJWTProviderExpectation
+	expectations       []*ClientMockGetJWTProviderExpectation
+
+	callArgs []*ClientMockGetJWTProviderParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetJWTProviderExpectation specifies expectation struct of the Client.GetJWTProvider
+type ClientMockGetJWTProviderExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetJWTProviderParams
+	paramPtrs          *ClientMockGetJWTProviderParamPtrs
+	expectationOrigins ClientMockGetJWTProviderExpectationOrigins
+	results            *ClientMockGetJWTProviderResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetJWTProviderParams contains parameters of the Client.GetJWTProvider
+type ClientMockGetJWTProviderParams struct {
+	ctx       context.Context
+	serviceID string
+	name      string
+}
+
+// ClientMockGetJWTProviderParamPtrs contains pointers to parameters of the Client.GetJWTProvider
+type ClientMockGetJWTProviderParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	name      *string
+}
+
+// ClientMockGetJWTProviderResults contains results of the Client.GetJWTProvider
+type ClientMockGetJWTProviderResults struct {
+	jp1 *JWTProvider
+	err error
+}
+
+// ClientMockGetJWTProviderOrigins contains origins of expectations of the Client.GetJWTProvider
+type ClientMockGetJWTProviderExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+	originName      string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetJWTProvider *mClientMockGetJWTProvider) Optional() *mClientMockGetJWTProvider {
+	mmGetJWTProvider.optional = true
+	return mmGetJWTProvider
+}
+
+// Expect sets up expected params for Client.GetJWTProvider
+func (mmGetJWTProvider *mClientMockGetJWTProvider) Expect(ctx context.Context, serviceID string, name string) *mClientMockGetJWTProvider {
+	if mmGetJWTProvider.mock.funcGetJWTProvider != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by Set")
+	}
+
+	if mmGetJWTProvider.defaultExpectation == nil {
+		mmGetJWTProvider.defaultExpectation = &ClientMockGetJWTProviderExpectation{}
+	}
+
+	if mmGetJWTProvider.defaultExpectation.paramPtrs != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by ExpectParams functions")
+	}
+
+	mmGetJWTProvider.defaultExpectation.params = &ClientMockGetJWTProviderParams{ctx, serviceID, name}
+	mmGetJWTProvider.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetJWTProvider.expectations {
+		if minimock.Equal(e.params, mmGetJWTProvider.defaultExpectation.params) {
+			mmGetJWTProvider.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetJWTProvider.defaultExpectation.params)
+		}
+	}
+
+	return mmGetJWTProvider
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetJWTProvider
+func (mmGetJWTProvider *mClientMockGetJWTProvider) ExpectCtxParam1(ctx context.Context) *mClientMockGetJWTProvider {
+	if mmGetJWTProvider.mock.funcGetJWTProvider != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by Set")
+	}
+
+	if mmGetJWTProvider.defaultExpectation == nil {
+		mmGetJWTProvider.defaultExpectation = &ClientMockGetJWTProviderExpectation{}
+	}
+
+	if mmGetJWTProvider.defaultExpectation.params != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by Expect")
+	}
+
+	if mmGetJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmGetJWTProvider.defaultExpectation.paramPtrs = &ClientMockGetJWTProviderParamPtrs{}
+	}
+	mmGetJWTProvider.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetJWTProvider.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetJWTProvider
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.GetJWTProvider
+func (mmGetJWTProvider *mClientMockGetJWTProvider) ExpectServiceIDParam2(serviceID string) *mClientMockGetJWTProvider {
+	if mmGetJWTProvider.mock.funcGetJWTProvider != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by Set")
+	}
+
+	if mmGetJWTProvider.defaultExpectation == nil {
+		mmGetJWTProvider.defaultExpectation = &ClientMockGetJWTProviderExpectation{}
+	}
+
+	if mmGetJWTProvider.defaultExpectation.params != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by Expect")
+	}
+
+	if mmGetJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmGetJWTProvider.defaultExpectation.paramPtrs = &ClientMockGetJWTProviderParamPtrs{}
+	}
+	mmGetJWTProvider.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmGetJWTProvider.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmGetJWTProvider
+}
+
+// ExpectNameParam3 sets up expected param name for Client.GetJWTProvider
+func (mmGetJWTProvider *mClientMockGetJWTProvider) ExpectNameParam3(name string) *mClientMockGetJWTProvider {
+	if mmGetJWTProvider.mock.funcGetJWTProvider != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by Set")
+	}
+
+	if mmGetJWTProvider.defaultExpectation == nil {
+		mmGetJWTProvider.defaultExpectation = &ClientMockGetJWTProviderExpectation{}
+	}
+
+	if mmGetJWTProvider.defaultExpectation.params != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by Expect")
+	}
+
+	if mmGetJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmGetJWTProvider.defaultExpectation.paramPtrs = &ClientMockGetJWTProviderParamPtrs{}
+	}
+	mmGetJWTProvider.defaultExpectation.paramPtrs.name = &name
+	mmGetJWTProvider.defaultExpectation.expectationOrigins.originName = minimock.CallerInfo(1)
+
+	return mmGetJWTProvider
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetJWTProvider
+func (mmGetJWTProvider *mClientMockGetJWTProvider) Inspect(f func(ctx context.Context, serviceID string, name string)) *mClientMockGetJWTProvider {
+	if mmGetJWTProvider.mock.inspectFuncGetJWTProvider != nil {
+		mmGetJWTProvider.mock.t.Fatalf("Inspect function is already set for ClientMock.GetJWTProvider")
+	}
+
+	mmGetJWTProvider.mock.inspectFuncGetJWTProvider = f
+
+	return mmGetJWTProvider
+}
+
+// Return sets up results that will be returned by Client.GetJWTProvider
+func (mmGetJWTProvider *mClientMockGetJWTProvider) Return(jp1 *JWTProvider, err error) *ClientMock {
+	if mmGetJWTProvider.mock.funcGetJWTProvider != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by Set")
+	}
+
+	if mmGetJWTProvider.defaultExpectation == nil {
+		mmGetJWTProvider.defaultExpectation = &ClientMockGetJWTProviderExpectation{mock: mmGetJWTProvider.mock}
+	}
+	mmGetJWTProvider.defaultExpectation.results = &ClientMockGetJWTProviderResults{jp1, err}
+	mmGetJWTProvider.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetJWTProvider.mock
+}
+
+// Set uses given function f to mock the Client.GetJWTProvider method
+func (mmGetJWTProvider *mClientMockGetJWTProvider) Set(f func(ctx context.Context, serviceID string, name string) (jp1 *JWTProvider, err error)) *ClientMock {
+	if mmGetJWTProvider.defaultExpectation != nil {
+		mmGetJWTProvider.mock.t.Fatalf("Default expectation is already set for the Client.GetJWTProvider method")
+	}
+
+	if len(mmGetJWTProvider.expectations) > 0 {
+		mmGetJWTProvider.mock.t.Fatalf("Some expectations are already set for the Client.GetJWTProvider method")
+	}
+
+	mmGetJWTProvider.mock.funcGetJWTProvider = f
+	mmGetJWTProvider.mock.funcGetJWTProviderOrigin = minimock.CallerInfo(1)
+	return mmGetJWTProvider.mock
+}
+
+// When sets expectation for the Client.GetJWTProvider which will trigger the result defined by the following
+// Then helper
+func (mmGetJWTProvider *mClientMockGetJWTProvider) When(ctx context.Context, serviceID string, name string) *ClientMockGetJWTProviderExpectation {
+	if mmGetJWTProvider.mock.funcGetJWTProvider != nil {
+		mmGetJWTProvider.mock.t.Fatalf("ClientMock.GetJWTProvider mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetJWTProviderExpectation{
+		mock:               mmGetJWTProvider.mock,
+		params:             &ClientMockGetJWTProviderParams{ctx, serviceID, name},
+		expectationOrigins: ClientMockGetJWTProviderExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetJWTProvider.expectations = append(mmGetJWTProvider.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetJWTProvider return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetJWTProviderExpectation) Then(jp1 *JWTProvider, err error) *ClientMock {
+	e.results = &ClientMockGetJWTProviderResults{jp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetJWTProvider should be invoked
+func (mmGetJWTProvider *mClientMockGetJWTProvider) Times(n uint64) *mClientMockGetJWTProvider {
+	if n == 0 {
+		mmGetJWTProvider.mock.t.Fatalf("Times of ClientMock.GetJWTProvider mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetJWTProvider.expectedInvocations, n)
+	mmGetJWTProvider.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetJWTProvider
+}
+
+func (mmGetJWTProvider *mClientMockGetJWTProvider) invocationsDone() bool {
+	if len(mmGetJWTProvider.expectations) == 0 && mmGetJWTProvider.defaultExpectation == nil && mmGetJWTProvider.mock.funcGetJWTProvider == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetJWTProvider.mock.afterGetJWTProviderCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetJWTProvider.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetJWTProvider implements Client
+func (mmGetJWTProvider *ClientMock) GetJWTProvider(ctx context.Context, serviceID string, name string) (jp1 *JWTProvider, err error) {
+	mm_atomic.AddUint64(&mmGetJWTProvider.beforeGetJWTProviderCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetJWTProvider.afterGetJWTProviderCounter, 1)
+
+	mmGetJWTProvider.t.Helper()
+
+	if mmGetJWTProvider.inspectFuncGetJWTProvider != nil {
+		mmGetJWTProvider.inspectFuncGetJWTProvider(ctx, serviceID, name)
+	}
+
+	mm_params := ClientMockGetJWTProviderParams{ctx, serviceID, name}
+
+	// Record call args
+	mmGetJWTProvider.GetJWTProviderMock.mutex.Lock()
+	mmGetJWTProvider.GetJWTProviderMock.callArgs = append(mmGetJWTProvider.GetJWTProviderMock.callArgs, &mm_params)
+	mmGetJWTProvider.GetJWTProviderMock.mutex.Unlock()
+
+	for _, e := range mmGetJWTProvider.GetJWTProviderMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.jp1, e.results.err
+		}
+	}
+
+	if mmGetJWTProvider.GetJWTProviderMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetJWTProvider.GetJWTProviderMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetJWTProvider.GetJWTProviderMock.defaultExpectation.params
+		mm_want_ptrs := mmGetJWTProvider.GetJWTProviderMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetJWTProviderParams{ctx, serviceID, name}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetJWTProvider.t.Errorf("ClientMock.GetJWTProvider got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetJWTProvider.GetJWTProviderMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmGetJWTProvider.t.Errorf("ClientMock.GetJWTProvider got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetJWTProvider.GetJWTProviderMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.name != nil && !minimock.Equal(*mm_want_ptrs.name, mm_got.name) {
+				mmGetJWTProvider.t.Errorf("ClientMock.GetJWTProvider got unexpected parameter name, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetJWTProvider.GetJWTProviderMock.defaultExpectation.expectationOrigins.originName, *mm_want_ptrs.name, mm_got.name, minimock.Diff(*mm_want_ptrs.name, mm_got.name))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetJWTProvider.t.Errorf("ClientMock.GetJWTProvider got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetJWTProvider.GetJWTProviderMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetJWTProvider.GetJWTProviderMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetJWTProvider.t.Fatal("No results are set for the ClientMock.GetJWTProvider")
+		}
+		return (*mm_results).jp1, (*mm_results).err
+	}
+	if mmGetJWTProvider.funcGetJWTProvider != nil {
+		return mmGetJWTProvider.funcGetJWTProvider(ctx, serviceID, name)
+	}
+	mmGetJWTProvider.t.Fatalf("Unexpected call to ClientMock.GetJWTProvider. %v %v %v", ctx, serviceID, name)
+	return
+}
+
+// GetJWTProviderAfterCounter returns a count of finished ClientMock.GetJWTProvider invocations
+func (mmGetJWTProvider *ClientMock) GetJWTProviderAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetJWTProvider.afterGetJWTProviderCounter)
+}
+
+// GetJWTProviderBeforeCounter returns a count of ClientMock.GetJWTProvider invocations
+func (mmGetJWTProvider *ClientMock) GetJWTProviderBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetJWTProvider.beforeGetJWTProviderCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetJWTProvider.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetJWTProvider *mClientMockGetJWTProvider) Calls() []*ClientMockGetJWTProviderParams {
+	mmGetJWTProvider.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetJWTProviderParams, len(mmGetJWTProvider.callArgs))
+	copy(argCopy, mmGetJWTProvider.callArgs)
+
+	mmGetJWTProvider.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetJWTProviderDone returns true if the count of the GetJWTProvider invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetJWTProviderDone() bool {
+	if m.GetJWTProviderMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetJWTProviderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetJWTProviderMock.invocationsDone()
+}
+
+// MinimockGetJWTProviderInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetJWTProviderInspect() {
+	for _, e := range m.GetJWTProviderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetJWTProvider at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetJWTProviderCounter := mm_atomic.LoadUint64(&m.afterGetJWTProviderCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetJWTProviderMock.defaultExpectation != nil && afterGetJWTProviderCounter < 1 {
+		if m.GetJWTProviderMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetJWTProvider at\n%s", m.GetJWTProviderMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetJWTProvider at\n%s with params: %#v", m.GetJWTProviderMock.defaultExpectation.expectationOrigins.origin, *m.GetJWTProviderMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetJWTProvider != nil && afterGetJWTProviderCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetJWTProvider at\n%s", m.funcGetJWTProviderOrigin)
+	}
+
+	if !m.GetJWTProviderMock.invocationsDone() && afterGetJWTProviderCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetJWTProvider at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetJWTProviderMock.expectedInvocations), m.GetJWTProviderMock.expectedInvocationsOrigin, afterGetJWTProviderCounter)
 	}
 }
 
@@ -30289,6 +31450,411 @@ func (m *ClientMock) MinimockUpdateClickPipeSettingsInspect() {
 	}
 }
 
+type mClientMockUpdateJWTProvider struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateJWTProviderExpectation
+	expectations       []*ClientMockUpdateJWTProviderExpectation
+
+	callArgs []*ClientMockUpdateJWTProviderParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateJWTProviderExpectation specifies expectation struct of the Client.UpdateJWTProvider
+type ClientMockUpdateJWTProviderExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateJWTProviderParams
+	paramPtrs          *ClientMockUpdateJWTProviderParamPtrs
+	expectationOrigins ClientMockUpdateJWTProviderExpectationOrigins
+	results            *ClientMockUpdateJWTProviderResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateJWTProviderParams contains parameters of the Client.UpdateJWTProvider
+type ClientMockUpdateJWTProviderParams struct {
+	ctx       context.Context
+	serviceID string
+	name      string
+	update    JWTProviderUpdate
+}
+
+// ClientMockUpdateJWTProviderParamPtrs contains pointers to parameters of the Client.UpdateJWTProvider
+type ClientMockUpdateJWTProviderParamPtrs struct {
+	ctx       *context.Context
+	serviceID *string
+	name      *string
+	update    *JWTProviderUpdate
+}
+
+// ClientMockUpdateJWTProviderResults contains results of the Client.UpdateJWTProvider
+type ClientMockUpdateJWTProviderResults struct {
+	jp1 *JWTProvider
+	err error
+}
+
+// ClientMockUpdateJWTProviderOrigins contains origins of expectations of the Client.UpdateJWTProvider
+type ClientMockUpdateJWTProviderExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceID string
+	originName      string
+	originUpdate    string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) Optional() *mClientMockUpdateJWTProvider {
+	mmUpdateJWTProvider.optional = true
+	return mmUpdateJWTProvider
+}
+
+// Expect sets up expected params for Client.UpdateJWTProvider
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) Expect(ctx context.Context, serviceID string, name string, update JWTProviderUpdate) *mClientMockUpdateJWTProvider {
+	if mmUpdateJWTProvider.mock.funcUpdateJWTProvider != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Set")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation == nil {
+		mmUpdateJWTProvider.defaultExpectation = &ClientMockUpdateJWTProviderExpectation{}
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation.paramPtrs != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateJWTProvider.defaultExpectation.params = &ClientMockUpdateJWTProviderParams{ctx, serviceID, name, update}
+	mmUpdateJWTProvider.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateJWTProvider.expectations {
+		if minimock.Equal(e.params, mmUpdateJWTProvider.defaultExpectation.params) {
+			mmUpdateJWTProvider.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateJWTProvider.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateJWTProvider
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateJWTProvider
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateJWTProvider {
+	if mmUpdateJWTProvider.mock.funcUpdateJWTProvider != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Set")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation == nil {
+		mmUpdateJWTProvider.defaultExpectation = &ClientMockUpdateJWTProviderExpectation{}
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation.params != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Expect")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmUpdateJWTProvider.defaultExpectation.paramPtrs = &ClientMockUpdateJWTProviderParamPtrs{}
+	}
+	mmUpdateJWTProvider.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateJWTProvider.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateJWTProvider
+}
+
+// ExpectServiceIDParam2 sets up expected param serviceID for Client.UpdateJWTProvider
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) ExpectServiceIDParam2(serviceID string) *mClientMockUpdateJWTProvider {
+	if mmUpdateJWTProvider.mock.funcUpdateJWTProvider != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Set")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation == nil {
+		mmUpdateJWTProvider.defaultExpectation = &ClientMockUpdateJWTProviderExpectation{}
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation.params != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Expect")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmUpdateJWTProvider.defaultExpectation.paramPtrs = &ClientMockUpdateJWTProviderParamPtrs{}
+	}
+	mmUpdateJWTProvider.defaultExpectation.paramPtrs.serviceID = &serviceID
+	mmUpdateJWTProvider.defaultExpectation.expectationOrigins.originServiceID = minimock.CallerInfo(1)
+
+	return mmUpdateJWTProvider
+}
+
+// ExpectNameParam3 sets up expected param name for Client.UpdateJWTProvider
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) ExpectNameParam3(name string) *mClientMockUpdateJWTProvider {
+	if mmUpdateJWTProvider.mock.funcUpdateJWTProvider != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Set")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation == nil {
+		mmUpdateJWTProvider.defaultExpectation = &ClientMockUpdateJWTProviderExpectation{}
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation.params != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Expect")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmUpdateJWTProvider.defaultExpectation.paramPtrs = &ClientMockUpdateJWTProviderParamPtrs{}
+	}
+	mmUpdateJWTProvider.defaultExpectation.paramPtrs.name = &name
+	mmUpdateJWTProvider.defaultExpectation.expectationOrigins.originName = minimock.CallerInfo(1)
+
+	return mmUpdateJWTProvider
+}
+
+// ExpectUpdateParam4 sets up expected param update for Client.UpdateJWTProvider
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) ExpectUpdateParam4(update JWTProviderUpdate) *mClientMockUpdateJWTProvider {
+	if mmUpdateJWTProvider.mock.funcUpdateJWTProvider != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Set")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation == nil {
+		mmUpdateJWTProvider.defaultExpectation = &ClientMockUpdateJWTProviderExpectation{}
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation.params != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Expect")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation.paramPtrs == nil {
+		mmUpdateJWTProvider.defaultExpectation.paramPtrs = &ClientMockUpdateJWTProviderParamPtrs{}
+	}
+	mmUpdateJWTProvider.defaultExpectation.paramPtrs.update = &update
+	mmUpdateJWTProvider.defaultExpectation.expectationOrigins.originUpdate = minimock.CallerInfo(1)
+
+	return mmUpdateJWTProvider
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateJWTProvider
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) Inspect(f func(ctx context.Context, serviceID string, name string, update JWTProviderUpdate)) *mClientMockUpdateJWTProvider {
+	if mmUpdateJWTProvider.mock.inspectFuncUpdateJWTProvider != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateJWTProvider")
+	}
+
+	mmUpdateJWTProvider.mock.inspectFuncUpdateJWTProvider = f
+
+	return mmUpdateJWTProvider
+}
+
+// Return sets up results that will be returned by Client.UpdateJWTProvider
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) Return(jp1 *JWTProvider, err error) *ClientMock {
+	if mmUpdateJWTProvider.mock.funcUpdateJWTProvider != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Set")
+	}
+
+	if mmUpdateJWTProvider.defaultExpectation == nil {
+		mmUpdateJWTProvider.defaultExpectation = &ClientMockUpdateJWTProviderExpectation{mock: mmUpdateJWTProvider.mock}
+	}
+	mmUpdateJWTProvider.defaultExpectation.results = &ClientMockUpdateJWTProviderResults{jp1, err}
+	mmUpdateJWTProvider.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateJWTProvider.mock
+}
+
+// Set uses given function f to mock the Client.UpdateJWTProvider method
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) Set(f func(ctx context.Context, serviceID string, name string, update JWTProviderUpdate) (jp1 *JWTProvider, err error)) *ClientMock {
+	if mmUpdateJWTProvider.defaultExpectation != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("Default expectation is already set for the Client.UpdateJWTProvider method")
+	}
+
+	if len(mmUpdateJWTProvider.expectations) > 0 {
+		mmUpdateJWTProvider.mock.t.Fatalf("Some expectations are already set for the Client.UpdateJWTProvider method")
+	}
+
+	mmUpdateJWTProvider.mock.funcUpdateJWTProvider = f
+	mmUpdateJWTProvider.mock.funcUpdateJWTProviderOrigin = minimock.CallerInfo(1)
+	return mmUpdateJWTProvider.mock
+}
+
+// When sets expectation for the Client.UpdateJWTProvider which will trigger the result defined by the following
+// Then helper
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) When(ctx context.Context, serviceID string, name string, update JWTProviderUpdate) *ClientMockUpdateJWTProviderExpectation {
+	if mmUpdateJWTProvider.mock.funcUpdateJWTProvider != nil {
+		mmUpdateJWTProvider.mock.t.Fatalf("ClientMock.UpdateJWTProvider mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateJWTProviderExpectation{
+		mock:               mmUpdateJWTProvider.mock,
+		params:             &ClientMockUpdateJWTProviderParams{ctx, serviceID, name, update},
+		expectationOrigins: ClientMockUpdateJWTProviderExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateJWTProvider.expectations = append(mmUpdateJWTProvider.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateJWTProvider return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateJWTProviderExpectation) Then(jp1 *JWTProvider, err error) *ClientMock {
+	e.results = &ClientMockUpdateJWTProviderResults{jp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateJWTProvider should be invoked
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) Times(n uint64) *mClientMockUpdateJWTProvider {
+	if n == 0 {
+		mmUpdateJWTProvider.mock.t.Fatalf("Times of ClientMock.UpdateJWTProvider mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateJWTProvider.expectedInvocations, n)
+	mmUpdateJWTProvider.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateJWTProvider
+}
+
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) invocationsDone() bool {
+	if len(mmUpdateJWTProvider.expectations) == 0 && mmUpdateJWTProvider.defaultExpectation == nil && mmUpdateJWTProvider.mock.funcUpdateJWTProvider == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateJWTProvider.mock.afterUpdateJWTProviderCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateJWTProvider.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateJWTProvider implements Client
+func (mmUpdateJWTProvider *ClientMock) UpdateJWTProvider(ctx context.Context, serviceID string, name string, update JWTProviderUpdate) (jp1 *JWTProvider, err error) {
+	mm_atomic.AddUint64(&mmUpdateJWTProvider.beforeUpdateJWTProviderCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateJWTProvider.afterUpdateJWTProviderCounter, 1)
+
+	mmUpdateJWTProvider.t.Helper()
+
+	if mmUpdateJWTProvider.inspectFuncUpdateJWTProvider != nil {
+		mmUpdateJWTProvider.inspectFuncUpdateJWTProvider(ctx, serviceID, name, update)
+	}
+
+	mm_params := ClientMockUpdateJWTProviderParams{ctx, serviceID, name, update}
+
+	// Record call args
+	mmUpdateJWTProvider.UpdateJWTProviderMock.mutex.Lock()
+	mmUpdateJWTProvider.UpdateJWTProviderMock.callArgs = append(mmUpdateJWTProvider.UpdateJWTProviderMock.callArgs, &mm_params)
+	mmUpdateJWTProvider.UpdateJWTProviderMock.mutex.Unlock()
+
+	for _, e := range mmUpdateJWTProvider.UpdateJWTProviderMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.jp1, e.results.err
+		}
+	}
+
+	if mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateJWTProviderParams{ctx, serviceID, name, update}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateJWTProvider.t.Errorf("ClientMock.UpdateJWTProvider got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceID != nil && !minimock.Equal(*mm_want_ptrs.serviceID, mm_got.serviceID) {
+				mmUpdateJWTProvider.t.Errorf("ClientMock.UpdateJWTProvider got unexpected parameter serviceID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation.expectationOrigins.originServiceID, *mm_want_ptrs.serviceID, mm_got.serviceID, minimock.Diff(*mm_want_ptrs.serviceID, mm_got.serviceID))
+			}
+
+			if mm_want_ptrs.name != nil && !minimock.Equal(*mm_want_ptrs.name, mm_got.name) {
+				mmUpdateJWTProvider.t.Errorf("ClientMock.UpdateJWTProvider got unexpected parameter name, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation.expectationOrigins.originName, *mm_want_ptrs.name, mm_got.name, minimock.Diff(*mm_want_ptrs.name, mm_got.name))
+			}
+
+			if mm_want_ptrs.update != nil && !minimock.Equal(*mm_want_ptrs.update, mm_got.update) {
+				mmUpdateJWTProvider.t.Errorf("ClientMock.UpdateJWTProvider got unexpected parameter update, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation.expectationOrigins.originUpdate, *mm_want_ptrs.update, mm_got.update, minimock.Diff(*mm_want_ptrs.update, mm_got.update))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateJWTProvider.t.Errorf("ClientMock.UpdateJWTProvider got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateJWTProvider.UpdateJWTProviderMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateJWTProvider.t.Fatal("No results are set for the ClientMock.UpdateJWTProvider")
+		}
+		return (*mm_results).jp1, (*mm_results).err
+	}
+	if mmUpdateJWTProvider.funcUpdateJWTProvider != nil {
+		return mmUpdateJWTProvider.funcUpdateJWTProvider(ctx, serviceID, name, update)
+	}
+	mmUpdateJWTProvider.t.Fatalf("Unexpected call to ClientMock.UpdateJWTProvider. %v %v %v %v", ctx, serviceID, name, update)
+	return
+}
+
+// UpdateJWTProviderAfterCounter returns a count of finished ClientMock.UpdateJWTProvider invocations
+func (mmUpdateJWTProvider *ClientMock) UpdateJWTProviderAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateJWTProvider.afterUpdateJWTProviderCounter)
+}
+
+// UpdateJWTProviderBeforeCounter returns a count of ClientMock.UpdateJWTProvider invocations
+func (mmUpdateJWTProvider *ClientMock) UpdateJWTProviderBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateJWTProvider.beforeUpdateJWTProviderCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateJWTProvider.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateJWTProvider *mClientMockUpdateJWTProvider) Calls() []*ClientMockUpdateJWTProviderParams {
+	mmUpdateJWTProvider.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateJWTProviderParams, len(mmUpdateJWTProvider.callArgs))
+	copy(argCopy, mmUpdateJWTProvider.callArgs)
+
+	mmUpdateJWTProvider.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateJWTProviderDone returns true if the count of the UpdateJWTProvider invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateJWTProviderDone() bool {
+	if m.UpdateJWTProviderMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateJWTProviderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateJWTProviderMock.invocationsDone()
+}
+
+// MinimockUpdateJWTProviderInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateJWTProviderInspect() {
+	for _, e := range m.UpdateJWTProviderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateJWTProvider at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateJWTProviderCounter := mm_atomic.LoadUint64(&m.afterUpdateJWTProviderCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateJWTProviderMock.defaultExpectation != nil && afterUpdateJWTProviderCounter < 1 {
+		if m.UpdateJWTProviderMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateJWTProvider at\n%s", m.UpdateJWTProviderMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateJWTProvider at\n%s with params: %#v", m.UpdateJWTProviderMock.defaultExpectation.expectationOrigins.origin, *m.UpdateJWTProviderMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateJWTProvider != nil && afterUpdateJWTProviderCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateJWTProvider at\n%s", m.funcUpdateJWTProviderOrigin)
+	}
+
+	if !m.UpdateJWTProviderMock.invocationsDone() && afterUpdateJWTProviderCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateJWTProvider at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateJWTProviderMock.expectedInvocations), m.UpdateJWTProviderMock.expectedInvocationsOrigin, afterUpdateJWTProviderCounter)
+	}
+}
+
 type mClientMockUpdateOrganization struct {
 	optional           bool
 	mock               *ClientMock
@@ -39521,6 +41087,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateClickPipeInspect()
 
+			m.MinimockCreateJWTProviderInspect()
+
 			m.MinimockCreatePostgresInspect()
 
 			m.MinimockCreatePostgresReadReplicaInspect()
@@ -39550,6 +41118,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockDeleteByocInfrastructureInspect()
 
 			m.MinimockDeleteClickPipeInspect()
+
+			m.MinimockDeleteJWTProviderInspect()
 
 			m.MinimockDeletePostgresInspect()
 
@@ -39594,6 +41164,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetClickPipeSettingsInspect()
 
 			m.MinimockGetClickPipesServiceContextInspect()
+
+			m.MinimockGetJWTProviderInspect()
 
 			m.MinimockGetMemberInspect()
 
@@ -39675,6 +41247,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockUpdateClickPipeSettingsInspect()
 
+			m.MinimockUpdateJWTProviderInspect()
+
 			m.MinimockUpdateOrganizationInspect()
 
 			m.MinimockUpdateOrganizationPrivateEndpointsInspect()
@@ -39750,6 +41324,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateApiKeyDone() &&
 		m.MinimockCreateByocInfrastructureDone() &&
 		m.MinimockCreateClickPipeDone() &&
+		m.MinimockCreateJWTProviderDone() &&
 		m.MinimockCreatePostgresDone() &&
 		m.MinimockCreatePostgresReadReplicaDone() &&
 		m.MinimockCreateQueryAPIEndpointDone() &&
@@ -39765,6 +41340,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteApiKeyDone() &&
 		m.MinimockDeleteByocInfrastructureDone() &&
 		m.MinimockDeleteClickPipeDone() &&
+		m.MinimockDeleteJWTProviderDone() &&
 		m.MinimockDeletePostgresDone() &&
 		m.MinimockDeleteQueryAPIEndpointDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
@@ -39787,6 +41363,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetClickPipeCdcScalingDone() &&
 		m.MinimockGetClickPipeSettingsDone() &&
 		m.MinimockGetClickPipesServiceContextDone() &&
+		m.MinimockGetJWTProviderDone() &&
 		m.MinimockGetMemberDone() &&
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationDone() &&
@@ -39827,6 +41404,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateClickPipeDone() &&
 		m.MinimockUpdateClickPipeCdcScalingDone() &&
 		m.MinimockUpdateClickPipeSettingsDone() &&
+		m.MinimockUpdateJWTProviderDone() &&
 		m.MinimockUpdateOrganizationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdatePostgresDone() &&
