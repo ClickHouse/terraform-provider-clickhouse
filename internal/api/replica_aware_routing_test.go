@@ -80,7 +80,7 @@ func TestUpdateReplicaAwareRouting_SendsBothFlags(t *testing.T) {
 func TestGetReplicaAwareRouting_Forbidden(t *testing.T) {
 	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "feature not enabled"})
+		_, _ = w.Write([]byte(`{"error":"feature not enabled"}`))
 	})
 
 	_, err := client.GetReplicaAwareRouting(context.Background(), "svc-1")

@@ -586,7 +586,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"replica_aware_routing": schema.SingleNestedAttribute{
-				Description: "Configuration of replica aware routing for this service. Routes later connections from the same client to the same replica. Beta: the organization must have replica aware routing enabled. Omit this block to leave the setting unmanaged. Refresh of a managed block treats a missing feature (403) as unset. Applying this block without the feature fails.",
+				Description: "Configuration of replica aware routing for this service. Routes later connections from the same client to the same replica. Omit this block to leave the setting unmanaged. Refresh of a managed block treats a missing feature (403) as unset. Applying this block without the feature fails. Requires an organization with the Enterprise plan.",
 				Optional:    true,
 				Attributes: map[string]schema.Attribute{
 					"http_enabled": schema.BoolAttribute{
