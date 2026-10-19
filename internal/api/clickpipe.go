@@ -275,7 +275,24 @@ var ClickPipePostgresReplicationModes = []string{
 }
 
 var ClickPipeBigQueryReplicationModes = []string{
+	ClickPipeReplicationModeCDC,
 	ClickPipeReplicationModeSnapshot,
+	ClickPipeReplicationModeCDCOnly,
+}
+
+const (
+	ClickPipeBigQueryReplicationMethodQueryBased  = "query_based"
+	ClickPipeBigQueryReplicationMethodEventsBased = "events_based"
+)
+
+var ClickPipeBigQueryReplicationMethods = []string{
+	ClickPipeBigQueryReplicationMethodQueryBased,
+	ClickPipeBigQueryReplicationMethodEventsBased,
+}
+
+var ClickPipeBigQueryEventsFunctions = []string{
+	"appends",
+	"changes",
 }
 
 var ClickPipeBigQueryAuthenticationMethods = []string{
