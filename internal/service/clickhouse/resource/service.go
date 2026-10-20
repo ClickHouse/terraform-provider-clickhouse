@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
@@ -1417,35 +1418,42 @@ func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.Valid
 		}
 	}
 
-	if !config.BackupEncryptionConfig.IsNull() && !config.BackupEncryptionConfig.IsUnknown() {
-		if !isJSONObject(config.BackupEncryptionConfig.ValueString()) {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("backup_encryption_config"),
-				"Invalid Configuration",
-				invalidBackupEncryptionConfigDetail,
-			)
-		}
-
-		// The restore always enables TDE; planning it as disabled would fail after apply with an inconsistent result.
-		tdeEnabled := false
-		tdeUnknown := config.TransparentEncryptionData.IsUnknown()
-		if !config.TransparentEncryptionData.IsNull() && !tdeUnknown {
-			tde := models.TransparentEncryptionData{}
-			resp.Diagnostics.Append(config.TransparentEncryptionData.As(ctx, &tde, basetypes.ObjectAsOptions{})...)
-			tdeUnknown = tde.Enabled.IsUnknown()
-			tdeEnabled = tde.Enabled.ValueBool()
-		}
-		if !tdeUnknown && !tdeEnabled {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("transparent_data_encryption").AtName("enabled"),
-				"Invalid Configuration",
-				"Restoring a backup stored in your own bucket always enables Transparent Data Encryption. Set transparent_data_encryption.enabled to true when backup_encryption_config is set.",
-			)
-		}
-	}
+	resp.Diagnostics.Append(validateBackupEncryptionConfig(ctx, config)...)
 }
 
-const invalidBackupEncryptionConfigDetail = "backup_encryption_config must be a JSON object (the contents of encryption_config.json)."
+// validateBackupEncryptionConfig skips unknown values, so Create calls it again once they have resolved.
+func validateBackupEncryptionConfig(ctx context.Context, config models.ServiceResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if config.BackupEncryptionConfig.IsNull() || config.BackupEncryptionConfig.IsUnknown() {
+		return diags
+	}
+
+	if !isJSONObject(config.BackupEncryptionConfig.ValueString()) {
+		diags.AddAttributeError(
+			path.Root("backup_encryption_config"),
+			"Invalid Configuration",
+			"backup_encryption_config must be a JSON object (the contents of encryption_config.json).",
+		)
+	}
+
+	// The restore always enables TDE; planning it as disabled would fail after apply with an inconsistent result.
+	tdeEnabled := false
+	tdeUnknown := config.TransparentEncryptionData.IsUnknown()
+	if !config.TransparentEncryptionData.IsNull() && !tdeUnknown {
+		tde := models.TransparentEncryptionData{}
+		diags.Append(config.TransparentEncryptionData.As(ctx, &tde, basetypes.ObjectAsOptions{})...)
+		tdeUnknown = tde.Enabled.IsUnknown()
+		tdeEnabled = tde.Enabled.ValueBool()
+	}
+	if !tdeUnknown && !tdeEnabled {
+		diags.AddAttributeError(
+			path.Root("transparent_data_encryption").AtName("enabled"),
+			"Invalid Configuration",
+			"Restoring a backup stored in your own bucket always enables Transparent Data Encryption. Set transparent_data_encryption.enabled to true when backup_encryption_config is set.",
+		)
+	}
+	return diags
+}
 
 // isJSONObject only checks the top-level shape: the data plane owns and versions the file's contents.
 func isJSONObject(s string) bool {
@@ -1507,17 +1515,11 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Write-only, so it is only present in config.
 	if !config.BackupEncryptionConfig.IsNull() && !config.BackupEncryptionConfig.IsUnknown() {
-		raw := config.BackupEncryptionConfig.ValueString()
-		// ValidateConfig skips values unknown at plan time; without this, invalid JSON fails inside json.Marshal.
-		if !isJSONObject(raw) {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("backup_encryption_config"),
-				"Invalid Configuration",
-				invalidBackupEncryptionConfigDetail,
-			)
+		resp.Diagnostics.Append(validateBackupEncryptionConfig(ctx, config)...)
+		if resp.Diagnostics.HasError() {
 			return
 		}
-		service.BackupEncryptionConfig = json.RawMessage(raw)
+		service.BackupEncryptionConfig = json.RawMessage(config.BackupEncryptionConfig.ValueString())
 	}
 
 	if !plan.ReleaseChannel.IsUnknown() && !plan.ReleaseChannel.IsNull() {

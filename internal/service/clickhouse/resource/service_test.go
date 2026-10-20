@@ -1174,10 +1174,11 @@ func TestServiceResource_Create_backupEncryptionConfig(t *testing.T) {
 	encryptionConfig := `{"schema_version": 1, "restore_key_pairs": [{"wrapped_dek": "a<b>&c"}]}`
 
 	tests := []struct {
-		name      string
-		configVal types.String
-		wantSent  string
-		wantErr   bool
+		name        string
+		configVal   types.String
+		tdeDisabled bool
+		wantSent    string
+		wantErr     string
 	}{
 		{
 			name:      "configured value is sent in the request body",
@@ -1192,7 +1193,13 @@ func TestServiceResource_Create_backupEncryptionConfig(t *testing.T) {
 			// A value unknown at plan time skips ValidateConfig, so Create must reject it before calling the API.
 			name:      "invalid value known only at apply is rejected without calling the API",
 			configVal: types.StringValue(`[1, 2]`),
-			wantErr:   true,
+			wantErr:   "backup_encryption_config must be a JSON object",
+		},
+		{
+			name:        "TDE disabled once known at apply is rejected without calling the API",
+			configVal:   types.StringValue(encryptionConfig),
+			tdeDisabled: true,
+			wantErr:     "always enables Transparent Data Encryption",
 		},
 	}
 
@@ -1206,7 +1213,7 @@ func TestServiceResource_Create_backupEncryptionConfig(t *testing.T) {
 			var sentBody []byte
 			mc := minimock.NewController(t)
 			apiClientMock := api.NewClientMock(mc)
-			if !tt.wantErr {
+			if tt.wantErr == "" {
 				apiClientMock.
 					CreateServiceMock.Set(func(_ context.Context, s api.Service) (*api.Service, string, error) {
 					body, err := json.Marshal(s)
@@ -1226,7 +1233,7 @@ func TestServiceResource_Create_backupEncryptionConfig(t *testing.T) {
 				return test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
 					s.BackupID = types.StringValue(backupID)
 					s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
-					s.TransparentEncryptionData = models.TransparentEncryptionData{Enabled: types.BoolValue(true), RoleID: types.StringUnknown()}.ObjectValue()
+					s.TransparentEncryptionData = models.TransparentEncryptionData{Enabled: types.BoolValue(!tt.tdeDisabled), RoleID: types.StringUnknown()}.ObjectValue()
 					s.GeneratedPassword = types.StringUnknown()
 					mut(s)
 				}).Get()
@@ -1249,9 +1256,9 @@ func TestServiceResource_Create_backupEncryptionConfig(t *testing.T) {
 			}
 			resp := &resource.CreateResponse{State: tfsdk.State{Schema: sch}}
 			r.Create(ctx, req, resp)
-			if tt.wantErr {
-				if !detailContains(resp.Diagnostics, "backup_encryption_config must be a JSON object") {
-					t.Errorf("Create must reject a non-object backup_encryption_config, got: %v", resp.Diagnostics)
+			if tt.wantErr != "" {
+				if !detailContains(resp.Diagnostics, tt.wantErr) {
+					t.Errorf("Create must fail with %q, got: %v", tt.wantErr, resp.Diagnostics)
 				}
 				return
 			}
