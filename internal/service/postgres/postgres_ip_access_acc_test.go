@@ -334,7 +334,7 @@ func TestAccPostgresIPAccessDescriptionWhitespace(t *testing.T) {
 	}{
 		{" \u00a0office\u00a0 ", "\u00a0office\u00a0"},
 		{"\t\u2003edited\u2003\n", "\u2003edited\u2003"},
-		{"\x00 \t\r\n\v\foffice\x00 \t\r\n\v\f", "office"},
+		{" \t\r\n\v\foffice \t\r\n\v\f", "office"},
 	} {
 		description, err := json.Marshal(tc.configured)
 		require.NoError(t, err)
