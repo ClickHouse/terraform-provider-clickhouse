@@ -101,8 +101,7 @@ func (c *ClientImpl) CreatePostgres(ctx context.Context, body PostgresCreate) (*
 	return &resp.Result, resp.Result.Password, nil
 }
 
-// UpdatePostgres PATCHes size / haType / tags. Other fields would be rejected
-// by the server; PostgresUpdate's shape enforces this.
+// UpdatePostgres PATCHes service settings or IP access rules.
 func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (*Postgres, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {

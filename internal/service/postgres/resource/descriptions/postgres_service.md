@@ -13,7 +13,7 @@ Supports AWS (`cloud_provider = "aws"`) and GCP (`cloud_provider = "gcp"`).
 - Create — standard, as a read replica (`read_replica_of`), or by
   point-in-time restore (`restore_to_point_in_time`)
 - Read
-- Update — `size`, `ha_type`, `tags`, `pg_config`, `pgbouncer_config`,
+- Update — `size`, `ha_type`, `tags`, `ip_access`, `pg_config`, `pgbouncer_config`,
   `password` rotation
 - Delete
 - Import
@@ -28,11 +28,39 @@ The following are intentionally absent from the schema:
 
 - Operational commands (restart / promote / switchover). See
   "Operational commands" below for the rationale.
-- IP allowlist, private endpoints, backup configuration, maintenance
+- Private endpoints, backup configuration, maintenance
   windows, customer-managed encryption keys, BYOC. These depend on
   server-side endpoint additions.
 - Configurable lifecycle timeouts — there is no `timeouts {}` block; the
   provider uses fixed internal poll/retry budgets.
+
+## IP access list
+
+`ip_access` uses the same list of `source` and `description` objects as
+`clickhouse_service`, with a required `port_range` for each Postgres rule.
+Rules allow TCP traffic from an IPv4 address or CIDR.
+
+- Set the list to manage all IPv4 rules. Add, edit, or remove entries and
+  apply; rules added outside Terraform are removed on the next apply.
+  Rule IDs are managed automatically.
+- Unlike `clickhouse_service`, this attribute is optional so existing
+  Postgres configurations continue working. Omitting it on a standard
+  create uses the API defaults: all IPv4 and IPv6 addresses can connect
+  on ports 5432 and 6432. Omitting it on an existing service preserves its
+  rules.
+- On a **standard create**, a supplied list replaces the public defaults;
+  `ip_access = []` blocks public access.
+- On **update**, `ip_access = []` removes all IPv4 rules. The API does not
+  expose IPv6 rules, so Terraform cannot read or change them. Restricting
+  an existing service's IPv4 rules does not remove any IPv6 access.
+- **Read replicas and restores** support `ip_access`, but their create
+  endpoints use public defaults. Terraform applies the IPv4 list
+  immediately after creation in a separate request. This is not atomic:
+  the service starts with public defaults, and IPv6 access remains unchanged.
+
+Use a single port (`"5432"`) or an inclusive range (`"5432..6432"`) from
+1 to 65535. Use separate entries to allow only 5432 and 6432 without the
+ports in between. Descriptions are required; use `""` for no description.
 
 ## Tag semantics
 
@@ -145,7 +173,8 @@ are normal in-place updates. A **live read replica cannot** — see below.)
   into a standalone primary, but — as noted above — that **destroys and
   recreates** a live replica; it is not an in-place detach.) `pg_config` /
   `pgbouncer_config` **are** changeable on a replica — they use a separate
-  endpoint that allows per-replica values.
+  endpoint that allows per-replica values. `ip_access` is also changeable
+  independently on a replica.
 - **`restore_to_point_in_time = { source_id, restore_target }`** — create
   this instance by restoring another instance's backup to an RFC3339
   timestamp. The restored instance's name is this resource's top-level `name`

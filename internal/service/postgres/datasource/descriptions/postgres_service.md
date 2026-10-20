@@ -1,7 +1,7 @@
 ~> **Note:** This data source is in beta and its behavior may change in future provider versions.
 
 Fetches a single [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)
-service by ID, including its current `pg_config` / `pgbouncer_config`.
+service by ID, including its current `ip_access`, `pg_config`, and `pgbouncer_config`.
 
 Returns the service's server-reported attributes: `cloud_provider`, `region`,
 `size`, `ha_type`, `postgres_version`, status (`state`, `created_at`,
@@ -13,6 +13,8 @@ from `hostname`, `port`, and `username`, plus the password declared on the
 managing `clickhouse_postgres_service` resource. The write-time create
 inputs — `read_replica_of`, `restore_to_point_in_time` — are not
 read back. `tags`, `pg_config`, and `pgbouncer_config` are read-only string maps.
+`ip_access` is a read-only list of IPv4 rules with `source`, `port_range`, and
+`description`. IPv6 rules are not included.
 
 ## Example
 

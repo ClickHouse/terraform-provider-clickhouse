@@ -11,7 +11,7 @@ description: |-
   ~> Note: Postgres on GCP is in private preview. Contact ClickHouse support to enable access for your organization and region.
   Supported lifecycle
   Create — standard, as a read replica (read_replica_of), or by
-  point-in-time restore (restore_to_point_in_time)ReadUpdate — size, ha_type, tags, pg_config, pgbouncer_config,
+  point-in-time restore (restore_to_point_in_time)ReadUpdate — size, ha_type, tags, ip_access, pg_config, pgbouncer_config,
   password rotationDeleteImport
   Three companion data sources are also provided (beta):
   clickhouse_postgres_service, clickhouse_postgres_services, and
@@ -19,10 +19,30 @@ description: |-
   Unsupported attributes
   The following are intentionally absent from the schema:
   Operational commands (restart / promote / switchover). See
-  "Operational commands" below for the rationale.IP allowlist, private endpoints, backup configuration, maintenance
+  "Operational commands" below for the rationale.Private endpoints, backup configuration, maintenance
   windows, customer-managed encryption keys, BYOC. These depend on
   server-side endpoint additions.Configurable lifecycle timeouts — there is no timeouts {} block; the
   provider uses fixed internal poll/retry budgets.
+  IP access list
+  ip_access uses the same list of source and description objects as
+  clickhouse_service, with a required port_range for each Postgres rule.
+  Rules allow TCP traffic from an IPv4 address or CIDR.
+  Set the list to manage all IPv4 rules. Add, edit, or remove entries and
+  apply; rules added outside Terraform are removed on the next apply.
+  Rule IDs are managed automatically.Unlike clickhouse_service, this attribute is optional so existing
+  Postgres configurations continue working. Omitting it on a standard
+  create uses the API defaults: all IPv4 and IPv6 addresses can connect
+  on ports 5432 and 6432. Omitting it on an existing service preserves its
+  rules.On a standard create, a supplied list replaces the public defaults;
+  ip_access = [] blocks public access.On update, ip_access = [] removes all IPv4 rules. The API does not
+  expose IPv6 rules, so Terraform cannot read or change them. Restricting
+  an existing service's IPv4 rules does not remove any IPv6 access.Read replicas and restores support ip_access, but their create
+  endpoints use public defaults. Terraform applies the IPv4 list
+  immediately after creation in a separate request. This is not atomic:
+  the service starts with public defaults, and IPv6 access remains unchanged.
+  Use a single port ("5432") or an inclusive range ("5432..6432") from
+  1 to 65535. Use separate entries to allow only 5432 and 6432 without the
+  ports in between. Descriptions are required; use "" for no description.
   Tag semantics
   Tags are a map(string → string) — same shape as clickhouse_service.
   Values must be non-empty alphanumeric / . / - / _ strings (server
@@ -110,7 +130,8 @@ description: |-
   into a standalone primary, but — as noted above — that destroys and
   recreates a live replica; it is not an in-place detach.) pg_config /
   pgbouncer_config are changeable on a replica — they use a separate
-  endpoint that allows per-replica values.restore_to_point_in_time = { source_id, restore_target } — create
+  endpoint that allows per-replica values. ip_access is also changeable
+  independently on a replica.restore_to_point_in_time = { source_id, restore_target } — create
   this instance by restoring another instance's backup to an RFC3339
   timestamp. The restored instance's name is this resource's top-level name
   and it is independent of its source. A backup must exist at or before
@@ -173,7 +194,7 @@ Supports AWS (`cloud_provider = "aws"`) and GCP (`cloud_provider = "gcp"`).
 - Create — standard, as a read replica (`read_replica_of`), or by
   point-in-time restore (`restore_to_point_in_time`)
 - Read
-- Update — `size`, `ha_type`, `tags`, `pg_config`, `pgbouncer_config`,
+- Update — `size`, `ha_type`, `tags`, `ip_access`, `pg_config`, `pgbouncer_config`,
   `password` rotation
 - Delete
 - Import
@@ -188,11 +209,39 @@ The following are intentionally absent from the schema:
 
 - Operational commands (restart / promote / switchover). See
   "Operational commands" below for the rationale.
-- IP allowlist, private endpoints, backup configuration, maintenance
+- Private endpoints, backup configuration, maintenance
   windows, customer-managed encryption keys, BYOC. These depend on
   server-side endpoint additions.
 - Configurable lifecycle timeouts — there is no `timeouts {}` block; the
   provider uses fixed internal poll/retry budgets.
+
+## IP access list
+
+`ip_access` uses the same list of `source` and `description` objects as
+`clickhouse_service`, with a required `port_range` for each Postgres rule.
+Rules allow TCP traffic from an IPv4 address or CIDR.
+
+- Set the list to manage all IPv4 rules. Add, edit, or remove entries and
+  apply; rules added outside Terraform are removed on the next apply.
+  Rule IDs are managed automatically.
+- Unlike `clickhouse_service`, this attribute is optional so existing
+  Postgres configurations continue working. Omitting it on a standard
+  create uses the API defaults: all IPv4 and IPv6 addresses can connect
+  on ports 5432 and 6432. Omitting it on an existing service preserves its
+  rules.
+- On a **standard create**, a supplied list replaces the public defaults;
+  `ip_access = []` blocks public access.
+- On **update**, `ip_access = []` removes all IPv4 rules. The API does not
+  expose IPv6 rules, so Terraform cannot read or change them. Restricting
+  an existing service's IPv4 rules does not remove any IPv6 access.
+- **Read replicas and restores** support `ip_access`, but their create
+  endpoints use public defaults. Terraform applies the IPv4 list
+  immediately after creation in a separate request. This is not atomic:
+  the service starts with public defaults, and IPv6 access remains unchanged.
+
+Use a single port (`"5432"`) or an inclusive range (`"5432..6432"`) from
+1 to 65535. Use separate entries to allow only 5432 and 6432 without the
+ports in between. Descriptions are required; use `""` for no description.
 
 ## Tag semantics
 
@@ -305,7 +354,8 @@ are normal in-place updates. A **live read replica cannot** — see below.)
   into a standalone primary, but — as noted above — that **destroys and
   recreates** a live replica; it is not an in-place detach.) `pg_config` /
   `pgbouncer_config` **are** changeable on a replica — they use a separate
-  endpoint that allows per-replica values.
+  endpoint that allows per-replica values. `ip_access` is also changeable
+  independently on a replica.
 - **`restore_to_point_in_time = { source_id, restore_target }`** — create
   this instance by restoring another instance's backup to an RFC3339
   timestamp. The restored instance's name is this resource's top-level `name`
@@ -382,6 +432,11 @@ resource "clickhouse_postgres_service" "example" {
     team        = "data"
   }
 
+  ip_access = [
+    { source = "203.0.113.0/24", port_range = "5432", description = "Office Postgres" },
+    { source = "203.0.113.0/24", port_range = "6432", description = "Office PgBouncer" },
+  ]
+
   # A standard service must declare a credential: `password` (stored in
   # sensitive state) or `password_wo` + `password_wo_version` (write-only,
   # never stored in state).
@@ -402,6 +457,7 @@ resource "clickhouse_postgres_service" "example" {
 
 - `cloud_provider` (String) Cloud provider hosting the instance. Supported values are 'aws' and 'gcp'. Postgres on GCP is in private preview; contact ClickHouse support to enable access for your organization and region. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
 - `ha_type` (String) High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = "none"' explicitly. Omit for a read replica or point-in-time restore (inherited from the source).
+- `ip_access` (Attributes List) IPv4 TCP access list. Omit to preserve existing rules or use the public defaults on creation. An empty list blocks public access on standard creation; on update it removes IPv4 rules only. IPv6 rules are not managed. (see [below for nested schema](#nestedatt--ip_access))
 - `password` (String, Sensitive) Superuser password. Config-owned: the API does not return the password, so Terraform manages exactly the value declared here and never reads it back. One of `password` or `password_wo` is required for a standard service; forbidden for a read replica (it inherits the primary's superuser); optional for a point-in-time restore (omit to keep the source's password, which Terraform then does not track). Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Stored in (sensitive) state — prefer `password_wo` to keep it out of state. `terraform import` cannot recover the live password — the configured value is rotated in on the first apply after import.
 - `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Superuser password, write-only: applied to the service but never persisted to Terraform state (requires Terraform >= 1.11). Preferred over `password`. Requires `password_wo_version`; increment the version to rotate to the current `password_wo` value. Same complexity rules as `password`. Forbidden for a read replica.
 - `password_wo_version` (Number) Version number for `password_wo`. Increment to trigger a password rotation using the current `password_wo` value.
@@ -423,6 +479,16 @@ resource "clickhouse_postgres_service" "example" {
 - `port` (Number) TCP port for client connections. Hardcoded to 5432 today; will become server-supplied once the API exposes a per-instance port field.
 - `state` (String) Server-reported state. Examples: 'creating', 'running', 'restarting', 'unavailable', 'deleting'. Forward-compatible: unknown values from the server are surfaced verbatim.
 - `username` (String) Default superuser name.
+
+<a id="nestedatt--ip_access"></a>
+### Nested Schema for `ip_access`
+
+Required:
+
+- `description` (String) Description of the IP address.
+- `port_range` (String) TCP port or inclusive range from 1 to 65535. Use 5432 for Postgres and 6432 for PgBouncer, or a range such as 5432..6432.
+- `source` (String) IPv4 address or CIDR allowed to connect. Use 0.0.0.0/0 to allow all IPv4 addresses.
+
 
 <a id="nestedatt--restore_to_point_in_time"></a>
 ### Nested Schema for `restore_to_point_in_time`
