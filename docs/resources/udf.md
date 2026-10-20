@@ -4,7 +4,6 @@ page_title: "clickhouse_udf Resource - clickhouse"
 subcategory: "ClickHouse Cloud"
 description: |-
   You can use the clickhouse_udf resource to create and manage User Defined Functions (UDFs) in ClickHouse Cloud.
-  ~> Note: This resource is in beta. Its behavior may change in future provider versions.
   Point source_archive_path at a ZIP of your function source, and set source_archive_hash to filebase64sha256(...) of that same file so Terraform knows when to publish a new version. On apply, the provider uploads the archive and waits for the build to finish.
   If a build fails
   By default, a failed build fails the apply (fail_on_build_error = true). Set it to false if you'd rather get a warning and move on. Either way, the failed version stays in state, and applying again with the same source won't retry the build — you'll need to fix the source and give source_archive_hash a new value first.
@@ -19,8 +18,6 @@ description: |-
 # clickhouse_udf (Resource)
 
 You can use the *clickhouse_udf* resource to create and manage User Defined Functions (UDFs) in ClickHouse Cloud.
-
-~> **Note:** This resource is in beta. Its behavior may change in future provider versions.
 
 Point `source_archive_path` at a ZIP of your function source, and set `source_archive_hash` to `filebase64sha256(...)` of that same file so Terraform knows when to publish a new version. On apply, the provider uploads the archive and waits for the build to finish.
 
@@ -86,7 +83,6 @@ resource "clickhouse_udf" "echo_string" {
 - `pool_size` (Number) Command pool size for executable_pool UDFs.
 - `return_name` (String) Name of the returned value, or null when unnamed.
 - `sandbox_type` (String) Sandbox isolation level.
-- `sandbox_version` (String) Sandbox runtime version.
 - `send_chunk_header` (Boolean) Whether ClickHouse sends a row-count chunk header.
 
 ### Read-Only

@@ -1,14 +1,14 @@
 # ClickPipe Kafka Confluent E2E Test
 
-This example creates a ClickHouse service and a ClickPipe that ingests data from Confluent Kafka using SASL/PLAIN authentication.
+This example creates a ClickHouse service and a Kafka ClickPipe configured for Confluent Kafka using SASL/PLAIN authentication. The Kafka ClickPipe is created with `stopped = true`, so it does not start ingestion.
 
 ## What Gets Created
 
 1. **ClickHouse Service**: A basic ClickHouse Cloud service in AWS
 2. **ClickPipe**: A Kafka ClickPipe that:
    - Connects to an existing Confluent Kafka cluster using SASL/PLAIN authentication
-   - Consumes from specified Kafka topics
-   - Ingests data into a managed ClickHouse table
+   - Is configured to consume from specified Kafka topics into a managed ClickHouse table
+   - Remains in the `Stopped` state
 
 ## Prerequisites
 
@@ -72,15 +72,15 @@ The ClickPipe is configured with `format = "JSONEachRow"` which expects one JSON
 
 - `service_id`: The ID of the created ClickHouse service
 - `service_endpoints`: Connection endpoints for the ClickHouse service
-- `clickpipe_id`: The ID of the created ClickPipe
-- `clickpipe_state`: Current state of the ClickPipe (should be "running" after successful creation)
+- `clickpipe_kafka_id`: The ID of the created Kafka ClickPipe
+- `clickpipe_kafka_state`: Current state of the Kafka ClickPipe (must be `Stopped` after successful creation)
 
 ## E2E Testing
 
 This example is designed for automated e2e testing in CI/CD. The test validates:
 - ClickHouse service creation
 - ClickPipe resource creation with Confluent Kafka source
-- State transitions (provisioning → running)
+- Creation in the `Stopped` state, enforced by a Terraform postcondition that fails the apply if the Kafka ClickPipe is not stopped
 - Resource cleanup (terraform destroy)
 
 The test does NOT validate actual data ingestion (would require producing messages to Kafka).
@@ -105,6 +105,7 @@ terraform destroy -var-file=variables.tfvars
 - Ensure SASL/PLAIN authentication is enabled on the cluster
 
 ### Data not ingesting
+- The Kafka ClickPipe intentionally remains stopped in this example.
 - Verify topics exist and have data
 - Check JSON format matches expected schema
 - Review ClickPipe logs in ClickHouse Cloud console

@@ -201,7 +201,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional: true,
 			},
 			"stopped": schema.BoolAttribute{
-				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running). Cannot be set to `true` on creation — the ClickPipe must be created in a running state and then stopped via a subsequent apply.",
+				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false`. For streaming and object-storage ClickPipes, set to `true` to create the pipe without starting ingestion, then set to `false` and apply to start it. Database ClickPipes cannot be created stopped. This is the configured intent; `state` reports the live status.",
 				Computed:            true,
 				Optional:            true,
 				Default:             booldefault.StaticBool(false),
@@ -1661,6 +1661,67 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											stringplanmodifier.RequiresReplace(),
 										},
 									},
+									"replication_method": schema.StringAttribute{
+										MarkdownDescription: fmt.Sprintf(
+											"How changes are captured from BigQuery. (%s). `query_based` polls each table using a watermark timestamp column (see `query_cdc_watermark_column` in `table_mappings`), `events_based` reads the BigQuery change history using the `APPENDS` or `CHANGES` table function (see `events_function` in `table_mappings`). Required when `replication_mode` is `cdc` or `cdc_only`, and must be omitted for `snapshot`.",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryReplicationMethods),
+										),
+										Optional: true,
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipeBigQueryReplicationMethods...),
+										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
+									},
+									"sync_interval_seconds": schema.Int64Attribute{
+										Description: "Interval in seconds between CDC syncs. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+									},
+									"query_cdc_pull_sync_parallelism": schema.Int64Attribute{
+										Description: "Number of tables pulled in parallel during a CDC sync. Must be omitted when replication_mode is `snapshot`. Defaults to 4 for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+									},
+									"sync_delay_seconds": schema.Int64Attribute{
+										Description: "Each CDC sync reads data only up to now minus this delay, giving recently written rows time to become visible in BigQuery. Increase it if your tables are loaded via batch jobs or Google Cloud Dataflow; if set too low, late-visible rows may be skipped. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(0),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+									},
+									"pull_window_size_seconds": schema.Int64Attribute{
+										Description: "Maximum amount of time one pull (query) can cover. Applies when the pipe has fallen behind, e.g. on the first CDC sync or when resuming after a pause: with a 6 hour limit, a pipe that is 3 days behind catches up in 12 smaller pulls instead of one large query. If a pull fails, only that pull is retried. Must be omitted when replication_mode is `snapshot`. Defaults to 86400 (24 hours) for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+									},
 									"allow_nullable_columns": schema.BoolAttribute{
 										Description: "Allow nullable columns in the destination table.",
 										Optional:    true,
@@ -1758,6 +1819,20 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Computed: true,
 											Validators: []validator.String{
 												stringvalidator.OneOf(api.ClickPipeBigQueryTableEngines...),
+											},
+										},
+										"query_cdc_watermark_column": schema.StringAttribute{
+											MarkdownDescription: "Source column of type `TIMESTAMP` used as the CDC watermark. Required for every table when `replication_method` is `query_based`; must be omitted otherwise.",
+											Optional:            true,
+										},
+										"events_function": schema.StringAttribute{
+											MarkdownDescription: fmt.Sprintf(
+												"BigQuery table function used to read changes. (%s). Required for every table when `replication_method` is `events_based`; must be omitted otherwise.",
+												wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryEventsFunctions),
+											),
+											Optional: true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(api.ClickPipeBigQueryEventsFunctions...),
 											},
 										},
 									},
@@ -2148,24 +2223,6 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		return
 	}
 
-	// Reject `stopped = true` on creation. The API does not support provisioning a pipe
-	// in a stopped state; the pipe must be created running and then stopped via update.
-	// An Unknown value (e.g. `stopped` derived from an apply-time computed expression)
-	// is also rejected: we cannot prove it will resolve to false, and a true would put
-	// us in the unsupported create-stopped path. Require a known false on creation.
-	if request.State.Raw.IsNull() && (plan.Stopped.IsUnknown() || plan.Stopped.ValueBool()) {
-		detail := "`stopped = true` is not allowed when creating a new ClickPipe. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
-		if plan.Stopped.IsUnknown() {
-			detail = "`stopped` must be a known value (false) when creating a new ClickPipe; it cannot be derived from an apply-time computed value. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
-		}
-		response.Diagnostics.AddAttributeError(
-			path.Root("stopped"),
-			"Cannot create a ClickPipe in a stopped state",
-			detail,
-		)
-		return
-	}
-
 	// Validate table engine configuration
 	if !plan.Destination.IsNull() {
 		destinationModel := models.ClickPipeDestinationModel{}
@@ -2271,10 +2328,21 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Validate object storage configuration
+	// Validate source configuration
 	if !plan.Source.IsNull() {
 		sourceModel := models.ClickPipeSourceModel{}
 		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+		isDBPipe := !sourceModel.Postgres.IsNull() || !sourceModel.MySQL.IsNull() ||
+			!sourceModel.BigQuery.IsNull() || !sourceModel.MongoDB.IsNull()
+		if request.State.Raw.IsNull() && plan.Stopped.ValueBool() && isDBPipe {
+			response.Diagnostics.AddAttributeError(
+				path.Root("stopped"),
+				"Cannot create a database ClickPipe in a stopped state",
+				"`stopped = true` on creation is only supported for streaming and object-storage ClickPipes. Database ClickPipes must be created running.",
+			)
+			return
+		}
 
 		if !sourceModel.ObjectStorage.IsNull() {
 			objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
@@ -2899,7 +2967,8 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	serviceID := plan.ServiceID.ValueString()
 
 	clickPipe := api.ClickPipe{
-		Name: plan.Name.ValueString(),
+		Name:        plan.Name.ValueString(),
+		StartPaused: plan.Stopped.ValueBool(),
 	}
 
 	if source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, false); source != nil {
@@ -3106,16 +3175,6 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 	}
 
-	if plan.Stopped.ValueBool() {
-		if _, err := c.client.ChangeClickPipeState(ctx, serviceID, createdClickPipe.ID, api.ClickPipeStateStop); err != nil {
-			response.Diagnostics.AddError(
-				"Error Stopping ClickPipe",
-				"Could not stop ClickPipe, unexpected error: "+err.Error(),
-			)
-			return
-		}
-	}
-
 	// Determine expected state(s) based on configuration
 	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
 
@@ -3266,6 +3325,30 @@ func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
 		return true
 	}
 	return source.BigQuery != nil && source.BigQuery.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity
+}
+
+// knownInt64ToIntPointer returns nil for null/unknown values so unset settings are left out of the API request.
+func knownInt64ToIntPointer(v types.Int64) *int {
+	if v.IsNull() || v.IsUnknown() {
+		return nil
+	}
+	val := int(v.ValueInt64())
+	return &val
+}
+
+func intPointerToInt64Value(v *int) types.Int64 {
+	if v == nil {
+		return types.Int64Null()
+	}
+	return types.Int64Value(int64(*v))
+}
+
+// nonEmptyStringValue maps a nil or empty string from the API to null.
+func nonEmptyStringValue(v *string) types.String {
+	if v == nil || *v == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(*v)
 }
 
 // overlayPasswordWO returns the write-only password from config when set, else the plan password. The framework leaves write-only attrs in req.Plan and req.Config, but nulls them in req.State; we read from config to keep the source of truth explicit.
@@ -3675,6 +3758,14 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			ReplicationMode: settingsModel.ReplicationMode.ValueString(),
 		}
 
+		if !settingsModel.ReplicationMethod.IsNull() && !settingsModel.ReplicationMethod.IsUnknown() {
+			settings.ReplicationMethod = settingsModel.ReplicationMethod.ValueStringPointer()
+		}
+		settings.SyncIntervalSeconds = knownInt64ToIntPointer(settingsModel.SyncIntervalSeconds)
+		settings.QueryCDCPullSyncParallelism = knownInt64ToIntPointer(settingsModel.QueryCDCPullSyncParallelism)
+		settings.SyncDelaySeconds = knownInt64ToIntPointer(settingsModel.SyncDelaySeconds)
+		settings.PullWindowSizeSeconds = knownInt64ToIntPointer(settingsModel.PullWindowSizeSeconds)
+
 		if !settingsModel.AllowNullableColumns.IsNull() {
 			val := settingsModel.AllowNullableColumns.ValueBool()
 			settings.AllowNullableColumns = &val
@@ -3723,6 +3814,14 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 
 			if !mappingModel.TableEngine.IsNull() {
 				mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
+			}
+
+			if !mappingModel.QueryCDCWatermarkColumn.IsNull() && !mappingModel.QueryCDCWatermarkColumn.IsUnknown() {
+				mapping.QueryCDCWatermarkColumn = mappingModel.QueryCDCWatermarkColumn.ValueStringPointer()
+			}
+
+			if !mappingModel.EventsFunction.IsNull() && !mappingModel.EventsFunction.IsUnknown() {
+				mapping.EventsFunction = mappingModel.EventsFunction.ValueStringPointer()
 			}
 
 			tableMappings[i] = mapping
@@ -4355,14 +4454,22 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 		return isClickPipeStoppedOrPaused
 	}
 
-	// Check if this is a snapshot-only DB pipe (Postgres/MySQL snapshot mode or BigQuery)
+	// Check if this is a snapshot-only DB pipe (snapshot replication mode)
 	isDBPipe := false
 	isSnapshotOnly := false
 	var sourceModel models.ClickPipeSourceModel
 	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
-		// BigQuery is always snapshot-only
 		if !sourceModel.BigQuery.IsNull() {
-			isSnapshotOnly = true
+			isDBPipe = true
+			var bigQuerySource models.ClickPipeBigQuerySourceModel
+			if diags := sourceModel.BigQuery.As(ctx, &bigQuerySource, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				if !bigQuerySource.Settings.IsNull() {
+					var settings models.ClickPipeBigQuerySettingsModel
+					if diags := bigQuerySource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipeReplicationModeSnapshot
+					}
+				}
+			}
 		} else if !sourceModel.Postgres.IsNull() {
 			isDBPipe = true
 			var postgresSource models.ClickPipePostgresSourceModel
@@ -5488,7 +5595,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		// Settings - preserve null values from state for optional fields
 		settingsModel := models.ClickPipeBigQuerySettingsModel{
-			ReplicationMode: types.StringValue(clickPipe.Source.BigQuery.Settings.ReplicationMode),
+			ReplicationMode:             types.StringValue(clickPipe.Source.BigQuery.Settings.ReplicationMode),
+			ReplicationMethod:           nonEmptyStringValue(clickPipe.Source.BigQuery.Settings.ReplicationMethod),
+			SyncIntervalSeconds:         intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.SyncIntervalSeconds),
+			QueryCDCPullSyncParallelism: intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.QueryCDCPullSyncParallelism),
+			SyncDelaySeconds:            intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.SyncDelaySeconds),
+			PullWindowSizeSeconds:       intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.PullWindowSizeSeconds),
 		}
 
 		if clickPipe.Source.BigQuery.Settings.AllowNullableColumns != nil {
@@ -5575,6 +5687,10 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			} else {
 				tableMappingModel.TableEngine = types.StringNull()
 			}
+
+			tableMappingModel.QueryCDCWatermarkColumn = nonEmptyStringValue(mapping.QueryCDCWatermarkColumn)
+
+			tableMappingModel.EventsFunction = nonEmptyStringValue(mapping.EventsFunction)
 
 			tableMappingList[i] = tableMappingModel.ObjectValue()
 		}
@@ -6126,8 +6242,11 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				source.Kafka.ProtobufSchema = nil
 			}
 
-			// For Pub/Sub, only re-send the service_account_key when it changed
-			// (key rotation). Sending an unchanged value would re-encrypt without effect.
+			// For Pub/Sub, only authentication, service_account_key and ack_deadline are
+			// patchable; every other field carries RequiresReplace and never changes in
+			// Update. The API rejects immutable fields even when unchanged ("format is
+			// immutable for Pub/Sub sources"), so omit them from the PATCH, and
+			// re-send the service_account_key only when it changed (key rotation).
 			if source.PubSub != nil && !planSourceModel.PubSub.IsNull() && !stateSourceModel.PubSub.IsNull() {
 				planPubSubModel := models.ClickPipePubSubSourceModel{}
 				response.Diagnostics.Append(planSourceModel.PubSub.As(ctx, &planPubSubModel, basetypes.ObjectAsOptions{})...)
@@ -6136,6 +6255,14 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				if planPubSubModel.ServiceAccountKey.Equal(statePubSubModel.ServiceAccountKey) {
 					source.PubSub.ServiceAccountKey = nil
 				}
+				// Omit all immutable fields from update payload
+				source.PubSub.Format = ""
+				source.PubSub.ProjectID = ""
+				source.PubSub.Topic = ""
+				source.PubSub.SeekType = ""
+				source.PubSub.SeekTimestamp = nil
+				source.PubSub.Filter = nil
+				source.PubSub.EnableOrdering = nil
 			}
 
 			// For Kinesis, omit the unchanged access_key from the PATCH so we do not
