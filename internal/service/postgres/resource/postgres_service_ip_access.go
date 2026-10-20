@@ -6,7 +6,9 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -153,6 +155,11 @@ func postgresIPAccessKey(rule api.PostgresIpAccess) (string, error) {
 	return source + ":" + port, nil
 }
 
+func trimPostgresIPAccessDescription(description string) string {
+	// Match Ubicloud's Ruby String#strip, which preserves Unicode whitespace.
+	return strings.Trim(description, "\x00\t\n\v\f\r ")
+}
+
 func diffPostgresIPAccess(current, desired []api.PostgresIpAccess) (*api.PostgresIpAccessUpdate, error) {
 	patch := &api.PostgresIpAccessUpdate{}
 	byKey := make(map[string][]api.PostgresIpAccess, len(current))
@@ -177,7 +184,7 @@ func diffPostgresIPAccess(current, desired []api.PostgresIpAccess) (*api.Postgre
 		match := matches[0]
 		byKey[key] = matches[1:]
 		kept[match.Id] = true
-		if match.Description != strings.TrimSpace(rule.Description) {
+		if match.Description != trimPostgresIPAccessDescription(rule.Description) {
 			match.Description = rule.Description
 			patch.Add = append(patch.Add, match)
 		}
@@ -201,21 +208,35 @@ func (r *PostgresServiceResource) updatePostgresIPAccess(ctx context.Context, id
 	if rules == nil {
 		return nil
 	}
-	current, err := r.client.GetPostgres(ctx, id)
-	if err != nil {
+	update := func() error {
+		if err := ctx.Err(); err != nil {
+			return backoff.Permanent(err)
+		}
+		current, err := r.client.GetPostgres(ctx, id)
+		if err != nil {
+			// GET already retries safely in the HTTP client.
+			return backoff.Permanent(err)
+		}
+		if current.IpAccessList == nil {
+			return backoff.Permanent(fmt.Errorf("the API did not return ipAccessList; cannot safely update IP access rules"))
+		}
+		patch, err := diffPostgresIPAccess(current.IpAccessList, *rules)
+		if err != nil || patch == nil {
+			return backoff.Permanent(err)
+		}
+		// Keep this separate from metadata changes: an access-only PATCH preserves
+		// tags and is allowed on read replicas.
+		_, err = r.client.UpdatePostgres(ctx, id, api.PostgresUpdate{IpAccessList: patch})
+		if api.Is4xxPermanent(err) {
+			return backoff.Permanent(err)
+		}
 		return err
 	}
-	if current.IpAccessList == nil {
-		return fmt.Errorf("the API did not return ipAccessList; cannot safely update IP access rules")
-	}
-	patch, err := diffPostgresIPAccess(current.IpAccessList, *rules)
-	if err != nil || patch == nil {
-		return err
-	}
-	// Keep this separate from metadata changes: an access-only PATCH preserves
-	// tags and is allowed on read replicas.
-	_, err = r.client.UpdatePostgres(ctx, id, api.PostgresUpdate{IpAccessList: patch})
-	return err
+	// A failed response may follow a partial or complete mutation. Re-read and
+	// diff before retrying so deleted IDs and completed additions are not replayed.
+	return backoff.Retry(update, backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithMaxElapsedTime(time.Minute),
+	), ctx))
 }
 
 func syncPostgresIPAccess(ctx context.Context, rules []api.PostgresIpAccess, prior types.List) (types.List, diag.Diagnostics) {
@@ -255,7 +276,7 @@ func syncPostgresIPAccess(ctx context.Context, rules []api.PostgresIpAccess, pri
 				continue
 			}
 			used[i] = true
-			if strings.TrimSpace(entry.Description.ValueString()) != rule.Description {
+			if trimPostgresIPAccessDescription(entry.Description.ValueString()) != rule.Description {
 				entry.Description = types.StringValue(rule.Description)
 			}
 			elements = append(elements, entry.ObjectValue())

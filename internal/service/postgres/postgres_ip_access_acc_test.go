@@ -69,7 +69,8 @@ func (m *postgresIPMockAPI) normalize(rule api.PostgresIpAccess) api.PostgresIpA
 		ports = ports[:1]
 	}
 	rule.PortRange = strings.Join(ports, "..")
-	rule.Description = strings.TrimSpace(rule.Description)
+	// Ubicloud uses Ruby String#strip, which preserves Unicode whitespace.
+	rule.Description = strings.Trim(rule.Description, "\x00\t\n\v\f\r ")
 	return rule
 }
 
@@ -320,6 +321,40 @@ func TestAccPostgresIPAccessCreateDefaults(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestAccPostgresIPAccessDescriptionWhitespace(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("acceptance tests skipped unless env 'TF_ACC' is set")
+	}
+	mock := newPostgresIPMockAPI(t)
+	var steps []resource.TestStep
+	for i, tc := range []struct {
+		configured, stored string
+	}{
+		{" \u00a0office\u00a0 ", "\u00a0office\u00a0"},
+		{"\t\u2003edited\u2003\n", "\u2003edited\u2003"},
+		{"\x00 \t\r\n\v\foffice\x00 \t\r\n\v\f", "office"},
+	} {
+		description, err := json.Marshal(tc.configured)
+		require.NoError(t, err)
+		// HCL requires a Unicode escape for form feed.
+		hclDescription := strings.ReplaceAll(string(description), `\f`, `\u000c`)
+		access := fmt.Sprintf(`ip_access = [{source="192.0.2.1/32", port_range="5432", description=%s}]`, hclDescription)
+		steps = append(steps, resource.TestStep{
+			Config: mock.config(access, "test"),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				mock.check(i, 1),
+				resource.TestCheckResourceAttr("clickhouse_postgres_service.test", "ip_access.0.description", tc.configured),
+				resource.TestCheckResourceAttr("data.clickhouse_postgres_service.test", "ip_access.0.description", tc.stored),
+			),
+		})
+	}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: postgresIPProviderFactories,
+		CheckDestroy:             mock.checkDestroy,
+		Steps:                    steps,
+	})
 }
 
 func TestAccPostgresIPAccessValidation(t *testing.T) {

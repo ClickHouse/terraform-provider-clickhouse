@@ -77,3 +77,40 @@ func TestPostgresIpAccessMissingVersusEmpty(t *testing.T) {
 	require.NotNil(t, pg.IpAccessList)
 	require.Empty(t, pg.IpAccessList)
 }
+
+func TestPostgresUpdateRetryPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		body    PostgresUpdate
+		retries bool
+	}{
+		{"metadata", PostgresUpdate{Size: "m6gd.large"}, true},
+		{"empty access patch", PostgresUpdate{IpAccessList: &PostgresIpAccessUpdate{}}, false},
+		{"remove rule", PostgresUpdate{IpAccessList: &PostgresIpAccessUpdate{
+			Remove: []PostgresIpAccessRuleReference{{Id: "old"}},
+		}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			attempts := 0
+			client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodPatch, r.Method)
+				attempts++
+				if attempts == 1 {
+					http.Error(w, "temporary failure", http.StatusServiceUnavailable)
+					return
+				}
+				require.NoError(t, json.NewEncoder(w).Encode(ResponseWithResult[Postgres]{
+					Result: Postgres{Id: testPostgresID},
+				}))
+			})
+			_, err := client.UpdatePostgres(context.Background(), testPostgresID, tc.body)
+			if tc.retries {
+				require.NoError(t, err)
+				require.Equal(t, 2, attempts)
+			} else {
+				require.Error(t, err)
+				require.Equal(t, 1, attempts)
+			}
+		})
+	}
+}

@@ -111,7 +111,9 @@ func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body
 	if err != nil {
 		return nil, err
 	}
-	respBody, err := c.doRequest(ctx, req)
+	// Access-rule IDs can be consumed before a response is lost. The resource
+	// reconciles these changes with a fresh GET instead of replaying the PATCH.
+	respBody, err := c.doRequestWithStatus(ctx, req, body.IpAccessList == nil)
 	if err != nil {
 		return nil, err
 	}

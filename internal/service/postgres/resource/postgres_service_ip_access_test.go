@@ -2,8 +2,15 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -223,9 +230,151 @@ func TestPostgresIPAccessRetryUsesFreshIDs(t *testing.T) {
 		require.Empty(t, body.IpAccessList.Add[0].Id)
 		return nil, errors.New("response lost after applying changes")
 	})
-	require.Error(t, r.updatePostgresIPAccess(ctx, "pg-1", desired))
 	require.NoError(t, r.updatePostgresIPAccess(ctx, "pg-1", desired))
+	require.Equal(t, 2, reads)
 	require.Equal(t, uint64(1), client.UpdatePostgresAfterCounter())
+}
+
+func TestPostgresIPAccessDescriptionWhitespace(t *testing.T) {
+	for _, tc := range []struct {
+		name, configured, stored string
+	}{
+		{"ASCII and NUL", "\x00 \t\r\n\v\foffice\x00 \t\r\n\v\f", "office"},
+		{"non-breaking spaces", " \u00a0office\u00a0 ", "\u00a0office\u00a0"},
+		{"em spaces", "\t\u2003office\u2003\n", "\u2003office\u2003"},
+		{"only whitespace", "\x00 \t\r\n\v\f", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			desired := api.PostgresIpAccess{Source: "192.0.2.1/32", PortRange: "5432", Description: tc.configured}
+			remote := desired
+			remote.Id = "existing"
+			remote.Description = tc.stored
+			patch, err := diffPostgresIPAccess([]api.PostgresIpAccess{remote}, []api.PostgresIpAccess{desired})
+			require.NoError(t, err)
+			require.Nil(t, patch, "an unchanged description must not be patched")
+			prior := ipAccessList(desired)
+			got, diags := syncPostgresIPAccess(context.Background(), []api.PostgresIpAccess{remote}, prior)
+			require.False(t, diags.HasError())
+			require.True(t, prior.Equal(got), "preserve configured description: %v", got)
+		})
+	}
+}
+
+// Use the real HTTP client: a client mock cannot detect automatic PATCH replay.
+func TestPostgresIPAccessHTTPRecovery(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		applied        int
+		status         int
+		patches, reads int
+		wantError      bool
+	}{
+		{"before mutation", 0, 503, 2, 2, false},
+		{"after removal", 1, 503, 2, 2, false},
+		{"after first add", 2, 503, 2, 2, false},
+		{"after full mutation", 3, 503, 1, 2, false},
+		{"lost connection", 3, 0, 1, 2, false},
+		{"truncated response", 3, 200, 1, 2, false},
+		{"bad request", 0, 400, 1, 1, true},
+		{"forbidden", 0, 403, 1, 1, true},
+		{"canceled", 0, -1, 1, 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			desired := []api.PostgresIpAccess{
+				{Source: "192.0.2.1/32", PortRange: "5432", Description: "Postgres"},
+				{Source: "192.0.2.1/32", PortRange: "6432", Description: "PgBouncer"},
+			}
+			current := []api.PostgresIpAccess{{Id: "old", Source: "0.0.0.0/0", PortRange: "5432"}}
+			var mu sync.Mutex
+			patches, reads, nextID := 0, 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				mu.Lock()
+				defer mu.Unlock()
+				switch req.Method {
+				case http.MethodGet:
+					reads++
+				case http.MethodPatch:
+					patches++
+					var body api.PostgresUpdate
+					require.NoError(t, json.NewDecoder(req.Body).Decode(&body))
+					require.NotNil(t, body.IpAccessList)
+					require.Nil(t, body.Tags)
+					if patches == 1 && tc.status == -1 {
+						cancel()
+						return
+					}
+					if patches == 1 && tc.applied == 0 {
+						http.Error(w, "request failed", tc.status)
+						return
+					}
+					for _, remove := range body.IpAccessList.Remove {
+						index := slices.IndexFunc(current, func(rule api.PostgresIpAccess) bool { return rule.Id == remove.Id })
+						if index < 0 {
+							http.Error(w, "unknown rule ID", http.StatusBadRequest)
+							return
+						}
+						current = slices.Delete(current, index, index+1)
+					}
+					for i, add := range body.IpAccessList.Add {
+						if patches == 1 && i >= tc.applied-1 {
+							break
+						}
+						if slices.ContainsFunc(current, func(rule api.PostgresIpAccess) bool {
+							return rule.Source == add.Source && rule.PortRange == add.PortRange
+						}) {
+							http.Error(w, "duplicate rule", http.StatusBadRequest)
+							return
+						}
+						nextID++
+						add.Id = fmt.Sprintf("created-%d", nextID)
+						current = append(current, add)
+					}
+					if patches == 1 {
+						switch tc.status {
+						case 0:
+							conn, _, err := w.(http.Hijacker).Hijack()
+							require.NoError(t, err)
+							require.NoError(t, conn.Close())
+						case http.StatusOK:
+							w.Header().Set("Content-Length", "100")
+							_, err := w.Write([]byte("{"))
+							require.NoError(t, err)
+						default:
+							http.Error(w, "response lost", tc.status)
+						}
+						return
+					}
+				default:
+					t.Errorf("unexpected method %s", req.Method)
+				}
+				require.NoError(t, json.NewEncoder(w).Encode(api.ResponseWithResult[api.Postgres]{
+					Result: api.Postgres{Id: "pg-1", IpAccessList: current},
+				}))
+			}))
+			defer server.Close()
+			client, err := api.NewClient(api.ClientConfig{
+				ApiURL: server.URL, OrganizationID: "org", TokenKey: "key", TokenSecret: "secret",
+			})
+			require.NoError(t, err)
+			r := &PostgresServiceResource{client: client}
+			err = r.updatePostgresIPAccess(ctx, "pg-1", ipAccessList(desired...))
+			require.Equal(t, tc.wantError, err != nil, "%v", err)
+			if tc.status == -1 {
+				require.ErrorIs(t, err, context.Canceled)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			require.Equal(t, tc.patches, patches)
+			require.Equal(t, tc.reads, reads)
+			if !tc.wantError {
+				patch, err := diffPostgresIPAccess(current, desired)
+				require.NoError(t, err)
+				require.Nil(t, patch)
+			}
+		})
+	}
 }
 
 func TestPostgresOriginIPAccessCreate(t *testing.T) {
@@ -264,7 +413,7 @@ func TestPostgresOriginIPAccessCreate(t *testing.T) {
 			client.GetPostgresMock.Expect(ctx, "allocated").Return(pg, nil)
 			var patchErr error
 			if fail {
-				patchErr = errors.New("firewall update failed")
+				patchErr = errors.New("status: 400, body: firewall update failed")
 			} else {
 				client.WaitForPostgresStateMock.Set(func(_ context.Context, id string, _ func(string) bool, _ int) error {
 					require.Equal(t, "allocated", id)
