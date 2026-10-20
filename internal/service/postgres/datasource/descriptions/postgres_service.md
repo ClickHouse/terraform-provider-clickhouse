@@ -13,8 +13,6 @@ from `hostname`, `port`, and `username`, plus the password declared on the
 managing `clickhouse_postgres_service` resource. The write-time create
 inputs — `read_replica_of`, `restore_to_point_in_time` — are not
 read back. `tags`, `pg_config`, and `pgbouncer_config` are read-only string maps.
-`ip_access` is a read-only list of IPv4 rules with `source`, `port_range`, and
-`description`. IPv6 rules are not included.
 
 ## Example
 

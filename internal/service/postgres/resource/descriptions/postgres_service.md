@@ -36,31 +36,17 @@ The following are intentionally absent from the schema:
 
 ## IP access list
 
-`ip_access` uses the same list of `source` and `description` objects as
-`clickhouse_service`, with a required `port_range` for each Postgres rule.
-Rules allow TCP traffic from an IPv4 address or CIDR.
+`ip_access` manages all IPv4 TCP rules. Use separate entries for Postgres
+(`5432`) and PgBouncer (`6432`), as shown in the example below.
 
-- Set the list to manage all IPv4 rules. Add, edit, or remove entries and
-  apply; rules added outside Terraform are removed on the next apply.
-  Rule IDs are managed automatically.
-- Unlike `clickhouse_service`, this attribute is optional so existing
-  Postgres configurations continue working. Omitting it on a standard
-  create uses the API defaults: all IPv4 and IPv6 addresses can connect
-  on ports 5432 and 6432. Omitting it on an existing service preserves its
-  rules.
-- On a **standard create**, a supplied list replaces the public defaults;
+- Omitting the list uses public defaults on creation: all IPv4 and IPv6
+  addresses on ports 5432 and 6432. On update, it preserves existing rules.
+- On standard creation, a supplied list replaces the public defaults;
   `ip_access = []` blocks public access.
-- On **update**, `ip_access = []` removes all IPv4 rules. The API does not
-  expose IPv6 rules, so Terraform cannot read or change them. Restricting
-  an existing service's IPv4 rules does not remove any IPv6 access.
-- **Read replicas and restores** support `ip_access`, but their create
-  endpoints use public defaults. Terraform applies the IPv4 list
-  immediately after creation in a separate request. This is not atomic:
-  the service starts with public defaults, and IPv6 access remains unchanged.
-
-Use a single port (`"5432"`) or an inclusive range (`"5432..6432"`) from
-1 to 65535. Use separate entries to allow only 5432 and 6432 without the
-ports in between. Descriptions are required; use `""` for no description.
+- On update, only IPv4 rules are managed; `[]` removes them all.
+  Existing IPv6 access is unchanged.
+- Read replicas and restores start with public defaults. Terraform applies
+  the IPv4 list after creation; IPv6 access remains unchanged.
 
 ## Tag semantics
 
