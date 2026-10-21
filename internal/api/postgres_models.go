@@ -50,21 +50,38 @@ func (m *PgConfigMap) UnmarshalJSON(data []byte) error {
 // Postgres mirrors PostgresInstanceV1 (ManagedPostgresV1.ts:60-70).
 // storageSize is omitted intentionally — DEPRECATED server-side.
 type Postgres struct {
-	Id               string `json:"id,omitempty"`
-	Name             string `json:"name"`
-	Provider         string `json:"provider"`
-	Region           string `json:"region"`
-	PostgresVersion  string `json:"postgresVersion,omitempty"`
-	Size             string `json:"size,omitempty"`
-	HaType           string `json:"haType,omitempty"`
-	State            string `json:"state,omitempty"`
-	CreatedAt        string `json:"createdAt,omitempty"`
-	IsPrimary        bool   `json:"isPrimary"`
-	Hostname         string `json:"hostname,omitempty"`
-	ConnectionString string `json:"connectionString,omitempty"`
-	Username         string `json:"username,omitempty"`
-	Password         string `json:"password,omitempty"`
-	Tags             []Tag  `json:"tags,omitempty"`
+	Id               string             `json:"id,omitempty"`
+	Name             string             `json:"name"`
+	Provider         string             `json:"provider"`
+	Region           string             `json:"region"`
+	PostgresVersion  string             `json:"postgresVersion,omitempty"`
+	Size             string             `json:"size,omitempty"`
+	HaType           string             `json:"haType,omitempty"`
+	State            string             `json:"state,omitempty"`
+	CreatedAt        string             `json:"createdAt,omitempty"`
+	IsPrimary        bool               `json:"isPrimary"`
+	Hostname         string             `json:"hostname,omitempty"`
+	ConnectionString string             `json:"connectionString,omitempty"`
+	Username         string             `json:"username,omitempty"`
+	Password         string             `json:"password,omitempty"`
+	Tags             []Tag              `json:"tags,omitempty"`
+	IpAccessList     []PostgresIpAccess `json:"ipAccessList"`
+}
+
+type PostgresIpAccess struct {
+	Id          string `json:"id,omitempty"`
+	Source      string `json:"source"`
+	PortRange   string `json:"portRange"`
+	Description string `json:"description"`
+}
+
+type PostgresIpAccessRuleReference struct {
+	Id string `json:"id"`
+}
+
+type PostgresIpAccessUpdate struct {
+	Add    []PostgresIpAccess              `json:"add,omitempty"`
+	Remove []PostgresIpAccessRuleReference `json:"remove,omitempty"`
 }
 
 // PostgresListItem is the abbreviated GET /postgres response item. Modeled
@@ -100,19 +117,21 @@ type PostgresCreate struct {
 	Tags            []Tag       `json:"tags,omitempty"`
 	PgConfig        PgConfigMap `json:"pgConfig,omitempty"`
 	PgBouncerConfig PgConfigMap `json:"pgBouncerConfig,omitempty"`
+	// A nil pointer omits the list; a pointer to an empty slice blocks public access.
+	IpAccessList *[]PostgresIpAccess `json:"ipAccessList,omitempty"`
 }
 
-// PostgresUpdate is the PATCH /postgres/{id} body. Server accepts ONLY
-// size / haType / tags; `name` is intentionally absent (no field in the
-// server schema). Tags is *[]Tag so callers can distinguish:
+// PostgresUpdate is the PATCH /postgres/{id} body.
+// Tags is *[]Tag so callers can distinguish:
 //
-//	nil       -> field omitted; server leaves existing tags alone
+//	nil       -> field omitted (preserves tags only on an IP-access-only PATCH)
 //	&[]Tag{}  -> server clears all tags
 //	&[]Tag{…} -> server replaces with these
 type PostgresUpdate struct {
-	Size   string `json:"size,omitempty"`
-	HaType string `json:"haType,omitempty"`
-	Tags   *[]Tag `json:"tags,omitempty"`
+	Size         string                  `json:"size,omitempty"`
+	HaType       string                  `json:"haType,omitempty"`
+	Tags         *[]Tag                  `json:"tags,omitempty"`
+	IpAccessList *PostgresIpAccessUpdate `json:"ipAccessList,omitempty"`
 }
 
 // PostgresRestoreRequest is the POST /postgres/{id}/restoredService body. Same

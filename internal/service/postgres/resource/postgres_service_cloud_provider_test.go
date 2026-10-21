@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
@@ -38,10 +39,10 @@ func TestPostgresSchema_cloudProviderAndSize(t *testing.T) {
 		{"cloud_provider", types.StringNull(), false},
 		{"cloud_provider", types.StringUnknown(), false},
 		{"size", types.StringValue("m6gd.large"), false},
-		// {"size", types.StringValue("c4a-highmem-4"), false}, // Requires access to the GCP ARM preview.
-		{"size", types.StringValue("c4-standard-4"), false},
-		{"size", types.StringValue("c4d-highmem-8"), false},
-		{"size", types.StringValue("z3-highlssd-8"), false},
+		// {"size", types.StringValue("c4a-highmem-lssd-4"), false}, // Requires access to the GCP ARM preview.
+		{"size", types.StringValue("c4-standard-lssd-4"), false},
+		{"size", types.StringValue("c4d-highmem-lssd-8"), false},
+		{"size", types.StringValue("z3-highmem-highlssd-8"), false},
 		{"size", types.StringValue("future-server-supported-size"), false},
 		{"size", types.StringValue(""), true},
 	} {
@@ -126,7 +127,7 @@ func TestPostgresCreate_cloudProviders(t *testing.T) {
 		size     string
 	}{
 		{"aws", "us-east-1", "m6gd.large"},
-		{"gcp", "us-west1", "c4-highmem-4"},
+		{"gcp", "us-west1", "c4-highmem-lssd-4"},
 	} {
 		t.Run(tc.provider, func(t *testing.T) {
 			ctx := context.Background()
@@ -162,7 +163,10 @@ func TestPostgresCreate_cloudProviders(t *testing.T) {
 			client.GetPostgresMock.Expect(ctx, pg.Id).Return(pg, nil)
 			client.GetPostgresConfigMock.Expect(ctx, pg.Id).Return(&api.PostgresConfig{}, nil)
 
-			resp := resource.CreateResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
+			resp := resource.CreateResponse{State: tfsdk.State{
+				Schema: schemaResp.Schema,
+				Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
+			}}
 			r.Create(ctx, resource.CreateRequest{
 				Plan:   tfsdk.Plan{Schema: schemaResp.Schema, Raw: encoded.Raw},
 				Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: encoded.Raw},
@@ -185,7 +189,7 @@ func TestPostgresPlanInheritedAttributes_GCP(t *testing.T) {
 			ctx := context.Background()
 			client := api.NewClientMock(minimock.NewController(t))
 			client.GetPostgresMock.Expect(ctx, "pg-source").Return(&api.Postgres{
-				Provider: "gcp", Region: "us-west1", Size: "c4-highmem-4", PostgresVersion: "18",
+				Provider: "gcp", Region: "us-west1", Size: "c4-highmem-lssd-4", PostgresVersion: "18",
 			}, nil)
 			r := &PostgresServiceResource{client: client}
 			var schemaResp resource.SchemaResponse
@@ -216,7 +220,7 @@ func TestPostgresPlanInheritedAttributes_GCP(t *testing.T) {
 			require.Equal(t, "us-west1", got.Region.ValueString())
 			require.Equal(t, "18", got.PostgresVersion.ValueString())
 			if origin == "replica" {
-				require.Equal(t, "c4-highmem-4", got.Size.ValueString())
+				require.Equal(t, "c4-highmem-lssd-4", got.Size.ValueString())
 			} else {
 				require.True(t, got.Size.IsUnknown())
 			}

@@ -101,8 +101,7 @@ func (c *ClientImpl) CreatePostgres(ctx context.Context, body PostgresCreate) (*
 	return &resp.Result, resp.Result.Password, nil
 }
 
-// UpdatePostgres PATCHes size / haType / tags. Other fields would be rejected
-// by the server; PostgresUpdate's shape enforces this.
+// UpdatePostgres PATCHes service settings or IP access rules.
 func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (*Postgres, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {
@@ -112,7 +111,9 @@ func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body
 	if err != nil {
 		return nil, err
 	}
-	respBody, err := c.doRequest(ctx, req)
+	// Access-rule IDs can be consumed before a response is lost. The resource
+	// reconciles these changes with a fresh GET instead of replaying the PATCH.
+	respBody, err := c.doRequestWithStatus(ctx, req, body.IpAccessList == nil)
 	if err != nil {
 		return nil, err
 	}
