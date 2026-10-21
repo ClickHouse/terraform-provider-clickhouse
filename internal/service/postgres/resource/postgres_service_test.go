@@ -228,6 +228,7 @@ func gateModel(primary bool) models.PostgresServiceResourceModel {
 		Size:              types.StringValue("m6gd.large"),
 		HaType:            types.StringValue("none"),
 		Tags:              mapTags(),
+		IpAccessList:      types.ListNull(models.IPAccessList{}.ObjectType()),
 		PgConfig:          mapTags(),
 		PgBouncerConfig:   mapTags(),
 		State:             types.StringValue("running"),

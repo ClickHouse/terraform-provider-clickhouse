@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
@@ -162,7 +163,10 @@ func TestPostgresCreate_cloudProviders(t *testing.T) {
 			client.GetPostgresMock.Expect(ctx, pg.Id).Return(pg, nil)
 			client.GetPostgresConfigMock.Expect(ctx, pg.Id).Return(&api.PostgresConfig{}, nil)
 
-			resp := resource.CreateResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
+			resp := resource.CreateResponse{State: tfsdk.State{
+				Schema: schemaResp.Schema,
+				Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
+			}}
 			r.Create(ctx, resource.CreateRequest{
 				Plan:   tfsdk.Plan{Schema: schemaResp.Schema, Raw: encoded.Raw},
 				Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: encoded.Raw},
