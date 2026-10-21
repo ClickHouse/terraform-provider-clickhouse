@@ -19,17 +19,30 @@ const (
 	AlertSourceInline      = "inline"
 )
 
-// AlertChannelWebhook is the webhook channel type.
-const AlertChannelWebhook = "webhook"
+// Alert channel types.
+const (
+	AlertChannelWebhook = "webhook"
+	AlertChannelEmail   = "email"
+)
+
+// Webhook services whose alert channels need an extra field.
+const (
+	WebhookServiceSlackAPI     = "slack_api"
+	WebhookServicePagerDutyAPI = "pagerduty_api"
+)
 
 // MaxAlertChannels is the API's per-alert channel limit.
 const MaxAlertChannels = 10
 
-// AlertChannel is an alert's notification channel. Only the webhook type exists
-// today; the shape mirrors the API so additional channel types slot in later.
+// AlertChannel is an alert's notification channel. The server overwrites
+// WebhookService with the referenced webhook's service on every write.
 type AlertChannel struct {
-	Type      string `json:"type"`
-	WebhookID string `json:"webhookId,omitempty"`
+	Type            string   `json:"type"`
+	WebhookID       string   `json:"webhookId,omitempty"`
+	WebhookService  string   `json:"webhookService,omitempty"`
+	SlackChannelID  string   `json:"slackChannelId,omitempty"`
+	Severity        string   `json:"severity,omitempty"`
+	EmailRecipients []string `json:"emailRecipients,omitempty"`
 }
 
 // Alert is a ClickStack alert as exchanged with the v2 API.
