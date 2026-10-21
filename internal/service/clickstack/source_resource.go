@@ -168,7 +168,12 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"connection to a table and describes how to read one kind of data (log, trace, metric, " +
 			"session, or promql). The set of applicable fields depends on `kind`; the API validates " +
 			"per-kind requirements and returns an error at apply time if a required field for the " +
-			"chosen kind is missing.",
+			"chosen kind is missing.\n\n" +
+			"The correlated-source attributes (`log_source_id`, `trace_source_id`, `metric_source_id`, " +
+			"`session_source_id`) can instead be managed by `clickhouse_clickstack_source_links`, which " +
+			"sets them after both sources exist, so two sources can link to each other. A correlated-source " +
+			"attribute left unset here is not managed by this resource: its value on the server is kept as " +
+			"is. Do not set the same attribute both here and in `clickhouse_clickstack_source_links`.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed:      true,
@@ -265,10 +270,10 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"event_attributes_expression":          optStr("Expression to extract event-level attributes."),
 			"resource_attributes_expression":       optStr("Expression to extract resource-level attributes. Required for `metric`."),
 			"displayed_timestamp_value_expression": optStr("DateTime column used to display and order search results."),
-			"metric_source_id":                     optStr("Correlated metric source ID."),
-			"trace_source_id":                      optStr("Correlated trace source ID. Required for `session`."),
-			"log_source_id":                        optStr("Correlated log source ID."),
-			"session_source_id":                    optStr("Correlated session source ID (trace)."),
+			"metric_source_id":                     optStr("Correlated metric source ID (log, trace)." + unmanagedLinkDesc),
+			"trace_source_id":                      optStr("Correlated trace source ID (log, session). Required for `session`." + unmanagedLinkDesc),
+			"log_source_id":                        optStr("Correlated log source ID (trace, metric)." + unmanagedLinkDesc),
+			"session_source_id":                    optStr("Correlated session source ID (trace)." + unmanagedLinkDesc),
 			"trace_id_expression":                  optStr("Expression to extract the trace ID."),
 			"span_id_expression":                   optStr("Expression to extract the span ID."),
 			"implicit_column_expression":           optStr("Column used for full-text search when no property is specified in a Lucene search."),
@@ -347,6 +352,9 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 		},
 	}
 }
+
+const unmanagedLinkDesc = " When unset, the value on the server is left unchanged; " +
+	"see `clickhouse_clickstack_source_links`."
 
 func highlightedAttrsAttribute(desc string) schema.ListNestedAttribute {
 	return schema.ListNestedAttribute{
@@ -429,13 +437,28 @@ func (r *sourceResource) Read(ctx context.Context, req resource.ReadRequest, res
 func (r *sourceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	utils.BetaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
 
-	var plan sourceResourceModel
+	var plan, state sourceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	src, err := r.client.WithTeam(plan.Team.ValueString()).UpdateSource(ctx, plan.ID.ValueString(), plan.toClient())
+	c := r.client.WithTeam(plan.Team.ValueString())
+	body := plan.toClient()
+	if hasUnmanagedLinks(&plan, &state) {
+		cur, err := c.GetSource(ctx, plan.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Error Reading Source", err.Error())
+			return
+		}
+		preserveUnmanagedLinks(&body, &plan, &state, cur)
+	}
+
+	src, err := c.UpdateSource(ctx, plan.ID.ValueString(), body)
 	if err != nil {
 		resp.Diagnostics.AddError("Error Updating Source", err.Error())
 		return
@@ -503,6 +526,51 @@ func keepUnset(cur types.String, v *string) types.String {
 		return cur
 	}
 	return types.StringPointerValue(v)
+}
+
+// keepUnmanaged is keepUnset for the correlated-source links: a link that is
+// null in cur stays null whatever the server holds, because it is either unset
+// or owned by clickhouse_clickstack_source_links. Reporting the server's value
+// would plan its removal on every run.
+func keepUnmanaged(cur types.String, v *string) types.String {
+	if cur.IsNull() {
+		return cur
+	}
+	return keepUnset(cur, v)
+}
+
+// sourceLinkFields pairs each correlated-source attribute with its API field.
+var sourceLinkFields = []struct {
+	model  func(*sourceResourceModel) types.String
+	client func(*client.Source) **string
+}{
+	{func(m *sourceResourceModel) types.String { return m.LogSourceID }, func(s *client.Source) **string { return &s.LogSourceID }},
+	{func(m *sourceResourceModel) types.String { return m.TraceSourceID }, func(s *client.Source) **string { return &s.TraceSourceID }},
+	{func(m *sourceResourceModel) types.String { return m.MetricSourceID }, func(s *client.Source) **string { return &s.MetricSourceID }},
+	{func(m *sourceResourceModel) types.String { return m.SessionSourceID }, func(s *client.Source) **string { return &s.SessionSourceID }},
+}
+
+// hasUnmanagedLinks reports whether any correlated-source link is null in both
+// plan and prior state, i.e. not managed by this resource. A link null only in
+// the plan was removed from config and is cleared instead.
+func hasUnmanagedLinks(plan, state *sourceResourceModel) bool {
+	for _, f := range sourceLinkFields {
+		if f.model(plan).IsNull() && f.model(state).IsNull() {
+			return true
+		}
+	}
+	return false
+}
+
+// preserveUnmanagedLinks copies cur's value of every unmanaged link into body.
+// The update is a full replace, so without this any change to the source would
+// clear the links clickhouse_clickstack_source_links set.
+func preserveUnmanagedLinks(body *client.Source, plan, state *sourceResourceModel, cur *client.Source) {
+	for _, f := range sourceLinkFields {
+		if f.model(plan).IsNull() && f.model(state).IsNull() {
+			*f.client(body) = *f.client(cur)
+		}
+	}
 }
 
 func (m *sourceResourceModel) toClient() client.Source {
@@ -674,10 +742,10 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 	m.EventAttributesExpression = keepUnset(m.EventAttributesExpression, src.EventAttributesExpression)
 	m.ResourceAttributesExpression = keepUnset(m.ResourceAttributesExpression, src.ResourceAttributesExpression)
 	m.DisplayedTimestampValueExpression = keepUnset(m.DisplayedTimestampValueExpression, src.DisplayedTimestampValueExpression)
-	m.MetricSourceID = keepUnset(m.MetricSourceID, src.MetricSourceID)
-	m.TraceSourceID = keepUnset(m.TraceSourceID, src.TraceSourceID)
-	m.LogSourceID = keepUnset(m.LogSourceID, src.LogSourceID)
-	m.SessionSourceID = keepUnset(m.SessionSourceID, src.SessionSourceID)
+	m.MetricSourceID = keepUnmanaged(m.MetricSourceID, src.MetricSourceID)
+	m.TraceSourceID = keepUnmanaged(m.TraceSourceID, src.TraceSourceID)
+	m.LogSourceID = keepUnmanaged(m.LogSourceID, src.LogSourceID)
+	m.SessionSourceID = keepUnmanaged(m.SessionSourceID, src.SessionSourceID)
 	m.TraceIDExpression = keepUnset(m.TraceIDExpression, src.TraceIDExpression)
 	m.SpanIDExpression = keepUnset(m.SpanIDExpression, src.SpanIDExpression)
 	m.ImplicitColumnExpression = keepUnset(m.ImplicitColumnExpression, src.ImplicitColumnExpression)

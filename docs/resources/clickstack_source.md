@@ -4,11 +4,14 @@ page_title: "clickhouse_clickstack_source Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
   Manages a ClickStack source (v2 sources API). A source ties a ClickHouse connection to a table and describes how to read one kind of data (log, trace, metric, session, or promql). The set of applicable fields depends on kind; the API validates per-kind requirements and returns an error at apply time if a required field for the chosen kind is missing.
+  The correlated-source attributes (log_source_id, trace_source_id, metric_source_id, session_source_id) can instead be managed by clickhouse_clickstack_source_links, which sets them after both sources exist, so two sources can link to each other. A correlated-source attribute left unset here is not managed by this resource: its value on the server is kept as is. Do not set the same attribute both here and in clickhouse_clickstack_source_links.
 ---
 
 # clickhouse_clickstack_source (Resource)
 
 Manages a ClickStack source (v2 sources API). A source ties a ClickHouse connection to a table and describes how to read one kind of data (log, trace, metric, session, or promql). The set of applicable fields depends on `kind`; the API validates per-kind requirements and returns an error at apply time if a required field for the chosen kind is missing.
+
+The correlated-source attributes (`log_source_id`, `trace_source_id`, `metric_source_id`, `session_source_id`) can instead be managed by `clickhouse_clickstack_source_links`, which sets them after both sources exist, so two sources can link to each other. A correlated-source attribute left unset here is not managed by this resource: its value on the server is kept as is. Do not set the same attribute both here and in `clickhouse_clickstack_source_links`.
 
 ## Example Usage
 
@@ -113,10 +116,10 @@ resource "clickhouse_clickstack_source" "metrics" {
 - `highlighted_trace_attribute_expressions` (Attributes List) Attributes displayed in the trace view for the selected trace. (see [below for nested schema](#nestedatt--highlighted_trace_attribute_expressions))
 - `implicit_column_expression` (String) Column used for full-text search when no property is specified in a Lucene search.
 - `known_columns_list_expression` (String) For distributed tables with non-matching column sets: columns supported across all target tables.
-- `log_source_id` (String) Correlated log source ID.
+- `log_source_id` (String) Correlated log source ID (trace, metric). When unset, the value on the server is left unchanged; see `clickhouse_clickstack_source_links`.
 - `materialized_views` (Attributes List) Materialized views for query optimization (log, trace). (see [below for nested schema](#nestedatt--materialized_views))
 - `metadata_materialized_views` (Attributes) Materialized views for fast field discovery and value autocomplete (log, trace). (see [below for nested schema](#nestedatt--metadata_materialized_views))
-- `metric_source_id` (String) Correlated metric source ID.
+- `metric_source_id` (String) Correlated metric source ID (log, trace). When unset, the value on the server is left unchanged; see `clickhouse_clickstack_source_links`.
 - `metric_tables` (Attributes) Mapping of metric data types to table names (metric). At least one must be set. (see [below for nested schema](#nestedatt--metric_tables))
 - `order_by_expression` (String) Expression used to order rows.
 - `parent_span_id_expression` (String) Expression to extract the parent span ID. Required for `trace`.
@@ -125,7 +128,7 @@ resource "clickhouse_clickstack_source" "metrics" {
 - `sample_rate_expression` (String) Expression to extract the trace sample rate.
 - `section` (String) Optional grouping label used to organize sources in the source selector.
 - `service_name_expression` (String) Expression to extract the service name.
-- `session_source_id` (String) Correlated session source ID (trace).
+- `session_source_id` (String) Correlated session source ID (trace). When unset, the value on the server is left unchanged; see `clickhouse_clickstack_source_links`.
 - `severity_text_expression` (String) Expression to extract the severity/log level text (log).
 - `span_events_value_expression` (String) Expression to extract span events.
 - `span_id_expression` (String) Expression to extract the span ID.
@@ -135,7 +138,7 @@ resource "clickhouse_clickstack_source" "metrics" {
 - `status_message_expression` (String) Expression to extract the span status message.
 - `team` (String) Team ID to manage this source under, sent as the `x-hdx-team` header. Defaults to the API key's team. Only honored by multi-team (EE) deployments. Changing this forces the source to be replaced.
 - `trace_id_expression` (String) Expression to extract the trace ID.
-- `trace_source_id` (String) Correlated trace source ID. Required for `session`.
+- `trace_source_id` (String) Correlated trace source ID (log, session). Required for `session`. When unset, the value on the server is left unchanged; see `clickhouse_clickstack_source_links`.
 - `use_text_index_for_implicit_column` (String) Whether to use ClickHouse text indices for the implicit column: `auto`, `enabled`, or `disabled`.
 
 ### Read-Only
