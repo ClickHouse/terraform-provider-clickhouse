@@ -52,6 +52,7 @@ func TestValidatePostgresIPAccess(t *testing.T) {
 		{"example.com", "5432", false},
 		{"", "5432", false},
 		{"192.0.2.1", "0", false},
+		{"192.0.2.1", "0..65535", false},
 		{"192.0.2.1", "65536", false},
 		{"192.0.2.1", "6432..5432", false},
 		{"192.0.2.1", "5432-6432", false},
@@ -202,6 +203,31 @@ func TestSyncPostgresIPAccess(t *testing.T) {
 	got, diags = syncPostgresIPAccess(ctx, remote, types.ListUnknown(models.IPAccessList{}.ObjectType()))
 	require.False(t, diags.HasError())
 	require.True(t, got.Equal(ipAccessList(remote...)))
+}
+
+func TestPostgresIPAccessExistingZeroPortRules(t *testing.T) {
+	for _, portRange := range []string{"0", "0..5432", "0..65535"} {
+		t.Run(portRange, func(t *testing.T) {
+			current := []api.PostgresIpAccess{{Id: "existing", Source: "192.0.2.1/32", PortRange: portRange}}
+			prior := types.ListNull(models.IPAccessList{}.ObjectType())
+			got, diags := syncPostgresIPAccess(context.Background(), current, prior)
+			require.False(t, diags.HasError(), "%v", diags)
+			require.True(t, got.Equal(ipAccessList(current...)))
+			refreshed, diags := syncPostgresIPAccess(context.Background(), current, got)
+			require.False(t, diags.HasError(), "%v", diags)
+			require.True(t, refreshed.Equal(got))
+
+			for _, desired := range [][]api.PostgresIpAccess{
+				nil,
+				{{Source: "192.0.2.1/32", PortRange: "5432"}},
+			} {
+				patch, err := diffPostgresIPAccess(current, desired)
+				require.NoError(t, err)
+				require.Equal(t, []api.PostgresIpAccessRuleReference{{Id: "existing"}}, patch.Remove)
+				require.Equal(t, desired, patch.Add)
+			}
+		})
+	}
 }
 
 func TestPostgresIPAccessRetryUsesFreshIDs(t *testing.T) {

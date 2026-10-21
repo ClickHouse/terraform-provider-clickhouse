@@ -56,19 +56,19 @@ func postgresIPSource(source string) (string, error) {
 	return prefix.Masked().String(), nil
 }
 
-func postgresIPPortRange(value string) (string, error) {
+func postgresIPPortRange(value string, minPort int) (string, error) {
 	parts := strings.Split(value, "..")
 	if len(parts) > 2 {
-		return "", fmt.Errorf("expected a port or inclusive range from 1 to 65535")
+		return "", fmt.Errorf("expected a port or inclusive range from %d to 65535", minPort)
 	}
 	ports := make([]int, len(parts))
 	for i, part := range parts {
 		if part == "" || strings.IndexFunc(part, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
-			return "", fmt.Errorf("expected a port or inclusive range from 1 to 65535")
+			return "", fmt.Errorf("expected a port or inclusive range from %d to 65535", minPort)
 		}
 		port, err := strconv.Atoi(part)
-		if err != nil || port < 1 || port > 65535 {
-			return "", fmt.Errorf("expected a port or inclusive range from 1 to 65535")
+		if err != nil || port < minPort || port > 65535 {
+			return "", fmt.Errorf("expected a port or inclusive range from %d to 65535", minPort)
 		}
 		ports[i] = port
 	}
@@ -105,7 +105,7 @@ func validatePostgresIPAccess(list types.List) diag.Diagnostics {
 			canonicalSource = value
 		}
 		if !port.IsUnknown() && !port.IsNull() {
-			value, err := postgresIPPortRange(port.ValueString())
+			value, err := postgresIPPortRange(port.ValueString(), 1)
 			if err != nil {
 				diags.AddAttributeError(p.AtName("port_range"), "Invalid port range", err.Error())
 			}
@@ -148,7 +148,8 @@ func postgresIPAccessKey(rule api.PostgresIpAccess) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	port, err := postgresIPPortRange(rule.PortRange)
+	// Existing backend rules may include port zero even though new configurations cannot.
+	port, err := postgresIPPortRange(rule.PortRange, 0)
 	if err != nil {
 		return "", err
 	}

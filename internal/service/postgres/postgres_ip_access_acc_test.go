@@ -323,6 +323,40 @@ func TestAccPostgresIPAccessCreateDefaults(t *testing.T) {
 	}
 }
 
+func TestAccPostgresIPAccessExistingAllPorts(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("acceptance tests skipped unless env 'TF_ACC' is set")
+	}
+	mock := newPostgresIPMockAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: postgresIPProviderFactories,
+		CheckDestroy:             mock.checkDestroy,
+		Steps: []resource.TestStep{
+			{Config: mock.config("", "test"), Check: mock.check(0, 2)},
+			{
+				PreConfig: func() {
+					mock.mu.Lock()
+					defer mock.mu.Unlock()
+					mock.pg.IpAccessList = []api.PostgresIpAccess{mock.normalize(api.PostgresIpAccess{
+						Source: "0.0.0.0/0", PortRange: "0..65535", Description: "All TCP",
+					})}
+				},
+				Config: mock.config("", "updated"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					mock.check(0, 1),
+					resource.TestCheckResourceAttr("clickhouse_postgres_service.test", "ip_access.0.port_range", "0..65535"),
+					resource.TestCheckResourceAttr("data.clickhouse_postgres_service.test", "ip_access.0.port_range", "0..65535"),
+				),
+			},
+			{
+				ResourceName: "clickhouse_postgres_service.test", ImportState: true,
+				ImportStateVerify: true, ImportStateVerifyIgnore: []string{"password"},
+			},
+			{Config: mock.config("ip_access = []", "updated"), Check: mock.check(1, 0)},
+		},
+	})
+}
+
 func TestAccPostgresIPAccessDescriptionWhitespace(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("acceptance tests skipped unless env 'TF_ACC' is set")
