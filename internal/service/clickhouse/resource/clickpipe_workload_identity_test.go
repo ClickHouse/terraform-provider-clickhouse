@@ -380,3 +380,142 @@ func TestSyncClickPipeState_BigQueryWorkloadIdentity(t *testing.T) {
 		t.Error("credentials must remain null for workload identity")
 	}
 }
+
+// overrideObjectAttrs returns obj with the given attributes replaced.
+func overrideObjectAttrs(obj types.Object, overrides map[string]attr.Value) types.Object {
+	attrs := obj.Attributes()
+	for name, value := range overrides {
+		attrs[name] = value
+	}
+	return types.ObjectValueMust(obj.AttributeTypes(context.Background()), attrs)
+}
+
+func cloudSQLPostgresWorkloadIdentityPlan(overrides map[string]attr.Value) models.ClickPipeResourceModel {
+	plan, _ := buildPostgresIAMRolePlan(types.StringValue(api.ClickPipeAuthenticationServiceAccountWorkloadIdentity), types.StringNull())
+	var source models.ClickPipeSourceModel
+	plan.Source.As(context.Background(), &source, basetypes.ObjectAsOptions{})
+	base := map[string]attr.Value{
+		"type":        types.StringValue(api.ClickPipePostgresCloudSQLSourceType),
+		"host":        types.StringValue("project:region:instance"),
+		"credentials": types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes),
+	}
+	for name, value := range overrides {
+		base[name] = value
+	}
+	source.Postgres = overrideObjectAttrs(source.Postgres, base)
+	plan.Source = source.ObjectValue()
+	return plan
+}
+
+func cloudSQLMySQLWorkloadIdentityPlan(overrides map[string]attr.Value) models.ClickPipeResourceModel {
+	plan := buildMySQLPlanWithCredentials(types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes))
+	var source models.ClickPipeSourceModel
+	plan.Source.As(context.Background(), &source, basetypes.ObjectAsOptions{})
+	base := map[string]attr.Value{
+		"type":           types.StringValue(api.ClickPipeMySQLSourceTypeCloudSQLMySQL),
+		"host":           types.StringValue("project:region:instance"),
+		"authentication": types.StringValue(api.ClickPipeAuthenticationServiceAccountWorkloadIdentity),
+	}
+	for name, value := range overrides {
+		base[name] = value
+	}
+	source.MySQL = overrideObjectAttrs(source.MySQL, base)
+	plan.Source = source.ObjectValue()
+	return plan
+}
+
+func usernameOnlyCredentials(password types.String) types.Object {
+	return types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, map[string]attr.Value{
+		"username":            types.StringValue("sa@project.iam"),
+		"password":            password,
+		"password_wo":         types.StringNull(),
+		"password_wo_version": types.Int64Null(),
+	})
+}
+
+func TestExtractSourceFromPlan_CloudSQLWorkloadIdentity(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Postgres without credentials", func(t *testing.T) {
+		diagnostics := diag.Diagnostics{}
+		got := (&ClickPipeResource{}).extractSourceFromPlan(ctx, &diagnostics, cloudSQLPostgresWorkloadIdentityPlan(nil), nil, false)
+		if diagnostics.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diagnostics.Errors())
+		}
+		if got.Postgres == nil || got.Postgres.Credentials != nil || got.Postgres.IAMRole != nil {
+			t.Fatalf("unexpected Postgres source: %+v", got.Postgres)
+		}
+		if *got.Postgres.Authentication != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			t.Errorf("authentication = %q", *got.Postgres.Authentication)
+		}
+		if !clickPipeSourceUsesGCPWorkloadIdentity(got) {
+			t.Error("source was not detected as using workload identity")
+		}
+	})
+
+	t.Run("MySQL with username only", func(t *testing.T) {
+		diagnostics := diag.Diagnostics{}
+		plan := cloudSQLMySQLWorkloadIdentityPlan(map[string]attr.Value{"credentials": usernameOnlyCredentials(types.StringNull())})
+		got := (&ClickPipeResource{}).extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+		if diagnostics.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diagnostics.Errors())
+		}
+		if got.MySQL == nil || got.MySQL.Credentials == nil || got.MySQL.Credentials.Username != "sa@project.iam" || got.MySQL.Credentials.Password != "" {
+			t.Fatalf("unexpected MySQL credentials: %+v", got.MySQL)
+		}
+		if !clickPipeSourceUsesGCPWorkloadIdentity(got) {
+			t.Error("source was not detected as using workload identity")
+		}
+	})
+
+	t.Run("basic auth still requires credentials on create", func(t *testing.T) {
+		diagnostics := diag.Diagnostics{}
+		plan := cloudSQLMySQLWorkloadIdentityPlan(map[string]attr.Value{"authentication": types.StringValue(clickPipeAuthBasic)})
+		(&ClickPipeResource{}).extractSourceFromPlan(ctx, &diagnostics, plan, nil, false)
+		if !diagnostics.HasError() {
+			t.Fatal("expected missing credentials error")
+		}
+	})
+
+	t.Run("basic auth tolerates null credentials on update", func(t *testing.T) {
+		diagnostics := diag.Diagnostics{}
+		plan := cloudSQLMySQLWorkloadIdentityPlan(map[string]attr.Value{"authentication": types.StringValue(clickPipeAuthBasic)})
+		(&ClickPipeResource{}).extractSourceFromPlan(ctx, &diagnostics, plan, nil, true)
+		if diagnostics.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diagnostics.Errors())
+		}
+	})
+}
+
+func TestValidateGCPWorkloadIdentityConfiguration_CloudSQLRejectsConflicts(t *testing.T) {
+	conflicts := map[string]attr.Value{
+		"iam_role":    types.StringValue("arn:aws:iam::123456789012:role/ClickPipesAccess"),
+		"credentials": usernameOnlyCredentials(types.StringValue("secret")),
+	}
+
+	t.Run("Postgres", func(t *testing.T) {
+		conflicts["type"] = types.StringValue(api.ClickPipePostgresSourceType)
+		diagnostics := diag.Diagnostics{}
+		validateGCPWorkloadIdentityConfiguration(context.Background(), cloudSQLPostgresWorkloadIdentityPlan(conflicts).Source, &diagnostics)
+		if len(diagnostics.Errors()) != 3 {
+			t.Fatalf("errors = %v; want source type, IAM role, and password errors", diagnostics.Errors())
+		}
+	})
+
+	t.Run("MySQL", func(t *testing.T) {
+		conflicts["type"] = types.StringValue(api.ClickPipeMySQLSourceTypeMySQL)
+		diagnostics := diag.Diagnostics{}
+		validateGCPWorkloadIdentityConfiguration(context.Background(), cloudSQLMySQLWorkloadIdentityPlan(conflicts).Source, &diagnostics)
+		if len(diagnostics.Errors()) != 3 {
+			t.Fatalf("errors = %v; want source type, IAM role, and password errors", diagnostics.Errors())
+		}
+	})
+
+	t.Run("valid Cloud SQL config passes", func(t *testing.T) {
+		diagnostics := diag.Diagnostics{}
+		validateGCPWorkloadIdentityConfiguration(context.Background(), cloudSQLMySQLWorkloadIdentityPlan(nil).Source, &diagnostics)
+		if diagnostics.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diagnostics.Errors())
+		}
+	})
+}

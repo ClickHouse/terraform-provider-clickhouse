@@ -448,15 +448,15 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. (see [below for nested schema](#nestedatt--source--mysql--credentials))
-- `host` (String) The hostname of the MySQL instance.
+- `host` (String) The hostname of the MySQL instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).
 - `settings` (Attributes) Settings for the MySQL CDC pipe. (see [below for nested schema](#nestedatt--source--mysql--settings))
 - `table_mappings` (Attributes Set) Table mappings from MySQL source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--mysql--table_mappings))
 
 Optional:
 
-- `authentication` (String) Authentication method for MySQL connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.
+- `authentication` (String) Authentication method for MySQL connection. Supported values: `basic`, `IAM_ROLE`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. Default is `basic`.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the MySQL server certificate.
+- `credentials` (Attributes, Sensitive) The credentials for the MySQL instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted. (see [below for nested schema](#nestedatt--source--mysql--credentials))
 - `disable_tls` (Boolean) Disable TLS for the MySQL connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the MySQL instance. Default is 3306.
@@ -465,20 +465,6 @@ Optional:
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `cloudsqlmysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
-
-<a id="nestedatt--source--mysql--credentials"></a>
-### Nested Schema for `source.mysql.credentials`
-
-Required:
-
-- `username` (String, Sensitive) The username for the MySQL instance.
-
-Optional:
-
-- `password` (String, Sensitive) The password for the MySQL instance. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
-- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
-
 
 <a id="nestedatt--source--mysql--settings"></a>
 ### Nested Schema for `source.mysql.settings`
@@ -517,6 +503,20 @@ Optional:
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
+
+
+<a id="nestedatt--source--mysql--credentials"></a>
+### Nested Schema for `source.mysql.credentials`
+
+Required:
+
+- `username` (String, Sensitive) The username for the MySQL instance.
+
+Optional:
+
+- `password` (String, Sensitive) The password for the MySQL instance. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
 
@@ -560,16 +560,16 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. (see [below for nested schema](#nestedatt--source--postgres--credentials))
 - `database` (String) The database name of the Postgres instance.
-- `host` (String) The hostname of the Postgres instance.
+- `host` (String) The hostname of the Postgres instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).
 - `settings` (Attributes) Settings for the Postgres CDC pipe. (see [below for nested schema](#nestedatt--source--postgres--settings))
 - `table_mappings` (Attributes Set) Table mappings from Postgres source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--postgres--table_mappings))
 
 Optional:
 
-- `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.
+- `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. Default is `basic`.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the Postgres server certificate.
+- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted. (see [below for nested schema](#nestedatt--source--postgres--credentials))
 - `disable_tls` (Boolean) Disable TLS for the Postgres connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the Postgres instance. Default is 5432.
@@ -577,20 +577,6 @@ Optional:
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of the Postgres source. (`postgres`, `supabase`, `neon`, `alloydb`, `planetscale`, `rdspostgres`, `aurorapostgres`, `cloudsqlpostgres`, `azurepostgres`, `crunchybridge`, `tigerdata`). Default is `postgres`.
-
-<a id="nestedatt--source--postgres--credentials"></a>
-### Nested Schema for `source.postgres.credentials`
-
-Required:
-
-- `username` (String, Sensitive) The username for the Postgres instance.
-
-Optional:
-
-- `password` (String, Sensitive) The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
-- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
-
 
 <a id="nestedatt--source--postgres--settings"></a>
 ### Nested Schema for `source.postgres.settings`
@@ -630,6 +616,20 @@ Optional:
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
+
+
+<a id="nestedatt--source--postgres--credentials"></a>
+### Nested Schema for `source.postgres.credentials`
+
+Required:
+
+- `username` (String, Sensitive) The username for the Postgres instance.
+
+Optional:
+
+- `password` (String, Sensitive) The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
 
 
 
