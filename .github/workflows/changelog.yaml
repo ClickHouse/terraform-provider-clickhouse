@@ -25,3 +25,12 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: python3 .github/scripts/changelog.py check
+
+  script-tests:
+    runs-on: k8s-nano
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test changelog script
+        run: python3 -m unittest discover -s .github/scripts -p '*_test.py' -v
