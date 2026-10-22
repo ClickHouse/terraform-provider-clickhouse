@@ -111,8 +111,8 @@ func TestIs4xxPermanent(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := is4xxPermanent(tc.err); got != tc.want {
-				t.Errorf("is4xxPermanent(%v) = %v; want %v", tc.err, got, tc.want)
+			if got := Is4xxPermanent(tc.err); got != tc.want {
+				t.Errorf("Is4xxPermanent(%v) = %v; want %v", tc.err, got, tc.want)
 			}
 		})
 	}

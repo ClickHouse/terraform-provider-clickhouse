@@ -13,7 +13,7 @@ Supports AWS (`cloud_provider = "aws"`) and GCP (`cloud_provider = "gcp"`).
 - Create — standard, as a read replica (`read_replica_of`), or by
   point-in-time restore (`restore_to_point_in_time`)
 - Read
-- Update — `size`, `ha_type`, `tags`, `pg_config`, `pgbouncer_config`,
+- Update — `size`, `ha_type`, `tags`, `ip_access`, `pg_config`, `pgbouncer_config`,
   `password` rotation
 - Delete
 - Import
@@ -28,11 +28,25 @@ The following are intentionally absent from the schema:
 
 - Operational commands (restart / promote / switchover). See
   "Operational commands" below for the rationale.
-- IP allowlist, private endpoints, backup configuration, maintenance
+- Private endpoints, backup configuration, maintenance
   windows, customer-managed encryption keys, BYOC. These depend on
   server-side endpoint additions.
 - Configurable lifecycle timeouts — there is no `timeouts {}` block; the
   provider uses fixed internal poll/retry budgets.
+
+## IP access list
+
+`ip_access` manages all IPv4 TCP rules. Use separate entries for Postgres
+(`5432`) and PgBouncer (`6432`), as shown in the example below.
+
+- Omitting the list uses public defaults on creation: all IPv4 and IPv6
+  addresses on ports 5432 and 6432. On update, it preserves existing rules.
+- On standard creation, a supplied list replaces the public defaults;
+  `ip_access = []` blocks public access.
+- On update, only IPv4 rules are managed; `[]` removes them all.
+  Existing IPv6 access is unchanged.
+- Read replicas and restores start with public defaults. Terraform applies
+  the IPv4 list after creation; IPv6 access remains unchanged.
 
 ## Tag semantics
 
@@ -145,7 +159,8 @@ are normal in-place updates. A **live read replica cannot** — see below.)
   into a standalone primary, but — as noted above — that **destroys and
   recreates** a live replica; it is not an in-place detach.) `pg_config` /
   `pgbouncer_config` **are** changeable on a replica — they use a separate
-  endpoint that allows per-replica values.
+  endpoint that allows per-replica values. `ip_access` is also changeable
+  independently on a replica.
 - **`restore_to_point_in_time = { source_id, restore_target }`** — create
   this instance by restoring another instance's backup to an RFC3339
   timestamp. The restored instance's name is this resource's top-level `name`

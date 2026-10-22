@@ -99,6 +99,7 @@ func upgradePostgresServiceStateV0(old postgresServiceResourceModelV0) models.Po
 		Size:                 old.Size,
 		HaType:               old.HaType,
 		Tags:                 old.Tags,
+		IpAccessList:         types.ListNull(models.IPAccessList{}.ObjectType()),
 		PgConfig:             old.PgConfig,
 		PgBouncerConfig:      old.PgBouncerConfig,
 		State:                old.State,

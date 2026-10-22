@@ -1,6 +1,7 @@
 package models
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -15,9 +16,10 @@ type PostgresServiceResourceModel struct {
 	PostgresVersion types.String `tfsdk:"postgres_version"`
 
 	// Mutable.
-	Size   types.String `tfsdk:"size"`
-	HaType types.String `tfsdk:"ha_type"`
-	Tags   types.Map    `tfsdk:"tags"`
+	Size         types.String `tfsdk:"size"`
+	HaType       types.String `tfsdk:"ha_type"`
+	Tags         types.Map    `tfsdk:"tags"`
+	IpAccessList types.List   `tfsdk:"ip_access"`
 
 	// Runtime configuration. Terraform-owned, full-replacement: whatever is
 	// declared is the desired state; omitting a key removes it server-side;
@@ -60,4 +62,22 @@ type PostgresServiceResourceModel struct {
 type PostgresRestoreModel struct {
 	SourceID      types.String `tfsdk:"source_id"`
 	RestoreTarget types.String `tfsdk:"restore_target"`
+}
+
+type IPAccessList struct {
+	Source      types.String `tfsdk:"source"`
+	PortRange   types.String `tfsdk:"port_range"`
+	Description types.String `tfsdk:"description"`
+}
+
+func (IPAccessList) ObjectType() types.ObjectType {
+	return types.ObjectType{AttrTypes: map[string]attr.Type{
+		"source": types.StringType, "port_range": types.StringType, "description": types.StringType,
+	}}
+}
+
+func (i IPAccessList) ObjectValue() types.Object {
+	return types.ObjectValueMust(i.ObjectType().AttrTypes, map[string]attr.Value{
+		"source": i.Source, "port_range": i.PortRange, "description": i.Description,
+	})
 }

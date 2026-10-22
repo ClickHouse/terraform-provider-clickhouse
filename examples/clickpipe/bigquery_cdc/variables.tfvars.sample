@@ -8,3 +8,5 @@ gcp_project_id = "your-project"
 gcp_region     = "us-central1"
 bigquery_dataset_id = "test_dataset"
 bigquery_table_names = ["test_table_1", "test_table_2"]
+
+bigquery_watermark_column = "updated_at"

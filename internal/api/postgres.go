@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -102,8 +101,7 @@ func (c *ClientImpl) CreatePostgres(ctx context.Context, body PostgresCreate) (*
 	return &resp.Result, resp.Result.Password, nil
 }
 
-// UpdatePostgres PATCHes size / haType / tags. Other fields would be rejected
-// by the server; PostgresUpdate's shape enforces this.
+// UpdatePostgres PATCHes service settings or IP access rules.
 func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body PostgresUpdate) (*Postgres, error) {
 	rb, err := json.Marshal(body)
 	if err != nil {
@@ -113,7 +111,9 @@ func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body
 	if err != nil {
 		return nil, err
 	}
-	respBody, err := c.doRequest(ctx, req)
+	// Access-rule IDs can be consumed before a response is lost. The resource
+	// reconciles these changes with a fresh GET instead of replaying the PATCH.
+	respBody, err := c.doRequestWithStatus(ctx, req, body.IpAccessList == nil)
 	if err != nil {
 		return nil, err
 	}
@@ -451,33 +451,11 @@ func errIndicatesReplicaNotReady(err error) bool {
 // CA CERTIFICATES (raw PEM response)
 // ---------------------------------------------------------------------------
 
-// GetPostgresCaCertificates returns the PEM-encoded CA chain. Bypasses
-// doRequest because the server emits raw PEM (not JSON) and we don't want
-// it flowing through the JSON pretty-printer.
-//
-// Trade-offs vs other client methods: no User-Agent header, no 429/5xx
-// retry, no tflog logging, manual basic-auth setup.
-//
-// FIXME: when the matching data source lands, add a doRawRequest sibling in
-// common.go that mirrors doRequest's retry/logging/auth machinery but returns
-// bytes directly, and route this method through it. Public signature is stable.
+// GetPostgresCaCertificates returns the PEM-encoded CA chain.
 func (c *ClientImpl) GetPostgresCaCertificates(ctx context.Context, postgresId string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.getPostgresPath(postgresId, "/caCertificates"), nil)
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth(c.TokenKey, c.TokenSecret)
-	res, err := c.HttpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status: %d, body: %s", res.StatusCode, body)
-	}
-	return body, nil
+	return c.doRequest(ctx, req)
 }
