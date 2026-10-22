@@ -2062,14 +2062,16 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// The API clears the dropped fields server-side: both modes write the same min/max replica + per-replica
 	// memory storage (num_replicas is derived on read, not stored), and the switch requires the new mode's
 	// fields, so sending them overwrites the old shape — no explicit nulls needed (confirmed against UC-1173).
-	if !plan.MinReplicas.IsUnknown() && (modeSwitch || plan.MinReplicas != state.MinReplicas) {
+	// The API requires both replica bounds whenever either bound changes.
+	replicaBandChange := modeSwitch || plan.MinReplicas != state.MinReplicas || plan.MaxReplicas != state.MaxReplicas
+	if !plan.MinReplicas.IsUnknown() && replicaBandChange {
 		scalingChange = true
 		if !plan.MinReplicas.IsNull() {
 			minReplicas := int(plan.MinReplicas.ValueInt64())
 			replicaScaling.MinReplicas = &minReplicas
 		}
 	}
-	if !plan.MaxReplicas.IsUnknown() && (modeSwitch || plan.MaxReplicas != state.MaxReplicas) {
+	if !plan.MaxReplicas.IsUnknown() && replicaBandChange {
 		scalingChange = true
 		if !plan.MaxReplicas.IsNull() {
 			maxReplicas := int(plan.MaxReplicas.ValueInt64())
