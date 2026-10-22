@@ -90,6 +90,25 @@ commit subject on `main` and is validated by the
 Commits keep history machine-readable, which makes changelog generation and
 semantic versioning straightforward.
 
+## Changelog entries
+
+Release notes are built from the `## Changelog` section of each PR description
+(see the [PR template](.github/pull_request_template.md)). The
+[`Validate PR changelog entry`](.github/workflows/changelog.yaml) CI check fails
+if the section is missing or empty.
+
+- Write it for provider users: what they can now do, or what was broken and is
+  now fixed. Use one line, or several `- ` bullets.
+- Write `None` if the change is not user-facing; it is then left out of the
+  release notes.
+- Entries are grouped by the PR title type: `feat` under New Features, `fix`
+  under Bug Fixes, a `!` under Backward Incompatible Changes, everything else
+  under Other Changes.
+
+On release, [`release-notes.yaml`](.github/workflows/release-notes.yaml) runs
+[`.github/scripts/changelog.py`](.github/scripts/changelog.py) to collect the
+entries of every PR since the previous tag into the draft release.
+
 ## Raising an Architecture Decision Record (ADR)
 
 Significant architectural choices are recorded as Architecture Decision Records
