@@ -226,6 +226,27 @@ func (s SnapshotConfiguration) ObjectValue() basetypes.ObjectValue {
 	})
 }
 
+type ReplicaAwareRouting struct {
+	HTTPEnabled   types.Bool `tfsdk:"http_enabled"`
+	NativeEnabled types.Bool `tfsdk:"native_enabled"`
+}
+
+func (r ReplicaAwareRouting) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"http_enabled":   types.BoolType,
+			"native_enabled": types.BoolType,
+		},
+	}
+}
+
+func (r ReplicaAwareRouting) ObjectValue() basetypes.ObjectValue {
+	return types.ObjectValueMust(r.ObjectType().AttrTypes, map[string]attr.Value{
+		"http_enabled":   r.HTTPEnabled,
+		"native_enabled": r.NativeEnabled,
+	})
+}
+
 type ServiceResourceModel struct {
 	ID                              types.String `tfsdk:"id"`
 	BYOCID                          types.String `tfsdk:"byoc_id"`
@@ -264,6 +285,7 @@ type ServiceResourceModel struct {
 	QueryAPIEndpoints               types.Object `tfsdk:"query_api_endpoints"`
 	BackupConfiguration             types.Object `tfsdk:"backup_configuration"`
 	SnapshotConfiguration           types.Object `tfsdk:"snapshot_configuration"`
+	ReplicaAwareRouting             types.Object `tfsdk:"replica_aware_routing"`
 	BackupID                        types.String `tfsdk:"backup_id"`
 	ComplianceType                  types.String `tfsdk:"compliance_type"`
 	Tags                            types.Map    `tfsdk:"tags"`
@@ -307,6 +329,7 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.QueryAPIEndpoints.Equal(b.QueryAPIEndpoints) ||
 		!m.BackupConfiguration.Equal(b.BackupConfiguration) ||
 		!m.SnapshotConfiguration.Equal(b.SnapshotConfiguration) ||
+		!m.ReplicaAwareRouting.Equal(b.ReplicaAwareRouting) ||
 		!m.Tags.Equal(b.Tags) ||
 		!m.EnableCoreDumps.Equal(b.EnableCoreDumps) {
 		return false
