@@ -40,6 +40,13 @@ type ClientMock struct {
 	beforeCreateApiKeyCounter uint64
 	CreateApiKeyMock          mClientMockCreateApiKey
 
+	funcCreateBackupBucket          func(ctx context.Context, serviceId string, r BackupBucketRequest) (bp1 *BackupBucket, err error)
+	funcCreateBackupBucketOrigin    string
+	inspectFuncCreateBackupBucket   func(ctx context.Context, serviceId string, r BackupBucketRequest)
+	afterCreateBackupBucketCounter  uint64
+	beforeCreateBackupBucketCounter uint64
+	CreateBackupBucketMock          mClientMockCreateBackupBucket
+
 	funcCreateByocInfrastructure          func(ctx context.Context, r ByocInfrastructureCreateRequest) (bp1 *ByocInfrastructure, err error)
 	funcCreateByocInfrastructureOrigin    string
 	inspectFuncCreateByocInfrastructure   func(ctx context.Context, r ByocInfrastructureCreateRequest)
@@ -144,6 +151,13 @@ type ClientMock struct {
 	afterDeleteApiKeyCounter  uint64
 	beforeDeleteApiKeyCounter uint64
 	DeleteApiKeyMock          mClientMockDeleteApiKey
+
+	funcDeleteBackupBucket          func(ctx context.Context, serviceId string) (err error)
+	funcDeleteBackupBucketOrigin    string
+	inspectFuncDeleteBackupBucket   func(ctx context.Context, serviceId string)
+	afterDeleteBackupBucketCounter  uint64
+	beforeDeleteBackupBucketCounter uint64
+	DeleteBackupBucketMock          mClientMockDeleteBackupBucket
 
 	funcDeleteByocInfrastructure          func(ctx context.Context, byocId string) (err error)
 	funcDeleteByocInfrastructureOrigin    string
@@ -256,6 +270,13 @@ type ClientMock struct {
 	afterGetApiKeyIDCounter  uint64
 	beforeGetApiKeyIDCounter uint64
 	GetApiKeyIDMock          mClientMockGetApiKeyID
+
+	funcGetBackupBucket          func(ctx context.Context, serviceId string) (bp1 *BackupBucket, err error)
+	funcGetBackupBucketOrigin    string
+	inspectFuncGetBackupBucket   func(ctx context.Context, serviceId string)
+	afterGetBackupBucketCounter  uint64
+	beforeGetBackupBucketCounter uint64
+	GetBackupBucketMock          mClientMockGetBackupBucket
 
 	funcGetBackupConfiguration          func(ctx context.Context, serviceId string) (bp1 *BackupConfiguration, err error)
 	funcGetBackupConfigurationOrigin    string
@@ -558,6 +579,13 @@ type ClientMock struct {
 	beforeUpdateApiKeyCounter uint64
 	UpdateApiKeyMock          mClientMockUpdateApiKey
 
+	funcUpdateBackupBucket          func(ctx context.Context, serviceId string, r BackupBucketRequest) (bp1 *BackupBucket, err error)
+	funcUpdateBackupBucketOrigin    string
+	inspectFuncUpdateBackupBucket   func(ctx context.Context, serviceId string, r BackupBucketRequest)
+	afterUpdateBackupBucketCounter  uint64
+	beforeUpdateBackupBucketCounter uint64
+	UpdateBackupBucketMock          mClientMockUpdateBackupBucket
+
 	funcUpdateBackupConfiguration          func(ctx context.Context, serviceId string, b BackupConfiguration) (bp1 *BackupConfiguration, err error)
 	funcUpdateBackupConfigurationOrigin    string
 	inspectFuncUpdateBackupConfiguration   func(ctx context.Context, serviceId string, b BackupConfiguration)
@@ -779,6 +807,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreateApiKeyMock = mClientMockCreateApiKey{mock: m}
 	m.CreateApiKeyMock.callArgs = []*ClientMockCreateApiKeyParams{}
 
+	m.CreateBackupBucketMock = mClientMockCreateBackupBucket{mock: m}
+	m.CreateBackupBucketMock.callArgs = []*ClientMockCreateBackupBucketParams{}
+
 	m.CreateByocInfrastructureMock = mClientMockCreateByocInfrastructure{mock: m}
 	m.CreateByocInfrastructureMock.callArgs = []*ClientMockCreateByocInfrastructureParams{}
 
@@ -823,6 +854,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeleteApiKeyMock = mClientMockDeleteApiKey{mock: m}
 	m.DeleteApiKeyMock.callArgs = []*ClientMockDeleteApiKeyParams{}
+
+	m.DeleteBackupBucketMock = mClientMockDeleteBackupBucket{mock: m}
+	m.DeleteBackupBucketMock.callArgs = []*ClientMockDeleteBackupBucketParams{}
 
 	m.DeleteByocInfrastructureMock = mClientMockDeleteByocInfrastructure{mock: m}
 	m.DeleteByocInfrastructureMock.callArgs = []*ClientMockDeleteByocInfrastructureParams{}
@@ -871,6 +905,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetApiKeyIDMock = mClientMockGetApiKeyID{mock: m}
 	m.GetApiKeyIDMock.callArgs = []*ClientMockGetApiKeyIDParams{}
+
+	m.GetBackupBucketMock = mClientMockGetBackupBucket{mock: m}
+	m.GetBackupBucketMock.callArgs = []*ClientMockGetBackupBucketParams{}
 
 	m.GetBackupConfigurationMock = mClientMockGetBackupConfiguration{mock: m}
 	m.GetBackupConfigurationMock.callArgs = []*ClientMockGetBackupConfigurationParams{}
@@ -1000,6 +1037,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateApiKeyMock = mClientMockUpdateApiKey{mock: m}
 	m.UpdateApiKeyMock.callArgs = []*ClientMockUpdateApiKeyParams{}
+
+	m.UpdateBackupBucketMock = mClientMockUpdateBackupBucket{mock: m}
+	m.UpdateBackupBucketMock.callArgs = []*ClientMockUpdateBackupBucketParams{}
 
 	m.UpdateBackupConfigurationMock = mClientMockUpdateBackupConfiguration{mock: m}
 	m.UpdateBackupConfigurationMock.callArgs = []*ClientMockUpdateBackupConfigurationParams{}
@@ -2243,6 +2283,380 @@ func (m *ClientMock) MinimockCreateApiKeyInspect() {
 	if !m.CreateApiKeyMock.invocationsDone() && afterCreateApiKeyCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateApiKey at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateApiKeyMock.expectedInvocations), m.CreateApiKeyMock.expectedInvocationsOrigin, afterCreateApiKeyCounter)
+	}
+}
+
+type mClientMockCreateBackupBucket struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateBackupBucketExpectation
+	expectations       []*ClientMockCreateBackupBucketExpectation
+
+	callArgs []*ClientMockCreateBackupBucketParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateBackupBucketExpectation specifies expectation struct of the Client.CreateBackupBucket
+type ClientMockCreateBackupBucketExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateBackupBucketParams
+	paramPtrs          *ClientMockCreateBackupBucketParamPtrs
+	expectationOrigins ClientMockCreateBackupBucketExpectationOrigins
+	results            *ClientMockCreateBackupBucketResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateBackupBucketParams contains parameters of the Client.CreateBackupBucket
+type ClientMockCreateBackupBucketParams struct {
+	ctx       context.Context
+	serviceId string
+	r         BackupBucketRequest
+}
+
+// ClientMockCreateBackupBucketParamPtrs contains pointers to parameters of the Client.CreateBackupBucket
+type ClientMockCreateBackupBucketParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	r         *BackupBucketRequest
+}
+
+// ClientMockCreateBackupBucketResults contains results of the Client.CreateBackupBucket
+type ClientMockCreateBackupBucketResults struct {
+	bp1 *BackupBucket
+	err error
+}
+
+// ClientMockCreateBackupBucketOrigins contains origins of expectations of the Client.CreateBackupBucket
+type ClientMockCreateBackupBucketExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originR         string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) Optional() *mClientMockCreateBackupBucket {
+	mmCreateBackupBucket.optional = true
+	return mmCreateBackupBucket
+}
+
+// Expect sets up expected params for Client.CreateBackupBucket
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) Expect(ctx context.Context, serviceId string, r BackupBucketRequest) *mClientMockCreateBackupBucket {
+	if mmCreateBackupBucket.mock.funcCreateBackupBucket != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by Set")
+	}
+
+	if mmCreateBackupBucket.defaultExpectation == nil {
+		mmCreateBackupBucket.defaultExpectation = &ClientMockCreateBackupBucketExpectation{}
+	}
+
+	if mmCreateBackupBucket.defaultExpectation.paramPtrs != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by ExpectParams functions")
+	}
+
+	mmCreateBackupBucket.defaultExpectation.params = &ClientMockCreateBackupBucketParams{ctx, serviceId, r}
+	mmCreateBackupBucket.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateBackupBucket.expectations {
+		if minimock.Equal(e.params, mmCreateBackupBucket.defaultExpectation.params) {
+			mmCreateBackupBucket.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateBackupBucket.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateBackupBucket
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateBackupBucket
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) ExpectCtxParam1(ctx context.Context) *mClientMockCreateBackupBucket {
+	if mmCreateBackupBucket.mock.funcCreateBackupBucket != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by Set")
+	}
+
+	if mmCreateBackupBucket.defaultExpectation == nil {
+		mmCreateBackupBucket.defaultExpectation = &ClientMockCreateBackupBucketExpectation{}
+	}
+
+	if mmCreateBackupBucket.defaultExpectation.params != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by Expect")
+	}
+
+	if mmCreateBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmCreateBackupBucket.defaultExpectation.paramPtrs = &ClientMockCreateBackupBucketParamPtrs{}
+	}
+	mmCreateBackupBucket.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateBackupBucket.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateBackupBucket
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.CreateBackupBucket
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) ExpectServiceIdParam2(serviceId string) *mClientMockCreateBackupBucket {
+	if mmCreateBackupBucket.mock.funcCreateBackupBucket != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by Set")
+	}
+
+	if mmCreateBackupBucket.defaultExpectation == nil {
+		mmCreateBackupBucket.defaultExpectation = &ClientMockCreateBackupBucketExpectation{}
+	}
+
+	if mmCreateBackupBucket.defaultExpectation.params != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by Expect")
+	}
+
+	if mmCreateBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmCreateBackupBucket.defaultExpectation.paramPtrs = &ClientMockCreateBackupBucketParamPtrs{}
+	}
+	mmCreateBackupBucket.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmCreateBackupBucket.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmCreateBackupBucket
+}
+
+// ExpectRParam3 sets up expected param r for Client.CreateBackupBucket
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) ExpectRParam3(r BackupBucketRequest) *mClientMockCreateBackupBucket {
+	if mmCreateBackupBucket.mock.funcCreateBackupBucket != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by Set")
+	}
+
+	if mmCreateBackupBucket.defaultExpectation == nil {
+		mmCreateBackupBucket.defaultExpectation = &ClientMockCreateBackupBucketExpectation{}
+	}
+
+	if mmCreateBackupBucket.defaultExpectation.params != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by Expect")
+	}
+
+	if mmCreateBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmCreateBackupBucket.defaultExpectation.paramPtrs = &ClientMockCreateBackupBucketParamPtrs{}
+	}
+	mmCreateBackupBucket.defaultExpectation.paramPtrs.r = &r
+	mmCreateBackupBucket.defaultExpectation.expectationOrigins.originR = minimock.CallerInfo(1)
+
+	return mmCreateBackupBucket
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateBackupBucket
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) Inspect(f func(ctx context.Context, serviceId string, r BackupBucketRequest)) *mClientMockCreateBackupBucket {
+	if mmCreateBackupBucket.mock.inspectFuncCreateBackupBucket != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateBackupBucket")
+	}
+
+	mmCreateBackupBucket.mock.inspectFuncCreateBackupBucket = f
+
+	return mmCreateBackupBucket
+}
+
+// Return sets up results that will be returned by Client.CreateBackupBucket
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) Return(bp1 *BackupBucket, err error) *ClientMock {
+	if mmCreateBackupBucket.mock.funcCreateBackupBucket != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by Set")
+	}
+
+	if mmCreateBackupBucket.defaultExpectation == nil {
+		mmCreateBackupBucket.defaultExpectation = &ClientMockCreateBackupBucketExpectation{mock: mmCreateBackupBucket.mock}
+	}
+	mmCreateBackupBucket.defaultExpectation.results = &ClientMockCreateBackupBucketResults{bp1, err}
+	mmCreateBackupBucket.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateBackupBucket.mock
+}
+
+// Set uses given function f to mock the Client.CreateBackupBucket method
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) Set(f func(ctx context.Context, serviceId string, r BackupBucketRequest) (bp1 *BackupBucket, err error)) *ClientMock {
+	if mmCreateBackupBucket.defaultExpectation != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("Default expectation is already set for the Client.CreateBackupBucket method")
+	}
+
+	if len(mmCreateBackupBucket.expectations) > 0 {
+		mmCreateBackupBucket.mock.t.Fatalf("Some expectations are already set for the Client.CreateBackupBucket method")
+	}
+
+	mmCreateBackupBucket.mock.funcCreateBackupBucket = f
+	mmCreateBackupBucket.mock.funcCreateBackupBucketOrigin = minimock.CallerInfo(1)
+	return mmCreateBackupBucket.mock
+}
+
+// When sets expectation for the Client.CreateBackupBucket which will trigger the result defined by the following
+// Then helper
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) When(ctx context.Context, serviceId string, r BackupBucketRequest) *ClientMockCreateBackupBucketExpectation {
+	if mmCreateBackupBucket.mock.funcCreateBackupBucket != nil {
+		mmCreateBackupBucket.mock.t.Fatalf("ClientMock.CreateBackupBucket mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateBackupBucketExpectation{
+		mock:               mmCreateBackupBucket.mock,
+		params:             &ClientMockCreateBackupBucketParams{ctx, serviceId, r},
+		expectationOrigins: ClientMockCreateBackupBucketExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateBackupBucket.expectations = append(mmCreateBackupBucket.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateBackupBucket return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateBackupBucketExpectation) Then(bp1 *BackupBucket, err error) *ClientMock {
+	e.results = &ClientMockCreateBackupBucketResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateBackupBucket should be invoked
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) Times(n uint64) *mClientMockCreateBackupBucket {
+	if n == 0 {
+		mmCreateBackupBucket.mock.t.Fatalf("Times of ClientMock.CreateBackupBucket mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateBackupBucket.expectedInvocations, n)
+	mmCreateBackupBucket.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateBackupBucket
+}
+
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) invocationsDone() bool {
+	if len(mmCreateBackupBucket.expectations) == 0 && mmCreateBackupBucket.defaultExpectation == nil && mmCreateBackupBucket.mock.funcCreateBackupBucket == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateBackupBucket.mock.afterCreateBackupBucketCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateBackupBucket.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateBackupBucket implements Client
+func (mmCreateBackupBucket *ClientMock) CreateBackupBucket(ctx context.Context, serviceId string, r BackupBucketRequest) (bp1 *BackupBucket, err error) {
+	mm_atomic.AddUint64(&mmCreateBackupBucket.beforeCreateBackupBucketCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateBackupBucket.afterCreateBackupBucketCounter, 1)
+
+	mmCreateBackupBucket.t.Helper()
+
+	if mmCreateBackupBucket.inspectFuncCreateBackupBucket != nil {
+		mmCreateBackupBucket.inspectFuncCreateBackupBucket(ctx, serviceId, r)
+	}
+
+	mm_params := ClientMockCreateBackupBucketParams{ctx, serviceId, r}
+
+	// Record call args
+	mmCreateBackupBucket.CreateBackupBucketMock.mutex.Lock()
+	mmCreateBackupBucket.CreateBackupBucketMock.callArgs = append(mmCreateBackupBucket.CreateBackupBucketMock.callArgs, &mm_params)
+	mmCreateBackupBucket.CreateBackupBucketMock.mutex.Unlock()
+
+	for _, e := range mmCreateBackupBucket.CreateBackupBucketMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmCreateBackupBucket.CreateBackupBucketMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateBackupBucket.CreateBackupBucketMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateBackupBucket.CreateBackupBucketMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateBackupBucket.CreateBackupBucketMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateBackupBucketParams{ctx, serviceId, r}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateBackupBucket.t.Errorf("ClientMock.CreateBackupBucket got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateBackupBucket.CreateBackupBucketMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmCreateBackupBucket.t.Errorf("ClientMock.CreateBackupBucket got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateBackupBucket.CreateBackupBucketMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.r != nil && !minimock.Equal(*mm_want_ptrs.r, mm_got.r) {
+				mmCreateBackupBucket.t.Errorf("ClientMock.CreateBackupBucket got unexpected parameter r, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateBackupBucket.CreateBackupBucketMock.defaultExpectation.expectationOrigins.originR, *mm_want_ptrs.r, mm_got.r, minimock.Diff(*mm_want_ptrs.r, mm_got.r))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateBackupBucket.t.Errorf("ClientMock.CreateBackupBucket got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateBackupBucket.CreateBackupBucketMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateBackupBucket.CreateBackupBucketMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateBackupBucket.t.Fatal("No results are set for the ClientMock.CreateBackupBucket")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmCreateBackupBucket.funcCreateBackupBucket != nil {
+		return mmCreateBackupBucket.funcCreateBackupBucket(ctx, serviceId, r)
+	}
+	mmCreateBackupBucket.t.Fatalf("Unexpected call to ClientMock.CreateBackupBucket. %v %v %v", ctx, serviceId, r)
+	return
+}
+
+// CreateBackupBucketAfterCounter returns a count of finished ClientMock.CreateBackupBucket invocations
+func (mmCreateBackupBucket *ClientMock) CreateBackupBucketAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateBackupBucket.afterCreateBackupBucketCounter)
+}
+
+// CreateBackupBucketBeforeCounter returns a count of ClientMock.CreateBackupBucket invocations
+func (mmCreateBackupBucket *ClientMock) CreateBackupBucketBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateBackupBucket.beforeCreateBackupBucketCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateBackupBucket.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateBackupBucket *mClientMockCreateBackupBucket) Calls() []*ClientMockCreateBackupBucketParams {
+	mmCreateBackupBucket.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateBackupBucketParams, len(mmCreateBackupBucket.callArgs))
+	copy(argCopy, mmCreateBackupBucket.callArgs)
+
+	mmCreateBackupBucket.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateBackupBucketDone returns true if the count of the CreateBackupBucket invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateBackupBucketDone() bool {
+	if m.CreateBackupBucketMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateBackupBucketMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateBackupBucketMock.invocationsDone()
+}
+
+// MinimockCreateBackupBucketInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateBackupBucketInspect() {
+	for _, e := range m.CreateBackupBucketMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateBackupBucket at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateBackupBucketCounter := mm_atomic.LoadUint64(&m.afterCreateBackupBucketCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateBackupBucketMock.defaultExpectation != nil && afterCreateBackupBucketCounter < 1 {
+		if m.CreateBackupBucketMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateBackupBucket at\n%s", m.CreateBackupBucketMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateBackupBucket at\n%s with params: %#v", m.CreateBackupBucketMock.defaultExpectation.expectationOrigins.origin, *m.CreateBackupBucketMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateBackupBucket != nil && afterCreateBackupBucketCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateBackupBucket at\n%s", m.funcCreateBackupBucketOrigin)
+	}
+
+	if !m.CreateBackupBucketMock.invocationsDone() && afterCreateBackupBucketCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateBackupBucket at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateBackupBucketMock.expectedInvocations), m.CreateBackupBucketMock.expectedInvocationsOrigin, afterCreateBackupBucketCounter)
 	}
 }
 
@@ -7606,6 +8020,348 @@ func (m *ClientMock) MinimockDeleteApiKeyInspect() {
 	if !m.DeleteApiKeyMock.invocationsDone() && afterDeleteApiKeyCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeleteApiKey at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeleteApiKeyMock.expectedInvocations), m.DeleteApiKeyMock.expectedInvocationsOrigin, afterDeleteApiKeyCounter)
+	}
+}
+
+type mClientMockDeleteBackupBucket struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteBackupBucketExpectation
+	expectations       []*ClientMockDeleteBackupBucketExpectation
+
+	callArgs []*ClientMockDeleteBackupBucketParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteBackupBucketExpectation specifies expectation struct of the Client.DeleteBackupBucket
+type ClientMockDeleteBackupBucketExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteBackupBucketParams
+	paramPtrs          *ClientMockDeleteBackupBucketParamPtrs
+	expectationOrigins ClientMockDeleteBackupBucketExpectationOrigins
+	results            *ClientMockDeleteBackupBucketResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteBackupBucketParams contains parameters of the Client.DeleteBackupBucket
+type ClientMockDeleteBackupBucketParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockDeleteBackupBucketParamPtrs contains pointers to parameters of the Client.DeleteBackupBucket
+type ClientMockDeleteBackupBucketParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockDeleteBackupBucketResults contains results of the Client.DeleteBackupBucket
+type ClientMockDeleteBackupBucketResults struct {
+	err error
+}
+
+// ClientMockDeleteBackupBucketOrigins contains origins of expectations of the Client.DeleteBackupBucket
+type ClientMockDeleteBackupBucketExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) Optional() *mClientMockDeleteBackupBucket {
+	mmDeleteBackupBucket.optional = true
+	return mmDeleteBackupBucket
+}
+
+// Expect sets up expected params for Client.DeleteBackupBucket
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) Expect(ctx context.Context, serviceId string) *mClientMockDeleteBackupBucket {
+	if mmDeleteBackupBucket.mock.funcDeleteBackupBucket != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("ClientMock.DeleteBackupBucket mock is already set by Set")
+	}
+
+	if mmDeleteBackupBucket.defaultExpectation == nil {
+		mmDeleteBackupBucket.defaultExpectation = &ClientMockDeleteBackupBucketExpectation{}
+	}
+
+	if mmDeleteBackupBucket.defaultExpectation.paramPtrs != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("ClientMock.DeleteBackupBucket mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteBackupBucket.defaultExpectation.params = &ClientMockDeleteBackupBucketParams{ctx, serviceId}
+	mmDeleteBackupBucket.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteBackupBucket.expectations {
+		if minimock.Equal(e.params, mmDeleteBackupBucket.defaultExpectation.params) {
+			mmDeleteBackupBucket.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteBackupBucket.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteBackupBucket
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteBackupBucket
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteBackupBucket {
+	if mmDeleteBackupBucket.mock.funcDeleteBackupBucket != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("ClientMock.DeleteBackupBucket mock is already set by Set")
+	}
+
+	if mmDeleteBackupBucket.defaultExpectation == nil {
+		mmDeleteBackupBucket.defaultExpectation = &ClientMockDeleteBackupBucketExpectation{}
+	}
+
+	if mmDeleteBackupBucket.defaultExpectation.params != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("ClientMock.DeleteBackupBucket mock is already set by Expect")
+	}
+
+	if mmDeleteBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmDeleteBackupBucket.defaultExpectation.paramPtrs = &ClientMockDeleteBackupBucketParamPtrs{}
+	}
+	mmDeleteBackupBucket.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteBackupBucket.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteBackupBucket
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.DeleteBackupBucket
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) ExpectServiceIdParam2(serviceId string) *mClientMockDeleteBackupBucket {
+	if mmDeleteBackupBucket.mock.funcDeleteBackupBucket != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("ClientMock.DeleteBackupBucket mock is already set by Set")
+	}
+
+	if mmDeleteBackupBucket.defaultExpectation == nil {
+		mmDeleteBackupBucket.defaultExpectation = &ClientMockDeleteBackupBucketExpectation{}
+	}
+
+	if mmDeleteBackupBucket.defaultExpectation.params != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("ClientMock.DeleteBackupBucket mock is already set by Expect")
+	}
+
+	if mmDeleteBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmDeleteBackupBucket.defaultExpectation.paramPtrs = &ClientMockDeleteBackupBucketParamPtrs{}
+	}
+	mmDeleteBackupBucket.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmDeleteBackupBucket.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmDeleteBackupBucket
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteBackupBucket
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockDeleteBackupBucket {
+	if mmDeleteBackupBucket.mock.inspectFuncDeleteBackupBucket != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteBackupBucket")
+	}
+
+	mmDeleteBackupBucket.mock.inspectFuncDeleteBackupBucket = f
+
+	return mmDeleteBackupBucket
+}
+
+// Return sets up results that will be returned by Client.DeleteBackupBucket
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) Return(err error) *ClientMock {
+	if mmDeleteBackupBucket.mock.funcDeleteBackupBucket != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("ClientMock.DeleteBackupBucket mock is already set by Set")
+	}
+
+	if mmDeleteBackupBucket.defaultExpectation == nil {
+		mmDeleteBackupBucket.defaultExpectation = &ClientMockDeleteBackupBucketExpectation{mock: mmDeleteBackupBucket.mock}
+	}
+	mmDeleteBackupBucket.defaultExpectation.results = &ClientMockDeleteBackupBucketResults{err}
+	mmDeleteBackupBucket.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteBackupBucket.mock
+}
+
+// Set uses given function f to mock the Client.DeleteBackupBucket method
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) Set(f func(ctx context.Context, serviceId string) (err error)) *ClientMock {
+	if mmDeleteBackupBucket.defaultExpectation != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("Default expectation is already set for the Client.DeleteBackupBucket method")
+	}
+
+	if len(mmDeleteBackupBucket.expectations) > 0 {
+		mmDeleteBackupBucket.mock.t.Fatalf("Some expectations are already set for the Client.DeleteBackupBucket method")
+	}
+
+	mmDeleteBackupBucket.mock.funcDeleteBackupBucket = f
+	mmDeleteBackupBucket.mock.funcDeleteBackupBucketOrigin = minimock.CallerInfo(1)
+	return mmDeleteBackupBucket.mock
+}
+
+// When sets expectation for the Client.DeleteBackupBucket which will trigger the result defined by the following
+// Then helper
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) When(ctx context.Context, serviceId string) *ClientMockDeleteBackupBucketExpectation {
+	if mmDeleteBackupBucket.mock.funcDeleteBackupBucket != nil {
+		mmDeleteBackupBucket.mock.t.Fatalf("ClientMock.DeleteBackupBucket mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteBackupBucketExpectation{
+		mock:               mmDeleteBackupBucket.mock,
+		params:             &ClientMockDeleteBackupBucketParams{ctx, serviceId},
+		expectationOrigins: ClientMockDeleteBackupBucketExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteBackupBucket.expectations = append(mmDeleteBackupBucket.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteBackupBucket return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteBackupBucketExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteBackupBucketResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteBackupBucket should be invoked
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) Times(n uint64) *mClientMockDeleteBackupBucket {
+	if n == 0 {
+		mmDeleteBackupBucket.mock.t.Fatalf("Times of ClientMock.DeleteBackupBucket mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteBackupBucket.expectedInvocations, n)
+	mmDeleteBackupBucket.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteBackupBucket
+}
+
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) invocationsDone() bool {
+	if len(mmDeleteBackupBucket.expectations) == 0 && mmDeleteBackupBucket.defaultExpectation == nil && mmDeleteBackupBucket.mock.funcDeleteBackupBucket == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteBackupBucket.mock.afterDeleteBackupBucketCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteBackupBucket.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteBackupBucket implements Client
+func (mmDeleteBackupBucket *ClientMock) DeleteBackupBucket(ctx context.Context, serviceId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteBackupBucket.beforeDeleteBackupBucketCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteBackupBucket.afterDeleteBackupBucketCounter, 1)
+
+	mmDeleteBackupBucket.t.Helper()
+
+	if mmDeleteBackupBucket.inspectFuncDeleteBackupBucket != nil {
+		mmDeleteBackupBucket.inspectFuncDeleteBackupBucket(ctx, serviceId)
+	}
+
+	mm_params := ClientMockDeleteBackupBucketParams{ctx, serviceId}
+
+	// Record call args
+	mmDeleteBackupBucket.DeleteBackupBucketMock.mutex.Lock()
+	mmDeleteBackupBucket.DeleteBackupBucketMock.callArgs = append(mmDeleteBackupBucket.DeleteBackupBucketMock.callArgs, &mm_params)
+	mmDeleteBackupBucket.DeleteBackupBucketMock.mutex.Unlock()
+
+	for _, e := range mmDeleteBackupBucket.DeleteBackupBucketMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteBackupBucket.DeleteBackupBucketMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteBackupBucket.DeleteBackupBucketMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteBackupBucket.DeleteBackupBucketMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteBackupBucket.DeleteBackupBucketMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteBackupBucketParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteBackupBucket.t.Errorf("ClientMock.DeleteBackupBucket got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteBackupBucket.DeleteBackupBucketMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmDeleteBackupBucket.t.Errorf("ClientMock.DeleteBackupBucket got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteBackupBucket.DeleteBackupBucketMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteBackupBucket.t.Errorf("ClientMock.DeleteBackupBucket got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteBackupBucket.DeleteBackupBucketMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteBackupBucket.DeleteBackupBucketMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteBackupBucket.t.Fatal("No results are set for the ClientMock.DeleteBackupBucket")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteBackupBucket.funcDeleteBackupBucket != nil {
+		return mmDeleteBackupBucket.funcDeleteBackupBucket(ctx, serviceId)
+	}
+	mmDeleteBackupBucket.t.Fatalf("Unexpected call to ClientMock.DeleteBackupBucket. %v %v", ctx, serviceId)
+	return
+}
+
+// DeleteBackupBucketAfterCounter returns a count of finished ClientMock.DeleteBackupBucket invocations
+func (mmDeleteBackupBucket *ClientMock) DeleteBackupBucketAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteBackupBucket.afterDeleteBackupBucketCounter)
+}
+
+// DeleteBackupBucketBeforeCounter returns a count of ClientMock.DeleteBackupBucket invocations
+func (mmDeleteBackupBucket *ClientMock) DeleteBackupBucketBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteBackupBucket.beforeDeleteBackupBucketCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteBackupBucket.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteBackupBucket *mClientMockDeleteBackupBucket) Calls() []*ClientMockDeleteBackupBucketParams {
+	mmDeleteBackupBucket.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteBackupBucketParams, len(mmDeleteBackupBucket.callArgs))
+	copy(argCopy, mmDeleteBackupBucket.callArgs)
+
+	mmDeleteBackupBucket.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteBackupBucketDone returns true if the count of the DeleteBackupBucket invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteBackupBucketDone() bool {
+	if m.DeleteBackupBucketMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteBackupBucketMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteBackupBucketMock.invocationsDone()
+}
+
+// MinimockDeleteBackupBucketInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteBackupBucketInspect() {
+	for _, e := range m.DeleteBackupBucketMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteBackupBucket at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteBackupBucketCounter := mm_atomic.LoadUint64(&m.afterDeleteBackupBucketCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteBackupBucketMock.defaultExpectation != nil && afterDeleteBackupBucketCounter < 1 {
+		if m.DeleteBackupBucketMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteBackupBucket at\n%s", m.DeleteBackupBucketMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteBackupBucket at\n%s with params: %#v", m.DeleteBackupBucketMock.defaultExpectation.expectationOrigins.origin, *m.DeleteBackupBucketMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteBackupBucket != nil && afterDeleteBackupBucketCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteBackupBucket at\n%s", m.funcDeleteBackupBucketOrigin)
+	}
+
+	if !m.DeleteBackupBucketMock.invocationsDone() && afterDeleteBackupBucketCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteBackupBucket at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteBackupBucketMock.expectedInvocations), m.DeleteBackupBucketMock.expectedInvocationsOrigin, afterDeleteBackupBucketCounter)
 	}
 }
 
@@ -13267,6 +14023,349 @@ func (m *ClientMock) MinimockGetApiKeyIDInspect() {
 	if !m.GetApiKeyIDMock.invocationsDone() && afterGetApiKeyIDCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetApiKeyID at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetApiKeyIDMock.expectedInvocations), m.GetApiKeyIDMock.expectedInvocationsOrigin, afterGetApiKeyIDCounter)
+	}
+}
+
+type mClientMockGetBackupBucket struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetBackupBucketExpectation
+	expectations       []*ClientMockGetBackupBucketExpectation
+
+	callArgs []*ClientMockGetBackupBucketParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetBackupBucketExpectation specifies expectation struct of the Client.GetBackupBucket
+type ClientMockGetBackupBucketExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetBackupBucketParams
+	paramPtrs          *ClientMockGetBackupBucketParamPtrs
+	expectationOrigins ClientMockGetBackupBucketExpectationOrigins
+	results            *ClientMockGetBackupBucketResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetBackupBucketParams contains parameters of the Client.GetBackupBucket
+type ClientMockGetBackupBucketParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetBackupBucketParamPtrs contains pointers to parameters of the Client.GetBackupBucket
+type ClientMockGetBackupBucketParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetBackupBucketResults contains results of the Client.GetBackupBucket
+type ClientMockGetBackupBucketResults struct {
+	bp1 *BackupBucket
+	err error
+}
+
+// ClientMockGetBackupBucketOrigins contains origins of expectations of the Client.GetBackupBucket
+type ClientMockGetBackupBucketExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetBackupBucket *mClientMockGetBackupBucket) Optional() *mClientMockGetBackupBucket {
+	mmGetBackupBucket.optional = true
+	return mmGetBackupBucket
+}
+
+// Expect sets up expected params for Client.GetBackupBucket
+func (mmGetBackupBucket *mClientMockGetBackupBucket) Expect(ctx context.Context, serviceId string) *mClientMockGetBackupBucket {
+	if mmGetBackupBucket.mock.funcGetBackupBucket != nil {
+		mmGetBackupBucket.mock.t.Fatalf("ClientMock.GetBackupBucket mock is already set by Set")
+	}
+
+	if mmGetBackupBucket.defaultExpectation == nil {
+		mmGetBackupBucket.defaultExpectation = &ClientMockGetBackupBucketExpectation{}
+	}
+
+	if mmGetBackupBucket.defaultExpectation.paramPtrs != nil {
+		mmGetBackupBucket.mock.t.Fatalf("ClientMock.GetBackupBucket mock is already set by ExpectParams functions")
+	}
+
+	mmGetBackupBucket.defaultExpectation.params = &ClientMockGetBackupBucketParams{ctx, serviceId}
+	mmGetBackupBucket.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetBackupBucket.expectations {
+		if minimock.Equal(e.params, mmGetBackupBucket.defaultExpectation.params) {
+			mmGetBackupBucket.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetBackupBucket.defaultExpectation.params)
+		}
+	}
+
+	return mmGetBackupBucket
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetBackupBucket
+func (mmGetBackupBucket *mClientMockGetBackupBucket) ExpectCtxParam1(ctx context.Context) *mClientMockGetBackupBucket {
+	if mmGetBackupBucket.mock.funcGetBackupBucket != nil {
+		mmGetBackupBucket.mock.t.Fatalf("ClientMock.GetBackupBucket mock is already set by Set")
+	}
+
+	if mmGetBackupBucket.defaultExpectation == nil {
+		mmGetBackupBucket.defaultExpectation = &ClientMockGetBackupBucketExpectation{}
+	}
+
+	if mmGetBackupBucket.defaultExpectation.params != nil {
+		mmGetBackupBucket.mock.t.Fatalf("ClientMock.GetBackupBucket mock is already set by Expect")
+	}
+
+	if mmGetBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmGetBackupBucket.defaultExpectation.paramPtrs = &ClientMockGetBackupBucketParamPtrs{}
+	}
+	mmGetBackupBucket.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetBackupBucket.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetBackupBucket
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetBackupBucket
+func (mmGetBackupBucket *mClientMockGetBackupBucket) ExpectServiceIdParam2(serviceId string) *mClientMockGetBackupBucket {
+	if mmGetBackupBucket.mock.funcGetBackupBucket != nil {
+		mmGetBackupBucket.mock.t.Fatalf("ClientMock.GetBackupBucket mock is already set by Set")
+	}
+
+	if mmGetBackupBucket.defaultExpectation == nil {
+		mmGetBackupBucket.defaultExpectation = &ClientMockGetBackupBucketExpectation{}
+	}
+
+	if mmGetBackupBucket.defaultExpectation.params != nil {
+		mmGetBackupBucket.mock.t.Fatalf("ClientMock.GetBackupBucket mock is already set by Expect")
+	}
+
+	if mmGetBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmGetBackupBucket.defaultExpectation.paramPtrs = &ClientMockGetBackupBucketParamPtrs{}
+	}
+	mmGetBackupBucket.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetBackupBucket.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetBackupBucket
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetBackupBucket
+func (mmGetBackupBucket *mClientMockGetBackupBucket) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetBackupBucket {
+	if mmGetBackupBucket.mock.inspectFuncGetBackupBucket != nil {
+		mmGetBackupBucket.mock.t.Fatalf("Inspect function is already set for ClientMock.GetBackupBucket")
+	}
+
+	mmGetBackupBucket.mock.inspectFuncGetBackupBucket = f
+
+	return mmGetBackupBucket
+}
+
+// Return sets up results that will be returned by Client.GetBackupBucket
+func (mmGetBackupBucket *mClientMockGetBackupBucket) Return(bp1 *BackupBucket, err error) *ClientMock {
+	if mmGetBackupBucket.mock.funcGetBackupBucket != nil {
+		mmGetBackupBucket.mock.t.Fatalf("ClientMock.GetBackupBucket mock is already set by Set")
+	}
+
+	if mmGetBackupBucket.defaultExpectation == nil {
+		mmGetBackupBucket.defaultExpectation = &ClientMockGetBackupBucketExpectation{mock: mmGetBackupBucket.mock}
+	}
+	mmGetBackupBucket.defaultExpectation.results = &ClientMockGetBackupBucketResults{bp1, err}
+	mmGetBackupBucket.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetBackupBucket.mock
+}
+
+// Set uses given function f to mock the Client.GetBackupBucket method
+func (mmGetBackupBucket *mClientMockGetBackupBucket) Set(f func(ctx context.Context, serviceId string) (bp1 *BackupBucket, err error)) *ClientMock {
+	if mmGetBackupBucket.defaultExpectation != nil {
+		mmGetBackupBucket.mock.t.Fatalf("Default expectation is already set for the Client.GetBackupBucket method")
+	}
+
+	if len(mmGetBackupBucket.expectations) > 0 {
+		mmGetBackupBucket.mock.t.Fatalf("Some expectations are already set for the Client.GetBackupBucket method")
+	}
+
+	mmGetBackupBucket.mock.funcGetBackupBucket = f
+	mmGetBackupBucket.mock.funcGetBackupBucketOrigin = minimock.CallerInfo(1)
+	return mmGetBackupBucket.mock
+}
+
+// When sets expectation for the Client.GetBackupBucket which will trigger the result defined by the following
+// Then helper
+func (mmGetBackupBucket *mClientMockGetBackupBucket) When(ctx context.Context, serviceId string) *ClientMockGetBackupBucketExpectation {
+	if mmGetBackupBucket.mock.funcGetBackupBucket != nil {
+		mmGetBackupBucket.mock.t.Fatalf("ClientMock.GetBackupBucket mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetBackupBucketExpectation{
+		mock:               mmGetBackupBucket.mock,
+		params:             &ClientMockGetBackupBucketParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetBackupBucketExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetBackupBucket.expectations = append(mmGetBackupBucket.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetBackupBucket return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetBackupBucketExpectation) Then(bp1 *BackupBucket, err error) *ClientMock {
+	e.results = &ClientMockGetBackupBucketResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetBackupBucket should be invoked
+func (mmGetBackupBucket *mClientMockGetBackupBucket) Times(n uint64) *mClientMockGetBackupBucket {
+	if n == 0 {
+		mmGetBackupBucket.mock.t.Fatalf("Times of ClientMock.GetBackupBucket mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetBackupBucket.expectedInvocations, n)
+	mmGetBackupBucket.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetBackupBucket
+}
+
+func (mmGetBackupBucket *mClientMockGetBackupBucket) invocationsDone() bool {
+	if len(mmGetBackupBucket.expectations) == 0 && mmGetBackupBucket.defaultExpectation == nil && mmGetBackupBucket.mock.funcGetBackupBucket == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetBackupBucket.mock.afterGetBackupBucketCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetBackupBucket.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetBackupBucket implements Client
+func (mmGetBackupBucket *ClientMock) GetBackupBucket(ctx context.Context, serviceId string) (bp1 *BackupBucket, err error) {
+	mm_atomic.AddUint64(&mmGetBackupBucket.beforeGetBackupBucketCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetBackupBucket.afterGetBackupBucketCounter, 1)
+
+	mmGetBackupBucket.t.Helper()
+
+	if mmGetBackupBucket.inspectFuncGetBackupBucket != nil {
+		mmGetBackupBucket.inspectFuncGetBackupBucket(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetBackupBucketParams{ctx, serviceId}
+
+	// Record call args
+	mmGetBackupBucket.GetBackupBucketMock.mutex.Lock()
+	mmGetBackupBucket.GetBackupBucketMock.callArgs = append(mmGetBackupBucket.GetBackupBucketMock.callArgs, &mm_params)
+	mmGetBackupBucket.GetBackupBucketMock.mutex.Unlock()
+
+	for _, e := range mmGetBackupBucket.GetBackupBucketMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmGetBackupBucket.GetBackupBucketMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetBackupBucket.GetBackupBucketMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetBackupBucket.GetBackupBucketMock.defaultExpectation.params
+		mm_want_ptrs := mmGetBackupBucket.GetBackupBucketMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetBackupBucketParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetBackupBucket.t.Errorf("ClientMock.GetBackupBucket got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetBackupBucket.GetBackupBucketMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetBackupBucket.t.Errorf("ClientMock.GetBackupBucket got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetBackupBucket.GetBackupBucketMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetBackupBucket.t.Errorf("ClientMock.GetBackupBucket got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetBackupBucket.GetBackupBucketMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetBackupBucket.GetBackupBucketMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetBackupBucket.t.Fatal("No results are set for the ClientMock.GetBackupBucket")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmGetBackupBucket.funcGetBackupBucket != nil {
+		return mmGetBackupBucket.funcGetBackupBucket(ctx, serviceId)
+	}
+	mmGetBackupBucket.t.Fatalf("Unexpected call to ClientMock.GetBackupBucket. %v %v", ctx, serviceId)
+	return
+}
+
+// GetBackupBucketAfterCounter returns a count of finished ClientMock.GetBackupBucket invocations
+func (mmGetBackupBucket *ClientMock) GetBackupBucketAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetBackupBucket.afterGetBackupBucketCounter)
+}
+
+// GetBackupBucketBeforeCounter returns a count of ClientMock.GetBackupBucket invocations
+func (mmGetBackupBucket *ClientMock) GetBackupBucketBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetBackupBucket.beforeGetBackupBucketCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetBackupBucket.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetBackupBucket *mClientMockGetBackupBucket) Calls() []*ClientMockGetBackupBucketParams {
+	mmGetBackupBucket.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetBackupBucketParams, len(mmGetBackupBucket.callArgs))
+	copy(argCopy, mmGetBackupBucket.callArgs)
+
+	mmGetBackupBucket.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetBackupBucketDone returns true if the count of the GetBackupBucket invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetBackupBucketDone() bool {
+	if m.GetBackupBucketMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetBackupBucketMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetBackupBucketMock.invocationsDone()
+}
+
+// MinimockGetBackupBucketInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetBackupBucketInspect() {
+	for _, e := range m.GetBackupBucketMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetBackupBucket at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetBackupBucketCounter := mm_atomic.LoadUint64(&m.afterGetBackupBucketCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetBackupBucketMock.defaultExpectation != nil && afterGetBackupBucketCounter < 1 {
+		if m.GetBackupBucketMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetBackupBucket at\n%s", m.GetBackupBucketMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetBackupBucket at\n%s with params: %#v", m.GetBackupBucketMock.defaultExpectation.expectationOrigins.origin, *m.GetBackupBucketMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetBackupBucket != nil && afterGetBackupBucketCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetBackupBucket at\n%s", m.funcGetBackupBucketOrigin)
+	}
+
+	if !m.GetBackupBucketMock.invocationsDone() && afterGetBackupBucketCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetBackupBucket at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetBackupBucketMock.expectedInvocations), m.GetBackupBucketMock.expectedInvocationsOrigin, afterGetBackupBucketCounter)
 	}
 }
 
@@ -28357,6 +29456,380 @@ func (m *ClientMock) MinimockUpdateApiKeyInspect() {
 	}
 }
 
+type mClientMockUpdateBackupBucket struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateBackupBucketExpectation
+	expectations       []*ClientMockUpdateBackupBucketExpectation
+
+	callArgs []*ClientMockUpdateBackupBucketParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateBackupBucketExpectation specifies expectation struct of the Client.UpdateBackupBucket
+type ClientMockUpdateBackupBucketExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateBackupBucketParams
+	paramPtrs          *ClientMockUpdateBackupBucketParamPtrs
+	expectationOrigins ClientMockUpdateBackupBucketExpectationOrigins
+	results            *ClientMockUpdateBackupBucketResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateBackupBucketParams contains parameters of the Client.UpdateBackupBucket
+type ClientMockUpdateBackupBucketParams struct {
+	ctx       context.Context
+	serviceId string
+	r         BackupBucketRequest
+}
+
+// ClientMockUpdateBackupBucketParamPtrs contains pointers to parameters of the Client.UpdateBackupBucket
+type ClientMockUpdateBackupBucketParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	r         *BackupBucketRequest
+}
+
+// ClientMockUpdateBackupBucketResults contains results of the Client.UpdateBackupBucket
+type ClientMockUpdateBackupBucketResults struct {
+	bp1 *BackupBucket
+	err error
+}
+
+// ClientMockUpdateBackupBucketOrigins contains origins of expectations of the Client.UpdateBackupBucket
+type ClientMockUpdateBackupBucketExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originR         string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) Optional() *mClientMockUpdateBackupBucket {
+	mmUpdateBackupBucket.optional = true
+	return mmUpdateBackupBucket
+}
+
+// Expect sets up expected params for Client.UpdateBackupBucket
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) Expect(ctx context.Context, serviceId string, r BackupBucketRequest) *mClientMockUpdateBackupBucket {
+	if mmUpdateBackupBucket.mock.funcUpdateBackupBucket != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by Set")
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation == nil {
+		mmUpdateBackupBucket.defaultExpectation = &ClientMockUpdateBackupBucketExpectation{}
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation.paramPtrs != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateBackupBucket.defaultExpectation.params = &ClientMockUpdateBackupBucketParams{ctx, serviceId, r}
+	mmUpdateBackupBucket.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateBackupBucket.expectations {
+		if minimock.Equal(e.params, mmUpdateBackupBucket.defaultExpectation.params) {
+			mmUpdateBackupBucket.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateBackupBucket.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateBackupBucket
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateBackupBucket
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateBackupBucket {
+	if mmUpdateBackupBucket.mock.funcUpdateBackupBucket != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by Set")
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation == nil {
+		mmUpdateBackupBucket.defaultExpectation = &ClientMockUpdateBackupBucketExpectation{}
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation.params != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by Expect")
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmUpdateBackupBucket.defaultExpectation.paramPtrs = &ClientMockUpdateBackupBucketParamPtrs{}
+	}
+	mmUpdateBackupBucket.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateBackupBucket.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateBackupBucket
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.UpdateBackupBucket
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) ExpectServiceIdParam2(serviceId string) *mClientMockUpdateBackupBucket {
+	if mmUpdateBackupBucket.mock.funcUpdateBackupBucket != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by Set")
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation == nil {
+		mmUpdateBackupBucket.defaultExpectation = &ClientMockUpdateBackupBucketExpectation{}
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation.params != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by Expect")
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmUpdateBackupBucket.defaultExpectation.paramPtrs = &ClientMockUpdateBackupBucketParamPtrs{}
+	}
+	mmUpdateBackupBucket.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmUpdateBackupBucket.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmUpdateBackupBucket
+}
+
+// ExpectRParam3 sets up expected param r for Client.UpdateBackupBucket
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) ExpectRParam3(r BackupBucketRequest) *mClientMockUpdateBackupBucket {
+	if mmUpdateBackupBucket.mock.funcUpdateBackupBucket != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by Set")
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation == nil {
+		mmUpdateBackupBucket.defaultExpectation = &ClientMockUpdateBackupBucketExpectation{}
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation.params != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by Expect")
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation.paramPtrs == nil {
+		mmUpdateBackupBucket.defaultExpectation.paramPtrs = &ClientMockUpdateBackupBucketParamPtrs{}
+	}
+	mmUpdateBackupBucket.defaultExpectation.paramPtrs.r = &r
+	mmUpdateBackupBucket.defaultExpectation.expectationOrigins.originR = minimock.CallerInfo(1)
+
+	return mmUpdateBackupBucket
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateBackupBucket
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) Inspect(f func(ctx context.Context, serviceId string, r BackupBucketRequest)) *mClientMockUpdateBackupBucket {
+	if mmUpdateBackupBucket.mock.inspectFuncUpdateBackupBucket != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateBackupBucket")
+	}
+
+	mmUpdateBackupBucket.mock.inspectFuncUpdateBackupBucket = f
+
+	return mmUpdateBackupBucket
+}
+
+// Return sets up results that will be returned by Client.UpdateBackupBucket
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) Return(bp1 *BackupBucket, err error) *ClientMock {
+	if mmUpdateBackupBucket.mock.funcUpdateBackupBucket != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by Set")
+	}
+
+	if mmUpdateBackupBucket.defaultExpectation == nil {
+		mmUpdateBackupBucket.defaultExpectation = &ClientMockUpdateBackupBucketExpectation{mock: mmUpdateBackupBucket.mock}
+	}
+	mmUpdateBackupBucket.defaultExpectation.results = &ClientMockUpdateBackupBucketResults{bp1, err}
+	mmUpdateBackupBucket.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateBackupBucket.mock
+}
+
+// Set uses given function f to mock the Client.UpdateBackupBucket method
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) Set(f func(ctx context.Context, serviceId string, r BackupBucketRequest) (bp1 *BackupBucket, err error)) *ClientMock {
+	if mmUpdateBackupBucket.defaultExpectation != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("Default expectation is already set for the Client.UpdateBackupBucket method")
+	}
+
+	if len(mmUpdateBackupBucket.expectations) > 0 {
+		mmUpdateBackupBucket.mock.t.Fatalf("Some expectations are already set for the Client.UpdateBackupBucket method")
+	}
+
+	mmUpdateBackupBucket.mock.funcUpdateBackupBucket = f
+	mmUpdateBackupBucket.mock.funcUpdateBackupBucketOrigin = minimock.CallerInfo(1)
+	return mmUpdateBackupBucket.mock
+}
+
+// When sets expectation for the Client.UpdateBackupBucket which will trigger the result defined by the following
+// Then helper
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) When(ctx context.Context, serviceId string, r BackupBucketRequest) *ClientMockUpdateBackupBucketExpectation {
+	if mmUpdateBackupBucket.mock.funcUpdateBackupBucket != nil {
+		mmUpdateBackupBucket.mock.t.Fatalf("ClientMock.UpdateBackupBucket mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateBackupBucketExpectation{
+		mock:               mmUpdateBackupBucket.mock,
+		params:             &ClientMockUpdateBackupBucketParams{ctx, serviceId, r},
+		expectationOrigins: ClientMockUpdateBackupBucketExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateBackupBucket.expectations = append(mmUpdateBackupBucket.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateBackupBucket return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateBackupBucketExpectation) Then(bp1 *BackupBucket, err error) *ClientMock {
+	e.results = &ClientMockUpdateBackupBucketResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateBackupBucket should be invoked
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) Times(n uint64) *mClientMockUpdateBackupBucket {
+	if n == 0 {
+		mmUpdateBackupBucket.mock.t.Fatalf("Times of ClientMock.UpdateBackupBucket mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateBackupBucket.expectedInvocations, n)
+	mmUpdateBackupBucket.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateBackupBucket
+}
+
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) invocationsDone() bool {
+	if len(mmUpdateBackupBucket.expectations) == 0 && mmUpdateBackupBucket.defaultExpectation == nil && mmUpdateBackupBucket.mock.funcUpdateBackupBucket == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateBackupBucket.mock.afterUpdateBackupBucketCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateBackupBucket.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateBackupBucket implements Client
+func (mmUpdateBackupBucket *ClientMock) UpdateBackupBucket(ctx context.Context, serviceId string, r BackupBucketRequest) (bp1 *BackupBucket, err error) {
+	mm_atomic.AddUint64(&mmUpdateBackupBucket.beforeUpdateBackupBucketCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateBackupBucket.afterUpdateBackupBucketCounter, 1)
+
+	mmUpdateBackupBucket.t.Helper()
+
+	if mmUpdateBackupBucket.inspectFuncUpdateBackupBucket != nil {
+		mmUpdateBackupBucket.inspectFuncUpdateBackupBucket(ctx, serviceId, r)
+	}
+
+	mm_params := ClientMockUpdateBackupBucketParams{ctx, serviceId, r}
+
+	// Record call args
+	mmUpdateBackupBucket.UpdateBackupBucketMock.mutex.Lock()
+	mmUpdateBackupBucket.UpdateBackupBucketMock.callArgs = append(mmUpdateBackupBucket.UpdateBackupBucketMock.callArgs, &mm_params)
+	mmUpdateBackupBucket.UpdateBackupBucketMock.mutex.Unlock()
+
+	for _, e := range mmUpdateBackupBucket.UpdateBackupBucketMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmUpdateBackupBucket.UpdateBackupBucketMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateBackupBucket.UpdateBackupBucketMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateBackupBucket.UpdateBackupBucketMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateBackupBucket.UpdateBackupBucketMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateBackupBucketParams{ctx, serviceId, r}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateBackupBucket.t.Errorf("ClientMock.UpdateBackupBucket got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateBackupBucket.UpdateBackupBucketMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmUpdateBackupBucket.t.Errorf("ClientMock.UpdateBackupBucket got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateBackupBucket.UpdateBackupBucketMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.r != nil && !minimock.Equal(*mm_want_ptrs.r, mm_got.r) {
+				mmUpdateBackupBucket.t.Errorf("ClientMock.UpdateBackupBucket got unexpected parameter r, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateBackupBucket.UpdateBackupBucketMock.defaultExpectation.expectationOrigins.originR, *mm_want_ptrs.r, mm_got.r, minimock.Diff(*mm_want_ptrs.r, mm_got.r))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateBackupBucket.t.Errorf("ClientMock.UpdateBackupBucket got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateBackupBucket.UpdateBackupBucketMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateBackupBucket.UpdateBackupBucketMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateBackupBucket.t.Fatal("No results are set for the ClientMock.UpdateBackupBucket")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmUpdateBackupBucket.funcUpdateBackupBucket != nil {
+		return mmUpdateBackupBucket.funcUpdateBackupBucket(ctx, serviceId, r)
+	}
+	mmUpdateBackupBucket.t.Fatalf("Unexpected call to ClientMock.UpdateBackupBucket. %v %v %v", ctx, serviceId, r)
+	return
+}
+
+// UpdateBackupBucketAfterCounter returns a count of finished ClientMock.UpdateBackupBucket invocations
+func (mmUpdateBackupBucket *ClientMock) UpdateBackupBucketAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateBackupBucket.afterUpdateBackupBucketCounter)
+}
+
+// UpdateBackupBucketBeforeCounter returns a count of ClientMock.UpdateBackupBucket invocations
+func (mmUpdateBackupBucket *ClientMock) UpdateBackupBucketBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateBackupBucket.beforeUpdateBackupBucketCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateBackupBucket.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateBackupBucket *mClientMockUpdateBackupBucket) Calls() []*ClientMockUpdateBackupBucketParams {
+	mmUpdateBackupBucket.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateBackupBucketParams, len(mmUpdateBackupBucket.callArgs))
+	copy(argCopy, mmUpdateBackupBucket.callArgs)
+
+	mmUpdateBackupBucket.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateBackupBucketDone returns true if the count of the UpdateBackupBucket invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateBackupBucketDone() bool {
+	if m.UpdateBackupBucketMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateBackupBucketMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateBackupBucketMock.invocationsDone()
+}
+
+// MinimockUpdateBackupBucketInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateBackupBucketInspect() {
+	for _, e := range m.UpdateBackupBucketMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateBackupBucket at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateBackupBucketCounter := mm_atomic.LoadUint64(&m.afterUpdateBackupBucketCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateBackupBucketMock.defaultExpectation != nil && afterUpdateBackupBucketCounter < 1 {
+		if m.UpdateBackupBucketMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateBackupBucket at\n%s", m.UpdateBackupBucketMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateBackupBucket at\n%s with params: %#v", m.UpdateBackupBucketMock.defaultExpectation.expectationOrigins.origin, *m.UpdateBackupBucketMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateBackupBucket != nil && afterUpdateBackupBucketCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateBackupBucket at\n%s", m.funcUpdateBackupBucketOrigin)
+	}
+
+	if !m.UpdateBackupBucketMock.invocationsDone() && afterUpdateBackupBucketCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateBackupBucket at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateBackupBucketMock.expectedInvocations), m.UpdateBackupBucketMock.expectedInvocationsOrigin, afterUpdateBackupBucketCounter)
+	}
+}
+
 type mClientMockUpdateBackupConfiguration struct {
 	optional           bool
 	mock               *ClientMock
@@ -39517,6 +40990,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreateApiKeyInspect()
 
+			m.MinimockCreateBackupBucketInspect()
+
 			m.MinimockCreateByocInfrastructureInspect()
 
 			m.MinimockCreateClickPipeInspect()
@@ -39546,6 +41021,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockCreateUDFVersionInspect()
 
 			m.MinimockDeleteApiKeyInspect()
+
+			m.MinimockDeleteBackupBucketInspect()
 
 			m.MinimockDeleteByocInfrastructureInspect()
 
@@ -39578,6 +41055,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetApiKeyInspect()
 
 			m.MinimockGetApiKeyIDInspect()
+
+			m.MinimockGetBackupBucketInspect()
 
 			m.MinimockGetBackupConfigurationInspect()
 
@@ -39665,6 +41144,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockUpdateApiKeyInspect()
 
+			m.MinimockUpdateBackupBucketInspect()
+
 			m.MinimockUpdateBackupConfigurationInspect()
 
 			m.MinimockUpdateByocInfrastructureInspect()
@@ -39748,6 +41229,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockAttachUDFDone() &&
 		m.MinimockChangeClickPipeStateDone() &&
 		m.MinimockCreateApiKeyDone() &&
+		m.MinimockCreateBackupBucketDone() &&
 		m.MinimockCreateByocInfrastructureDone() &&
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreatePostgresDone() &&
@@ -39763,6 +41245,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateUDFUploadSessionDone() &&
 		m.MinimockCreateUDFVersionDone() &&
 		m.MinimockDeleteApiKeyDone() &&
+		m.MinimockDeleteBackupBucketDone() &&
 		m.MinimockDeleteByocInfrastructureDone() &&
 		m.MinimockDeleteClickPipeDone() &&
 		m.MinimockDeletePostgresDone() &&
@@ -39779,6 +41262,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDetachUDFDone() &&
 		m.MinimockGetApiKeyDone() &&
 		m.MinimockGetApiKeyIDDone() &&
+		m.MinimockGetBackupBucketDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetByocInfrastructureDone() &&
 		m.MinimockGetByocInfrastructurePrivateEndpointConfigDone() &&
@@ -39822,6 +41306,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockScalingClickPipeDone() &&
 		m.MinimockSetPostgresPasswordDone() &&
 		m.MinimockUpdateApiKeyDone() &&
+		m.MinimockUpdateBackupBucketDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
 		m.MinimockUpdateByocInfrastructureDone() &&
 		m.MinimockUpdateClickPipeDone() &&
