@@ -143,6 +143,15 @@ methods of the same type.
   `resp.Diagnostics` and **return early** on `resp.Diagnostics.HasError()`.
 - Every returned `error` must be checked. `errcheck` enforces this; do not
   silently `_ =` an error without a comment explaining why it's safe.
+- [`internal/api`](internal/api) owns HTTP status classification, because it
+  owns the error format it produces (`status: %d, body: %s`). Classify through
+  its predicates — `api.IsNotFound`, `api.IsConflict`, `api.IsBadRequestWith`,
+  … — or `api.StatusFromMessage` for a status with no named predicate. Never
+  parse status out of error text in the service layer: a second parser silently
+  stops agreeing with the first the moment the format changes. Note that the
+  predicates match a prefix on the outermost error, so on a path that wraps
+  errors before classifying them, go through `api.StatusFromMessage`, which
+  matches anywhere in the message.
 
 ## Context and logging
 
