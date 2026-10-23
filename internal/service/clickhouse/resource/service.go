@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
@@ -82,6 +84,16 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"backup_encryption_config": schema.StringAttribute{
+				Description: "Contents of the `encryption_config.json` file from your own bucket, as a JSON string (e.g. `file(\"encryption_config.json\")`), passed to the API without interpretation. Required when `backup_id` refers to a backup stored in your own bucket, and rejected otherwise. Only used when the service is created: it is write-only (requires Terraform >= 1.11) and never stored in state, so changing it has no effect on an existing service. `backup_id` cannot be changed on an existing service; to restore a different backup, destroy the service and create a new one. A service restored from your own bucket always has Transparent Data Encryption enabled, so `transparent_data_encryption.enabled` must be set to true. Requires the bring-your-own-bucket TDE feature to be enabled for your organization.",
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
+				Validators: []validator.String{
+					stringvalidator.AlsoRequires(path.MatchRoot("backup_id")),
+					stringvalidator.ConflictsWith(path.MatchRoot("warehouse_id")),
 				},
 			},
 			"byoc_id": schema.StringAttribute{
@@ -1408,6 +1420,48 @@ func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.Valid
 			}
 		}
 	}
+
+	resp.Diagnostics.Append(validateBackupEncryptionConfig(ctx, config)...)
+}
+
+// validateBackupEncryptionConfig skips unknown values, so Create calls it again once they have resolved.
+func validateBackupEncryptionConfig(ctx context.Context, config models.ServiceResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if config.BackupEncryptionConfig.IsNull() || config.BackupEncryptionConfig.IsUnknown() {
+		return diags
+	}
+
+	if !isJSONObject(config.BackupEncryptionConfig.ValueString()) {
+		diags.AddAttributeError(
+			path.Root("backup_encryption_config"),
+			"Invalid Configuration",
+			"backup_encryption_config must be a JSON object (the contents of encryption_config.json).",
+		)
+	}
+
+	// The restore always enables TDE; planning it as disabled would fail after apply with an inconsistent result.
+	tdeEnabled := false
+	tdeUnknown := config.TransparentEncryptionData.IsUnknown()
+	if !config.TransparentEncryptionData.IsNull() && !tdeUnknown {
+		tde := models.TransparentEncryptionData{}
+		diags.Append(config.TransparentEncryptionData.As(ctx, &tde, basetypes.ObjectAsOptions{})...)
+		tdeUnknown = tde.Enabled.IsUnknown()
+		tdeEnabled = tde.Enabled.ValueBool()
+	}
+	if !tdeUnknown && !tdeEnabled {
+		diags.AddAttributeError(
+			path.Root("transparent_data_encryption").AtName("enabled"),
+			"Invalid Configuration",
+			"Restoring a backup stored in your own bucket always enables Transparent Data Encryption. Set transparent_data_encryption.enabled to true when backup_encryption_config is set.",
+		)
+	}
+	return diags
+}
+
+// isJSONObject only checks the top-level shape: the data plane owns and versions the file's contents.
+func isJSONObject(s string) bool {
+	var obj map[string]json.RawMessage
+	return json.Unmarshal([]byte(s), &obj) == nil && obj != nil
 }
 
 // toAPISnapshotConfiguration maps the model to the API payload, skipping Unknown fields: for an omitted (Unknown)
@@ -1460,6 +1514,15 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	if !plan.BackupID.IsUnknown() && !plan.BackupID.IsNull() {
 		service.BackupID = plan.BackupID.ValueStringPointer()
+	}
+
+	// Write-only, so it is only present in config.
+	if !config.BackupEncryptionConfig.IsNull() && !config.BackupEncryptionConfig.IsUnknown() {
+		resp.Diagnostics.Append(validateBackupEncryptionConfig(ctx, config)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		service.BackupEncryptionConfig = json.RawMessage(config.BackupEncryptionConfig.ValueString())
 	}
 
 	if !plan.ReleaseChannel.IsUnknown() && !plan.ReleaseChannel.IsNull() {
