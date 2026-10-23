@@ -1910,6 +1910,72 @@ func TestServiceResource_Update_horizontal(t *testing.T) {
 			},
 		},
 		{
+			name:  "horizontal minimum-only change also sends the unchanged maximum",
+			state: horizontalPlan,
+			plan: test.NewUpdater(horizontalPlan).Update(func(s *models.ServiceResourceModel) {
+				s.MinReplicas = types.Int64Value(1)
+			}).Get(),
+			response: test.NewUpdater(*horizontalResp).Update(func(s *api.Service) {
+				minReplicas := 1
+				s.MinReplicas = &minReplicas
+			}).GetPtr(),
+			wantMode: api.AutoscalingModeHorizontal,
+			check: func(t *testing.T, u api.ReplicaScalingUpdate) {
+				if u.MinReplicas == nil || *u.MinReplicas != 1 || u.MaxReplicas == nil || *u.MaxReplicas != 10 {
+					t.Errorf("both replica bounds must be sent: min=%v max=%v", u.MinReplicas, u.MaxReplicas)
+				}
+				if u.NumReplicas != nil || u.MinReplicaMemoryGb != nil || u.MaxReplicaMemoryGb != nil {
+					t.Errorf("replica-only resize must not send num_replicas or unchanged memory: %+v", u)
+				}
+			},
+		},
+		{
+			name:  "horizontal maximum-only change also sends the unchanged minimum",
+			state: horizontalPlan,
+			plan: test.NewUpdater(horizontalPlan).Update(func(s *models.ServiceResourceModel) {
+				s.MaxReplicas = types.Int64Value(15)
+			}).Get(),
+			response: test.NewUpdater(*horizontalResp).Update(func(s *api.Service) {
+				maxReplicas := 15
+				s.MaxReplicas = &maxReplicas
+			}).GetPtr(),
+			wantMode: api.AutoscalingModeHorizontal,
+			check: func(t *testing.T, u api.ReplicaScalingUpdate) {
+				if u.MinReplicas == nil || *u.MinReplicas != 3 || u.MaxReplicas == nil || *u.MaxReplicas != 15 {
+					t.Errorf("both replica bounds must be sent: min=%v max=%v", u.MinReplicas, u.MaxReplicas)
+				}
+				if u.NumReplicas != nil || u.MinReplicaMemoryGb != nil || u.MaxReplicaMemoryGb != nil {
+					t.Errorf("replica-only resize must not send num_replicas or unchanged memory: %+v", u)
+				}
+			},
+		},
+		{
+			name:     "unchanged horizontal band does not trigger a scaling update",
+			state:    horizontalPlan,
+			plan:     horizontalPlan,
+			response: horizontalResp,
+			wantMode: api.AutoscalingModeHorizontal,
+		},
+		{
+			name:  "idle scaling change does not resend an unchanged horizontal band",
+			state: horizontalPlan,
+			plan: test.NewUpdater(horizontalPlan).Update(func(s *models.ServiceResourceModel) {
+				s.IdleScaling = types.BoolValue(true)
+			}).Get(),
+			response: test.NewUpdater(*horizontalResp).Update(func(s *api.Service) {
+				s.IdleScaling = true
+			}).GetPtr(),
+			wantMode: api.AutoscalingModeHorizontal,
+			check: func(t *testing.T, u api.ReplicaScalingUpdate) {
+				if u.IdleScaling == nil || !*u.IdleScaling {
+					t.Errorf("idle scaling change not sent: %v", u.IdleScaling)
+				}
+				if u.MinReplicas != nil || u.MaxReplicas != nil {
+					t.Errorf("unchanged replica band must not be sent: min=%v max=%v", u.MinReplicas, u.MaxReplicas)
+				}
+			},
+		},
+		{
 			name:     "horizontal->vertical sends num_replicas and the memory range but not the band",
 			state:    horizontalPlan,
 			plan:     verticalState,
@@ -1933,12 +1999,13 @@ func TestServiceResource_Update_horizontal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mc := minimock.NewController(t)
 			var captured api.ReplicaScalingUpdate
-			apiClientMock := api.NewClientMock(mc).
-				UpdateReplicaScalingMock.Set(func(_ context.Context, _ string, u api.ReplicaScalingUpdate) (*api.Service, error) {
-				captured = u
-				return tt.response, nil
-			}).
-				GetServiceMock.Return(tt.response, nil)
+			apiClientMock := api.NewClientMock(mc).GetServiceMock.Return(tt.response, nil)
+			if tt.check != nil {
+				apiClientMock.UpdateReplicaScalingMock.Set(func(_ context.Context, _ string, u api.ReplicaScalingUpdate) (*api.Service, error) {
+					captured = u
+					return tt.response, nil
+				})
+			}
 
 			r.client = apiClientMock
 
@@ -1960,7 +2027,9 @@ func TestServiceResource_Update_horizontal(t *testing.T) {
 			if resp.Diagnostics.HasError() {
 				t.Fatalf("Update returned errors: %v", resp.Diagnostics.Errors())
 			}
-			tt.check(t, captured)
+			if tt.check != nil {
+				tt.check(t, captured)
+			}
 
 			// The post-apply state (synced from the band-carrying GetService response) must reflect the new
 			// mode — a regression in syncServiceState's horizontal derivation would otherwise pass silently.
@@ -1970,6 +2039,9 @@ func TestServiceResource_Update_horizontal(t *testing.T) {
 			}
 			if out.AutoscalingMode.ValueString() != tt.wantMode {
 				t.Errorf("post-apply autoscaling_mode = %v, want %q", out.AutoscalingMode, tt.wantMode)
+			}
+			if !out.MinReplicas.Equal(tt.plan.MinReplicas) || !out.MaxReplicas.Equal(tt.plan.MaxReplicas) {
+				t.Errorf("post-apply replica band = %v/%v, want %v/%v", out.MinReplicas, out.MaxReplicas, tt.plan.MinReplicas, tt.plan.MaxReplicas)
 			}
 		})
 	}
