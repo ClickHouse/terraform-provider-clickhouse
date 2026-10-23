@@ -118,7 +118,9 @@ type sourceResourceModel struct {
 	DefaultTableSelectExpression      types.String `tfsdk:"default_table_select_expression"`
 	ServiceNameExpression             types.String `tfsdk:"service_name_expression"`
 	SeverityTextExpression            types.String `tfsdk:"severity_text_expression"`
+	SeverityNumberExpression          types.String `tfsdk:"severity_number_expression"`
 	BodyExpression                    types.String `tfsdk:"body_expression"`
+	EventNameExpression               types.String `tfsdk:"event_name_expression"`
 	EventAttributesExpression         types.String `tfsdk:"event_attributes_expression"`
 	ResourceAttributesExpression      types.String `tfsdk:"resource_attributes_expression"`
 	DisplayedTimestampValueExpression types.String `tfsdk:"displayed_timestamp_value_expression"`
@@ -142,6 +144,7 @@ type sourceResourceModel struct {
 	StatusCodeExpression      types.String `tfsdk:"status_code_expression"`
 	StatusMessageExpression   types.String `tfsdk:"status_message_expression"`
 	SpanEventsValueExpression types.String `tfsdk:"span_events_value_expression"`
+	SpanLinksValueExpression  types.String `tfsdk:"span_links_value_expression"`
 
 	MetricTables *metricTablesModel `tfsdk:"metric_tables"`
 
@@ -261,7 +264,9 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"default_table_select_expression":      optStr("Default columns selected in search results. Required for `log` and `trace`."),
 			"service_name_expression":              optStr("Expression to extract the service name."),
 			"severity_text_expression":             optStr("Expression to extract the severity/log level text (log)."),
+			"severity_number_expression":           optStr("Expression for the numeric OpenTelemetry SeverityNumber, 1-24 (log)."),
 			"body_expression":                      optStr("Expression to extract the log message body (log)."),
+			"event_name_expression":                optStr("Expression for the OpenTelemetry log EventName (log)."),
 			"event_attributes_expression":          optStr("Expression to extract event-level attributes."),
 			"resource_attributes_expression":       optStr("Expression to extract resource-level attributes. Required for `metric`."),
 			"displayed_timestamp_value_expression": optStr("DateTime column used to display and order search results."),
@@ -291,6 +296,7 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"status_code_expression":       optStr("Expression to extract the span status code."),
 			"status_message_expression":    optStr("Expression to extract the span status message."),
 			"span_events_value_expression": optStr("Expression to extract span events."),
+			"span_links_value_expression":  optStr("Expression to extract span links to spans in other traces."),
 
 			"metric_tables": schema.SingleNestedAttribute{
 				Optional:    true,
@@ -516,7 +522,9 @@ func (m *sourceResourceModel) toClient() client.Source {
 		DefaultTableSelectExpression:      optStringPtr(m.DefaultTableSelectExpression),
 		ServiceNameExpression:             optStringPtr(m.ServiceNameExpression),
 		SeverityTextExpression:            optStringPtr(m.SeverityTextExpression),
+		SeverityNumberExpression:          optStringPtr(m.SeverityNumberExpression),
 		BodyExpression:                    optStringPtr(m.BodyExpression),
+		EventNameExpression:               optStringPtr(m.EventNameExpression),
 		EventAttributesExpression:         optStringPtr(m.EventAttributesExpression),
 		ResourceAttributesExpression:      optStringPtr(m.ResourceAttributesExpression),
 		DisplayedTimestampValueExpression: optStringPtr(m.DisplayedTimestampValueExpression),
@@ -539,6 +547,7 @@ func (m *sourceResourceModel) toClient() client.Source {
 		StatusCodeExpression:      optStringPtr(m.StatusCodeExpression),
 		StatusMessageExpression:   optStringPtr(m.StatusMessageExpression),
 		SpanEventsValueExpression: optStringPtr(m.SpanEventsValueExpression),
+		SpanLinksValueExpression:  optStringPtr(m.SpanLinksValueExpression),
 	}
 
 	if m.From != nil {
@@ -670,7 +679,9 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 	m.DefaultTableSelectExpression = keepUnset(m.DefaultTableSelectExpression, src.DefaultTableSelectExpression)
 	m.ServiceNameExpression = keepUnset(m.ServiceNameExpression, src.ServiceNameExpression)
 	m.SeverityTextExpression = keepUnset(m.SeverityTextExpression, src.SeverityTextExpression)
+	m.SeverityNumberExpression = keepUnset(m.SeverityNumberExpression, src.SeverityNumberExpression)
 	m.BodyExpression = keepUnset(m.BodyExpression, src.BodyExpression)
+	m.EventNameExpression = keepUnset(m.EventNameExpression, src.EventNameExpression)
 	m.EventAttributesExpression = keepUnset(m.EventAttributesExpression, src.EventAttributesExpression)
 	m.ResourceAttributesExpression = keepUnset(m.ResourceAttributesExpression, src.ResourceAttributesExpression)
 	m.DisplayedTimestampValueExpression = keepUnset(m.DisplayedTimestampValueExpression, src.DisplayedTimestampValueExpression)
@@ -698,6 +709,7 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 	m.StatusCodeExpression = keepUnset(m.StatusCodeExpression, src.StatusCodeExpression)
 	m.StatusMessageExpression = keepUnset(m.StatusMessageExpression, src.StatusMessageExpression)
 	m.SpanEventsValueExpression = keepUnset(m.SpanEventsValueExpression, src.SpanEventsValueExpression)
+	m.SpanLinksValueExpression = keepUnset(m.SpanLinksValueExpression, src.SpanLinksValueExpression)
 
 	if len(src.QuerySettings) > 0 {
 		m.QuerySettings = make([]querySettingModel, 0, len(src.QuerySettings))
