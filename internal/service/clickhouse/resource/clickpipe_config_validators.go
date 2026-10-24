@@ -591,6 +591,7 @@ func (v bigQueryCDCValidator) ValidateResource(ctx context.Context, req resource
 			{"query_cdc_pull_sync_parallelism", !settings.QueryCDCPullSyncParallelism.IsNull()},
 			{"sync_delay_seconds", !settings.SyncDelaySeconds.IsNull()},
 			{"pull_window_size_seconds", !settings.PullWindowSizeSeconds.IsNull()},
+			{"sync_cron", !settings.SyncCron.IsNull()},
 		}
 		for _, setting := range cdcOnlySettings {
 			if setting.isSet {
@@ -620,6 +621,14 @@ func (v bigQueryCDCValidator) ValidateResource(ctx context.Context, req resource
 			}
 		}
 		return
+	}
+
+	if !settings.SyncCron.IsNull() && !settings.SyncIntervalSeconds.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			settingsPath.AtName("sync_cron"),
+			"Invalid BigQuery replication configuration",
+			"sync_cron and sync_interval_seconds cannot both be set.",
+		)
 	}
 
 	if settings.ReplicationMethod.IsNull() {

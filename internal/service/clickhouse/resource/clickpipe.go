@@ -1722,6 +1722,16 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											int64planmodifier.UseStateForUnknown(),
 										},
 									},
+									"sync_cron": schema.StringAttribute{
+										Description: "Standard 5-field cron expression (or a descriptor such as `@hourly`) that schedules CDC syncs, e.g. `0 * * * *` to sync every hour sharp. Evaluated in UTC unless prefixed with `CRON_TZ=<zone>`. Must not fire more than once a minute. Syncs run on this schedule instead of every `sync_interval_seconds`, so the two cannot both be set. Must be omitted when replication_mode is `snapshot`.",
+										Optional:    true,
+										Validators: []validator.String{
+											stringvalidator.LengthAtLeast(1),
+										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
+									},
 									"allow_nullable_columns": schema.BoolAttribute{
 										Description: "Allow nullable columns in the destination table.",
 										Optional:    true,
@@ -3806,6 +3816,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		settings.QueryCDCPullSyncParallelism = knownInt64ToIntPointer(settingsModel.QueryCDCPullSyncParallelism)
 		settings.SyncDelaySeconds = knownInt64ToIntPointer(settingsModel.SyncDelaySeconds)
 		settings.PullWindowSizeSeconds = knownInt64ToIntPointer(settingsModel.PullWindowSizeSeconds)
+		if !settingsModel.SyncCron.IsNull() && !settingsModel.SyncCron.IsUnknown() {
+			settings.SyncCron = settingsModel.SyncCron.ValueStringPointer()
+		}
 
 		if !settingsModel.AllowNullableColumns.IsNull() {
 			val := settingsModel.AllowNullableColumns.ValueBool()
@@ -5660,6 +5673,7 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			QueryCDCPullSyncParallelism: intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.QueryCDCPullSyncParallelism),
 			SyncDelaySeconds:            intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.SyncDelaySeconds),
 			PullWindowSizeSeconds:       intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.PullWindowSizeSeconds),
+			SyncCron:                    nonEmptyStringValue(clickPipe.Source.BigQuery.Settings.SyncCron),
 		}
 
 		if clickPipe.Source.BigQuery.Settings.AllowNullableColumns != nil {
