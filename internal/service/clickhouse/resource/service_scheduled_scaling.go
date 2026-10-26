@@ -16,7 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -190,10 +189,9 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 			},
 			"base_config": schema.SingleNestedAttribute{
 				Description: "Fallback configuration applied when no entry is currently active. Server-managed.",
-				Computed:    true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
-				},
+				// No UseStateForUnknown: the service's replicaScaling PATCH rewrites base_config, so a service change in
+				// the same apply would leave a state-pinned plan value stale and fail the post-apply consistency check.
+				Computed: true,
 				Attributes: map[string]schema.Attribute{
 					"autoscaling_mode":      schema.StringAttribute{Computed: true},
 					"min_replica_memory_gb": schema.Int64Attribute{Computed: true},

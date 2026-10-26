@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -662,5 +663,20 @@ func TestDeriveAutoscalingMode(t *testing.T) {
 				t.Errorf("deriveAutoscalingMode(%q, %v, %v) = %q; want %q", tc.mode, tc.min, tc.max, got.ValueString(), tc.want)
 			}
 		})
+	}
+}
+
+// base_config must stay Computed without UseStateForUnknown: the service's replicaScaling PATCH rewrites it, so a
+// state-pinned plan value goes stale when the service changes in the same apply (GitHub #783).
+func TestServiceScheduledScalingResource_BaseConfigNotPinnedToState(t *testing.T) {
+	schemaResp := &resource.SchemaResponse{}
+	NewServiceScheduledScalingResource().Schema(context.Background(), resource.SchemaRequest{}, schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("Schema: %v", schemaResp.Diagnostics)
+	}
+
+	baseConfig, ok := schemaResp.Schema.Attributes["base_config"].(schema.SingleNestedAttribute)
+	if !ok || !baseConfig.Computed || baseConfig.Optional || len(baseConfig.PlanModifiers) != 0 {
+		t.Errorf("base_config must be computed without UseStateForUnknown so a same-apply service change is accepted: %#v", baseConfig)
 	}
 }
