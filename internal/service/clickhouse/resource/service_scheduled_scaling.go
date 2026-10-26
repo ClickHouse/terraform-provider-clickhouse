@@ -189,8 +189,7 @@ func (r *ServiceScheduledScalingResource) Schema(_ context.Context, _ resource.S
 			},
 			"base_config": schema.SingleNestedAttribute{
 				Description: "Fallback configuration applied when no entry is currently active. Server-managed.",
-				// No UseStateForUnknown: the service's replicaScaling PATCH rewrites base_config, so a service change in
-				// the same apply would leave a state-pinned plan value stale and fail the post-apply consistency check.
+				// Don't plan from state: updating the service rewrites base_config on the server, so the old value wouldn't match after apply.
 				Computed: true,
 				Attributes: map[string]schema.Attribute{
 					"autoscaling_mode":      schema.StringAttribute{Computed: true},
