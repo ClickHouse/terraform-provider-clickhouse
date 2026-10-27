@@ -1910,6 +1910,48 @@ func TestServiceResource_Update_horizontal(t *testing.T) {
 			},
 		},
 		{
+			name: "horizontal min_replicas-only change sends the unchanged max_replicas too",
+			state: test.NewUpdater(horizontalPlan).Update(func(s *models.ServiceResourceModel) {
+				s.MinReplicas = types.Int64Value(7)
+			}).Get(),
+			plan:     horizontalPlan,
+			response: horizontalResp,
+			wantMode: api.AutoscalingModeHorizontal,
+			check: func(t *testing.T, u api.ReplicaScalingUpdate) {
+				if u.MinReplicas == nil || *u.MinReplicas != 3 || u.MaxReplicas == nil || *u.MaxReplicas != 10 {
+					t.Errorf("band must be sent whole: min=%v max=%v", u.MinReplicas, u.MaxReplicas)
+				}
+			},
+		},
+		{
+			name: "horizontal max_replicas-only change sends the unchanged min_replicas too",
+			state: test.NewUpdater(horizontalPlan).Update(func(s *models.ServiceResourceModel) {
+				s.MaxReplicas = types.Int64Value(20)
+			}).Get(),
+			plan:     horizontalPlan,
+			response: horizontalResp,
+			wantMode: api.AutoscalingModeHorizontal,
+			check: func(t *testing.T, u api.ReplicaScalingUpdate) {
+				if u.MinReplicas == nil || *u.MinReplicas != 3 || u.MaxReplicas == nil || *u.MaxReplicas != 10 {
+					t.Errorf("band must be sent whole: min=%v max=%v", u.MinReplicas, u.MaxReplicas)
+				}
+			},
+		},
+		{
+			name: "horizontal idle_timeout-only change does not send the band",
+			state: test.NewUpdater(horizontalPlan).Update(func(s *models.ServiceResourceModel) {
+				s.IdleTimeoutMinutes = types.Int64Value(15)
+			}).Get(),
+			plan:     horizontalPlan,
+			response: horizontalResp,
+			wantMode: api.AutoscalingModeHorizontal,
+			check: func(t *testing.T, u api.ReplicaScalingUpdate) {
+				if u.MinReplicas != nil || u.MaxReplicas != nil {
+					t.Errorf("unchanged band must not be sent: min=%v max=%v", u.MinReplicas, u.MaxReplicas)
+				}
+			},
+		},
+		{
 			name:     "horizontal->vertical sends num_replicas and the memory range but not the band",
 			state:    horizontalPlan,
 			plan:     verticalState,
