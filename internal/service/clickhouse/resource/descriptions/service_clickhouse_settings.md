@@ -1,12 +1,12 @@
 You can use the *clickhouse_service_clickhouse_settings* resource to configure ClickHouse settings, such as `max_query_size`, on a ClickHouse Cloud service.
 
-For more information, see [Update ClickHouse settings](https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-update). The [settings schema endpoint](https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-schema-get) lists the settings you can configure, with their types and warnings.
+For more information, see [Update ClickHouse settings](https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-update). The [settings schema endpoint](https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-schema-get) lists the settings you can configure, with their types and warnings. The API is in beta and the list can change, so the resource takes a map instead of one attribute per setting.
 
 ~> **Note:** This resource is in beta. The ClickHouse settings API must be enabled for your organization. Reach out to ClickHouse support if the API returns `403 FORBIDDEN`. Writing settings needs an API key with the `control-plane:service:manage` permission.
 
 Only the settings listed in `settings` are managed. Settings configured outside Terraform are left alone. Removing a setting from `settings`, or destroying the resource, resets it to the platform default. Some settings restart the service when changed or reset; the API returns a warning for these, which shows as a Terraform warning.
 
-Values are strings. Settings the schema types as `integer` are sent to the API as integers.
+Values are strings. A value that is a whole number, such as `"262144"`, is sent to the API as an integer, and any other value as a string.
 
 ## Pausing background merges
 

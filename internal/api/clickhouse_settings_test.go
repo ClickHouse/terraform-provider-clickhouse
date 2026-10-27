@@ -97,26 +97,3 @@ func TestDeleteServiceClickhouseSetting(t *testing.T) {
 		t.Errorf("server did not see DELETE request")
 	}
 }
-
-func TestGetServiceClickhouseSettingsSchema(t *testing.T) {
-	expectedPath := "/organizations/org-1/services/svc-1/clickhouseSettings/schema"
-
-	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != expectedPath {
-			t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
-		}
-		_, _ = w.Write([]byte(`{"result":{"settings":[{"name":"compatibility","type":"string","example":"24.8"},{"name":"max_query_size","type":"integer"}]}}`))
-	})
-
-	got, err := client.GetServiceClickhouseSettingsSchema(context.Background(), "svc-1")
-	if err != nil {
-		t.Fatalf("GetServiceClickhouseSettingsSchema: %v", err)
-	}
-	want := []ServiceClickhouseSettingSchemaEntry{
-		{Name: "compatibility", Type: "string", Example: "24.8"},
-		{Name: "max_query_size", Type: "integer"},
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("GetServiceClickhouseSettingsSchema mismatch (-want +got):\n%s", diff)
-	}
-}

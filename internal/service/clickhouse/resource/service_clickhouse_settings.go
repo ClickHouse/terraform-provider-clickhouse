@@ -242,20 +242,7 @@ func (r *ServiceClickhouseSettingsResource) ImportState(ctx context.Context, req
 // applySettings PATCHes the settings and shows the server's warnings. It
 // returns false when it added an error.
 func (r *ServiceClickhouseSettingsResource) applySettings(ctx context.Context, serviceID string, settings map[string]string, diags *diag.Diagnostics) bool {
-	settingsSchema, err := r.client.GetServiceClickhouseSettingsSchema(ctx, serviceID)
-	if err != nil {
-		if api.IsNotFound(err) {
-			diags.AddError(
-				"Service not found",
-				fmt.Sprintf("Service %s does not exist or is not visible to the caller. Confirm clickhouse_service.<name>.id is correct and the API key has access.", serviceID),
-			)
-			return false
-		}
-		diags.AddError("Error reading ClickHouse settings schema", err.Error())
-		return false
-	}
-
-	result, err := r.client.UpdateServiceClickhouseSettings(ctx, serviceID, clickhouseSettingsPayload(settings, settingsSchema))
+	result, err := r.client.UpdateServiceClickhouseSettings(ctx, serviceID, clickhouseSettingsPayload(settings))
 	if err != nil {
 		diags.AddError("Error updating ClickHouse settings", err.Error())
 		return false
@@ -284,25 +271,17 @@ func (r *ServiceClickhouseSettingsResource) resetSettings(ctx context.Context, s
 	return true
 }
 
-// clickhouseSettingsPayload sends settings the schema types as "integer" as
-// JSON integers, and everything else as strings.
-func clickhouseSettingsPayload(settings map[string]string, settingsSchema []api.ServiceClickhouseSettingSchemaEntry) map[string]any {
-	integers := map[string]bool{}
-	for _, entry := range settingsSchema {
-		integers[entry.Name] = entry.Type == "integer"
-	}
-
+// clickhouseSettingsPayload sends values that parse as integers as JSON
+// integers, since the API takes each setting in its native type.
+func clickhouseSettingsPayload(settings map[string]string) map[string]any {
 	payload := make(map[string]any, len(settings))
 	for name, value := range settings {
-		payload[name] = value
-		if !integers[name] {
-			continue
-		}
 		if n, err := strconv.ParseInt(value, 10, 64); err == nil {
 			payload[name] = n
+			continue
 		}
+		payload[name] = value
 	}
-
 	return payload
 }
 

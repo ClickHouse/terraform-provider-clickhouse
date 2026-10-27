@@ -21,16 +21,6 @@ type ServiceClickhouseSettingsUpdateResult struct {
 	Warnings []ServiceClickhouseSettingWarning
 }
 
-type ServiceClickhouseSettingSchemaEntry struct {
-	Name              string  `json:"name"`
-	Type              string  `json:"type"`
-	Description       string  `json:"description,omitempty"`
-	Enum              []int64 `json:"enum,omitempty"`
-	Warning           string  `json:"warning,omitempty"`
-	DeprecationNotice string  `json:"deprecationNotice,omitempty"`
-	Example           string  `json:"example,omitempty"`
-}
-
 type serviceClickhouseSetting struct {
 	Name  string          `json:"name"`
 	Value json.RawMessage `json:"value"`
@@ -47,10 +37,6 @@ type serviceClickhouseSettingsPatchRequest struct {
 type serviceClickhouseSettingsPatchResponse struct {
 	Settings map[string]json.RawMessage        `json:"settings"`
 	Warnings []ServiceClickhouseSettingWarning `json:"warnings"`
-}
-
-type serviceClickhouseSettingsSchema struct {
-	Settings []ServiceClickhouseSettingSchemaEntry `json:"settings"`
 }
 
 // ListServiceClickhouseSettings returns only settings that were explicitly set.
@@ -127,25 +113,6 @@ func (c *ClientImpl) DeleteServiceClickhouseSetting(ctx context.Context, service
 
 	_, err = c.doRequest(ctx, req)
 	return err
-}
-
-func (c *ClientImpl) GetServiceClickhouseSettingsSchema(ctx context.Context, serviceId string) ([]ServiceClickhouseSettingSchemaEntry, error) {
-	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, "/clickhouseSettings/schema"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := c.doRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	response := ResponseWithResult[serviceClickhouseSettingsSchema]{}
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, err
-	}
-
-	return response.Result.Settings, nil
 }
 
 func clickhouseSettingValueString(raw json.RawMessage) (string, error) {

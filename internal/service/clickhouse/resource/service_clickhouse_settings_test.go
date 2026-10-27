@@ -14,22 +14,17 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 )
 
-func TestClickhouseSettingsPayload_UsesSchemaTypes(t *testing.T) {
-	settingsSchema := []api.ServiceClickhouseSettingSchemaEntry{
-		{Name: "compatibility", Type: "string"},
-		{Name: "max_query_size", Type: "integer"},
-	}
-
+func TestClickhouseSettingsPayload_SendsIntegersAsNumbers(t *testing.T) {
 	got := clickhouseSettingsPayload(map[string]string{
-		"compatibility":  "26",
-		"max_query_size": "262144",
-		"unknown":        "abc",
-	}, settingsSchema)
+		"compatibility":        "26.2",
+		"max_query_size":       "262144",
+		"mark_cache_ram_ratio": "0.25",
+	})
 
 	want := map[string]any{
-		"compatibility":  "26",
-		"max_query_size": int64(262144),
-		"unknown":        "abc",
+		"compatibility":        "26.2",
+		"max_query_size":       int64(262144),
+		"mark_cache_ram_ratio": "0.25",
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("clickhouseSettingsPayload mismatch (-want +got):\n%s", diff)
@@ -54,9 +49,6 @@ func TestServiceClickhouseSettingsResource_Update_PatchesChangedAndResetsRemoved
 
 	mc := minimock.NewController(t)
 	r.client = api.NewClientMock(mc).
-		GetServiceClickhouseSettingsSchemaMock.
-		Expect(ctx, "svc-1").
-		Return([]api.ServiceClickhouseSettingSchemaEntry{{Name: "max_query_size", Type: "integer"}}, nil).
 		UpdateServiceClickhouseSettingsMock.
 		Expect(ctx, "svc-1", map[string]any{"max_query_size": int64(524288)}).
 		Return(&api.ServiceClickhouseSettingsUpdateResult{Settings: map[string]string{"max_query_size": "524288"}}, nil).
@@ -92,9 +84,6 @@ func TestServiceClickhouseSettingsResource_Create_SurfacesWarnings(t *testing.T)
 
 	mc := minimock.NewController(t)
 	r.client = api.NewClientMock(mc).
-		GetServiceClickhouseSettingsSchemaMock.
-		Expect(ctx, "svc-1").
-		Return([]api.ServiceClickhouseSettingSchemaEntry{{Name: "compatibility", Type: "string"}}, nil).
 		UpdateServiceClickhouseSettingsMock.
 		Expect(ctx, "svc-1", map[string]any{"compatibility": "26.2"}).
 		Return(&api.ServiceClickhouseSettingsUpdateResult{
