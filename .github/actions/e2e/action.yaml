@@ -131,7 +131,7 @@ runs:
         echo "SKIP_E2E_TEST=false" >> "$GITHUB_ENV"
 
     - name: Install terraform
-      uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+      uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
       with:
         terraform_version: ${{ inputs.tf_release }}
         terraform_wrapper: false
@@ -143,7 +143,7 @@ runs:
 
     - name: Configure AWS credentials
       id: aws-auth
-      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+      uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
       if: ${{ inputs.cloud_provider == 'aws' }}
       with:
         role-to-assume: ${{ inputs.aws_role_arn }}
@@ -151,7 +151,7 @@ runs:
         output-credentials: true
 
     - name: Azure CLI Login
-      uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+      uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
       if: ${{ inputs.cloud_provider == 'azure' }}
       with:
         client-id: ${{ inputs.azure_client_id }}
@@ -259,7 +259,7 @@ runs:
     - id: get_latest_stable_release
       if: ${{ inputs.upgrade_test == 'true' && steps.defined.outputs.defined == 'true' }}
       name: Upgrade test - Retrieve latest stable version
-      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60
       with:
         timeout_minutes: 2
         max_attempts: 10
@@ -292,7 +292,7 @@ runs:
 
     - name: Upgrade test - Run terraform using latest stable version
       if: ${{ inputs.upgrade_test == 'true' && steps.defined.outputs.defined == 'true' }}
-      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60
       with:
         timeout_minutes: 30
         max_attempts: 3
@@ -359,7 +359,7 @@ runs:
 
     - name: Run terraform
       if: ${{steps.defined.outputs.defined == 'true' && env.SKIP_E2E_TEST != 'true' }}
-      uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08
+      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60
       with:
         timeout_minutes: 30
         max_attempts: 3

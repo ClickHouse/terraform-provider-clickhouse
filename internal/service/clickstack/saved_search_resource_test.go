@@ -50,9 +50,10 @@ func TestSavedSearchResource_ToClient_Defaults(t *testing.T) {
 		WhereLanguage: types.StringValue("lucene"),
 		OrderBy:       types.StringValue(""),
 		Tags:          types.ListNull(types.StringType),
+		TagsAll:       types.SetNull(types.StringType),
 		Filters:       types.StringNull(),
 	}
-	ss, diags := m.toClient(context.Background())
+	ss, diags := m.toClient(context.Background(), nil)
 	if diags.HasError() {
 		t.Fatalf("toClient: %s", diags)
 	}
@@ -76,7 +77,7 @@ func TestSavedSearchResource_ApplyPreservesFilters(t *testing.T) {
 		Tags:     []string{"a", "b"},
 		Filters:  []byte(`[{"type":"sql_ast","operator":"and"}]`),
 	}
-	if diags := m.applySavedSearch(ss); diags.HasError() {
+	if diags := m.applySavedSearch(context.Background(), ss, nil); diags.HasError() {
 		t.Fatalf("applySavedSearch: %s", diags)
 	}
 	if m.Filters.ValueString() != `[{"type":"sql_ast","operator":"and"}]` {
@@ -139,7 +140,7 @@ func TestSavedSearchResource_ApplyKeepsAuthoredFilters(t *testing.T) {
 
 	// Server reorders keys -> authored kept.
 	m := &savedSearchResourceModel{Filters: types.StringValue(authored)}
-	m.applySavedSearch(&client.SavedSearch{ID: "ss1", Filters: []byte(`[{"condition":"x","type":"sql"}]`)})
+	m.applySavedSearch(context.Background(), &client.SavedSearch{ID: "ss1", Filters: []byte(`[{"condition":"x","type":"sql"}]`)}, nil)
 	if m.Filters.ValueString() != authored {
 		t.Errorf("expected authored filters kept on reorder, got %q", m.Filters.ValueString())
 	}
@@ -148,14 +149,14 @@ func TestSavedSearchResource_ApplyKeepsAuthoredFilters(t *testing.T) {
 	// authored value; adopting the server value here would be an inconsistent
 	// result after apply against the known planned value.
 	m2 := &savedSearchResourceModel{Filters: types.StringValue(`[{"condition":"x"}]`)}
-	m2.applySavedSearch(&client.SavedSearch{ID: "ss1", Filters: []byte(`[{"type":"sql","condition":"x"}]`)})
+	m2.applySavedSearch(context.Background(), &client.SavedSearch{ID: "ss1", Filters: []byte(`[{"type":"sql","condition":"x"}]`)}, nil)
 	if m2.Filters.ValueString() != `[{"condition":"x"}]` {
 		t.Errorf("expected authored value kept despite server normalization, got %q", m2.Filters.ValueString())
 	}
 
 	// Unset (unknown) config -> adopt the server value.
 	m3 := &savedSearchResourceModel{Filters: types.StringUnknown()}
-	m3.applySavedSearch(&client.SavedSearch{ID: "ss1", Filters: []byte(`[{"type":"sql","condition":"z"}]`)})
+	m3.applySavedSearch(context.Background(), &client.SavedSearch{ID: "ss1", Filters: []byte(`[{"type":"sql","condition":"z"}]`)}, nil)
 	if m3.Filters.ValueString() != `[{"type":"sql","condition":"z"}]` {
 		t.Errorf("expected server filters adopted when config unset, got %q", m3.Filters.ValueString())
 	}
@@ -177,7 +178,7 @@ func savedSearchModel(mods func(*savedSearchResourceModel)) savedSearchResourceM
 		Name: types.StringValue("n"), SourceID: types.StringValue("src"),
 		Select: types.StringValue(""), Where: types.StringValue(""),
 		WhereLanguage: types.StringValue("lucene"), OrderBy: types.StringValue(""),
-		Tags: types.ListNull(types.StringType), Filters: types.StringNull(),
+		Tags: types.ListNull(types.StringType), TagsAll: types.SetNull(types.StringType), Filters: types.StringNull(),
 	}
 	if mods != nil {
 		mods(&m)

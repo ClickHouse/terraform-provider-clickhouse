@@ -93,6 +93,8 @@ func kafkaSchemaRegistryValue() types.Object {
 		"url":            types.StringValue("https://schema-registry.example.com"),
 		"authentication": types.StringValue(api.ClickPipeKafkaAuthenticationPlain),
 		"credentials":    types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credentialAttrs),
+		"type":           types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+		"glue":           types.ObjectNull(models.ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType().AttrTypes),
 	}
 
 	return types.ObjectValueMust(models.ClickPipeKafkaSchemaRegistryModel{}.ObjectType().AttrTypes, registryAttrs)

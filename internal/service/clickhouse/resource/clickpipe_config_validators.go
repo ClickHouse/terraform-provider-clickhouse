@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -138,6 +139,141 @@ func (v kafkaProtobufSchemaValidator) ValidateResource(ctx context.Context, req 
 			protobufSchemaPath,
 			"Missing Kafka Protobuf schema",
 			"Protobuf format requires either protobuf_schema or schema_registry.",
+		)
+	}
+}
+
+// schemaRegistryField pairs a schema registry attribute name with its configured value.
+type schemaRegistryField struct {
+	name  string
+	value attr.Value
+}
+
+// kafkaSchemaRegistryValidator enforces the per-type Kafka schema registry rules exposed by the OpenAPI:
+// a Confluent registry needs url, authentication and credentials, while an AWS Glue registry needs a glue
+// block and authenticates with IAM instead.
+type kafkaSchemaRegistryValidator struct{}
+
+// Description returns a plain-text summary of the Kafka schema registry validation.
+func (v kafkaSchemaRegistryValidator) Description(_ context.Context) string {
+	return "Validates Kafka Confluent and AWS Glue schema registry configuration."
+}
+
+// MarkdownDescription returns the Kafka schema registry validation summary as Markdown.
+func (v kafkaSchemaRegistryValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+// ValidateResource checks that the schema registry carries exactly the fields of its type.
+// Checks on values Terraform has not resolved yet are deferred.
+func (v kafkaSchemaRegistryValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data models.ClickPipeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() || data.Source.IsNull() || data.Source.IsUnknown() {
+		return
+	}
+
+	var sourceModel models.ClickPipeSourceModel
+	resp.Diagnostics.Append(data.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || sourceModel.Kafka.IsNull() || sourceModel.Kafka.IsUnknown() {
+		return
+	}
+
+	var kafkaModel models.ClickPipeKafkaSourceModel
+	resp.Diagnostics.Append(sourceModel.Kafka.As(ctx, &kafkaModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || kafkaModel.SchemaRegistry.IsNull() || kafkaModel.SchemaRegistry.IsUnknown() {
+		return
+	}
+
+	var registryModel models.ClickPipeKafkaSchemaRegistryModel
+	resp.Diagnostics.Append(kafkaModel.SchemaRegistry.As(ctx, &registryModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || registryModel.Type.IsUnknown() {
+		return
+	}
+
+	registryPath := path.Root("source").AtName("kafka").AtName("schema_registry")
+	isSet := func(value attr.Value) bool { return !value.IsUnknown() && !value.IsNull() }
+	isMissing := func(value attr.Value) bool { return !value.IsUnknown() && value.IsNull() }
+
+	// Config sees the raw value, before the `confluent` default is applied.
+	if registryModel.Type.ValueString() != api.ClickPipeKafkaSchemaRegistryTypeGlue {
+		for _, field := range []schemaRegistryField{
+			{"url", registryModel.URL},
+			{"authentication", registryModel.Authentication},
+			{"credentials", registryModel.Credentials},
+		} {
+			if isMissing(field.value) {
+				resp.Diagnostics.AddAttributeError(
+					registryPath.AtName(field.name),
+					"Missing Kafka schema registry attribute",
+					fmt.Sprintf("%s is required for a confluent schema registry.", field.name),
+				)
+			}
+		}
+		if isSet(registryModel.Glue) {
+			resp.Diagnostics.AddAttributeError(
+				registryPath.AtName("glue"),
+				"Invalid Kafka schema registry attribute",
+				"glue is supported only when type is glue.",
+			)
+		}
+		return
+	}
+
+	// The schema requires region and registry_name inside the block, so only its presence is checked here.
+	if isMissing(registryModel.Glue) {
+		resp.Diagnostics.AddAttributeError(
+			registryPath.AtName("glue"),
+			"Missing Kafka schema registry attribute",
+			"glue is required for a glue schema registry.",
+		)
+	}
+	for _, field := range []schemaRegistryField{
+		{"url", registryModel.URL},
+		{"authentication", registryModel.Authentication},
+		{"credentials", registryModel.Credentials},
+	} {
+		if isSet(field.value) {
+			resp.Diagnostics.AddAttributeError(
+				registryPath.AtName(field.name),
+				"Invalid Kafka schema registry attribute",
+				fmt.Sprintf("%s is not supported for a glue schema registry, which authenticates with IAM.", field.name),
+			)
+		}
+	}
+
+	// The platform only strips the Glue wire header on its Avro and Protobuf record paths.
+	if !kafkaModel.Format.IsNull() && !kafkaModel.Format.IsUnknown() {
+		format := kafkaModel.Format.ValueString()
+		if format != api.ClickPipeAvroConfluentFormat && format != api.ClickPipeProtobufFormat {
+			resp.Diagnostics.AddAttributeError(
+				registryPath,
+				"Invalid Kafka schema registry configuration",
+				"a glue schema registry is supported only when format is AvroConfluent or Protobuf.",
+			)
+		}
+	}
+
+	if !isSet(registryModel.Glue) {
+		return
+	}
+	var glueModel models.ClickPipeKafkaGlueSchemaRegistryModel
+	resp.Diagnostics.Append(registryModel.Glue.As(ctx, &glueModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Glue defaults to the broker's IAM identity, so a non-IAM broker must name a role.
+	// A null authentication means the PLAIN default.
+	if !isMissing(glueModel.RoleArn) || kafkaModel.Authentication.IsUnknown() {
+		return
+	}
+	authentication := kafkaModel.Authentication.ValueString()
+	if authentication != api.ClickPipeAuthenticationIAMRole && authentication != api.ClickPipeAuthenticationIAMUser {
+		resp.Diagnostics.AddAttributeError(
+			registryPath.AtName("glue").AtName("role_arn"),
+			"Missing Kafka schema registry attribute",
+			"glue.role_arn is required for a glue schema registry unless the Kafka source uses IAM_ROLE or IAM_USER authentication.",
 		)
 	}
 }
@@ -377,12 +513,174 @@ func (v cdcClickPipeScalingValidator) ValidateResource(ctx context.Context, req 
 	)
 }
 
+// bigQueryCDCValidator enforces the cross-field rules between the BigQuery
+// replication mode, replication method and per-table CDC options. The server
+// rejects mismatches with a 400; this surfaces the same errors at plan time.
+type bigQueryCDCValidator struct{}
+
+func (v bigQueryCDCValidator) Description(_ context.Context) string {
+	return "Validates that BigQuery CDC settings match the chosen replication mode and method."
+}
+
+func (v bigQueryCDCValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v bigQueryCDCValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data models.ClickPipeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.Source.IsNull() || data.Source.IsUnknown() {
+		return
+	}
+
+	sourceModel := models.ClickPipeSourceModel{}
+	resp.Diagnostics.Append(data.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if sourceModel.BigQuery.IsNull() || sourceModel.BigQuery.IsUnknown() {
+		return
+	}
+
+	bigQueryModel := models.ClickPipeBigQuerySourceModel{}
+	resp.Diagnostics.Append(sourceModel.BigQuery.As(ctx, &bigQueryModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if bigQueryModel.Settings.IsNull() || bigQueryModel.Settings.IsUnknown() {
+		return
+	}
+
+	settings := models.ClickPipeBigQuerySettingsModel{}
+	resp.Diagnostics.Append(bigQueryModel.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Skip if replication_mode is unknown — the framework will re-run validation once known.
+	if settings.ReplicationMode.IsNull() || settings.ReplicationMode.IsUnknown() {
+		return
+	}
+
+	settingsPath := path.Root("source").AtName("bigquery").AtName("settings")
+	mode := settings.ReplicationMode.ValueString()
+
+	var mappings []models.ClickPipeBigQueryTableMappingModel
+	if !bigQueryModel.TableMappings.IsNull() && !bigQueryModel.TableMappings.IsUnknown() {
+		mappings = make([]models.ClickPipeBigQueryTableMappingModel, len(bigQueryModel.TableMappings.Elements()))
+		resp.Diagnostics.Append(bigQueryModel.TableMappings.ElementsAs(ctx, &mappings, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	mappingsPath := path.Root("source").AtName("bigquery").AtName("table_mappings")
+
+	if mode == api.ClickPipeReplicationModeSnapshot {
+		cdcOnlySettings := []struct {
+			name  string
+			isSet bool
+		}{
+			{"replication_method", !settings.ReplicationMethod.IsNull()},
+			{"sync_interval_seconds", !settings.SyncIntervalSeconds.IsNull()},
+			{"query_cdc_pull_sync_parallelism", !settings.QueryCDCPullSyncParallelism.IsNull()},
+			{"sync_delay_seconds", !settings.SyncDelaySeconds.IsNull()},
+			{"pull_window_size_seconds", !settings.PullWindowSizeSeconds.IsNull()},
+		}
+		for _, setting := range cdcOnlySettings {
+			if setting.isSet {
+				resp.Diagnostics.AddAttributeError(
+					settingsPath.AtName(setting.name),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("%s must not be set when replication_mode is %q.", setting.name, mode),
+				)
+			}
+		}
+
+		for i, mapping := range mappings {
+			elemPath := mappingsPath.AtListIndex(i)
+			if !mapping.QueryCDCWatermarkColumn.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("query_cdc_watermark_column"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("query_cdc_watermark_column must not be set when replication_mode is %q.", mode),
+				)
+			}
+			if !mapping.EventsFunction.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("events_function"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("events_function must not be set when replication_mode is %q.", mode),
+				)
+			}
+		}
+		return
+	}
+
+	if settings.ReplicationMethod.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			settingsPath.AtName("replication_method"),
+			"Invalid BigQuery replication configuration",
+			fmt.Sprintf("replication_method is required when replication_mode is %q.", mode),
+		)
+		return
+	}
+	// Skip the per-table checks if replication_method is unknown.
+	if settings.ReplicationMethod.IsUnknown() {
+		return
+	}
+
+	method := settings.ReplicationMethod.ValueString()
+	for i, mapping := range mappings {
+		elemPath := mappingsPath.AtListIndex(i)
+		switch method {
+		case api.ClickPipeBigQueryReplicationMethodQueryBased:
+			if mapping.QueryCDCWatermarkColumn.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("query_cdc_watermark_column"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("query_cdc_watermark_column is required for every table when replication_method is %q.", method),
+				)
+			}
+			if !mapping.EventsFunction.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("events_function"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("events_function is only allowed when replication_method is %q.", api.ClickPipeBigQueryReplicationMethodEventsBased),
+				)
+			}
+		case api.ClickPipeBigQueryReplicationMethodEventsBased:
+			if mapping.EventsFunction.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("events_function"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("events_function is required for every table when replication_method is %q.", method),
+				)
+			}
+			if !mapping.QueryCDCWatermarkColumn.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					elemPath.AtName("query_cdc_watermark_column"),
+					"Invalid BigQuery replication configuration",
+					fmt.Sprintf("query_cdc_watermark_column is only allowed when replication_method is %q.", api.ClickPipeBigQueryReplicationMethodQueryBased),
+				)
+			}
+		}
+	}
+}
+
 func (c *ClickPipeResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		kafkaTombstoneModeValidator{},
 		kafkaProtobufSchemaValidator{},
+		kafkaSchemaRegistryValidator{},
 		kinesisProtobufSchemaValidator{},
 		pubsubSeekValidator{},
 		cdcClickPipeScalingValidator{},
+		bigQueryCDCValidator{},
 	}
 }

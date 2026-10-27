@@ -18,6 +18,8 @@ description: |-
   Resources that are not generally available yet emit a Beta Resource warning when they are created, updated or imported — the operations that bring one under management or change it. Nothing is emitted during terraform plan, including a plan that creates or changes a beta resource; the notice appears in the apply output instead. Beta data sources are the exception: they warn when read, which happens on every plan.
   To acknowledge beta status once and stop the notices altogether, set CLICKHOUSE_SUPPRESS_BETA_WARNINGS=true in the environment Terraform runs in. Other warnings are unaffected.
   Breaking changes
+  UDF resources (GA)
+  clickhouse_udf and clickhouse_udf_attachment are now generally available. The sandbox_version attribute has been removed from clickhouse_udf. Remove it from your configuration before upgrading.
   Note: we only provide upgrade path from consecutive major releases of our terraform provider.
   If you are upgrading, please be sure to not skip any major release while you do so.
   For example:
@@ -43,6 +45,7 @@ description: |-
     clickstack_service_id = var.clickstack_service_id
   }
   
+  The Cloud API key needs the View and Manage ClickStack API permission on that service, which the organization Admin role and the service Admin and Manager roles include. Every ClickStack endpoint requires it, reads included, so a key without it (e.g. organization Developer or Member, or service Read-only) fails every clickhouse_clickstack_* call with 403: FORBIDDEN. Plan-time dashboard validation downgrades that 403 to a "Dashboard validation unavailable" warning, so a plan that only creates resources can still succeed and the error first surfaces on apply.
   On ClickHouse Cloud, ClickStack manages sources, dashboards, alerts, saved searches, webhooks and roles. Connections are not exposed at all — the Cloud API does not serve the endpoint, and the platform creates a single connection per service pointing at itself, so clickhouse_clickstack_connection is for self-hosted ClickStack only; reference the Cloud connection by reading its id from an existing source. ClickStack RBAC is its own system, separate from ClickHouse Cloud's: clickhouse_clickstack_role governs ClickStack objects (dashboards, saved searches, sources, webhooks, alerts, notebooks) and works on Cloud as well as self-hosted. It is not interchangeable with clickhouse_role, which manages Cloud organization RBAC and grants nothing in ClickStack. Teams are the exception: the ClickStack team endpoints are not served on Cloud, so clickhouse_clickstack_team and clickhouse_clickstack_team_member are self-hosted only, and the team attribute on other resources is rejected there — a Cloud service is a single ClickStack team. Capability checks are server-side: an endpoint the Cloud API does not serve returns a route-not-found error, and newly exposed endpoints work without a provider upgrade.
   Self-hosted ClickStack (open source or EE) authenticates with its own credentials, separate from the ClickHouse Cloud credentials above:
   clickstack_api_key (or the CLICKSTACK_API_KEY environment variable) — a personal API access key from the HyperDX UI.clickstack_endpoint (or CLICKSTACK_ENDPOINT) — the API base URL of the deployment, e.g. http://localhost:8000. Required together with clickstack_api_key.
@@ -91,6 +94,10 @@ To acknowledge beta status once and stop the notices altogether, set `CLICKHOUSE
 
 ## Breaking changes
 
+### UDF resources (GA)
+
+`clickhouse_udf` and `clickhouse_udf_attachment` are now generally available. The `sandbox_version` attribute has been removed from `clickhouse_udf`. Remove it from your configuration before upgrading.
+
 Note: we only provide upgrade path from consecutive major releases of our terraform provider.
 If you are upgrading, please be sure to not skip any major release while you do so.
 
@@ -132,6 +139,8 @@ provider "clickhouse" {
 }
 ```
 
+The Cloud API key needs the **View and Manage ClickStack API** permission on that service, which the organization **Admin** role and the service **Admin** and **Manager** roles include. Every ClickStack endpoint requires it, reads included, so a key without it (e.g. organization **Developer** or **Member**, or service **Read-only**) fails every `clickhouse_clickstack_*` call with `403: FORBIDDEN`. Plan-time dashboard validation downgrades that 403 to a "Dashboard validation unavailable" warning, so a plan that only creates resources can still succeed and the error first surfaces on apply.
+
 On ClickHouse Cloud, ClickStack manages sources, dashboards, alerts, saved searches, webhooks and roles. Connections are not exposed at all — the Cloud API does not serve the endpoint, and the platform creates a single connection per service pointing at itself, so `clickhouse_clickstack_connection` is for self-hosted ClickStack only; reference the Cloud connection by reading its id from an existing source. ClickStack RBAC is its own system, separate from ClickHouse Cloud's: `clickhouse_clickstack_role` governs ClickStack objects (dashboards, saved searches, sources, webhooks, alerts, notebooks) and works on Cloud as well as self-hosted. It is not interchangeable with `clickhouse_role`, which manages Cloud organization RBAC and grants nothing in ClickStack. Teams are the exception: the ClickStack team endpoints are not served on Cloud, so `clickhouse_clickstack_team` and `clickhouse_clickstack_team_member` are self-hosted only, and the `team` attribute on other resources is rejected there — a Cloud service is a single ClickStack team. Capability checks are server-side: an endpoint the Cloud API does not serve returns a route-not-found error, and newly exposed endpoints work without a provider upgrade.
 
 **Self-hosted ClickStack** (open source or EE) authenticates with its own credentials, separate from the ClickHouse Cloud credentials above:
@@ -162,7 +171,7 @@ provider "clickhouse" { # self-hosted ClickStack
 terraform {
   required_providers {
     clickhouse = {
-      version = "3.34.0"
+      version = "3.41.0"
       source  = "ClickHouse/clickhouse"
     }
   }
@@ -184,6 +193,7 @@ provider "clickhouse" {
 
 - `api_url` (String) API URL of the ClickHouse OpenAPI the provider will interact with. Alternatively, can be configured using the `CLICKHOUSE_API_URL` environment variable. Only specify if you have a specific deployment of the ClickHouse OpenAPI you want to run against.
 - `clickstack_api_key` (String, Sensitive) Personal API access key for a self-hosted ClickStack API, used by clickhouse_clickstack_* resources. Alternatively use the `CLICKSTACK_API_KEY` environment variable. ClickStack on ClickHouse Cloud does not accept API keys; use `clickstack_service_id` with the Cloud credentials instead.
+- `clickstack_default_tags` (List of String) Tags added to every clickhouse_clickstack_dashboard and clickhouse_clickstack_saved_search, and to every clickhouse_clickstack_alert that sets `tags`, e.g. `["terraform-managed"]`. They appear in each resource's `tags_all`, not in its own tags, and changing them updates every affected resource. An alert without `tags` copies its parent's tags, so it picks up a change to these only on its next update. Must be known at plan time.
 - `clickstack_endpoint` (String) Endpoint of a self-hosted ClickStack API used by clickhouse_clickstack_* resources, e.g. http://localhost:8000. Required together with `clickstack_api_key`. Alternatively use the `CLICKSTACK_ENDPOINT` environment variable. For ClickStack on ClickHouse Cloud, leave unset and use `clickstack_service_id` instead.
 - `clickstack_service_id` (String) ID of the ClickHouse Cloud service running managed ClickStack. When set, clickhouse_clickstack_* resources are served through the ClickHouse Cloud API, authenticating with `organization_id`, `token_key` and `token_secret`. Alternatively use the `CLICKSTACK_SERVICE_ID` environment variable. Mutually exclusive with `clickstack_api_key` and `clickstack_endpoint`.
 - `organization_id` (String) ID of the organization the provider will create services under. Alternatively, can be configured using the `CLICKHOUSE_ORG_ID` environment variable.

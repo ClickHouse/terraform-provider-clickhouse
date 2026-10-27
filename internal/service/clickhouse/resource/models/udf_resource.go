@@ -23,7 +23,6 @@ type UDFResourceModel struct {
 	SendChunkHeader         types.Bool   `tfsdk:"send_chunk_header"`
 	Format                  types.String `tfsdk:"format"`
 	SandboxType             types.String `tfsdk:"sandbox_type"`
-	SandboxVersion          types.String `tfsdk:"sandbox_version"`
 	FailOnBuildError        types.Bool   `tfsdk:"fail_on_build_error"`
 	Version                 types.Int64  `tfsdk:"version"`
 	Status                  types.String `tfsdk:"status"`

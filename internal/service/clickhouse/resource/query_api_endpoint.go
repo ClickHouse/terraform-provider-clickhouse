@@ -23,14 +23,12 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 var (
-	_ resource.Resource                   = (*QueryAPIEndpointResource)(nil)
-	_ resource.ResourceWithConfigure      = (*QueryAPIEndpointResource)(nil)
-	_ resource.ResourceWithImportState    = (*QueryAPIEndpointResource)(nil)
-	_ resource.ResourceWithValidateConfig = (*QueryAPIEndpointResource)(nil)
+	_ resource.Resource                = (*QueryAPIEndpointResource)(nil)
+	_ resource.ResourceWithConfigure   = (*QueryAPIEndpointResource)(nil)
+	_ resource.ResourceWithImportState = (*QueryAPIEndpointResource)(nil)
 
 	queryAPIEndpointNonWhitespacePattern = regexp.MustCompile(`\S`)
 )
@@ -167,14 +165,6 @@ func (r *QueryAPIEndpointResource) Configure(
 	r.client = providerData.API
 }
 
-func (r *QueryAPIEndpointResource) ValidateConfig(
-	_ context.Context,
-	_ resource.ValidateConfigRequest,
-	resp *resource.ValidateConfigResponse,
-) {
-	utils.BetaWarning("clickhouse_query_api_endpoint", &resp.Diagnostics)
-}
-
 func (r *QueryAPIEndpointResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
@@ -214,8 +204,6 @@ func (r *QueryAPIEndpointResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	utils.BetaWarning("clickhouse_query_api_endpoint", &resp.Diagnostics)
-
 	var state models.QueryAPIEndpointResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

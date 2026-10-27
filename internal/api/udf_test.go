@@ -663,6 +663,9 @@ func assertUDFWriteBody(t *testing.T, r *http.Request, create bool) {
 	if _, exists := body["version"]; exists {
 		t.Errorf("server-assigned version must not be sent: %#v", body)
 	}
+	if _, exists := body["sandboxVersion"]; exists {
+		t.Errorf("sandboxVersion must be selected by the API: %#v", body)
+	}
 	if body["uploadId"] != "upload-1" {
 		t.Errorf("uploadId = %#v; want upload-1", body["uploadId"])
 	}
@@ -686,7 +689,6 @@ func testUDFVersionRequest(uploadID string) UDFVersionCreateRequest {
 		MaxCommandExecutionTime: &maxExecutionTime,
 		Format:                  "TabSeparated",
 		SandboxType:             UDFSandboxTypeBasic,
-		SandboxVersion:          UDFSandboxVersionV2,
 	}
 }
 

@@ -105,7 +105,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 - `field_mappings` (Attributes List) Field mapping between source and destination table. (see [below for nested schema](#nestedatt--field_mappings))
 - `scaling` (Attributes) (see [below for nested schema](#nestedatt--scaling))
 - `settings` (Dynamic) Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the OpenAPI documentation at https://clickhouse.com/docs/cloud/manage/api/swagger (search for the ClickPipes settings endpoint).
-- `stopped` (Boolean) Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running). Cannot be set to `true` on creation — the ClickPipe must be created in a running state and then stopped via a subsequent apply.
+- `stopped` (Boolean) Whether the ClickPipe should be stopped. Default is `false`. For streaming and object-storage ClickPipes, set to `true` to create the pipe without starting ingestion, then set to `false` and apply to start it. Database ClickPipes cannot be created stopped. This is the configured intent; `state` reports the live status.
 - `trigger_resync` (Boolean) Set to `true` to trigger a resync operation. Only applicable for Postgres pipes. Automatically resets to `false` after the resync is triggered. **Note:** This will always show a diff in `terraform plan` after setting to `true` since it resets to `false` in state.
 
 ### Read-Only
@@ -145,7 +145,7 @@ Optional:
 
 - `partition_by` (String) The column to partition the table by.
 - `primary_key` (String) The primary key of the table.
-- `sorting_key` (List of String) The list of columns for the sorting key.
+- `sorting_key` (List of String) The list of columns for the sorting key. Required when engine type is `ReplacingMergeTree` and the pipe is being created.
 - `ttl` (String) ClickHouse `TTL` expression applied to the destination table when ClickPipes creates it.
 
 <a id="nestedatt--destination--table_definition--engine"></a>
@@ -158,7 +158,7 @@ Required:
 Optional:
 
 - `column_ids` (List of String) Column IDs to sum for SummingMergeTree engine. Required when engine type is `SummingMergeTree`.
-- `version_column_id` (String) Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.
+- `version_column_id` (String) Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree` and the pipe is being created.
 
 
 
@@ -182,32 +182,34 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for BigQuery access. (see [below for nested schema](#nestedatt--source--bigquery--credentials))
 - `settings` (Attributes) Settings for the BigQuery pipe. (see [below for nested schema](#nestedatt--source--bigquery--settings))
 - `snapshot_staging_path` (String) GCS bucket path for staging snapshot data (e.g., gs://my-bucket/staging/). Data will be automatically cleaned up after initial load.
 - `table_mappings` (Attributes List) Table mappings from BigQuery source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--bigquery--table_mappings))
 
-<a id="nestedatt--source--bigquery--credentials"></a>
-### Nested Schema for `source.bigquery.credentials`
+Optional:
 
-Required:
-
-- `service_account_file` (String, Sensitive) Google Cloud service account JSON key file content, base64 encoded.
-
+- `authentication` (String) Authentication method for the BigQuery source. (`SERVICE_ACCOUNT`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.
+- `credentials` (Attributes, Sensitive) The credentials for BigQuery access. Required with `SERVICE_ACCOUNT` authentication and must be omitted with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. (see [below for nested schema](#nestedatt--source--bigquery--credentials))
+- `project_id` (String) GCP project ID that owns the BigQuery resources. Required with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication.
 
 <a id="nestedatt--source--bigquery--settings"></a>
 ### Nested Schema for `source.bigquery.settings`
 
 Required:
 
-- `replication_mode` (String) Replication mode for the BigQuery pipe. (`snapshot`)
+- `replication_mode` (String) Replication mode for the BigQuery pipe. (`cdc`, `snapshot`, `cdc_only`)
 
 Optional:
 
 - `allow_nullable_columns` (Boolean) Allow nullable columns in the destination table.
 - `initial_load_parallelism` (Number) Number of parallel workers during initial load.
+- `pull_window_size_seconds` (Number) Maximum amount of time one pull (query) can cover. Applies when the pipe has fallen behind, e.g. on the first CDC sync or when resuming after a pause: with a 6 hour limit, a pipe that is 3 days behind catches up in 12 smaller pulls instead of one large query. If a pull fails, only that pull is retried. Must be omitted when replication_mode is `snapshot`. Defaults to 86400 (24 hours) for CDC modes.
+- `query_cdc_pull_sync_parallelism` (Number) Number of tables pulled in parallel during a CDC sync. Must be omitted when replication_mode is `snapshot`. Defaults to 4 for CDC modes.
+- `replication_method` (String) How changes are captured from BigQuery. (`query_based`, `events_based`). `query_based` polls each table using a watermark timestamp column (see `query_cdc_watermark_column` in `table_mappings`), `events_based` reads the BigQuery change history using the `APPENDS` or `CHANGES` table function (see `events_function` in `table_mappings`). Required when `replication_mode` is `cdc` or `cdc_only`, and must be omitted for `snapshot`.
 - `snapshot_num_rows_per_partition` (Number) Number of rows to snapshot per partition.
 - `snapshot_number_of_parallel_tables` (Number) Number of parallel tables to snapshot.
+- `sync_delay_seconds` (Number) Each CDC sync reads data only up to now minus this delay, giving recently written rows time to become visible in BigQuery. Increase it if your tables are loaded via batch jobs or Google Cloud Dataflow; if set too low, late-visible rows may be skipped. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.
+- `sync_interval_seconds` (Number) Interval in seconds between CDC syncs. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.
 
 
 <a id="nestedatt--source--bigquery--table_mappings"></a>
@@ -221,10 +223,20 @@ Required:
 
 Optional:
 
+- `events_function` (String) BigQuery table function used to read changes. (`appends`, `changes`). Required for every table when `replication_method` is `events_based`; must be omitted otherwise.
 - `excluded_columns` (Set of String) Columns to exclude from replication.
+- `query_cdc_watermark_column` (String) Source column of type `TIMESTAMP` used as the CDC watermark. Required for every table when `replication_method` is `query_based`; must be omitted otherwise.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
+
+
+<a id="nestedatt--source--bigquery--credentials"></a>
+### Nested Schema for `source.bigquery.credentials`
+
+Required:
+
+- `service_account_file` (String, Sensitive) Google Cloud service account JSON key file content, base64 encoded.
 
 
 
@@ -239,7 +251,7 @@ Required:
 
 Optional:
 
-- `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `IAM_ROLE`, `IAM_USER`, `MUTUAL_TLS`). Default is `PLAIN`.
+- `authentication` (String) The authentication method for the Kafka source. (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `IAM_ROLE`, `IAM_USER`, `MUTUAL_TLS`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). Default is `PLAIN`. `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview and is supported only for GCMK.
 - `ca_certificate` (String) PEM encoded CA certificates to validate the broker's certificate.
 - `consumer_group` (String) Consumer group of the Kafka source. If not provided `clickpipes-<ID>` will be used.
 - `credentials` (Attributes) The credentials for the Kafka source. (see [below for nested schema](#nestedatt--source--kafka--credentials))
@@ -248,7 +260,7 @@ Optional:
 - `offset` (Attributes) The Kafka offset. (see [below for nested schema](#nestedatt--source--kafka--offset))
 - `protobuf_schema` (String, Sensitive) Base64-encoded Protobuf schema used instead of `schema_registry`. Use `filebase64()` with a `.proto` or serialized `FileDescriptorSet` file up to 768 KiB. Requires `format = "Protobuf"` and forces replacement when changed.
 - `reverse_private_endpoint_ids` (List of String) The list of reverse private endpoint IDs for the Kafka source. (comma separated)
-- `schema_registry` (Attributes) The schema registry for the Kafka source. Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
+- `schema_registry` (Attributes) The schema registry for the Kafka source: a Confluent-compatible registry (`url`, `authentication`, `credentials`) or an AWS Glue schema registry (`type = "glue"` with a `glue` block). Immutable: any change forces pipe replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry))
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tombstone_mode` (String) How Kafka tombstone records are handled. Set to `delete` to delete the matching destination row using field mappings sourced from `_key` or `_key.<field>`; this requires `exactly_once = true`. Set to `soft_delete` to write a row with the `_is_deleted` virtual column set to `true`; exactly-once delivery is not required. This setting is create-only; changing it forces ClickPipe replacement.
 - `type` (String) The type of the Kafka source. (`kafka`, `redpanda`, `confluent`, `msk`, `warpstream`, `azureeventhub`, `gcmk`). Default is `kafka`.
@@ -284,11 +296,13 @@ Optional:
 <a id="nestedatt--source--kafka--schema_registry"></a>
 ### Nested Schema for `source.kafka.schema_registry`
 
-Required:
+Optional:
 
-- `authentication` (String) The authentication method for the Schema Registry. Only supported is `PLAIN`.
-- `credentials` (Attributes, Sensitive) The credentials for the Schema Registry. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--credentials))
-- `url` (String) The URL of the schema registry.
+- `authentication` (String) The authentication method for the Schema Registry. Only supported is `PLAIN`. Required for `confluent` registries.
+- `credentials` (Attributes, Sensitive) The credentials for the Schema Registry. Required for `confluent` registries. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--credentials))
+- `glue` (Attributes) The AWS Glue schema registry. Required for `glue` registries. (see [below for nested schema](#nestedatt--source--kafka--schema_registry--glue))
+- `type` (String) The type of the schema registry. (`confluent`, `glue`). Default is `confluent`. The AWS Glue schema registry must be enabled for the organization.
+- `url` (String) The URL of the schema registry. Required for `confluent` registries.
 
 <a id="nestedatt--source--kafka--schema_registry--credentials"></a>
 ### Nested Schema for `source.kafka.schema_registry.credentials`
@@ -302,6 +316,19 @@ Optional:
 - `password` (String, Sensitive) The password for the Schema Registry. Either `password` or `password_wo` must be provided.
 - `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Schema Registry. Not persisted to state. Pair with `password_wo_version`; changing schema registry credentials forces pipe replacement.
 - `password_wo_version` (Number) Version trigger for `password_wo`. Incrementing signals a new password, which forces pipe replacement - schema registry credentials cannot be updated in place.
+
+
+<a id="nestedatt--source--kafka--schema_registry--glue"></a>
+### Nested Schema for `source.kafka.schema_registry.glue`
+
+Required:
+
+- `region` (String) The AWS region of the Glue schema registry.
+- `registry_name` (String) The name of the Glue schema registry.
+
+Optional:
+
+- `role_arn` (String) The IAM role to assume for Glue schema registry access. Defaults to the IAM identity of the Kafka source, so it is required unless the Kafka source uses `IAM_ROLE` or `IAM_USER` authentication.
 
 
 
@@ -421,15 +448,15 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. (see [below for nested schema](#nestedatt--source--mysql--credentials))
-- `host` (String) The hostname of the MySQL instance.
+- `host` (String) The hostname of the MySQL instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).
 - `settings` (Attributes) Settings for the MySQL CDC pipe. (see [below for nested schema](#nestedatt--source--mysql--settings))
 - `table_mappings` (Attributes Set) Table mappings from MySQL source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--mysql--table_mappings))
 
 Optional:
 
-- `authentication` (String) Authentication method for MySQL connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.
+- `authentication` (String) Authentication method for MySQL connection. Supported values: `basic`, `IAM_ROLE`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. Default is `basic`.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the MySQL server certificate.
+- `credentials` (Attributes, Sensitive) The credentials for the MySQL instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted. (see [below for nested schema](#nestedatt--source--mysql--credentials))
 - `disable_tls` (Boolean) Disable TLS for the MySQL connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the MySQL instance. Default is 3306.
@@ -437,21 +464,7 @@ Optional:
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MySQL connection.
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
-- `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
-
-<a id="nestedatt--source--mysql--credentials"></a>
-### Nested Schema for `source.mysql.credentials`
-
-Required:
-
-- `username` (String, Sensitive) The username for the MySQL instance.
-
-Optional:
-
-- `password` (String, Sensitive) The password for the MySQL instance. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
-- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
-
+- `type` (String) The type of MySQL-compatible source. (`mysql`, `rdsmysql`, `auroramysql`, `cloudsqlmysql`, `planetscalevitess`, `mariadb`, `rdsmariadb`). Default is `mysql`.
 
 <a id="nestedatt--source--mysql--settings"></a>
 ### Nested Schema for `source.mysql.settings`
@@ -492,6 +505,20 @@ Optional:
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
 
 
+<a id="nestedatt--source--mysql--credentials"></a>
+### Nested Schema for `source.mysql.credentials`
+
+Required:
+
+- `username` (String, Sensitive) The username for the MySQL instance.
+
+Optional:
+
+- `password` (String, Sensitive) The password for the MySQL instance. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the MySQL instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
+
+
 
 <a id="nestedatt--source--object_storage"></a>
 ### Nested Schema for `source.object_storage`
@@ -503,7 +530,7 @@ Required:
 Optional:
 
 - `access_key` (Attributes) Access key (see [below for nested schema](#nestedatt--source--object_storage--access_key))
-- `authentication` (String) CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER and SERVICE_ACCOUNT are for GCS. If not provided, no authentication is used
+- `authentication` (String) CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER, SERVICE_ACCOUNT, and the Private Preview SERVICE_ACCOUNT_WORKLOAD_IDENTITY are for GCS. If not provided, no authentication is used.
 - `azure_container_name` (String) Container name for Azure Blob Storage. Required when type is azureblobstorage. Example: `mycontainer`
 - `compression` (String) Compression algorithm used for the files.. (`none`, `auto`, `gzip`, `brotli`, `br`, `xz`, `LZMA`, `zstd`)
 - `connection_string` (String, Sensitive) Connection string for Azure Blob Storage authentication. Required when authentication is CONNECTION_STRING. Example: `DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=mykey;EndpointSuffix=core.windows.net`
@@ -533,16 +560,16 @@ Optional:
 
 Required:
 
-- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. (see [below for nested schema](#nestedatt--source--postgres--credentials))
 - `database` (String) The database name of the Postgres instance.
-- `host` (String) The hostname of the Postgres instance.
+- `host` (String) The hostname of the Postgres instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).
 - `settings` (Attributes) Settings for the Postgres CDC pipe. (see [below for nested schema](#nestedatt--source--postgres--settings))
 - `table_mappings` (Attributes Set) Table mappings from Postgres source to ClickHouse destination. (see [below for nested schema](#nestedatt--source--postgres--table_mappings))
 
 Optional:
 
-- `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`.
+- `authentication` (String) Authentication method for Postgres connection. Supported values: `basic`, `IAM_ROLE`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. Default is `basic`.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the Postgres server certificate.
+- `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted. (see [below for nested schema](#nestedatt--source--postgres--credentials))
 - `disable_tls` (Boolean) Disable TLS for the Postgres connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
 - `port` (Number) The port of the Postgres instance. Default is 5432.
@@ -550,20 +577,6 @@ Optional:
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections. Used to verify the server certificate.
 - `type` (String) The type of the Postgres source. (`postgres`, `supabase`, `neon`, `alloydb`, `planetscale`, `rdspostgres`, `aurorapostgres`, `cloudsqlpostgres`, `azurepostgres`, `crunchybridge`, `tigerdata`). Default is `postgres`.
-
-<a id="nestedatt--source--postgres--credentials"></a>
-### Nested Schema for `source.postgres.credentials`
-
-Required:
-
-- `username` (String, Sensitive) The username for the Postgres instance.
-
-Optional:
-
-- `password` (String, Sensitive) The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
-- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
-
 
 <a id="nestedatt--source--postgres--settings"></a>
 ### Nested Schema for `source.postgres.settings`
@@ -605,17 +618,30 @@ Optional:
 - `use_custom_sorting_key` (Boolean) Whether to use a custom sorting key for the target table.
 
 
+<a id="nestedatt--source--postgres--credentials"></a>
+### Nested Schema for `source.postgres.credentials`
+
+Required:
+
+- `username` (String, Sensitive) The username for the Postgres instance.
+
+Optional:
+
+- `password` (String, Sensitive) The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
+- `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
+
+
 
 <a id="nestedatt--source--pubsub"></a>
 ### Nested Schema for `source.pubsub`
 
 Required:
 
-- `authentication` (String) The authentication method for the Pub/Sub source. Currently only `SERVICE_ACCOUNT` is supported.
+- `authentication` (String) The authentication method for the Pub/Sub source. (`SERVICE_ACCOUNT`, `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.
 - `format` (String) The message format of the Pub/Sub topic. (`JSONEachRow`, `Avro`, `Protobuf`)
 - `project_id` (String) The GCP project ID that owns the Pub/Sub topic.
 - `seek_type` (String) The starting position for consuming the subscription. (`latest`, `earliest`, `timestamp`)
-- `service_account_key` (Attributes) GCP service account credentials. Required on create; provide a new value on update to rotate the key. (see [below for nested schema](#nestedatt--source--pubsub--service_account_key))
 - `topic` (String) The Pub/Sub topic name (not the fully-qualified path).
 
 Optional:
@@ -624,6 +650,7 @@ Optional:
 - `enable_ordering` (Boolean) Whether to enable ordered message delivery. Immutable — changing it requires destroy+create because ordered delivery is a property of the subscription at creation time.
 - `filter` (String) Optional Pub/Sub subscription filter expression (CEL). Max 256 characters. Immutable — changing it requires destroy+create because the underlying subscription filter cannot be edited in place.
 - `seek_timestamp` (String) RFC 3339 timestamp (e.g. `2026-04-10T12:00:00Z`). Required when `seek_type = "timestamp"`; must be omitted otherwise.
+- `service_account_key` (Attributes) GCP service account credentials. Required with `SERVICE_ACCOUNT` and prohibited with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`; provide a new value on update to rotate the key. (see [below for nested schema](#nestedatt--source--pubsub--service_account_key))
 
 <a id="nestedatt--source--pubsub--service_account_key"></a>
 ### Nested Schema for `source.pubsub.service_account_key`

@@ -38,5 +38,6 @@ func (servicePackage) DataSources() []func() upstreamdatasource.DataSource {
 	return []func() upstreamdatasource.DataSource{
 		NewDashboardDataSource,
 		NewRoleDataSource,
+		NewSourceDataSource,
 	}
 }

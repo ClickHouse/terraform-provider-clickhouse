@@ -51,27 +51,57 @@ func (m ClickPipeKafkaOffsetModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeKafkaGlueSchemaRegistryModel struct {
+	Region       types.String `tfsdk:"region"`
+	RegistryName types.String `tfsdk:"registry_name"`
+	RoleArn      types.String `tfsdk:"role_arn"`
+}
+
+func (m ClickPipeKafkaGlueSchemaRegistryModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"region":        types.StringType,
+			"registry_name": types.StringType,
+			"role_arn":      types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeKafkaGlueSchemaRegistryModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"region":        m.Region,
+		"registry_name": m.RegistryName,
+		"role_arn":      m.RoleArn,
+	})
+}
+
 type ClickPipeKafkaSchemaRegistryModel struct {
+	Type           types.String `tfsdk:"type"`
 	URL            types.String `tfsdk:"url"`
 	Authentication types.String `tfsdk:"authentication"`
 	Credentials    types.Object `tfsdk:"credentials"`
+	Glue           types.Object `tfsdk:"glue"`
 }
 
 func (m ClickPipeKafkaSchemaRegistryModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
+			"type":           types.StringType,
 			"url":            types.StringType,
 			"authentication": types.StringType,
 			"credentials":    ClickPipeSourceCredentialsModel{}.ObjectType(),
+			"glue":           ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType(),
 		},
 	}
 }
 
 func (m ClickPipeKafkaSchemaRegistryModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"type":           m.Type,
 		"url":            m.URL,
 		"authentication": m.Authentication,
 		"credentials":    m.Credentials,
+		"glue":           m.Glue,
 	})
 }
 
@@ -592,6 +622,11 @@ func (m ClickPipeServiceAccountModel) ObjectValue() types.Object {
 
 type ClickPipeBigQuerySettingsModel struct {
 	ReplicationMode                types.String `tfsdk:"replication_mode"`
+	ReplicationMethod              types.String `tfsdk:"replication_method"`
+	SyncIntervalSeconds            types.Int64  `tfsdk:"sync_interval_seconds"`
+	QueryCDCPullSyncParallelism    types.Int64  `tfsdk:"query_cdc_pull_sync_parallelism"`
+	SyncDelaySeconds               types.Int64  `tfsdk:"sync_delay_seconds"`
+	PullWindowSizeSeconds          types.Int64  `tfsdk:"pull_window_size_seconds"`
 	AllowNullableColumns           types.Bool   `tfsdk:"allow_nullable_columns"`
 	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
 	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
@@ -602,6 +637,11 @@ func (m ClickPipeBigQuerySettingsModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"replication_mode":                   types.StringType,
+			"replication_method":                 types.StringType,
+			"sync_interval_seconds":              types.Int64Type,
+			"query_cdc_pull_sync_parallelism":    types.Int64Type,
+			"sync_delay_seconds":                 types.Int64Type,
+			"pull_window_size_seconds":           types.Int64Type,
 			"allow_nullable_columns":             types.BoolType,
 			"initial_load_parallelism":           types.Int64Type,
 			"snapshot_num_rows_per_partition":    types.Int64Type,
@@ -613,6 +653,11 @@ func (m ClickPipeBigQuerySettingsModel) ObjectType() types.ObjectType {
 func (m ClickPipeBigQuerySettingsModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"replication_mode":                   m.ReplicationMode,
+		"replication_method":                 m.ReplicationMethod,
+		"sync_interval_seconds":              m.SyncIntervalSeconds,
+		"query_cdc_pull_sync_parallelism":    m.QueryCDCPullSyncParallelism,
+		"sync_delay_seconds":                 m.SyncDelaySeconds,
+		"pull_window_size_seconds":           m.PullWindowSizeSeconds,
 		"allow_nullable_columns":             m.AllowNullableColumns,
 		"initial_load_parallelism":           m.InitialLoadParallelism,
 		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
@@ -628,6 +673,9 @@ type ClickPipeBigQueryTableMappingModel struct {
 	UseCustomSortingKey types.Bool   `tfsdk:"use_custom_sorting_key"`
 	SortingKeys         types.List   `tfsdk:"sorting_keys"`
 	TableEngine         types.String `tfsdk:"table_engine"`
+
+	QueryCDCWatermarkColumn types.String `tfsdk:"query_cdc_watermark_column"`
+	EventsFunction          types.String `tfsdk:"events_function"`
 }
 
 func (m ClickPipeBigQueryTableMappingModel) ObjectType() types.ObjectType {
@@ -640,6 +688,9 @@ func (m ClickPipeBigQueryTableMappingModel) ObjectType() types.ObjectType {
 			"use_custom_sorting_key": types.BoolType,
 			"sorting_keys":           types.ListType{ElemType: types.StringType},
 			"table_engine":           types.StringType,
+
+			"query_cdc_watermark_column": types.StringType,
+			"events_function":            types.StringType,
 		},
 	}
 }
@@ -653,11 +704,16 @@ func (m ClickPipeBigQueryTableMappingModel) ObjectValue() types.Object {
 		"use_custom_sorting_key": m.UseCustomSortingKey,
 		"sorting_keys":           m.SortingKeys,
 		"table_engine":           m.TableEngine,
+
+		"query_cdc_watermark_column": m.QueryCDCWatermarkColumn,
+		"events_function":            m.EventsFunction,
 	})
 }
 
 type ClickPipeBigQuerySourceModel struct {
 	SnapshotStagingPath types.String `tfsdk:"snapshot_staging_path"`
+	Authentication      types.String `tfsdk:"authentication"`
+	ProjectID           types.String `tfsdk:"project_id"`
 	Settings            types.Object `tfsdk:"settings"`
 	TableMappings       types.List   `tfsdk:"table_mappings"`
 	Credentials         types.Object `tfsdk:"credentials"`
@@ -667,6 +723,8 @@ func (m ClickPipeBigQuerySourceModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
 			"snapshot_staging_path": types.StringType,
+			"authentication":        types.StringType,
+			"project_id":            types.StringType,
 			"settings":              ClickPipeBigQuerySettingsModel{}.ObjectType(),
 			"table_mappings":        types.ListType{ElemType: ClickPipeBigQueryTableMappingModel{}.ObjectType()},
 			"credentials":           ClickPipeServiceAccountModel{}.ObjectType(),
@@ -677,6 +735,8 @@ func (m ClickPipeBigQuerySourceModel) ObjectType() types.ObjectType {
 func (m ClickPipeBigQuerySourceModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
 		"snapshot_staging_path": m.SnapshotStagingPath,
+		"authentication":        m.Authentication,
+		"project_id":            m.ProjectID,
 		"settings":              m.Settings,
 		"table_mappings":        m.TableMappings,
 		"credentials":           m.Credentials,

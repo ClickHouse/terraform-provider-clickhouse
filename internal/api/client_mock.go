@@ -33,6 +33,20 @@ type ClientMock struct {
 	beforeChangeClickPipeStateCounter uint64
 	ChangeClickPipeStateMock          mClientMockChangeClickPipeState
 
+	funcCreateApiKey          func(ctx context.Context, req ApiKeyCreateRequest) (ap1 *ApiKeyCreateResult, err error)
+	funcCreateApiKeyOrigin    string
+	inspectFuncCreateApiKey   func(ctx context.Context, req ApiKeyCreateRequest)
+	afterCreateApiKeyCounter  uint64
+	beforeCreateApiKeyCounter uint64
+	CreateApiKeyMock          mClientMockCreateApiKey
+
+	funcCreateByocInfrastructure          func(ctx context.Context, r ByocInfrastructureCreateRequest) (bp1 *ByocInfrastructure, err error)
+	funcCreateByocInfrastructureOrigin    string
+	inspectFuncCreateByocInfrastructure   func(ctx context.Context, r ByocInfrastructureCreateRequest)
+	afterCreateByocInfrastructureCounter  uint64
+	beforeCreateByocInfrastructureCounter uint64
+	CreateByocInfrastructureMock          mClientMockCreateByocInfrastructure
+
 	funcCreateClickPipe          func(ctx context.Context, serviceId string, clickPipe ClickPipe) (cp1 *ClickPipe, err error)
 	funcCreateClickPipeOrigin    string
 	inspectFuncCreateClickPipe   func(ctx context.Context, serviceId string, clickPipe ClickPipe)
@@ -123,6 +137,20 @@ type ClientMock struct {
 	afterCreateUDFVersionCounter  uint64
 	beforeCreateUDFVersionCounter uint64
 	CreateUDFVersionMock          mClientMockCreateUDFVersion
+
+	funcDeleteApiKey          func(ctx context.Context, keyId string) (err error)
+	funcDeleteApiKeyOrigin    string
+	inspectFuncDeleteApiKey   func(ctx context.Context, keyId string)
+	afterDeleteApiKeyCounter  uint64
+	beforeDeleteApiKeyCounter uint64
+	DeleteApiKeyMock          mClientMockDeleteApiKey
+
+	funcDeleteByocInfrastructure          func(ctx context.Context, byocId string) (err error)
+	funcDeleteByocInfrastructureOrigin    string
+	inspectFuncDeleteByocInfrastructure   func(ctx context.Context, byocId string)
+	afterDeleteByocInfrastructureCounter  uint64
+	beforeDeleteByocInfrastructureCounter uint64
+	DeleteByocInfrastructureMock          mClientMockDeleteByocInfrastructure
 
 	funcDeleteClickPipe          func(ctx context.Context, serviceId string, clickPipeId string) (err error)
 	funcDeleteClickPipeOrigin    string
@@ -222,6 +250,13 @@ type ClientMock struct {
 	beforeDetachUDFCounter uint64
 	DetachUDFMock          mClientMockDetachUDF
 
+	funcGetApiKey          func(ctx context.Context, keyId string) (ap1 *ApiKey, err error)
+	funcGetApiKeyOrigin    string
+	inspectFuncGetApiKey   func(ctx context.Context, keyId string)
+	afterGetApiKeyCounter  uint64
+	beforeGetApiKeyCounter uint64
+	GetApiKeyMock          mClientMockGetApiKey
+
 	funcGetApiKeyID          func(ctx context.Context, name *string) (ap1 *ApiKey, err error)
 	funcGetApiKeyIDOrigin    string
 	inspectFuncGetApiKeyID   func(ctx context.Context, name *string)
@@ -235,6 +270,27 @@ type ClientMock struct {
 	afterGetBackupConfigurationCounter  uint64
 	beforeGetBackupConfigurationCounter uint64
 	GetBackupConfigurationMock          mClientMockGetBackupConfiguration
+
+	funcGetByocInfrastructure          func(ctx context.Context, byocId string) (bp1 *ByocInfrastructureDetails, err error)
+	funcGetByocInfrastructureOrigin    string
+	inspectFuncGetByocInfrastructure   func(ctx context.Context, byocId string)
+	afterGetByocInfrastructureCounter  uint64
+	beforeGetByocInfrastructureCounter uint64
+	GetByocInfrastructureMock          mClientMockGetByocInfrastructure
+
+	funcGetByocInfrastructurePrivateEndpointConfig          func(ctx context.Context, byocId string) (bp1 *ByocInfrastructurePrivateEndpointConfig, err error)
+	funcGetByocInfrastructurePrivateEndpointConfigOrigin    string
+	inspectFuncGetByocInfrastructurePrivateEndpointConfig   func(ctx context.Context, byocId string)
+	afterGetByocInfrastructurePrivateEndpointConfigCounter  uint64
+	beforeGetByocInfrastructurePrivateEndpointConfigCounter uint64
+	GetByocInfrastructurePrivateEndpointConfigMock          mClientMockGetByocInfrastructurePrivateEndpointConfig
+
+	funcGetByocInfrastructureTags          func(ctx context.Context, byocId string) (m1 map[string]string, err error)
+	funcGetByocInfrastructureTagsOrigin    string
+	inspectFuncGetByocInfrastructureTags   func(ctx context.Context, byocId string)
+	afterGetByocInfrastructureTagsCounter  uint64
+	beforeGetByocInfrastructureTagsCounter uint64
+	GetByocInfrastructureTagsMock          mClientMockGetByocInfrastructureTags
 
 	funcGetClickPipe          func(ctx context.Context, serviceId string, clickPipeId string) (cp1 *ClickPipe, err error)
 	funcGetClickPipeOrigin    string
@@ -256,6 +312,13 @@ type ClientMock struct {
 	afterGetClickPipeSettingsCounter  uint64
 	beforeGetClickPipeSettingsCounter uint64
 	GetClickPipeSettingsMock          mClientMockGetClickPipeSettings
+
+	funcGetClickPipesServiceContext          func(ctx context.Context, serviceId string) (cp1 *ClickPipesServiceContext, err error)
+	funcGetClickPipesServiceContextOrigin    string
+	inspectFuncGetClickPipesServiceContext   func(ctx context.Context, serviceId string)
+	afterGetClickPipesServiceContextCounter  uint64
+	beforeGetClickPipesServiceContextCounter uint64
+	GetClickPipesServiceContextMock          mClientMockGetClickPipesServiceContext
 
 	funcGetMember          func(ctx context.Context, userID string) (mp1 *Member, err error)
 	funcGetMemberOrigin    string
@@ -509,12 +572,26 @@ type ClientMock struct {
 	beforeSetPostgresPasswordCounter uint64
 	SetPostgresPasswordMock          mClientMockSetPostgresPassword
 
+	funcUpdateApiKey          func(ctx context.Context, keyId string, req ApiKeyUpdateRequest) (ap1 *ApiKey, err error)
+	funcUpdateApiKeyOrigin    string
+	inspectFuncUpdateApiKey   func(ctx context.Context, keyId string, req ApiKeyUpdateRequest)
+	afterUpdateApiKeyCounter  uint64
+	beforeUpdateApiKeyCounter uint64
+	UpdateApiKeyMock          mClientMockUpdateApiKey
+
 	funcUpdateBackupConfiguration          func(ctx context.Context, serviceId string, b BackupConfiguration) (bp1 *BackupConfiguration, err error)
 	funcUpdateBackupConfigurationOrigin    string
 	inspectFuncUpdateBackupConfiguration   func(ctx context.Context, serviceId string, b BackupConfiguration)
 	afterUpdateBackupConfigurationCounter  uint64
 	beforeUpdateBackupConfigurationCounter uint64
 	UpdateBackupConfigurationMock          mClientMockUpdateBackupConfiguration
+
+	funcUpdateByocInfrastructure          func(ctx context.Context, byocId string, r ByocInfrastructureUpdateRequest) (bp1 *ByocInfrastructure, err error)
+	funcUpdateByocInfrastructureOrigin    string
+	inspectFuncUpdateByocInfrastructure   func(ctx context.Context, byocId string, r ByocInfrastructureUpdateRequest)
+	afterUpdateByocInfrastructureCounter  uint64
+	beforeUpdateByocInfrastructureCounter uint64
+	UpdateByocInfrastructureMock          mClientMockUpdateByocInfrastructure
 
 	funcUpdateClickPipe          func(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeUpdate) (cp1 *ClickPipe, err error)
 	funcUpdateClickPipeOrigin    string
@@ -635,12 +712,26 @@ type ClientMock struct {
 	beforeUploadUDFArchiveCounter uint64
 	UploadUDFArchiveMock          mClientMockUploadUDFArchive
 
+	funcValidateByocInfrastructure          func(ctx context.Context, r ByocInfrastructureValidateRequest) (bp1 *ByocInfrastructureValidation, err error)
+	funcValidateByocInfrastructureOrigin    string
+	inspectFuncValidateByocInfrastructure   func(ctx context.Context, r ByocInfrastructureValidateRequest)
+	afterValidateByocInfrastructureCounter  uint64
+	beforeValidateByocInfrastructureCounter uint64
+	ValidateByocInfrastructureMock          mClientMockValidateByocInfrastructure
+
 	funcValidateSSHKey          func(ctx context.Context, serviceId string, sshKeyId string) (sp1 *SSHKey, err error)
 	funcValidateSSHKeyOrigin    string
 	inspectFuncValidateSSHKey   func(ctx context.Context, serviceId string, sshKeyId string)
 	afterValidateSSHKeyCounter  uint64
 	beforeValidateSSHKeyCounter uint64
 	ValidateSSHKeyMock          mClientMockValidateSSHKey
+
+	funcWaitForByocInfrastructureState          func(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
+	funcWaitForByocInfrastructureStateOrigin    string
+	inspectFuncWaitForByocInfrastructureState   func(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int)
+	afterWaitForByocInfrastructureStateCounter  uint64
+	beforeWaitForByocInfrastructureStateCounter uint64
+	WaitForByocInfrastructureStateMock          mClientMockWaitForByocInfrastructureState
 
 	funcWaitForClickPipeCdcScaling          func(ctx context.Context, serviceId string, expectedCpuMillicores int64, expectedMemoryGb float64, maxElapsedTime time.Duration) (cp1 *ClickPipeCdcScaling, err error)
 	funcWaitForClickPipeCdcScalingOrigin    string
@@ -655,6 +746,13 @@ type ClientMock struct {
 	afterWaitForClickPipeStateCounter  uint64
 	beforeWaitForClickPipeStateCounter uint64
 	WaitForClickPipeStateMock          mClientMockWaitForClickPipeState
+
+	funcWaitForClickPipesGCPWorkloadIdentity          func(ctx context.Context, serviceId string, maxWait time.Duration) (cp1 *ClickPipesGCPWorkloadIdentityContext, err error)
+	funcWaitForClickPipesGCPWorkloadIdentityOrigin    string
+	inspectFuncWaitForClickPipesGCPWorkloadIdentity   func(ctx context.Context, serviceId string, maxWait time.Duration)
+	afterWaitForClickPipesGCPWorkloadIdentityCounter  uint64
+	beforeWaitForClickPipesGCPWorkloadIdentityCounter uint64
+	WaitForClickPipesGCPWorkloadIdentityMock          mClientMockWaitForClickPipesGCPWorkloadIdentity
 
 	funcWaitForPostgresMatch          func(ctx context.Context, postgresId string, predicate func(*Postgres) bool, maxWaitSeconds int) (err error)
 	funcWaitForPostgresMatchOrigin    string
@@ -706,6 +804,12 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.ChangeClickPipeStateMock = mClientMockChangeClickPipeState{mock: m}
 	m.ChangeClickPipeStateMock.callArgs = []*ClientMockChangeClickPipeStateParams{}
 
+	m.CreateApiKeyMock = mClientMockCreateApiKey{mock: m}
+	m.CreateApiKeyMock.callArgs = []*ClientMockCreateApiKeyParams{}
+
+	m.CreateByocInfrastructureMock = mClientMockCreateByocInfrastructure{mock: m}
+	m.CreateByocInfrastructureMock.callArgs = []*ClientMockCreateByocInfrastructureParams{}
+
 	m.CreateClickPipeMock = mClientMockCreateClickPipe{mock: m}
 	m.CreateClickPipeMock.callArgs = []*ClientMockCreateClickPipeParams{}
 
@@ -744,6 +848,12 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.CreateUDFVersionMock = mClientMockCreateUDFVersion{mock: m}
 	m.CreateUDFVersionMock.callArgs = []*ClientMockCreateUDFVersionParams{}
+
+	m.DeleteApiKeyMock = mClientMockDeleteApiKey{mock: m}
+	m.DeleteApiKeyMock.callArgs = []*ClientMockDeleteApiKeyParams{}
+
+	m.DeleteByocInfrastructureMock = mClientMockDeleteByocInfrastructure{mock: m}
+	m.DeleteByocInfrastructureMock.callArgs = []*ClientMockDeleteByocInfrastructureParams{}
 
 	m.DeleteClickPipeMock = mClientMockDeleteClickPipe{mock: m}
 	m.DeleteClickPipeMock.callArgs = []*ClientMockDeleteClickPipeParams{}
@@ -787,11 +897,23 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.DetachUDFMock = mClientMockDetachUDF{mock: m}
 	m.DetachUDFMock.callArgs = []*ClientMockDetachUDFParams{}
 
+	m.GetApiKeyMock = mClientMockGetApiKey{mock: m}
+	m.GetApiKeyMock.callArgs = []*ClientMockGetApiKeyParams{}
+
 	m.GetApiKeyIDMock = mClientMockGetApiKeyID{mock: m}
 	m.GetApiKeyIDMock.callArgs = []*ClientMockGetApiKeyIDParams{}
 
 	m.GetBackupConfigurationMock = mClientMockGetBackupConfiguration{mock: m}
 	m.GetBackupConfigurationMock.callArgs = []*ClientMockGetBackupConfigurationParams{}
+
+	m.GetByocInfrastructureMock = mClientMockGetByocInfrastructure{mock: m}
+	m.GetByocInfrastructureMock.callArgs = []*ClientMockGetByocInfrastructureParams{}
+
+	m.GetByocInfrastructurePrivateEndpointConfigMock = mClientMockGetByocInfrastructurePrivateEndpointConfig{mock: m}
+	m.GetByocInfrastructurePrivateEndpointConfigMock.callArgs = []*ClientMockGetByocInfrastructurePrivateEndpointConfigParams{}
+
+	m.GetByocInfrastructureTagsMock = mClientMockGetByocInfrastructureTags{mock: m}
+	m.GetByocInfrastructureTagsMock.callArgs = []*ClientMockGetByocInfrastructureTagsParams{}
 
 	m.GetClickPipeMock = mClientMockGetClickPipe{mock: m}
 	m.GetClickPipeMock.callArgs = []*ClientMockGetClickPipeParams{}
@@ -801,6 +923,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetClickPipeSettingsMock = mClientMockGetClickPipeSettings{mock: m}
 	m.GetClickPipeSettingsMock.callArgs = []*ClientMockGetClickPipeSettingsParams{}
+
+	m.GetClickPipesServiceContextMock = mClientMockGetClickPipesServiceContext{mock: m}
+	m.GetClickPipesServiceContextMock.callArgs = []*ClientMockGetClickPipesServiceContextParams{}
 
 	m.GetMemberMock = mClientMockGetMember{mock: m}
 	m.GetMemberMock.callArgs = []*ClientMockGetMemberParams{}
@@ -910,8 +1035,14 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.SetPostgresPasswordMock = mClientMockSetPostgresPassword{mock: m}
 	m.SetPostgresPasswordMock.callArgs = []*ClientMockSetPostgresPasswordParams{}
 
+	m.UpdateApiKeyMock = mClientMockUpdateApiKey{mock: m}
+	m.UpdateApiKeyMock.callArgs = []*ClientMockUpdateApiKeyParams{}
+
 	m.UpdateBackupConfigurationMock = mClientMockUpdateBackupConfiguration{mock: m}
 	m.UpdateBackupConfigurationMock.callArgs = []*ClientMockUpdateBackupConfigurationParams{}
+
+	m.UpdateByocInfrastructureMock = mClientMockUpdateByocInfrastructure{mock: m}
+	m.UpdateByocInfrastructureMock.callArgs = []*ClientMockUpdateByocInfrastructureParams{}
 
 	m.UpdateClickPipeMock = mClientMockUpdateClickPipe{mock: m}
 	m.UpdateClickPipeMock.callArgs = []*ClientMockUpdateClickPipeParams{}
@@ -964,14 +1095,23 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.UploadUDFArchiveMock = mClientMockUploadUDFArchive{mock: m}
 	m.UploadUDFArchiveMock.callArgs = []*ClientMockUploadUDFArchiveParams{}
 
+	m.ValidateByocInfrastructureMock = mClientMockValidateByocInfrastructure{mock: m}
+	m.ValidateByocInfrastructureMock.callArgs = []*ClientMockValidateByocInfrastructureParams{}
+
 	m.ValidateSSHKeyMock = mClientMockValidateSSHKey{mock: m}
 	m.ValidateSSHKeyMock.callArgs = []*ClientMockValidateSSHKeyParams{}
+
+	m.WaitForByocInfrastructureStateMock = mClientMockWaitForByocInfrastructureState{mock: m}
+	m.WaitForByocInfrastructureStateMock.callArgs = []*ClientMockWaitForByocInfrastructureStateParams{}
 
 	m.WaitForClickPipeCdcScalingMock = mClientMockWaitForClickPipeCdcScaling{mock: m}
 	m.WaitForClickPipeCdcScalingMock.callArgs = []*ClientMockWaitForClickPipeCdcScalingParams{}
 
 	m.WaitForClickPipeStateMock = mClientMockWaitForClickPipeState{mock: m}
 	m.WaitForClickPipeStateMock.callArgs = []*ClientMockWaitForClickPipeStateParams{}
+
+	m.WaitForClickPipesGCPWorkloadIdentityMock = mClientMockWaitForClickPipesGCPWorkloadIdentity{mock: m}
+	m.WaitForClickPipesGCPWorkloadIdentityMock.callArgs = []*ClientMockWaitForClickPipesGCPWorkloadIdentityParams{}
 
 	m.WaitForPostgresMatchMock = mClientMockWaitForPostgresMatch{mock: m}
 	m.WaitForPostgresMatchMock.callArgs = []*ClientMockWaitForPostgresMatchParams{}
@@ -1800,6 +1940,692 @@ func (m *ClientMock) MinimockChangeClickPipeStateInspect() {
 	if !m.ChangeClickPipeStateMock.invocationsDone() && afterChangeClickPipeStateCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ChangeClickPipeState at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ChangeClickPipeStateMock.expectedInvocations), m.ChangeClickPipeStateMock.expectedInvocationsOrigin, afterChangeClickPipeStateCounter)
+	}
+}
+
+type mClientMockCreateApiKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateApiKeyExpectation
+	expectations       []*ClientMockCreateApiKeyExpectation
+
+	callArgs []*ClientMockCreateApiKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateApiKeyExpectation specifies expectation struct of the Client.CreateApiKey
+type ClientMockCreateApiKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateApiKeyParams
+	paramPtrs          *ClientMockCreateApiKeyParamPtrs
+	expectationOrigins ClientMockCreateApiKeyExpectationOrigins
+	results            *ClientMockCreateApiKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateApiKeyParams contains parameters of the Client.CreateApiKey
+type ClientMockCreateApiKeyParams struct {
+	ctx context.Context
+	req ApiKeyCreateRequest
+}
+
+// ClientMockCreateApiKeyParamPtrs contains pointers to parameters of the Client.CreateApiKey
+type ClientMockCreateApiKeyParamPtrs struct {
+	ctx *context.Context
+	req *ApiKeyCreateRequest
+}
+
+// ClientMockCreateApiKeyResults contains results of the Client.CreateApiKey
+type ClientMockCreateApiKeyResults struct {
+	ap1 *ApiKeyCreateResult
+	err error
+}
+
+// ClientMockCreateApiKeyOrigins contains origins of expectations of the Client.CreateApiKey
+type ClientMockCreateApiKeyExpectationOrigins struct {
+	origin    string
+	originCtx string
+	originReq string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateApiKey *mClientMockCreateApiKey) Optional() *mClientMockCreateApiKey {
+	mmCreateApiKey.optional = true
+	return mmCreateApiKey
+}
+
+// Expect sets up expected params for Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) Expect(ctx context.Context, req ApiKeyCreateRequest) *mClientMockCreateApiKey {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	if mmCreateApiKey.defaultExpectation == nil {
+		mmCreateApiKey.defaultExpectation = &ClientMockCreateApiKeyExpectation{}
+	}
+
+	if mmCreateApiKey.defaultExpectation.paramPtrs != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by ExpectParams functions")
+	}
+
+	mmCreateApiKey.defaultExpectation.params = &ClientMockCreateApiKeyParams{ctx, req}
+	mmCreateApiKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateApiKey.expectations {
+		if minimock.Equal(e.params, mmCreateApiKey.defaultExpectation.params) {
+			mmCreateApiKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateApiKey.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateApiKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) ExpectCtxParam1(ctx context.Context) *mClientMockCreateApiKey {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	if mmCreateApiKey.defaultExpectation == nil {
+		mmCreateApiKey.defaultExpectation = &ClientMockCreateApiKeyExpectation{}
+	}
+
+	if mmCreateApiKey.defaultExpectation.params != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Expect")
+	}
+
+	if mmCreateApiKey.defaultExpectation.paramPtrs == nil {
+		mmCreateApiKey.defaultExpectation.paramPtrs = &ClientMockCreateApiKeyParamPtrs{}
+	}
+	mmCreateApiKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateApiKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateApiKey
+}
+
+// ExpectReqParam2 sets up expected param req for Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) ExpectReqParam2(req ApiKeyCreateRequest) *mClientMockCreateApiKey {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	if mmCreateApiKey.defaultExpectation == nil {
+		mmCreateApiKey.defaultExpectation = &ClientMockCreateApiKeyExpectation{}
+	}
+
+	if mmCreateApiKey.defaultExpectation.params != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Expect")
+	}
+
+	if mmCreateApiKey.defaultExpectation.paramPtrs == nil {
+		mmCreateApiKey.defaultExpectation.paramPtrs = &ClientMockCreateApiKeyParamPtrs{}
+	}
+	mmCreateApiKey.defaultExpectation.paramPtrs.req = &req
+	mmCreateApiKey.defaultExpectation.expectationOrigins.originReq = minimock.CallerInfo(1)
+
+	return mmCreateApiKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) Inspect(f func(ctx context.Context, req ApiKeyCreateRequest)) *mClientMockCreateApiKey {
+	if mmCreateApiKey.mock.inspectFuncCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateApiKey")
+	}
+
+	mmCreateApiKey.mock.inspectFuncCreateApiKey = f
+
+	return mmCreateApiKey
+}
+
+// Return sets up results that will be returned by Client.CreateApiKey
+func (mmCreateApiKey *mClientMockCreateApiKey) Return(ap1 *ApiKeyCreateResult, err error) *ClientMock {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	if mmCreateApiKey.defaultExpectation == nil {
+		mmCreateApiKey.defaultExpectation = &ClientMockCreateApiKeyExpectation{mock: mmCreateApiKey.mock}
+	}
+	mmCreateApiKey.defaultExpectation.results = &ClientMockCreateApiKeyResults{ap1, err}
+	mmCreateApiKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateApiKey.mock
+}
+
+// Set uses given function f to mock the Client.CreateApiKey method
+func (mmCreateApiKey *mClientMockCreateApiKey) Set(f func(ctx context.Context, req ApiKeyCreateRequest) (ap1 *ApiKeyCreateResult, err error)) *ClientMock {
+	if mmCreateApiKey.defaultExpectation != nil {
+		mmCreateApiKey.mock.t.Fatalf("Default expectation is already set for the Client.CreateApiKey method")
+	}
+
+	if len(mmCreateApiKey.expectations) > 0 {
+		mmCreateApiKey.mock.t.Fatalf("Some expectations are already set for the Client.CreateApiKey method")
+	}
+
+	mmCreateApiKey.mock.funcCreateApiKey = f
+	mmCreateApiKey.mock.funcCreateApiKeyOrigin = minimock.CallerInfo(1)
+	return mmCreateApiKey.mock
+}
+
+// When sets expectation for the Client.CreateApiKey which will trigger the result defined by the following
+// Then helper
+func (mmCreateApiKey *mClientMockCreateApiKey) When(ctx context.Context, req ApiKeyCreateRequest) *ClientMockCreateApiKeyExpectation {
+	if mmCreateApiKey.mock.funcCreateApiKey != nil {
+		mmCreateApiKey.mock.t.Fatalf("ClientMock.CreateApiKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateApiKeyExpectation{
+		mock:               mmCreateApiKey.mock,
+		params:             &ClientMockCreateApiKeyParams{ctx, req},
+		expectationOrigins: ClientMockCreateApiKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateApiKey.expectations = append(mmCreateApiKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateApiKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateApiKeyExpectation) Then(ap1 *ApiKeyCreateResult, err error) *ClientMock {
+	e.results = &ClientMockCreateApiKeyResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateApiKey should be invoked
+func (mmCreateApiKey *mClientMockCreateApiKey) Times(n uint64) *mClientMockCreateApiKey {
+	if n == 0 {
+		mmCreateApiKey.mock.t.Fatalf("Times of ClientMock.CreateApiKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateApiKey.expectedInvocations, n)
+	mmCreateApiKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateApiKey
+}
+
+func (mmCreateApiKey *mClientMockCreateApiKey) invocationsDone() bool {
+	if len(mmCreateApiKey.expectations) == 0 && mmCreateApiKey.defaultExpectation == nil && mmCreateApiKey.mock.funcCreateApiKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateApiKey.mock.afterCreateApiKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateApiKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateApiKey implements Client
+func (mmCreateApiKey *ClientMock) CreateApiKey(ctx context.Context, req ApiKeyCreateRequest) (ap1 *ApiKeyCreateResult, err error) {
+	mm_atomic.AddUint64(&mmCreateApiKey.beforeCreateApiKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateApiKey.afterCreateApiKeyCounter, 1)
+
+	mmCreateApiKey.t.Helper()
+
+	if mmCreateApiKey.inspectFuncCreateApiKey != nil {
+		mmCreateApiKey.inspectFuncCreateApiKey(ctx, req)
+	}
+
+	mm_params := ClientMockCreateApiKeyParams{ctx, req}
+
+	// Record call args
+	mmCreateApiKey.CreateApiKeyMock.mutex.Lock()
+	mmCreateApiKey.CreateApiKeyMock.callArgs = append(mmCreateApiKey.CreateApiKeyMock.callArgs, &mm_params)
+	mmCreateApiKey.CreateApiKeyMock.mutex.Unlock()
+
+	for _, e := range mmCreateApiKey.CreateApiKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmCreateApiKey.CreateApiKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateApiKey.CreateApiKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateApiKey.CreateApiKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateApiKey.CreateApiKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateApiKeyParams{ctx, req}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateApiKey.t.Errorf("ClientMock.CreateApiKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateApiKey.CreateApiKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.req != nil && !minimock.Equal(*mm_want_ptrs.req, mm_got.req) {
+				mmCreateApiKey.t.Errorf("ClientMock.CreateApiKey got unexpected parameter req, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateApiKey.CreateApiKeyMock.defaultExpectation.expectationOrigins.originReq, *mm_want_ptrs.req, mm_got.req, minimock.Diff(*mm_want_ptrs.req, mm_got.req))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateApiKey.t.Errorf("ClientMock.CreateApiKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateApiKey.CreateApiKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateApiKey.CreateApiKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateApiKey.t.Fatal("No results are set for the ClientMock.CreateApiKey")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmCreateApiKey.funcCreateApiKey != nil {
+		return mmCreateApiKey.funcCreateApiKey(ctx, req)
+	}
+	mmCreateApiKey.t.Fatalf("Unexpected call to ClientMock.CreateApiKey. %v %v", ctx, req)
+	return
+}
+
+// CreateApiKeyAfterCounter returns a count of finished ClientMock.CreateApiKey invocations
+func (mmCreateApiKey *ClientMock) CreateApiKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateApiKey.afterCreateApiKeyCounter)
+}
+
+// CreateApiKeyBeforeCounter returns a count of ClientMock.CreateApiKey invocations
+func (mmCreateApiKey *ClientMock) CreateApiKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateApiKey.beforeCreateApiKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateApiKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateApiKey *mClientMockCreateApiKey) Calls() []*ClientMockCreateApiKeyParams {
+	mmCreateApiKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateApiKeyParams, len(mmCreateApiKey.callArgs))
+	copy(argCopy, mmCreateApiKey.callArgs)
+
+	mmCreateApiKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateApiKeyDone returns true if the count of the CreateApiKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateApiKeyDone() bool {
+	if m.CreateApiKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateApiKeyMock.invocationsDone()
+}
+
+// MinimockCreateApiKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateApiKeyInspect() {
+	for _, e := range m.CreateApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateApiKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateApiKeyCounter := mm_atomic.LoadUint64(&m.afterCreateApiKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateApiKeyMock.defaultExpectation != nil && afterCreateApiKeyCounter < 1 {
+		if m.CreateApiKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateApiKey at\n%s", m.CreateApiKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateApiKey at\n%s with params: %#v", m.CreateApiKeyMock.defaultExpectation.expectationOrigins.origin, *m.CreateApiKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateApiKey != nil && afterCreateApiKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateApiKey at\n%s", m.funcCreateApiKeyOrigin)
+	}
+
+	if !m.CreateApiKeyMock.invocationsDone() && afterCreateApiKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateApiKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateApiKeyMock.expectedInvocations), m.CreateApiKeyMock.expectedInvocationsOrigin, afterCreateApiKeyCounter)
+	}
+}
+
+type mClientMockCreateByocInfrastructure struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreateByocInfrastructureExpectation
+	expectations       []*ClientMockCreateByocInfrastructureExpectation
+
+	callArgs []*ClientMockCreateByocInfrastructureParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreateByocInfrastructureExpectation specifies expectation struct of the Client.CreateByocInfrastructure
+type ClientMockCreateByocInfrastructureExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreateByocInfrastructureParams
+	paramPtrs          *ClientMockCreateByocInfrastructureParamPtrs
+	expectationOrigins ClientMockCreateByocInfrastructureExpectationOrigins
+	results            *ClientMockCreateByocInfrastructureResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreateByocInfrastructureParams contains parameters of the Client.CreateByocInfrastructure
+type ClientMockCreateByocInfrastructureParams struct {
+	ctx context.Context
+	r   ByocInfrastructureCreateRequest
+}
+
+// ClientMockCreateByocInfrastructureParamPtrs contains pointers to parameters of the Client.CreateByocInfrastructure
+type ClientMockCreateByocInfrastructureParamPtrs struct {
+	ctx *context.Context
+	r   *ByocInfrastructureCreateRequest
+}
+
+// ClientMockCreateByocInfrastructureResults contains results of the Client.CreateByocInfrastructure
+type ClientMockCreateByocInfrastructureResults struct {
+	bp1 *ByocInfrastructure
+	err error
+}
+
+// ClientMockCreateByocInfrastructureOrigins contains origins of expectations of the Client.CreateByocInfrastructure
+type ClientMockCreateByocInfrastructureExpectationOrigins struct {
+	origin    string
+	originCtx string
+	originR   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) Optional() *mClientMockCreateByocInfrastructure {
+	mmCreateByocInfrastructure.optional = true
+	return mmCreateByocInfrastructure
+}
+
+// Expect sets up expected params for Client.CreateByocInfrastructure
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) Expect(ctx context.Context, r ByocInfrastructureCreateRequest) *mClientMockCreateByocInfrastructure {
+	if mmCreateByocInfrastructure.mock.funcCreateByocInfrastructure != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("ClientMock.CreateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmCreateByocInfrastructure.defaultExpectation == nil {
+		mmCreateByocInfrastructure.defaultExpectation = &ClientMockCreateByocInfrastructureExpectation{}
+	}
+
+	if mmCreateByocInfrastructure.defaultExpectation.paramPtrs != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("ClientMock.CreateByocInfrastructure mock is already set by ExpectParams functions")
+	}
+
+	mmCreateByocInfrastructure.defaultExpectation.params = &ClientMockCreateByocInfrastructureParams{ctx, r}
+	mmCreateByocInfrastructure.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreateByocInfrastructure.expectations {
+		if minimock.Equal(e.params, mmCreateByocInfrastructure.defaultExpectation.params) {
+			mmCreateByocInfrastructure.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreateByocInfrastructure.defaultExpectation.params)
+		}
+	}
+
+	return mmCreateByocInfrastructure
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreateByocInfrastructure
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) ExpectCtxParam1(ctx context.Context) *mClientMockCreateByocInfrastructure {
+	if mmCreateByocInfrastructure.mock.funcCreateByocInfrastructure != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("ClientMock.CreateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmCreateByocInfrastructure.defaultExpectation == nil {
+		mmCreateByocInfrastructure.defaultExpectation = &ClientMockCreateByocInfrastructureExpectation{}
+	}
+
+	if mmCreateByocInfrastructure.defaultExpectation.params != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("ClientMock.CreateByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmCreateByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmCreateByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockCreateByocInfrastructureParamPtrs{}
+	}
+	mmCreateByocInfrastructure.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreateByocInfrastructure.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreateByocInfrastructure
+}
+
+// ExpectRParam2 sets up expected param r for Client.CreateByocInfrastructure
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) ExpectRParam2(r ByocInfrastructureCreateRequest) *mClientMockCreateByocInfrastructure {
+	if mmCreateByocInfrastructure.mock.funcCreateByocInfrastructure != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("ClientMock.CreateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmCreateByocInfrastructure.defaultExpectation == nil {
+		mmCreateByocInfrastructure.defaultExpectation = &ClientMockCreateByocInfrastructureExpectation{}
+	}
+
+	if mmCreateByocInfrastructure.defaultExpectation.params != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("ClientMock.CreateByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmCreateByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmCreateByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockCreateByocInfrastructureParamPtrs{}
+	}
+	mmCreateByocInfrastructure.defaultExpectation.paramPtrs.r = &r
+	mmCreateByocInfrastructure.defaultExpectation.expectationOrigins.originR = minimock.CallerInfo(1)
+
+	return mmCreateByocInfrastructure
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreateByocInfrastructure
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) Inspect(f func(ctx context.Context, r ByocInfrastructureCreateRequest)) *mClientMockCreateByocInfrastructure {
+	if mmCreateByocInfrastructure.mock.inspectFuncCreateByocInfrastructure != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("Inspect function is already set for ClientMock.CreateByocInfrastructure")
+	}
+
+	mmCreateByocInfrastructure.mock.inspectFuncCreateByocInfrastructure = f
+
+	return mmCreateByocInfrastructure
+}
+
+// Return sets up results that will be returned by Client.CreateByocInfrastructure
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) Return(bp1 *ByocInfrastructure, err error) *ClientMock {
+	if mmCreateByocInfrastructure.mock.funcCreateByocInfrastructure != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("ClientMock.CreateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmCreateByocInfrastructure.defaultExpectation == nil {
+		mmCreateByocInfrastructure.defaultExpectation = &ClientMockCreateByocInfrastructureExpectation{mock: mmCreateByocInfrastructure.mock}
+	}
+	mmCreateByocInfrastructure.defaultExpectation.results = &ClientMockCreateByocInfrastructureResults{bp1, err}
+	mmCreateByocInfrastructure.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreateByocInfrastructure.mock
+}
+
+// Set uses given function f to mock the Client.CreateByocInfrastructure method
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) Set(f func(ctx context.Context, r ByocInfrastructureCreateRequest) (bp1 *ByocInfrastructure, err error)) *ClientMock {
+	if mmCreateByocInfrastructure.defaultExpectation != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("Default expectation is already set for the Client.CreateByocInfrastructure method")
+	}
+
+	if len(mmCreateByocInfrastructure.expectations) > 0 {
+		mmCreateByocInfrastructure.mock.t.Fatalf("Some expectations are already set for the Client.CreateByocInfrastructure method")
+	}
+
+	mmCreateByocInfrastructure.mock.funcCreateByocInfrastructure = f
+	mmCreateByocInfrastructure.mock.funcCreateByocInfrastructureOrigin = minimock.CallerInfo(1)
+	return mmCreateByocInfrastructure.mock
+}
+
+// When sets expectation for the Client.CreateByocInfrastructure which will trigger the result defined by the following
+// Then helper
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) When(ctx context.Context, r ByocInfrastructureCreateRequest) *ClientMockCreateByocInfrastructureExpectation {
+	if mmCreateByocInfrastructure.mock.funcCreateByocInfrastructure != nil {
+		mmCreateByocInfrastructure.mock.t.Fatalf("ClientMock.CreateByocInfrastructure mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreateByocInfrastructureExpectation{
+		mock:               mmCreateByocInfrastructure.mock,
+		params:             &ClientMockCreateByocInfrastructureParams{ctx, r},
+		expectationOrigins: ClientMockCreateByocInfrastructureExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreateByocInfrastructure.expectations = append(mmCreateByocInfrastructure.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreateByocInfrastructure return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreateByocInfrastructureExpectation) Then(bp1 *ByocInfrastructure, err error) *ClientMock {
+	e.results = &ClientMockCreateByocInfrastructureResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreateByocInfrastructure should be invoked
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) Times(n uint64) *mClientMockCreateByocInfrastructure {
+	if n == 0 {
+		mmCreateByocInfrastructure.mock.t.Fatalf("Times of ClientMock.CreateByocInfrastructure mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreateByocInfrastructure.expectedInvocations, n)
+	mmCreateByocInfrastructure.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreateByocInfrastructure
+}
+
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) invocationsDone() bool {
+	if len(mmCreateByocInfrastructure.expectations) == 0 && mmCreateByocInfrastructure.defaultExpectation == nil && mmCreateByocInfrastructure.mock.funcCreateByocInfrastructure == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreateByocInfrastructure.mock.afterCreateByocInfrastructureCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreateByocInfrastructure.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreateByocInfrastructure implements Client
+func (mmCreateByocInfrastructure *ClientMock) CreateByocInfrastructure(ctx context.Context, r ByocInfrastructureCreateRequest) (bp1 *ByocInfrastructure, err error) {
+	mm_atomic.AddUint64(&mmCreateByocInfrastructure.beforeCreateByocInfrastructureCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreateByocInfrastructure.afterCreateByocInfrastructureCounter, 1)
+
+	mmCreateByocInfrastructure.t.Helper()
+
+	if mmCreateByocInfrastructure.inspectFuncCreateByocInfrastructure != nil {
+		mmCreateByocInfrastructure.inspectFuncCreateByocInfrastructure(ctx, r)
+	}
+
+	mm_params := ClientMockCreateByocInfrastructureParams{ctx, r}
+
+	// Record call args
+	mmCreateByocInfrastructure.CreateByocInfrastructureMock.mutex.Lock()
+	mmCreateByocInfrastructure.CreateByocInfrastructureMock.callArgs = append(mmCreateByocInfrastructure.CreateByocInfrastructureMock.callArgs, &mm_params)
+	mmCreateByocInfrastructure.CreateByocInfrastructureMock.mutex.Unlock()
+
+	for _, e := range mmCreateByocInfrastructure.CreateByocInfrastructureMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmCreateByocInfrastructure.CreateByocInfrastructureMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreateByocInfrastructure.CreateByocInfrastructureMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreateByocInfrastructure.CreateByocInfrastructureMock.defaultExpectation.params
+		mm_want_ptrs := mmCreateByocInfrastructure.CreateByocInfrastructureMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreateByocInfrastructureParams{ctx, r}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreateByocInfrastructure.t.Errorf("ClientMock.CreateByocInfrastructure got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateByocInfrastructure.CreateByocInfrastructureMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.r != nil && !minimock.Equal(*mm_want_ptrs.r, mm_got.r) {
+				mmCreateByocInfrastructure.t.Errorf("ClientMock.CreateByocInfrastructure got unexpected parameter r, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreateByocInfrastructure.CreateByocInfrastructureMock.defaultExpectation.expectationOrigins.originR, *mm_want_ptrs.r, mm_got.r, minimock.Diff(*mm_want_ptrs.r, mm_got.r))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreateByocInfrastructure.t.Errorf("ClientMock.CreateByocInfrastructure got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreateByocInfrastructure.CreateByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreateByocInfrastructure.CreateByocInfrastructureMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreateByocInfrastructure.t.Fatal("No results are set for the ClientMock.CreateByocInfrastructure")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmCreateByocInfrastructure.funcCreateByocInfrastructure != nil {
+		return mmCreateByocInfrastructure.funcCreateByocInfrastructure(ctx, r)
+	}
+	mmCreateByocInfrastructure.t.Fatalf("Unexpected call to ClientMock.CreateByocInfrastructure. %v %v", ctx, r)
+	return
+}
+
+// CreateByocInfrastructureAfterCounter returns a count of finished ClientMock.CreateByocInfrastructure invocations
+func (mmCreateByocInfrastructure *ClientMock) CreateByocInfrastructureAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateByocInfrastructure.afterCreateByocInfrastructureCounter)
+}
+
+// CreateByocInfrastructureBeforeCounter returns a count of ClientMock.CreateByocInfrastructure invocations
+func (mmCreateByocInfrastructure *ClientMock) CreateByocInfrastructureBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreateByocInfrastructure.beforeCreateByocInfrastructureCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreateByocInfrastructure.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreateByocInfrastructure *mClientMockCreateByocInfrastructure) Calls() []*ClientMockCreateByocInfrastructureParams {
+	mmCreateByocInfrastructure.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreateByocInfrastructureParams, len(mmCreateByocInfrastructure.callArgs))
+	copy(argCopy, mmCreateByocInfrastructure.callArgs)
+
+	mmCreateByocInfrastructure.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreateByocInfrastructureDone returns true if the count of the CreateByocInfrastructure invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreateByocInfrastructureDone() bool {
+	if m.CreateByocInfrastructureMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreateByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreateByocInfrastructureMock.invocationsDone()
+}
+
+// MinimockCreateByocInfrastructureInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreateByocInfrastructureInspect() {
+	for _, e := range m.CreateByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreateByocInfrastructure at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreateByocInfrastructureCounter := mm_atomic.LoadUint64(&m.afterCreateByocInfrastructureCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreateByocInfrastructureMock.defaultExpectation != nil && afterCreateByocInfrastructureCounter < 1 {
+		if m.CreateByocInfrastructureMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreateByocInfrastructure at\n%s", m.CreateByocInfrastructureMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreateByocInfrastructure at\n%s with params: %#v", m.CreateByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *m.CreateByocInfrastructureMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreateByocInfrastructure != nil && afterCreateByocInfrastructureCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreateByocInfrastructure at\n%s", m.funcCreateByocInfrastructureOrigin)
+	}
+
+	if !m.CreateByocInfrastructureMock.invocationsDone() && afterCreateByocInfrastructureCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreateByocInfrastructure at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreateByocInfrastructureMock.expectedInvocations), m.CreateByocInfrastructureMock.expectedInvocationsOrigin, afterCreateByocInfrastructureCounter)
 	}
 }
 
@@ -6478,6 +7304,690 @@ func (m *ClientMock) MinimockCreateUDFVersionInspect() {
 	if !m.CreateUDFVersionMock.invocationsDone() && afterCreateUDFVersionCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreateUDFVersion at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreateUDFVersionMock.expectedInvocations), m.CreateUDFVersionMock.expectedInvocationsOrigin, afterCreateUDFVersionCounter)
+	}
+}
+
+type mClientMockDeleteApiKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteApiKeyExpectation
+	expectations       []*ClientMockDeleteApiKeyExpectation
+
+	callArgs []*ClientMockDeleteApiKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteApiKeyExpectation specifies expectation struct of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteApiKeyParams
+	paramPtrs          *ClientMockDeleteApiKeyParamPtrs
+	expectationOrigins ClientMockDeleteApiKeyExpectationOrigins
+	results            *ClientMockDeleteApiKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteApiKeyParams contains parameters of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyParams struct {
+	ctx   context.Context
+	keyId string
+}
+
+// ClientMockDeleteApiKeyParamPtrs contains pointers to parameters of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyParamPtrs struct {
+	ctx   *context.Context
+	keyId *string
+}
+
+// ClientMockDeleteApiKeyResults contains results of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyResults struct {
+	err error
+}
+
+// ClientMockDeleteApiKeyOrigins contains origins of expectations of the Client.DeleteApiKey
+type ClientMockDeleteApiKeyExpectationOrigins struct {
+	origin      string
+	originCtx   string
+	originKeyId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Optional() *mClientMockDeleteApiKey {
+	mmDeleteApiKey.optional = true
+	return mmDeleteApiKey
+}
+
+// Expect sets up expected params for Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Expect(ctx context.Context, keyId string) *mClientMockDeleteApiKey {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	if mmDeleteApiKey.defaultExpectation == nil {
+		mmDeleteApiKey.defaultExpectation = &ClientMockDeleteApiKeyExpectation{}
+	}
+
+	if mmDeleteApiKey.defaultExpectation.paramPtrs != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteApiKey.defaultExpectation.params = &ClientMockDeleteApiKeyParams{ctx, keyId}
+	mmDeleteApiKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteApiKey.expectations {
+		if minimock.Equal(e.params, mmDeleteApiKey.defaultExpectation.params) {
+			mmDeleteApiKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteApiKey.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteApiKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteApiKey {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	if mmDeleteApiKey.defaultExpectation == nil {
+		mmDeleteApiKey.defaultExpectation = &ClientMockDeleteApiKeyExpectation{}
+	}
+
+	if mmDeleteApiKey.defaultExpectation.params != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Expect")
+	}
+
+	if mmDeleteApiKey.defaultExpectation.paramPtrs == nil {
+		mmDeleteApiKey.defaultExpectation.paramPtrs = &ClientMockDeleteApiKeyParamPtrs{}
+	}
+	mmDeleteApiKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteApiKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteApiKey
+}
+
+// ExpectKeyIdParam2 sets up expected param keyId for Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) ExpectKeyIdParam2(keyId string) *mClientMockDeleteApiKey {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	if mmDeleteApiKey.defaultExpectation == nil {
+		mmDeleteApiKey.defaultExpectation = &ClientMockDeleteApiKeyExpectation{}
+	}
+
+	if mmDeleteApiKey.defaultExpectation.params != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Expect")
+	}
+
+	if mmDeleteApiKey.defaultExpectation.paramPtrs == nil {
+		mmDeleteApiKey.defaultExpectation.paramPtrs = &ClientMockDeleteApiKeyParamPtrs{}
+	}
+	mmDeleteApiKey.defaultExpectation.paramPtrs.keyId = &keyId
+	mmDeleteApiKey.defaultExpectation.expectationOrigins.originKeyId = minimock.CallerInfo(1)
+
+	return mmDeleteApiKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Inspect(f func(ctx context.Context, keyId string)) *mClientMockDeleteApiKey {
+	if mmDeleteApiKey.mock.inspectFuncDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteApiKey")
+	}
+
+	mmDeleteApiKey.mock.inspectFuncDeleteApiKey = f
+
+	return mmDeleteApiKey
+}
+
+// Return sets up results that will be returned by Client.DeleteApiKey
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Return(err error) *ClientMock {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	if mmDeleteApiKey.defaultExpectation == nil {
+		mmDeleteApiKey.defaultExpectation = &ClientMockDeleteApiKeyExpectation{mock: mmDeleteApiKey.mock}
+	}
+	mmDeleteApiKey.defaultExpectation.results = &ClientMockDeleteApiKeyResults{err}
+	mmDeleteApiKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteApiKey.mock
+}
+
+// Set uses given function f to mock the Client.DeleteApiKey method
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Set(f func(ctx context.Context, keyId string) (err error)) *ClientMock {
+	if mmDeleteApiKey.defaultExpectation != nil {
+		mmDeleteApiKey.mock.t.Fatalf("Default expectation is already set for the Client.DeleteApiKey method")
+	}
+
+	if len(mmDeleteApiKey.expectations) > 0 {
+		mmDeleteApiKey.mock.t.Fatalf("Some expectations are already set for the Client.DeleteApiKey method")
+	}
+
+	mmDeleteApiKey.mock.funcDeleteApiKey = f
+	mmDeleteApiKey.mock.funcDeleteApiKeyOrigin = minimock.CallerInfo(1)
+	return mmDeleteApiKey.mock
+}
+
+// When sets expectation for the Client.DeleteApiKey which will trigger the result defined by the following
+// Then helper
+func (mmDeleteApiKey *mClientMockDeleteApiKey) When(ctx context.Context, keyId string) *ClientMockDeleteApiKeyExpectation {
+	if mmDeleteApiKey.mock.funcDeleteApiKey != nil {
+		mmDeleteApiKey.mock.t.Fatalf("ClientMock.DeleteApiKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteApiKeyExpectation{
+		mock:               mmDeleteApiKey.mock,
+		params:             &ClientMockDeleteApiKeyParams{ctx, keyId},
+		expectationOrigins: ClientMockDeleteApiKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteApiKey.expectations = append(mmDeleteApiKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteApiKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteApiKeyExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteApiKeyResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteApiKey should be invoked
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Times(n uint64) *mClientMockDeleteApiKey {
+	if n == 0 {
+		mmDeleteApiKey.mock.t.Fatalf("Times of ClientMock.DeleteApiKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteApiKey.expectedInvocations, n)
+	mmDeleteApiKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteApiKey
+}
+
+func (mmDeleteApiKey *mClientMockDeleteApiKey) invocationsDone() bool {
+	if len(mmDeleteApiKey.expectations) == 0 && mmDeleteApiKey.defaultExpectation == nil && mmDeleteApiKey.mock.funcDeleteApiKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteApiKey.mock.afterDeleteApiKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteApiKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteApiKey implements Client
+func (mmDeleteApiKey *ClientMock) DeleteApiKey(ctx context.Context, keyId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteApiKey.beforeDeleteApiKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteApiKey.afterDeleteApiKeyCounter, 1)
+
+	mmDeleteApiKey.t.Helper()
+
+	if mmDeleteApiKey.inspectFuncDeleteApiKey != nil {
+		mmDeleteApiKey.inspectFuncDeleteApiKey(ctx, keyId)
+	}
+
+	mm_params := ClientMockDeleteApiKeyParams{ctx, keyId}
+
+	// Record call args
+	mmDeleteApiKey.DeleteApiKeyMock.mutex.Lock()
+	mmDeleteApiKey.DeleteApiKeyMock.callArgs = append(mmDeleteApiKey.DeleteApiKeyMock.callArgs, &mm_params)
+	mmDeleteApiKey.DeleteApiKeyMock.mutex.Unlock()
+
+	for _, e := range mmDeleteApiKey.DeleteApiKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteApiKeyParams{ctx, keyId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteApiKey.t.Errorf("ClientMock.DeleteApiKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.keyId != nil && !minimock.Equal(*mm_want_ptrs.keyId, mm_got.keyId) {
+				mmDeleteApiKey.t.Errorf("ClientMock.DeleteApiKey got unexpected parameter keyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.expectationOrigins.originKeyId, *mm_want_ptrs.keyId, mm_got.keyId, minimock.Diff(*mm_want_ptrs.keyId, mm_got.keyId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteApiKey.t.Errorf("ClientMock.DeleteApiKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteApiKey.DeleteApiKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteApiKey.t.Fatal("No results are set for the ClientMock.DeleteApiKey")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteApiKey.funcDeleteApiKey != nil {
+		return mmDeleteApiKey.funcDeleteApiKey(ctx, keyId)
+	}
+	mmDeleteApiKey.t.Fatalf("Unexpected call to ClientMock.DeleteApiKey. %v %v", ctx, keyId)
+	return
+}
+
+// DeleteApiKeyAfterCounter returns a count of finished ClientMock.DeleteApiKey invocations
+func (mmDeleteApiKey *ClientMock) DeleteApiKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteApiKey.afterDeleteApiKeyCounter)
+}
+
+// DeleteApiKeyBeforeCounter returns a count of ClientMock.DeleteApiKey invocations
+func (mmDeleteApiKey *ClientMock) DeleteApiKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteApiKey.beforeDeleteApiKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteApiKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteApiKey *mClientMockDeleteApiKey) Calls() []*ClientMockDeleteApiKeyParams {
+	mmDeleteApiKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteApiKeyParams, len(mmDeleteApiKey.callArgs))
+	copy(argCopy, mmDeleteApiKey.callArgs)
+
+	mmDeleteApiKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteApiKeyDone returns true if the count of the DeleteApiKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteApiKeyDone() bool {
+	if m.DeleteApiKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteApiKeyMock.invocationsDone()
+}
+
+// MinimockDeleteApiKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteApiKeyInspect() {
+	for _, e := range m.DeleteApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteApiKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteApiKeyCounter := mm_atomic.LoadUint64(&m.afterDeleteApiKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteApiKeyMock.defaultExpectation != nil && afterDeleteApiKeyCounter < 1 {
+		if m.DeleteApiKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteApiKey at\n%s", m.DeleteApiKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteApiKey at\n%s with params: %#v", m.DeleteApiKeyMock.defaultExpectation.expectationOrigins.origin, *m.DeleteApiKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteApiKey != nil && afterDeleteApiKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteApiKey at\n%s", m.funcDeleteApiKeyOrigin)
+	}
+
+	if !m.DeleteApiKeyMock.invocationsDone() && afterDeleteApiKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteApiKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteApiKeyMock.expectedInvocations), m.DeleteApiKeyMock.expectedInvocationsOrigin, afterDeleteApiKeyCounter)
+	}
+}
+
+type mClientMockDeleteByocInfrastructure struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeleteByocInfrastructureExpectation
+	expectations       []*ClientMockDeleteByocInfrastructureExpectation
+
+	callArgs []*ClientMockDeleteByocInfrastructureParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeleteByocInfrastructureExpectation specifies expectation struct of the Client.DeleteByocInfrastructure
+type ClientMockDeleteByocInfrastructureExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeleteByocInfrastructureParams
+	paramPtrs          *ClientMockDeleteByocInfrastructureParamPtrs
+	expectationOrigins ClientMockDeleteByocInfrastructureExpectationOrigins
+	results            *ClientMockDeleteByocInfrastructureResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeleteByocInfrastructureParams contains parameters of the Client.DeleteByocInfrastructure
+type ClientMockDeleteByocInfrastructureParams struct {
+	ctx    context.Context
+	byocId string
+}
+
+// ClientMockDeleteByocInfrastructureParamPtrs contains pointers to parameters of the Client.DeleteByocInfrastructure
+type ClientMockDeleteByocInfrastructureParamPtrs struct {
+	ctx    *context.Context
+	byocId *string
+}
+
+// ClientMockDeleteByocInfrastructureResults contains results of the Client.DeleteByocInfrastructure
+type ClientMockDeleteByocInfrastructureResults struct {
+	err error
+}
+
+// ClientMockDeleteByocInfrastructureOrigins contains origins of expectations of the Client.DeleteByocInfrastructure
+type ClientMockDeleteByocInfrastructureExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originByocId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) Optional() *mClientMockDeleteByocInfrastructure {
+	mmDeleteByocInfrastructure.optional = true
+	return mmDeleteByocInfrastructure
+}
+
+// Expect sets up expected params for Client.DeleteByocInfrastructure
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) Expect(ctx context.Context, byocId string) *mClientMockDeleteByocInfrastructure {
+	if mmDeleteByocInfrastructure.mock.funcDeleteByocInfrastructure != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("ClientMock.DeleteByocInfrastructure mock is already set by Set")
+	}
+
+	if mmDeleteByocInfrastructure.defaultExpectation == nil {
+		mmDeleteByocInfrastructure.defaultExpectation = &ClientMockDeleteByocInfrastructureExpectation{}
+	}
+
+	if mmDeleteByocInfrastructure.defaultExpectation.paramPtrs != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("ClientMock.DeleteByocInfrastructure mock is already set by ExpectParams functions")
+	}
+
+	mmDeleteByocInfrastructure.defaultExpectation.params = &ClientMockDeleteByocInfrastructureParams{ctx, byocId}
+	mmDeleteByocInfrastructure.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeleteByocInfrastructure.expectations {
+		if minimock.Equal(e.params, mmDeleteByocInfrastructure.defaultExpectation.params) {
+			mmDeleteByocInfrastructure.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteByocInfrastructure.defaultExpectation.params)
+		}
+	}
+
+	return mmDeleteByocInfrastructure
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeleteByocInfrastructure
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) ExpectCtxParam1(ctx context.Context) *mClientMockDeleteByocInfrastructure {
+	if mmDeleteByocInfrastructure.mock.funcDeleteByocInfrastructure != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("ClientMock.DeleteByocInfrastructure mock is already set by Set")
+	}
+
+	if mmDeleteByocInfrastructure.defaultExpectation == nil {
+		mmDeleteByocInfrastructure.defaultExpectation = &ClientMockDeleteByocInfrastructureExpectation{}
+	}
+
+	if mmDeleteByocInfrastructure.defaultExpectation.params != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("ClientMock.DeleteByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmDeleteByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmDeleteByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockDeleteByocInfrastructureParamPtrs{}
+	}
+	mmDeleteByocInfrastructure.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteByocInfrastructure.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteByocInfrastructure
+}
+
+// ExpectByocIdParam2 sets up expected param byocId for Client.DeleteByocInfrastructure
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) ExpectByocIdParam2(byocId string) *mClientMockDeleteByocInfrastructure {
+	if mmDeleteByocInfrastructure.mock.funcDeleteByocInfrastructure != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("ClientMock.DeleteByocInfrastructure mock is already set by Set")
+	}
+
+	if mmDeleteByocInfrastructure.defaultExpectation == nil {
+		mmDeleteByocInfrastructure.defaultExpectation = &ClientMockDeleteByocInfrastructureExpectation{}
+	}
+
+	if mmDeleteByocInfrastructure.defaultExpectation.params != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("ClientMock.DeleteByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmDeleteByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmDeleteByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockDeleteByocInfrastructureParamPtrs{}
+	}
+	mmDeleteByocInfrastructure.defaultExpectation.paramPtrs.byocId = &byocId
+	mmDeleteByocInfrastructure.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmDeleteByocInfrastructure
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeleteByocInfrastructure
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) Inspect(f func(ctx context.Context, byocId string)) *mClientMockDeleteByocInfrastructure {
+	if mmDeleteByocInfrastructure.mock.inspectFuncDeleteByocInfrastructure != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("Inspect function is already set for ClientMock.DeleteByocInfrastructure")
+	}
+
+	mmDeleteByocInfrastructure.mock.inspectFuncDeleteByocInfrastructure = f
+
+	return mmDeleteByocInfrastructure
+}
+
+// Return sets up results that will be returned by Client.DeleteByocInfrastructure
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) Return(err error) *ClientMock {
+	if mmDeleteByocInfrastructure.mock.funcDeleteByocInfrastructure != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("ClientMock.DeleteByocInfrastructure mock is already set by Set")
+	}
+
+	if mmDeleteByocInfrastructure.defaultExpectation == nil {
+		mmDeleteByocInfrastructure.defaultExpectation = &ClientMockDeleteByocInfrastructureExpectation{mock: mmDeleteByocInfrastructure.mock}
+	}
+	mmDeleteByocInfrastructure.defaultExpectation.results = &ClientMockDeleteByocInfrastructureResults{err}
+	mmDeleteByocInfrastructure.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeleteByocInfrastructure.mock
+}
+
+// Set uses given function f to mock the Client.DeleteByocInfrastructure method
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) Set(f func(ctx context.Context, byocId string) (err error)) *ClientMock {
+	if mmDeleteByocInfrastructure.defaultExpectation != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("Default expectation is already set for the Client.DeleteByocInfrastructure method")
+	}
+
+	if len(mmDeleteByocInfrastructure.expectations) > 0 {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("Some expectations are already set for the Client.DeleteByocInfrastructure method")
+	}
+
+	mmDeleteByocInfrastructure.mock.funcDeleteByocInfrastructure = f
+	mmDeleteByocInfrastructure.mock.funcDeleteByocInfrastructureOrigin = minimock.CallerInfo(1)
+	return mmDeleteByocInfrastructure.mock
+}
+
+// When sets expectation for the Client.DeleteByocInfrastructure which will trigger the result defined by the following
+// Then helper
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) When(ctx context.Context, byocId string) *ClientMockDeleteByocInfrastructureExpectation {
+	if mmDeleteByocInfrastructure.mock.funcDeleteByocInfrastructure != nil {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("ClientMock.DeleteByocInfrastructure mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeleteByocInfrastructureExpectation{
+		mock:               mmDeleteByocInfrastructure.mock,
+		params:             &ClientMockDeleteByocInfrastructureParams{ctx, byocId},
+		expectationOrigins: ClientMockDeleteByocInfrastructureExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeleteByocInfrastructure.expectations = append(mmDeleteByocInfrastructure.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeleteByocInfrastructure return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeleteByocInfrastructureExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeleteByocInfrastructureResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeleteByocInfrastructure should be invoked
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) Times(n uint64) *mClientMockDeleteByocInfrastructure {
+	if n == 0 {
+		mmDeleteByocInfrastructure.mock.t.Fatalf("Times of ClientMock.DeleteByocInfrastructure mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeleteByocInfrastructure.expectedInvocations, n)
+	mmDeleteByocInfrastructure.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeleteByocInfrastructure
+}
+
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) invocationsDone() bool {
+	if len(mmDeleteByocInfrastructure.expectations) == 0 && mmDeleteByocInfrastructure.defaultExpectation == nil && mmDeleteByocInfrastructure.mock.funcDeleteByocInfrastructure == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeleteByocInfrastructure.mock.afterDeleteByocInfrastructureCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteByocInfrastructure.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeleteByocInfrastructure implements Client
+func (mmDeleteByocInfrastructure *ClientMock) DeleteByocInfrastructure(ctx context.Context, byocId string) (err error) {
+	mm_atomic.AddUint64(&mmDeleteByocInfrastructure.beforeDeleteByocInfrastructureCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeleteByocInfrastructure.afterDeleteByocInfrastructureCounter, 1)
+
+	mmDeleteByocInfrastructure.t.Helper()
+
+	if mmDeleteByocInfrastructure.inspectFuncDeleteByocInfrastructure != nil {
+		mmDeleteByocInfrastructure.inspectFuncDeleteByocInfrastructure(ctx, byocId)
+	}
+
+	mm_params := ClientMockDeleteByocInfrastructureParams{ctx, byocId}
+
+	// Record call args
+	mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.mutex.Lock()
+	mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.callArgs = append(mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.callArgs, &mm_params)
+	mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.mutex.Unlock()
+
+	for _, e := range mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.defaultExpectation.params
+		mm_want_ptrs := mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeleteByocInfrastructureParams{ctx, byocId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteByocInfrastructure.t.Errorf("ClientMock.DeleteByocInfrastructure got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmDeleteByocInfrastructure.t.Errorf("ClientMock.DeleteByocInfrastructure got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeleteByocInfrastructure.t.Errorf("ClientMock.DeleteByocInfrastructure got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeleteByocInfrastructure.DeleteByocInfrastructureMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeleteByocInfrastructure.t.Fatal("No results are set for the ClientMock.DeleteByocInfrastructure")
+		}
+		return (*mm_results).err
+	}
+	if mmDeleteByocInfrastructure.funcDeleteByocInfrastructure != nil {
+		return mmDeleteByocInfrastructure.funcDeleteByocInfrastructure(ctx, byocId)
+	}
+	mmDeleteByocInfrastructure.t.Fatalf("Unexpected call to ClientMock.DeleteByocInfrastructure. %v %v", ctx, byocId)
+	return
+}
+
+// DeleteByocInfrastructureAfterCounter returns a count of finished ClientMock.DeleteByocInfrastructure invocations
+func (mmDeleteByocInfrastructure *ClientMock) DeleteByocInfrastructureAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteByocInfrastructure.afterDeleteByocInfrastructureCounter)
+}
+
+// DeleteByocInfrastructureBeforeCounter returns a count of ClientMock.DeleteByocInfrastructure invocations
+func (mmDeleteByocInfrastructure *ClientMock) DeleteByocInfrastructureBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeleteByocInfrastructure.beforeDeleteByocInfrastructureCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeleteByocInfrastructure.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeleteByocInfrastructure *mClientMockDeleteByocInfrastructure) Calls() []*ClientMockDeleteByocInfrastructureParams {
+	mmDeleteByocInfrastructure.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeleteByocInfrastructureParams, len(mmDeleteByocInfrastructure.callArgs))
+	copy(argCopy, mmDeleteByocInfrastructure.callArgs)
+
+	mmDeleteByocInfrastructure.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeleteByocInfrastructureDone returns true if the count of the DeleteByocInfrastructure invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeleteByocInfrastructureDone() bool {
+	if m.DeleteByocInfrastructureMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeleteByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeleteByocInfrastructureMock.invocationsDone()
+}
+
+// MinimockDeleteByocInfrastructureInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeleteByocInfrastructureInspect() {
+	for _, e := range m.DeleteByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeleteByocInfrastructure at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeleteByocInfrastructureCounter := mm_atomic.LoadUint64(&m.afterDeleteByocInfrastructureCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeleteByocInfrastructureMock.defaultExpectation != nil && afterDeleteByocInfrastructureCounter < 1 {
+		if m.DeleteByocInfrastructureMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeleteByocInfrastructure at\n%s", m.DeleteByocInfrastructureMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeleteByocInfrastructure at\n%s with params: %#v", m.DeleteByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *m.DeleteByocInfrastructureMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeleteByocInfrastructure != nil && afterDeleteByocInfrastructureCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeleteByocInfrastructure at\n%s", m.funcDeleteByocInfrastructureOrigin)
+	}
+
+	if !m.DeleteByocInfrastructureMock.invocationsDone() && afterDeleteByocInfrastructureCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeleteByocInfrastructure at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeleteByocInfrastructureMock.expectedInvocations), m.DeleteByocInfrastructureMock.expectedInvocationsOrigin, afterDeleteByocInfrastructureCounter)
 	}
 }
 
@@ -11487,6 +12997,349 @@ func (m *ClientMock) MinimockDetachUDFInspect() {
 	}
 }
 
+type mClientMockGetApiKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetApiKeyExpectation
+	expectations       []*ClientMockGetApiKeyExpectation
+
+	callArgs []*ClientMockGetApiKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetApiKeyExpectation specifies expectation struct of the Client.GetApiKey
+type ClientMockGetApiKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetApiKeyParams
+	paramPtrs          *ClientMockGetApiKeyParamPtrs
+	expectationOrigins ClientMockGetApiKeyExpectationOrigins
+	results            *ClientMockGetApiKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetApiKeyParams contains parameters of the Client.GetApiKey
+type ClientMockGetApiKeyParams struct {
+	ctx   context.Context
+	keyId string
+}
+
+// ClientMockGetApiKeyParamPtrs contains pointers to parameters of the Client.GetApiKey
+type ClientMockGetApiKeyParamPtrs struct {
+	ctx   *context.Context
+	keyId *string
+}
+
+// ClientMockGetApiKeyResults contains results of the Client.GetApiKey
+type ClientMockGetApiKeyResults struct {
+	ap1 *ApiKey
+	err error
+}
+
+// ClientMockGetApiKeyOrigins contains origins of expectations of the Client.GetApiKey
+type ClientMockGetApiKeyExpectationOrigins struct {
+	origin      string
+	originCtx   string
+	originKeyId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetApiKey *mClientMockGetApiKey) Optional() *mClientMockGetApiKey {
+	mmGetApiKey.optional = true
+	return mmGetApiKey
+}
+
+// Expect sets up expected params for Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) Expect(ctx context.Context, keyId string) *mClientMockGetApiKey {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	if mmGetApiKey.defaultExpectation == nil {
+		mmGetApiKey.defaultExpectation = &ClientMockGetApiKeyExpectation{}
+	}
+
+	if mmGetApiKey.defaultExpectation.paramPtrs != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by ExpectParams functions")
+	}
+
+	mmGetApiKey.defaultExpectation.params = &ClientMockGetApiKeyParams{ctx, keyId}
+	mmGetApiKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetApiKey.expectations {
+		if minimock.Equal(e.params, mmGetApiKey.defaultExpectation.params) {
+			mmGetApiKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetApiKey.defaultExpectation.params)
+		}
+	}
+
+	return mmGetApiKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) ExpectCtxParam1(ctx context.Context) *mClientMockGetApiKey {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	if mmGetApiKey.defaultExpectation == nil {
+		mmGetApiKey.defaultExpectation = &ClientMockGetApiKeyExpectation{}
+	}
+
+	if mmGetApiKey.defaultExpectation.params != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Expect")
+	}
+
+	if mmGetApiKey.defaultExpectation.paramPtrs == nil {
+		mmGetApiKey.defaultExpectation.paramPtrs = &ClientMockGetApiKeyParamPtrs{}
+	}
+	mmGetApiKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetApiKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetApiKey
+}
+
+// ExpectKeyIdParam2 sets up expected param keyId for Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) ExpectKeyIdParam2(keyId string) *mClientMockGetApiKey {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	if mmGetApiKey.defaultExpectation == nil {
+		mmGetApiKey.defaultExpectation = &ClientMockGetApiKeyExpectation{}
+	}
+
+	if mmGetApiKey.defaultExpectation.params != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Expect")
+	}
+
+	if mmGetApiKey.defaultExpectation.paramPtrs == nil {
+		mmGetApiKey.defaultExpectation.paramPtrs = &ClientMockGetApiKeyParamPtrs{}
+	}
+	mmGetApiKey.defaultExpectation.paramPtrs.keyId = &keyId
+	mmGetApiKey.defaultExpectation.expectationOrigins.originKeyId = minimock.CallerInfo(1)
+
+	return mmGetApiKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) Inspect(f func(ctx context.Context, keyId string)) *mClientMockGetApiKey {
+	if mmGetApiKey.mock.inspectFuncGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("Inspect function is already set for ClientMock.GetApiKey")
+	}
+
+	mmGetApiKey.mock.inspectFuncGetApiKey = f
+
+	return mmGetApiKey
+}
+
+// Return sets up results that will be returned by Client.GetApiKey
+func (mmGetApiKey *mClientMockGetApiKey) Return(ap1 *ApiKey, err error) *ClientMock {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	if mmGetApiKey.defaultExpectation == nil {
+		mmGetApiKey.defaultExpectation = &ClientMockGetApiKeyExpectation{mock: mmGetApiKey.mock}
+	}
+	mmGetApiKey.defaultExpectation.results = &ClientMockGetApiKeyResults{ap1, err}
+	mmGetApiKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetApiKey.mock
+}
+
+// Set uses given function f to mock the Client.GetApiKey method
+func (mmGetApiKey *mClientMockGetApiKey) Set(f func(ctx context.Context, keyId string) (ap1 *ApiKey, err error)) *ClientMock {
+	if mmGetApiKey.defaultExpectation != nil {
+		mmGetApiKey.mock.t.Fatalf("Default expectation is already set for the Client.GetApiKey method")
+	}
+
+	if len(mmGetApiKey.expectations) > 0 {
+		mmGetApiKey.mock.t.Fatalf("Some expectations are already set for the Client.GetApiKey method")
+	}
+
+	mmGetApiKey.mock.funcGetApiKey = f
+	mmGetApiKey.mock.funcGetApiKeyOrigin = minimock.CallerInfo(1)
+	return mmGetApiKey.mock
+}
+
+// When sets expectation for the Client.GetApiKey which will trigger the result defined by the following
+// Then helper
+func (mmGetApiKey *mClientMockGetApiKey) When(ctx context.Context, keyId string) *ClientMockGetApiKeyExpectation {
+	if mmGetApiKey.mock.funcGetApiKey != nil {
+		mmGetApiKey.mock.t.Fatalf("ClientMock.GetApiKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetApiKeyExpectation{
+		mock:               mmGetApiKey.mock,
+		params:             &ClientMockGetApiKeyParams{ctx, keyId},
+		expectationOrigins: ClientMockGetApiKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetApiKey.expectations = append(mmGetApiKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetApiKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetApiKeyExpectation) Then(ap1 *ApiKey, err error) *ClientMock {
+	e.results = &ClientMockGetApiKeyResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetApiKey should be invoked
+func (mmGetApiKey *mClientMockGetApiKey) Times(n uint64) *mClientMockGetApiKey {
+	if n == 0 {
+		mmGetApiKey.mock.t.Fatalf("Times of ClientMock.GetApiKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetApiKey.expectedInvocations, n)
+	mmGetApiKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetApiKey
+}
+
+func (mmGetApiKey *mClientMockGetApiKey) invocationsDone() bool {
+	if len(mmGetApiKey.expectations) == 0 && mmGetApiKey.defaultExpectation == nil && mmGetApiKey.mock.funcGetApiKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetApiKey.mock.afterGetApiKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetApiKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetApiKey implements Client
+func (mmGetApiKey *ClientMock) GetApiKey(ctx context.Context, keyId string) (ap1 *ApiKey, err error) {
+	mm_atomic.AddUint64(&mmGetApiKey.beforeGetApiKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetApiKey.afterGetApiKeyCounter, 1)
+
+	mmGetApiKey.t.Helper()
+
+	if mmGetApiKey.inspectFuncGetApiKey != nil {
+		mmGetApiKey.inspectFuncGetApiKey(ctx, keyId)
+	}
+
+	mm_params := ClientMockGetApiKeyParams{ctx, keyId}
+
+	// Record call args
+	mmGetApiKey.GetApiKeyMock.mutex.Lock()
+	mmGetApiKey.GetApiKeyMock.callArgs = append(mmGetApiKey.GetApiKeyMock.callArgs, &mm_params)
+	mmGetApiKey.GetApiKeyMock.mutex.Unlock()
+
+	for _, e := range mmGetApiKey.GetApiKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmGetApiKey.GetApiKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetApiKey.GetApiKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetApiKey.GetApiKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmGetApiKey.GetApiKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetApiKeyParams{ctx, keyId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetApiKey.t.Errorf("ClientMock.GetApiKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetApiKey.GetApiKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.keyId != nil && !minimock.Equal(*mm_want_ptrs.keyId, mm_got.keyId) {
+				mmGetApiKey.t.Errorf("ClientMock.GetApiKey got unexpected parameter keyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetApiKey.GetApiKeyMock.defaultExpectation.expectationOrigins.originKeyId, *mm_want_ptrs.keyId, mm_got.keyId, minimock.Diff(*mm_want_ptrs.keyId, mm_got.keyId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetApiKey.t.Errorf("ClientMock.GetApiKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetApiKey.GetApiKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetApiKey.GetApiKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetApiKey.t.Fatal("No results are set for the ClientMock.GetApiKey")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmGetApiKey.funcGetApiKey != nil {
+		return mmGetApiKey.funcGetApiKey(ctx, keyId)
+	}
+	mmGetApiKey.t.Fatalf("Unexpected call to ClientMock.GetApiKey. %v %v", ctx, keyId)
+	return
+}
+
+// GetApiKeyAfterCounter returns a count of finished ClientMock.GetApiKey invocations
+func (mmGetApiKey *ClientMock) GetApiKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetApiKey.afterGetApiKeyCounter)
+}
+
+// GetApiKeyBeforeCounter returns a count of ClientMock.GetApiKey invocations
+func (mmGetApiKey *ClientMock) GetApiKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetApiKey.beforeGetApiKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetApiKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetApiKey *mClientMockGetApiKey) Calls() []*ClientMockGetApiKeyParams {
+	mmGetApiKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetApiKeyParams, len(mmGetApiKey.callArgs))
+	copy(argCopy, mmGetApiKey.callArgs)
+
+	mmGetApiKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetApiKeyDone returns true if the count of the GetApiKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetApiKeyDone() bool {
+	if m.GetApiKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetApiKeyMock.invocationsDone()
+}
+
+// MinimockGetApiKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetApiKeyInspect() {
+	for _, e := range m.GetApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetApiKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetApiKeyCounter := mm_atomic.LoadUint64(&m.afterGetApiKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetApiKeyMock.defaultExpectation != nil && afterGetApiKeyCounter < 1 {
+		if m.GetApiKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetApiKey at\n%s", m.GetApiKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetApiKey at\n%s with params: %#v", m.GetApiKeyMock.defaultExpectation.expectationOrigins.origin, *m.GetApiKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetApiKey != nil && afterGetApiKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetApiKey at\n%s", m.funcGetApiKeyOrigin)
+	}
+
+	if !m.GetApiKeyMock.invocationsDone() && afterGetApiKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetApiKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetApiKeyMock.expectedInvocations), m.GetApiKeyMock.expectedInvocationsOrigin, afterGetApiKeyCounter)
+	}
+}
+
 type mClientMockGetApiKeyID struct {
 	optional           bool
 	mock               *ClientMock
@@ -12170,6 +14023,1035 @@ func (m *ClientMock) MinimockGetBackupConfigurationInspect() {
 	if !m.GetBackupConfigurationMock.invocationsDone() && afterGetBackupConfigurationCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetBackupConfiguration at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetBackupConfigurationMock.expectedInvocations), m.GetBackupConfigurationMock.expectedInvocationsOrigin, afterGetBackupConfigurationCounter)
+	}
+}
+
+type mClientMockGetByocInfrastructure struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetByocInfrastructureExpectation
+	expectations       []*ClientMockGetByocInfrastructureExpectation
+
+	callArgs []*ClientMockGetByocInfrastructureParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetByocInfrastructureExpectation specifies expectation struct of the Client.GetByocInfrastructure
+type ClientMockGetByocInfrastructureExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetByocInfrastructureParams
+	paramPtrs          *ClientMockGetByocInfrastructureParamPtrs
+	expectationOrigins ClientMockGetByocInfrastructureExpectationOrigins
+	results            *ClientMockGetByocInfrastructureResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetByocInfrastructureParams contains parameters of the Client.GetByocInfrastructure
+type ClientMockGetByocInfrastructureParams struct {
+	ctx    context.Context
+	byocId string
+}
+
+// ClientMockGetByocInfrastructureParamPtrs contains pointers to parameters of the Client.GetByocInfrastructure
+type ClientMockGetByocInfrastructureParamPtrs struct {
+	ctx    *context.Context
+	byocId *string
+}
+
+// ClientMockGetByocInfrastructureResults contains results of the Client.GetByocInfrastructure
+type ClientMockGetByocInfrastructureResults struct {
+	bp1 *ByocInfrastructureDetails
+	err error
+}
+
+// ClientMockGetByocInfrastructureOrigins contains origins of expectations of the Client.GetByocInfrastructure
+type ClientMockGetByocInfrastructureExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originByocId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) Optional() *mClientMockGetByocInfrastructure {
+	mmGetByocInfrastructure.optional = true
+	return mmGetByocInfrastructure
+}
+
+// Expect sets up expected params for Client.GetByocInfrastructure
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) Expect(ctx context.Context, byocId string) *mClientMockGetByocInfrastructure {
+	if mmGetByocInfrastructure.mock.funcGetByocInfrastructure != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("ClientMock.GetByocInfrastructure mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructure.defaultExpectation == nil {
+		mmGetByocInfrastructure.defaultExpectation = &ClientMockGetByocInfrastructureExpectation{}
+	}
+
+	if mmGetByocInfrastructure.defaultExpectation.paramPtrs != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("ClientMock.GetByocInfrastructure mock is already set by ExpectParams functions")
+	}
+
+	mmGetByocInfrastructure.defaultExpectation.params = &ClientMockGetByocInfrastructureParams{ctx, byocId}
+	mmGetByocInfrastructure.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetByocInfrastructure.expectations {
+		if minimock.Equal(e.params, mmGetByocInfrastructure.defaultExpectation.params) {
+			mmGetByocInfrastructure.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetByocInfrastructure.defaultExpectation.params)
+		}
+	}
+
+	return mmGetByocInfrastructure
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetByocInfrastructure
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) ExpectCtxParam1(ctx context.Context) *mClientMockGetByocInfrastructure {
+	if mmGetByocInfrastructure.mock.funcGetByocInfrastructure != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("ClientMock.GetByocInfrastructure mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructure.defaultExpectation == nil {
+		mmGetByocInfrastructure.defaultExpectation = &ClientMockGetByocInfrastructureExpectation{}
+	}
+
+	if mmGetByocInfrastructure.defaultExpectation.params != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("ClientMock.GetByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmGetByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmGetByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockGetByocInfrastructureParamPtrs{}
+	}
+	mmGetByocInfrastructure.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetByocInfrastructure.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetByocInfrastructure
+}
+
+// ExpectByocIdParam2 sets up expected param byocId for Client.GetByocInfrastructure
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) ExpectByocIdParam2(byocId string) *mClientMockGetByocInfrastructure {
+	if mmGetByocInfrastructure.mock.funcGetByocInfrastructure != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("ClientMock.GetByocInfrastructure mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructure.defaultExpectation == nil {
+		mmGetByocInfrastructure.defaultExpectation = &ClientMockGetByocInfrastructureExpectation{}
+	}
+
+	if mmGetByocInfrastructure.defaultExpectation.params != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("ClientMock.GetByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmGetByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmGetByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockGetByocInfrastructureParamPtrs{}
+	}
+	mmGetByocInfrastructure.defaultExpectation.paramPtrs.byocId = &byocId
+	mmGetByocInfrastructure.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmGetByocInfrastructure
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetByocInfrastructure
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) Inspect(f func(ctx context.Context, byocId string)) *mClientMockGetByocInfrastructure {
+	if mmGetByocInfrastructure.mock.inspectFuncGetByocInfrastructure != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("Inspect function is already set for ClientMock.GetByocInfrastructure")
+	}
+
+	mmGetByocInfrastructure.mock.inspectFuncGetByocInfrastructure = f
+
+	return mmGetByocInfrastructure
+}
+
+// Return sets up results that will be returned by Client.GetByocInfrastructure
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) Return(bp1 *ByocInfrastructureDetails, err error) *ClientMock {
+	if mmGetByocInfrastructure.mock.funcGetByocInfrastructure != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("ClientMock.GetByocInfrastructure mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructure.defaultExpectation == nil {
+		mmGetByocInfrastructure.defaultExpectation = &ClientMockGetByocInfrastructureExpectation{mock: mmGetByocInfrastructure.mock}
+	}
+	mmGetByocInfrastructure.defaultExpectation.results = &ClientMockGetByocInfrastructureResults{bp1, err}
+	mmGetByocInfrastructure.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructure.mock
+}
+
+// Set uses given function f to mock the Client.GetByocInfrastructure method
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) Set(f func(ctx context.Context, byocId string) (bp1 *ByocInfrastructureDetails, err error)) *ClientMock {
+	if mmGetByocInfrastructure.defaultExpectation != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("Default expectation is already set for the Client.GetByocInfrastructure method")
+	}
+
+	if len(mmGetByocInfrastructure.expectations) > 0 {
+		mmGetByocInfrastructure.mock.t.Fatalf("Some expectations are already set for the Client.GetByocInfrastructure method")
+	}
+
+	mmGetByocInfrastructure.mock.funcGetByocInfrastructure = f
+	mmGetByocInfrastructure.mock.funcGetByocInfrastructureOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructure.mock
+}
+
+// When sets expectation for the Client.GetByocInfrastructure which will trigger the result defined by the following
+// Then helper
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) When(ctx context.Context, byocId string) *ClientMockGetByocInfrastructureExpectation {
+	if mmGetByocInfrastructure.mock.funcGetByocInfrastructure != nil {
+		mmGetByocInfrastructure.mock.t.Fatalf("ClientMock.GetByocInfrastructure mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetByocInfrastructureExpectation{
+		mock:               mmGetByocInfrastructure.mock,
+		params:             &ClientMockGetByocInfrastructureParams{ctx, byocId},
+		expectationOrigins: ClientMockGetByocInfrastructureExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetByocInfrastructure.expectations = append(mmGetByocInfrastructure.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetByocInfrastructure return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetByocInfrastructureExpectation) Then(bp1 *ByocInfrastructureDetails, err error) *ClientMock {
+	e.results = &ClientMockGetByocInfrastructureResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetByocInfrastructure should be invoked
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) Times(n uint64) *mClientMockGetByocInfrastructure {
+	if n == 0 {
+		mmGetByocInfrastructure.mock.t.Fatalf("Times of ClientMock.GetByocInfrastructure mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetByocInfrastructure.expectedInvocations, n)
+	mmGetByocInfrastructure.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructure
+}
+
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) invocationsDone() bool {
+	if len(mmGetByocInfrastructure.expectations) == 0 && mmGetByocInfrastructure.defaultExpectation == nil && mmGetByocInfrastructure.mock.funcGetByocInfrastructure == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetByocInfrastructure.mock.afterGetByocInfrastructureCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetByocInfrastructure.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetByocInfrastructure implements Client
+func (mmGetByocInfrastructure *ClientMock) GetByocInfrastructure(ctx context.Context, byocId string) (bp1 *ByocInfrastructureDetails, err error) {
+	mm_atomic.AddUint64(&mmGetByocInfrastructure.beforeGetByocInfrastructureCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetByocInfrastructure.afterGetByocInfrastructureCounter, 1)
+
+	mmGetByocInfrastructure.t.Helper()
+
+	if mmGetByocInfrastructure.inspectFuncGetByocInfrastructure != nil {
+		mmGetByocInfrastructure.inspectFuncGetByocInfrastructure(ctx, byocId)
+	}
+
+	mm_params := ClientMockGetByocInfrastructureParams{ctx, byocId}
+
+	// Record call args
+	mmGetByocInfrastructure.GetByocInfrastructureMock.mutex.Lock()
+	mmGetByocInfrastructure.GetByocInfrastructureMock.callArgs = append(mmGetByocInfrastructure.GetByocInfrastructureMock.callArgs, &mm_params)
+	mmGetByocInfrastructure.GetByocInfrastructureMock.mutex.Unlock()
+
+	for _, e := range mmGetByocInfrastructure.GetByocInfrastructureMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmGetByocInfrastructure.GetByocInfrastructureMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetByocInfrastructure.GetByocInfrastructureMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetByocInfrastructure.GetByocInfrastructureMock.defaultExpectation.params
+		mm_want_ptrs := mmGetByocInfrastructure.GetByocInfrastructureMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetByocInfrastructureParams{ctx, byocId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetByocInfrastructure.t.Errorf("ClientMock.GetByocInfrastructure got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetByocInfrastructure.GetByocInfrastructureMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmGetByocInfrastructure.t.Errorf("ClientMock.GetByocInfrastructure got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetByocInfrastructure.GetByocInfrastructureMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetByocInfrastructure.t.Errorf("ClientMock.GetByocInfrastructure got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetByocInfrastructure.GetByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetByocInfrastructure.GetByocInfrastructureMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetByocInfrastructure.t.Fatal("No results are set for the ClientMock.GetByocInfrastructure")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmGetByocInfrastructure.funcGetByocInfrastructure != nil {
+		return mmGetByocInfrastructure.funcGetByocInfrastructure(ctx, byocId)
+	}
+	mmGetByocInfrastructure.t.Fatalf("Unexpected call to ClientMock.GetByocInfrastructure. %v %v", ctx, byocId)
+	return
+}
+
+// GetByocInfrastructureAfterCounter returns a count of finished ClientMock.GetByocInfrastructure invocations
+func (mmGetByocInfrastructure *ClientMock) GetByocInfrastructureAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetByocInfrastructure.afterGetByocInfrastructureCounter)
+}
+
+// GetByocInfrastructureBeforeCounter returns a count of ClientMock.GetByocInfrastructure invocations
+func (mmGetByocInfrastructure *ClientMock) GetByocInfrastructureBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetByocInfrastructure.beforeGetByocInfrastructureCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetByocInfrastructure.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetByocInfrastructure *mClientMockGetByocInfrastructure) Calls() []*ClientMockGetByocInfrastructureParams {
+	mmGetByocInfrastructure.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetByocInfrastructureParams, len(mmGetByocInfrastructure.callArgs))
+	copy(argCopy, mmGetByocInfrastructure.callArgs)
+
+	mmGetByocInfrastructure.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetByocInfrastructureDone returns true if the count of the GetByocInfrastructure invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetByocInfrastructureDone() bool {
+	if m.GetByocInfrastructureMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetByocInfrastructureMock.invocationsDone()
+}
+
+// MinimockGetByocInfrastructureInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetByocInfrastructureInspect() {
+	for _, e := range m.GetByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructure at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetByocInfrastructureCounter := mm_atomic.LoadUint64(&m.afterGetByocInfrastructureCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetByocInfrastructureMock.defaultExpectation != nil && afterGetByocInfrastructureCounter < 1 {
+		if m.GetByocInfrastructureMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructure at\n%s", m.GetByocInfrastructureMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructure at\n%s with params: %#v", m.GetByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *m.GetByocInfrastructureMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetByocInfrastructure != nil && afterGetByocInfrastructureCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetByocInfrastructure at\n%s", m.funcGetByocInfrastructureOrigin)
+	}
+
+	if !m.GetByocInfrastructureMock.invocationsDone() && afterGetByocInfrastructureCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetByocInfrastructure at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetByocInfrastructureMock.expectedInvocations), m.GetByocInfrastructureMock.expectedInvocationsOrigin, afterGetByocInfrastructureCounter)
+	}
+}
+
+type mClientMockGetByocInfrastructurePrivateEndpointConfig struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation
+	expectations       []*ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation
+
+	callArgs []*ClientMockGetByocInfrastructurePrivateEndpointConfigParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation specifies expectation struct of the Client.GetByocInfrastructurePrivateEndpointConfig
+type ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetByocInfrastructurePrivateEndpointConfigParams
+	paramPtrs          *ClientMockGetByocInfrastructurePrivateEndpointConfigParamPtrs
+	expectationOrigins ClientMockGetByocInfrastructurePrivateEndpointConfigExpectationOrigins
+	results            *ClientMockGetByocInfrastructurePrivateEndpointConfigResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetByocInfrastructurePrivateEndpointConfigParams contains parameters of the Client.GetByocInfrastructurePrivateEndpointConfig
+type ClientMockGetByocInfrastructurePrivateEndpointConfigParams struct {
+	ctx    context.Context
+	byocId string
+}
+
+// ClientMockGetByocInfrastructurePrivateEndpointConfigParamPtrs contains pointers to parameters of the Client.GetByocInfrastructurePrivateEndpointConfig
+type ClientMockGetByocInfrastructurePrivateEndpointConfigParamPtrs struct {
+	ctx    *context.Context
+	byocId *string
+}
+
+// ClientMockGetByocInfrastructurePrivateEndpointConfigResults contains results of the Client.GetByocInfrastructurePrivateEndpointConfig
+type ClientMockGetByocInfrastructurePrivateEndpointConfigResults struct {
+	bp1 *ByocInfrastructurePrivateEndpointConfig
+	err error
+}
+
+// ClientMockGetByocInfrastructurePrivateEndpointConfigOrigins contains origins of expectations of the Client.GetByocInfrastructurePrivateEndpointConfig
+type ClientMockGetByocInfrastructurePrivateEndpointConfigExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originByocId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) Optional() *mClientMockGetByocInfrastructurePrivateEndpointConfig {
+	mmGetByocInfrastructurePrivateEndpointConfig.optional = true
+	return mmGetByocInfrastructurePrivateEndpointConfig
+}
+
+// Expect sets up expected params for Client.GetByocInfrastructurePrivateEndpointConfig
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) Expect(ctx context.Context, byocId string) *mClientMockGetByocInfrastructurePrivateEndpointConfig {
+	if mmGetByocInfrastructurePrivateEndpointConfig.mock.funcGetByocInfrastructurePrivateEndpointConfig != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetByocInfrastructurePrivateEndpointConfig mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation == nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation = &ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation{}
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.paramPtrs != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetByocInfrastructurePrivateEndpointConfig mock is already set by ExpectParams functions")
+	}
+
+	mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.params = &ClientMockGetByocInfrastructurePrivateEndpointConfigParams{ctx, byocId}
+	mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetByocInfrastructurePrivateEndpointConfig.expectations {
+		if minimock.Equal(e.params, mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.params) {
+			mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.params)
+		}
+	}
+
+	return mmGetByocInfrastructurePrivateEndpointConfig
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetByocInfrastructurePrivateEndpointConfig
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) ExpectCtxParam1(ctx context.Context) *mClientMockGetByocInfrastructurePrivateEndpointConfig {
+	if mmGetByocInfrastructurePrivateEndpointConfig.mock.funcGetByocInfrastructurePrivateEndpointConfig != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetByocInfrastructurePrivateEndpointConfig mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation == nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation = &ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation{}
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.params != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetByocInfrastructurePrivateEndpointConfig mock is already set by Expect")
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.paramPtrs == nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.paramPtrs = &ClientMockGetByocInfrastructurePrivateEndpointConfigParamPtrs{}
+	}
+	mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetByocInfrastructurePrivateEndpointConfig
+}
+
+// ExpectByocIdParam2 sets up expected param byocId for Client.GetByocInfrastructurePrivateEndpointConfig
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) ExpectByocIdParam2(byocId string) *mClientMockGetByocInfrastructurePrivateEndpointConfig {
+	if mmGetByocInfrastructurePrivateEndpointConfig.mock.funcGetByocInfrastructurePrivateEndpointConfig != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetByocInfrastructurePrivateEndpointConfig mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation == nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation = &ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation{}
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.params != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetByocInfrastructurePrivateEndpointConfig mock is already set by Expect")
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.paramPtrs == nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.paramPtrs = &ClientMockGetByocInfrastructurePrivateEndpointConfigParamPtrs{}
+	}
+	mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.paramPtrs.byocId = &byocId
+	mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmGetByocInfrastructurePrivateEndpointConfig
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetByocInfrastructurePrivateEndpointConfig
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) Inspect(f func(ctx context.Context, byocId string)) *mClientMockGetByocInfrastructurePrivateEndpointConfig {
+	if mmGetByocInfrastructurePrivateEndpointConfig.mock.inspectFuncGetByocInfrastructurePrivateEndpointConfig != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("Inspect function is already set for ClientMock.GetByocInfrastructurePrivateEndpointConfig")
+	}
+
+	mmGetByocInfrastructurePrivateEndpointConfig.mock.inspectFuncGetByocInfrastructurePrivateEndpointConfig = f
+
+	return mmGetByocInfrastructurePrivateEndpointConfig
+}
+
+// Return sets up results that will be returned by Client.GetByocInfrastructurePrivateEndpointConfig
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) Return(bp1 *ByocInfrastructurePrivateEndpointConfig, err error) *ClientMock {
+	if mmGetByocInfrastructurePrivateEndpointConfig.mock.funcGetByocInfrastructurePrivateEndpointConfig != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetByocInfrastructurePrivateEndpointConfig mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation == nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation = &ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation{mock: mmGetByocInfrastructurePrivateEndpointConfig.mock}
+	}
+	mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.results = &ClientMockGetByocInfrastructurePrivateEndpointConfigResults{bp1, err}
+	mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructurePrivateEndpointConfig.mock
+}
+
+// Set uses given function f to mock the Client.GetByocInfrastructurePrivateEndpointConfig method
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) Set(f func(ctx context.Context, byocId string) (bp1 *ByocInfrastructurePrivateEndpointConfig, err error)) *ClientMock {
+	if mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("Default expectation is already set for the Client.GetByocInfrastructurePrivateEndpointConfig method")
+	}
+
+	if len(mmGetByocInfrastructurePrivateEndpointConfig.expectations) > 0 {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("Some expectations are already set for the Client.GetByocInfrastructurePrivateEndpointConfig method")
+	}
+
+	mmGetByocInfrastructurePrivateEndpointConfig.mock.funcGetByocInfrastructurePrivateEndpointConfig = f
+	mmGetByocInfrastructurePrivateEndpointConfig.mock.funcGetByocInfrastructurePrivateEndpointConfigOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructurePrivateEndpointConfig.mock
+}
+
+// When sets expectation for the Client.GetByocInfrastructurePrivateEndpointConfig which will trigger the result defined by the following
+// Then helper
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) When(ctx context.Context, byocId string) *ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation {
+	if mmGetByocInfrastructurePrivateEndpointConfig.mock.funcGetByocInfrastructurePrivateEndpointConfig != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("ClientMock.GetByocInfrastructurePrivateEndpointConfig mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation{
+		mock:               mmGetByocInfrastructurePrivateEndpointConfig.mock,
+		params:             &ClientMockGetByocInfrastructurePrivateEndpointConfigParams{ctx, byocId},
+		expectationOrigins: ClientMockGetByocInfrastructurePrivateEndpointConfigExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetByocInfrastructurePrivateEndpointConfig.expectations = append(mmGetByocInfrastructurePrivateEndpointConfig.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetByocInfrastructurePrivateEndpointConfig return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetByocInfrastructurePrivateEndpointConfigExpectation) Then(bp1 *ByocInfrastructurePrivateEndpointConfig, err error) *ClientMock {
+	e.results = &ClientMockGetByocInfrastructurePrivateEndpointConfigResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetByocInfrastructurePrivateEndpointConfig should be invoked
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) Times(n uint64) *mClientMockGetByocInfrastructurePrivateEndpointConfig {
+	if n == 0 {
+		mmGetByocInfrastructurePrivateEndpointConfig.mock.t.Fatalf("Times of ClientMock.GetByocInfrastructurePrivateEndpointConfig mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetByocInfrastructurePrivateEndpointConfig.expectedInvocations, n)
+	mmGetByocInfrastructurePrivateEndpointConfig.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructurePrivateEndpointConfig
+}
+
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) invocationsDone() bool {
+	if len(mmGetByocInfrastructurePrivateEndpointConfig.expectations) == 0 && mmGetByocInfrastructurePrivateEndpointConfig.defaultExpectation == nil && mmGetByocInfrastructurePrivateEndpointConfig.mock.funcGetByocInfrastructurePrivateEndpointConfig == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetByocInfrastructurePrivateEndpointConfig.mock.afterGetByocInfrastructurePrivateEndpointConfigCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetByocInfrastructurePrivateEndpointConfig.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetByocInfrastructurePrivateEndpointConfig implements Client
+func (mmGetByocInfrastructurePrivateEndpointConfig *ClientMock) GetByocInfrastructurePrivateEndpointConfig(ctx context.Context, byocId string) (bp1 *ByocInfrastructurePrivateEndpointConfig, err error) {
+	mm_atomic.AddUint64(&mmGetByocInfrastructurePrivateEndpointConfig.beforeGetByocInfrastructurePrivateEndpointConfigCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetByocInfrastructurePrivateEndpointConfig.afterGetByocInfrastructurePrivateEndpointConfigCounter, 1)
+
+	mmGetByocInfrastructurePrivateEndpointConfig.t.Helper()
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.inspectFuncGetByocInfrastructurePrivateEndpointConfig != nil {
+		mmGetByocInfrastructurePrivateEndpointConfig.inspectFuncGetByocInfrastructurePrivateEndpointConfig(ctx, byocId)
+	}
+
+	mm_params := ClientMockGetByocInfrastructurePrivateEndpointConfigParams{ctx, byocId}
+
+	// Record call args
+	mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.mutex.Lock()
+	mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.callArgs = append(mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.callArgs, &mm_params)
+	mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.mutex.Unlock()
+
+	for _, e := range mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.params
+		mm_want_ptrs := mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetByocInfrastructurePrivateEndpointConfigParams{ctx, byocId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetByocInfrastructurePrivateEndpointConfig.t.Errorf("ClientMock.GetByocInfrastructurePrivateEndpointConfig got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmGetByocInfrastructurePrivateEndpointConfig.t.Errorf("ClientMock.GetByocInfrastructurePrivateEndpointConfig got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetByocInfrastructurePrivateEndpointConfig.t.Errorf("ClientMock.GetByocInfrastructurePrivateEndpointConfig got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetByocInfrastructurePrivateEndpointConfig.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetByocInfrastructurePrivateEndpointConfig.t.Fatal("No results are set for the ClientMock.GetByocInfrastructurePrivateEndpointConfig")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmGetByocInfrastructurePrivateEndpointConfig.funcGetByocInfrastructurePrivateEndpointConfig != nil {
+		return mmGetByocInfrastructurePrivateEndpointConfig.funcGetByocInfrastructurePrivateEndpointConfig(ctx, byocId)
+	}
+	mmGetByocInfrastructurePrivateEndpointConfig.t.Fatalf("Unexpected call to ClientMock.GetByocInfrastructurePrivateEndpointConfig. %v %v", ctx, byocId)
+	return
+}
+
+// GetByocInfrastructurePrivateEndpointConfigAfterCounter returns a count of finished ClientMock.GetByocInfrastructurePrivateEndpointConfig invocations
+func (mmGetByocInfrastructurePrivateEndpointConfig *ClientMock) GetByocInfrastructurePrivateEndpointConfigAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetByocInfrastructurePrivateEndpointConfig.afterGetByocInfrastructurePrivateEndpointConfigCounter)
+}
+
+// GetByocInfrastructurePrivateEndpointConfigBeforeCounter returns a count of ClientMock.GetByocInfrastructurePrivateEndpointConfig invocations
+func (mmGetByocInfrastructurePrivateEndpointConfig *ClientMock) GetByocInfrastructurePrivateEndpointConfigBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetByocInfrastructurePrivateEndpointConfig.beforeGetByocInfrastructurePrivateEndpointConfigCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetByocInfrastructurePrivateEndpointConfig.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetByocInfrastructurePrivateEndpointConfig *mClientMockGetByocInfrastructurePrivateEndpointConfig) Calls() []*ClientMockGetByocInfrastructurePrivateEndpointConfigParams {
+	mmGetByocInfrastructurePrivateEndpointConfig.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetByocInfrastructurePrivateEndpointConfigParams, len(mmGetByocInfrastructurePrivateEndpointConfig.callArgs))
+	copy(argCopy, mmGetByocInfrastructurePrivateEndpointConfig.callArgs)
+
+	mmGetByocInfrastructurePrivateEndpointConfig.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetByocInfrastructurePrivateEndpointConfigDone returns true if the count of the GetByocInfrastructurePrivateEndpointConfig invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetByocInfrastructurePrivateEndpointConfigDone() bool {
+	if m.GetByocInfrastructurePrivateEndpointConfigMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetByocInfrastructurePrivateEndpointConfigMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetByocInfrastructurePrivateEndpointConfigMock.invocationsDone()
+}
+
+// MinimockGetByocInfrastructurePrivateEndpointConfigInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetByocInfrastructurePrivateEndpointConfigInspect() {
+	for _, e := range m.GetByocInfrastructurePrivateEndpointConfigMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructurePrivateEndpointConfig at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetByocInfrastructurePrivateEndpointConfigCounter := mm_atomic.LoadUint64(&m.afterGetByocInfrastructurePrivateEndpointConfigCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation != nil && afterGetByocInfrastructurePrivateEndpointConfigCounter < 1 {
+		if m.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructurePrivateEndpointConfig at\n%s", m.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructurePrivateEndpointConfig at\n%s with params: %#v", m.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.expectationOrigins.origin, *m.GetByocInfrastructurePrivateEndpointConfigMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetByocInfrastructurePrivateEndpointConfig != nil && afterGetByocInfrastructurePrivateEndpointConfigCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetByocInfrastructurePrivateEndpointConfig at\n%s", m.funcGetByocInfrastructurePrivateEndpointConfigOrigin)
+	}
+
+	if !m.GetByocInfrastructurePrivateEndpointConfigMock.invocationsDone() && afterGetByocInfrastructurePrivateEndpointConfigCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetByocInfrastructurePrivateEndpointConfig at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetByocInfrastructurePrivateEndpointConfigMock.expectedInvocations), m.GetByocInfrastructurePrivateEndpointConfigMock.expectedInvocationsOrigin, afterGetByocInfrastructurePrivateEndpointConfigCounter)
+	}
+}
+
+type mClientMockGetByocInfrastructureTags struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetByocInfrastructureTagsExpectation
+	expectations       []*ClientMockGetByocInfrastructureTagsExpectation
+
+	callArgs []*ClientMockGetByocInfrastructureTagsParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetByocInfrastructureTagsExpectation specifies expectation struct of the Client.GetByocInfrastructureTags
+type ClientMockGetByocInfrastructureTagsExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetByocInfrastructureTagsParams
+	paramPtrs          *ClientMockGetByocInfrastructureTagsParamPtrs
+	expectationOrigins ClientMockGetByocInfrastructureTagsExpectationOrigins
+	results            *ClientMockGetByocInfrastructureTagsResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetByocInfrastructureTagsParams contains parameters of the Client.GetByocInfrastructureTags
+type ClientMockGetByocInfrastructureTagsParams struct {
+	ctx    context.Context
+	byocId string
+}
+
+// ClientMockGetByocInfrastructureTagsParamPtrs contains pointers to parameters of the Client.GetByocInfrastructureTags
+type ClientMockGetByocInfrastructureTagsParamPtrs struct {
+	ctx    *context.Context
+	byocId *string
+}
+
+// ClientMockGetByocInfrastructureTagsResults contains results of the Client.GetByocInfrastructureTags
+type ClientMockGetByocInfrastructureTagsResults struct {
+	m1  map[string]string
+	err error
+}
+
+// ClientMockGetByocInfrastructureTagsOrigins contains origins of expectations of the Client.GetByocInfrastructureTags
+type ClientMockGetByocInfrastructureTagsExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originByocId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) Optional() *mClientMockGetByocInfrastructureTags {
+	mmGetByocInfrastructureTags.optional = true
+	return mmGetByocInfrastructureTags
+}
+
+// Expect sets up expected params for Client.GetByocInfrastructureTags
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) Expect(ctx context.Context, byocId string) *mClientMockGetByocInfrastructureTags {
+	if mmGetByocInfrastructureTags.mock.funcGetByocInfrastructureTags != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("ClientMock.GetByocInfrastructureTags mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructureTags.defaultExpectation == nil {
+		mmGetByocInfrastructureTags.defaultExpectation = &ClientMockGetByocInfrastructureTagsExpectation{}
+	}
+
+	if mmGetByocInfrastructureTags.defaultExpectation.paramPtrs != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("ClientMock.GetByocInfrastructureTags mock is already set by ExpectParams functions")
+	}
+
+	mmGetByocInfrastructureTags.defaultExpectation.params = &ClientMockGetByocInfrastructureTagsParams{ctx, byocId}
+	mmGetByocInfrastructureTags.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetByocInfrastructureTags.expectations {
+		if minimock.Equal(e.params, mmGetByocInfrastructureTags.defaultExpectation.params) {
+			mmGetByocInfrastructureTags.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetByocInfrastructureTags.defaultExpectation.params)
+		}
+	}
+
+	return mmGetByocInfrastructureTags
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetByocInfrastructureTags
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) ExpectCtxParam1(ctx context.Context) *mClientMockGetByocInfrastructureTags {
+	if mmGetByocInfrastructureTags.mock.funcGetByocInfrastructureTags != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("ClientMock.GetByocInfrastructureTags mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructureTags.defaultExpectation == nil {
+		mmGetByocInfrastructureTags.defaultExpectation = &ClientMockGetByocInfrastructureTagsExpectation{}
+	}
+
+	if mmGetByocInfrastructureTags.defaultExpectation.params != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("ClientMock.GetByocInfrastructureTags mock is already set by Expect")
+	}
+
+	if mmGetByocInfrastructureTags.defaultExpectation.paramPtrs == nil {
+		mmGetByocInfrastructureTags.defaultExpectation.paramPtrs = &ClientMockGetByocInfrastructureTagsParamPtrs{}
+	}
+	mmGetByocInfrastructureTags.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetByocInfrastructureTags.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetByocInfrastructureTags
+}
+
+// ExpectByocIdParam2 sets up expected param byocId for Client.GetByocInfrastructureTags
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) ExpectByocIdParam2(byocId string) *mClientMockGetByocInfrastructureTags {
+	if mmGetByocInfrastructureTags.mock.funcGetByocInfrastructureTags != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("ClientMock.GetByocInfrastructureTags mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructureTags.defaultExpectation == nil {
+		mmGetByocInfrastructureTags.defaultExpectation = &ClientMockGetByocInfrastructureTagsExpectation{}
+	}
+
+	if mmGetByocInfrastructureTags.defaultExpectation.params != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("ClientMock.GetByocInfrastructureTags mock is already set by Expect")
+	}
+
+	if mmGetByocInfrastructureTags.defaultExpectation.paramPtrs == nil {
+		mmGetByocInfrastructureTags.defaultExpectation.paramPtrs = &ClientMockGetByocInfrastructureTagsParamPtrs{}
+	}
+	mmGetByocInfrastructureTags.defaultExpectation.paramPtrs.byocId = &byocId
+	mmGetByocInfrastructureTags.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmGetByocInfrastructureTags
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetByocInfrastructureTags
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) Inspect(f func(ctx context.Context, byocId string)) *mClientMockGetByocInfrastructureTags {
+	if mmGetByocInfrastructureTags.mock.inspectFuncGetByocInfrastructureTags != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("Inspect function is already set for ClientMock.GetByocInfrastructureTags")
+	}
+
+	mmGetByocInfrastructureTags.mock.inspectFuncGetByocInfrastructureTags = f
+
+	return mmGetByocInfrastructureTags
+}
+
+// Return sets up results that will be returned by Client.GetByocInfrastructureTags
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) Return(m1 map[string]string, err error) *ClientMock {
+	if mmGetByocInfrastructureTags.mock.funcGetByocInfrastructureTags != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("ClientMock.GetByocInfrastructureTags mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructureTags.defaultExpectation == nil {
+		mmGetByocInfrastructureTags.defaultExpectation = &ClientMockGetByocInfrastructureTagsExpectation{mock: mmGetByocInfrastructureTags.mock}
+	}
+	mmGetByocInfrastructureTags.defaultExpectation.results = &ClientMockGetByocInfrastructureTagsResults{m1, err}
+	mmGetByocInfrastructureTags.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructureTags.mock
+}
+
+// Set uses given function f to mock the Client.GetByocInfrastructureTags method
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) Set(f func(ctx context.Context, byocId string) (m1 map[string]string, err error)) *ClientMock {
+	if mmGetByocInfrastructureTags.defaultExpectation != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("Default expectation is already set for the Client.GetByocInfrastructureTags method")
+	}
+
+	if len(mmGetByocInfrastructureTags.expectations) > 0 {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("Some expectations are already set for the Client.GetByocInfrastructureTags method")
+	}
+
+	mmGetByocInfrastructureTags.mock.funcGetByocInfrastructureTags = f
+	mmGetByocInfrastructureTags.mock.funcGetByocInfrastructureTagsOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructureTags.mock
+}
+
+// When sets expectation for the Client.GetByocInfrastructureTags which will trigger the result defined by the following
+// Then helper
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) When(ctx context.Context, byocId string) *ClientMockGetByocInfrastructureTagsExpectation {
+	if mmGetByocInfrastructureTags.mock.funcGetByocInfrastructureTags != nil {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("ClientMock.GetByocInfrastructureTags mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetByocInfrastructureTagsExpectation{
+		mock:               mmGetByocInfrastructureTags.mock,
+		params:             &ClientMockGetByocInfrastructureTagsParams{ctx, byocId},
+		expectationOrigins: ClientMockGetByocInfrastructureTagsExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetByocInfrastructureTags.expectations = append(mmGetByocInfrastructureTags.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetByocInfrastructureTags return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetByocInfrastructureTagsExpectation) Then(m1 map[string]string, err error) *ClientMock {
+	e.results = &ClientMockGetByocInfrastructureTagsResults{m1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetByocInfrastructureTags should be invoked
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) Times(n uint64) *mClientMockGetByocInfrastructureTags {
+	if n == 0 {
+		mmGetByocInfrastructureTags.mock.t.Fatalf("Times of ClientMock.GetByocInfrastructureTags mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetByocInfrastructureTags.expectedInvocations, n)
+	mmGetByocInfrastructureTags.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructureTags
+}
+
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) invocationsDone() bool {
+	if len(mmGetByocInfrastructureTags.expectations) == 0 && mmGetByocInfrastructureTags.defaultExpectation == nil && mmGetByocInfrastructureTags.mock.funcGetByocInfrastructureTags == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetByocInfrastructureTags.mock.afterGetByocInfrastructureTagsCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetByocInfrastructureTags.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetByocInfrastructureTags implements Client
+func (mmGetByocInfrastructureTags *ClientMock) GetByocInfrastructureTags(ctx context.Context, byocId string) (m1 map[string]string, err error) {
+	mm_atomic.AddUint64(&mmGetByocInfrastructureTags.beforeGetByocInfrastructureTagsCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetByocInfrastructureTags.afterGetByocInfrastructureTagsCounter, 1)
+
+	mmGetByocInfrastructureTags.t.Helper()
+
+	if mmGetByocInfrastructureTags.inspectFuncGetByocInfrastructureTags != nil {
+		mmGetByocInfrastructureTags.inspectFuncGetByocInfrastructureTags(ctx, byocId)
+	}
+
+	mm_params := ClientMockGetByocInfrastructureTagsParams{ctx, byocId}
+
+	// Record call args
+	mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.mutex.Lock()
+	mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.callArgs = append(mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.callArgs, &mm_params)
+	mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.mutex.Unlock()
+
+	for _, e := range mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.m1, e.results.err
+		}
+	}
+
+	if mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.defaultExpectation.params
+		mm_want_ptrs := mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetByocInfrastructureTagsParams{ctx, byocId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetByocInfrastructureTags.t.Errorf("ClientMock.GetByocInfrastructureTags got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmGetByocInfrastructureTags.t.Errorf("ClientMock.GetByocInfrastructureTags got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetByocInfrastructureTags.t.Errorf("ClientMock.GetByocInfrastructureTags got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetByocInfrastructureTags.GetByocInfrastructureTagsMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetByocInfrastructureTags.t.Fatal("No results are set for the ClientMock.GetByocInfrastructureTags")
+		}
+		return (*mm_results).m1, (*mm_results).err
+	}
+	if mmGetByocInfrastructureTags.funcGetByocInfrastructureTags != nil {
+		return mmGetByocInfrastructureTags.funcGetByocInfrastructureTags(ctx, byocId)
+	}
+	mmGetByocInfrastructureTags.t.Fatalf("Unexpected call to ClientMock.GetByocInfrastructureTags. %v %v", ctx, byocId)
+	return
+}
+
+// GetByocInfrastructureTagsAfterCounter returns a count of finished ClientMock.GetByocInfrastructureTags invocations
+func (mmGetByocInfrastructureTags *ClientMock) GetByocInfrastructureTagsAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetByocInfrastructureTags.afterGetByocInfrastructureTagsCounter)
+}
+
+// GetByocInfrastructureTagsBeforeCounter returns a count of ClientMock.GetByocInfrastructureTags invocations
+func (mmGetByocInfrastructureTags *ClientMock) GetByocInfrastructureTagsBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetByocInfrastructureTags.beforeGetByocInfrastructureTagsCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetByocInfrastructureTags.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetByocInfrastructureTags *mClientMockGetByocInfrastructureTags) Calls() []*ClientMockGetByocInfrastructureTagsParams {
+	mmGetByocInfrastructureTags.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetByocInfrastructureTagsParams, len(mmGetByocInfrastructureTags.callArgs))
+	copy(argCopy, mmGetByocInfrastructureTags.callArgs)
+
+	mmGetByocInfrastructureTags.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetByocInfrastructureTagsDone returns true if the count of the GetByocInfrastructureTags invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetByocInfrastructureTagsDone() bool {
+	if m.GetByocInfrastructureTagsMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetByocInfrastructureTagsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetByocInfrastructureTagsMock.invocationsDone()
+}
+
+// MinimockGetByocInfrastructureTagsInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetByocInfrastructureTagsInspect() {
+	for _, e := range m.GetByocInfrastructureTagsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructureTags at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetByocInfrastructureTagsCounter := mm_atomic.LoadUint64(&m.afterGetByocInfrastructureTagsCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetByocInfrastructureTagsMock.defaultExpectation != nil && afterGetByocInfrastructureTagsCounter < 1 {
+		if m.GetByocInfrastructureTagsMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructureTags at\n%s", m.GetByocInfrastructureTagsMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructureTags at\n%s with params: %#v", m.GetByocInfrastructureTagsMock.defaultExpectation.expectationOrigins.origin, *m.GetByocInfrastructureTagsMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetByocInfrastructureTags != nil && afterGetByocInfrastructureTagsCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetByocInfrastructureTags at\n%s", m.funcGetByocInfrastructureTagsOrigin)
+	}
+
+	if !m.GetByocInfrastructureTagsMock.invocationsDone() && afterGetByocInfrastructureTagsCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetByocInfrastructureTags at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetByocInfrastructureTagsMock.expectedInvocations), m.GetByocInfrastructureTagsMock.expectedInvocationsOrigin, afterGetByocInfrastructureTagsCounter)
 	}
 }
 
@@ -13261,6 +16143,349 @@ func (m *ClientMock) MinimockGetClickPipeSettingsInspect() {
 	if !m.GetClickPipeSettingsMock.invocationsDone() && afterGetClickPipeSettingsCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetClickPipeSettings at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetClickPipeSettingsMock.expectedInvocations), m.GetClickPipeSettingsMock.expectedInvocationsOrigin, afterGetClickPipeSettingsCounter)
+	}
+}
+
+type mClientMockGetClickPipesServiceContext struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetClickPipesServiceContextExpectation
+	expectations       []*ClientMockGetClickPipesServiceContextExpectation
+
+	callArgs []*ClientMockGetClickPipesServiceContextParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetClickPipesServiceContextExpectation specifies expectation struct of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetClickPipesServiceContextParams
+	paramPtrs          *ClientMockGetClickPipesServiceContextParamPtrs
+	expectationOrigins ClientMockGetClickPipesServiceContextExpectationOrigins
+	results            *ClientMockGetClickPipesServiceContextResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetClickPipesServiceContextParams contains parameters of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextParams struct {
+	ctx       context.Context
+	serviceId string
+}
+
+// ClientMockGetClickPipesServiceContextParamPtrs contains pointers to parameters of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+}
+
+// ClientMockGetClickPipesServiceContextResults contains results of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextResults struct {
+	cp1 *ClickPipesServiceContext
+	err error
+}
+
+// ClientMockGetClickPipesServiceContextOrigins contains origins of expectations of the Client.GetClickPipesServiceContext
+type ClientMockGetClickPipesServiceContextExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Optional() *mClientMockGetClickPipesServiceContext {
+	mmGetClickPipesServiceContext.optional = true
+	return mmGetClickPipesServiceContext
+}
+
+// Expect sets up expected params for Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Expect(ctx context.Context, serviceId string) *mClientMockGetClickPipesServiceContext {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation == nil {
+		mmGetClickPipesServiceContext.defaultExpectation = &ClientMockGetClickPipesServiceContextExpectation{}
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.paramPtrs != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by ExpectParams functions")
+	}
+
+	mmGetClickPipesServiceContext.defaultExpectation.params = &ClientMockGetClickPipesServiceContextParams{ctx, serviceId}
+	mmGetClickPipesServiceContext.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetClickPipesServiceContext.expectations {
+		if minimock.Equal(e.params, mmGetClickPipesServiceContext.defaultExpectation.params) {
+			mmGetClickPipesServiceContext.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetClickPipesServiceContext.defaultExpectation.params)
+		}
+	}
+
+	return mmGetClickPipesServiceContext
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) ExpectCtxParam1(ctx context.Context) *mClientMockGetClickPipesServiceContext {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation == nil {
+		mmGetClickPipesServiceContext.defaultExpectation = &ClientMockGetClickPipesServiceContextExpectation{}
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.params != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Expect")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.paramPtrs == nil {
+		mmGetClickPipesServiceContext.defaultExpectation.paramPtrs = &ClientMockGetClickPipesServiceContextParamPtrs{}
+	}
+	mmGetClickPipesServiceContext.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetClickPipesServiceContext.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetClickPipesServiceContext
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) ExpectServiceIdParam2(serviceId string) *mClientMockGetClickPipesServiceContext {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation == nil {
+		mmGetClickPipesServiceContext.defaultExpectation = &ClientMockGetClickPipesServiceContextExpectation{}
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.params != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Expect")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation.paramPtrs == nil {
+		mmGetClickPipesServiceContext.defaultExpectation.paramPtrs = &ClientMockGetClickPipesServiceContextParamPtrs{}
+	}
+	mmGetClickPipesServiceContext.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmGetClickPipesServiceContext.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmGetClickPipesServiceContext
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Inspect(f func(ctx context.Context, serviceId string)) *mClientMockGetClickPipesServiceContext {
+	if mmGetClickPipesServiceContext.mock.inspectFuncGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("Inspect function is already set for ClientMock.GetClickPipesServiceContext")
+	}
+
+	mmGetClickPipesServiceContext.mock.inspectFuncGetClickPipesServiceContext = f
+
+	return mmGetClickPipesServiceContext
+}
+
+// Return sets up results that will be returned by Client.GetClickPipesServiceContext
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Return(cp1 *ClickPipesServiceContext, err error) *ClientMock {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	if mmGetClickPipesServiceContext.defaultExpectation == nil {
+		mmGetClickPipesServiceContext.defaultExpectation = &ClientMockGetClickPipesServiceContextExpectation{mock: mmGetClickPipesServiceContext.mock}
+	}
+	mmGetClickPipesServiceContext.defaultExpectation.results = &ClientMockGetClickPipesServiceContextResults{cp1, err}
+	mmGetClickPipesServiceContext.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetClickPipesServiceContext.mock
+}
+
+// Set uses given function f to mock the Client.GetClickPipesServiceContext method
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Set(f func(ctx context.Context, serviceId string) (cp1 *ClickPipesServiceContext, err error)) *ClientMock {
+	if mmGetClickPipesServiceContext.defaultExpectation != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("Default expectation is already set for the Client.GetClickPipesServiceContext method")
+	}
+
+	if len(mmGetClickPipesServiceContext.expectations) > 0 {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("Some expectations are already set for the Client.GetClickPipesServiceContext method")
+	}
+
+	mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext = f
+	mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContextOrigin = minimock.CallerInfo(1)
+	return mmGetClickPipesServiceContext.mock
+}
+
+// When sets expectation for the Client.GetClickPipesServiceContext which will trigger the result defined by the following
+// Then helper
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) When(ctx context.Context, serviceId string) *ClientMockGetClickPipesServiceContextExpectation {
+	if mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("ClientMock.GetClickPipesServiceContext mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetClickPipesServiceContextExpectation{
+		mock:               mmGetClickPipesServiceContext.mock,
+		params:             &ClientMockGetClickPipesServiceContextParams{ctx, serviceId},
+		expectationOrigins: ClientMockGetClickPipesServiceContextExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetClickPipesServiceContext.expectations = append(mmGetClickPipesServiceContext.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetClickPipesServiceContext return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetClickPipesServiceContextExpectation) Then(cp1 *ClickPipesServiceContext, err error) *ClientMock {
+	e.results = &ClientMockGetClickPipesServiceContextResults{cp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetClickPipesServiceContext should be invoked
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Times(n uint64) *mClientMockGetClickPipesServiceContext {
+	if n == 0 {
+		mmGetClickPipesServiceContext.mock.t.Fatalf("Times of ClientMock.GetClickPipesServiceContext mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetClickPipesServiceContext.expectedInvocations, n)
+	mmGetClickPipesServiceContext.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetClickPipesServiceContext
+}
+
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) invocationsDone() bool {
+	if len(mmGetClickPipesServiceContext.expectations) == 0 && mmGetClickPipesServiceContext.defaultExpectation == nil && mmGetClickPipesServiceContext.mock.funcGetClickPipesServiceContext == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetClickPipesServiceContext.mock.afterGetClickPipesServiceContextCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetClickPipesServiceContext.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetClickPipesServiceContext implements Client
+func (mmGetClickPipesServiceContext *ClientMock) GetClickPipesServiceContext(ctx context.Context, serviceId string) (cp1 *ClickPipesServiceContext, err error) {
+	mm_atomic.AddUint64(&mmGetClickPipesServiceContext.beforeGetClickPipesServiceContextCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetClickPipesServiceContext.afterGetClickPipesServiceContextCounter, 1)
+
+	mmGetClickPipesServiceContext.t.Helper()
+
+	if mmGetClickPipesServiceContext.inspectFuncGetClickPipesServiceContext != nil {
+		mmGetClickPipesServiceContext.inspectFuncGetClickPipesServiceContext(ctx, serviceId)
+	}
+
+	mm_params := ClientMockGetClickPipesServiceContextParams{ctx, serviceId}
+
+	// Record call args
+	mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.mutex.Lock()
+	mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.callArgs = append(mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.callArgs, &mm_params)
+	mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.mutex.Unlock()
+
+	for _, e := range mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.cp1, e.results.err
+		}
+	}
+
+	if mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.params
+		mm_want_ptrs := mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetClickPipesServiceContextParams{ctx, serviceId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetClickPipesServiceContext.t.Errorf("ClientMock.GetClickPipesServiceContext got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmGetClickPipesServiceContext.t.Errorf("ClientMock.GetClickPipesServiceContext got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetClickPipesServiceContext.t.Errorf("ClientMock.GetClickPipesServiceContext got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetClickPipesServiceContext.GetClickPipesServiceContextMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetClickPipesServiceContext.t.Fatal("No results are set for the ClientMock.GetClickPipesServiceContext")
+		}
+		return (*mm_results).cp1, (*mm_results).err
+	}
+	if mmGetClickPipesServiceContext.funcGetClickPipesServiceContext != nil {
+		return mmGetClickPipesServiceContext.funcGetClickPipesServiceContext(ctx, serviceId)
+	}
+	mmGetClickPipesServiceContext.t.Fatalf("Unexpected call to ClientMock.GetClickPipesServiceContext. %v %v", ctx, serviceId)
+	return
+}
+
+// GetClickPipesServiceContextAfterCounter returns a count of finished ClientMock.GetClickPipesServiceContext invocations
+func (mmGetClickPipesServiceContext *ClientMock) GetClickPipesServiceContextAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetClickPipesServiceContext.afterGetClickPipesServiceContextCounter)
+}
+
+// GetClickPipesServiceContextBeforeCounter returns a count of ClientMock.GetClickPipesServiceContext invocations
+func (mmGetClickPipesServiceContext *ClientMock) GetClickPipesServiceContextBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetClickPipesServiceContext.beforeGetClickPipesServiceContextCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetClickPipesServiceContext.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetClickPipesServiceContext *mClientMockGetClickPipesServiceContext) Calls() []*ClientMockGetClickPipesServiceContextParams {
+	mmGetClickPipesServiceContext.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetClickPipesServiceContextParams, len(mmGetClickPipesServiceContext.callArgs))
+	copy(argCopy, mmGetClickPipesServiceContext.callArgs)
+
+	mmGetClickPipesServiceContext.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetClickPipesServiceContextDone returns true if the count of the GetClickPipesServiceContext invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetClickPipesServiceContextDone() bool {
+	if m.GetClickPipesServiceContextMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetClickPipesServiceContextMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetClickPipesServiceContextMock.invocationsDone()
+}
+
+// MinimockGetClickPipesServiceContextInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetClickPipesServiceContextInspect() {
+	for _, e := range m.GetClickPipesServiceContextMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetClickPipesServiceContext at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetClickPipesServiceContextCounter := mm_atomic.LoadUint64(&m.afterGetClickPipesServiceContextCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetClickPipesServiceContextMock.defaultExpectation != nil && afterGetClickPipesServiceContextCounter < 1 {
+		if m.GetClickPipesServiceContextMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetClickPipesServiceContext at\n%s", m.GetClickPipesServiceContextMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetClickPipesServiceContext at\n%s with params: %#v", m.GetClickPipesServiceContextMock.defaultExpectation.expectationOrigins.origin, *m.GetClickPipesServiceContextMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetClickPipesServiceContext != nil && afterGetClickPipesServiceContextCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetClickPipesServiceContext at\n%s", m.funcGetClickPipesServiceContextOrigin)
+	}
+
+	if !m.GetClickPipesServiceContextMock.invocationsDone() && afterGetClickPipesServiceContextCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetClickPipesServiceContext at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetClickPipesServiceContextMock.expectedInvocations), m.GetClickPipesServiceContextMock.expectedInvocationsOrigin, afterGetClickPipesServiceContextCounter)
 	}
 }
 
@@ -25857,6 +29082,380 @@ func (m *ClientMock) MinimockSetPostgresPasswordInspect() {
 	}
 }
 
+type mClientMockUpdateApiKey struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateApiKeyExpectation
+	expectations       []*ClientMockUpdateApiKeyExpectation
+
+	callArgs []*ClientMockUpdateApiKeyParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateApiKeyExpectation specifies expectation struct of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateApiKeyParams
+	paramPtrs          *ClientMockUpdateApiKeyParamPtrs
+	expectationOrigins ClientMockUpdateApiKeyExpectationOrigins
+	results            *ClientMockUpdateApiKeyResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateApiKeyParams contains parameters of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyParams struct {
+	ctx   context.Context
+	keyId string
+	req   ApiKeyUpdateRequest
+}
+
+// ClientMockUpdateApiKeyParamPtrs contains pointers to parameters of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyParamPtrs struct {
+	ctx   *context.Context
+	keyId *string
+	req   *ApiKeyUpdateRequest
+}
+
+// ClientMockUpdateApiKeyResults contains results of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyResults struct {
+	ap1 *ApiKey
+	err error
+}
+
+// ClientMockUpdateApiKeyOrigins contains origins of expectations of the Client.UpdateApiKey
+type ClientMockUpdateApiKeyExpectationOrigins struct {
+	origin      string
+	originCtx   string
+	originKeyId string
+	originReq   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Optional() *mClientMockUpdateApiKey {
+	mmUpdateApiKey.optional = true
+	return mmUpdateApiKey
+}
+
+// Expect sets up expected params for Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Expect(ctx context.Context, keyId string, req ApiKeyUpdateRequest) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{}
+	}
+
+	if mmUpdateApiKey.defaultExpectation.paramPtrs != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateApiKey.defaultExpectation.params = &ClientMockUpdateApiKeyParams{ctx, keyId, req}
+	mmUpdateApiKey.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateApiKey.expectations {
+		if minimock.Equal(e.params, mmUpdateApiKey.defaultExpectation.params) {
+			mmUpdateApiKey.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateApiKey.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateApiKey
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{}
+	}
+
+	if mmUpdateApiKey.defaultExpectation.params != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Expect")
+	}
+
+	if mmUpdateApiKey.defaultExpectation.paramPtrs == nil {
+		mmUpdateApiKey.defaultExpectation.paramPtrs = &ClientMockUpdateApiKeyParamPtrs{}
+	}
+	mmUpdateApiKey.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateApiKey.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateApiKey
+}
+
+// ExpectKeyIdParam2 sets up expected param keyId for Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) ExpectKeyIdParam2(keyId string) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{}
+	}
+
+	if mmUpdateApiKey.defaultExpectation.params != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Expect")
+	}
+
+	if mmUpdateApiKey.defaultExpectation.paramPtrs == nil {
+		mmUpdateApiKey.defaultExpectation.paramPtrs = &ClientMockUpdateApiKeyParamPtrs{}
+	}
+	mmUpdateApiKey.defaultExpectation.paramPtrs.keyId = &keyId
+	mmUpdateApiKey.defaultExpectation.expectationOrigins.originKeyId = minimock.CallerInfo(1)
+
+	return mmUpdateApiKey
+}
+
+// ExpectReqParam3 sets up expected param req for Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) ExpectReqParam3(req ApiKeyUpdateRequest) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{}
+	}
+
+	if mmUpdateApiKey.defaultExpectation.params != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Expect")
+	}
+
+	if mmUpdateApiKey.defaultExpectation.paramPtrs == nil {
+		mmUpdateApiKey.defaultExpectation.paramPtrs = &ClientMockUpdateApiKeyParamPtrs{}
+	}
+	mmUpdateApiKey.defaultExpectation.paramPtrs.req = &req
+	mmUpdateApiKey.defaultExpectation.expectationOrigins.originReq = minimock.CallerInfo(1)
+
+	return mmUpdateApiKey
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Inspect(f func(ctx context.Context, keyId string, req ApiKeyUpdateRequest)) *mClientMockUpdateApiKey {
+	if mmUpdateApiKey.mock.inspectFuncUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateApiKey")
+	}
+
+	mmUpdateApiKey.mock.inspectFuncUpdateApiKey = f
+
+	return mmUpdateApiKey
+}
+
+// Return sets up results that will be returned by Client.UpdateApiKey
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Return(ap1 *ApiKey, err error) *ClientMock {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	if mmUpdateApiKey.defaultExpectation == nil {
+		mmUpdateApiKey.defaultExpectation = &ClientMockUpdateApiKeyExpectation{mock: mmUpdateApiKey.mock}
+	}
+	mmUpdateApiKey.defaultExpectation.results = &ClientMockUpdateApiKeyResults{ap1, err}
+	mmUpdateApiKey.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateApiKey.mock
+}
+
+// Set uses given function f to mock the Client.UpdateApiKey method
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Set(f func(ctx context.Context, keyId string, req ApiKeyUpdateRequest) (ap1 *ApiKey, err error)) *ClientMock {
+	if mmUpdateApiKey.defaultExpectation != nil {
+		mmUpdateApiKey.mock.t.Fatalf("Default expectation is already set for the Client.UpdateApiKey method")
+	}
+
+	if len(mmUpdateApiKey.expectations) > 0 {
+		mmUpdateApiKey.mock.t.Fatalf("Some expectations are already set for the Client.UpdateApiKey method")
+	}
+
+	mmUpdateApiKey.mock.funcUpdateApiKey = f
+	mmUpdateApiKey.mock.funcUpdateApiKeyOrigin = minimock.CallerInfo(1)
+	return mmUpdateApiKey.mock
+}
+
+// When sets expectation for the Client.UpdateApiKey which will trigger the result defined by the following
+// Then helper
+func (mmUpdateApiKey *mClientMockUpdateApiKey) When(ctx context.Context, keyId string, req ApiKeyUpdateRequest) *ClientMockUpdateApiKeyExpectation {
+	if mmUpdateApiKey.mock.funcUpdateApiKey != nil {
+		mmUpdateApiKey.mock.t.Fatalf("ClientMock.UpdateApiKey mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateApiKeyExpectation{
+		mock:               mmUpdateApiKey.mock,
+		params:             &ClientMockUpdateApiKeyParams{ctx, keyId, req},
+		expectationOrigins: ClientMockUpdateApiKeyExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateApiKey.expectations = append(mmUpdateApiKey.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateApiKey return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateApiKeyExpectation) Then(ap1 *ApiKey, err error) *ClientMock {
+	e.results = &ClientMockUpdateApiKeyResults{ap1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateApiKey should be invoked
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Times(n uint64) *mClientMockUpdateApiKey {
+	if n == 0 {
+		mmUpdateApiKey.mock.t.Fatalf("Times of ClientMock.UpdateApiKey mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateApiKey.expectedInvocations, n)
+	mmUpdateApiKey.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateApiKey
+}
+
+func (mmUpdateApiKey *mClientMockUpdateApiKey) invocationsDone() bool {
+	if len(mmUpdateApiKey.expectations) == 0 && mmUpdateApiKey.defaultExpectation == nil && mmUpdateApiKey.mock.funcUpdateApiKey == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateApiKey.mock.afterUpdateApiKeyCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateApiKey.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateApiKey implements Client
+func (mmUpdateApiKey *ClientMock) UpdateApiKey(ctx context.Context, keyId string, req ApiKeyUpdateRequest) (ap1 *ApiKey, err error) {
+	mm_atomic.AddUint64(&mmUpdateApiKey.beforeUpdateApiKeyCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateApiKey.afterUpdateApiKeyCounter, 1)
+
+	mmUpdateApiKey.t.Helper()
+
+	if mmUpdateApiKey.inspectFuncUpdateApiKey != nil {
+		mmUpdateApiKey.inspectFuncUpdateApiKey(ctx, keyId, req)
+	}
+
+	mm_params := ClientMockUpdateApiKeyParams{ctx, keyId, req}
+
+	// Record call args
+	mmUpdateApiKey.UpdateApiKeyMock.mutex.Lock()
+	mmUpdateApiKey.UpdateApiKeyMock.callArgs = append(mmUpdateApiKey.UpdateApiKeyMock.callArgs, &mm_params)
+	mmUpdateApiKey.UpdateApiKeyMock.mutex.Unlock()
+
+	for _, e := range mmUpdateApiKey.UpdateApiKeyMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.ap1, e.results.err
+		}
+	}
+
+	if mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateApiKeyParams{ctx, keyId, req}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateApiKey.t.Errorf("ClientMock.UpdateApiKey got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.keyId != nil && !minimock.Equal(*mm_want_ptrs.keyId, mm_got.keyId) {
+				mmUpdateApiKey.t.Errorf("ClientMock.UpdateApiKey got unexpected parameter keyId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.expectationOrigins.originKeyId, *mm_want_ptrs.keyId, mm_got.keyId, minimock.Diff(*mm_want_ptrs.keyId, mm_got.keyId))
+			}
+
+			if mm_want_ptrs.req != nil && !minimock.Equal(*mm_want_ptrs.req, mm_got.req) {
+				mmUpdateApiKey.t.Errorf("ClientMock.UpdateApiKey got unexpected parameter req, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.expectationOrigins.originReq, *mm_want_ptrs.req, mm_got.req, minimock.Diff(*mm_want_ptrs.req, mm_got.req))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateApiKey.t.Errorf("ClientMock.UpdateApiKey got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateApiKey.UpdateApiKeyMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateApiKey.t.Fatal("No results are set for the ClientMock.UpdateApiKey")
+		}
+		return (*mm_results).ap1, (*mm_results).err
+	}
+	if mmUpdateApiKey.funcUpdateApiKey != nil {
+		return mmUpdateApiKey.funcUpdateApiKey(ctx, keyId, req)
+	}
+	mmUpdateApiKey.t.Fatalf("Unexpected call to ClientMock.UpdateApiKey. %v %v %v", ctx, keyId, req)
+	return
+}
+
+// UpdateApiKeyAfterCounter returns a count of finished ClientMock.UpdateApiKey invocations
+func (mmUpdateApiKey *ClientMock) UpdateApiKeyAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateApiKey.afterUpdateApiKeyCounter)
+}
+
+// UpdateApiKeyBeforeCounter returns a count of ClientMock.UpdateApiKey invocations
+func (mmUpdateApiKey *ClientMock) UpdateApiKeyBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateApiKey.beforeUpdateApiKeyCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateApiKey.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateApiKey *mClientMockUpdateApiKey) Calls() []*ClientMockUpdateApiKeyParams {
+	mmUpdateApiKey.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateApiKeyParams, len(mmUpdateApiKey.callArgs))
+	copy(argCopy, mmUpdateApiKey.callArgs)
+
+	mmUpdateApiKey.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateApiKeyDone returns true if the count of the UpdateApiKey invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateApiKeyDone() bool {
+	if m.UpdateApiKeyMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateApiKeyMock.invocationsDone()
+}
+
+// MinimockUpdateApiKeyInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateApiKeyInspect() {
+	for _, e := range m.UpdateApiKeyMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateApiKey at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateApiKeyCounter := mm_atomic.LoadUint64(&m.afterUpdateApiKeyCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateApiKeyMock.defaultExpectation != nil && afterUpdateApiKeyCounter < 1 {
+		if m.UpdateApiKeyMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateApiKey at\n%s", m.UpdateApiKeyMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateApiKey at\n%s with params: %#v", m.UpdateApiKeyMock.defaultExpectation.expectationOrigins.origin, *m.UpdateApiKeyMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateApiKey != nil && afterUpdateApiKeyCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateApiKey at\n%s", m.funcUpdateApiKeyOrigin)
+	}
+
+	if !m.UpdateApiKeyMock.invocationsDone() && afterUpdateApiKeyCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateApiKey at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateApiKeyMock.expectedInvocations), m.UpdateApiKeyMock.expectedInvocationsOrigin, afterUpdateApiKeyCounter)
+	}
+}
+
 type mClientMockUpdateBackupConfiguration struct {
 	optional           bool
 	mock               *ClientMock
@@ -26228,6 +29827,380 @@ func (m *ClientMock) MinimockUpdateBackupConfigurationInspect() {
 	if !m.UpdateBackupConfigurationMock.invocationsDone() && afterUpdateBackupConfigurationCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.UpdateBackupConfiguration at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.UpdateBackupConfigurationMock.expectedInvocations), m.UpdateBackupConfigurationMock.expectedInvocationsOrigin, afterUpdateBackupConfigurationCounter)
+	}
+}
+
+type mClientMockUpdateByocInfrastructure struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateByocInfrastructureExpectation
+	expectations       []*ClientMockUpdateByocInfrastructureExpectation
+
+	callArgs []*ClientMockUpdateByocInfrastructureParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateByocInfrastructureExpectation specifies expectation struct of the Client.UpdateByocInfrastructure
+type ClientMockUpdateByocInfrastructureExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateByocInfrastructureParams
+	paramPtrs          *ClientMockUpdateByocInfrastructureParamPtrs
+	expectationOrigins ClientMockUpdateByocInfrastructureExpectationOrigins
+	results            *ClientMockUpdateByocInfrastructureResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateByocInfrastructureParams contains parameters of the Client.UpdateByocInfrastructure
+type ClientMockUpdateByocInfrastructureParams struct {
+	ctx    context.Context
+	byocId string
+	r      ByocInfrastructureUpdateRequest
+}
+
+// ClientMockUpdateByocInfrastructureParamPtrs contains pointers to parameters of the Client.UpdateByocInfrastructure
+type ClientMockUpdateByocInfrastructureParamPtrs struct {
+	ctx    *context.Context
+	byocId *string
+	r      *ByocInfrastructureUpdateRequest
+}
+
+// ClientMockUpdateByocInfrastructureResults contains results of the Client.UpdateByocInfrastructure
+type ClientMockUpdateByocInfrastructureResults struct {
+	bp1 *ByocInfrastructure
+	err error
+}
+
+// ClientMockUpdateByocInfrastructureOrigins contains origins of expectations of the Client.UpdateByocInfrastructure
+type ClientMockUpdateByocInfrastructureExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originByocId string
+	originR      string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) Optional() *mClientMockUpdateByocInfrastructure {
+	mmUpdateByocInfrastructure.optional = true
+	return mmUpdateByocInfrastructure
+}
+
+// Expect sets up expected params for Client.UpdateByocInfrastructure
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) Expect(ctx context.Context, byocId string, r ByocInfrastructureUpdateRequest) *mClientMockUpdateByocInfrastructure {
+	if mmUpdateByocInfrastructure.mock.funcUpdateByocInfrastructure != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation == nil {
+		mmUpdateByocInfrastructure.defaultExpectation = &ClientMockUpdateByocInfrastructureExpectation{}
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation.paramPtrs != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateByocInfrastructure.defaultExpectation.params = &ClientMockUpdateByocInfrastructureParams{ctx, byocId, r}
+	mmUpdateByocInfrastructure.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateByocInfrastructure.expectations {
+		if minimock.Equal(e.params, mmUpdateByocInfrastructure.defaultExpectation.params) {
+			mmUpdateByocInfrastructure.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateByocInfrastructure.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateByocInfrastructure
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateByocInfrastructure
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateByocInfrastructure {
+	if mmUpdateByocInfrastructure.mock.funcUpdateByocInfrastructure != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation == nil {
+		mmUpdateByocInfrastructure.defaultExpectation = &ClientMockUpdateByocInfrastructureExpectation{}
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation.params != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmUpdateByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockUpdateByocInfrastructureParamPtrs{}
+	}
+	mmUpdateByocInfrastructure.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateByocInfrastructure.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateByocInfrastructure
+}
+
+// ExpectByocIdParam2 sets up expected param byocId for Client.UpdateByocInfrastructure
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) ExpectByocIdParam2(byocId string) *mClientMockUpdateByocInfrastructure {
+	if mmUpdateByocInfrastructure.mock.funcUpdateByocInfrastructure != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation == nil {
+		mmUpdateByocInfrastructure.defaultExpectation = &ClientMockUpdateByocInfrastructureExpectation{}
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation.params != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmUpdateByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockUpdateByocInfrastructureParamPtrs{}
+	}
+	mmUpdateByocInfrastructure.defaultExpectation.paramPtrs.byocId = &byocId
+	mmUpdateByocInfrastructure.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmUpdateByocInfrastructure
+}
+
+// ExpectRParam3 sets up expected param r for Client.UpdateByocInfrastructure
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) ExpectRParam3(r ByocInfrastructureUpdateRequest) *mClientMockUpdateByocInfrastructure {
+	if mmUpdateByocInfrastructure.mock.funcUpdateByocInfrastructure != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation == nil {
+		mmUpdateByocInfrastructure.defaultExpectation = &ClientMockUpdateByocInfrastructureExpectation{}
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation.params != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmUpdateByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockUpdateByocInfrastructureParamPtrs{}
+	}
+	mmUpdateByocInfrastructure.defaultExpectation.paramPtrs.r = &r
+	mmUpdateByocInfrastructure.defaultExpectation.expectationOrigins.originR = minimock.CallerInfo(1)
+
+	return mmUpdateByocInfrastructure
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateByocInfrastructure
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) Inspect(f func(ctx context.Context, byocId string, r ByocInfrastructureUpdateRequest)) *mClientMockUpdateByocInfrastructure {
+	if mmUpdateByocInfrastructure.mock.inspectFuncUpdateByocInfrastructure != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateByocInfrastructure")
+	}
+
+	mmUpdateByocInfrastructure.mock.inspectFuncUpdateByocInfrastructure = f
+
+	return mmUpdateByocInfrastructure
+}
+
+// Return sets up results that will be returned by Client.UpdateByocInfrastructure
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) Return(bp1 *ByocInfrastructure, err error) *ClientMock {
+	if mmUpdateByocInfrastructure.mock.funcUpdateByocInfrastructure != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructure.defaultExpectation == nil {
+		mmUpdateByocInfrastructure.defaultExpectation = &ClientMockUpdateByocInfrastructureExpectation{mock: mmUpdateByocInfrastructure.mock}
+	}
+	mmUpdateByocInfrastructure.defaultExpectation.results = &ClientMockUpdateByocInfrastructureResults{bp1, err}
+	mmUpdateByocInfrastructure.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateByocInfrastructure.mock
+}
+
+// Set uses given function f to mock the Client.UpdateByocInfrastructure method
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) Set(f func(ctx context.Context, byocId string, r ByocInfrastructureUpdateRequest) (bp1 *ByocInfrastructure, err error)) *ClientMock {
+	if mmUpdateByocInfrastructure.defaultExpectation != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("Default expectation is already set for the Client.UpdateByocInfrastructure method")
+	}
+
+	if len(mmUpdateByocInfrastructure.expectations) > 0 {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("Some expectations are already set for the Client.UpdateByocInfrastructure method")
+	}
+
+	mmUpdateByocInfrastructure.mock.funcUpdateByocInfrastructure = f
+	mmUpdateByocInfrastructure.mock.funcUpdateByocInfrastructureOrigin = minimock.CallerInfo(1)
+	return mmUpdateByocInfrastructure.mock
+}
+
+// When sets expectation for the Client.UpdateByocInfrastructure which will trigger the result defined by the following
+// Then helper
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) When(ctx context.Context, byocId string, r ByocInfrastructureUpdateRequest) *ClientMockUpdateByocInfrastructureExpectation {
+	if mmUpdateByocInfrastructure.mock.funcUpdateByocInfrastructure != nil {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("ClientMock.UpdateByocInfrastructure mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateByocInfrastructureExpectation{
+		mock:               mmUpdateByocInfrastructure.mock,
+		params:             &ClientMockUpdateByocInfrastructureParams{ctx, byocId, r},
+		expectationOrigins: ClientMockUpdateByocInfrastructureExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateByocInfrastructure.expectations = append(mmUpdateByocInfrastructure.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateByocInfrastructure return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateByocInfrastructureExpectation) Then(bp1 *ByocInfrastructure, err error) *ClientMock {
+	e.results = &ClientMockUpdateByocInfrastructureResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateByocInfrastructure should be invoked
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) Times(n uint64) *mClientMockUpdateByocInfrastructure {
+	if n == 0 {
+		mmUpdateByocInfrastructure.mock.t.Fatalf("Times of ClientMock.UpdateByocInfrastructure mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateByocInfrastructure.expectedInvocations, n)
+	mmUpdateByocInfrastructure.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateByocInfrastructure
+}
+
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) invocationsDone() bool {
+	if len(mmUpdateByocInfrastructure.expectations) == 0 && mmUpdateByocInfrastructure.defaultExpectation == nil && mmUpdateByocInfrastructure.mock.funcUpdateByocInfrastructure == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateByocInfrastructure.mock.afterUpdateByocInfrastructureCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateByocInfrastructure.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateByocInfrastructure implements Client
+func (mmUpdateByocInfrastructure *ClientMock) UpdateByocInfrastructure(ctx context.Context, byocId string, r ByocInfrastructureUpdateRequest) (bp1 *ByocInfrastructure, err error) {
+	mm_atomic.AddUint64(&mmUpdateByocInfrastructure.beforeUpdateByocInfrastructureCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateByocInfrastructure.afterUpdateByocInfrastructureCounter, 1)
+
+	mmUpdateByocInfrastructure.t.Helper()
+
+	if mmUpdateByocInfrastructure.inspectFuncUpdateByocInfrastructure != nil {
+		mmUpdateByocInfrastructure.inspectFuncUpdateByocInfrastructure(ctx, byocId, r)
+	}
+
+	mm_params := ClientMockUpdateByocInfrastructureParams{ctx, byocId, r}
+
+	// Record call args
+	mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.mutex.Lock()
+	mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.callArgs = append(mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.callArgs, &mm_params)
+	mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.mutex.Unlock()
+
+	for _, e := range mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateByocInfrastructureParams{ctx, byocId, r}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateByocInfrastructure.t.Errorf("ClientMock.UpdateByocInfrastructure got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmUpdateByocInfrastructure.t.Errorf("ClientMock.UpdateByocInfrastructure got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+			if mm_want_ptrs.r != nil && !minimock.Equal(*mm_want_ptrs.r, mm_got.r) {
+				mmUpdateByocInfrastructure.t.Errorf("ClientMock.UpdateByocInfrastructure got unexpected parameter r, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.defaultExpectation.expectationOrigins.originR, *mm_want_ptrs.r, mm_got.r, minimock.Diff(*mm_want_ptrs.r, mm_got.r))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateByocInfrastructure.t.Errorf("ClientMock.UpdateByocInfrastructure got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateByocInfrastructure.UpdateByocInfrastructureMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateByocInfrastructure.t.Fatal("No results are set for the ClientMock.UpdateByocInfrastructure")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmUpdateByocInfrastructure.funcUpdateByocInfrastructure != nil {
+		return mmUpdateByocInfrastructure.funcUpdateByocInfrastructure(ctx, byocId, r)
+	}
+	mmUpdateByocInfrastructure.t.Fatalf("Unexpected call to ClientMock.UpdateByocInfrastructure. %v %v %v", ctx, byocId, r)
+	return
+}
+
+// UpdateByocInfrastructureAfterCounter returns a count of finished ClientMock.UpdateByocInfrastructure invocations
+func (mmUpdateByocInfrastructure *ClientMock) UpdateByocInfrastructureAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateByocInfrastructure.afterUpdateByocInfrastructureCounter)
+}
+
+// UpdateByocInfrastructureBeforeCounter returns a count of ClientMock.UpdateByocInfrastructure invocations
+func (mmUpdateByocInfrastructure *ClientMock) UpdateByocInfrastructureBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateByocInfrastructure.beforeUpdateByocInfrastructureCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateByocInfrastructure.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateByocInfrastructure *mClientMockUpdateByocInfrastructure) Calls() []*ClientMockUpdateByocInfrastructureParams {
+	mmUpdateByocInfrastructure.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateByocInfrastructureParams, len(mmUpdateByocInfrastructure.callArgs))
+	copy(argCopy, mmUpdateByocInfrastructure.callArgs)
+
+	mmUpdateByocInfrastructure.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateByocInfrastructureDone returns true if the count of the UpdateByocInfrastructure invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateByocInfrastructureDone() bool {
+	if m.UpdateByocInfrastructureMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateByocInfrastructureMock.invocationsDone()
+}
+
+// MinimockUpdateByocInfrastructureInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateByocInfrastructureInspect() {
+	for _, e := range m.UpdateByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateByocInfrastructure at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateByocInfrastructureCounter := mm_atomic.LoadUint64(&m.afterUpdateByocInfrastructureCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateByocInfrastructureMock.defaultExpectation != nil && afterUpdateByocInfrastructureCounter < 1 {
+		if m.UpdateByocInfrastructureMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateByocInfrastructure at\n%s", m.UpdateByocInfrastructureMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateByocInfrastructure at\n%s with params: %#v", m.UpdateByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *m.UpdateByocInfrastructureMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateByocInfrastructure != nil && afterUpdateByocInfrastructureCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateByocInfrastructure at\n%s", m.funcUpdateByocInfrastructureOrigin)
+	}
+
+	if !m.UpdateByocInfrastructureMock.invocationsDone() && afterUpdateByocInfrastructureCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateByocInfrastructure at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateByocInfrastructureMock.expectedInvocations), m.UpdateByocInfrastructureMock.expectedInvocationsOrigin, afterUpdateByocInfrastructureCounter)
 	}
 }
 
@@ -32650,6 +36623,349 @@ func (m *ClientMock) MinimockUploadUDFArchiveInspect() {
 	}
 }
 
+type mClientMockValidateByocInfrastructure struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockValidateByocInfrastructureExpectation
+	expectations       []*ClientMockValidateByocInfrastructureExpectation
+
+	callArgs []*ClientMockValidateByocInfrastructureParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockValidateByocInfrastructureExpectation specifies expectation struct of the Client.ValidateByocInfrastructure
+type ClientMockValidateByocInfrastructureExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockValidateByocInfrastructureParams
+	paramPtrs          *ClientMockValidateByocInfrastructureParamPtrs
+	expectationOrigins ClientMockValidateByocInfrastructureExpectationOrigins
+	results            *ClientMockValidateByocInfrastructureResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockValidateByocInfrastructureParams contains parameters of the Client.ValidateByocInfrastructure
+type ClientMockValidateByocInfrastructureParams struct {
+	ctx context.Context
+	r   ByocInfrastructureValidateRequest
+}
+
+// ClientMockValidateByocInfrastructureParamPtrs contains pointers to parameters of the Client.ValidateByocInfrastructure
+type ClientMockValidateByocInfrastructureParamPtrs struct {
+	ctx *context.Context
+	r   *ByocInfrastructureValidateRequest
+}
+
+// ClientMockValidateByocInfrastructureResults contains results of the Client.ValidateByocInfrastructure
+type ClientMockValidateByocInfrastructureResults struct {
+	bp1 *ByocInfrastructureValidation
+	err error
+}
+
+// ClientMockValidateByocInfrastructureOrigins contains origins of expectations of the Client.ValidateByocInfrastructure
+type ClientMockValidateByocInfrastructureExpectationOrigins struct {
+	origin    string
+	originCtx string
+	originR   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) Optional() *mClientMockValidateByocInfrastructure {
+	mmValidateByocInfrastructure.optional = true
+	return mmValidateByocInfrastructure
+}
+
+// Expect sets up expected params for Client.ValidateByocInfrastructure
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) Expect(ctx context.Context, r ByocInfrastructureValidateRequest) *mClientMockValidateByocInfrastructure {
+	if mmValidateByocInfrastructure.mock.funcValidateByocInfrastructure != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("ClientMock.ValidateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmValidateByocInfrastructure.defaultExpectation == nil {
+		mmValidateByocInfrastructure.defaultExpectation = &ClientMockValidateByocInfrastructureExpectation{}
+	}
+
+	if mmValidateByocInfrastructure.defaultExpectation.paramPtrs != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("ClientMock.ValidateByocInfrastructure mock is already set by ExpectParams functions")
+	}
+
+	mmValidateByocInfrastructure.defaultExpectation.params = &ClientMockValidateByocInfrastructureParams{ctx, r}
+	mmValidateByocInfrastructure.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmValidateByocInfrastructure.expectations {
+		if minimock.Equal(e.params, mmValidateByocInfrastructure.defaultExpectation.params) {
+			mmValidateByocInfrastructure.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmValidateByocInfrastructure.defaultExpectation.params)
+		}
+	}
+
+	return mmValidateByocInfrastructure
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ValidateByocInfrastructure
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) ExpectCtxParam1(ctx context.Context) *mClientMockValidateByocInfrastructure {
+	if mmValidateByocInfrastructure.mock.funcValidateByocInfrastructure != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("ClientMock.ValidateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmValidateByocInfrastructure.defaultExpectation == nil {
+		mmValidateByocInfrastructure.defaultExpectation = &ClientMockValidateByocInfrastructureExpectation{}
+	}
+
+	if mmValidateByocInfrastructure.defaultExpectation.params != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("ClientMock.ValidateByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmValidateByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmValidateByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockValidateByocInfrastructureParamPtrs{}
+	}
+	mmValidateByocInfrastructure.defaultExpectation.paramPtrs.ctx = &ctx
+	mmValidateByocInfrastructure.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmValidateByocInfrastructure
+}
+
+// ExpectRParam2 sets up expected param r for Client.ValidateByocInfrastructure
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) ExpectRParam2(r ByocInfrastructureValidateRequest) *mClientMockValidateByocInfrastructure {
+	if mmValidateByocInfrastructure.mock.funcValidateByocInfrastructure != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("ClientMock.ValidateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmValidateByocInfrastructure.defaultExpectation == nil {
+		mmValidateByocInfrastructure.defaultExpectation = &ClientMockValidateByocInfrastructureExpectation{}
+	}
+
+	if mmValidateByocInfrastructure.defaultExpectation.params != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("ClientMock.ValidateByocInfrastructure mock is already set by Expect")
+	}
+
+	if mmValidateByocInfrastructure.defaultExpectation.paramPtrs == nil {
+		mmValidateByocInfrastructure.defaultExpectation.paramPtrs = &ClientMockValidateByocInfrastructureParamPtrs{}
+	}
+	mmValidateByocInfrastructure.defaultExpectation.paramPtrs.r = &r
+	mmValidateByocInfrastructure.defaultExpectation.expectationOrigins.originR = minimock.CallerInfo(1)
+
+	return mmValidateByocInfrastructure
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ValidateByocInfrastructure
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) Inspect(f func(ctx context.Context, r ByocInfrastructureValidateRequest)) *mClientMockValidateByocInfrastructure {
+	if mmValidateByocInfrastructure.mock.inspectFuncValidateByocInfrastructure != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("Inspect function is already set for ClientMock.ValidateByocInfrastructure")
+	}
+
+	mmValidateByocInfrastructure.mock.inspectFuncValidateByocInfrastructure = f
+
+	return mmValidateByocInfrastructure
+}
+
+// Return sets up results that will be returned by Client.ValidateByocInfrastructure
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) Return(bp1 *ByocInfrastructureValidation, err error) *ClientMock {
+	if mmValidateByocInfrastructure.mock.funcValidateByocInfrastructure != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("ClientMock.ValidateByocInfrastructure mock is already set by Set")
+	}
+
+	if mmValidateByocInfrastructure.defaultExpectation == nil {
+		mmValidateByocInfrastructure.defaultExpectation = &ClientMockValidateByocInfrastructureExpectation{mock: mmValidateByocInfrastructure.mock}
+	}
+	mmValidateByocInfrastructure.defaultExpectation.results = &ClientMockValidateByocInfrastructureResults{bp1, err}
+	mmValidateByocInfrastructure.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmValidateByocInfrastructure.mock
+}
+
+// Set uses given function f to mock the Client.ValidateByocInfrastructure method
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) Set(f func(ctx context.Context, r ByocInfrastructureValidateRequest) (bp1 *ByocInfrastructureValidation, err error)) *ClientMock {
+	if mmValidateByocInfrastructure.defaultExpectation != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("Default expectation is already set for the Client.ValidateByocInfrastructure method")
+	}
+
+	if len(mmValidateByocInfrastructure.expectations) > 0 {
+		mmValidateByocInfrastructure.mock.t.Fatalf("Some expectations are already set for the Client.ValidateByocInfrastructure method")
+	}
+
+	mmValidateByocInfrastructure.mock.funcValidateByocInfrastructure = f
+	mmValidateByocInfrastructure.mock.funcValidateByocInfrastructureOrigin = minimock.CallerInfo(1)
+	return mmValidateByocInfrastructure.mock
+}
+
+// When sets expectation for the Client.ValidateByocInfrastructure which will trigger the result defined by the following
+// Then helper
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) When(ctx context.Context, r ByocInfrastructureValidateRequest) *ClientMockValidateByocInfrastructureExpectation {
+	if mmValidateByocInfrastructure.mock.funcValidateByocInfrastructure != nil {
+		mmValidateByocInfrastructure.mock.t.Fatalf("ClientMock.ValidateByocInfrastructure mock is already set by Set")
+	}
+
+	expectation := &ClientMockValidateByocInfrastructureExpectation{
+		mock:               mmValidateByocInfrastructure.mock,
+		params:             &ClientMockValidateByocInfrastructureParams{ctx, r},
+		expectationOrigins: ClientMockValidateByocInfrastructureExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmValidateByocInfrastructure.expectations = append(mmValidateByocInfrastructure.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ValidateByocInfrastructure return parameters for the expectation previously defined by the When method
+func (e *ClientMockValidateByocInfrastructureExpectation) Then(bp1 *ByocInfrastructureValidation, err error) *ClientMock {
+	e.results = &ClientMockValidateByocInfrastructureResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ValidateByocInfrastructure should be invoked
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) Times(n uint64) *mClientMockValidateByocInfrastructure {
+	if n == 0 {
+		mmValidateByocInfrastructure.mock.t.Fatalf("Times of ClientMock.ValidateByocInfrastructure mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmValidateByocInfrastructure.expectedInvocations, n)
+	mmValidateByocInfrastructure.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmValidateByocInfrastructure
+}
+
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) invocationsDone() bool {
+	if len(mmValidateByocInfrastructure.expectations) == 0 && mmValidateByocInfrastructure.defaultExpectation == nil && mmValidateByocInfrastructure.mock.funcValidateByocInfrastructure == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmValidateByocInfrastructure.mock.afterValidateByocInfrastructureCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmValidateByocInfrastructure.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ValidateByocInfrastructure implements Client
+func (mmValidateByocInfrastructure *ClientMock) ValidateByocInfrastructure(ctx context.Context, r ByocInfrastructureValidateRequest) (bp1 *ByocInfrastructureValidation, err error) {
+	mm_atomic.AddUint64(&mmValidateByocInfrastructure.beforeValidateByocInfrastructureCounter, 1)
+	defer mm_atomic.AddUint64(&mmValidateByocInfrastructure.afterValidateByocInfrastructureCounter, 1)
+
+	mmValidateByocInfrastructure.t.Helper()
+
+	if mmValidateByocInfrastructure.inspectFuncValidateByocInfrastructure != nil {
+		mmValidateByocInfrastructure.inspectFuncValidateByocInfrastructure(ctx, r)
+	}
+
+	mm_params := ClientMockValidateByocInfrastructureParams{ctx, r}
+
+	// Record call args
+	mmValidateByocInfrastructure.ValidateByocInfrastructureMock.mutex.Lock()
+	mmValidateByocInfrastructure.ValidateByocInfrastructureMock.callArgs = append(mmValidateByocInfrastructure.ValidateByocInfrastructureMock.callArgs, &mm_params)
+	mmValidateByocInfrastructure.ValidateByocInfrastructureMock.mutex.Unlock()
+
+	for _, e := range mmValidateByocInfrastructure.ValidateByocInfrastructureMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmValidateByocInfrastructure.ValidateByocInfrastructureMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmValidateByocInfrastructure.ValidateByocInfrastructureMock.defaultExpectation.Counter, 1)
+		mm_want := mmValidateByocInfrastructure.ValidateByocInfrastructureMock.defaultExpectation.params
+		mm_want_ptrs := mmValidateByocInfrastructure.ValidateByocInfrastructureMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockValidateByocInfrastructureParams{ctx, r}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmValidateByocInfrastructure.t.Errorf("ClientMock.ValidateByocInfrastructure got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmValidateByocInfrastructure.ValidateByocInfrastructureMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.r != nil && !minimock.Equal(*mm_want_ptrs.r, mm_got.r) {
+				mmValidateByocInfrastructure.t.Errorf("ClientMock.ValidateByocInfrastructure got unexpected parameter r, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmValidateByocInfrastructure.ValidateByocInfrastructureMock.defaultExpectation.expectationOrigins.originR, *mm_want_ptrs.r, mm_got.r, minimock.Diff(*mm_want_ptrs.r, mm_got.r))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmValidateByocInfrastructure.t.Errorf("ClientMock.ValidateByocInfrastructure got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmValidateByocInfrastructure.ValidateByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmValidateByocInfrastructure.ValidateByocInfrastructureMock.defaultExpectation.results
+		if mm_results == nil {
+			mmValidateByocInfrastructure.t.Fatal("No results are set for the ClientMock.ValidateByocInfrastructure")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmValidateByocInfrastructure.funcValidateByocInfrastructure != nil {
+		return mmValidateByocInfrastructure.funcValidateByocInfrastructure(ctx, r)
+	}
+	mmValidateByocInfrastructure.t.Fatalf("Unexpected call to ClientMock.ValidateByocInfrastructure. %v %v", ctx, r)
+	return
+}
+
+// ValidateByocInfrastructureAfterCounter returns a count of finished ClientMock.ValidateByocInfrastructure invocations
+func (mmValidateByocInfrastructure *ClientMock) ValidateByocInfrastructureAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmValidateByocInfrastructure.afterValidateByocInfrastructureCounter)
+}
+
+// ValidateByocInfrastructureBeforeCounter returns a count of ClientMock.ValidateByocInfrastructure invocations
+func (mmValidateByocInfrastructure *ClientMock) ValidateByocInfrastructureBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmValidateByocInfrastructure.beforeValidateByocInfrastructureCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ValidateByocInfrastructure.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmValidateByocInfrastructure *mClientMockValidateByocInfrastructure) Calls() []*ClientMockValidateByocInfrastructureParams {
+	mmValidateByocInfrastructure.mutex.RLock()
+
+	argCopy := make([]*ClientMockValidateByocInfrastructureParams, len(mmValidateByocInfrastructure.callArgs))
+	copy(argCopy, mmValidateByocInfrastructure.callArgs)
+
+	mmValidateByocInfrastructure.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockValidateByocInfrastructureDone returns true if the count of the ValidateByocInfrastructure invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockValidateByocInfrastructureDone() bool {
+	if m.ValidateByocInfrastructureMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ValidateByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ValidateByocInfrastructureMock.invocationsDone()
+}
+
+// MinimockValidateByocInfrastructureInspect logs each unmet expectation
+func (m *ClientMock) MinimockValidateByocInfrastructureInspect() {
+	for _, e := range m.ValidateByocInfrastructureMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ValidateByocInfrastructure at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterValidateByocInfrastructureCounter := mm_atomic.LoadUint64(&m.afterValidateByocInfrastructureCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ValidateByocInfrastructureMock.defaultExpectation != nil && afterValidateByocInfrastructureCounter < 1 {
+		if m.ValidateByocInfrastructureMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ValidateByocInfrastructure at\n%s", m.ValidateByocInfrastructureMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ValidateByocInfrastructure at\n%s with params: %#v", m.ValidateByocInfrastructureMock.defaultExpectation.expectationOrigins.origin, *m.ValidateByocInfrastructureMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcValidateByocInfrastructure != nil && afterValidateByocInfrastructureCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ValidateByocInfrastructure at\n%s", m.funcValidateByocInfrastructureOrigin)
+	}
+
+	if !m.ValidateByocInfrastructureMock.invocationsDone() && afterValidateByocInfrastructureCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ValidateByocInfrastructure at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ValidateByocInfrastructureMock.expectedInvocations), m.ValidateByocInfrastructureMock.expectedInvocationsOrigin, afterValidateByocInfrastructureCounter)
+	}
+}
+
 type mClientMockValidateSSHKey struct {
 	optional           bool
 	mock               *ClientMock
@@ -33021,6 +37337,410 @@ func (m *ClientMock) MinimockValidateSSHKeyInspect() {
 	if !m.ValidateSSHKeyMock.invocationsDone() && afterValidateSSHKeyCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ValidateSSHKey at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ValidateSSHKeyMock.expectedInvocations), m.ValidateSSHKeyMock.expectedInvocationsOrigin, afterValidateSSHKeyCounter)
+	}
+}
+
+type mClientMockWaitForByocInfrastructureState struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForByocInfrastructureStateExpectation
+	expectations       []*ClientMockWaitForByocInfrastructureStateExpectation
+
+	callArgs []*ClientMockWaitForByocInfrastructureStateParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWaitForByocInfrastructureStateExpectation specifies expectation struct of the Client.WaitForByocInfrastructureState
+type ClientMockWaitForByocInfrastructureStateExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWaitForByocInfrastructureStateParams
+	paramPtrs          *ClientMockWaitForByocInfrastructureStateParamPtrs
+	expectationOrigins ClientMockWaitForByocInfrastructureStateExpectationOrigins
+	results            *ClientMockWaitForByocInfrastructureStateResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWaitForByocInfrastructureStateParams contains parameters of the Client.WaitForByocInfrastructureState
+type ClientMockWaitForByocInfrastructureStateParams struct {
+	ctx            context.Context
+	byocId         string
+	stateChecker   func(string) bool
+	maxWaitSeconds int
+}
+
+// ClientMockWaitForByocInfrastructureStateParamPtrs contains pointers to parameters of the Client.WaitForByocInfrastructureState
+type ClientMockWaitForByocInfrastructureStateParamPtrs struct {
+	ctx            *context.Context
+	byocId         *string
+	stateChecker   *func(string) bool
+	maxWaitSeconds *int
+}
+
+// ClientMockWaitForByocInfrastructureStateResults contains results of the Client.WaitForByocInfrastructureState
+type ClientMockWaitForByocInfrastructureStateResults struct {
+	err error
+}
+
+// ClientMockWaitForByocInfrastructureStateOrigins contains origins of expectations of the Client.WaitForByocInfrastructureState
+type ClientMockWaitForByocInfrastructureStateExpectationOrigins struct {
+	origin               string
+	originCtx            string
+	originByocId         string
+	originStateChecker   string
+	originMaxWaitSeconds string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) Optional() *mClientMockWaitForByocInfrastructureState {
+	mmWaitForByocInfrastructureState.optional = true
+	return mmWaitForByocInfrastructureState
+}
+
+// Expect sets up expected params for Client.WaitForByocInfrastructureState
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) Expect(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) *mClientMockWaitForByocInfrastructureState {
+	if mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureState != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Set")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation = &ClientMockWaitForByocInfrastructureStateExpectation{}
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForByocInfrastructureState.defaultExpectation.params = &ClientMockWaitForByocInfrastructureStateParams{ctx, byocId, stateChecker, maxWaitSeconds}
+	mmWaitForByocInfrastructureState.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWaitForByocInfrastructureState.expectations {
+		if minimock.Equal(e.params, mmWaitForByocInfrastructureState.defaultExpectation.params) {
+			mmWaitForByocInfrastructureState.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForByocInfrastructureState.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForByocInfrastructureState
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForByocInfrastructureState
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForByocInfrastructureState {
+	if mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureState != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Set")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation = &ClientMockWaitForByocInfrastructureStateExpectation{}
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation.params != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Expect")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs = &ClientMockWaitForByocInfrastructureStateParamPtrs{}
+	}
+	mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWaitForByocInfrastructureState.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWaitForByocInfrastructureState
+}
+
+// ExpectByocIdParam2 sets up expected param byocId for Client.WaitForByocInfrastructureState
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) ExpectByocIdParam2(byocId string) *mClientMockWaitForByocInfrastructureState {
+	if mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureState != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Set")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation = &ClientMockWaitForByocInfrastructureStateExpectation{}
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation.params != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Expect")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs = &ClientMockWaitForByocInfrastructureStateParamPtrs{}
+	}
+	mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs.byocId = &byocId
+	mmWaitForByocInfrastructureState.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmWaitForByocInfrastructureState
+}
+
+// ExpectStateCheckerParam3 sets up expected param stateChecker for Client.WaitForByocInfrastructureState
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) ExpectStateCheckerParam3(stateChecker func(string) bool) *mClientMockWaitForByocInfrastructureState {
+	if mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureState != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Set")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation = &ClientMockWaitForByocInfrastructureStateExpectation{}
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation.params != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Expect")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs = &ClientMockWaitForByocInfrastructureStateParamPtrs{}
+	}
+	mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs.stateChecker = &stateChecker
+	mmWaitForByocInfrastructureState.defaultExpectation.expectationOrigins.originStateChecker = minimock.CallerInfo(1)
+
+	return mmWaitForByocInfrastructureState
+}
+
+// ExpectMaxWaitSecondsParam4 sets up expected param maxWaitSeconds for Client.WaitForByocInfrastructureState
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) ExpectMaxWaitSecondsParam4(maxWaitSeconds int) *mClientMockWaitForByocInfrastructureState {
+	if mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureState != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Set")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation = &ClientMockWaitForByocInfrastructureStateExpectation{}
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation.params != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Expect")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs = &ClientMockWaitForByocInfrastructureStateParamPtrs{}
+	}
+	mmWaitForByocInfrastructureState.defaultExpectation.paramPtrs.maxWaitSeconds = &maxWaitSeconds
+	mmWaitForByocInfrastructureState.defaultExpectation.expectationOrigins.originMaxWaitSeconds = minimock.CallerInfo(1)
+
+	return mmWaitForByocInfrastructureState
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForByocInfrastructureState
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) Inspect(f func(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int)) *mClientMockWaitForByocInfrastructureState {
+	if mmWaitForByocInfrastructureState.mock.inspectFuncWaitForByocInfrastructureState != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForByocInfrastructureState")
+	}
+
+	mmWaitForByocInfrastructureState.mock.inspectFuncWaitForByocInfrastructureState = f
+
+	return mmWaitForByocInfrastructureState
+}
+
+// Return sets up results that will be returned by Client.WaitForByocInfrastructureState
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) Return(err error) *ClientMock {
+	if mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureState != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Set")
+	}
+
+	if mmWaitForByocInfrastructureState.defaultExpectation == nil {
+		mmWaitForByocInfrastructureState.defaultExpectation = &ClientMockWaitForByocInfrastructureStateExpectation{mock: mmWaitForByocInfrastructureState.mock}
+	}
+	mmWaitForByocInfrastructureState.defaultExpectation.results = &ClientMockWaitForByocInfrastructureStateResults{err}
+	mmWaitForByocInfrastructureState.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWaitForByocInfrastructureState.mock
+}
+
+// Set uses given function f to mock the Client.WaitForByocInfrastructureState method
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) Set(f func(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)) *ClientMock {
+	if mmWaitForByocInfrastructureState.defaultExpectation != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("Default expectation is already set for the Client.WaitForByocInfrastructureState method")
+	}
+
+	if len(mmWaitForByocInfrastructureState.expectations) > 0 {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("Some expectations are already set for the Client.WaitForByocInfrastructureState method")
+	}
+
+	mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureState = f
+	mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureStateOrigin = minimock.CallerInfo(1)
+	return mmWaitForByocInfrastructureState.mock
+}
+
+// When sets expectation for the Client.WaitForByocInfrastructureState which will trigger the result defined by the following
+// Then helper
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) When(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) *ClientMockWaitForByocInfrastructureStateExpectation {
+	if mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureState != nil {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("ClientMock.WaitForByocInfrastructureState mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForByocInfrastructureStateExpectation{
+		mock:               mmWaitForByocInfrastructureState.mock,
+		params:             &ClientMockWaitForByocInfrastructureStateParams{ctx, byocId, stateChecker, maxWaitSeconds},
+		expectationOrigins: ClientMockWaitForByocInfrastructureStateExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWaitForByocInfrastructureState.expectations = append(mmWaitForByocInfrastructureState.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForByocInfrastructureState return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForByocInfrastructureStateExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockWaitForByocInfrastructureStateResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForByocInfrastructureState should be invoked
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) Times(n uint64) *mClientMockWaitForByocInfrastructureState {
+	if n == 0 {
+		mmWaitForByocInfrastructureState.mock.t.Fatalf("Times of ClientMock.WaitForByocInfrastructureState mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForByocInfrastructureState.expectedInvocations, n)
+	mmWaitForByocInfrastructureState.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWaitForByocInfrastructureState
+}
+
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) invocationsDone() bool {
+	if len(mmWaitForByocInfrastructureState.expectations) == 0 && mmWaitForByocInfrastructureState.defaultExpectation == nil && mmWaitForByocInfrastructureState.mock.funcWaitForByocInfrastructureState == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForByocInfrastructureState.mock.afterWaitForByocInfrastructureStateCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForByocInfrastructureState.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForByocInfrastructureState implements Client
+func (mmWaitForByocInfrastructureState *ClientMock) WaitForByocInfrastructureState(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) (err error) {
+	mm_atomic.AddUint64(&mmWaitForByocInfrastructureState.beforeWaitForByocInfrastructureStateCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForByocInfrastructureState.afterWaitForByocInfrastructureStateCounter, 1)
+
+	mmWaitForByocInfrastructureState.t.Helper()
+
+	if mmWaitForByocInfrastructureState.inspectFuncWaitForByocInfrastructureState != nil {
+		mmWaitForByocInfrastructureState.inspectFuncWaitForByocInfrastructureState(ctx, byocId, stateChecker, maxWaitSeconds)
+	}
+
+	mm_params := ClientMockWaitForByocInfrastructureStateParams{ctx, byocId, stateChecker, maxWaitSeconds}
+
+	// Record call args
+	mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.mutex.Lock()
+	mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.callArgs = append(mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.callArgs, &mm_params)
+	mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.mutex.Unlock()
+
+	for _, e := range mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForByocInfrastructureStateParams{ctx, byocId, stateChecker, maxWaitSeconds}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForByocInfrastructureState.t.Errorf("ClientMock.WaitForByocInfrastructureState got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmWaitForByocInfrastructureState.t.Errorf("ClientMock.WaitForByocInfrastructureState got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+			if mm_want_ptrs.stateChecker != nil && !minimock.Equal(*mm_want_ptrs.stateChecker, mm_got.stateChecker) {
+				mmWaitForByocInfrastructureState.t.Errorf("ClientMock.WaitForByocInfrastructureState got unexpected parameter stateChecker, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation.expectationOrigins.originStateChecker, *mm_want_ptrs.stateChecker, mm_got.stateChecker, minimock.Diff(*mm_want_ptrs.stateChecker, mm_got.stateChecker))
+			}
+
+			if mm_want_ptrs.maxWaitSeconds != nil && !minimock.Equal(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds) {
+				mmWaitForByocInfrastructureState.t.Errorf("ClientMock.WaitForByocInfrastructureState got unexpected parameter maxWaitSeconds, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation.expectationOrigins.originMaxWaitSeconds, *mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds, minimock.Diff(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForByocInfrastructureState.t.Errorf("ClientMock.WaitForByocInfrastructureState got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForByocInfrastructureState.WaitForByocInfrastructureStateMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForByocInfrastructureState.t.Fatal("No results are set for the ClientMock.WaitForByocInfrastructureState")
+		}
+		return (*mm_results).err
+	}
+	if mmWaitForByocInfrastructureState.funcWaitForByocInfrastructureState != nil {
+		return mmWaitForByocInfrastructureState.funcWaitForByocInfrastructureState(ctx, byocId, stateChecker, maxWaitSeconds)
+	}
+	mmWaitForByocInfrastructureState.t.Fatalf("Unexpected call to ClientMock.WaitForByocInfrastructureState. %v %v %v %v", ctx, byocId, stateChecker, maxWaitSeconds)
+	return
+}
+
+// WaitForByocInfrastructureStateAfterCounter returns a count of finished ClientMock.WaitForByocInfrastructureState invocations
+func (mmWaitForByocInfrastructureState *ClientMock) WaitForByocInfrastructureStateAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForByocInfrastructureState.afterWaitForByocInfrastructureStateCounter)
+}
+
+// WaitForByocInfrastructureStateBeforeCounter returns a count of ClientMock.WaitForByocInfrastructureState invocations
+func (mmWaitForByocInfrastructureState *ClientMock) WaitForByocInfrastructureStateBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForByocInfrastructureState.beforeWaitForByocInfrastructureStateCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForByocInfrastructureState.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForByocInfrastructureState *mClientMockWaitForByocInfrastructureState) Calls() []*ClientMockWaitForByocInfrastructureStateParams {
+	mmWaitForByocInfrastructureState.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForByocInfrastructureStateParams, len(mmWaitForByocInfrastructureState.callArgs))
+	copy(argCopy, mmWaitForByocInfrastructureState.callArgs)
+
+	mmWaitForByocInfrastructureState.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForByocInfrastructureStateDone returns true if the count of the WaitForByocInfrastructureState invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForByocInfrastructureStateDone() bool {
+	if m.WaitForByocInfrastructureStateMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForByocInfrastructureStateMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForByocInfrastructureStateMock.invocationsDone()
+}
+
+// MinimockWaitForByocInfrastructureStateInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForByocInfrastructureStateInspect() {
+	for _, e := range m.WaitForByocInfrastructureStateMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForByocInfrastructureState at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWaitForByocInfrastructureStateCounter := mm_atomic.LoadUint64(&m.afterWaitForByocInfrastructureStateCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForByocInfrastructureStateMock.defaultExpectation != nil && afterWaitForByocInfrastructureStateCounter < 1 {
+		if m.WaitForByocInfrastructureStateMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WaitForByocInfrastructureState at\n%s", m.WaitForByocInfrastructureStateMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForByocInfrastructureState at\n%s with params: %#v", m.WaitForByocInfrastructureStateMock.defaultExpectation.expectationOrigins.origin, *m.WaitForByocInfrastructureStateMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForByocInfrastructureState != nil && afterWaitForByocInfrastructureStateCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WaitForByocInfrastructureState at\n%s", m.funcWaitForByocInfrastructureStateOrigin)
+	}
+
+	if !m.WaitForByocInfrastructureStateMock.invocationsDone() && afterWaitForByocInfrastructureStateCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForByocInfrastructureState at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForByocInfrastructureStateMock.expectedInvocations), m.WaitForByocInfrastructureStateMock.expectedInvocationsOrigin, afterWaitForByocInfrastructureStateCounter)
 	}
 }
 
@@ -33893,6 +38613,380 @@ func (m *ClientMock) MinimockWaitForClickPipeStateInspect() {
 	if !m.WaitForClickPipeStateMock.invocationsDone() && afterWaitForClickPipeStateCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.WaitForClickPipeState at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.WaitForClickPipeStateMock.expectedInvocations), m.WaitForClickPipeStateMock.expectedInvocationsOrigin, afterWaitForClickPipeStateCounter)
+	}
+}
+
+type mClientMockWaitForClickPipesGCPWorkloadIdentity struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation
+	expectations       []*ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation
+
+	callArgs []*ClientMockWaitForClickPipesGCPWorkloadIdentityParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation specifies expectation struct of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWaitForClickPipesGCPWorkloadIdentityParams
+	paramPtrs          *ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs
+	expectationOrigins ClientMockWaitForClickPipesGCPWorkloadIdentityExpectationOrigins
+	results            *ClientMockWaitForClickPipesGCPWorkloadIdentityResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityParams contains parameters of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityParams struct {
+	ctx       context.Context
+	serviceId string
+	maxWait   time.Duration
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs contains pointers to parameters of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs struct {
+	ctx       *context.Context
+	serviceId *string
+	maxWait   *time.Duration
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityResults contains results of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityResults struct {
+	cp1 *ClickPipesGCPWorkloadIdentityContext
+	err error
+}
+
+// ClientMockWaitForClickPipesGCPWorkloadIdentityOrigins contains origins of expectations of the Client.WaitForClickPipesGCPWorkloadIdentity
+type ClientMockWaitForClickPipesGCPWorkloadIdentityExpectationOrigins struct {
+	origin          string
+	originCtx       string
+	originServiceId string
+	originMaxWait   string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Optional() *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	mmWaitForClickPipesGCPWorkloadIdentity.optional = true
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// Expect sets up expected params for Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Expect(ctx context.Context, serviceId string, maxWait time.Duration) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params = &ClientMockWaitForClickPipesGCPWorkloadIdentityParams{ctx, serviceId, maxWait}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWaitForClickPipesGCPWorkloadIdentity.expectations {
+		if minimock.Equal(e.params, mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params) {
+			mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs{}
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// ExpectServiceIdParam2 sets up expected param serviceId for Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) ExpectServiceIdParam2(serviceId string) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs{}
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs.serviceId = &serviceId
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.expectationOrigins.originServiceId = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// ExpectMaxWaitParam3 sets up expected param maxWait for Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) ExpectMaxWaitParam3(maxWait time.Duration) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.params != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Expect")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs = &ClientMockWaitForClickPipesGCPWorkloadIdentityParamPtrs{}
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.paramPtrs.maxWait = &maxWait
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.expectationOrigins.originMaxWait = minimock.CallerInfo(1)
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Inspect(f func(ctx context.Context, serviceId string, maxWait time.Duration)) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.inspectFuncWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForClickPipesGCPWorkloadIdentity")
+	}
+
+	mmWaitForClickPipesGCPWorkloadIdentity.mock.inspectFuncWaitForClickPipesGCPWorkloadIdentity = f
+
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+// Return sets up results that will be returned by Client.WaitForClickPipesGCPWorkloadIdentity
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Return(cp1 *ClickPipesGCPWorkloadIdentityContext, err error) *ClientMock {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation = &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{mock: mmWaitForClickPipesGCPWorkloadIdentity.mock}
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.results = &ClientMockWaitForClickPipesGCPWorkloadIdentityResults{cp1, err}
+	mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWaitForClickPipesGCPWorkloadIdentity.mock
+}
+
+// Set uses given function f to mock the Client.WaitForClickPipesGCPWorkloadIdentity method
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Set(f func(ctx context.Context, serviceId string, maxWait time.Duration) (cp1 *ClickPipesGCPWorkloadIdentityContext, err error)) *ClientMock {
+	if mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Default expectation is already set for the Client.WaitForClickPipesGCPWorkloadIdentity method")
+	}
+
+	if len(mmWaitForClickPipesGCPWorkloadIdentity.expectations) > 0 {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Some expectations are already set for the Client.WaitForClickPipesGCPWorkloadIdentity method")
+	}
+
+	mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity = f
+	mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentityOrigin = minimock.CallerInfo(1)
+	return mmWaitForClickPipesGCPWorkloadIdentity.mock
+}
+
+// When sets expectation for the Client.WaitForClickPipesGCPWorkloadIdentity which will trigger the result defined by the following
+// Then helper
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) When(ctx context.Context, serviceId string, maxWait time.Duration) *ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation {
+	if mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("ClientMock.WaitForClickPipesGCPWorkloadIdentity mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation{
+		mock:               mmWaitForClickPipesGCPWorkloadIdentity.mock,
+		params:             &ClientMockWaitForClickPipesGCPWorkloadIdentityParams{ctx, serviceId, maxWait},
+		expectationOrigins: ClientMockWaitForClickPipesGCPWorkloadIdentityExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.expectations = append(mmWaitForClickPipesGCPWorkloadIdentity.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForClickPipesGCPWorkloadIdentity return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForClickPipesGCPWorkloadIdentityExpectation) Then(cp1 *ClickPipesGCPWorkloadIdentityContext, err error) *ClientMock {
+	e.results = &ClientMockWaitForClickPipesGCPWorkloadIdentityResults{cp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForClickPipesGCPWorkloadIdentity should be invoked
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Times(n uint64) *mClientMockWaitForClickPipesGCPWorkloadIdentity {
+	if n == 0 {
+		mmWaitForClickPipesGCPWorkloadIdentity.mock.t.Fatalf("Times of ClientMock.WaitForClickPipesGCPWorkloadIdentity mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForClickPipesGCPWorkloadIdentity.expectedInvocations, n)
+	mmWaitForClickPipesGCPWorkloadIdentity.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWaitForClickPipesGCPWorkloadIdentity
+}
+
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) invocationsDone() bool {
+	if len(mmWaitForClickPipesGCPWorkloadIdentity.expectations) == 0 && mmWaitForClickPipesGCPWorkloadIdentity.defaultExpectation == nil && mmWaitForClickPipesGCPWorkloadIdentity.mock.funcWaitForClickPipesGCPWorkloadIdentity == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForClickPipesGCPWorkloadIdentity.mock.afterWaitForClickPipesGCPWorkloadIdentityCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForClickPipesGCPWorkloadIdentity.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForClickPipesGCPWorkloadIdentity implements Client
+func (mmWaitForClickPipesGCPWorkloadIdentity *ClientMock) WaitForClickPipesGCPWorkloadIdentity(ctx context.Context, serviceId string, maxWait time.Duration) (cp1 *ClickPipesGCPWorkloadIdentityContext, err error) {
+	mm_atomic.AddUint64(&mmWaitForClickPipesGCPWorkloadIdentity.beforeWaitForClickPipesGCPWorkloadIdentityCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForClickPipesGCPWorkloadIdentity.afterWaitForClickPipesGCPWorkloadIdentityCounter, 1)
+
+	mmWaitForClickPipesGCPWorkloadIdentity.t.Helper()
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.inspectFuncWaitForClickPipesGCPWorkloadIdentity != nil {
+		mmWaitForClickPipesGCPWorkloadIdentity.inspectFuncWaitForClickPipesGCPWorkloadIdentity(ctx, serviceId, maxWait)
+	}
+
+	mm_params := ClientMockWaitForClickPipesGCPWorkloadIdentityParams{ctx, serviceId, maxWait}
+
+	// Record call args
+	mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.mutex.Lock()
+	mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.callArgs = append(mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.callArgs, &mm_params)
+	mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.mutex.Unlock()
+
+	for _, e := range mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.cp1, e.results.err
+		}
+	}
+
+	if mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForClickPipesGCPWorkloadIdentityParams{ctx, serviceId, maxWait}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForClickPipesGCPWorkloadIdentity.t.Errorf("ClientMock.WaitForClickPipesGCPWorkloadIdentity got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.serviceId != nil && !minimock.Equal(*mm_want_ptrs.serviceId, mm_got.serviceId) {
+				mmWaitForClickPipesGCPWorkloadIdentity.t.Errorf("ClientMock.WaitForClickPipesGCPWorkloadIdentity got unexpected parameter serviceId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.originServiceId, *mm_want_ptrs.serviceId, mm_got.serviceId, minimock.Diff(*mm_want_ptrs.serviceId, mm_got.serviceId))
+			}
+
+			if mm_want_ptrs.maxWait != nil && !minimock.Equal(*mm_want_ptrs.maxWait, mm_got.maxWait) {
+				mmWaitForClickPipesGCPWorkloadIdentity.t.Errorf("ClientMock.WaitForClickPipesGCPWorkloadIdentity got unexpected parameter maxWait, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.originMaxWait, *mm_want_ptrs.maxWait, mm_got.maxWait, minimock.Diff(*mm_want_ptrs.maxWait, mm_got.maxWait))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForClickPipesGCPWorkloadIdentity.t.Errorf("ClientMock.WaitForClickPipesGCPWorkloadIdentity got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForClickPipesGCPWorkloadIdentity.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForClickPipesGCPWorkloadIdentity.t.Fatal("No results are set for the ClientMock.WaitForClickPipesGCPWorkloadIdentity")
+		}
+		return (*mm_results).cp1, (*mm_results).err
+	}
+	if mmWaitForClickPipesGCPWorkloadIdentity.funcWaitForClickPipesGCPWorkloadIdentity != nil {
+		return mmWaitForClickPipesGCPWorkloadIdentity.funcWaitForClickPipesGCPWorkloadIdentity(ctx, serviceId, maxWait)
+	}
+	mmWaitForClickPipesGCPWorkloadIdentity.t.Fatalf("Unexpected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity. %v %v %v", ctx, serviceId, maxWait)
+	return
+}
+
+// WaitForClickPipesGCPWorkloadIdentityAfterCounter returns a count of finished ClientMock.WaitForClickPipesGCPWorkloadIdentity invocations
+func (mmWaitForClickPipesGCPWorkloadIdentity *ClientMock) WaitForClickPipesGCPWorkloadIdentityAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForClickPipesGCPWorkloadIdentity.afterWaitForClickPipesGCPWorkloadIdentityCounter)
+}
+
+// WaitForClickPipesGCPWorkloadIdentityBeforeCounter returns a count of ClientMock.WaitForClickPipesGCPWorkloadIdentity invocations
+func (mmWaitForClickPipesGCPWorkloadIdentity *ClientMock) WaitForClickPipesGCPWorkloadIdentityBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForClickPipesGCPWorkloadIdentity.beforeWaitForClickPipesGCPWorkloadIdentityCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForClickPipesGCPWorkloadIdentity.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForClickPipesGCPWorkloadIdentity *mClientMockWaitForClickPipesGCPWorkloadIdentity) Calls() []*ClientMockWaitForClickPipesGCPWorkloadIdentityParams {
+	mmWaitForClickPipesGCPWorkloadIdentity.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForClickPipesGCPWorkloadIdentityParams, len(mmWaitForClickPipesGCPWorkloadIdentity.callArgs))
+	copy(argCopy, mmWaitForClickPipesGCPWorkloadIdentity.callArgs)
+
+	mmWaitForClickPipesGCPWorkloadIdentity.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForClickPipesGCPWorkloadIdentityDone returns true if the count of the WaitForClickPipesGCPWorkloadIdentity invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForClickPipesGCPWorkloadIdentityDone() bool {
+	if m.WaitForClickPipesGCPWorkloadIdentityMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForClickPipesGCPWorkloadIdentityMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForClickPipesGCPWorkloadIdentityMock.invocationsDone()
+}
+
+// MinimockWaitForClickPipesGCPWorkloadIdentityInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForClickPipesGCPWorkloadIdentityInspect() {
+	for _, e := range m.WaitForClickPipesGCPWorkloadIdentityMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWaitForClickPipesGCPWorkloadIdentityCounter := mm_atomic.LoadUint64(&m.afterWaitForClickPipesGCPWorkloadIdentityCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation != nil && afterWaitForClickPipesGCPWorkloadIdentityCounter < 1 {
+		if m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s", m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s with params: %#v", m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.expectationOrigins.origin, *m.WaitForClickPipesGCPWorkloadIdentityMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForClickPipesGCPWorkloadIdentity != nil && afterWaitForClickPipesGCPWorkloadIdentityCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s", m.funcWaitForClickPipesGCPWorkloadIdentityOrigin)
+	}
+
+	if !m.WaitForClickPipesGCPWorkloadIdentityMock.invocationsDone() && afterWaitForClickPipesGCPWorkloadIdentityCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForClickPipesGCPWorkloadIdentity at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForClickPipesGCPWorkloadIdentityMock.expectedInvocations), m.WaitForClickPipesGCPWorkloadIdentityMock.expectedInvocationsOrigin, afterWaitForClickPipesGCPWorkloadIdentityCounter)
 	}
 }
 
@@ -35894,6 +40988,10 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockChangeClickPipeStateInspect()
 
+			m.MinimockCreateApiKeyInspect()
+
+			m.MinimockCreateByocInfrastructureInspect()
+
 			m.MinimockCreateClickPipeInspect()
 
 			m.MinimockCreatePostgresInspect()
@@ -35919,6 +41017,10 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockCreateUDFUploadSessionInspect()
 
 			m.MinimockCreateUDFVersionInspect()
+
+			m.MinimockDeleteApiKeyInspect()
+
+			m.MinimockDeleteByocInfrastructureInspect()
 
 			m.MinimockDeleteClickPipeInspect()
 
@@ -35948,15 +41050,25 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockDetachUDFInspect()
 
+			m.MinimockGetApiKeyInspect()
+
 			m.MinimockGetApiKeyIDInspect()
 
 			m.MinimockGetBackupConfigurationInspect()
+
+			m.MinimockGetByocInfrastructureInspect()
+
+			m.MinimockGetByocInfrastructurePrivateEndpointConfigInspect()
+
+			m.MinimockGetByocInfrastructureTagsInspect()
 
 			m.MinimockGetClickPipeInspect()
 
 			m.MinimockGetClickPipeCdcScalingInspect()
 
 			m.MinimockGetClickPipeSettingsInspect()
+
+			m.MinimockGetClickPipesServiceContextInspect()
 
 			m.MinimockGetMemberInspect()
 
@@ -36030,7 +41142,11 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockSetPostgresPasswordInspect()
 
+			m.MinimockUpdateApiKeyInspect()
+
 			m.MinimockUpdateBackupConfigurationInspect()
+
+			m.MinimockUpdateByocInfrastructureInspect()
 
 			m.MinimockUpdateClickPipeInspect()
 
@@ -36066,11 +41182,17 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockUploadUDFArchiveInspect()
 
+			m.MinimockValidateByocInfrastructureInspect()
+
 			m.MinimockValidateSSHKeyInspect()
+
+			m.MinimockWaitForByocInfrastructureStateInspect()
 
 			m.MinimockWaitForClickPipeCdcScalingInspect()
 
 			m.MinimockWaitForClickPipeStateInspect()
+
+			m.MinimockWaitForClickPipesGCPWorkloadIdentityInspect()
 
 			m.MinimockWaitForPostgresMatchInspect()
 
@@ -36106,6 +41228,8 @@ func (m *ClientMock) minimockDone() bool {
 	return done &&
 		m.MinimockAttachUDFDone() &&
 		m.MinimockChangeClickPipeStateDone() &&
+		m.MinimockCreateApiKeyDone() &&
+		m.MinimockCreateByocInfrastructureDone() &&
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreatePostgresDone() &&
 		m.MinimockCreatePostgresReadReplicaDone() &&
@@ -36119,6 +41243,8 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateUDFDone() &&
 		m.MinimockCreateUDFUploadSessionDone() &&
 		m.MinimockCreateUDFVersionDone() &&
+		m.MinimockDeleteApiKeyDone() &&
+		m.MinimockDeleteByocInfrastructureDone() &&
 		m.MinimockDeleteClickPipeDone() &&
 		m.MinimockDeletePostgresDone() &&
 		m.MinimockDeleteQueryAPIEndpointDone() &&
@@ -36133,11 +41259,16 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteUDFDone() &&
 		m.MinimockDeleteUpgradeWindowDone() &&
 		m.MinimockDetachUDFDone() &&
+		m.MinimockGetApiKeyDone() &&
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
+		m.MinimockGetByocInfrastructureDone() &&
+		m.MinimockGetByocInfrastructurePrivateEndpointConfigDone() &&
+		m.MinimockGetByocInfrastructureTagsDone() &&
 		m.MinimockGetClickPipeDone() &&
 		m.MinimockGetClickPipeCdcScalingDone() &&
 		m.MinimockGetClickPipeSettingsDone() &&
+		m.MinimockGetClickPipesServiceContextDone() &&
 		m.MinimockGetMemberDone() &&
 		m.MinimockGetOrgPrivateEndpointConfigDone() &&
 		m.MinimockGetOrganizationDone() &&
@@ -36174,7 +41305,9 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockRotateTDEKeyDone() &&
 		m.MinimockScalingClickPipeDone() &&
 		m.MinimockSetPostgresPasswordDone() &&
+		m.MinimockUpdateApiKeyDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
+		m.MinimockUpdateByocInfrastructureDone() &&
 		m.MinimockUpdateClickPipeDone() &&
 		m.MinimockUpdateClickPipeCdcScalingDone() &&
 		m.MinimockUpdateClickPipeSettingsDone() &&
@@ -36192,9 +41325,12 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateSnapshotConfigurationDone() &&
 		m.MinimockUpdateUpgradeWindowDone() &&
 		m.MinimockUploadUDFArchiveDone() &&
+		m.MinimockValidateByocInfrastructureDone() &&
 		m.MinimockValidateSSHKeyDone() &&
+		m.MinimockWaitForByocInfrastructureStateDone() &&
 		m.MinimockWaitForClickPipeCdcScalingDone() &&
 		m.MinimockWaitForClickPipeStateDone() &&
+		m.MinimockWaitForClickPipesGCPWorkloadIdentityDone() &&
 		m.MinimockWaitForPostgresMatchDone() &&
 		m.MinimockWaitForPostgresStateDone() &&
 		m.MinimockWaitForReversePrivateEndpointStateDone() &&

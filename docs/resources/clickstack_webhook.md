@@ -51,7 +51,7 @@ resource "clickhouse_clickstack_webhook" "generic" {
 ### Required
 
 - `name` (String) Display name for the webhook. Must be unique per service within a team.
-- `service` (String) Webhook service: one of `slack`, `generic`, or `incidentio`.
+- `service` (String) Webhook service: one of `slack`, `generic`, `incidentio`, `slack_api`, or `pagerduty_api`. `slack_api` and `pagerduty_api` webhooks hold credentials the API cannot set, so create them in the ClickStack UI and import them.
 - `url` (String, Sensitive) Destination URL the ClickStack server calls. Marked sensitive because Slack incoming-webhook URLs embed a channel token. Private-IP/SSRF validation is enforced server-side.
 
 ### Optional

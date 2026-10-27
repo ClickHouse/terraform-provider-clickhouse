@@ -42,10 +42,9 @@ const (
 )
 
 var (
-	UDFRuntimes        = []string{UDFRuntimePython311, UDFRuntimeNative}
-	UDFTypes           = []string{UDFTypeExecutable, UDFTypeExecutablePool}
-	UDFSandboxTypes    = []string{UDFSandboxTypeBasic, UDFSandboxTypeNetEnable}
-	UDFSandboxVersions = []string{UDFSandboxVersionV1, UDFSandboxVersionV2, UDFSandboxVersionV3}
+	UDFRuntimes     = []string{UDFRuntimePython311, UDFRuntimeNative}
+	UDFTypes        = []string{UDFTypeExecutable, UDFTypeExecutablePool}
+	UDFSandboxTypes = []string{UDFSandboxTypeBasic, UDFSandboxTypeNetEnable}
 )
 
 type UDFArgument struct {
@@ -137,7 +136,6 @@ type UDFVersionCreateRequest struct {
 	SendChunkHeader         bool          `json:"sendChunkHeader"`
 	Format                  string        `json:"format"`
 	SandboxType             string        `json:"sandboxType"`
-	SandboxVersion          string        `json:"sandboxVersion"`
 }
 
 type UDFCreateRequest struct {
