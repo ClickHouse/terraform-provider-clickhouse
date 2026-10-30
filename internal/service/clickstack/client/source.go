@@ -108,7 +108,9 @@ type Source struct {
 	DefaultTableSelectExpression      *string `json:"defaultTableSelectExpression,omitempty"`
 	ServiceNameExpression             *string `json:"serviceNameExpression,omitempty"`
 	SeverityTextExpression            *string `json:"severityTextExpression,omitempty"`
+	SeverityNumberExpression          *string `json:"severityNumberExpression,omitempty"`
 	BodyExpression                    *string `json:"bodyExpression,omitempty"`
+	EventNameExpression               *string `json:"eventNameExpression,omitempty"`
 	EventAttributesExpression         *string `json:"eventAttributesExpression,omitempty"`
 	ResourceAttributesExpression      *string `json:"resourceAttributesExpression,omitempty"`
 	DisplayedTimestampValueExpression *string `json:"displayedTimestampValueExpression,omitempty"`
@@ -132,6 +134,7 @@ type Source struct {
 	StatusCodeExpression      *string `json:"statusCodeExpression,omitempty"`
 	StatusMessageExpression   *string `json:"statusMessageExpression,omitempty"`
 	SpanEventsValueExpression *string `json:"spanEventsValueExpression,omitempty"`
+	SpanLinksValueExpression  *string `json:"spanLinksValueExpression,omitempty"`
 
 	MetricTables *MetricTables `json:"metricTables,omitempty"`
 

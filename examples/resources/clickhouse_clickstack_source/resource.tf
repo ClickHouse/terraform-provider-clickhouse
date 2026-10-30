@@ -21,7 +21,9 @@ resource "clickhouse_clickstack_source" "logs" {
 
   service_name_expression        = "ServiceName"
   severity_text_expression       = "SeverityText"
+  severity_number_expression     = "SeverityNumber"
   body_expression                = "Body"
+  event_name_expression          = "EventName"
   resource_attributes_expression = "ResourceAttributes"
   event_attributes_expression    = "LogAttributes"
 }
@@ -47,6 +49,9 @@ resource "clickhouse_clickstack_source" "traces" {
   parent_span_id_expression = "ParentSpanId"
   span_name_expression      = "SpanName"
   span_kind_expression      = "SpanKind"
+
+  span_events_value_expression = "Events"
+  span_links_value_expression  = "Links"
 
   log_source_id = clickhouse_clickstack_source.logs.id
 }
