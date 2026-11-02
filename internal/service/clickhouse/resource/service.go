@@ -221,12 +221,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"profile": schema.StringAttribute{
-				Description: "Custom instance profile for the service, only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Can only be set at service creation time; changing it forces the service to be replaced. Use the 'available service profiles' OpenAPI endpoint to list the profiles available to your organization.",
+				Description: "Custom instance profile for the service, only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Changing the profile updates the service in place: a BYOC profile change must keep 'min_replica_memory_gb' and 'max_replica_memory_gb' equal to the new profile's memory size, and a non-BYOC custom profile cannot be changed in the same apply as a memory change. Use the 'clickhouse_service_profiles' data source to list the profiles available to your organization.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"release_channel": schema.StringAttribute{
@@ -2081,6 +2080,22 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		if !plan.IdleTimeoutMinutes.IsNull() {
 			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
 			replicaScaling.IdleTimeoutMinutes = &idleTimeoutMinutes
+		}
+	}
+	// A profile change rides on the same PATCH. A BYOC profile is a pin the API validates against both
+	// per-replica memory bounds in the same request, so send the planned memory alongside even when it is
+	// unchanged — the API only treats memory as a change when it differs from the stored value, so an
+	// echoed bound does not trip the "non-BYOC profile rejects a memory change" rule either.
+	if !plan.Profile.IsUnknown() && !plan.Profile.IsNull() && plan.Profile != state.Profile {
+		scalingChange = true
+		replicaScaling.Profile = plan.Profile.ValueStringPointer()
+		if replicaScaling.MinReplicaMemoryGb == nil && !plan.MinReplicaMemoryGb.IsUnknown() && !plan.MinReplicaMemoryGb.IsNull() {
+			minReplicaMemoryGb := int(plan.MinReplicaMemoryGb.ValueInt64())
+			replicaScaling.MinReplicaMemoryGb = &minReplicaMemoryGb
+		}
+		if replicaScaling.MaxReplicaMemoryGb == nil && !plan.MaxReplicaMemoryGb.IsUnknown() && !plan.MaxReplicaMemoryGb.IsNull() {
+			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
+			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
 	}
 
