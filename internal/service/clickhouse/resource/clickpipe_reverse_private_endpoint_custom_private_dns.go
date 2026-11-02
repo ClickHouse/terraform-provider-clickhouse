@@ -81,6 +81,13 @@ func (r *ClickPipeReversePrivateEndpointCustomPrivateDNSResource) Schema(ctx con
 								stringvalidator.LengthAtLeast(1),
 							},
 						},
+						"target_id": schema.StringAttribute{
+							Optional:            true,
+							MarkdownDescription: "ID of the DNS target this private DNS name resolves to, from the reverse private endpoint's `dns_targets`. Supported only for VPC_RESOURCE endpoints, where it is the resource configuration ID (`rcfg-...`); for a GROUP, use the CHILD resource configuration ID. If unset, the endpoint's default target is used.",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+							},
+						},
 					},
 				},
 			},
@@ -135,8 +142,14 @@ func customPrivateDNSMappingsFromPlan(ctx context.Context, mappings types.List) 
 
 	result := make([]api.CustomPrivateDNSMapping, len(mappingModels))
 	for i, mapping := range mappingModels {
+		// An unknown target would otherwise be sent as empty and silently use the default target.
+		if mapping.TargetID.IsUnknown() {
+			diags.AddError("Unknown target ID", fmt.Sprintf("mapping[%d].target_id must be known before custom private DNS mappings can be applied.", i))
+			return nil, diags
+		}
 		result[i] = api.CustomPrivateDNSMapping{
 			PrivateDNSName: mapping.PrivateDNSName.ValueString(),
+			TargetID:       mapping.TargetID.ValueString(),
 		}
 	}
 
@@ -148,8 +161,13 @@ func customPrivateDNSMappingsToModel(mappings []api.CustomPrivateDNSMapping) (ty
 
 	mappingValues := make([]attr.Value, len(mappings))
 	for i, mapping := range mappings {
+		targetID := types.StringNull()
+		if mapping.TargetID != "" {
+			targetID = types.StringValue(mapping.TargetID)
+		}
 		mappingValues[i] = models.CustomPrivateDNSMappingModel{
 			PrivateDNSName: types.StringValue(mapping.PrivateDNSName),
+			TargetID:       targetID,
 		}.ObjectValue()
 	}
 
