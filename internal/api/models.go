@@ -81,6 +81,7 @@ type Service struct {
 	TransparentEncryptionDataKeyID  string                        `json:"transparentDataEncryptionKeyId,omitempty"`
 	EncryptionRoleID                string                        `json:"encryptionRoleId,omitempty"`
 	BackupConfiguration             *BackupConfiguration          `json:"backupConfiguration,omitempty"`
+	SnapshotConfiguration           *SnapshotConfiguration        `json:"snapshotConfiguration,omitempty"`
 	ReleaseChannel                  string                        `json:"releaseChannel,omitempty"`
 	ClickHouseVersion               string                        `json:"clickhouseVersion,omitempty"`
 	CreatedAt                       string                        `json:"createdAt,omitempty"`

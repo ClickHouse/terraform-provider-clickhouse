@@ -70,6 +70,18 @@ func (c *ClientImpl) GetService(ctx context.Context, serviceId string) (*Service
 		}
 
 		service.BackupConfiguration = backupConfiguration
+
+		// Snapshots are a beta feature gated behind an org flag; the endpoint 403s for orgs not enrolled. Treat
+		// forbidden as "no snapshot config" so the read still succeeds — note that if an org loses the flag after
+		// setting a config, this clears snapshot_configuration from state on the next refresh (a diff, not a failure).
+		snapshotConfiguration, err := c.GetSnapshotConfiguration(ctx, service.Id)
+		if err != nil {
+			if !IsForbidden(err) {
+				return nil, err
+			}
+		} else {
+			service.SnapshotConfiguration = snapshotConfiguration
+		}
 	}
 
 	queryEndpoints, err := c.GetQueryEndpoint(ctx, service.Id)
@@ -148,7 +160,7 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 		// wait for a state transition (e.g. right after creating a
 		// service with a token scoped to only that one instance).
 		state, err := c.getServiceState(ctx, serviceId)
-		if is5xx(err) || is4xxPermanent(err) {
+		if is5xx(err) || Is4xxPermanent(err) {
 			// 500s are automatically retried in `doRequest`. A 4xx other
 			// than 429/408 (e.g. a missing permission) will never resolve
 			// by retrying, and would otherwise be indistinguishable from

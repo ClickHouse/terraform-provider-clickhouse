@@ -71,7 +71,8 @@ const (
 )
 
 const (
-	clickPipeStateChangeMaxWait = time.Second * 60 * 2
+	clickPipeStateChangeMaxWait               = time.Second * 60 * 2
+	clickPipesGCPWorkloadIdentityReadyTimeout = 30 * time.Second
 
 	// clickPipeMustBePausedError identifies the 400 the ClickPipes API returns
 	// for a pause-required edit, e.g. "BAD_REQUEST: Postgres ClickPipe must be
@@ -200,7 +201,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional: true,
 			},
 			"stopped": schema.BoolAttribute{
-				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false` (ClickPipe will be running). Cannot be set to `true` on creation — the ClickPipe must be created in a running state and then stopped via a subsequent apply.",
+				MarkdownDescription: "Whether the ClickPipe should be stopped. Default is `false`. For streaming and object-storage ClickPipes, set to `true` to create the pipe without starting ingestion, then set to `false` and apply to start it. Database ClickPipes cannot be created stopped. This is the configured intent; `state` reports the live status.",
 				Computed:            true,
 				Optional:            true,
 				Default:             booldefault.StaticBool(false),
@@ -313,19 +314,34 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"schema_registry": schema.SingleNestedAttribute{
-								MarkdownDescription: "The schema registry for the Kafka source. Immutable: any change forces pipe replacement.",
-								Optional:            true,
+								MarkdownDescription: "The schema registry for the Kafka source: a Confluent-compatible registry (`url`, `authentication`, `credentials`) " +
+									"or an AWS Glue schema registry (`type = \"glue\"` with a `glue` block). Immutable: any change forces pipe replacement.",
+								Optional: true,
 								PlanModifiers: []planmodifier.Object{
 									requiresReplaceIfSchemaRegistryChanges{},
 								},
 								Attributes: map[string]schema.Attribute{
+									"type": schema.StringAttribute{
+										MarkdownDescription: fmt.Sprintf(
+											"The type of the schema registry. (%s). Default is `%s`. "+
+												"The AWS Glue schema registry must be enabled for the organization.",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKafkaSchemaRegistryTypes),
+											api.ClickPipeKafkaSchemaRegistryTypeConfluent,
+										),
+										Optional: true,
+										Computed: true,
+										Default:  stringdefault.StaticString(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipeKafkaSchemaRegistryTypes...),
+										},
+									},
 									"url": schema.StringAttribute{
-										Description: "The URL of the schema registry.",
-										Required:    true,
+										Description: "The URL of the schema registry. Required for `confluent` registries.",
+										Optional:    true,
 									},
 									"authentication": schema.StringAttribute{
-										Description: "The authentication method for the Schema Registry. Only supported is `PLAIN`.",
-										Required:    true,
+										Description: "The authentication method for the Schema Registry. Only supported is `PLAIN`. Required for `confluent` registries.",
+										Optional:    true,
 										Validators: []validator.String{
 											stringvalidator.OneOf("PLAIN"),
 										},
@@ -334,9 +350,10 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									// so we enforce `AtLeastOneOf(password, password_wo)` at the schema level here.
 									// Other sources (Kafka, Postgres, MySQL, MongoDB) defer this requirement to runtime
 									// validation in extractSourceFromPlan because it's conditional on the `authentication` field.
+									// Whether credentials are present at all depends on `type` and is checked by kafkaSchemaRegistryValidator.
 									"credentials": schema.SingleNestedAttribute{
-										MarkdownDescription: "The credentials for the Schema Registry. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement.",
-										Required:            true,
+										MarkdownDescription: "The credentials for the Schema Registry. Required for `confluent` registries. Immutable: in-place credential rotation is not supported, so changing them forces pipe replacement. Changes are detected at plan time: values not known until apply (for example, generated in the same run) are recorded in state without forcing replacement.",
+										Optional:            true,
 										Sensitive:           true,
 										Attributes: map[string]schema.Attribute{
 											"username": schema.StringAttribute{
@@ -379,11 +396,39 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											},
 										},
 									},
+									"glue": schema.SingleNestedAttribute{
+										MarkdownDescription: "The AWS Glue schema registry. Required for `glue` registries.",
+										Optional:            true,
+										Attributes: map[string]schema.Attribute{
+											"region": schema.StringAttribute{
+												Description: "The AWS region of the Glue schema registry.",
+												Required:    true,
+												Validators: []validator.String{
+													stringvalidator.RegexMatches(trimmedNonEmptyRegex, "must not be empty or have leading or trailing whitespace"),
+												},
+											},
+											"registry_name": schema.StringAttribute{
+												Description: "The name of the Glue schema registry.",
+												Required:    true,
+												Validators: []validator.String{
+													stringvalidator.RegexMatches(trimmedNonEmptyRegex, "must not be empty or have leading or trailing whitespace"),
+												},
+											},
+											"role_arn": schema.StringAttribute{
+												MarkdownDescription: "The IAM role to assume for Glue schema registry access. Defaults to the IAM identity of the Kafka source, " +
+													"so it is required unless the Kafka source uses `IAM_ROLE` or `IAM_USER` authentication.",
+												Optional: true,
+												Validators: []validator.String{
+													stringvalidator.RegexMatches(iamRoleArnRegex, "must be an IAM role ARN"),
+												},
+											},
+										},
+									},
 								},
 							},
 							"authentication": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
-									"The authentication method for the Kafka source. (%s). Default is `%s`.",
+									"The authentication method for the Kafka source. (%s). Default is `%s`. `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview and is supported only for GCMK.",
 									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeKafkaAuthenticationMethods),
 									api.ClickPipeKafkaAuthenticationPlain,
 								),
@@ -606,7 +651,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"authentication": schema.StringAttribute{
-								MarkdownDescription: "CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER and SERVICE_ACCOUNT are for GCS. If not provided, no authentication is used",
+								MarkdownDescription: "CONNECTION_STRING is for Azure Blob Storage. IAM_ROLE and IAM_USER are for AWS S3. IAM_USER, SERVICE_ACCOUNT, and the Private Preview SERVICE_ACCOUNT_WORKLOAD_IDENTITY are for GCS. If not provided, no authentication is used.",
 								Optional:            true,
 								Validators: []validator.String{
 									stringvalidator.OneOf(api.ClickPipeObjectStorageAuthenticationMethods...),
@@ -863,8 +908,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							},
 							"authentication": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
-									"The authentication method for the Pub/Sub source. Currently only `%s` is supported.",
-									api.ClickPipeAuthenticationServiceAccount,
+									"The authentication method for the Pub/Sub source. (%s). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipePubSubAuthenticationMethods),
 								),
 								Required: true,
 								Validators: []validator.String{
@@ -919,8 +964,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"service_account_key": schema.SingleNestedAttribute{
-								MarkdownDescription: "GCP service account credentials. Required on create; provide a new value on update to rotate the key.",
-								Required:            true,
+								MarkdownDescription: "GCP service account credentials. Required with `SERVICE_ACCOUNT` and prohibited with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`; provide a new value on update to rotate the key.",
+								Optional:            true,
 								Attributes: map[string]schema.Attribute{
 									"service_account_file": schema.StringAttribute{
 										MarkdownDescription: "Base64-encoded GCP service account JSON key file contents.",
@@ -962,8 +1007,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"host": schema.StringAttribute{
-								Description: "The hostname of the Postgres instance.",
-								Required:    true,
+								MarkdownDescription: "The hostname of the Postgres instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).",
+								Required:            true,
 							},
 							"port": schema.Int64Attribute{
 								Description: "The port of the Postgres instance. Default is 5432.",
@@ -1015,8 +1060,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Default:     booldefault.StaticBool(false),
 							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for the Postgres instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
-								Required:            true,
+								MarkdownDescription: "The credentials for the Postgres instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted.",
+								Optional:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"username": schema.StringAttribute{
@@ -1268,8 +1313,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"host": schema.StringAttribute{
-								Description: "The hostname of the MySQL instance.",
-								Required:    true,
+								MarkdownDescription: "The hostname of the MySQL instance. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, use the Cloud SQL instance connection name (`project:region:instance`).",
+								Required:            true,
 							},
 							"port": schema.Int64Attribute{
 								Description: "The port of the MySQL instance. Default is 3306.",
@@ -1335,8 +1380,8 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for the MySQL instance. Username is always required. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional.",
-								Required:            true,
+								MarkdownDescription: "The credentials for the MySQL instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted.",
+								Optional:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"username": schema.StringAttribute{
@@ -1565,9 +1610,31 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Description: "GCS bucket path for staging snapshot data (e.g., gs://my-bucket/staging/). Data will be automatically cleaned up after initial load.",
 								Required:    true,
 							},
+							"authentication": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"Authentication method for the BigQuery source. (%s). `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` is in Private Preview.",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryAuthenticationMethods),
+								),
+								Optional: true,
+								Computed: true,
+								Default:  stringdefault.StaticString(api.ClickPipeAuthenticationServiceAccount),
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeBigQueryAuthenticationMethods...),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
+							"project_id": schema.StringAttribute{
+								Description: "GCP project ID that owns the BigQuery resources. Required with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication.",
+								Optional:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
+							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for BigQuery access.",
-								Required:            true,
+								MarkdownDescription: "The credentials for BigQuery access. Required with `SERVICE_ACCOUNT` authentication and must be omitted with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`.",
+								Optional:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
 									"service_account_file": schema.StringAttribute{
@@ -1592,6 +1659,67 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 										PlanModifiers: []planmodifier.String{
 											stringplanmodifier.RequiresReplace(),
+										},
+									},
+									"replication_method": schema.StringAttribute{
+										MarkdownDescription: fmt.Sprintf(
+											"How changes are captured from BigQuery. (%s). `query_based` polls each table using a watermark timestamp column (see `query_cdc_watermark_column` in `table_mappings`), `events_based` reads the BigQuery change history using the `APPENDS` or `CHANGES` table function (see `events_function` in `table_mappings`). Required when `replication_mode` is `cdc` or `cdc_only`, and must be omitted for `snapshot`.",
+											wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryReplicationMethods),
+										),
+										Optional: true,
+										Validators: []validator.String{
+											stringvalidator.OneOf(api.ClickPipeBigQueryReplicationMethods...),
+										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
+									},
+									"sync_interval_seconds": schema.Int64Attribute{
+										Description: "Interval in seconds between CDC syncs. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+									},
+									"query_cdc_pull_sync_parallelism": schema.Int64Attribute{
+										Description: "Number of tables pulled in parallel during a CDC sync. Must be omitted when replication_mode is `snapshot`. Defaults to 4 for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+									},
+									"sync_delay_seconds": schema.Int64Attribute{
+										Description: "Each CDC sync reads data only up to now minus this delay, giving recently written rows time to become visible in BigQuery. Increase it if your tables are loaded via batch jobs or Google Cloud Dataflow; if set too low, late-visible rows may be skipped. Must be omitted when replication_mode is `snapshot`. Defaults to 60 for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(0),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
+										},
+									},
+									"pull_window_size_seconds": schema.Int64Attribute{
+										Description: "Maximum amount of time one pull (query) can cover. Applies when the pipe has fallen behind, e.g. on the first CDC sync or when resuming after a pause: with a 6 hour limit, a pipe that is 3 days behind catches up in 12 smaller pulls instead of one large query. If a pull fails, only that pull is retried. Must be omitted when replication_mode is `snapshot`. Defaults to 86400 (24 hours) for CDC modes.",
+										Optional:    true,
+										Computed:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(1),
+										},
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.RequiresReplaceIfConfigured(),
+											int64planmodifier.UseStateForUnknown(),
 										},
 									},
 									"allow_nullable_columns": schema.BoolAttribute{
@@ -1691,6 +1819,20 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Computed: true,
 											Validators: []validator.String{
 												stringvalidator.OneOf(api.ClickPipeBigQueryTableEngines...),
+											},
+										},
+										"query_cdc_watermark_column": schema.StringAttribute{
+											MarkdownDescription: "Source column of type `TIMESTAMP` used as the CDC watermark. Required for every table when `replication_method` is `query_based`; must be omitted otherwise.",
+											Optional:            true,
+										},
+										"events_function": schema.StringAttribute{
+											MarkdownDescription: fmt.Sprintf(
+												"BigQuery table function used to read changes. (%s). Required for every table when `replication_method` is `events_based`; must be omitted otherwise.",
+												wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeBigQueryEventsFunctions),
+											),
+											Optional: true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(api.ClickPipeBigQueryEventsFunctions...),
 											},
 										},
 									},
@@ -1960,7 +2102,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										},
 									},
 									"version_column_id": schema.StringAttribute{
-										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree`.",
+										MarkdownDescription: "Column ID to use as version for ReplacingMergeTree engine. Required when engine type is `ReplacingMergeTree` and the pipe is being created.",
 										Optional:            true,
 									},
 									"column_ids": schema.ListAttribute{
@@ -1971,11 +2113,13 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"sorting_key": schema.ListAttribute{
-								MarkdownDescription: "The list of columns for the sorting key.",
+								MarkdownDescription: "The list of columns for the sorting key. Required when engine type is `ReplacingMergeTree` and the pipe is being created.",
 								Optional:            true,
 								Computed:            true,
 								ElementType:         types.StringType,
-								Default:             listdefault.StaticValue(tfutils.CreateEmptyList(types.StringType)),
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"partition_by": schema.StringAttribute{
 								MarkdownDescription: "The column to partition the table by.",
@@ -2070,22 +2214,12 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 	if !request.Config.Raw.IsNull() {
 		response.Diagnostics.Append(request.Config.Get(ctx, &config)...)
 	}
+	if response.Diagnostics.HasError() {
+		return
+	}
 
-	// Reject `stopped = true` on creation. The API does not support provisioning a pipe
-	// in a stopped state; the pipe must be created running and then stopped via update.
-	// An Unknown value (e.g. `stopped` derived from an apply-time computed expression)
-	// is also rejected: we cannot prove it will resolve to false, and a true would put
-	// us in the unsupported create-stopped path. Require a known false on creation.
-	if request.State.Raw.IsNull() && (plan.Stopped.IsUnknown() || plan.Stopped.ValueBool()) {
-		detail := "`stopped = true` is not allowed when creating a new ClickPipe. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
-		if plan.Stopped.IsUnknown() {
-			detail = "`stopped` must be a known value (false) when creating a new ClickPipe; it cannot be derived from an apply-time computed value. Create the pipe first, then set `stopped = true` in a subsequent apply to pause it."
-		}
-		response.Diagnostics.AddAttributeError(
-			path.Root("stopped"),
-			"Cannot create a ClickPipe in a stopped state",
-			detail,
-		)
+	validateGCPWorkloadIdentityConfiguration(ctx, plan.Source, &response.Diagnostics)
+	if response.Diagnostics.HasError() {
 		return
 	}
 
@@ -2094,7 +2228,15 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		destinationModel := models.ClickPipeDestinationModel{}
 		response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
 
-		if !destinationModel.TableDefinition.IsNull() {
+		// table_definition is only sent on create
+		tableDefinitionChanged := true
+		if !state.Destination.IsNull() {
+			stateDestinationModel := models.ClickPipeDestinationModel{}
+			response.Diagnostics.Append(state.Destination.As(ctx, &stateDestinationModel, basetypes.ObjectAsOptions{})...)
+			tableDefinitionChanged = !destinationModel.TableDefinition.Equal(stateDestinationModel.TableDefinition)
+		}
+
+		if tableDefinitionChanged && !destinationModel.TableDefinition.IsNull() {
 			tableDefinitionModel := models.ClickPipeDestinationTableDefinitionModel{}
 			response.Diagnostics.Append(destinationModel.TableDefinition.As(ctx, &tableDefinitionModel, basetypes.ObjectAsOptions{})...)
 
@@ -2186,10 +2328,21 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		}
 	}
 
-	// Validate object storage configuration
+	// Validate source configuration
 	if !plan.Source.IsNull() {
 		sourceModel := models.ClickPipeSourceModel{}
 		response.Diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+
+		isDBPipe := !sourceModel.Postgres.IsNull() || !sourceModel.MySQL.IsNull() ||
+			!sourceModel.BigQuery.IsNull() || !sourceModel.MongoDB.IsNull()
+		if request.State.Raw.IsNull() && plan.Stopped.ValueBool() && isDBPipe {
+			response.Diagnostics.AddAttributeError(
+				path.Root("stopped"),
+				"Cannot create a database ClickPipe in a stopped state",
+				"`stopped = true` on creation is only supported for streaming and object-storage ClickPipes. Database ClickPipes must be created running.",
+			)
+			return
+		}
 
 		if !sourceModel.ObjectStorage.IsNull() {
 			objectStorageModel := models.ClickPipeObjectStorageSourceModel{}
@@ -2225,10 +2378,10 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 						)
 					}
 				case api.ClickPipeObjectStorageGCSType:
-					if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationServiceAccount {
+					if authType != api.ClickPipeAuthenticationIAMUser && authType != api.ClickPipeAuthenticationServiceAccount && authType != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
 						response.Diagnostics.AddError(
 							"Invalid Configuration",
-							"queue_url with GCS requires authentication type to be either IAM_USER or SERVICE_ACCOUNT",
+							"queue_url with GCS requires authentication type to be IAM_USER, SERVICE_ACCOUNT, or SERVICE_ACCOUNT_WORKLOAD_IDENTITY",
 						)
 					}
 				}
@@ -2298,7 +2451,9 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 						response.Diagnostics.Append(stateSourceModel.ObjectStorage.As(ctx, &stateObjModel, basetypes.ObjectAsOptions{})...)
 
 						stateAuthType := stateObjModel.Authentication.ValueString()
-						if stateObjModel.Type.ValueString() == api.ClickPipeObjectStorageGCSType {
+						if stateObjModel.Type.ValueString() == api.ClickPipeObjectStorageGCSType &&
+							stateAuthType != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity &&
+							authType != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
 							if stateAuthType == api.ClickPipeAuthenticationServiceAccount && authType != api.ClickPipeAuthenticationServiceAccount {
 								response.Diagnostics.AddError(
 									"Invalid Configuration",
@@ -2812,14 +2967,16 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 	serviceID := plan.ServiceID.ValueString()
 
 	clickPipe := api.ClickPipe{
-		Name: plan.Name.ValueString(),
+		Name:        plan.Name.ValueString(),
+		StartPaused: plan.Stopped.ValueBool(),
 	}
 
-	if source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, false); source != nil {
-		clickPipe.Source = *source
-	} else {
+	// extractSourceFromPlan reports validation errors through diagnostics while still returning a source.
+	source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, false)
+	if source == nil || response.Diagnostics.HasError() {
 		return
 	}
+	clickPipe.Source = *source
 
 	destinationModel := models.ClickPipeDestinationModel{}
 	response.Diagnostics.Append(plan.Destination.As(ctx, &destinationModel, basetypes.ObjectAsOptions{})...)
@@ -2953,6 +3110,16 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 	}
 
+	if clickPipeSourceUsesGCPWorkloadIdentity(&clickPipe.Source) {
+		if _, err := c.client.WaitForClickPipesGCPWorkloadIdentity(ctx, serviceID, clickPipesGCPWorkloadIdentityReadyTimeout); err != nil {
+			response.Diagnostics.AddError(
+				"GCP workload identity is not ready",
+				"Could not create ClickPipe until the service workload identity is ready: "+err.Error(),
+			)
+			return
+		}
+	}
+
 	createdClickPipe, err := c.client.CreateClickPipe(ctx, serviceID, clickPipe)
 	if err != nil {
 		response.Diagnostics.AddError(
@@ -3009,16 +3176,6 @@ func (c *ClickPipeResource) Create(ctx context.Context, request resource.CreateR
 		}
 	}
 
-	if plan.Stopped.ValueBool() {
-		if _, err := c.client.ChangeClickPipeState(ctx, serviceID, createdClickPipe.ID, api.ClickPipeStateStop); err != nil {
-			response.Diagnostics.AddError(
-				"Error Stopping ClickPipe",
-				"Could not stop ClickPipe, unexpected error: "+err.Error(),
-			)
-			return
-		}
-	}
-
 	// Determine expected state(s) based on configuration
 	stateCheckFunc := c.getStateCheckFunc(ctx, plan)
 
@@ -3066,6 +3223,173 @@ func getSourceType(sourceModel models.ClickPipeSourceModel) SourceType {
 		return SourceTypeMongoDB
 	}
 	return SourceTypeUnknown
+}
+
+func validateGCPWorkloadIdentityConfiguration(ctx context.Context, sourceValue types.Object, diagnostics *diag.Diagnostics) {
+	if sourceValue.IsNull() || sourceValue.IsUnknown() {
+		return
+	}
+
+	var source models.ClickPipeSourceModel
+	diagnostics.Append(sourceValue.As(ctx, &source, basetypes.ObjectAsOptions{})...)
+	if diagnostics.HasError() {
+		return
+	}
+
+	if !source.Kafka.IsNull() && !source.Kafka.IsUnknown() {
+		var kafka models.ClickPipeKafkaSourceModel
+		diagnostics.Append(source.Kafka.As(ctx, &kafka, basetypes.ObjectAsOptions{})...)
+		if !kafka.Authentication.IsUnknown() && kafka.Authentication.ValueString() == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			if !kafka.Type.IsUnknown() && kafka.Type.ValueString() != api.ClickPipeKafkaGCMKSourceType {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication is only supported for GCMK Kafka sources")
+			}
+			if !kafka.Credentials.IsNull() && !kafka.Credentials.IsUnknown() {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Kafka credentials must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+			if !kafka.IAMRole.IsNull() && !kafka.IAMRole.IsUnknown() && kafka.IAMRole.ValueString() != "" {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Kafka iam_role must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+		}
+	}
+
+	if !source.ObjectStorage.IsNull() && !source.ObjectStorage.IsUnknown() {
+		var objectStorage models.ClickPipeObjectStorageSourceModel
+		diagnostics.Append(source.ObjectStorage.As(ctx, &objectStorage, basetypes.ObjectAsOptions{})...)
+		if !objectStorage.Authentication.IsUnknown() && objectStorage.Authentication.ValueString() == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			if !objectStorage.Type.IsUnknown() && objectStorage.Type.ValueString() != api.ClickPipeObjectStorageGCSType {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication is only supported for GCS object storage sources")
+			}
+			if !objectStorage.AccessKey.IsNull() && !objectStorage.AccessKey.IsUnknown() {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Object storage access_key must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+			if !objectStorage.IAMRole.IsNull() && !objectStorage.IAMRole.IsUnknown() && objectStorage.IAMRole.ValueString() != "" {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Object storage iam_role must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+			if !objectStorage.ConnectionString.IsNull() && !objectStorage.ConnectionString.IsUnknown() && objectStorage.ConnectionString.ValueString() != "" {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Object storage connection_string must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+			if !objectStorage.ServiceAccountKey.IsNull() && !objectStorage.ServiceAccountKey.IsUnknown() && objectStorage.ServiceAccountKey.ValueString() != "" {
+				diagnostics.AddError("Invalid GCP workload identity configuration", "Object storage service_account_key must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+			}
+		}
+	}
+
+	if !source.Postgres.IsNull() && !source.Postgres.IsUnknown() {
+		var postgres models.ClickPipePostgresSourceModel
+		diagnostics.Append(source.Postgres.As(ctx, &postgres, basetypes.ObjectAsOptions{})...)
+		validateCloudSQLWorkloadIdentity(ctx, "Postgres", api.ClickPipePostgresCloudSQLSourceType, postgres.Authentication, postgres.Type, postgres.IAMRole, postgres.Credentials, diagnostics)
+	}
+
+	if !source.MySQL.IsNull() && !source.MySQL.IsUnknown() {
+		var mysql models.ClickPipeMySQLSourceModel
+		diagnostics.Append(source.MySQL.As(ctx, &mysql, basetypes.ObjectAsOptions{})...)
+		validateCloudSQLWorkloadIdentity(ctx, "MySQL", api.ClickPipeMySQLSourceTypeCloudSQLMySQL, mysql.Authentication, mysql.Type, mysql.IAMRole, mysql.Credentials, diagnostics)
+	}
+
+	if !source.PubSub.IsNull() && !source.PubSub.IsUnknown() {
+		var pubsub models.ClickPipePubSubSourceModel
+		diagnostics.Append(source.PubSub.As(ctx, &pubsub, basetypes.ObjectAsOptions{})...)
+		if !pubsub.Authentication.IsUnknown() {
+			switch pubsub.Authentication.ValueString() {
+			case api.ClickPipeAuthenticationServiceAccount:
+				if pubsub.ServiceAccountKey.IsNull() {
+					diagnostics.AddError("Invalid Pub/Sub authentication configuration", "service_account_key is required with SERVICE_ACCOUNT authentication")
+				}
+			case api.ClickPipeAuthenticationServiceAccountWorkloadIdentity:
+				if !pubsub.ServiceAccountKey.IsNull() && !pubsub.ServiceAccountKey.IsUnknown() {
+					diagnostics.AddError("Invalid GCP workload identity configuration", "Pub/Sub service_account_key must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+				}
+			}
+		}
+	}
+
+	if !source.BigQuery.IsNull() && !source.BigQuery.IsUnknown() {
+		var bigQuery models.ClickPipeBigQuerySourceModel
+		diagnostics.Append(source.BigQuery.As(ctx, &bigQuery, basetypes.ObjectAsOptions{})...)
+		if !bigQuery.Authentication.IsUnknown() {
+			switch bigQuery.Authentication.ValueString() {
+			case api.ClickPipeAuthenticationServiceAccount:
+				if bigQuery.Credentials.IsNull() {
+					diagnostics.AddError("Invalid BigQuery authentication configuration", "credentials are required with SERVICE_ACCOUNT authentication")
+				}
+			case api.ClickPipeAuthenticationServiceAccountWorkloadIdentity:
+				if !bigQuery.Credentials.IsNull() && !bigQuery.Credentials.IsUnknown() {
+					diagnostics.AddError("Invalid GCP workload identity configuration", "BigQuery credentials must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+				}
+				if bigQuery.ProjectID.IsNull() || (!bigQuery.ProjectID.IsUnknown() && strings.TrimSpace(bigQuery.ProjectID.ValueString()) == "") {
+					diagnostics.AddError("Invalid GCP workload identity configuration", "BigQuery project_id is required with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication")
+				}
+			}
+		}
+	}
+}
+
+// validateCloudSQLWorkloadIdentity checks a Postgres or MySQL source using GCP workload identity:
+// only the Cloud SQL type is supported, and only a username may be passed in credentials.
+func validateCloudSQLWorkloadIdentity(ctx context.Context, sourceName, cloudSQLType string, authentication, sourceType, iamRole types.String, credentials types.Object, diagnostics *diag.Diagnostics) {
+	if authentication.IsUnknown() || authentication.ValueString() != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return
+	}
+	if !sourceType.IsUnknown() && sourceType.ValueString() != cloudSQLType {
+		diagnostics.AddError("Invalid GCP workload identity configuration", fmt.Sprintf("SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication is only supported for %s %s sources", cloudSQLType, sourceName))
+	}
+	if !iamRole.IsNull() && !iamRole.IsUnknown() && iamRole.ValueString() != "" {
+		diagnostics.AddError("Invalid GCP workload identity configuration", fmt.Sprintf("%s iam_role must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication", sourceName))
+	}
+	if credentials.IsNull() || credentials.IsUnknown() {
+		return
+	}
+	var creds models.ClickPipeSourceCredentialsModel
+	diagnostics.Append(credentials.As(ctx, &creds, basetypes.ObjectAsOptions{})...)
+	if (!creds.Password.IsNull() && !creds.Password.IsUnknown()) || !creds.PasswordWOVersion.IsNull() {
+		diagnostics.AddError("Invalid GCP workload identity configuration", fmt.Sprintf("%s password (or password_wo) must not be provided with SERVICE_ACCOUNT_WORKLOAD_IDENTITY authentication", sourceName))
+	}
+}
+
+func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
+	if source == nil {
+		return false
+	}
+	if source.Kafka != nil && source.Kafka.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	if source.ObjectStorage != nil && source.ObjectStorage.Authentication != nil && *source.ObjectStorage.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	if source.PubSub != nil && source.PubSub.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	if source.Postgres != nil && source.Postgres.Authentication != nil && *source.Postgres.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	if source.MySQL != nil && source.MySQL.Authentication != nil && *source.MySQL.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		return true
+	}
+	return source.BigQuery != nil && source.BigQuery.Authentication == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity
+}
+
+// knownInt64ToIntPointer returns nil for null/unknown values so unset settings are left out of the API request.
+func knownInt64ToIntPointer(v types.Int64) *int {
+	if v.IsNull() || v.IsUnknown() {
+		return nil
+	}
+	val := int(v.ValueInt64())
+	return &val
+}
+
+func intPointerToInt64Value(v *int) types.Int64 {
+	if v == nil {
+		return types.Int64Null()
+	}
+	return types.Int64Value(int64(*v))
+}
+
+// nonEmptyStringValue maps a nil or empty string from the API to null.
+func nonEmptyStringValue(v *string) types.String {
+	if v == nil || *v == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(*v)
 }
 
 // overlayPasswordWO returns the write-only password from config when set, else the plan password. The framework leaves write-only attrs in req.Plan and req.Config, but nulls them in req.State; we read from config to keep the source of truth explicit.
@@ -3140,6 +3464,10 @@ func sourceFieldsChangedIgnoringMappings(planObj, stateObj types.Object) bool {
 // extractSourceFromPlan builds the API source from plan. config supplies write-only credentials stripped from plan; pass nil in unit tests not exercising write-only behavior.
 func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics *diag.Diagnostics, plan models.ClickPipeResourceModel, config *models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
 	source := &api.ClickPipeSource{}
+	validateGCPWorkloadIdentityConfiguration(ctx, plan.Source, diagnostics)
+	if diagnostics.HasError() {
+		return nil
+	}
 
 	sourceModel := models.ClickPipeSourceModel{}
 	diagnostics.Append(plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
@@ -3176,7 +3504,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			source.Kafka.SSHKeyResourceID = kafkaModel.SSHKeyResourceID.ValueStringPointer()
 		}
 
-		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole {
+		if kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole && kafkaModel.Authentication.ValueString() != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
 			if !kafkaModel.Credentials.IsNull() {
 				credentialsModel := models.ClickPipeKafkaSourceCredentialsModel{}
 				diagnostics.Append(kafkaModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
@@ -3233,30 +3561,43 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !kafkaModel.SchemaRegistry.IsNull() {
 			schemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{}
 			diagnostics.Append(kafkaModel.SchemaRegistry.As(ctx, &schemaRegistryModel, basetypes.ObjectAsOptions{})...)
-			credentialsModel := models.ClickPipeSourceCredentialsModel{}
-			diagnostics.Append(schemaRegistryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+			if schemaRegistryModel.Type.ValueString() == api.ClickPipeKafkaSchemaRegistryTypeGlue {
+				glueModel := models.ClickPipeKafkaGlueSchemaRegistryModel{}
+				diagnostics.Append(schemaRegistryModel.Glue.As(ctx, &glueModel, basetypes.ObjectAsOptions{})...)
+				// Glue authenticates with IAM, so no URL or credentials are sent.
+				source.Kafka.SchemaRegistry = &api.ClickPipeKafkaSchemaRegistry{
+					Type:             api.ClickPipeKafkaSchemaRegistryTypeGlue,
+					GlueRegion:       glueModel.Region.ValueString(),
+					GlueRegistryName: glueModel.RegistryName.ValueString(),
+					GlueRoleArn:      glueModel.RoleArn.ValueStringPointer(),
+				}
+			} else {
+				credentialsModel := models.ClickPipeSourceCredentialsModel{}
+				diagnostics.Append(schemaRegistryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
 
-			var configSchemaRegistryCreds models.ClickPipeSourceCredentialsModel
-			if !configSourceModel.Kafka.IsNull() && !configSourceModel.Kafka.IsUnknown() {
-				configKafkaModel := models.ClickPipeKafkaSourceModel{}
-				diagnostics.Append(configSourceModel.Kafka.As(ctx, &configKafkaModel, basetypes.ObjectAsOptions{})...)
-				if !configKafkaModel.SchemaRegistry.IsNull() && !configKafkaModel.SchemaRegistry.IsUnknown() {
-					configSchemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{}
-					diagnostics.Append(configKafkaModel.SchemaRegistry.As(ctx, &configSchemaRegistryModel, basetypes.ObjectAsOptions{})...)
-					if !configSchemaRegistryModel.Credentials.IsNull() && !configSchemaRegistryModel.Credentials.IsUnknown() {
-						diagnostics.Append(configSchemaRegistryModel.Credentials.As(ctx, &configSchemaRegistryCreds, basetypes.ObjectAsOptions{})...)
+				var configSchemaRegistryCreds models.ClickPipeSourceCredentialsModel
+				if !configSourceModel.Kafka.IsNull() && !configSourceModel.Kafka.IsUnknown() {
+					configKafkaModel := models.ClickPipeKafkaSourceModel{}
+					diagnostics.Append(configSourceModel.Kafka.As(ctx, &configKafkaModel, basetypes.ObjectAsOptions{})...)
+					if !configKafkaModel.SchemaRegistry.IsNull() && !configKafkaModel.SchemaRegistry.IsUnknown() {
+						configSchemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{}
+						diagnostics.Append(configKafkaModel.SchemaRegistry.As(ctx, &configSchemaRegistryModel, basetypes.ObjectAsOptions{})...)
+						if !configSchemaRegistryModel.Credentials.IsNull() && !configSchemaRegistryModel.Credentials.IsUnknown() {
+							diagnostics.Append(configSchemaRegistryModel.Credentials.As(ctx, &configSchemaRegistryCreds, basetypes.ObjectAsOptions{})...)
+						}
 					}
 				}
-			}
-			credentialsModel.Password = overlayPasswordWO(credentialsModel.Password, configSchemaRegistryCreds.PasswordWO)
+				credentialsModel.Password = overlayPasswordWO(credentialsModel.Password, configSchemaRegistryCreds.PasswordWO)
 
-			source.Kafka.SchemaRegistry = &api.ClickPipeKafkaSchemaRegistry{
-				URL:            schemaRegistryModel.URL.ValueString(),
-				Authentication: schemaRegistryModel.Authentication.ValueString(),
-				Credentials: &api.ClickPipeSourceCredentials{
-					Username: credentialsModel.Username.ValueString(),
-					Password: credentialsModel.Password.ValueString(),
-				},
+				// Confluent registries omit `type` on the wire, keeping the request identical to the pre-Glue API.
+				source.Kafka.SchemaRegistry = &api.ClickPipeKafkaSchemaRegistry{
+					URL:            schemaRegistryModel.URL.ValueString(),
+					Authentication: schemaRegistryModel.Authentication.ValueString(),
+					Credentials: &api.ClickPipeSourceCredentials{
+						Username: credentialsModel.Username.ValueString(),
+						Password: credentialsModel.Password.ValueString(),
+					},
+				}
 			}
 		}
 
@@ -3450,10 +3791,6 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		bigQueryModel := models.ClickPipeBigQuerySourceModel{}
 		diagnostics.Append(sourceModel.BigQuery.As(ctx, &bigQueryModel, basetypes.ObjectAsOptions{})...)
 
-		// Extract credentials
-		credentialsModel := models.ClickPipeServiceAccountModel{}
-		diagnostics.Append(bigQueryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
-
 		// Extract settings
 		settingsModel := models.ClickPipeBigQuerySettingsModel{}
 		diagnostics.Append(bigQueryModel.Settings.As(ctx, &settingsModel, basetypes.ObjectAsOptions{})...)
@@ -3461,6 +3798,14 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		settings := api.ClickPipeBigQuerySettings{
 			ReplicationMode: settingsModel.ReplicationMode.ValueString(),
 		}
+
+		if !settingsModel.ReplicationMethod.IsNull() && !settingsModel.ReplicationMethod.IsUnknown() {
+			settings.ReplicationMethod = settingsModel.ReplicationMethod.ValueStringPointer()
+		}
+		settings.SyncIntervalSeconds = knownInt64ToIntPointer(settingsModel.SyncIntervalSeconds)
+		settings.QueryCDCPullSyncParallelism = knownInt64ToIntPointer(settingsModel.QueryCDCPullSyncParallelism)
+		settings.SyncDelaySeconds = knownInt64ToIntPointer(settingsModel.SyncDelaySeconds)
+		settings.PullWindowSizeSeconds = knownInt64ToIntPointer(settingsModel.PullWindowSizeSeconds)
 
 		if !settingsModel.AllowNullableColumns.IsNull() {
 			val := settingsModel.AllowNullableColumns.ValueBool()
@@ -3512,17 +3857,34 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 				mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
 			}
 
+			if !mappingModel.QueryCDCWatermarkColumn.IsNull() && !mappingModel.QueryCDCWatermarkColumn.IsUnknown() {
+				mapping.QueryCDCWatermarkColumn = mappingModel.QueryCDCWatermarkColumn.ValueStringPointer()
+			}
+
+			if !mappingModel.EventsFunction.IsNull() && !mappingModel.EventsFunction.IsUnknown() {
+				mapping.EventsFunction = mappingModel.EventsFunction.ValueStringPointer()
+			}
+
 			tableMappings[i] = mapping
 		}
 
-		source.BigQuery = &api.ClickPipeBigQuerySource{
+		bigQuery := &api.ClickPipeBigQuerySource{
 			SnapshotStagingPath: bigQueryModel.SnapshotStagingPath.ValueString(),
+			Authentication:      bigQueryModel.Authentication.ValueString(),
 			Settings:            settings,
 			Mappings:            tableMappings,
-			Credentials: &api.ClickPipeServiceAccount{
-				ServiceAccountFile: credentialsModel.ServiceAccountFile.ValueString(),
-			},
 		}
+		if !bigQueryModel.ProjectID.IsNull() && !bigQueryModel.ProjectID.IsUnknown() {
+			bigQuery.ProjectID = bigQueryModel.ProjectID.ValueStringPointer()
+		}
+		if !bigQueryModel.Credentials.IsNull() && !bigQueryModel.Credentials.IsUnknown() {
+			credentialsModel := models.ClickPipeServiceAccountModel{}
+			diagnostics.Append(bigQueryModel.Credentials.As(ctx, &credentialsModel, basetypes.ObjectAsOptions{})...)
+			bigQuery.Credentials = &api.ClickPipeServiceAccount{
+				ServiceAccountFile: credentialsModel.ServiceAccountFile.ValueString(),
+			}
+		}
+		source.BigQuery = bigQuery
 	} else if !sourceModel.Postgres.IsNull() {
 		postgresModel := models.ClickPipePostgresSourceModel{}
 		diagnostics.Append(sourceModel.Postgres.As(ctx, &postgresModel, basetypes.ObjectAsOptions{})...)
@@ -3551,6 +3913,15 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		authentication := clickPipeAuthBasic // default
 		if !postgresModel.Authentication.IsNull() {
 			authentication = postgresModel.Authentication.ValueString()
+		}
+
+		// Credentials are optional only for GCP workload identity. On update the block may be
+		// null after an import with ignore_changes, so only enforce this on create.
+		if !isUpdate && postgresModel.Credentials.IsNull() && authentication != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			diagnostics.AddError(
+				"Missing required attribute",
+				"Credentials are required unless authentication is set to 'SERVICE_ACCOUNT_WORKLOAD_IDENTITY'.",
+			)
 		}
 
 		if authentication == clickPipeAuthBasic {
@@ -3756,6 +4127,15 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		authentication := clickPipeAuthBasic // default
 		if !mysqlModel.Authentication.IsNull() {
 			authentication = mysqlModel.Authentication.ValueString()
+		}
+
+		// Credentials are optional only for GCP workload identity. On update the block may be
+		// null after an import with ignore_changes, so only enforce this on create.
+		if !isUpdate && mysqlModel.Credentials.IsNull() && authentication != api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+			diagnostics.AddError(
+				"Missing required attribute",
+				"Credentials are required unless authentication is set to 'SERVICE_ACCOUNT_WORKLOAD_IDENTITY'.",
+			)
 		}
 
 		if authentication == clickPipeAuthBasic {
@@ -4133,14 +4513,22 @@ func (c *ClickPipeResource) getStateCheckFunc(ctx context.Context, plan models.C
 		return isClickPipeStoppedOrPaused
 	}
 
-	// Check if this is a snapshot-only DB pipe (Postgres/MySQL snapshot mode or BigQuery)
+	// Check if this is a snapshot-only DB pipe (snapshot replication mode)
 	isDBPipe := false
 	isSnapshotOnly := false
 	var sourceModel models.ClickPipeSourceModel
 	if diags := plan.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{}); diags == nil {
-		// BigQuery is always snapshot-only
 		if !sourceModel.BigQuery.IsNull() {
-			isSnapshotOnly = true
+			isDBPipe = true
+			var bigQuerySource models.ClickPipeBigQuerySourceModel
+			if diags := sourceModel.BigQuery.As(ctx, &bigQuerySource, basetypes.ObjectAsOptions{}); !diags.HasError() {
+				if !bigQuerySource.Settings.IsNull() {
+					var settings models.ClickPipeBigQuerySettingsModel
+					if diags := bigQuerySource.Settings.As(ctx, &settings, basetypes.ObjectAsOptions{}); !diags.HasError() {
+						isSnapshotOnly = settings.ReplicationMode.ValueString() == api.ClickPipeReplicationModeSnapshot
+					}
+				}
+			}
 		} else if !sourceModel.Postgres.IsNull() {
 			isDBPipe = true
 			var postgresSource models.ClickPipePostgresSourceModel
@@ -4340,10 +4728,29 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				stateSchemaRegistryModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
 			}
 
-			schemaRegistryModel := models.ClickPipeKafkaSchemaRegistryModel{
-				URL:            types.StringValue(clickPipe.Source.Kafka.SchemaRegistry.URL),
-				Authentication: types.StringValue(clickPipe.Source.Kafka.SchemaRegistry.Authentication),
-				Credentials:    stateSchemaRegistryModel.Credentials,
+			schemaRegistry := clickPipe.Source.Kafka.SchemaRegistry
+			var schemaRegistryModel models.ClickPipeKafkaSchemaRegistryModel
+			if schemaRegistry.Type == api.ClickPipeKafkaSchemaRegistryTypeGlue {
+				schemaRegistryModel = models.ClickPipeKafkaSchemaRegistryModel{
+					Type:           types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeGlue),
+					URL:            types.StringNull(),
+					Authentication: types.StringNull(),
+					Credentials:    types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes),
+					Glue: models.ClickPipeKafkaGlueSchemaRegistryModel{
+						Region:       types.StringValue(schemaRegistry.GlueRegion),
+						RegistryName: types.StringValue(schemaRegistry.GlueRegistryName),
+						RoleArn:      types.StringPointerValue(schemaRegistry.GlueRoleArn),
+					}.ObjectValue(),
+				}
+			} else {
+				// The API omits `type` for Confluent registries.
+				schemaRegistryModel = models.ClickPipeKafkaSchemaRegistryModel{
+					Type:           types.StringValue(api.ClickPipeKafkaSchemaRegistryTypeConfluent),
+					URL:            types.StringValue(schemaRegistry.URL),
+					Authentication: types.StringValue(schemaRegistry.Authentication),
+					Credentials:    stateSchemaRegistryModel.Credentials,
+					Glue:           types.ObjectNull(models.ClickPipeKafkaGlueSchemaRegistryModel{}.ObjectType().AttrTypes),
+				}
 			}
 
 			kafkaModel.SchemaRegistry = schemaRegistryModel.ObjectValue()
@@ -5247,7 +5654,12 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		// Settings - preserve null values from state for optional fields
 		settingsModel := models.ClickPipeBigQuerySettingsModel{
-			ReplicationMode: types.StringValue(clickPipe.Source.BigQuery.Settings.ReplicationMode),
+			ReplicationMode:             types.StringValue(clickPipe.Source.BigQuery.Settings.ReplicationMode),
+			ReplicationMethod:           nonEmptyStringValue(clickPipe.Source.BigQuery.Settings.ReplicationMethod),
+			SyncIntervalSeconds:         intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.SyncIntervalSeconds),
+			QueryCDCPullSyncParallelism: intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.QueryCDCPullSyncParallelism),
+			SyncDelaySeconds:            intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.SyncDelaySeconds),
+			PullWindowSizeSeconds:       intPointerToInt64Value(clickPipe.Source.BigQuery.Settings.PullWindowSizeSeconds),
 		}
 
 		if clickPipe.Source.BigQuery.Settings.AllowNullableColumns != nil {
@@ -5335,11 +5747,21 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				tableMappingModel.TableEngine = types.StringNull()
 			}
 
+			tableMappingModel.QueryCDCWatermarkColumn = nonEmptyStringValue(mapping.QueryCDCWatermarkColumn)
+
+			tableMappingModel.EventsFunction = nonEmptyStringValue(mapping.EventsFunction)
+
 			tableMappingList[i] = tableMappingModel.ObjectValue()
 		}
 
+		authentication := clickPipe.Source.BigQuery.Authentication
+		if authentication == "" {
+			authentication = api.ClickPipeAuthenticationServiceAccount
+		}
 		bigQueryModel := models.ClickPipeBigQuerySourceModel{
 			SnapshotStagingPath: types.StringValue(clickPipe.Source.BigQuery.SnapshotStagingPath),
+			Authentication:      types.StringValue(authentication),
+			ProjectID:           types.StringPointerValue(clickPipe.Source.BigQuery.ProjectID),
 			Settings:            settingsModel.ObjectValue(),
 			TableMappings:       types.ListNull(models.ClickPipeBigQueryTableMappingModel{}.ObjectType()),
 		}
@@ -5879,8 +6301,11 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				source.Kafka.ProtobufSchema = nil
 			}
 
-			// For Pub/Sub, only re-send the service_account_key when it changed
-			// (key rotation). Sending an unchanged value would re-encrypt without effect.
+			// For Pub/Sub, only authentication, service_account_key and ack_deadline are
+			// patchable; every other field carries RequiresReplace and never changes in
+			// Update. The API rejects immutable fields even when unchanged ("format is
+			// immutable for Pub/Sub sources"), so omit them from the PATCH, and
+			// re-send the service_account_key only when it changed (key rotation).
 			if source.PubSub != nil && !planSourceModel.PubSub.IsNull() && !stateSourceModel.PubSub.IsNull() {
 				planPubSubModel := models.ClickPipePubSubSourceModel{}
 				response.Diagnostics.Append(planSourceModel.PubSub.As(ctx, &planPubSubModel, basetypes.ObjectAsOptions{})...)
@@ -5889,6 +6314,14 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				if planPubSubModel.ServiceAccountKey.Equal(statePubSubModel.ServiceAccountKey) {
 					source.PubSub.ServiceAccountKey = nil
 				}
+				// Omit all immutable fields from update payload
+				source.PubSub.Format = ""
+				source.PubSub.ProjectID = ""
+				source.PubSub.Topic = ""
+				source.PubSub.SeekType = ""
+				source.PubSub.SeekTimestamp = nil
+				source.PubSub.Filter = nil
+				source.PubSub.EnableOrdering = nil
 			}
 
 			// For Kinesis, omit the unchanged access_key from the PATCH so we do not
@@ -5989,6 +6422,21 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 	// when certain fields change — in which case we must trust the UpdateClickPipe
 	// response, not the stale prior state, to decide whether to issue stop/start.
 	liveState := state.State.ValueString()
+
+	// Don't send an update built from a plan that failed validation.
+	if response.Diagnostics.HasError() {
+		return
+	}
+
+	if pipeChanged && clickPipeUpdate.Source != nil && clickPipeSourceUsesGCPWorkloadIdentity(clickPipeUpdate.Source) {
+		if _, err := c.client.WaitForClickPipesGCPWorkloadIdentity(ctx, state.ServiceID.ValueString(), clickPipesGCPWorkloadIdentityReadyTimeout); err != nil {
+			response.Diagnostics.AddError(
+				"GCP workload identity is not ready",
+				"Could not update ClickPipe until the service workload identity is ready: "+err.Error(),
+			)
+			return
+		}
+	}
 
 	// CDC sources (Postgres/MySQL/MongoDB) reject table_mappings edits unless the
 	// pipe is paused (the API returns "ClickPipe must be paused to edit"). When such

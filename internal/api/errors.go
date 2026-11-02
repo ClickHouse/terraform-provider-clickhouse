@@ -61,7 +61,7 @@ func is5xx(err error) bool {
 	return strings.HasPrefix(err.Error(), "status: 5")
 }
 
-// is4xxPermanent reports whether err is a 4xx client error that will never
+// Is4xxPermanent reports whether err is a 4xx client error that will never
 // resolve by retrying (bad request, unauthorized, forbidden, not found,
 // etc.). Callers polling for a resource to reach some state should treat
 // this as terminal, not as "not there yet".
@@ -77,7 +77,7 @@ func is5xx(err error) bool {
 // Every other 4xx — 408 included — is wrapped in backoff.Permanent by
 // doRequest's dispatch, so treating them as permanent here keeps both
 // layers agreeing about the same status.
-func is4xxPermanent(err error) bool {
+func Is4xxPermanent(err error) bool {
 	if err == nil || !strings.HasPrefix(err.Error(), "status: 4") {
 		return false
 	}

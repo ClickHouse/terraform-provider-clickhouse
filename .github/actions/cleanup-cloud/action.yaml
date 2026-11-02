@@ -45,7 +45,7 @@ runs:
     - name: Configure AWS credentials
       if: inputs.cloud_provider == 'aws'
       id: aws-auth
-      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+      uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
       with:
         role-to-assume: ${{ inputs.aws_role_arn }}
         aws-region: ${{ inputs.aws_region }}
@@ -61,7 +61,7 @@ runs:
 
     - name: Azure CLI Login
       if: inputs.cloud_provider == 'azure'
-      uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+      uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
       with:
         client-id: ${{ inputs.azure_client_id }}
         tenant-id: ${{ inputs.azure_tenant_id }}
@@ -83,7 +83,7 @@ runs:
         service_account: ${{ inputs.gcp_service_account }}
 
     - name: Set up gcloud CLI
-      uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+      uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
       if: inputs.cloud_provider == 'gcp' && inputs.gcp_project != ''
 
     - name: Cleanup GCP

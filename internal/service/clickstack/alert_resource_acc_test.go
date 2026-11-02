@@ -22,9 +22,11 @@ func TestAccAlertResource(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccAlertResourceConfig(100),
+				Config: testAccAlertResourceConfig(100, ""),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("clickhouse_clickstack_alert.test", "id"),
+					// Inherited from the saved search, so kept out of state.
+					resource.TestCheckNoResourceAttr("clickhouse_clickstack_alert.test", "tags.#"),
 					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.test", "threshold", "100"),
 					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.test", "channels.#", "2"),
 					resource.TestCheckResourceAttrPair("clickhouse_clickstack_alert.test", "channels.0.webhook_id", "clickhouse_clickstack_webhook.test", "id"),
@@ -32,9 +34,11 @@ func TestAccAlertResource(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccAlertResourceConfig(250),
+				Config: testAccAlertResourceConfig(250, `tags = ["tf-acc-alert"]`),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.test", "threshold", "250"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.test", "tags.#", "1"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.test", "tags.0", "tf-acc-alert"),
 				),
 			},
 			{
@@ -49,9 +53,10 @@ func TestAccAlertResource(t *testing.T) {
 			},
 			{
 				// ...and back, so neither direction leaves the other field set.
-				Config: testAccAlertResourceConfig(250),
+				Config: testAccAlertResourceConfig(250, ""),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("clickhouse_clickstack_alert.test", "channels.#", "2"),
+					resource.TestCheckNoResourceAttr("clickhouse_clickstack_alert.test", "tags.#"),
 					resource.TestCheckNoResourceAttr("clickhouse_clickstack_alert.test", "channel.type"),
 				),
 			},
@@ -65,7 +70,7 @@ func TestAccAlertResource(t *testing.T) {
 	})
 }
 
-func testAccAlertResourceConfig(threshold int) string {
+func testAccAlertResourceConfig(threshold int, tags string) string {
 	return fmt.Sprintf(`
 resource "clickhouse_clickstack_webhook" "test" {
   name    = "tf-acc-alert-webhook"
@@ -83,6 +88,7 @@ resource "clickhouse_clickstack_saved_search" "test" {
   name      = "tf-acc-alert-ss"
   source_id = %q
   where     = "SeverityText:error"
+  tags      = ["tf-acc-ss"]
 }
 
 resource "clickhouse_clickstack_alert" "test" {
@@ -102,15 +108,16 @@ resource "clickhouse_clickstack_alert" "test" {
   threshold      = %d
   threshold_type = "above"
   interval       = "5m"
+  %s
 }
-`, os.Getenv("CLICKSTACK_SOURCE_ID"), threshold)
+`, os.Getenv("CLICKSTACK_SOURCE_ID"), threshold, tags)
 }
 
 // testAccAlertResourceSingleChannelConfig is testAccAlertResourceConfig with the
 // alert switched to the deprecated single `channel`, keeping the same webhooks
 // and saved search so the step is an in-place update rather than a replace.
 func testAccAlertResourceSingleChannelConfig() string {
-	full := testAccAlertResourceConfig(250)
+	full := testAccAlertResourceConfig(250, "")
 	return strings.Replace(full, `  channels = [
     {
       type       = "webhook"

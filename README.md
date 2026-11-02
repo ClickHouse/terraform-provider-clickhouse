@@ -28,6 +28,10 @@ Check out the [documentation](https://registry.terraform.io/providers/ClickHouse
 
 ## Breaking changes and deprecations
 
+### UDF resources (GA)
+
+`clickhouse_udf` and `clickhouse_udf_attachment` are now generally available. The `sandbox_version` attribute has been removed from `clickhouse_udf`. Remove it from your configuration before upgrading.
+
 ### Upgrading to version >= 3.26.0
 
 In version 3.26.0 we deprecated the `channel` attribute on `clickhouse_clickstack_alert` in favor of `channels`. You can keep using `channel`, but it will be removed in a future release, and it can only ever notify a single target.

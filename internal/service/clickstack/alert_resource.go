@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -32,6 +35,7 @@ var (
 	_ resource.ResourceWithConfigure      = (*alertResource)(nil)
 	_ resource.ResourceWithImportState    = (*alertResource)(nil)
 	_ resource.ResourceWithValidateConfig = (*alertResource)(nil)
+	_ resource.ResourceWithModifyPlan     = (*alertResource)(nil)
 )
 
 // Threshold type values referenced in more than one place.
@@ -55,12 +59,15 @@ var alertIntervalMinutes = map[string]int64{
 	"1h": 60, "6h": 360, "12h": 720, "1d": 1440,
 }
 
-// channelTypeWebhook is the only channel type supported today.
-const channelTypeWebhook = "webhook"
+const (
+	channelTypeWebhook = client.AlertChannelWebhook
+	channelTypeEmail   = client.AlertChannelEmail
+)
 
-// alertChannelTypes is the set of accepted channel types. Only webhook exists
-// today; more are expected, at which point each adds its own required sub-field.
-var alertChannelTypes = []string{channelTypeWebhook}
+var alertChannelTypes = []string{channelTypeWebhook, channelTypeEmail}
+
+// pagerDutySeverities are the severities the API accepts on a pagerduty_api channel.
+var pagerDutySeverities = []string{"critical", "error", "warning", "info"}
 
 // Alert sources. Mirrors the client constants so the resource never spells the
 // API strings itself.
@@ -139,20 +146,29 @@ func NewAlertResource() resource.Resource {
 // alertResource manages a ClickStack alert on a saved search, a dashboard tile,
 // or its own chart config.
 type alertResource struct {
-	client *client.Client
+	client      *client.Client
+	defaultTags []string
 }
 
 // alertChannelModel maps the nested channel block.
 type alertChannelModel struct {
-	Type      types.String `tfsdk:"type"`
-	WebhookID types.String `tfsdk:"webhook_id"`
+	Type            types.String `tfsdk:"type"`
+	WebhookID       types.String `tfsdk:"webhook_id"`
+	WebhookService  types.String `tfsdk:"webhook_service"`
+	SlackChannelID  types.String `tfsdk:"slack_channel_id"`
+	Severity        types.String `tfsdk:"severity"`
+	EmailRecipients types.List   `tfsdk:"email_recipients"`
 }
 
 // alertChannelAttrTypes mirrors alertChannelAttributes() for the framework-typed
 // channel/channels model fields; the two must be kept in step.
 var alertChannelAttrTypes = map[string]attr.Type{
-	"type":       types.StringType,
-	"webhook_id": types.StringType,
+	"type":             types.StringType,
+	"webhook_id":       types.StringType,
+	"webhook_service":  types.StringType,
+	"slack_channel_id": types.StringType,
+	"severity":         types.StringType,
+	"email_recipients": types.ListType{ElemType: types.StringType},
 }
 
 var alertChannelObjectType = types.ObjectType{AttrTypes: alertChannelAttrTypes}
@@ -187,6 +203,8 @@ type alertResourceModel struct {
 	Name                  types.String  `tfsdk:"name"`
 	Message               types.String  `tfsdk:"message"`
 	Note                  types.String  `tfsdk:"note"`
+	Tags                  types.List    `tfsdk:"tags"`
+	TagsAll               types.Set     `tfsdk:"tags_all"`
 }
 
 func (r *alertResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -345,6 +363,19 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:    true,
 				Description: "Optional markdown note (1-4096 characters).",
 			},
+			"tags": schema.ListAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				Description: "Tags for the alert (up to 50, each at most 32 characters). Requires ClickStack " +
+					"API 2.38.0 or later. When unset, the server copies the saved search or dashboard tags, " +
+					"provider default tags included, each time the alert is written, and Terraform does not track " +
+					"them. Set `[]` for no tags of its own; provider default tags still apply.",
+				Validators: []validator.List{
+					listvalidator.SizeAtMost(50),
+					listvalidator.ValueStringsAre(stringvalidator.LengthAtMost(32)),
+				},
+			},
+			tagsAllAttr: tagsAllAttribute(" Null when `tags` is unset."),
 		},
 	}
 }
@@ -355,11 +386,32 @@ func alertChannelAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"type": schema.StringAttribute{
 			Required:    true,
-			Description: "Channel type. Currently only `webhook` is supported.",
+			Description: "Channel type: `webhook` or `email`.",
 		},
 		"webhook_id": schema.StringAttribute{
 			Optional:    true,
 			Description: "ID of the webhook to notify. Required when `type` is `webhook`.",
+		},
+		"webhook_service": schema.StringAttribute{
+			Optional: true,
+			Computed: true,
+			Description: "Service of the webhook in `webhook_id`, such as `slack_api` or `pagerduty_api`. " +
+				"The server always sets it from the webhook, so a configured value must match it. Setting it " +
+				"lets the plan check `slack_channel_id` and `severity` before apply.",
+		},
+		"slack_channel_id": schema.StringAttribute{
+			Optional:    true,
+			Description: "Slack channel ID to post to. Required when the webhook service is `slack_api`.",
+		},
+		"severity": schema.StringAttribute{
+			Optional: true,
+			Description: "PagerDuty severity: one of `critical`, `error`, `warning`, `info`. Required " +
+				"when the webhook service is `pagerduty_api`.",
+		},
+		"email_recipients": schema.ListAttribute{
+			ElementType: types.StringType,
+			Optional:    true,
+			Description: "Email addresses to notify. Required when `type` is `email`.",
 		},
 	}
 }
@@ -413,6 +465,7 @@ func (r *alertResource) Configure(_ context.Context, req resource.ConfigureReque
 		return
 	}
 	r.client = providerData.ClickStack
+	r.defaultTags = providerData.ClickStackDefaultTags
 }
 
 // ValidateConfig enforces the alert's cross-field rules at plan time. Every rule
@@ -637,28 +690,48 @@ func (m *alertResourceModel) validateChannels(ctx context.Context, diags *diag.D
 	for i, c := range list {
 		p := path.Root("channels").AtListIndex(i)
 		validateAlertChannel(diags, p, c)
-		// An unknown webhook_id — one referencing a webhook created in the same
-		// apply — reads back as "", so every unresolved entry would key
-		// identically and the second would be reported as a duplicate of the
-		// first. Those can only be compared once Terraform resolves them; the
-		// API's own duplicate check is the backstop. A null webhook_id stays in
-		// the key on purpose, so a future channel type that has none still
-		// dedupes correctly.
-		if !known(c.Type) || c.WebhookID.IsUnknown() {
+		// The API compares whole channel objects, so two channels on one Slack
+		// API webhook with different slack_channel_id values are distinct. An
+		// entry with an unknown field (e.g. a webhook created in the same apply)
+		// can only be compared once Terraform resolves it; the API is the backstop.
+		key, ok := channelKey(c)
+		if !ok {
 			continue
 		}
-		key := c.Type.ValueString() + "\x00" + c.WebhookID.ValueString()
 		if first, dup := seen[key]; dup {
 			diags.AddAttributeError(p, "Duplicate channel",
-				fmt.Sprintf("channels[%d] duplicates channels[%d]: same type and webhook_id", i, first))
+				fmt.Sprintf("channels[%d] duplicates channels[%d]", i, first))
 			continue
 		}
 		seen[key] = i
 	}
 }
 
-// validateAlertChannel checks one channel block: a known type, and the sub-field
-// that type requires.
+// channelKey identifies a channel by the fields the API sends. webhook_service
+// is left out because the server derives it from webhook_id.
+func channelKey(c alertChannelModel) (string, bool) {
+	if !c.EmailRecipients.IsNull() && !known(c.EmailRecipients) {
+		return "", false
+	}
+	parts := []string{}
+	for _, v := range []types.String{c.Type, c.WebhookID, c.SlackChannelID, c.Severity} {
+		if v.IsUnknown() {
+			return "", false
+		}
+		parts = append(parts, v.ValueString())
+	}
+	for _, e := range c.EmailRecipients.Elements() {
+		s, ok := e.(types.String)
+		if !ok || s.IsUnknown() {
+			return "", false
+		}
+		parts = append(parts, s.ValueString())
+	}
+	return strings.Join(parts, "\x00"), true
+}
+
+// validateAlertChannel checks one channel block: a known type, the fields that
+// type requires, and no fields that belong to the other type.
 func validateAlertChannel(diags *diag.Diagnostics, p path.Path, c alertChannelModel) {
 	ct := c.Type
 	if !known(ct) {
@@ -669,12 +742,56 @@ func validateAlertChannel(diags *diag.Diagnostics, p path.Path, c alertChannelMo
 			fmt.Sprintf("channel type must be one of %s, got %q", strings.Join(alertChannelTypes, ", "), ct.ValueString()))
 		return
 	}
-	// An empty webhook_id is caught here rather than as an opaque API 400: the
-	// client's webhookId is omitempty, so "" would serialize as absent.
-	if ct.ValueString() == channelTypeWebhook &&
-		(c.WebhookID.IsNull() || (known(c.WebhookID) && c.WebhookID.ValueString() == "")) {
+	notAllowed := func(name string, v nullUnknown) {
+		if !v.IsNull() {
+			diags.AddAttributeError(p.AtName(name), "Invalid channel field",
+				fmt.Sprintf("%s is not allowed when type is %q", name, ct.ValueString()))
+		}
+	}
+	if ct.ValueString() == channelTypeEmail {
+		notAllowed("webhook_id", c.WebhookID)
+		notAllowed("webhook_service", c.WebhookService)
+		notAllowed("slack_channel_id", c.SlackChannelID)
+		notAllowed("severity", c.Severity)
+		if c.EmailRecipients.IsNull() || (known(c.EmailRecipients) && len(c.EmailRecipients.Elements()) == 0) {
+			diags.AddAttributeError(p.AtName("email_recipients"), "email_recipients required",
+				"email_recipients needs at least one address when type is \"email\"")
+		}
+		return
+	}
+	notAllowed("email_recipients", c.EmailRecipients)
+	// "" would be sent as absent and read back null, failing the apply.
+	for _, f := range []struct {
+		name string
+		v    types.String
+	}{{"slack_channel_id", c.SlackChannelID}, {"severity", c.Severity}} {
+		if known(f.v) && f.v.ValueString() == "" {
+			diags.AddAttributeError(p.AtName(f.name), "Invalid channel field", f.name+" must not be empty")
+		}
+	}
+	// Empty strings are caught here rather than as an opaque API 400: the
+	// client fields are omitempty, so "" would serialize as absent.
+	if missingID(c.WebhookID) {
 		diags.AddAttributeError(p.AtName("webhook_id"), "webhook_id required",
 			"webhook_id is required and must be non-empty when type is \"webhook\"")
+	}
+	if !known(c.WebhookService) {
+		return
+	}
+	switch c.WebhookService.ValueString() {
+	case client.WebhookServiceSlackAPI:
+		if missingID(c.SlackChannelID) {
+			diags.AddAttributeError(p.AtName("slack_channel_id"), "slack_channel_id required",
+				"slack_channel_id is required when webhook_service is \"slack_api\"")
+		}
+	case client.WebhookServicePagerDutyAPI:
+		if known(c.Severity) && !slices.Contains(pagerDutySeverities, c.Severity.ValueString()) {
+			diags.AddAttributeError(p.AtName("severity"), "Invalid severity",
+				fmt.Sprintf("severity must be one of %s, got %q", strings.Join(pagerDutySeverities, ", "), c.Severity.ValueString()))
+		} else if c.Severity.IsNull() {
+			diags.AddAttributeError(p.AtName("severity"), "severity required",
+				"severity is required when webhook_service is \"pagerduty_api\"")
+		}
 	}
 }
 
@@ -692,6 +809,7 @@ func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	in.Tags = r.tagsToSend(in.Tags)
 
 	al, err := r.client.WithTeam(plan.Team.ValueString()).CreateAlert(ctx, in)
 	if err != nil {
@@ -700,6 +818,7 @@ func (r *alertResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	resp.Diagnostics.Append(plan.applyAlert(ctx, al)...)
+	resp.Diagnostics.Append(plan.applyTags(ctx, al.Tags, r.defaultTags)...)
 	tflog.Trace(ctx, "created alert resource")
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -748,6 +867,7 @@ func (r *alertResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 
 	resp.Diagnostics.Append(state.applyAlert(ctx, al)...)
+	resp.Diagnostics.Append(state.applyTags(ctx, al.Tags, r.defaultTags)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -765,6 +885,7 @@ func (r *alertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	in.Tags = r.tagsToSend(in.Tags)
 
 	al, err := r.client.WithTeam(plan.Team.ValueString()).UpdateAlert(ctx, plan.ID.ValueString(), in)
 	if err != nil {
@@ -784,7 +905,43 @@ func (r *alertResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	}
 
 	resp.Diagnostics.Append(plan.applyAlert(ctx, al)...)
+	resp.Diagnostics.Append(plan.applyTags(ctx, al.Tags, r.defaultTags)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+// tagsToSend adds the provider defaults to explicit tags. Nil stays nil:
+// the server then copies the parent's tags, which already carry the defaults.
+func (r *alertResource) tagsToSend(tags *[]string) *[]string {
+	if tags == nil {
+		return nil
+	}
+	merged := withDefaultTags(*tags, r.defaultTags)
+	return &merged
+}
+
+// ModifyPlan plans tags_all so a change to the provider's default tags updates alerts that set tags.
+func (r *alertResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var tags types.List
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("tags"), &tags)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	all := types.SetNull(types.StringType)
+	switch {
+	case tags.IsNull():
+	case !fullyKnown(tags):
+		all = types.SetUnknown(types.StringType)
+	default:
+		var own []string
+		resp.Diagnostics.Append(tags.ElementsAs(ctx, &own, false)...)
+		var d diag.Diagnostics
+		all, d = plannedTagsAll(own, r.defaultTags)
+		resp.Diagnostics.Append(d...)
+	}
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root(tagsAllAttr), all)...)
 }
 
 func (r *alertResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -858,16 +1015,14 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 	case list != nil:
 		al.Channels = make([]client.AlertChannel, 0, len(list))
 		for _, c := range list {
-			al.Channels = append(al.Channels, client.AlertChannel{
-				Type:      c.Type.ValueString(),
-				WebhookID: c.WebhookID.ValueString(),
-			})
+			ch, d := alertChannelToClient(ctx, c)
+			diags.Append(d...)
+			al.Channels = append(al.Channels, ch)
 		}
 	case single != nil:
-		al.Channel = client.AlertChannel{
-			Type:      single.Type.ValueString(),
-			WebhookID: single.WebhookID.ValueString(),
-		}
+		ch, d := alertChannelToClient(ctx, *single)
+		diags.Append(d...)
+		al.Channel = ch
 	}
 	// threshold_max is only meaningful for range types; ignore it otherwise.
 	if isRangeThresholdType(m.ThresholdType.ValueString()) && known(m.ThresholdMax) {
@@ -877,6 +1032,11 @@ func (m *alertResourceModel) toClient(ctx context.Context) (client.Alert, diag.D
 	if known(m.NumConsecutiveWindows) {
 		v := int(m.NumConsecutiveWindows.ValueInt64())
 		al.NumConsecutiveWindows = &v
+	}
+	if known(m.Tags) {
+		tags := []string{}
+		diags.Append(m.Tags.ElementsAs(ctx, &tags, false)...)
+		al.Tags = &tags
 	}
 	// Scheduling modes are mutually exclusive. schedule_start_at is always sent
 	// (nil -> JSON null clears it, and the server then forces the offset to 0).
@@ -922,13 +1082,17 @@ func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) d
 		chans = []client.AlertChannel{al.Channel}
 	}
 	if !m.Channel.IsNull() {
-		obj, d := types.ObjectValueFrom(ctx, alertChannelAttrTypes, alertChannelFromClient(chans[0]))
+		c, d := alertChannelFromClient(chans[0])
+		diags.Append(d...)
+		obj, d := types.ObjectValueFrom(ctx, alertChannelAttrTypes, c)
 		diags.Append(d...)
 		m.Channel, m.Channels = obj, types.ListNull(alertChannelObjectType)
 	} else {
 		models := make([]alertChannelModel, 0, len(chans))
 		for _, c := range chans {
-			models = append(models, alertChannelFromClient(c))
+			mc, d := alertChannelFromClient(c)
+			diags.Append(d...)
+			models = append(models, mc)
 		}
 		lst, d := types.ListValueFrom(ctx, alertChannelObjectType, models)
 		diags.Append(d...)
@@ -983,8 +1147,62 @@ func (m *alertResourceModel) applyAlert(ctx context.Context, al *client.Alert) d
 	return diags
 }
 
-func alertChannelFromClient(c client.AlertChannel) alertChannelModel {
-	return alertChannelModel{Type: types.StringValue(c.Type), WebhookID: emptyToNull(c.WebhookID)}
+// applyTags stores the server's tags, minus the provider defaults the alert did
+// not list itself.
+func (m *alertResourceModel) applyTags(ctx context.Context, server *[]string, defaultTags []string) diag.Diagnostics {
+	var diags diag.Diagnostics
+	// Null tags mean "copy the parent's", so the copy stays out of state;
+	// otherwise every unset alert would diff on its parent's tags.
+	if m.Tags.IsNull() {
+		m.TagsAll = types.SetNull(types.StringType)
+		return diags
+	}
+	// 2.38.0+ always returns the key; older servers drop tags without an error.
+	if server == nil {
+		diags.AddAttributeError(path.Root("tags"), "Alert tags not supported",
+			"the ClickStack server did not return alert tags; setting tags requires ClickStack API 2.38.0 or later")
+		return diags
+	}
+	var own []string
+	diags.Append(m.Tags.ElementsAs(ctx, &own, false)...)
+	drop, d := tagsDropList(ctx, m.TagsAll, defaultTags)
+	diags.Append(d...)
+	m.Tags, d = stringSliceToList(withoutDefaultTags(*server, own, drop))
+	diags.Append(d...)
+	m.TagsAll, d = tagsSet(*server)
+	diags.Append(d...)
+	return diags
+}
+
+func alertChannelToClient(ctx context.Context, c alertChannelModel) (client.AlertChannel, diag.Diagnostics) {
+	ch := client.AlertChannel{
+		Type:           c.Type.ValueString(),
+		WebhookID:      c.WebhookID.ValueString(),
+		WebhookService: c.WebhookService.ValueString(),
+		SlackChannelID: c.SlackChannelID.ValueString(),
+		Severity:       c.Severity.ValueString(),
+	}
+	var diags diag.Diagnostics
+	if known(c.EmailRecipients) {
+		diags = c.EmailRecipients.ElementsAs(ctx, &ch.EmailRecipients, false)
+	}
+	return ch, diags
+}
+
+func alertChannelFromClient(c client.AlertChannel) (alertChannelModel, diag.Diagnostics) {
+	m := alertChannelModel{
+		Type:            types.StringValue(c.Type),
+		WebhookID:       emptyToNull(c.WebhookID),
+		WebhookService:  emptyToNull(c.WebhookService),
+		SlackChannelID:  emptyToNull(c.SlackChannelID),
+		Severity:        emptyToNull(c.Severity),
+		EmailRecipients: types.ListNull(types.StringType),
+	}
+	var diags diag.Diagnostics
+	if len(c.EmailRecipients) > 0 {
+		m.EmailRecipients, diags = stringSliceToList(c.EmailRecipients)
+	}
+	return m, diags
 }
 
 // nullUnknown is satisfied by every basetypes value (types.String, types.Int64,

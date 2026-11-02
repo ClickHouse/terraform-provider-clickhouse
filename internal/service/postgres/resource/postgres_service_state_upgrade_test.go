@@ -151,6 +151,9 @@ func TestPostgresServiceStateUpgraderV0_EndToEnd(t *testing.T) {
 	if !got.PasswordWO.IsNull() || !got.PasswordWOVersion.IsNull() {
 		t.Errorf("password_wo fields must be null after upgrade: got %v / %v", got.PasswordWO, got.PasswordWOVersion)
 	}
+	if !got.IpAccessList.Equal(types.ListNull(models.IPAccessList{}.ObjectType())) {
+		t.Errorf("ip_access must upgrade to a typed null list: got %v", got.IpAccessList)
+	}
 	if got.Hostname.ValueString() != "primary-1.example.com" || got.Port.ValueInt64() != 5432 {
 		t.Errorf("connectivity fields not carried: %v / %v", got.Hostname, got.Port)
 	}

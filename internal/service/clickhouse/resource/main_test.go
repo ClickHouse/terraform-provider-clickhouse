@@ -27,7 +27,7 @@ func TestBetaNoticeEmittedWhenNotSuppressed(t *testing.T) {
 	t.Setenv(utils.SuppressBetaWarningsEnvVar, "false")
 
 	ctx := context.Background()
-	r := &UDFAttachmentResource{}
+	r := &ServiceUpgradeWindowResource{}
 
 	schemaResp := &resource.SchemaResponse{}
 	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)

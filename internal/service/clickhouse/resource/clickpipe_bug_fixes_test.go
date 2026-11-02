@@ -11,9 +11,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
@@ -1184,4 +1187,113 @@ func TestClickPipeResource_ModifyPlan_CDCCleanupNoteOnlyWhenChanging_Issue696(t 
 		assert.True(t, hasCleanupNote(diags),
 			"a changing Postgres CDC pipe may be replaced, so the note must survive; got: %v", diags)
 	})
+}
+
+func kafkaPlanWithReplacingMergeTree(versionColumnID types.String, sortingKey []string) models.ClickPipeResourceModel {
+	plan := kafkaUpdateModel(types.StringNull(), "main-pass")
+
+	sortingKeyValues := make([]attr.Value, len(sortingKey))
+	for i, key := range sortingKey {
+		sortingKeyValues[i] = types.StringValue(key)
+	}
+
+	plan.Destination = models.ClickPipeDestinationModel{
+		Database:     types.StringValue("default"),
+		Table:        types.StringValue("events"),
+		ManagedTable: types.BoolValue(true),
+		TableDefinition: models.ClickPipeDestinationTableDefinitionModel{
+			Engine: models.ClickPipeDestinationTableEngineModel{
+				Type:            types.StringValue(ClickPipeEngineReplacingMergeTree),
+				VersionColumnID: versionColumnID,
+				ColumnIDs:       types.ListNull(types.StringType),
+			}.ObjectValue(),
+			SortingKey:  types.ListValueMust(types.StringType, sortingKeyValues),
+			PartitionBy: types.StringNull(),
+			PrimaryKey:  types.StringNull(),
+			TTL:         types.StringNull(),
+		}.ObjectValue(),
+		Columns: types.ListValueMust(models.ClickPipeDestinationColumnModel{}.ObjectType(), []attr.Value{
+			models.ClickPipeDestinationColumnModel{Name: types.StringValue("id"), Type: types.StringValue("String")}.ObjectValue(),
+			models.ClickPipeDestinationColumnModel{Name: types.StringValue("version"), Type: types.StringValue("UInt64")}.ObjectValue(),
+		}),
+		Roles: types.ListNull(types.StringType),
+	}.ObjectValue()
+
+	return plan
+}
+
+func TestClickPipeResource_ModifyPlan_ImportedReplacingMergeTree(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("unchanged table_definition from import is not validated", func(t *testing.T) {
+		imported := kafkaPlanWithReplacingMergeTree(types.StringNull(), nil)
+
+		diags := driveClickPipeModifyPlan(ctx, t, imported, imported)
+
+		assert.False(t, errorDetailContains(diags, "version_column_id is required"), "got: %v", diags.Errors())
+		assert.False(t, errorDetailContains(diags, "sorting_key is required"), "got: %v", diags.Errors())
+	})
+
+	t.Run("changed table_definition is still validated", func(t *testing.T) {
+		state := kafkaPlanWithReplacingMergeTree(types.StringValue("version"), []string{"id"})
+		plan := kafkaPlanWithReplacingMergeTree(types.StringNull(), nil)
+
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+
+		assert.True(t, errorDetailContains(diags, "version_column_id is required"), "got: %v", diags.Errors())
+		assert.True(t, errorDetailContains(diags, "sorting_key is required"), "got: %v", diags.Errors())
+	})
+
+	t.Run("create is still validated", func(t *testing.T) {
+		r := &ClickPipeResource{}
+		schemaResp := &resource.SchemaResponse{}
+		r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+		sch := schemaResp.Schema
+
+		planModel := kafkaPlanWithReplacingMergeTree(types.StringNull(), nil)
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &planModel); d.HasError() {
+			t.Fatalf("encoding plan failed: %v", d.Errors())
+		}
+		req := resource.ModifyPlanRequest{
+			State:  tfsdk.State{Schema: sch},
+			Plan:   planVal,
+			Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+		}
+		resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
+		r.ModifyPlan(ctx, req, resp)
+
+		assert.True(t, errorDetailContains(resp.Diagnostics, "version_column_id is required"), "got: %v", resp.Diagnostics.Errors())
+		assert.True(t, errorDetailContains(resp.Diagnostics, "sorting_key is required"), "got: %v", resp.Diagnostics.Errors())
+	})
+}
+
+func TestClickPipeResource_Schema_SortingKeyFollowsState(t *testing.T) {
+	ctx := context.Background()
+	r := &ClickPipeResource{}
+	schemaResp := &resource.SchemaResponse{}
+	r.Schema(ctx, resource.SchemaRequest{}, schemaResp)
+
+	destination := schemaResp.Schema.Attributes["destination"].(schema.SingleNestedAttribute)
+	tableDefinition := destination.Attributes["table_definition"].(schema.SingleNestedAttribute)
+	sortingKey := tableDefinition.Attributes["sorting_key"].(schema.ListAttribute)
+
+	assert.Nil(t, sortingKey.Default, "a default would override the state value when sorting_key is omitted")
+
+	stateValue := types.ListValueMust(types.StringType, []attr.Value{types.StringValue("id")})
+	planValue := types.ListUnknown(types.StringType)
+	for _, modifier := range sortingKey.PlanModifiers {
+		req := planmodifier.ListRequest{
+			State:       tfsdk.State{Raw: tftypes.NewValue(tftypes.Bool, true)},
+			Plan:        tfsdk.Plan{Raw: tftypes.NewValue(tftypes.Bool, true)},
+			StateValue:  stateValue,
+			PlanValue:   planValue,
+			ConfigValue: types.ListNull(types.StringType),
+		}
+		resp := &planmodifier.ListResponse{PlanValue: planValue}
+		modifier.PlanModifyList(ctx, req, resp)
+		planValue = resp.PlanValue
+	}
+
+	assert.True(t, planValue.Equal(stateValue), "omitted sorting_key must plan as the state value, got %v", planValue)
 }

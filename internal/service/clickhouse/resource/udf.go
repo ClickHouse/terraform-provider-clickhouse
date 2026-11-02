@@ -26,12 +26,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 var (
@@ -40,6 +41,7 @@ var (
 	_ resource.ResourceWithImportState    = (*UDFResource)(nil)
 	_ resource.ResourceWithModifyPlan     = (*UDFResource)(nil)
 	_ resource.ResourceWithValidateConfig = (*UDFResource)(nil)
+	_ resource.ResourceWithUpgradeState   = (*UDFResource)(nil)
 )
 
 //go:embed descriptions/udf.md
@@ -69,6 +71,7 @@ func (r *UDFResource) Metadata(_ context.Context, req resource.MetadataRequest, 
 
 func (r *UDFResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Version:             1,
 		MarkdownDescription: udfResourceDescription,
 		Attributes: map[string]schema.Attribute{
 			"function_name": schema.StringAttribute{
@@ -206,14 +209,6 @@ func (r *UDFResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 					stringvalidator.OneOf(api.UDFSandboxTypes...),
 				},
 			},
-			"sandbox_version": schema.StringAttribute{
-				Description: "Sandbox runtime version.",
-				Optional:    true,
-				Computed:    true,
-				Validators: []validator.String{
-					stringvalidator.OneOf(api.UDFSandboxVersions...),
-				},
-			},
 			"fail_on_build_error": schema.BoolAttribute{
 				Description: "When true (the default), a failed build fails the apply. The failed version stays in state. Changing this setting does not create a new UDF version.",
 				Optional:    true,
@@ -239,6 +234,24 @@ func (r *UDFResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 			"updated_at": schema.StringAttribute{
 				Description: "Last-update timestamp.",
 				Computed:    true,
+			},
+		},
+	}
+}
+
+func (r *UDFResource) UpgradeState(context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {
+			StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+				// Version 0 includes sandbox_version, which is no longer managed by Terraform.
+				state, err := req.RawState.UnmarshalWithOpts(resp.State.Schema.Type().TerraformType(ctx), tfprotov6.UnmarshalOpts{
+					ValueFromJSONOpts: tftypes.ValueFromJSONOpts{IgnoreUndefinedAttributes: true},
+				})
+				if err != nil {
+					resp.Diagnostics.AddError("Error upgrading UDF state", err.Error())
+					return
+				}
+				resp.State.Raw = state
 			},
 		},
 	}
@@ -298,19 +311,6 @@ func (r *UDFResource) ValidateConfig(ctx context.Context, req resource.ValidateC
 				"Set sandbox_type to basic or omit it. The API always uses the basic sandbox for native UDFs.",
 			)
 		}
-		if !config.SandboxVersion.IsNull() && !config.SandboxVersion.IsUnknown() && config.SandboxVersion.ValueString() != api.UDFSandboxVersionV1 {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("sandbox_version"),
-				"Native UDFs use sandbox version v1",
-				"Set sandbox_version to v1 or omit it. The API always uses v1 for native UDFs.",
-			)
-		}
-	} else if !config.SandboxVersion.IsNull() && !config.SandboxVersion.IsUnknown() && config.SandboxVersion.ValueString() == api.UDFSandboxVersionV1 {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("sandbox_version"),
-			"Sandbox version v1 requires the native runtime",
-			"Use sandbox version v2 or v3 with the python3.11 runtime.",
-		)
 	}
 }
 
@@ -353,18 +353,12 @@ func (r *UDFResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanReq
 	if !config.Runtime.IsUnknown() {
 		if config.Runtime.ValueString() == api.UDFRuntimeNative {
 			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("sandbox_type"), api.UDFSandboxTypeBasic)...)
-			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("sandbox_version"), api.UDFSandboxVersionV1)...)
 		} else {
 			sandboxType := config.SandboxType
 			if sandboxType.IsNull() {
 				sandboxType = types.StringValue(api.UDFSandboxTypeBasic)
 			}
-			sandboxVersion := config.SandboxVersion
-			if sandboxVersion.IsNull() {
-				sandboxVersion = types.StringValue(api.UDFSandboxVersionV2)
-			}
 			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("sandbox_type"), sandboxType)...)
-			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("sandbox_version"), sandboxVersion)...)
 		}
 	}
 
@@ -392,8 +386,6 @@ func (r *UDFResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanReq
 }
 
 func (r *UDFResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.BetaWarning("clickhouse_udf", &resp.Diagnostics)
-
 	var plan models.UDFResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -455,8 +447,6 @@ func (r *UDFResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 }
 
 func (r *UDFResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	utils.BetaWarning("clickhouse_udf", &resp.Diagnostics)
-
 	var plan models.UDFResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -528,8 +518,6 @@ func (r *UDFResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 }
 
 func (r *UDFResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	utils.BetaWarning("clickhouse_udf", &resp.Diagnostics)
-
 	if !udfNamePattern.MatchString(req.ID) {
 		resp.Diagnostics.AddError(
 			"Invalid UDF import ID",
@@ -710,7 +698,6 @@ func udfMatchesPublishPlan(ctx context.Context, udf *api.UDF, plan models.UDFRes
 		udf.SendChunkHeader != request.SendChunkHeader ||
 		udf.Format != request.Format ||
 		udf.SandboxType != request.SandboxType ||
-		udf.SandboxVersion != request.SandboxVersion ||
 		!equalUDFArguments(udf.Arguments, request.Arguments) ||
 		!equalUDFStringPointer(udf.ReturnName, request.ReturnName) ||
 		!equalUDFInt64Pointer(udf.PoolSize, request.PoolSize) ||
@@ -864,8 +851,7 @@ func udfPublishInputsChanged(plan, state models.UDFResourceModel) bool {
 		!plan.MaxCommandExecutionTime.Equal(state.MaxCommandExecutionTime) ||
 		!plan.SendChunkHeader.Equal(state.SendChunkHeader) ||
 		!plan.Format.Equal(state.Format) ||
-		!plan.SandboxType.Equal(state.SandboxType) ||
-		!plan.SandboxVersion.Equal(state.SandboxVersion)
+		!plan.SandboxType.Equal(state.SandboxType)
 }
 
 func udfFailOnBuildError(state *models.UDFResourceModel) bool {
@@ -914,7 +900,6 @@ func udfVersionRequest(ctx context.Context, plan models.UDFResourceModel, upload
 		SendChunkHeader:         plan.SendChunkHeader.ValueBool(),
 		Format:                  plan.Format.ValueString(),
 		SandboxType:             plan.SandboxType.ValueString(),
-		SandboxVersion:          plan.SandboxVersion.ValueString(),
 	}, diags
 }
 
@@ -930,7 +915,6 @@ func applyUDFToState(ctx context.Context, udf *api.UDF, state *models.UDFResourc
 	state.SendChunkHeader = types.BoolValue(udf.SendChunkHeader)
 	state.Format = types.StringValue(udf.Format)
 	state.SandboxType = types.StringValue(udf.SandboxType)
-	state.SandboxVersion = types.StringValue(udf.SandboxVersion)
 	state.Version = types.Int64Value(udf.Version)
 	state.Status = types.StringValue(udf.Status)
 	state.CreatedAt = types.StringValue(udf.CreatedAt)

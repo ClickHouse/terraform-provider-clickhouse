@@ -7,10 +7,12 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
 )
@@ -279,4 +281,71 @@ func TestWebhookResource_CRUD(t *testing.T) {
 			t.Error("expected a diagnostic when delete returns 409")
 		}
 	})
+}
+
+func TestWebhookResource_ImportOnlyServices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sch := webhookSchema(t)
+
+	plan := func(svc string) tfsdk.Plan {
+		p := tfsdk.Plan{Schema: sch}
+		if d := p.Set(ctx, webhookModel(func(m *webhookResourceModel) { m.Service = types.StringValue(svc) })); d.HasError() {
+			t.Fatalf("plan.Set: %s", d)
+		}
+		return p
+	}
+	state := func(svc string) tfsdk.State {
+		s := tfsdk.State{Schema: sch}
+		if d := s.Set(ctx, webhookModel(func(m *webhookResourceModel) {
+			m.ID = types.StringValue("wh1")
+			m.Service = types.StringValue(svc)
+		})); d.HasError() {
+			t.Fatalf("state.Set: %s", d)
+		}
+		return s
+	}
+	created := tfsdk.State{Schema: sch, Raw: tftypes.NewValue(sch.Type().TerraformType(ctx), nil)}
+
+	cases := []struct {
+		name    string
+		state   tfsdk.State
+		plan    string
+		replace bool
+		wantErr bool
+	}{
+		{"create slack_api", created, client.WebhookServiceSlackAPI, false, true},
+		{"create pagerduty_api", created, client.WebhookServicePagerDutyAPI, false, true},
+		{"create generic", created, "generic", false, false},
+		{"update imported slack_api", state(client.WebhookServiceSlackAPI), client.WebhookServiceSlackAPI, false, false},
+		{"switch generic to slack_api", state("generic"), client.WebhookServiceSlackAPI, false, true},
+		{"replace imported slack_api", state(client.WebhookServiceSlackAPI), client.WebhookServiceSlackAPI, true, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p := plan(tc.plan)
+			resp := &fwresource.ModifyPlanResponse{Plan: p}
+			if tc.replace {
+				resp.RequiresReplace = path.Paths{path.Root(teamAttr)}
+			}
+			(&webhookResource{}).ModifyPlan(ctx, fwresource.ModifyPlanRequest{Plan: p, State: tc.state}, resp)
+			if resp.Diagnostics.HasError() != tc.wantErr {
+				t.Fatalf("HasError()=%v, want %v: %s", resp.Diagnostics.HasError(), tc.wantErr, resp.Diagnostics)
+			}
+		})
+	}
+
+	for _, svc := range importOnlyWebhookServices {
+		for name, mod := range map[string]func(*webhookResourceModel){
+			"body":         func(m *webhookResourceModel) { m.Body = types.StringValue("x") },
+			"headers":      func(m *webhookResourceModel) { m.Headers = mkStringMap(map[string]string{"A": "b"}) },
+			"query_params": func(m *webhookResourceModel) { m.QueryParams = mkStringMap(map[string]string{"a": "b"}) },
+		} {
+			m := webhookModel(func(m *webhookResourceModel) { m.Service = types.StringValue(svc); mod(m) })
+			if d := m.validate(); !d.HasError() {
+				t.Errorf("%s must reject %s", svc, name)
+			}
+		}
+	}
 }
