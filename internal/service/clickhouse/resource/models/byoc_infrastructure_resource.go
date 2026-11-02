@@ -26,4 +26,5 @@ type ByocInfrastructureResourceModel struct {
 	Tags                      types.Map    `tfsdk:"tags"`
 	IsByoVpc                  types.Bool   `tfsdk:"is_byo_vpc"`
 	SkipPreflightValidation   types.Bool   `tfsdk:"skip_preflight_validation"`
+	CustomerAuthorizedAccess  types.Object `tfsdk:"customer_authorized_access"`
 }

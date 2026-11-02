@@ -117,12 +117,13 @@ func byocInfraReadSetup(t *testing.T, privateLink bool) (*byocInfrastructureData
 	}
 
 	cfgModel := byocInfrastructureDataSourceModel{
-		ID:                      types.StringValue("byoc-1"),
-		VpcAvailabilityZoneList: types.ListNull(types.StringType),
-		ByoVpcPrivateSubnetIDs:  types.ListNull(types.StringType),
-		ByoVpcPodCidrRangeNames: types.ListNull(types.StringType),
-		Tags:                    types.MapNull(types.StringType),
-		PrivateEndpointConfig:   types.ObjectNull(byocPrivateEndpointConfigObjectType().AttrTypes),
+		ID:                       types.StringValue("byoc-1"),
+		VpcAvailabilityZoneList:  types.ListNull(types.StringType),
+		ByoVpcPrivateSubnetIDs:   types.ListNull(types.StringType),
+		ByoVpcPodCidrRangeNames:  types.ListNull(types.StringType),
+		Tags:                     types.MapNull(types.StringType),
+		PrivateEndpointConfig:    types.ObjectNull(byocPrivateEndpointConfigObjectType().AttrTypes),
+		CustomerAuthorizedAccess: types.ObjectNull(byocCustomerAuthorizedAccessObjectType().AttrTypes),
 	}
 	cfgState := tfsdk.State{Schema: schemaResp.Schema}
 	if diags := cfgState.Set(ctx, &cfgModel); diags.HasError() {
@@ -145,6 +146,10 @@ func byocInfraReadSetup(t *testing.T, privateLink bool) (*byocInfrastructureData
 	client.GetByocInfrastructureTagsMock.
 		Expect(ctx, "byoc-1").
 		Return(map[string]string{}, nil)
+	client.GetByocInfrastructureCustomerAuthorizedAccessMock.
+		Optional().
+		Expect(ctx, "byoc-1").
+		Return(nil, errors.New("status: 404, body: BYOC infrastructure not found"))
 	d.client = client
 
 	req := datasource.ReadRequest{Config: tfsdk.Config{Schema: schemaResp.Schema, Raw: cfgState.Raw}}
@@ -224,6 +229,77 @@ func TestByocInfrastructureDataSourceReadTreatsEndpointConfig404AsNull(t *testin
 	}
 	if !got.PrivateEndpointConfig.IsNull() {
 		t.Errorf("private_endpoint_config = %v; want null on provisioning 404", got.PrivateEndpointConfig)
+	}
+}
+
+func TestByocInfrastructureDataSourceReadTreatsCustomerAccess404AsNull(t *testing.T) {
+	ctx := context.Background()
+	d, req, resp, _ := byocInfraReadSetup(t, false)
+
+	d.Read(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("a 404 for a disabled feature must not be an error: %v", resp.Diagnostics)
+	}
+
+	var got byocInfrastructureDataSourceModel
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("read state: %v", diags)
+	}
+	if !got.CustomerAuthorizedAccess.IsNull() {
+		t.Errorf("customer_authorized_access = %v; want null when the feature is off", got.CustomerAuthorizedAccess)
+	}
+}
+
+func TestByocInfrastructureDataSourceReadPopulatesCustomerAccess(t *testing.T) {
+	ctx := context.Background()
+	d, req, resp, client := byocInfraReadSetup(t, false)
+	start := "2026-06-01T12:00:00.000Z"
+	end := "2026-06-01T16:00:00.000Z"
+	client.GetByocInfrastructureCustomerAuthorizedAccessMock.
+		Expect(ctx, "byoc-1").
+		Return(&api.ByocInfrastructureCustomerAuthorizedAccess{
+			Enabled:            true,
+			DurationSeconds:    14400,
+			StartTimestamp:     &start,
+			Allowed:            true,
+			WindowEndTimestamp: &end,
+		}, nil)
+
+	d.Read(ctx, req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diags: %v", resp.Diagnostics)
+	}
+
+	var got byocInfrastructureDataSourceModel
+	if diags := resp.State.Get(ctx, &got); diags.HasError() {
+		t.Fatalf("read state: %v", diags)
+	}
+	attrs := got.CustomerAuthorizedAccess.Attributes()
+	if got := attrs["enabled"].(types.Bool).ValueBool(); !got {
+		t.Error("enabled = false; want true")
+	}
+	if got := attrs["duration_seconds"].(types.Int64).ValueInt64(); got != 14400 {
+		t.Errorf("duration_seconds = %d; want 14400", got)
+	}
+	if got := attrs["start_timestamp"].(types.String).ValueString(); got != start {
+		t.Errorf("start_timestamp = %q; want %q", got, start)
+	}
+	if got := attrs["allowed"].(types.Bool).ValueBool(); !got {
+		t.Error("allowed = false; want true")
+	}
+	if got := attrs["window_end_timestamp"].(types.String).ValueString(); got != end {
+		t.Errorf("window_end_timestamp = %q; want %q", got, end)
+	}
+}
+
+func TestByocCustomerAuthorizedAccessToObjectValueNullsAbsentTimestamps(t *testing.T) {
+	obj, diags := byocCustomerAuthorizedAccessToObjectValue(&api.ByocInfrastructureCustomerAuthorizedAccess{Enabled: false})
+	if diags.HasError() {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	attrs := obj.Attributes()
+	if !attrs["start_timestamp"].IsNull() || !attrs["window_end_timestamp"].IsNull() {
+		t.Errorf("timestamps should be null when absent, got %v", attrs)
 	}
 }
 

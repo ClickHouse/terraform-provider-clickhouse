@@ -47,6 +47,7 @@ func byocInfraModel() models.ByocInfrastructureResourceModel {
 		PublicSubnetIDs:          types.ListNull(types.StringType),
 		GcpPodCidrRangeNames:     types.ListNull(types.StringType),
 		Tags:                     types.MapNull(types.StringType),
+		CustomerAuthorizedAccess: types.ObjectNull(byocCustomerAccessAttrTypes()),
 	}
 }
 

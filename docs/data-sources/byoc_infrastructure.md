@@ -76,6 +76,7 @@ output "byoc_state" {
 - `byo_vpc_private_subnet_ids` (List of String) Private subnet IDs of the customer-managed VPC. Empty unless 'is_byo_vpc' is true.
 - `byo_vpc_shared_vpc_host_project_id` (String) GCP only: host project of the shared VPC, when the customer-managed VPC is a shared VPC.
 - `cloud_provider` (String) Cloud provider the infrastructure runs in ('aws', 'gcp' or 'azure').
+- `customer_authorized_access` (Attributes) Setting that controls when ClickHouse personnel may access the infrastructure, with the current verdict. Null when the feature is not enabled for the organization. (see [below for nested schema](#nestedatt--customer_authorized_access))
 - `display_name` (String) Human readable name of the infrastructure.
 - `enable_private_link` (Boolean) Whether private link connectivity (AWS PrivateLink, GCP Private Service Connect or Azure Private Link) is enabled.
 - `enable_private_load_balancer` (Boolean) Whether the internal (VPC-private) load balancer is enabled.
@@ -88,6 +89,18 @@ output "byoc_state" {
 - `tags` (Map of String) Tags applied to the cloud resources of the infrastructure.
 - `vpc_availability_zone_list` (List of String) Availability zones the infrastructure VPC spans.
 - `vpc_cidr_range` (String) CIDR range of the infrastructure VPC. Null for BYO-VPC infrastructures.
+
+<a id="nestedatt--customer_authorized_access"></a>
+### Nested Schema for `customer_authorized_access`
+
+Read-Only:
+
+- `allowed` (Boolean) Whether access is currently allowed, as evaluated by ClickHouse Cloud when the data source was read.
+- `duration_seconds` (Number) Length of the access window in seconds from 'start_timestamp'. 0 allows access without a deadline while 'enabled' is true.
+- `enabled` (Boolean) Whether ClickHouse personnel may access the infrastructure. True when the setting was never configured.
+- `start_timestamp` (String) Start of the access window (RFC3339). Null when no window is configured.
+- `window_end_timestamp` (String) End of the current access window (RFC3339). Set only while access is allowed until a deadline.
+
 
 <a id="nestedatt--private_endpoint_config"></a>
 ### Nested Schema for `private_endpoint_config`

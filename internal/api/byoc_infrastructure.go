@@ -139,6 +139,28 @@ type ByocInfrastructurePrivateEndpointConfig struct {
 	PrivateDnsHostname string `json:"privateDnsHostname"`
 }
 
+// ByocInfrastructureCustomerAuthorizedAccess is the customer setting that
+// controls when ClickHouse personnel may access a BYOC infrastructure, plus
+// the data plane's verdict at the time of the read. Timestamps are RFC3339.
+// A never-configured setting reads back as Enabled = true, DurationSeconds = 0.
+type ByocInfrastructureCustomerAuthorizedAccess struct {
+	Enabled            bool    `json:"enabled"`
+	DurationSeconds    int64   `json:"durationSeconds"`
+	StartTimestamp     *string `json:"startTimestamp,omitempty"`
+	Allowed            bool    `json:"allowed"`
+	WindowEndTimestamp *string `json:"windowEndTimestamp,omitempty"`
+}
+
+// ByocInfrastructureCustomerAuthorizedAccessUpdateRequest replaces the whole
+// setting: Enabled = false denies, DurationSeconds = 0 allows without a
+// deadline, otherwise access is allowed for DurationSeconds from
+// StartTimestamp (RFC3339, required when DurationSeconds > 0).
+type ByocInfrastructureCustomerAuthorizedAccessUpdateRequest struct {
+	Enabled         bool    `json:"enabled"`
+	DurationSeconds int64   `json:"durationSeconds"`
+	StartTimestamp  *string `json:"startTimestamp,omitempty"`
+}
+
 func (c *ClientImpl) getByocInfrastructurePath(byocId string, path string) string {
 	if byocId == "" {
 		return c.getOrgPath("/byocInfrastructure")
@@ -281,6 +303,46 @@ func (c *ClientImpl) GetByocInfrastructurePrivateEndpointConfig(ctx context.Cont
 	resp := ResponseWithResult[ByocInfrastructurePrivateEndpointConfig]{}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal BYOC infrastructure private endpoint config: %w", err)
+	}
+	return &resp.Result, nil
+}
+
+func (c *ClientImpl) GetByocInfrastructureCustomerAuthorizedAccess(ctx context.Context, byocId string) (*ByocInfrastructureCustomerAuthorizedAccess, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getByocInfrastructurePath(byocId, "/customerAuthorizedAccess"), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get BYOC infrastructure customer-authorized access request: %w", err)
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := ResponseWithResult[ByocInfrastructureCustomerAuthorizedAccess]{}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal BYOC infrastructure customer-authorized access: %w", err)
+	}
+	return &resp.Result, nil
+}
+
+func (c *ClientImpl) UpdateByocInfrastructureCustomerAuthorizedAccess(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest) (*ByocInfrastructureCustomerAuthorizedAccess, error) {
+	payload, err := json.Marshal(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal update BYOC infrastructure customer-authorized access request: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPatch, c.getByocInfrastructurePath(byocId, "/customerAuthorizedAccess"), bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to build update BYOC infrastructure customer-authorized access request: %w", err)
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update BYOC infrastructure customer-authorized access: %w", err)
+	}
+
+	resp := ResponseWithResult[ByocInfrastructureCustomerAuthorizedAccess]{}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal update BYOC infrastructure customer-authorized access response: %w", err)
 	}
 	return &resp.Result, nil
 }
