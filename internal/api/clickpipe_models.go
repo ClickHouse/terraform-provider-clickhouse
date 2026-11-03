@@ -325,6 +325,8 @@ type ClickPipeMongoDBSource struct {
 	DisableTLS            *bool                          `json:"disableTls,omitempty"`
 	SkipCertVerification  *bool                          `json:"skipCertVerification,omitempty"`
 	CACertificate         *string                        `json:"caCertificate,omitempty"`
+	Authentication        *string                        `json:"authentication,omitempty"`
+	IAMRole               *string                        `json:"iamRole,omitempty"`
 	Credentials           *ClickPipeSourceCredentials    `json:"credentials,omitempty"`
 	Settings              *ClickPipeMongoDBSettings      `json:"settings,omitempty"`
 	Mappings              []ClickPipeMongoDBTableMapping `json:"tableMappings,omitempty"`

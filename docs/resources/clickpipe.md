@@ -389,9 +389,11 @@ Required:
 
 Optional:
 
+- `authentication` (String) Authentication method for the MongoDB connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`. `IAM_ROLE` is supported for Amazon DocumentDB on an AWS ClickHouse service only, and is in Private Preview. Can be changed in place; switching to `basic` requires `credentials` with a password.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the MongoDB server certificate.
-- `credentials` (Attributes, Sensitive) The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI. (see [below for nested schema](#nestedatt--source--mongodb--credentials))
+- `credentials` (Attributes, Sensitive) The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI. Must be omitted with `IAM_ROLE` authentication. (see [below for nested schema](#nestedatt--source--mongodb--credentials))
 - `disable_tls` (Boolean) Disable TLS for the MongoDB connection. Defaults to false (TLS enabled).
+- `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`. Register the role as a DocumentDB user in the `$external` database.
 - `skip_cert_verification` (Boolean) Skip certificate verification for the MongoDB connection.
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
 - `tls_host` (String) TLS/SSL host for secure connections.

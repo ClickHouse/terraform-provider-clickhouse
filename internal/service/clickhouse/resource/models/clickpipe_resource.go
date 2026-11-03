@@ -965,6 +965,8 @@ type ClickPipeMongoDBSourceModel struct {
 	CACertificate        types.String `tfsdk:"ca_certificate"`
 	DisableTLS           types.Bool   `tfsdk:"disable_tls"`
 	SkipCertVerification types.Bool   `tfsdk:"skip_cert_verification"`
+	Authentication       types.String `tfsdk:"authentication"`
+	IAMRole              types.String `tfsdk:"iam_role"`
 	Credentials          types.Object `tfsdk:"credentials"`
 	Settings             types.Object `tfsdk:"settings"`
 	TableMappings        types.Set    `tfsdk:"table_mappings"`
@@ -980,6 +982,8 @@ func (m ClickPipeMongoDBSourceModel) ObjectType() types.ObjectType {
 			"ca_certificate":         types.StringType,
 			"disable_tls":            types.BoolType,
 			"skip_cert_verification": types.BoolType,
+			"authentication":         types.StringType,
+			"iam_role":               types.StringType,
 			"credentials":            ClickPipeSourceCredentialsModel{}.ObjectType(),
 			"settings":               ClickPipeMongoDBSettingsModel{}.ObjectType(),
 			"table_mappings":         types.SetType{ElemType: ClickPipeMongoDBTableMappingModel{}.ObjectType()},
@@ -996,6 +1000,8 @@ func (m ClickPipeMongoDBSourceModel) ObjectValue() types.Object {
 		"ca_certificate":         m.CACertificate,
 		"disable_tls":            m.DisableTLS,
 		"skip_cert_verification": m.SkipCertVerification,
+		"authentication":         m.Authentication,
+		"iam_role":               m.IAMRole,
 		"credentials":            m.Credentials,
 		"settings":               m.Settings,
 		"table_mappings":         m.TableMappings,
