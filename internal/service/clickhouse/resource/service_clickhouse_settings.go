@@ -256,12 +256,13 @@ func (r *ServiceClickhouseSettingsResource) applySettings(ctx context.Context, s
 }
 
 // resetSettings reverts settings to their platform default. A 404 means the
-// service is gone, so there is nothing left to reset.
+// service is gone or the API no longer knows the setting; either way there is
+// nothing to reset for that name.
 func (r *ServiceClickhouseSettingsResource) resetSettings(ctx context.Context, serviceID string, names []string, diags *diag.Diagnostics) bool {
 	for _, name := range names {
 		err := r.client.DeleteServiceClickhouseSetting(ctx, serviceID, name)
 		if api.IsNotFound(err) {
-			return true
+			continue
 		}
 		if err != nil {
 			diags.AddError(fmt.Sprintf("Error resetting ClickHouse setting %q", name), err.Error())
