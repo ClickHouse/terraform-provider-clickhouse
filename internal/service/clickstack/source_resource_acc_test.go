@@ -30,6 +30,8 @@ func TestAccSourceResource(t *testing.T) {
 					resource.TestCheckResourceAttr("clickhouse_clickstack_source.test", "default_table_select_expression", "Timestamp, Body"),
 					resource.TestCheckResourceAttrSet("clickhouse_clickstack_source.test", "id"),
 					resource.TestCheckResourceAttrPair("clickhouse_clickstack_source.test", "connection_id", "clickhouse_clickstack_connection.test", "id"),
+					resource.TestCheckResourceAttrPair("data.clickhouse_clickstack_source.test", "id", "clickhouse_clickstack_source.test", "id"),
+					resource.TestCheckResourceAttr("data.clickhouse_clickstack_source.test", "table_name", "otel_logs"),
 				),
 			},
 			// Update in place: rename and change the default select expression.
@@ -38,6 +40,7 @@ func TestAccSourceResource(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("clickhouse_clickstack_source.test", "name", "tf-acc-logs-renamed"),
 					resource.TestCheckResourceAttr("clickhouse_clickstack_source.test", "default_table_select_expression", "Timestamp, Body, ServiceName"),
+					resource.TestCheckResourceAttrPair("data.clickhouse_clickstack_source.test", "id", "clickhouse_clickstack_source.test", "id"),
 				),
 			},
 			// Import.
@@ -78,6 +81,11 @@ resource "clickhouse_clickstack_source" "test" {
   highlighted_row_attribute_expressions = [
     { sql_expression = "ServiceName", alias = "Service" },
   ]
+}
+
+data "clickhouse_clickstack_source" "test" {
+  name = clickhouse_clickstack_source.test.name
+  kind = clickhouse_clickstack_source.test.kind
 }
 `, name, selectExpr)
 }

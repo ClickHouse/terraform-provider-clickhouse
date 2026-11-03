@@ -78,6 +78,11 @@ func (r *PostgresServiceResource) ValidateConfig(ctx context.Context, req resour
 			"Postgres on GCP is in private preview. Your organization must have access to GCP and the selected Postgres region. Contact ClickHouse support to request access.",
 		)
 	}
+	var ipAccess types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("ip_access"), &ipAccess)...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(validatePostgresIPAccess(ipAccess)...)
+	}
 }
 
 // configIsOrigin reports whether the config declares a read replica or restore.
@@ -375,6 +380,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					stringvalidator.OneOf(postgresHaTypes...),
 				},
 			},
+			"ip_access": postgresIPAccessSchema(),
 			"tags": schema.MapAttribute{
 				Description: "Resource tags as a key-value map. Values must be non-empty (server's PATCH returns 400 on omitted value). Set `tags = {}` to clear all tags; omit the attribute to preserve the prior value.",
 				Optional:    true,
@@ -624,6 +630,18 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		pg = p
 	}
 
+	// Keep the allocated service tracked if a later configuration step fails.
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), types.StringValue(pg.Id))...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if configIsOrigin(plan) && !plan.IpAccessList.IsNull() && !plan.IpAccessList.IsUnknown() {
+		if err := r.updatePostgresIPAccess(ctx, pg.Id, plan.IpAccessList); err != nil {
+			resp.Diagnostics.AddError("Error configuring Postgres IP access", "Created Postgres service "+pg.Id+" but could not apply its access list: "+err.Error())
+			return
+		}
+	}
+
 	// Restore and replica creates also transition through non-running states;
 	// the running-state checker treats every non-running value as "still
 	// transitioning", so the same wait covers all three paths.
@@ -747,7 +765,7 @@ func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Update applies in-place mutations: size / ha_type / tags (PATCH /postgres),
+// Update applies in-place mutations: size / ha_type / tags / ip_access (PATCH /postgres),
 // pg_config / pgbouncer_config (POST /config), and password rotation
 // (PATCH /password). name / cloud_provider / region / postgres_version and
 // restore_to_point_in_time are RequiresReplace; read_replica_of is
@@ -772,8 +790,9 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 	rotateValue, rotate := decidePasswordRotationOnUpdate(plan, state, config)
+	ipAccessChanged := !plan.IpAccessList.IsNull() && !plan.IpAccessList.IsUnknown() && !plan.IpAccessList.Equal(state.IpAccessList)
 
-	if updatePlan.Body == nil && !configUpdate.Changed && !rotate {
+	if updatePlan.Body == nil && !configUpdate.Changed && !rotate && !ipAccessChanged {
 		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 		return
 	}
@@ -833,6 +852,13 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 				"Error rotating Postgres password",
 				"Could not rotate the password for Postgres service "+state.ID.ValueString()+": "+err.Error(),
 			)
+			return
+		}
+	}
+
+	if ipAccessChanged {
+		if err := r.updatePostgresIPAccess(ctx, state.ID.ValueString(), plan.IpAccessList); err != nil {
+			resp.Diagnostics.AddError("Error updating Postgres IP access", "Could not update IP access for Postgres service "+state.ID.ValueString()+": "+err.Error())
 			return
 		}
 	}
@@ -1134,6 +1160,9 @@ func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResour
 		Region:   plan.Region.ValueString(),
 		Size:     plan.Size.ValueString(),
 	}
+	ipAccess, ipDiags := planPostgresIPAccess(ctx, plan.IpAccessList)
+	diags.Append(ipDiags...)
+	body.IpAccessList = ipAccess
 	if !plan.PostgresVersion.IsNull() && !plan.PostgresVersion.IsUnknown() {
 		body.PostgresVersion = plan.PostgresVersion.ValueString()
 	}
@@ -1363,7 +1392,7 @@ func planTagsToAPI(ctx context.Context, tagsMap types.Map) (*[]api.Tag, diag.Dia
 // (apiTagsToMapValue) can return diagnostics without leaving *state half-mutated.
 // Does not touch pg_config / pgbouncer_config; those are synced separately by
 // syncPostgresConfig.
-func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.PostgresServiceResourceModel) diag.Diagnostics {
+func syncPostgresState(ctx context.Context, pg *api.Postgres, state *models.PostgresServiceResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	out := *state
 
@@ -1406,6 +1435,12 @@ func syncPostgresState(_ context.Context, pg *api.Postgres, state *models.Postgr
 		return diags
 	}
 	out.Tags = tagsValue
+	ipAccess, ipDiags := syncPostgresIPAccess(ctx, pg.IpAccessList, state.IpAccessList)
+	diags.Append(ipDiags...)
+	if diags.HasError() {
+		return diags
+	}
+	out.IpAccessList = ipAccess
 
 	*state = out
 	return diags

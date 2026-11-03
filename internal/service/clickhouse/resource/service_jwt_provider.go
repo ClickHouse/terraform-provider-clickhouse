@@ -162,10 +162,13 @@ func (r *ServiceJWTProviderResource) Create(ctx context.Context, req resource.Cr
 		RolesClaim: plan.RolesClaim.ValueStringPointer(),
 	})
 	if err != nil {
+		// The server only returns 409 when the existing provider's
+		// configuration differs: an identical one is returned as created, so
+		// a retried apply adopts it instead of failing.
 		if api.IsConflict(err) {
 			resp.Diagnostics.AddError(
 				"JWT provider already exists",
-				fmt.Sprintf("Service %s already has a JWT provider named %q. Import it into Terraform with: terraform import clickhouse_service_jwt_provider.<name> %s:%s", serviceID, name, serviceID, name),
+				fmt.Sprintf("Service %s already has a JWT provider named %q with a different configuration. Import it into Terraform with: terraform import clickhouse_service_jwt_provider.<name> %s:%s, or choose another name.", serviceID, name, serviceID, name),
 			)
 			return
 		}

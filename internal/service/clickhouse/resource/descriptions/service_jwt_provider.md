@@ -11,3 +11,5 @@ The service verifies each token's signature against the provider's JSON Web Key 
 - `name` must be unique within the service. It can only contain lowercase letters, digits and hyphens, with at most 59 characters. It cannot be `cloud`, `clickhouse`, `ch`, `internal`, `system` or `default`, or start with one of these followed by a hyphen.
 
 Changing `service_id` or `name` replaces the provider. All other attributes are updated in place. Existing providers can be imported with `<service_id>:<name>`.
+
+If the service already has a provider with the same `name` and the same configuration, creating the resource adopts it instead of failing, so a retried apply succeeds. Make sure nothing else manages that provider: destroying the resource deletes it. If the existing provider's configuration differs, the apply fails and you need to import it or pick another name.

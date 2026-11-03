@@ -845,6 +845,54 @@ func TestGetPostgresCaCertificates_ReturnsRawPEM(t *testing.T) {
 	}
 }
 
+func TestGetPostgresCaCertificates_RetriesTransientErrors(t *testing.T) {
+	for _, status := range []int{http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			pem := "-----BEGIN CERTIFICATE-----\nMIID...\n-----END CERTIFICATE-----\n"
+			client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				assertBasicAuth(t, r)
+				if calls.Add(1) == 1 {
+					w.Header().Set(ResponseHeaderRateLimitReset, "0")
+					http.Error(w, http.StatusText(status), status)
+					return
+				}
+				w.Header().Set("Content-Type", "application/x-pem-file")
+				_, _ = w.Write([]byte(pem))
+			})
+			got, err := client.GetPostgresCaCertificates(context.Background(), testPostgresID)
+			if err != nil {
+				t.Fatalf("GetPostgresCaCertificates: %v", err)
+			}
+			if string(got) != pem {
+				t.Errorf("raw PEM mismatch; got %q want %q", string(got), pem)
+			}
+			if got := calls.Load(); got != 2 {
+				t.Errorf("expected 2 calls; got %d", got)
+			}
+		})
+	}
+}
+
+func TestGetPostgresCaCertificates_NotFound(t *testing.T) {
+	var calls atomic.Int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+	got, err := client.GetPostgresCaCertificates(context.Background(), testPostgresID)
+	if !IsNotFound(err) {
+		t.Fatalf("expected not found error; got %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected no certificate on error; got %q", got)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Errorf("expected 1 call; got %d", got)
+	}
+}
+
 // ----- Rate limit honored (sanity check on doRequest) -----------------------
 
 func TestPostgres_RateLimit429HonorsResetHeader(t *testing.T) {

@@ -993,7 +993,7 @@ func TestExtractSourceFromPlan_PostgresIAMRoleAuthentication(t *testing.T) {
 		assert.True(t, diagnostics.HasError(), "expected error when iam_role is unset for IAM_ROLE auth")
 	})
 
-	assert.Equal(t, []string{clickPipeAuthBasic, api.ClickPipeAuthenticationIAMRole}, api.ClickPipePostgresAuthenticationMethods,
+	assert.Equal(t, []string{clickPipeAuthBasic, api.ClickPipeAuthenticationIAMRole, api.ClickPipeAuthenticationServiceAccountWorkloadIdentity}, api.ClickPipePostgresAuthenticationMethods,
 		"Postgres authentication enum must match the ClickPipes API contract, not the schema's old lowercase iam_role")
 }
 

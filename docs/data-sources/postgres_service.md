@@ -5,7 +5,7 @@ subcategory: "Postgres"
 description: |-
   ~> Note: This data source is in beta and its behavior may change in future provider versions.
   Fetches a single ClickHouse Cloud Managed Postgres https://clickhouse.com/cloud/postgres
-  service by ID, including its current pg_config / pgbouncer_config.
+  service by ID, including its current ip_access, pg_config, and pgbouncer_config.
   Returns the service's server-reported attributes: cloud_provider, region,
   size, ha_type, postgres_version, status (state, created_at,
   is_primary), connectivity (hostname, port, username), and
@@ -32,7 +32,7 @@ description: |-
 ~> **Note:** This data source is in beta and its behavior may change in future provider versions.
 
 Fetches a single [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)
-service by ID, including its current `pg_config` / `pgbouncer_config`.
+service by ID, including its current `ip_access`, `pg_config`, and `pgbouncer_config`.
 
 Returns the service's server-reported attributes: `cloud_provider`, `region`,
 `size`, `ha_type`, `postgres_version`, status (`state`, `created_at`,
@@ -72,6 +72,7 @@ output "host" {
 - `created_at` (String) RFC3339 creation timestamp.
 - `ha_type` (String) High-availability mode ('none', 'async', 'sync').
 - `hostname` (String) Network hostname for client connections.
+- `ip_access` (Attributes List) IPv4 TCP access list. IPv6 rules are not included. (see [below for nested schema](#nestedatt--ip_access))
 - `is_primary` (Boolean) True for a primary; false for a read replica.
 - `name` (String) Human-readable name.
 - `pg_config` (Map of String) Postgres server parameters currently set on the instance. Read-only; a string map.
@@ -83,3 +84,12 @@ output "host" {
 - `state` (String) Server-reported state.
 - `tags` (Map of String) User tags. Read-only; a string map.
 - `username` (String) Default superuser name.
+
+<a id="nestedatt--ip_access"></a>
+### Nested Schema for `ip_access`
+
+Read-Only:
+
+- `description` (String) Description of the IP address.
+- `port_range` (String) TCP port or inclusive port range.
+- `source` (String) IPv4 address or CIDR allowed to connect.

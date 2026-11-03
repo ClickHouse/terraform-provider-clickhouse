@@ -172,6 +172,7 @@ jobs:
       - name: Get API details for env
         id: credentials
         env:
+          example_regions_production: ${{ vars[matrix.test.name == 'postgres' && 'POSTGRES_REGIONS_PRODUCTION' || 'EXAMPLE_REGIONS_PRODUCTION'] }}
           api_env: "${{ inputs.api_env }}"
           api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"
@@ -270,6 +271,7 @@ jobs:
       - name: Get API details for env
         id: credentials
         env:
+          example_regions_production: ${{ vars[matrix.test.name == 'postgres' && 'POSTGRES_REGIONS_PRODUCTION' || 'EXAMPLE_REGIONS_PRODUCTION'] }}
           api_env: "${{ inputs.api_env }}"
           api_env_production: "${{ secrets.API_ENV_PRODUCTION }}"
           api_env_staging: "${{ secrets.API_ENV_STAGING }}"

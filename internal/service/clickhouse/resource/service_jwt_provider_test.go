@@ -260,9 +260,15 @@ func TestServiceJWTProviderResourceCreateErrors(t *testing.T) {
 	}{
 		{
 			name:        "existing provider points at import",
-			err:         errors.New(`status: 409, body: {"error":"CONFLICT: a JWT provider named \"my-oidc-provider\" already exists"}`),
+			err:         errors.New(`status: 409, body: {"error":"CONFLICT: a JWT provider named \"my-oidc-provider\" already exists with a different configuration"}`),
 			wantSummary: "JWT provider already exists",
 			wantDetail:  "terraform import clickhouse_service_jwt_provider.<name> " + jwtProviderServiceID + ":" + jwtProviderName,
+		},
+		{
+			name:        "conflict explains that the configuration differs",
+			err:         errors.New(`status: 409, body: {"error":"CONFLICT: a JWT provider named \"my-oidc-provider\" already exists with a different configuration"}`),
+			wantSummary: "JWT provider already exists",
+			wantDetail:  "with a different configuration",
 		},
 		{
 			name:        "missing entitlement explains the tier requirement",
