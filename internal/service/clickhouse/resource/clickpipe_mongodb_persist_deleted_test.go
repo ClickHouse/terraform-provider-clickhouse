@@ -24,6 +24,7 @@ func mongoDBTableMappingModel(persistDeleted types.Bool) models.ClickPipeMongoDB
 		TargetTable:             types.StringValue("shop_orders"),
 		TableEngine:             types.StringNull(),
 		PersistDeletedDocuments: persistDeleted,
+		StructuredIngestion:     types.ObjectNull(models.ClickPipeMongoDBStructuredIngestionModel{}.ObjectType().AttrTypes),
 	}
 }
 

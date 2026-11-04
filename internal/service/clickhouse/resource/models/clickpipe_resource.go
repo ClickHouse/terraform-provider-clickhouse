@@ -931,13 +931,67 @@ func (m ClickPipeMongoDBSettingsModel) ObjectValue() types.Object {
 	})
 }
 
+type ClickPipeMongoDBColumnModel struct {
+	Name types.String `tfsdk:"name"`
+	Type types.String `tfsdk:"type"`
+}
+
+func (m ClickPipeMongoDBColumnModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"name": types.StringType,
+			"type": types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeMongoDBColumnModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"name": m.Name,
+		"type": m.Type,
+	})
+}
+
+// ClickPipeMongoDBStructuredIngestionModel maps to structuredIngestion in the API.
+// Its presence on a table mapping enables structured ingestion.
+type ClickPipeMongoDBStructuredIngestionModel struct {
+	DropUnexpectedValues types.Bool   `tfsdk:"drop_unexpected_values"`
+	Columns              types.List   `tfsdk:"columns"`
+	ExcludedColumns      types.Set    `tfsdk:"excluded_columns"`
+	SortingKeys          types.List   `tfsdk:"sorting_keys"`
+	PartitionByExpr      types.String `tfsdk:"partition_by_expr"`
+}
+
+func (m ClickPipeMongoDBStructuredIngestionModel) ObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"drop_unexpected_values": types.BoolType,
+			"columns":                types.ListType{ElemType: ClickPipeMongoDBColumnModel{}.ObjectType()},
+			"excluded_columns":       types.SetType{ElemType: types.StringType},
+			"sorting_keys":           types.ListType{ElemType: types.StringType},
+			"partition_by_expr":      types.StringType,
+		},
+	}
+}
+
+func (m ClickPipeMongoDBStructuredIngestionModel) ObjectValue() types.Object {
+	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
+		"drop_unexpected_values": m.DropUnexpectedValues,
+		"columns":                m.Columns,
+		"excluded_columns":       m.ExcludedColumns,
+		"sorting_keys":           m.SortingKeys,
+		"partition_by_expr":      m.PartitionByExpr,
+	})
+}
+
 type ClickPipeMongoDBTableMappingModel struct {
 	SourceDatabaseName types.String `tfsdk:"source_database_name"`
 	SourceCollection   types.String `tfsdk:"source_collection"`
 	TargetTable        types.String `tfsdk:"target_table"`
 	TableEngine        types.String `tfsdk:"table_engine"`
 	// PersistDeletedDocuments maps to mongoConfig.persistDeletedDocuments in the API.
-	PersistDeletedDocuments types.Bool `tfsdk:"persist_deleted_documents"`
+	PersistDeletedDocuments types.Bool   `tfsdk:"persist_deleted_documents"`
+	StructuredIngestion     types.Object `tfsdk:"structured_ingestion"`
 }
 
 func (m ClickPipeMongoDBTableMappingModel) ObjectType() types.ObjectType {
@@ -948,6 +1002,7 @@ func (m ClickPipeMongoDBTableMappingModel) ObjectType() types.ObjectType {
 			"target_table":              types.StringType,
 			"table_engine":              types.StringType,
 			"persist_deleted_documents": types.BoolType,
+			"structured_ingestion":      ClickPipeMongoDBStructuredIngestionModel{}.ObjectType(),
 		},
 	}
 }
@@ -959,6 +1014,7 @@ func (m ClickPipeMongoDBTableMappingModel) ObjectValue() types.Object {
 		"target_table":              m.TargetTable,
 		"table_engine":              m.TableEngine,
 		"persist_deleted_documents": m.PersistDeletedDocuments,
+		"structured_ingestion":      m.StructuredIngestion,
 	})
 }
 

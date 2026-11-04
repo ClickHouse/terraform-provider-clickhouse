@@ -311,17 +311,36 @@ type ClickPipeMongoDBSettings struct {
 	UseJsonNativeFormat            *bool  `json:"useJsonNativeFormat,omitempty"`
 }
 
+type ClickPipeMongoDBColumn struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+// ClickPipeMongoDBStructuredIngestion replicates a collection into typed columns
+// instead of a single JSON document column. When Columns is nil the API infers
+// them from a sample of the collection. Automatic inference is not currently
+// available for pipes using an SSH key resource.
+type ClickPipeMongoDBStructuredIngestion struct {
+	Enabled              bool                     `json:"enabled"`
+	DropUnexpectedValues *bool                    `json:"dropUnexpectedValues,omitempty"`
+	Columns              []ClickPipeMongoDBColumn `json:"columns,omitempty"`
+	ExcludedColumns      []string                 `json:"excludedColumns,omitempty"`
+	SortingKeys          []string                 `json:"sortingKeys,omitempty"`
+	PartitionByExpr      *string                  `json:"partitionByExpr,omitempty"`
+}
+
 // ClickPipeMongoDBTableConfig holds the MongoDB specific settings of a collection.
 type ClickPipeMongoDBTableConfig struct {
 	PersistDeletedDocuments *bool `json:"persistDeletedDocuments,omitempty"`
 }
 
 type ClickPipeMongoDBTableMapping struct {
-	SourceDatabaseName string                       `json:"sourceDatabaseName"`
-	SourceCollection   string                       `json:"sourceCollection"`
-	TargetTable        string                       `json:"targetTable"`
-	TableEngine        *string                      `json:"tableEngine,omitempty"`
-	MongoConfig        *ClickPipeMongoDBTableConfig `json:"mongoConfig,omitempty"`
+	SourceDatabaseName  string                               `json:"sourceDatabaseName"`
+	SourceCollection    string                               `json:"sourceCollection"`
+	TargetTable         string                               `json:"targetTable"`
+	TableEngine         *string                              `json:"tableEngine,omitempty"`
+	StructuredIngestion *ClickPipeMongoDBStructuredIngestion `json:"structuredIngestion,omitempty"`
+	MongoConfig         *ClickPipeMongoDBTableConfig         `json:"mongoConfig,omitempty"`
 }
 
 type ClickPipeMongoDBSource struct {
