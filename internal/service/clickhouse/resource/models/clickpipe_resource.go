@@ -936,25 +936,29 @@ type ClickPipeMongoDBTableMappingModel struct {
 	SourceCollection   types.String `tfsdk:"source_collection"`
 	TargetTable        types.String `tfsdk:"target_table"`
 	TableEngine        types.String `tfsdk:"table_engine"`
+	// PersistDeletedDocuments maps to mongoConfig.persistDeletedDocuments in the API.
+	PersistDeletedDocuments types.Bool `tfsdk:"persist_deleted_documents"`
 }
 
 func (m ClickPipeMongoDBTableMappingModel) ObjectType() types.ObjectType {
 	return types.ObjectType{
 		AttrTypes: map[string]attr.Type{
-			"source_database_name": types.StringType,
-			"source_collection":    types.StringType,
-			"target_table":         types.StringType,
-			"table_engine":         types.StringType,
+			"source_database_name":      types.StringType,
+			"source_collection":         types.StringType,
+			"target_table":              types.StringType,
+			"table_engine":              types.StringType,
+			"persist_deleted_documents": types.BoolType,
 		},
 	}
 }
 
 func (m ClickPipeMongoDBTableMappingModel) ObjectValue() types.Object {
 	return types.ObjectValueMust(m.ObjectType().AttrTypes, map[string]attr.Value{
-		"source_database_name": m.SourceDatabaseName,
-		"source_collection":    m.SourceCollection,
-		"target_table":         m.TargetTable,
-		"table_engine":         m.TableEngine,
+		"source_database_name":      m.SourceDatabaseName,
+		"source_collection":         m.SourceCollection,
+		"target_table":              m.TargetTable,
+		"table_engine":              m.TableEngine,
+		"persist_deleted_documents": m.PersistDeletedDocuments,
 	})
 }
 

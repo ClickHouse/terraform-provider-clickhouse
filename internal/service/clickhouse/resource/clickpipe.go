@@ -2050,6 +2050,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												stringvalidator.OneOf(api.ClickPipeMongoDBTableEngines...),
 											},
 										},
+										"persist_deleted_documents": schema.BoolAttribute{
+											MarkdownDescription: "Persist the full document as it was right before it was deleted, instead of only its `_id`, when MongoDB delete events are ingested. " +
+												"Requires `changeStreamPreAndPostImages` to be enabled on the source collection, and the feature to be enabled for the organization (contact support). " +
+												"Has no effect on `snapshot` only pipes. Cannot be changed on an existing table mapping: remove the mapping and add it again instead.",
+											Optional: true,
+										},
 									},
 								},
 							},
@@ -2891,6 +2897,9 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 										} else if !stateMapping.TableEngine.Equal(planMapping.TableEngine) {
 											changed = true
 											changeDetail = "table_engine"
+										} else if stateMapping.PersistDeletedDocuments.ValueBool() != planMapping.PersistDeletedDocuments.ValueBool() {
+											changed = true
+											changeDetail = "persist_deleted_documents"
 										}
 
 										if changed {
@@ -4481,6 +4490,11 @@ func convertMongoDBTableMappingModelToAPI(ctx context.Context, diagnostics *diag
 	if !mappingModel.TableEngine.IsNull() {
 		mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
 	}
+	if !mappingModel.PersistDeletedDocuments.IsNull() && !mappingModel.PersistDeletedDocuments.IsUnknown() {
+		mapping.MongoConfig = &api.ClickPipeMongoDBTableConfig{
+			PersistDeletedDocuments: mappingModel.PersistDeletedDocuments.ValueBoolPointer(),
+		}
+	}
 	return mapping
 }
 
@@ -5573,6 +5587,15 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				tableMappingModel.TableEngine = types.StringValue(api.ClickPipeTableEngineReplacingMergeTree)
 			}
 
+			// The API only returns mongoConfig when deleted documents are persisted, so an
+			// absent value means false. Keep null when the practitioner left it unset.
+			persistDeleted := mapping.MongoConfig != nil && mapping.MongoConfig.PersistDeletedDocuments != nil && *mapping.MongoConfig.PersistDeletedDocuments
+			if persistDeleted || (hasStateMapping && !stateMapping.PersistDeletedDocuments.IsNull()) {
+				tableMappingModel.PersistDeletedDocuments = types.BoolValue(persistDeleted)
+			} else {
+				tableMappingModel.PersistDeletedDocuments = types.BoolNull()
+			}
+
 			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
 		}
 
@@ -6254,6 +6277,8 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 					var tableMappingsToRemove []api.ClickPipeMongoDBTableMapping
 					for key, mapping := range stateMappingsMap {
 						if _, exists := planMappingsMap[key]; !exists {
+							// A removal only identifies the collection: the API rejects mongoConfig here.
+							mapping.MongoConfig = nil
 							tableMappingsToRemove = append(tableMappingsToRemove, mapping)
 						}
 					}

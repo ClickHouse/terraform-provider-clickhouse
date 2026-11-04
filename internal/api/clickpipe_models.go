@@ -311,11 +311,17 @@ type ClickPipeMongoDBSettings struct {
 	UseJsonNativeFormat            *bool  `json:"useJsonNativeFormat,omitempty"`
 }
 
+// ClickPipeMongoDBTableConfig holds the MongoDB specific settings of a collection.
+type ClickPipeMongoDBTableConfig struct {
+	PersistDeletedDocuments *bool `json:"persistDeletedDocuments,omitempty"`
+}
+
 type ClickPipeMongoDBTableMapping struct {
-	SourceDatabaseName string  `json:"sourceDatabaseName"`
-	SourceCollection   string  `json:"sourceCollection"`
-	TargetTable        string  `json:"targetTable"`
-	TableEngine        *string `json:"tableEngine,omitempty"`
+	SourceDatabaseName string                       `json:"sourceDatabaseName"`
+	SourceCollection   string                       `json:"sourceCollection"`
+	TargetTable        string                       `json:"targetTable"`
+	TableEngine        *string                      `json:"tableEngine,omitempty"`
+	MongoConfig        *ClickPipeMongoDBTableConfig `json:"mongoConfig,omitempty"`
 }
 
 type ClickPipeMongoDBSource struct {
