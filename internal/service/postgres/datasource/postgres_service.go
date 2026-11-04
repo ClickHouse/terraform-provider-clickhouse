@@ -47,6 +47,7 @@ type postgresServiceDataSourceModel struct {
 	Port            types.Int64  `tfsdk:"port"`
 	Username        types.String `tfsdk:"username"`
 	Tags            types.Map    `tfsdk:"tags"`
+	IpAccessList    types.List   `tfsdk:"ip_access"`
 	PgConfig        types.Map    `tfsdk:"pg_config"`
 	PgBouncerConfig types.Map    `tfsdk:"pgbouncer_config"`
 }
@@ -94,6 +95,15 @@ func (d *postgresServiceDataSource) Schema(_ context.Context, _ datasource.Schem
 				Description: "User tags. Read-only; a string map.",
 				Computed:    true,
 				ElementType: types.StringType,
+			},
+			"ip_access": schema.ListNestedAttribute{
+				Description: "IPv4 TCP access list. IPv6 rules are not included.",
+				Computed:    true,
+				NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
+					"source":      schema.StringAttribute{Description: "IPv4 address or CIDR allowed to connect.", Computed: true},
+					"port_range":  schema.StringAttribute{Description: "TCP port or inclusive port range.", Computed: true},
+					"description": schema.StringAttribute{Description: "Description of the IP address.", Computed: true},
+				}},
 			},
 			"pg_config": schema.MapAttribute{
 				Description: "Postgres server parameters currently set on the instance. Read-only; a string map.",
@@ -155,10 +165,32 @@ func (d *postgresServiceDataSource) Read(ctx context.Context, req datasource.Rea
 		return
 	}
 	data.Tags = tags
+	ipAccess, diags := postgresIPAccessToList(pg.IpAccessList)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	data.IpAccessList = ipAccess
 	data.PgConfig = pgCfg
 	data.PgBouncerConfig = pbCfg
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+func postgresIPAccessToList(rules []api.PostgresIpAccess) (types.List, diag.Diagnostics) {
+	elementType := types.ObjectType{AttrTypes: map[string]attr.Type{
+		"source": types.StringType, "port_range": types.StringType, "description": types.StringType,
+	}}
+	if rules == nil {
+		return types.ListNull(elementType), nil
+	}
+	elements := make([]attr.Value, 0, len(rules))
+	for _, rule := range rules {
+		elements = append(elements, types.ObjectValueMust(elementType.AttrTypes, map[string]attr.Value{
+			"source": types.StringValue(rule.Source), "port_range": types.StringValue(rule.PortRange), "description": types.StringValue(rule.Description),
+		}))
+	}
+	return types.ListValue(elementType, elements)
 }
 
 // --- helpers ---------------------------------------------------------------

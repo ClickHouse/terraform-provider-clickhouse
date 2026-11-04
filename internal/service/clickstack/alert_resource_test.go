@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -122,14 +123,32 @@ func webhookChannel(webhookID string) alertChannelModel {
 	return alertChannelModel{Type: types.StringValue("webhook"), WebhookID: types.StringValue(webhookID)}
 }
 
+// emailChannel builds an email channel block.
+func emailChannel(recipients ...string) alertChannelModel {
+	elems := make([]attr.Value, 0, len(recipients))
+	for _, r := range recipients {
+		elems = append(elems, types.StringValue(r))
+	}
+	return alertChannelModel{Type: types.StringValue("email"), EmailRecipients: types.ListValueMust(types.StringType, elems)}
+}
+
 // The channel attributes are framework types so they can hold a wholly-unknown
 // value, so tests build and read them through these helpers. They panic rather
 // than take a *testing.T: the only way the conversions below can fail is a
 // static mismatch between alertChannelModel and alertChannelAttrTypes, which is
 // a bug in the test itself, not something a case can legitimately produce.
 
+// withNullList turns a zero-value email_recipients (unset in a test literal)
+// into a typed null, which the framework requires.
+func withNullList(c alertChannelModel) alertChannelModel {
+	if c.EmailRecipients.ElementType(context.Background()) == nil {
+		c.EmailRecipients = types.ListNull(types.StringType)
+	}
+	return c
+}
+
 func chanObj(c alertChannelModel) types.Object {
-	o, d := types.ObjectValueFrom(context.Background(), alertChannelAttrTypes, c)
+	o, d := types.ObjectValueFrom(context.Background(), alertChannelAttrTypes, withNullList(c))
 	if d.HasError() {
 		panic(fmt.Sprintf("build channel object: %s", d))
 	}
@@ -137,10 +156,11 @@ func chanObj(c alertChannelModel) types.Object {
 }
 
 func chanList(cs ...alertChannelModel) types.List {
-	if cs == nil {
-		cs = []alertChannelModel{}
+	norm := make([]alertChannelModel, 0, len(cs))
+	for _, c := range cs {
+		norm = append(norm, withNullList(c))
 	}
-	l, d := types.ListValueFrom(context.Background(), alertChannelObjectType, cs)
+	l, d := types.ListValueFrom(context.Background(), alertChannelObjectType, norm)
 	if d.HasError() {
 		panic(fmt.Sprintf("build channels list: %s", d))
 	}
@@ -396,9 +416,153 @@ func TestAlertResource_Validate(t *testing.T) {
 		{
 			"invalid channel type",
 			func(m *alertResourceModel) {
-				m.Channel = chanObj(alertChannelModel{Type: types.StringValue("email"), WebhookID: types.StringValue("wh1")})
+				m.Channel = chanObj(alertChannelModel{Type: types.StringValue("sms"), WebhookID: types.StringValue("wh1")})
 			},
 			true,
+		},
+		{
+			"email channel",
+			func(m *alertResourceModel) { m.Channel = chanObj(emailChannel("a@example.com")) },
+			false,
+		},
+		{
+			"email channel without recipients",
+			func(m *alertResourceModel) { m.Channel = chanObj(emailChannel()) },
+			true,
+		},
+		{
+			"email channel with webhook_id",
+			func(m *alertResourceModel) {
+				c := emailChannel("a@example.com")
+				c.WebhookID = types.StringValue("wh1")
+				m.Channel = chanObj(c)
+			},
+			true,
+		},
+		{
+			"webhook channel with email_recipients",
+			func(m *alertResourceModel) {
+				c := webhookChannel("wh1")
+				c.EmailRecipients = types.ListValueMust(types.StringType, []attr.Value{types.StringValue("a@example.com")})
+				m.Channel = chanObj(c)
+			},
+			true,
+		},
+		{
+			"slack_api without slack_channel_id",
+			func(m *alertResourceModel) {
+				c := webhookChannel("wh1")
+				c.WebhookService = types.StringValue(client.WebhookServiceSlackAPI)
+				m.Channel = chanObj(c)
+			},
+			true,
+		},
+		{
+			"slack_api with slack_channel_id",
+			func(m *alertResourceModel) {
+				c := webhookChannel("wh1")
+				c.WebhookService = types.StringValue(client.WebhookServiceSlackAPI)
+				c.SlackChannelID = types.StringValue("C123")
+				m.Channel = chanObj(c)
+			},
+			false,
+		},
+		{
+			// The server derives the service, so an unset one cannot be checked.
+			"slack_channel_id without webhook_service",
+			func(m *alertResourceModel) {
+				c := webhookChannel("wh1")
+				c.SlackChannelID = types.StringValue("C123")
+				m.Channel = chanObj(c)
+			},
+			false,
+		},
+		{
+			"pagerduty_api without severity",
+			func(m *alertResourceModel) {
+				c := webhookChannel("wh1")
+				c.WebhookService = types.StringValue(client.WebhookServicePagerDutyAPI)
+				m.Channel = chanObj(c)
+			},
+			true,
+		},
+		{
+			"pagerduty_api with invalid severity",
+			func(m *alertResourceModel) {
+				c := webhookChannel("wh1")
+				c.WebhookService = types.StringValue(client.WebhookServicePagerDutyAPI)
+				c.Severity = types.StringValue("urgent")
+				m.Channel = chanObj(c)
+			},
+			true,
+		},
+		{
+			"pagerduty_api with severity",
+			func(m *alertResourceModel) {
+				c := webhookChannel("wh1")
+				c.WebhookService = types.StringValue(client.WebhookServicePagerDutyAPI)
+				c.Severity = types.StringValue("critical")
+				m.Channel = chanObj(c)
+			},
+			false,
+		},
+		{
+			"empty slack_channel_id",
+			func(m *alertResourceModel) {
+				c := webhookChannel("wh1")
+				c.SlackChannelID = types.StringValue("")
+				m.Channel = chanObj(c)
+			},
+			true,
+		},
+		{
+			"same webhook and slack channel twice",
+			func(m *alertResourceModel) {
+				m.Channel = nullChan()
+				a := webhookChannel("wh1")
+				a.SlackChannelID = types.StringValue("C1")
+				m.Channels = chanList(a, a)
+			},
+			true,
+		},
+		{
+			"same email recipients twice",
+			func(m *alertResourceModel) {
+				m.Channel = nullChan()
+				m.Channels = chanList(emailChannel("a@example.com"), emailChannel("a@example.com"))
+			},
+			true,
+		},
+		{
+			"different email recipients",
+			func(m *alertResourceModel) {
+				m.Channel = nullChan()
+				m.Channels = chanList(emailChannel("a@example.com"), emailChannel("b@example.com"))
+			},
+			false,
+		},
+		{
+			"unknown email recipient is not a duplicate",
+			func(m *alertResourceModel) {
+				m.Channel = nullChan()
+				unknown := alertChannelModel{
+					Type:            types.StringValue("email"),
+					EmailRecipients: types.ListValueMust(types.StringType, []attr.Value{types.StringUnknown()}),
+				}
+				m.Channels = chanList(unknown, unknown)
+			},
+			false,
+		},
+		{
+			// One Slack API webhook posting to two channels is the point of the feature.
+			"same webhook, different slack channels",
+			func(m *alertResourceModel) {
+				m.Channel = nullChan()
+				a, b := webhookChannel("wh1"), webhookChannel("wh1")
+				a.SlackChannelID, b.SlackChannelID = types.StringValue("C1"), types.StringValue("C2")
+				m.Channels = chanList(a, b)
+			},
+			false,
 		},
 		{
 			"neither channel nor channels",
@@ -1256,4 +1420,49 @@ func TestAlertResource_ChannelsRoundTrip(t *testing.T) {
 			t.Errorf("expected channel mirrored into channels, got %+v", m.Channels)
 		}
 	})
+}
+
+// Slack API, PagerDuty API and email fields must survive a write and read back,
+// or an update would wipe them and drift would go unseen.
+func TestAlertResource_ChannelFieldsRoundTrip(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	slack := webhookChannel("wh1")
+	slack.SlackChannelID = types.StringValue("C123")
+	pd := webhookChannel("wh2")
+	pd.WebhookService = types.StringValue(client.WebhookServicePagerDutyAPI)
+	pd.Severity = types.StringValue("critical")
+	m := mkAlert(func(m *alertResourceModel) {
+		m.Channel = nullChan()
+		m.Channels = chanList(slack, pd, emailChannel("a@example.com", "b@example.com"))
+	})
+
+	al, d := m.toClient(ctx)
+	if d.HasError() {
+		t.Fatalf("toClient: %s", d)
+	}
+	want := []client.AlertChannel{
+		{Type: "webhook", WebhookID: "wh1", SlackChannelID: "C123"},
+		{Type: "webhook", WebhookID: "wh2", WebhookService: client.WebhookServicePagerDutyAPI, Severity: "critical"},
+		{Type: "email", EmailRecipients: []string{"a@example.com", "b@example.com"}},
+	}
+	if !reflect.DeepEqual(al.Channels, want) {
+		t.Fatalf("sent channels = %+v, want %+v", al.Channels, want)
+	}
+
+	// The server fills webhookService from the webhook on every write.
+	want[0].WebhookService = client.WebhookServiceSlackAPI
+	if d := m.applyAlert(ctx, &client.Alert{ThresholdType: thresholdTypeAbove, Channel: want[0], Channels: want}); d.HasError() {
+		t.Fatalf("applyAlert: %s", d)
+	}
+	cs := readChanList(t, m.Channels)
+	if cs[0].WebhookService.ValueString() != client.WebhookServiceSlackAPI || cs[0].SlackChannelID.ValueString() != "C123" {
+		t.Errorf("slack channel read back as %+v", cs[0])
+	}
+	if cs[1].Severity.ValueString() != "critical" || !cs[1].EmailRecipients.IsNull() {
+		t.Errorf("pagerduty channel read back as %+v", cs[1])
+	}
+	if cs[2].EmailRecipients.String() != `["a@example.com","b@example.com"]` || !cs[2].WebhookID.IsNull() || !cs[2].WebhookService.IsNull() {
+		t.Errorf("email channel read back as %+v", cs[2])
+	}
 }

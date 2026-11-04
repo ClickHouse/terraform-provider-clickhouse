@@ -160,7 +160,7 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 		// wait for a state transition (e.g. right after creating a
 		// service with a token scoped to only that one instance).
 		state, err := c.getServiceState(ctx, serviceId)
-		if is5xx(err) || is4xxPermanent(err) {
+		if is5xx(err) || Is4xxPermanent(err) {
 			// 500s are automatically retried in `doRequest`. A 4xx other
 			// than 429/408 (e.g. a missing permission) will never resolve
 			// by retrying, and would otherwise be indistinguishable from
