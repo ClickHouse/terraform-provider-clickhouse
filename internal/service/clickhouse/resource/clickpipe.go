@@ -2064,12 +2064,12 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Optional: true,
 											Attributes: map[string]schema.Attribute{
 												"drop_unexpected_values": schema.BoolAttribute{
-													MarkdownDescription: "When `true`, values that don't fit their column are reported with only the field name and reason, without the value. Defaults to `false`.",
+													MarkdownDescription: "When `true`, values that don't fit their inferred schema column are reported with only the field name and reason, without the value. Defaults to `false`.",
 													Optional:            true,
 												},
 												"columns": schema.ListNestedAttribute{
 													MarkdownDescription: "Typed columns of the collection to replicate, taken as provided. When omitted, the columns are inferred from a sample of the collection documents when the mapping is created (not available with `ssh_key_resource_id`), and the state holds the inferred columns that are not excluded. " +
-														"Must not include any of `excluded_columns`: leave a column out instead of excluding it. " +
+														"Must not include any of `excluded_columns`. " +
 														"The `_id` document key is always replicated as `String` and must not be listed.",
 													Optional: true,
 													Computed: true,
