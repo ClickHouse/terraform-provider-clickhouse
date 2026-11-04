@@ -71,7 +71,7 @@ func TestSourceModel_RoundTrip(t *testing.T) {
 			DatabaseName: "otel",
 			TableName:    "k8s_objects_dict",
 			Columns: []client.FilterSettingColumn{
-				{Name: "region", Label: ptr("Region"), AllowAll: bptr(false)},
+				{Name: "localRegion", Label: ptr("Region"), ValueExpression: ptr("region"), AllowAll: bptr(false)},
 				{Name: "namespace", AllowAll: bptr(true)},
 			},
 		},
@@ -104,6 +104,20 @@ func TestSourceResource_Schema(t *testing.T) {
 	} {
 		if _, ok := resp.Schema.Attributes[attr]; !ok {
 			t.Errorf("expected resource schema to contain attribute %q", attr)
+		}
+	}
+
+	fs, ok := resp.Schema.Attributes["filter_settings"].(schema.SingleNestedAttribute)
+	if !ok {
+		t.Fatalf("filter_settings: got %T, want schema.SingleNestedAttribute", resp.Schema.Attributes["filter_settings"])
+	}
+	cols, ok := fs.Attributes["columns"].(schema.ListNestedAttribute)
+	if !ok {
+		t.Fatalf("filter_settings.columns: got %T, want schema.ListNestedAttribute", fs.Attributes["columns"])
+	}
+	for _, attr := range []string{"name", "label", "value_expression", "allow_all"} {
+		if _, ok := cols.NestedObject.Attributes[attr]; !ok {
+			t.Errorf("expected filter_settings.columns schema to contain attribute %q", attr)
 		}
 	}
 }
