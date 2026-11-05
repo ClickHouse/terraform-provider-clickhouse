@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -51,6 +52,25 @@ func TestByocValidateCustomerAccessRequiresStartForWindow(t *testing.T) {
 		byocValidateCustomerAccess(ctx, obj, &d)
 		if d.HasError() {
 			t.Errorf("%s: unexpected diags: %v", name, d)
+		}
+	}
+}
+
+func TestRfc3339ValidatorRejectsSubMillisecondPrecision(t *testing.T) {
+	for value, wantErr := range map[string]bool{
+		"2026-06-01T12:00:00Z":             false,
+		"2026-06-01T12:00:00.1Z":           false,
+		"2026-06-01T12:00:00.123Z":         false,
+		"2026-06-01T14:00:00.123+02:00":    false,
+		"2026-06-01T12:00:00.1230Z":        true,
+		"2026-06-01T12:00:00.123456Z":      true,
+		"2026-06-01T14:00:00.123456+02:00": true,
+		"not a timestamp":                  true,
+	} {
+		resp := &validator.StringResponse{}
+		rfc3339Validator{}.ValidateString(context.Background(), validator.StringRequest{ConfigValue: types.StringValue(value)}, resp)
+		if got := resp.Diagnostics.HasError(); got != wantErr {
+			t.Errorf("%q: error = %v; want %v", value, got, wantErr)
 		}
 	}
 }

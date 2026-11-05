@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -64,6 +65,9 @@ func byocCustomerAuthorizedAccessSchema() schema.SingleNestedAttribute {
 	}
 }
 
+// The API's RFC3339 check allows at most three fractional-second digits.
+var subMillisecondFraction = regexp.MustCompile(`T\d{2}:\d{2}:\d{2}\.\d{4,}`)
+
 type rfc3339Validator struct{}
 
 func (rfc3339Validator) Description(context.Context) string {
@@ -78,9 +82,15 @@ func (rfc3339Validator) ValidateString(_ context.Context, req validator.StringRe
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return
 	}
-	if _, err := time.Parse(time.RFC3339, req.ConfigValue.ValueString()); err != nil {
+	value := req.ConfigValue.ValueString()
+	if _, err := time.Parse(time.RFC3339, value); err != nil {
 		resp.Diagnostics.AddAttributeError(req.Path, "Invalid RFC3339 timestamp",
-			fmt.Sprintf("%q is not an RFC3339 timestamp such as '2026-06-01T12:00:00Z': %s", req.ConfigValue.ValueString(), err.Error()))
+			fmt.Sprintf("%q is not an RFC3339 timestamp such as '2026-06-01T12:00:00Z': %s", value, err.Error()))
+		return
+	}
+	if subMillisecondFraction.MatchString(value) {
+		resp.Diagnostics.AddAttributeError(req.Path, "Timestamp too precise",
+			fmt.Sprintf("%q has more than three fractional-second digits; ClickHouse Cloud accepts at most millisecond precision, such as '2026-06-01T12:00:00.123Z'.", value))
 	}
 }
 
