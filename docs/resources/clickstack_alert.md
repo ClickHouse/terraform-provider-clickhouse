@@ -214,11 +214,15 @@ resource "clickhouse_clickstack_alert" "legacy_single_channel" {
 
 Required:
 
-- `type` (String) Channel type. Currently only `webhook` is supported.
+- `type` (String) Channel type: `webhook` or `email`.
 
 Optional:
 
+- `email_recipients` (List of String) Email addresses to notify. Required when `type` is `email`.
+- `severity` (String) PagerDuty severity: one of `critical`, `error`, `warning`, `info`. Required when the webhook service is `pagerduty_api`.
+- `slack_channel_id` (String) Slack channel ID to post to. Required when the webhook service is `slack_api`.
 - `webhook_id` (String) ID of the webhook to notify. Required when `type` is `webhook`.
+- `webhook_service` (String) Service of the webhook in `webhook_id`, such as `slack_api` or `pagerduty_api`. The server always sets it from the webhook, so a configured value must match it. Setting it lets the plan check `slack_channel_id` and `severity` before apply.
 
 
 <a id="nestedatt--channels"></a>
@@ -226,11 +230,15 @@ Optional:
 
 Required:
 
-- `type` (String) Channel type. Currently only `webhook` is supported.
+- `type` (String) Channel type: `webhook` or `email`.
 
 Optional:
 
+- `email_recipients` (List of String) Email addresses to notify. Required when `type` is `email`.
+- `severity` (String) PagerDuty severity: one of `critical`, `error`, `warning`, `info`. Required when the webhook service is `pagerduty_api`.
+- `slack_channel_id` (String) Slack channel ID to post to. Required when the webhook service is `slack_api`.
 - `webhook_id` (String) ID of the webhook to notify. Required when `type` is `webhook`.
+- `webhook_service` (String) Service of the webhook in `webhook_id`, such as `slack_api` or `pagerduty_api`. The server always sets it from the webhook, so a configured value must match it. Setting it lets the plan check `slack_channel_id` and `severity` before apply.
 
 ## Import
 

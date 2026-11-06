@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 type ServiceStateUpdate struct {
@@ -160,7 +161,7 @@ func (c *ClientImpl) WaitForServiceState(ctx context.Context, serviceId string, 
 		// wait for a state transition (e.g. right after creating a
 		// service with a token scoped to only that one instance).
 		state, err := c.getServiceState(ctx, serviceId)
-		if is5xx(err) || is4xxPermanent(err) {
+		if is5xx(err) || Is4xxPermanent(err) {
 			// 500s are automatically retried in `doRequest`. A 4xx other
 			// than 429/408 (e.g. a missing permission) will never resolve
 			// by retrying, and would otherwise be indistinguishable from
@@ -206,8 +207,8 @@ func (c *ClientImpl) getServiceState(ctx context.Context, serviceId string) (str
 	return serviceResponse.Result.State, nil
 }
 
-// wakeService asks the API to un-idle the service. The "awake" command is a
-// no-op on a service that is already running or waking up.
+// wakeService asks the API to un-idle the service. The API rejects the "awake"
+// command with a 400 when the service is not idle (e.g. already awaking).
 func (c *ClientImpl) wakeService(ctx context.Context, serviceId string) error {
 	rb, err := json.Marshal(ServiceStateUpdate{
 		Command: serviceStateCommandAwake,
@@ -223,6 +224,31 @@ func (c *ClientImpl) wakeService(ctx context.Context, serviceId string) error {
 
 	_, err = c.doRequest(ctx, req)
 	return err
+}
+
+// wakeIdleService wakes an idle service and tolerates losing a wake race:
+// when several requests for the same service wake it concurrently, only the
+// first awake command succeeds. The rest are fine as long as the service is
+// already awaking or running.
+func (c *ClientImpl) wakeIdleService(ctx context.Context, serviceId string) error {
+	wakeErr := c.wakeService(ctx, serviceId)
+	if wakeErr == nil {
+		return nil
+	}
+
+	state, stateErr := c.getServiceState(ctx, serviceId)
+	if stateErr != nil || !isServiceAwakingOrRunning(state) {
+		return wakeErr
+	}
+
+	tflog.Info(ctx, "ClickHouse service was already woken up by another request; continuing", map[string]any{
+		logFieldServiceID: serviceId,
+	})
+	return nil
+}
+
+func isServiceAwakingOrRunning(state string) bool {
+	return state == StateAwaking || state == StateRunning
 }
 
 // waitForServiceRunning polls the service state until it is running — the

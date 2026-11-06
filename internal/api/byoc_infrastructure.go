@@ -293,7 +293,7 @@ func (c *ClientImpl) GetByocInfrastructurePrivateEndpointConfig(ctx context.Cont
 func (c *ClientImpl) WaitForByocInfrastructureState(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) error {
 	checkState := func() error {
 		details, err := c.GetByocInfrastructure(ctx, byocId)
-		if is5xx(err) || is4xxPermanent(err) {
+		if is5xx(err) || Is4xxPermanent(err) {
 			return backoff.Permanent(err)
 		} else if err != nil {
 			return err

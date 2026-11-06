@@ -45,12 +45,23 @@ func IsBadRequestWith(err error, needle string) bool {
 // A 424 for a stopped service does NOT match: stopping is an explicit user
 // action the provider must not override by waking the service.
 func IsServiceIdle(err error) bool {
+	return isServiceStateDependencyError(err, StateIdle)
+}
+
+// IsServiceAwaking returns true when err is the 424 FAILED_DEPENDENCY the
+// ClickPipes API returns because the target ClickHouse service is already
+// waking up, e.g. after another concurrent request woke it.
+func IsServiceAwaking(err error) bool {
+	return isServiceStateDependencyError(err, StateAwaking)
+}
+
+func isServiceStateDependencyError(err error, state string) bool {
 	if err == nil {
 		return false
 	}
 
 	msg := err.Error()
-	return strings.HasPrefix(msg, "status: 424") && strings.Contains(msg, "Current state: idle")
+	return strings.HasPrefix(msg, "status: 424") && strings.Contains(msg, "Current state: "+state)
 }
 
 func is5xx(err error) bool {
@@ -61,7 +72,7 @@ func is5xx(err error) bool {
 	return strings.HasPrefix(err.Error(), "status: 5")
 }
 
-// is4xxPermanent reports whether err is a 4xx client error that will never
+// Is4xxPermanent reports whether err is a 4xx client error that will never
 // resolve by retrying (bad request, unauthorized, forbidden, not found,
 // etc.). Callers polling for a resource to reach some state should treat
 // this as terminal, not as "not there yet".
@@ -77,7 +88,7 @@ func is5xx(err error) bool {
 // Every other 4xx — 408 included — is wrapped in backoff.Permanent by
 // doRequest's dispatch, so treating them as permanent here keeps both
 // layers agreeing about the same status.
-func is4xxPermanent(err error) bool {
+func Is4xxPermanent(err error) bool {
 	if err == nil || !strings.HasPrefix(err.Error(), "status: 4") {
 		return false
 	}

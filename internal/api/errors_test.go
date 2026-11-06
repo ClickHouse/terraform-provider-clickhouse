@@ -58,6 +58,38 @@ func TestIsServiceIdle(t *testing.T) {
 	}
 }
 
+func TestIsServiceAwaking(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{
+			name: "424 for awaking service",
+			err:  errors.New(`status: 424, body: {"requestId":"x","error":"FAILED_DEPENDENCY: ClickPipe creation is allowed only when the ClickHouse service is running. Current state: awaking","status":424}`),
+			want: true,
+		},
+		{
+			name: "424 for idle service",
+			err:  errors.New(`status: 424, body: {"requestId":"x","error":"FAILED_DEPENDENCY: ClickPipe creation is allowed only when the ClickHouse service is running. Current state: idle","status":424}`),
+			want: false,
+		},
+		{
+			name: "non-424 mentioning awaking",
+			err:  errors.New("status: 400, body: Current state: awaking"),
+			want: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsServiceAwaking(tc.err); got != tc.want {
+				t.Errorf("IsServiceAwaking(%v) = %v; want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestIsBadRequestWith(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -111,8 +143,8 @@ func TestIs4xxPermanent(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := is4xxPermanent(tc.err); got != tc.want {
-				t.Errorf("is4xxPermanent(%v) = %v; want %v", tc.err, got, tc.want)
+			if got := Is4xxPermanent(tc.err); got != tc.want {
+				t.Errorf("Is4xxPermanent(%v) = %v; want %v", tc.err, got, tc.want)
 			}
 		})
 	}

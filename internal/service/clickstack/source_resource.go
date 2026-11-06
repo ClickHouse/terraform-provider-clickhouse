@@ -87,9 +87,10 @@ type metadataMVModel struct {
 }
 
 type filterSettingColumnModel struct {
-	Name     types.String `tfsdk:"name"`
-	Label    types.String `tfsdk:"label"`
-	AllowAll types.Bool   `tfsdk:"allow_all"`
+	Name            types.String `tfsdk:"name"`
+	Label           types.String `tfsdk:"label"`
+	ValueExpression types.String `tfsdk:"value_expression"`
+	AllowAll        types.Bool   `tfsdk:"allow_all"`
 }
 
 type filterSettingsModel struct {
@@ -232,8 +233,10 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 						Description: "Columns that must be filtered on every query against this source.",
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
-								"name":  schema.StringAttribute{Required: true, Description: "Column name to filter on."},
+								"name":  schema.StringAttribute{Required: true, Description: "Column of the source table that selected filter values are matched against."},
 								"label": optStr("Optional display label for the filter in the UI."),
+								"value_expression": optStr("SQL expression evaluated against the filter-values table (`database_name`.`table_name`) " +
+									"to produce this filter's options. Defaults to reading `name` from that table as a plain column."),
 								"allow_all": schema.BoolAttribute{
 									Optional: true,
 									Computed: true,
@@ -615,8 +618,9 @@ func (m *sourceResourceModel) toClient() client.Source {
 		}
 		for _, c := range m.FilterSettings.Columns {
 			col := client.FilterSettingColumn{
-				Name:  c.Name.ValueString(),
-				Label: optStringPtr(c.Label),
+				Name:            c.Name.ValueString(),
+				Label:           optStringPtr(c.Label),
+				ValueExpression: optStringPtr(c.ValueExpression),
 			}
 			// allow_all is Optional+Computed: omit it when unknown (Create) so the
 			// server applies its default rather than receiving a spurious false.
@@ -784,9 +788,11 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 		for _, c := range src.FilterSettings.Columns {
 			fsm.Columns = append(fsm.Columns, filterSettingColumnModel{
 				Name: types.StringValue(c.Name),
-				// label is never echoed as "" (it is omitted when unset), so unlike
-				// the expression fields it needs no keepUnset: a nil pointer is null.
-				Label: types.StringPointerValue(c.Label),
+				// label and valueExpression are never echoed as "" (the API omits them
+				// when unset), so unlike the expression fields they need no keepUnset:
+				// a nil pointer is null.
+				Label:           types.StringPointerValue(c.Label),
+				ValueExpression: types.StringPointerValue(c.ValueExpression),
 				// The API omits allowAll when false; treat absent as an explicit false
 				// so an Optional+Computed value is always known after apply.
 				AllowAll: types.BoolValue(c.AllowAll != nil && *c.AllowAll),

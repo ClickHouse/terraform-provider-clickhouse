@@ -16,6 +16,11 @@ resource "clickhouse_postgres_service" "example" {
     team        = "data"
   }
 
+  ip_access = [
+    { source = "203.0.113.0/24", port_range = "5432", description = "Office Postgres" },
+    { source = "203.0.113.0/24", port_range = "6432", description = "Office PgBouncer" },
+  ]
+
   # A standard service must declare a credential: `password` (stored in
   # sensitive state) or `password_wo` + `password_wo_version` (write-only,
   # never stored in state).

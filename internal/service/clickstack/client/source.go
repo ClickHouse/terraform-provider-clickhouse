@@ -71,10 +71,15 @@ type MetadataMaterializedViews struct {
 }
 
 // FilterSettingColumn is one column of a source's required source filter.
-// AllowAll reports whether an "all values" selection is offered for the column.
+// Name is the source-table column the selected values are matched against.
+// ValueExpression is SQL evaluated against the filter-values table to produce
+// the options; the API omits it when unset, in which case Name is read from
+// that table as a plain column. AllowAll reports whether an "all values"
+// selection is offered for the column.
 type FilterSettingColumn struct {
-	Name  string  `json:"name"`
-	Label *string `json:"label,omitempty"`
+	Name            string  `json:"name"`
+	Label           *string `json:"label,omitempty"`
+	ValueExpression *string `json:"valueExpression,omitempty"`
 	// AllowAll is a pointer because the API omits it entirely when false, rather
 	// than echoing false. Treat an absent value as false when reading.
 	AllowAll *bool `json:"allowAll,omitempty"`

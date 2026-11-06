@@ -27,10 +27,15 @@ var (
 	_ resource.ResourceWithConfigure      = (*webhookResource)(nil)
 	_ resource.ResourceWithImportState    = (*webhookResource)(nil)
 	_ resource.ResourceWithValidateConfig = (*webhookResource)(nil)
+	_ resource.ResourceWithModifyPlan     = (*webhookResource)(nil)
 )
 
 // webhookServices is the set of accepted webhook service types.
-var webhookServices = []string{"slack", "generic", "incidentio"}
+var webhookServices = []string{"slack", "generic", "incidentio", client.WebhookServiceSlackAPI, client.WebhookServicePagerDutyAPI}
+
+// importOnlyWebhookServices hold a bot token or routing key that the v2 API
+// cannot set, so they are created in the UI and only imported here.
+var importOnlyWebhookServices = []string{client.WebhookServiceSlackAPI, client.WebhookServicePagerDutyAPI}
 
 // Attribute names for the write-only secret maps, referenced from the schema and
 // from ValidateConfig.
@@ -98,8 +103,10 @@ func (r *webhookResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Display name for the webhook. Must be unique per service within a team.",
 			},
 			"service": schema.StringAttribute{
-				Required:    true,
-				Description: "Webhook service: one of `slack`, `generic`, or `incidentio`.",
+				Required: true,
+				Description: "Webhook service: one of `slack`, `generic`, `incidentio`, `slack_api`, or " +
+					"`pagerduty_api`. `slack_api` and `pagerduty_api` webhooks hold credentials the API " +
+					"cannot set, so create them in the ClickStack UI and import them.",
 			},
 			"url": schema.StringAttribute{
 				Required:  true,
@@ -203,20 +210,40 @@ func (m *webhookResourceModel) validate() diag.Diagnostics {
 		)
 	}
 
-	// Slack posts a fixed Block Kit payload and rejects custom headers, query
-	// params, and body.
-	if m.Service.ValueString() == "slack" {
+	// Only generic and incidentio send a templated request; the other services
+	// post a fixed payload and ignore custom headers, query params, and body.
+	if svc := m.Service.ValueString(); svc == "slack" || slices.Contains(importOnlyWebhookServices, svc) {
 		if !m.Headers.IsNull() {
-			diags.AddAttributeError(path.Root(headersAttr), "headers not allowed for slack", "The slack service does not support custom headers.")
+			diags.AddAttributeError(path.Root(headersAttr), "headers not allowed for "+svc, "The "+svc+" service does not support custom headers.")
 		}
 		if !m.QueryParams.IsNull() {
-			diags.AddAttributeError(path.Root(queryParamsAttr), "query_params not allowed for slack", "The slack service does not support custom query parameters.")
+			diags.AddAttributeError(path.Root(queryParamsAttr), "query_params not allowed for "+svc, "The "+svc+" service does not support custom query parameters.")
 		}
 		if !m.Body.IsNull() {
-			diags.AddAttributeError(path.Root("body"), "body not allowed for slack", "The slack service does not support a custom body.")
+			diags.AddAttributeError(path.Root("body"), "body not allowed for "+svc, "The "+svc+" service does not support a custom body.")
 		}
 	}
 	return diags
+}
+
+// ModifyPlan rejects creating an import-only webhook, replacing one, or switching
+// an existing webhook to one, since each would leave it without credentials.
+func (r *webhookResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var planSvc, stateSvc types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("service"), &planSvc)...)
+	if !req.State.Raw.IsNull() {
+		resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("service"), &stateSvc)...)
+	}
+	replaced := len(resp.RequiresReplace) > 0
+	if !known(planSvc) || !slices.Contains(importOnlyWebhookServices, planSvc.ValueString()) || (planSvc.Equal(stateSvc) && !replaced) {
+		return
+	}
+	resp.Diagnostics.AddAttributeError(path.Root("service"), "Webhook must be imported",
+		fmt.Sprintf("%s webhooks need credentials the ClickStack API cannot set. Create the webhook in "+
+			"the ClickStack UI, then import it with `terraform import`.", planSvc.ValueString()))
 }
 
 func (r *webhookResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

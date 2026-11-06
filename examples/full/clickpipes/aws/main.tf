@@ -140,6 +140,14 @@ resource "clickhouse_clickpipe" "kafka_confluent" {
 
   name       = "E2E Test Kafka Confluent ClickPipe"
   service_id = clickhouse_service.service.id
+  stopped    = true
+
+  lifecycle {
+    postcondition {
+      condition     = self.state == "Stopped"
+      error_message = "The Kafka ClickPipe must be created in the Stopped state."
+    }
+  }
 
   scaling = {
     replicas = 1
