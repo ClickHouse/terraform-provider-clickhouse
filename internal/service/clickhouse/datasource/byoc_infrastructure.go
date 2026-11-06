@@ -45,6 +45,32 @@ type byocInfrastructureDataSourceModel struct {
 	ByoVpcSharedVpcHostProjectID types.String `tfsdk:"byo_vpc_shared_vpc_host_project_id"`
 	Tags                         types.Map    `tfsdk:"tags"`
 	PrivateEndpointConfig        types.Object `tfsdk:"private_endpoint_config"`
+	CustomerAuthorizedAccess     types.Object `tfsdk:"customer_authorized_access"`
+}
+
+func byocCustomerAuthorizedAccessObjectType() types.ObjectType {
+	return types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"enabled":              types.BoolType,
+			"duration_seconds":     types.Int64Type,
+			"start_timestamp":      types.StringType,
+			"allowed":              types.BoolType,
+			"window_end_timestamp": types.StringType,
+		},
+	}
+}
+
+func byocCustomerAuthorizedAccessToObjectValue(access *api.ByocInfrastructureCustomerAuthorizedAccess) (types.Object, diag.Diagnostics) {
+	if access == nil {
+		return types.ObjectNull(byocCustomerAuthorizedAccessObjectType().AttrTypes), nil
+	}
+	return types.ObjectValue(byocCustomerAuthorizedAccessObjectType().AttrTypes, map[string]attr.Value{
+		"enabled":              types.BoolValue(access.Enabled),
+		"duration_seconds":     types.Int64Value(access.DurationSeconds),
+		"start_timestamp":      types.StringPointerValue(access.StartTimestamp),
+		"allowed":              types.BoolValue(access.Allowed),
+		"window_end_timestamp": types.StringPointerValue(access.WindowEndTimestamp),
+	})
 }
 
 func byocPrivateEndpointConfigObjectType() types.ObjectType {
@@ -229,6 +255,32 @@ func (d *byocInfrastructureDataSource) Schema(_ context.Context, _ datasource.Sc
 					},
 				},
 			},
+			"customer_authorized_access": schema.SingleNestedAttribute{
+				Description: "Setting that controls when ClickHouse personnel may access the infrastructure, with the current verdict. Null when the feature is not enabled for the organization.",
+				Computed:    true,
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Description: "Whether ClickHouse personnel may access the infrastructure. True when the setting was never configured.",
+						Computed:    true,
+					},
+					"duration_seconds": schema.Int64Attribute{
+						Description: "Length of the access window in seconds from 'start_timestamp'. 0 allows access without a deadline while 'enabled' is true.",
+						Computed:    true,
+					},
+					"start_timestamp": schema.StringAttribute{
+						Description: "Start of the access window (RFC3339). Null when no window is configured.",
+						Computed:    true,
+					},
+					"allowed": schema.BoolAttribute{
+						Description: "Whether access is currently allowed, as evaluated by ClickHouse Cloud when the data source was read.",
+						Computed:    true,
+					},
+					"window_end_timestamp": schema.StringAttribute{
+						Description: "End of the current access window (RFC3339). Set only while access is allowed until a deadline.",
+						Computed:    true,
+					},
+				},
+			},
 		},
 	}
 }
@@ -280,6 +332,20 @@ func (d *byocInfrastructureDataSource) Read(ctx context.Context, req datasource.
 		return
 	}
 	cfg.PrivateEndpointConfig = endpointObj
+
+	// 404 means the feature is not enabled for the organization, not a missing infrastructure.
+	customerAccess, err := d.client.GetByocInfrastructureCustomerAuthorizedAccess(ctx, byocId)
+	if err != nil && !api.IsNotFound(err) {
+		resp.Diagnostics.AddError("Error reading BYOC infrastructure customer-authorized access",
+			fmt.Sprintf("Could not read customer-authorized access of BYOC infrastructure %s: %s", byocId, err.Error()))
+		return
+	}
+	customerAccessObj, diags := byocCustomerAuthorizedAccessToObjectValue(customerAccess)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	cfg.CustomerAuthorizedAccess = customerAccessObj
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &cfg)...)
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -28,8 +29,9 @@ import (
 const byocAccOrgID = "aaaaaaaa-0000-0000-0000-000000000000"
 
 type byocMockInfra struct {
-	details api.ByocInfrastructureDetails
-	tags    map[string]string
+	details        api.ByocInfrastructureDetails
+	tags           map[string]string
+	customerAccess *api.ByocInfrastructureCustomerAuthorizedAccessUpdateRequest
 }
 
 // byocCreateCall records one create request: the typed payload for value
@@ -104,6 +106,17 @@ func (m *byocMockAPI) handle(w http.ResponseWriter, r *http.Request) {
 			writeByocResult(w, struct {
 				Tags map[string]string `json:"tags"`
 			}{Tags: infra.tags})
+		case sub == "customerAuthorizedAccess" && r.Method == http.MethodGet:
+			writeByocResult(w, byocCustomerAccessView(infra))
+		case sub == "customerAuthorizedAccess" && r.Method == http.MethodPatch:
+			var req api.ByocInfrastructureCustomerAuthorizedAccessUpdateRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				m.t.Errorf("invalid customer-authorized access payload: %s", err)
+				http.Error(w, "invalid payload", http.StatusBadRequest)
+				return
+			}
+			infra.customerAccess = &req
+			writeByocResult(w, byocCustomerAccessView(infra))
 		case sub == "" && r.Method == http.MethodPatch:
 			m.handleUpdate(w, r, infra)
 		case sub == "" && r.Method == http.MethodDelete:
@@ -224,6 +237,27 @@ func byocSummary(infra *byocMockInfra) api.ByocInfrastructure {
 		CloudProvider: infra.details.CloudProvider,
 		DisplayName:   infra.details.DisplayName,
 	}
+}
+
+// byocCustomerAccessView mirrors the API read-back: a never-configured setting
+// is "always allowed", and timestamps come back normalized to UTC millis.
+func byocCustomerAccessView(infra *byocMockInfra) api.ByocInfrastructureCustomerAuthorizedAccess {
+	if infra.customerAccess == nil {
+		return api.ByocInfrastructureCustomerAuthorizedAccess{Enabled: true, Allowed: true}
+	}
+	view := api.ByocInfrastructureCustomerAuthorizedAccess{
+		Enabled:         infra.customerAccess.Enabled,
+		DurationSeconds: infra.customerAccess.DurationSeconds,
+		Allowed:         infra.customerAccess.Enabled,
+	}
+	if infra.customerAccess.StartTimestamp != nil {
+		start, err := time.Parse(time.RFC3339, *infra.customerAccess.StartTimestamp)
+		if err == nil {
+			normalized := start.UTC().Format("2006-01-02T15:04:05.000Z07:00")
+			view.StartTimestamp = &normalized
+		}
+	}
+	return view
 }
 
 func writeByocResult(w http.ResponseWriter, result any) {
@@ -403,6 +437,96 @@ resource "clickhouse_byoc_infrastructure" "test" {
 				ResourceName:      "clickhouse_byoc_infrastructure.test",
 				ImportState:       true,
 				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+// TestAccByocInfrastructureResourceCustomerAuthorizedAccess covers the opt-in
+// customer_authorized_access block: set on create, changed in place, kept in
+// its configured spelling across refreshes, and left untouched when removed.
+func TestAccByocInfrastructureResourceCustomerAuthorizedAccess(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("acceptance tests skipped unless env 'TF_ACC' is set")
+	}
+
+	mock := newByocMockAPI(t)
+	tracker := &byocIDTracker{}
+
+	config := func(block string) string {
+		return byocAccProviderConfig(mock.server.URL) + fmt.Sprintf(`
+resource "clickhouse_byoc_infrastructure" "test" {
+  region_id      = "us-east-1"
+  account_id     = "999999999999"
+  display_name   = "tf-acc-byoc-customer-access"
+  vpc_cidr_range = "172.19.0.0/16"
+%s
+}
+`, block)
+	}
+	windowBlock := `
+  customer_authorized_access = {
+    enabled          = true
+    duration_seconds = 14400
+    start_timestamp  = "2026-06-01T14:00:00+02:00"
+  }`
+	deniedBlock := `
+  customer_authorized_access = {
+    enabled = false
+  }`
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             mock.checkDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config(windowBlock),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					tracker.checkStable,
+					mock.checkCreateCount(1),
+					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "customer_authorized_access.enabled", "true"),
+					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "customer_authorized_access.duration_seconds", "14400"),
+					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "customer_authorized_access.start_timestamp", "2026-06-01T14:00:00+02:00"),
+				),
+			},
+			{
+				Config:   config(windowBlock),
+				PlanOnly: true,
+			},
+			{
+				Config: config(deniedBlock),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					tracker.checkStable,
+					mock.checkCreateCount(1),
+					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "customer_authorized_access.enabled", "false"),
+					resource.TestCheckResourceAttr("clickhouse_byoc_infrastructure.test", "customer_authorized_access.duration_seconds", "0"),
+					resource.TestCheckNoResourceAttr("clickhouse_byoc_infrastructure.test", "customer_authorized_access.start_timestamp"),
+				),
+			},
+			{
+				Config:   config(deniedBlock),
+				PlanOnly: true,
+			},
+			{
+				Config: config(""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					tracker.checkStable,
+					resource.TestCheckNoResourceAttr("clickhouse_byoc_infrastructure.test", "customer_authorized_access.enabled"),
+					func(*terraform.State) error {
+						mock.mu.Lock()
+						defer mock.mu.Unlock()
+						for id, infra := range mock.infras {
+							if infra.customerAccess == nil || infra.customerAccess.Enabled {
+								return fmt.Errorf("removing the block must leave the denied setting on %s untouched, got %+v", id, infra.customerAccess)
+							}
+						}
+						return nil
+					},
+				),
+			},
+			{
+				Config:   config(""),
+				PlanOnly: true,
 			},
 		},
 	})

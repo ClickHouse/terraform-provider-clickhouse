@@ -286,6 +286,70 @@ func TestGetByocInfrastructurePrivateEndpointConfig_HappyPath(t *testing.T) {
 	}
 }
 
+func TestGetByocInfrastructureCustomerAuthorizedAccess_HappyPath(t *testing.T) {
+	start := "2026-06-01T12:00:00.000Z"
+	end := "2026-06-01T16:00:00.000Z"
+	want := ByocInfrastructureCustomerAuthorizedAccess{
+		Enabled:            true,
+		DurationSeconds:    14400,
+		StartTimestamp:     &start,
+		Allowed:            true,
+		WindowEndTimestamp: &end,
+	}
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %q; want GET", r.Method)
+		}
+		if r.URL.Path != "/organizations/org-1/byocInfrastructure/byoc-1/customerAuthorizedAccess" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[ByocInfrastructureCustomerAuthorizedAccess]{Result: want})
+	})
+
+	got, err := client.GetByocInfrastructureCustomerAuthorizedAccess(context.Background(), "byoc-1")
+	if err != nil {
+		t.Fatalf("GetByocInfrastructureCustomerAuthorizedAccess: %v", err)
+	}
+	if diff := cmp.Diff(&want, got); diff != "" {
+		t.Errorf("GetByocInfrastructureCustomerAuthorizedAccess mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestUpdateByocInfrastructureCustomerAuthorizedAccess_OmitsAbsentStart(t *testing.T) {
+	want := ByocInfrastructureCustomerAuthorizedAccess{Enabled: false, Allowed: false}
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Errorf("method = %q; want PATCH", r.Method)
+		}
+		if r.URL.Path != "/organizations/org-1/byocInfrastructure/byoc-1/customerAuthorizedAccess" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		got := map[string]any{}
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("request body is not JSON: %v", err)
+		}
+		if got["enabled"] != false {
+			t.Errorf("enabled = %v; want false", got["enabled"])
+		}
+		if got["durationSeconds"] != float64(0) {
+			t.Errorf("durationSeconds = %v; want 0", got["durationSeconds"])
+		}
+		if _, present := got["startTimestamp"]; present {
+			t.Errorf("startTimestamp should be omitted when unset; body = %s", body)
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[ByocInfrastructureCustomerAuthorizedAccess]{Result: want})
+	})
+
+	got, err := client.UpdateByocInfrastructureCustomerAuthorizedAccess(context.Background(), "byoc-1", ByocInfrastructureCustomerAuthorizedAccessUpdateRequest{Enabled: false})
+	if err != nil {
+		t.Fatalf("UpdateByocInfrastructureCustomerAuthorizedAccess: %v", err)
+	}
+	if diff := cmp.Diff(&want, got); diff != "" {
+		t.Errorf("UpdateByocInfrastructureCustomerAuthorizedAccess mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestWaitForByocInfrastructureState_WaitsUntilReady(t *testing.T) {
 	var calls atomic.Int32
 	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
