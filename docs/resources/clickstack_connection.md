@@ -3,12 +3,12 @@
 page_title: "clickhouse_clickstack_connection Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
-  Manages a ClickHouse connection in ClickStack. Connections hold the credentials and endpoint used by sources to query ClickHouse. Note: on ClickHouse Cloud the connections endpoint is not exposed, and each service has a single connection to itself that the platform creates; this resource is for self-hosted ClickStack. To point a source at the Cloud connection, read its id from an existing source rather than creating one here.
+  Manages a ClickHouse connection in ClickStack. Connections hold the credentials and endpoint used by sources to query ClickHouse, or a Prometheus-compatible API for PromQL sources. Note: on ClickHouse Cloud the connections endpoint is not exposed, and each service has a single connection to itself that the platform creates; this resource is for self-hosted ClickStack. To point a source at the Cloud connection, read its id from an existing source rather than creating one here.
 ---
 
 # clickhouse_clickstack_connection (Resource)
 
-Manages a ClickHouse connection in ClickStack. Connections hold the credentials and endpoint used by sources to query ClickHouse. **Note:** on ClickHouse Cloud the connections endpoint is not exposed, and each service has a single connection to itself that the platform creates; this resource is for self-hosted ClickStack. To point a source at the Cloud connection, read its id from an existing source rather than creating one here.
+Manages a ClickHouse connection in ClickStack. Connections hold the credentials and endpoint used by sources to query ClickHouse, or a Prometheus-compatible API for PromQL sources. **Note:** on ClickHouse Cloud the connections endpoint is not exposed, and each service has a single connection to itself that the platform creates; this resource is for self-hosted ClickStack. To point a source at the Cloud connection, read its id from an existing source rather than creating one here.
 
 ## Example Usage
 
@@ -18,9 +18,16 @@ resource "clickhouse_clickstack_connection" "main" {
   host     = "https://clickhouse.example.com:8443"
   username = "default"
   password = var.clickhouse_password
+}
 
-  # Optional: proxy PromQL queries to a Prometheus-compatible endpoint.
-  # prometheus_endpoint = "http://prometheus:9090"
+# A Prometheus-compatible endpoint (e.g. Prometheus or Thanos). PromQL sources
+# on this connection proxy their queries to host. Username and password are
+# ignored; put any Basic auth credentials in the host URL.
+resource "clickhouse_clickstack_connection" "prometheus" {
+  name                   = "Prometheus"
+  host                   = "http://prometheus:9090"
+  username               = ""
+  is_prometheus_endpoint = true
 }
 
 # Managing connections across multiple teams from one configuration. (Enterprise Only)
@@ -70,15 +77,15 @@ resource "clickhouse_clickstack_source" "logs" {
 
 ### Required
 
-- `host` (String) ClickHouse HTTP endpoint URL, e.g. `https://clickhouse.example.com:8443`.
+- `host` (String) ClickHouse HTTP endpoint URL, e.g. `https://clickhouse.example.com:8443`. When `is_prometheus_endpoint` is true, the Prometheus-compatible API URL instead, e.g. `http://prometheus:9090`; put any Basic auth credentials in the URL (`https://user:pass@prometheus.example.com`). This attribute is not sensitive, so credentials in it appear in plan output.
 - `name` (String) Display name for the connection.
-- `username` (String) ClickHouse username.
+- `username` (String) ClickHouse username. Ignored when `is_prometheus_endpoint` is true; set it to `""`.
 
 ### Optional
 
 - `hyperdx_setting_prefix` (String) Prefix for HyperDX-specific ClickHouse settings. Must only contain alphanumeric characters and underscores.
-- `password` (String, Sensitive) ClickHouse password. The API never returns the password, so drift in this attribute cannot be detected. After import, the next apply re-sends the configured password.
-- `prometheus_endpoint` (String) Prometheus-compatible API endpoint, e.g. `http://prometheus:9090`. When set, PromQL queries are proxied to this endpoint.
+- `is_prometheus_endpoint` (Boolean) When true, `host` is a Prometheus-compatible API endpoint (e.g. Prometheus or Thanos) and PromQL sources on this connection proxy their queries to it. Such a connection serves only `promql` sources. Defaults to false, where `host` is a ClickHouse HTTP endpoint.
+- `password` (String, Sensitive) ClickHouse password. The API never returns the password, so drift in this attribute cannot be detected. After import, the next apply re-sends the configured password. Ignored when `is_prometheus_endpoint` is true.
 - `team` (String) Team ID to manage this connection under, sent as the `x-hdx-team` header. Defaults to the API key's team. Only honored by multi-team (EE) deployments, which validate the API key's membership in the team; single-team (OSS) deployments ignore it. Changing this forces the connection to be replaced, since a connection ID is scoped to a single team.
 
 ### Read-Only
