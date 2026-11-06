@@ -425,7 +425,30 @@ Required:
 
 Optional:
 
+- `persist_deleted_documents` (Boolean) Persist the full document as it was right before it was deleted, instead of just its `_id`, when MongoDB delete events are ingested. Requires `changeStreamPreAndPostImages` to be enabled on the source collection. Has no effect on `snapshot` only pipes.
+- `structured_ingestion` (Attributes) Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. Cannot be changed on an existing table mapping: remove the mapping and add it again instead. (see [below for nested schema](#nestedatt--source--mongodb--table_mappings--structured_ingestion))
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
+
+<a id="nestedatt--source--mongodb--table_mappings--structured_ingestion"></a>
+### Nested Schema for `source.mongodb.table_mappings.structured_ingestion`
+
+Optional:
+
+- `columns` (Attributes List) Typed columns of the collection to replicate, taken as provided. When omitted, the columns are inferred from a sample of the collection documents when the mapping is created (not available with `ssh_key_resource_id`), and the state holds the inferred columns that are not excluded. Must not include any of `excluded_columns`. The `_id` document key is always replicated as `String` and must not be listed. (see [below for nested schema](#nestedatt--source--mongodb--table_mappings--structured_ingestion--columns))
+- `drop_unexpected_values` (Boolean) When `true`, values that don't fit their inferred schema column are reported with only the field name and reason, without the value. Defaults to `false`.
+- `excluded_columns` (Set of String) Names of inferred columns to leave out of replication. Names that match no column are ignored. Must not overlap with `columns`. `_id` cannot be excluded.
+- `partition_by_expr` (String) ClickHouse `PARTITION BY` expression applied to the destination table when ClickPipes creates it, e.g. `toYYYYMM(created_at)`.
+- `sorting_keys` (List of String) Ordered list of column names to use as the sorting (`ORDER BY`) key. Each must be `_id` or one of the collection columns, and not excluded. Defaults to the `_id` document key.
+
+<a id="nestedatt--source--mongodb--table_mappings--structured_ingestion--columns"></a>
+### Nested Schema for `source.mongodb.table_mappings.structured_ingestion.columns`
+
+Required:
+
+- `name` (String) Top-level document field name.
+- `type` (String) ClickHouse type the field is replicated as, e.g. `Float64` or `DateTime64(9)`. Must be a ClickHouse column type supported by structured ingestion.
+
+
 
 
 <a id="nestedatt--source--mongodb--credentials"></a>

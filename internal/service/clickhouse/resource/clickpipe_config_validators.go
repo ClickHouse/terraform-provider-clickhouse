@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
@@ -673,6 +675,109 @@ func (v bigQueryCDCValidator) ValidateResource(ctx context.Context, req resource
 	}
 }
 
+// mongoDBStructuredIngestionValidator enforces the column rules of MongoDB
+// structured ingestion mappings:
+//   - Pipes using an SSH key resource must provide their columns, as the
+//     discovery service cannot open those tunnels to infer them (the API answers 400).
+//   - Provided columns must not be excluded: the state holds the replicated
+//     columns, and the provider cannot drop configured entries from the plan.
+type mongoDBStructuredIngestionValidator struct{}
+
+func (v mongoDBStructuredIngestionValidator) Description(_ context.Context) string {
+	return "Validates that MongoDB structured ingestion mappings provide their columns when the pipe uses an SSH key resource and that provided columns are not excluded."
+}
+
+func (v mongoDBStructuredIngestionValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v mongoDBStructuredIngestionValidator) ValidateResource(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data models.ClickPipeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() || data.Source.IsNull() || data.Source.IsUnknown() {
+		return
+	}
+
+	var sourceModel models.ClickPipeSourceModel
+	resp.Diagnostics.Append(data.Source.As(ctx, &sourceModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || sourceModel.MongoDB.IsNull() || sourceModel.MongoDB.IsUnknown() {
+		return
+	}
+
+	var mongoModel models.ClickPipeMongoDBSourceModel
+	resp.Diagnostics.Append(sourceModel.MongoDB.As(ctx, &mongoModel, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || mongoModel.TableMappings.IsNull() || mongoModel.TableMappings.IsUnknown() {
+		return
+	}
+
+	usesSSHKey := !mongoModel.SSHKeyResourceID.IsNull()
+	tableMappingsPath := path.Root("source").AtName("mongodb").AtName("table_mappings")
+
+	var mappings []models.ClickPipeMongoDBTableMappingModel
+	resp.Diagnostics.Append(mongoModel.TableMappings.ElementsAs(ctx, &mappings, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	for _, mapping := range mappings {
+		if mapping.StructuredIngestion.IsNull() || mapping.StructuredIngestion.IsUnknown() {
+			continue
+		}
+		var structuredIngestionConfig models.ClickPipeMongoDBStructuredIngestionModel
+		resp.Diagnostics.Append(mapping.StructuredIngestion.As(ctx, &structuredIngestionConfig, basetypes.ObjectAsOptions{})...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		collection := fmt.Sprintf("%s.%s", mapping.SourceDatabaseName.ValueString(), mapping.SourceCollection.ValueString())
+		if usesSSHKey && structuredIngestionConfig.Columns.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				tableMappingsPath,
+				"Invalid MongoDB structured ingestion configuration",
+				fmt.Sprintf(
+					"Table mapping '%s' enables structured_ingestion without providing columns types. "+
+						"Schema inference is not available for pipes using ssh_key_resource_id: set structured_ingestion.columns explicitly.",
+					collection,
+				),
+			)
+		}
+		if excluded := providedColumnsExcluded(ctx, structuredIngestionConfig, &resp.Diagnostics); len(excluded) > 0 {
+			resp.Diagnostics.AddAttributeError(
+				tableMappingsPath,
+				"Invalid MongoDB structured ingestion configuration",
+				fmt.Sprintf(
+					"Table mapping '%s' lists columns that are also in excluded_columns: %s. "+
+						"Remove them from structured_ingestion.columns instead of excluding them. Use excluded_columns only when columns are inferred.",
+					collection, strings.Join(excluded, ", "),
+				),
+			)
+		}
+	}
+}
+
+// providedColumnsExcluded returns the provided column names that are also excluded.
+func providedColumnsExcluded(ctx context.Context, structuredIngestionConfig models.ClickPipeMongoDBStructuredIngestionModel, diagnostics *diag.Diagnostics) []string {
+	if structuredIngestionConfig.Columns.IsNull() || structuredIngestionConfig.Columns.IsUnknown() || structuredIngestionConfig.ExcludedColumns.IsNull() || structuredIngestionConfig.ExcludedColumns.IsUnknown() {
+		return nil
+	}
+	var excludedNames []types.String
+	diagnostics.Append(structuredIngestionConfig.ExcludedColumns.ElementsAs(ctx, &excludedNames, false)...)
+	excluded := make(map[string]bool, len(excludedNames))
+	for _, name := range excludedNames {
+		if !name.IsUnknown() {
+			excluded[name.ValueString()] = true
+		}
+	}
+	var columns []models.ClickPipeMongoDBColumnModel
+	diagnostics.Append(structuredIngestionConfig.Columns.ElementsAs(ctx, &columns, false)...)
+	var overlap []string
+	for _, column := range columns {
+		if !column.Name.IsUnknown() && excluded[column.Name.ValueString()] {
+			overlap = append(overlap, column.Name.ValueString())
+		}
+	}
+	return overlap
+}
+
 func (c *ClickPipeResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		kafkaTombstoneModeValidator{},
@@ -682,5 +787,6 @@ func (c *ClickPipeResource) ConfigValidators(_ context.Context) []resource.Confi
 		pubsubSeekValidator{},
 		cdcClickPipeScalingValidator{},
 		bigQueryCDCValidator{},
+		mongoDBStructuredIngestionValidator{},
 	}
 }
