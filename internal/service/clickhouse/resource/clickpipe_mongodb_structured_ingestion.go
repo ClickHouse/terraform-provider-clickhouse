@@ -49,6 +49,9 @@ func convertMongoDBStructuredIngestionModelToAPI(ctx context.Context, diagnostic
 	return si
 }
 
+// mongoDBDocumentKeyColumn is the MongoDB document key, the default sorting key.
+const mongoDBDocumentKeyColumn = "_id"
+
 // mongoDBStructuredIngestionFromAPI builds the structured_ingestion state of a
 // table mapping from the GET response, reconciled with prior state.
 //
@@ -95,17 +98,21 @@ func mongoDBStructuredIngestionFromAPI(ctx context.Context, apiSI *api.ClickPipe
 		model.Columns = types.ListNull(columnType)
 	}
 
+	// When the API omits a setting, prior state is kept only if it holds the
+	// default the API omitted, so an explicit default does not cause a diff.
+	// Non-default state values are dropped, so a mapping recreated outside
+	// Terraform with defaults shows up as drift instead of being hidden.
 	if len(apiSI.ExcludedColumns) > 0 {
 		model.ExcludedColumns = stringSetValue(apiSI.ExcludedColumns)
-	} else if hasState {
-		model.ExcludedColumns = state.ExcludedColumns
+	} else if hasState && !state.ExcludedColumns.IsNull() && !state.ExcludedColumns.IsUnknown() {
+		model.ExcludedColumns = types.SetValueMust(types.StringType, []attr.Value{})
 	} else {
 		model.ExcludedColumns = types.SetNull(types.StringType)
 	}
 
 	if len(apiSI.SortingKeys) > 0 {
 		model.SortingKeys = stringListValue(apiSI.SortingKeys)
-	} else if hasState {
+	} else if hasState && state.SortingKeys.Equal(stringListValue([]string{mongoDBDocumentKeyColumn})) {
 		model.SortingKeys = state.SortingKeys
 	} else {
 		model.SortingKeys = types.ListNull(types.StringType)
@@ -113,7 +120,7 @@ func mongoDBStructuredIngestionFromAPI(ctx context.Context, apiSI *api.ClickPipe
 
 	if apiSI.PartitionByExpr != nil && *apiSI.PartitionByExpr != "" {
 		model.PartitionByExpr = types.StringValue(*apiSI.PartitionByExpr)
-	} else if hasState {
+	} else if hasState && state.PartitionByExpr.Equal(types.StringValue("")) {
 		model.PartitionByExpr = state.PartitionByExpr
 	} else {
 		model.PartitionByExpr = types.StringNull()

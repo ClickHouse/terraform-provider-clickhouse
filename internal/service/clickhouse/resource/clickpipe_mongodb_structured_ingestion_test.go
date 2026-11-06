@@ -100,6 +100,15 @@ func TestMongoDBStructuredIngestionFromAPI(t *testing.T) {
 	explicitDefault := mongoDBStructuredIngestion(mongoDBColumns("name", "String"))
 	explicitDefault.DropUnexpectedValues = types.BoolValue(false)
 	explicitDefault.ExcludedColumns = types.SetValueMust(types.StringType, []attr.Value{})
+	explicitDefault.SortingKeys = stringListValue([]string{"_id"})
+	explicitDefault.PartitionByExpr = types.StringValue("")
+
+	customSettings := mongoDBStructuredIngestion(mongoDBColumns("name", "String"))
+	customSettings.ExcludedColumns = stringSetValue([]string{"missions"})
+	customSettings.SortingKeys = stringListValue([]string{"name", "_id"})
+	customSettings.PartitionByExpr = types.StringValue("toYYYYMM(inception_date)")
+	recreatedWithDefaults := mongoDBStructuredIngestion(mongoDBColumns("name", "String"))
+	recreatedWithDefaults.ExcludedColumns = types.SetValueMust(types.StringType, []attr.Value{})
 
 	tests := []struct {
 		name     string
@@ -142,6 +151,13 @@ func TestMongoDBStructuredIngestionFromAPI(t *testing.T) {
 			apiSI:    &api.ClickPipeMongoDBStructuredIngestion{Enabled: true, DropUnexpectedValues: &f, Columns: nameColumn},
 			state:    explicitDefault.ObjectValue(),
 			expected: explicitDefault.ObjectValue(),
+		},
+		{
+			// The empty excluded_columns set is kept, as for Postgres table mappings.
+			name:     "custom settings reset outside Terraform are refreshed as defaults",
+			apiSI:    &api.ClickPipeMongoDBStructuredIngestion{Enabled: true, DropUnexpectedValues: &f, Columns: nameColumn},
+			state:    customSettings.ObjectValue(),
+			expected: recreatedWithDefaults.ObjectValue(),
 		},
 	}
 
@@ -302,4 +318,41 @@ func TestClickPipeResource_ModifyPlan_KeepsInferredMongoDBColumns(t *testing.T) 
 
 	diags := driveClickPipeModifyPlan(ctx, t, state, plan)
 	assert.False(t, diags.HasError(), "unexpected errors: %v", diags.Errors())
+}
+
+// A mapping created with custom settings is removed and re-added outside
+// Terraform with the defaults. Refresh must surface that drift, so that a
+// config updated to match the live mapping plans cleanly, while the old
+// config is still rejected as a change to an existing mapping.
+func TestClickPipeResource_ModifyPlan_MongoDBStructuredIngestionResetOutsideTerraform(t *testing.T) {
+	ctx := context.Background()
+	f := false
+
+	custom := mongoDBStructuredIngestion(mongoDBColumns("name", "String"))
+	custom.ExcludedColumns = stringSetValue([]string{"missions"})
+	custom.SortingKeys = stringListValue([]string{"name", "_id"})
+	custom.PartitionByExpr = types.StringValue("toYYYYMM(inception_date)")
+
+	refreshedSI, diags := mongoDBStructuredIngestionFromAPI(ctx,
+		&api.ClickPipeMongoDBStructuredIngestion{Enabled: true, DropUnexpectedValues: &f, Columns: []api.ClickPipeMongoDBColumn{{Name: "name", Type: "String"}}},
+		custom.ObjectValue(),
+	)
+	require.False(t, diags.HasError(), "%v", diags)
+	var refreshed models.ClickPipeMongoDBStructuredIngestionModel
+	require.False(t, refreshedSI.As(ctx, &refreshed, basetypes.ObjectAsOptions{}).HasError())
+	state := mongoDBModelWithMappings(t, mongoDBStructuredMapping("replicants", refreshed))
+
+	t.Run("config matching the live mapping plans cleanly", func(t *testing.T) {
+		matching := mongoDBStructuredIngestion(mongoDBColumns("name", "String"))
+		matching.ExcludedColumns = types.SetValueMust(types.StringType, []attr.Value{})
+		plan := mongoDBModelWithMappings(t, mongoDBStructuredMapping("replicants", matching))
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+		assert.False(t, diags.HasError(), "unexpected errors: %v", diags.Errors())
+	})
+
+	t.Run("config with the old settings is a change to the mapping", func(t *testing.T) {
+		plan := mongoDBModelWithMappings(t, mongoDBStructuredMapping("replicants", custom))
+		diags := driveClickPipeModifyPlan(ctx, t, state, plan)
+		assert.True(t, errorDetailContains(diags, "structured_ingestion"), "expected a cannot modify error, got %v", diags)
+	})
 }
