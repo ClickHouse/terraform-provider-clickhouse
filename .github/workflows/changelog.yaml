@@ -1,0 +1,36 @@
+name: Validate PR changelog entry
+
+# The "## Changelog" section of the PR description becomes the PR's entry in
+# the release notes (see .github/scripts/changelog.py). Bot PRs are exempt.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    if: github.event.pull_request.user.type != 'Bot'
+    runs-on: k8s-nano
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check changelog entry
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 .github/scripts/changelog.py check
+
+  script-tests:
+    runs-on: k8s-nano
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test changelog script
+        run: python3 -m unittest discover -s .github/scripts -p '*_test.py' -v
