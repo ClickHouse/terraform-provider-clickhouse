@@ -344,6 +344,7 @@ type ClickPipeBigQuerySettings struct {
 	QueryCDCPullSyncParallelism    *int    `json:"queryCdcPullSyncParallelism,omitempty"`
 	SyncDelaySeconds               *int    `json:"syncDelaySeconds,omitempty"`
 	PullWindowSizeSeconds          *int    `json:"pullWindowSizeSeconds,omitempty"`
+	SyncCron                       *string `json:"syncCron,omitempty"`
 	AllowNullableColumns           *bool   `json:"allowNullableColumns,omitempty"`
 	InitialLoadParallelism         *int    `json:"initialLoadParallelism,omitempty"`
 	SnapshotNumRowsPerPartition    *int    `json:"snapshotNumRowsPerPartition,omitempty"`
