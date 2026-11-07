@@ -36,7 +36,9 @@ resource "clickhouse_clickstack_source" "logs" {
 
   service_name_expression        = "ServiceName"
   severity_text_expression       = "SeverityText"
+  severity_number_expression     = "SeverityNumber"
   body_expression                = "Body"
+  event_name_expression          = "EventName"
   resource_attributes_expression = "ResourceAttributes"
   event_attributes_expression    = "LogAttributes"
 }
@@ -62,6 +64,9 @@ resource "clickhouse_clickstack_source" "traces" {
   parent_span_id_expression = "ParentSpanId"
   span_name_expression      = "SpanName"
   span_kind_expression      = "SpanKind"
+
+  span_events_value_expression = "Events"
+  span_links_value_expression  = "Links"
 
   log_source_id = clickhouse_clickstack_source.logs.id
 }
@@ -108,6 +113,7 @@ resource "clickhouse_clickstack_source" "metrics" {
 - `duration_expression` (String) Expression to extract span duration. Required for `trace`.
 - `duration_precision` (Number) Number of decimal digits in the duration value (3=ms, 6=us, 9=ns). Defaults to 3. Applies to `trace`.
 - `event_attributes_expression` (String) Expression to extract event-level attributes.
+- `event_name_expression` (String) Expression for the OpenTelemetry log EventName (log).
 - `filter_settings` (Attributes) Required source filters: values for the listed columns must be supplied on every query against this source, with candidate values sourced from a dictionary table. (see [below for nested schema](#nestedatt--filter_settings))
 - `highlighted_row_attribute_expressions` (Attributes List) Attributes displayed in the row side panel for the selected row. (see [below for nested schema](#nestedatt--highlighted_row_attribute_expressions))
 - `highlighted_trace_attribute_expressions` (Attributes List) Attributes displayed in the trace view for the selected trace. (see [below for nested schema](#nestedatt--highlighted_trace_attribute_expressions))
@@ -126,10 +132,12 @@ resource "clickhouse_clickstack_source" "metrics" {
 - `section` (String) Optional grouping label used to organize sources in the source selector.
 - `service_name_expression` (String) Expression to extract the service name.
 - `session_source_id` (String) Correlated session source ID (trace).
+- `severity_number_expression` (String) Expression for the numeric OpenTelemetry SeverityNumber, 1-24 (log).
 - `severity_text_expression` (String) Expression to extract the severity/log level text (log).
 - `span_events_value_expression` (String) Expression to extract span events.
 - `span_id_expression` (String) Expression to extract the span ID.
 - `span_kind_expression` (String) Expression to extract the span kind. Required for `trace`.
+- `span_links_value_expression` (String) Expression to extract span links to spans in other traces.
 - `span_name_expression` (String) Expression to extract the span name. Required for `trace`.
 - `status_code_expression` (String) Expression to extract the span status code.
 - `status_message_expression` (String) Expression to extract the span status message.

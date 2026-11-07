@@ -45,6 +45,10 @@ func TestSourceModel_RoundTrip(t *testing.T) {
 		ParentSpanIDExpression:       ptr("ParentSpanId"),
 		SpanNameExpression:           ptr("SpanName"),
 		SpanKindExpression:           ptr("SpanKind"),
+		SpanEventsValueExpression:    ptr("Events"),
+		SpanLinksValueExpression:     ptr("Links"),
+		SeverityNumberExpression:     ptr("SeverityNumber"),
+		EventNameExpression:          ptr("EventName"),
 		MetricTables:                 &client.MetricTables{Gauge: ptr("g"), ExponentialHistogram: ptr("eh")},
 		HighlightedTraceAttributeExpressions: []client.HighlightedAttributeExpression{
 			{SQLExpression: "a", LuceneExpression: ptr("l"), Alias: ptr("al")},
