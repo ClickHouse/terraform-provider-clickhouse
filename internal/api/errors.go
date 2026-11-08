@@ -1,8 +1,15 @@
 package api
 
 import (
+	"errors"
 	"strings"
 )
+
+// ErrServiceDeletionProtected is returned by DeleteService when the service has deletion protection turned on.
+var ErrServiceDeletionProtected = errors.New("deletion protection is enabled for this service, turn it off before deleting the service")
+
+// ErrDeleteRefusedAfterStop is wrapped with ErrServiceDeletionProtected only when DeleteService sent the stop before the API refused the DELETE.
+var ErrDeleteRefusedAfterStop = errors.New("the service is stopped, start it again if you still need it")
 
 func IsNotFound(err error) bool {
 	if err == nil {
@@ -18,6 +25,12 @@ func IsConflict(err error) bool {
 	}
 
 	return strings.HasPrefix(err.Error(), "status: 409")
+}
+
+// IsDeletionProtected returns true when err is the 409 the API returns for a
+// DELETE on a service that has deletion protection turned on.
+func IsDeletionProtected(err error) bool {
+	return IsConflict(err) && strings.Contains(strings.ToLower(err.Error()), "deletion protection is enabled")
 }
 
 func IsForbidden(err error) bool {
