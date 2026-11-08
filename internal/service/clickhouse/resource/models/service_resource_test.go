@@ -378,6 +378,14 @@ func TestServiceResource_Equals(t *testing.T) {
 			}).Get(),
 			want: false,
 		},
+		{
+			name: "DeletionProtection changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.DeletionProtection = types.BoolValue(true)
+			}).Get(),
+			want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

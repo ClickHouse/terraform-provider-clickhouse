@@ -698,6 +698,24 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			updateTimestamp: false,
 			wantErr:         false,
 		},
+		{
+			name:  "Deletion protection turned on outside Terraform shows up in state",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.DeletionProtection = boolPtr(true)
+			}).GetPtr(),
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.DeletionProtection = types.BoolValue(true)
+			}).Get(),
+		},
+		{
+			name:  "Deletion protection false from the API leaves an unset attribute unset",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.DeletionProtection = boolPtr(false)
+			}).GetPtr(),
+			desiredState: state,
+		},
 	}
 
 	for _, tt := range tests {
@@ -793,9 +811,10 @@ func getInitialState() models.ServiceResourceModel {
 			Enabled: types.BoolValue(false),
 			RoleID:  types.StringNull(),
 		}.ObjectValue(),
-		ComplianceType:  types.StringNull(),
-		Tags:            tags,
-		EnableCoreDumps: types.BoolNull(),
+		ComplianceType:     types.StringNull(),
+		Tags:               tags,
+		EnableCoreDumps:    types.BoolNull(),
+		DeletionProtection: types.BoolNull(),
 	}
 
 	return state
