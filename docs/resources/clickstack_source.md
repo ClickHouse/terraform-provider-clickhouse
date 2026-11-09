@@ -168,12 +168,13 @@ Required:
 
 Required:
 
-- `name` (String) Column name to filter on.
+- `name` (String) Column of the source table that selected filter values are matched against.
 
 Optional:
 
 - `allow_all` (Boolean) Whether an "all values" selection is offered for this column instead of requiring explicit values. Defaults to false.
 - `label` (String) Optional display label for the filter in the UI.
+- `value_expression` (String) SQL expression evaluated against the filter-values table (`database_name`.`table_name`) to produce this filter's options. Defaults to reading `name` from that table as a plain column.
 
 
 
