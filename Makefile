@@ -75,6 +75,10 @@ lint: ensure-golangci-lint ## Run go vet and golangci-lint
 sec: ensure-golangci-lint ## Run only the gosec security linter (honors .golangci.yml exclusions)
 	$(GOLANGCILINT) run --enable-only gosec ./...
 
+.PHONY: vulncheck
+vulncheck: ## Report known vulnerabilities in code paths the provider actually calls
+	go tool govulncheck ./...
+
 .PHONY: testacc
 testacc: ## Run acceptance tests (creates real resources)
 	TF_ACC=1 go test ./... -v -timeout=120m
