@@ -585,6 +585,20 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"replica_aware_routing": schema.SingleNestedAttribute{
+				Description: "Configuration of replica aware routing for this service. Routes later connections from the same client to the same replica. Omit this block to leave the setting unmanaged. Refresh of a managed block treats a missing feature (403) as unset. Applying this block without the feature fails. Requires an organization with the Enterprise plan.",
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"http_enabled": schema.BoolAttribute{
+						Description: "Whether replica aware routing is enabled for HTTP connections. When enabled, clients must send the X-ClickHouse-Replica-Tag header.",
+						Required:    true,
+					},
+					"native_enabled": schema.BoolAttribute{
+						Description: "Whether replica aware routing is enabled for native protocol connections.",
+						Required:    true,
+					},
+				},
+			},
 			"compliance_type": schema.StringAttribute{
 				Description: "Compliance type of the service. Can be 'hipaa', 'pci'. Required for organizations that wish to deploy their services in the hipaa/pci compliant environment. NOTE: hipaa/pci compliance should be enabled for your ClickHouse organization before using this field.",
 				Optional:    true,
@@ -1410,6 +1424,69 @@ func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.Valid
 	}
 }
 
+// updateReplicaAwareRouting PATCHes both flags when the block is configured. An absent block is left unmanaged.
+func (r *ServiceResource) updateReplicaAwareRouting(ctx context.Context, serviceId string, routing types.Object) error {
+	if routing.IsNull() || routing.IsUnknown() {
+		return nil
+	}
+
+	parsed := models.ReplicaAwareRouting{}
+	diag := routing.As(ctx, &parsed, basetypes.ObjectAsOptions{
+		UnhandledNullAsEmpty:    false,
+		UnhandledUnknownAsEmpty: false,
+	})
+	if diag.HasError() {
+		return errors.New(diag.Errors()[0].Detail())
+	}
+
+	_, err := r.client.UpdateReplicaAwareRouting(ctx, serviceId, toAPIReplicaAwareRouting(parsed))
+	return err
+}
+
+// toAPIReplicaAwareRouting sends both flags. The block requires each one, and an omitted PATCH field would keep the stored value.
+func toAPIReplicaAwareRouting(routing models.ReplicaAwareRouting) api.ReplicaAwareRouting {
+	out := api.ReplicaAwareRouting{}
+	if !routing.HTTPEnabled.IsNull() && !routing.HTTPEnabled.IsUnknown() {
+		out.HTTPEnabled = routing.HTTPEnabled.ValueBoolPointer()
+	}
+	if !routing.NativeEnabled.IsNull() && !routing.NativeEnabled.IsUnknown() {
+		out.NativeEnabled = routing.NativeEnabled.ValueBoolPointer()
+	}
+	return out
+}
+
+// syncReplicaAwareRouting refreshes a managed block. An omitted block is left null and does not call the API.
+// A 403 means the organization feature is missing, which refresh records as unset.
+func (r *ServiceResource) syncReplicaAwareRouting(ctx context.Context, state *models.ServiceResourceModel, serviceId string) error {
+	nullRouting := types.ObjectNull(models.ReplicaAwareRouting{}.ObjectType().AttrTypes)
+	if state.ReplicaAwareRouting.IsNull() || state.ReplicaAwareRouting.IsUnknown() {
+		state.ReplicaAwareRouting = nullRouting
+		return nil
+	}
+
+	routing, err := r.client.GetReplicaAwareRouting(ctx, serviceId)
+	if err != nil {
+		if api.IsForbidden(err) {
+			state.ReplicaAwareRouting = nullRouting
+			return nil
+		}
+		return err
+	}
+
+	mapped := models.ReplicaAwareRouting{
+		HTTPEnabled:   types.BoolValue(false),
+		NativeEnabled: types.BoolValue(false),
+	}
+	if routing != nil && routing.HTTPEnabled != nil {
+		mapped.HTTPEnabled = types.BoolValue(*routing.HTTPEnabled)
+	}
+	if routing != nil && routing.NativeEnabled != nil {
+		mapped.NativeEnabled = types.BoolValue(*routing.NativeEnabled)
+	}
+	state.ReplicaAwareRouting = mapped.ObjectValue()
+	return nil
+}
+
 // toAPISnapshotConfiguration maps the model to the API payload, skipping Unknown fields: for an omitted (Unknown)
 // gap/time_frame, ValueInt32Pointer() returns a pointer to 0 that omitempty can't drop, which the API would reject
 // as an unsupported cadence.
@@ -1740,6 +1817,14 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		// Secondary/hydra services share the parent instance's default user
 		// and never get their own password, generated or otherwise.
 		plan.GeneratedPassword = types.StringNull()
+	}
+
+	if err = r.updateReplicaAwareRouting(ctx, s.Id, plan.ReplicaAwareRouting); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting replica aware routing",
+			"Could not set replica aware routing after creation, unexpected error: "+err.Error(),
+		)
+		return
 	}
 
 	// Set query api endpoints
@@ -2274,6 +2359,16 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	if !plan.ReplicaAwareRouting.IsNull() && !plan.ReplicaAwareRouting.IsUnknown() && !plan.ReplicaAwareRouting.Equal(state.ReplicaAwareRouting) {
+		if err := r.updateReplicaAwareRouting(ctx, serviceId, plan.ReplicaAwareRouting); err != nil {
+			resp.Diagnostics.AddError(
+				"Error setting replica aware routing",
+				"Could not update replica aware routing, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
 	err := r.syncServiceState(ctx, &plan, true)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -2631,6 +2726,7 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					BackupConfiguration:             priorStateData.BackupConfiguration,
 					// Not present in V0 state; left null here and populated from the API on the next refresh.
 					SnapshotConfiguration:     types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes),
+					ReplicaAwareRouting:       types.ObjectNull(models.ReplicaAwareRouting{}.ObjectType().AttrTypes),
 					TransparentEncryptionData: models.TransparentEncryptionData{}.ObjectValue(),
 					Tags:                      types.MapNull(types.StringType),
 				}
@@ -2883,6 +2979,10 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		}
 	} else {
 		state.SnapshotConfiguration = types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes)
+	}
+
+	if err := r.syncReplicaAwareRouting(ctx, state, service.Id); err != nil {
+		return err
 	}
 
 	if service.ComplianceType != nil {
