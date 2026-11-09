@@ -788,6 +788,7 @@ func getInitialState() models.ServiceResourceModel {
 		EncryptionAssumedRoleIdentifier: types.StringNull(),
 		BackupConfiguration:             backupConfiguration,
 		SnapshotConfiguration:           types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes),
+		ReplicaAwareRouting:             types.ObjectNull(models.ReplicaAwareRouting{}.ObjectType().AttrTypes),
 		TransparentEncryptionData: models.TransparentEncryptionData{
 			Enabled: types.BoolValue(false),
 			RoleID:  types.StringNull(),
@@ -2874,6 +2875,191 @@ func TestServiceResource_ModifyPlan_snapshotEligibility(t *testing.T) {
 			GetOrganizationMock.Return(nil, errors.New("transient org lookup failure"))}
 		if run(t, res, baseCfg(nil)).HasError() {
 			t.Errorf("a GetOrganization error must defer to apply, not block the plan")
+		}
+	})
+}
+
+func TestServiceResource_Update_replicaAwareRouting(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	syncResp := getBaseResponse(encodableInitialState().ID.ValueString())
+	syncResp.State = api.StateRunning
+
+	withRouting := func(obj types.Object) models.ServiceResourceModel {
+		return test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+			s.BackupConfiguration = types.ObjectNull(models.BackupConfiguration{}.ObjectType().AttrTypes)
+			s.ReplicaAwareRouting = obj
+		}).Get()
+	}
+	enabled := models.ReplicaAwareRouting{HTTPEnabled: types.BoolValue(true), NativeEnabled: types.BoolValue(false)}.ObjectValue()
+	disabled := models.ReplicaAwareRouting{HTTPEnabled: types.BoolValue(false), NativeEnabled: types.BoolValue(false)}.ObjectValue()
+	nullRouting := types.ObjectNull(models.ReplicaAwareRouting{}.ObjectType().AttrTypes)
+
+	runUpdate := func(t *testing.T, state, plan models.ServiceResourceModel) diag.Diagnostics {
+		t.Helper()
+		stateVal := tfsdk.State{Schema: sch}
+		if d := stateVal.Set(ctx, &state); d.HasError() {
+			t.Fatalf("encoding state: %v", d.Errors())
+		}
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &plan); d.HasError() {
+			t.Fatalf("encoding plan: %v", d.Errors())
+		}
+		resp := &resource.UpdateResponse{State: tfsdk.State{Schema: sch}}
+		r.Update(ctx, resource.UpdateRequest{State: stateVal, Plan: planVal, Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw}}, resp)
+		return resp.Diagnostics
+	}
+
+	baseMock := func(mc *minimock.Controller) *api.ClientMock {
+		return api.NewClientMock(mc).
+			UpdateServiceMock.Optional().Return(&syncResp, nil).
+			UpdateReplicaScalingMock.Optional().Return(&syncResp, nil).
+			GetServiceMock.Return(&syncResp, nil)
+	}
+
+	t.Run("unchanged block makes no API call", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		var called bool
+		r.client = baseMock(mc).
+			GetReplicaAwareRoutingMock.Return(&api.ReplicaAwareRouting{HTTPEnabled: boolPtr(true), NativeEnabled: boolPtr(false)}, nil).
+			UpdateReplicaAwareRoutingMock.Optional().Set(func(_ context.Context, _ string, _ api.ReplicaAwareRouting) (*api.ReplicaAwareRouting, error) {
+			called = true
+			return &api.ReplicaAwareRouting{}, nil
+		})
+
+		if diag := runUpdate(t, withRouting(enabled), withRouting(enabled)); diag.HasError() {
+			t.Fatalf("Update returned errors: %v", diag.Errors())
+		}
+		if called {
+			t.Error("UpdateReplicaAwareRouting should not be called when the block is unchanged")
+		}
+	})
+
+	t.Run("changed block sends both flags", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		var captured api.ReplicaAwareRouting
+		r.client = baseMock(mc).
+			GetReplicaAwareRoutingMock.Return(&api.ReplicaAwareRouting{HTTPEnabled: boolPtr(true), NativeEnabled: boolPtr(false)}, nil).
+			UpdateReplicaAwareRoutingMock.Set(func(_ context.Context, _ string, routing api.ReplicaAwareRouting) (*api.ReplicaAwareRouting, error) {
+			captured = routing
+			return &routing, nil
+		})
+
+		if diag := runUpdate(t, withRouting(disabled), withRouting(enabled)); diag.HasError() {
+			t.Fatalf("Update returned errors: %v", diag.Errors())
+		}
+		if captured.HTTPEnabled == nil || !*captured.HTTPEnabled {
+			t.Errorf("httpEnabled = %v, want true", captured.HTTPEnabled)
+		}
+		if captured.NativeEnabled == nil || *captured.NativeEnabled {
+			t.Errorf("nativeEnabled = %v, want false", captured.NativeEnabled)
+		}
+	})
+
+	t.Run("absent block makes no API call", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		var called bool
+		r.client = baseMock(mc).
+			UpdateReplicaAwareRoutingMock.Optional().Set(func(_ context.Context, _ string, _ api.ReplicaAwareRouting) (*api.ReplicaAwareRouting, error) {
+			called = true
+			return &api.ReplicaAwareRouting{}, nil
+		})
+
+		if diag := runUpdate(t, withRouting(nullRouting), withRouting(nullRouting)); diag.HasError() {
+			t.Fatalf("Update returned errors: %v", diag.Errors())
+		}
+		if called {
+			t.Error("UpdateReplicaAwareRouting should not be called when the block is absent")
+		}
+	})
+
+	t.Run("forbidden update fails the apply", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		r.client = api.NewClientMock(mc).
+			UpdateServiceMock.Optional().Return(&syncResp, nil).
+			UpdateReplicaScalingMock.Optional().Return(&syncResp, nil).
+			GetServiceMock.Optional().Return(&syncResp, nil).
+			UpdateReplicaAwareRoutingMock.Return(nil, errors.New("status: 403, body: feature not enabled"))
+
+		diag := runUpdate(t, withRouting(disabled), withRouting(enabled))
+		if !diag.HasError() {
+			t.Fatal("Update should fail when PATCH is forbidden")
+		}
+	})
+}
+
+func TestServiceResource_syncReplicaAwareRouting(t *testing.T) {
+	ctx := context.Background()
+	state := getInitialState()
+	httpEnabled := true
+	nativeEnabled := false
+
+	t.Run("managed block refreshes both flags", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		current := state
+		current.ReplicaAwareRouting = models.ReplicaAwareRouting{
+			HTTPEnabled:   types.BoolValue(false),
+			NativeEnabled: types.BoolValue(false),
+		}.ObjectValue()
+		service := getBaseResponse(state.ID.ValueString())
+		r := &ServiceResource{client: api.NewClientMock(mc).
+			GetServiceMock.Return(&service, nil).
+			GetReplicaAwareRoutingMock.Return(&api.ReplicaAwareRouting{
+			HTTPEnabled:   &httpEnabled,
+			NativeEnabled: &nativeEnabled,
+		}, nil)}
+
+		if err := r.syncServiceState(ctx, &current, false); err != nil {
+			t.Fatalf("syncServiceState: %v", err)
+		}
+		want := models.ReplicaAwareRouting{HTTPEnabled: types.BoolValue(true), NativeEnabled: types.BoolValue(false)}.ObjectValue()
+		if !current.ReplicaAwareRouting.Equal(want) {
+			t.Errorf("replica_aware_routing = %#v, want refreshed flags", current.ReplicaAwareRouting)
+		}
+	})
+
+	t.Run("forbidden read clears a managed block", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		current := state
+		current.ReplicaAwareRouting = models.ReplicaAwareRouting{
+			HTTPEnabled:   types.BoolValue(true),
+			NativeEnabled: types.BoolValue(false),
+		}.ObjectValue()
+		service := getBaseResponse(state.ID.ValueString())
+		r := &ServiceResource{client: api.NewClientMock(mc).
+			GetServiceMock.Return(&service, nil).
+			GetReplicaAwareRoutingMock.Return(nil, errors.New("status: 403, body: feature not enabled"))}
+
+		if err := r.syncServiceState(ctx, &current, false); err != nil {
+			t.Fatalf("syncServiceState: %v", err)
+		}
+		if !current.ReplicaAwareRouting.IsNull() {
+			t.Error("a 403 on read should leave replica_aware_routing unset")
+		}
+	})
+
+	t.Run("absent block does not call the endpoint", func(t *testing.T) {
+		mc := minimock.NewController(t)
+		current := state
+		var called bool
+		service := getBaseResponse(state.ID.ValueString())
+		r := &ServiceResource{client: api.NewClientMock(mc).
+			GetServiceMock.Return(&service, nil).
+			GetReplicaAwareRoutingMock.Optional().Set(func(context.Context, string) (*api.ReplicaAwareRouting, error) {
+			called = true
+			return &api.ReplicaAwareRouting{}, nil
+		})}
+
+		if err := r.syncServiceState(ctx, &current, false); err != nil {
+			t.Fatalf("syncServiceState: %v", err)
+		}
+		if called {
+			t.Error("GetReplicaAwareRouting should not be called when the block is absent")
+		}
+		if !current.ReplicaAwareRouting.IsNull() {
+			t.Error("an absent block should stay unset")
 		}
 	})
 }
