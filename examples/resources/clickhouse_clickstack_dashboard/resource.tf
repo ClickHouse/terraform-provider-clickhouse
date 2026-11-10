@@ -1,12 +1,22 @@
 # This Terraform resource maps directly to the HyperDX v2 API dashboard body.
 # You can obtain an existing dashboard's JSON from GET /api/v2/dashboards/{id},
 # or let Terraform import it with: terraform import clickhouse_clickstack_dashboard.<name> <id>
-# Note: PromQL tiles are not supported by the v2 API and cannot be managed here.
 
 resource "clickhouse_clickstack_dashboard" "collectors" {
   dashboard_json = jsonencode({
     name = "OTel Collectors"
     tags = ["otel"]
+    # PROMETHEUS_LABEL filters list a label's values from a promql source.
+    # Tiles reference the selection as $variableName.
+    filters = [
+      {
+        type         = "PROMETHEUS_LABEL"
+        name         = "Job"
+        sourceId     = var.promql_source_id
+        label        = "job"
+        variableName = "job"
+      }
+    ]
     tiles = [
       {
         name = "Exporter sent spans"
@@ -35,6 +45,17 @@ resource "clickhouse_clickstack_dashboard" "collectors" {
           connectionId = var.connection_id
           sqlTemplate  = "SELECT ServiceName, count() AS logs FROM otel_logs GROUP BY ServiceName ORDER BY logs DESC LIMIT 20"
         }
+      },
+      {
+        name = "Series per job"
+        x    = 0, y = 3, w = 6, h = 3
+        config = {
+          configType     = "promql"
+          displayType    = "line"
+          sourceId       = var.promql_source_id
+          expressions    = [{ expression = "count by (job) ({__name__=~\".+\", job=~\"$job\"})" }]
+          legendTemplate = "{{job}}"
+        }
       }
     ]
   })
@@ -42,3 +63,4 @@ resource "clickhouse_clickstack_dashboard" "collectors" {
 
 variable "metrics_source_id" { type = string }
 variable "connection_id" { type = string }
+variable "promql_source_id" { type = string }

@@ -274,8 +274,9 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					"`tile_ids` map by tile name; ids cannot be chosen in `dashboard_json`. " +
 					"Required together with `dashboard_id` when `source` is `tile`. The alert has no query of " +
 					"its own: the server reads the tile's chart config from the dashboard on every evaluation. " +
-					"The tile must be a line, stacked bar, or number tile. Changing this to a different known " +
-					"value forces replacement.",
+					"The tile must be a line, stacked bar, or number tile, and not a PromQL tile: the API rejects " +
+					"an alert on a PromQL tile at apply time (the tile's config lives on the dashboard, so it " +
+					"cannot be checked at plan time). Changing this to a different known value forces replacement.",
 				PlanModifiers: []planmodifier.String{tileIDRequiresReplace()},
 			},
 			chartConfigAttr: schema.StringAttribute{
@@ -284,12 +285,12 @@ func (r *alertResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					"as a tile's `config` in `dashboard_json`. Use `jsonencode(...)` or `file(...)`. Required " +
 					"when `source` is `inline` and rejected for the other sources. Only `line`, `stacked_bar` " +
 					"and `number` display types can be alerted on, as builder configs or raw SQL " +
-					"(`configType = \"sql\"`); PromQL charts cannot. A builder config also takes a chart-level " +
-					"`name`, `where` and `whereLanguage`, which a tile config does not. Like `dashboard_json`, " +
-					"this value is the sole source of truth: edits made to the alert's chart in the UI are not " +
-					"reported as drift. Self-hosted ClickStack only for now: the ClickHouse Cloud gateway's " +
-					"alert API does not list `inline` among its sources and has no chart config field, so it " +
-					"rejects the request. `saved_search` and `tile` alerts work on both.",
+					"(`configType = \"sql\"`); PromQL charts (`configType = \"promql\"`) cannot. A builder config " +
+					"also takes a chart-level `name`, `where` and `whereLanguage`, which a tile config does not. " +
+					"Like `dashboard_json`, this value is the sole source of truth: edits made to the alert's " +
+					"chart in the UI are not reported as drift. Self-hosted ClickStack only for now: the " +
+					"ClickHouse Cloud gateway's alert API does not list `inline` among its sources and has no " +
+					"chart config field, so it rejects the request. `saved_search` and `tile` alerts work on both.",
 				PlanModifiers: []planmodifier.String{jsonEqualPlanModifier{}},
 			},
 			"group_by": schema.StringAttribute{
@@ -619,8 +620,8 @@ func (m *alertResourceModel) validate(ctx context.Context) diag.Diagnostics {
 	return diags
 }
 
-// validateChartConfig checks the inline alert's chart config: present, and JSON
-// the provider can hand to the API. Only the syntax is checked here — which
+// validateChartConfig checks the inline alert's chart config: present, JSON the
+// provider can hand to the API, and not a PromQL config. Beyond that, which
 // display types and fields a config may use is the server's contract, enforced
 // on write. An unknown value (a config built with jsonencode from another
 // resource's attributes) is left for apply.
@@ -642,6 +643,14 @@ func (m *alertResourceModel) validateChartConfig(diags *diag.Diagnostics) {
 	if err := json.Unmarshal([]byte(m.ChartConfig.ValueString()), &obj); err != nil || obj == nil {
 		diags.AddAttributeError(p, "Invalid chart_config",
 			"chart_config must be a JSON object, e.g. jsonencode({ displayType = \"line\", ... })")
+		return
+	}
+	// The API answers a PromQL config with `configType must be "sql" or
+	// omitted`, which reads like a typo rather than an unsupported feature.
+	var configType string
+	if json.Unmarshal(obj["configType"], &configType) == nil && configType == "promql" {
+		diags.AddAttributeError(p, "PromQL chart_config not supported",
+			"alerts cannot be attached to PromQL charts; use a builder config or raw SQL (configType = \"sql\")")
 	}
 }
 
