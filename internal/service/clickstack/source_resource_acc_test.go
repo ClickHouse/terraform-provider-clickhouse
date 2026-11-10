@@ -53,6 +53,71 @@ func TestAccSourceResource(t *testing.T) {
 	})
 }
 
+// TestAccSourceResource_Promql covers min_auto_granularity on a promql source:
+// set, removed (the PUT is a full replace, so omitting it clears it), set again,
+// then imported so the value round-trips through Read. It needs
+// ENABLE_PROMQL=true on the API. HyperDX doesn't check that the TimeSeries table
+// exists when saving.
+func TestAccSourceResource_Promql(t *testing.T) {
+	const res = "clickhouse_clickstack_source.test"
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSourcePromqlConfig("1 minute"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(res, "kind", "promql"),
+					resource.TestCheckResourceAttr(res, "from.table_name", "metrics_ts"),
+					resource.TestCheckResourceAttr(res, "min_auto_granularity", "1 minute"),
+				),
+			},
+			{
+				Config: testAccSourcePromqlConfig(""),
+				Check:  resource.TestCheckNoResourceAttr(res, "min_auto_granularity"),
+			},
+			{
+				Config: testAccSourcePromqlConfig("5 minute"),
+				Check:  resource.TestCheckResourceAttr(res, "min_auto_granularity", "5 minute"),
+			},
+			{
+				ResourceName:      res,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+// testAccSourcePromqlConfig leaves min_auto_granularity out when it is "".
+func testAccSourcePromqlConfig(minAutoGranularity string) string {
+	line := ""
+	if minAutoGranularity != "" {
+		line = fmt.Sprintf("min_auto_granularity = %q", minAutoGranularity)
+	}
+	return fmt.Sprintf(`
+resource "clickhouse_clickstack_connection" "test" {
+  name     = "tf-acc-promql-conn"
+  host     = "http://localhost:8123"
+  username = "default"
+}
+
+resource "clickhouse_clickstack_source" "test" {
+  name          = "tf-acc-promql"
+  kind          = "promql"
+  connection_id = clickhouse_clickstack_connection.test.id
+
+  from = {
+    database_name = "default"
+    table_name    = "metrics_ts"
+  }
+
+  timestamp_value_expression = "timestamp"
+  %s
+}
+`, line)
+}
+
 func testAccSourceResourceConfig(name, selectExpr string) string {
 	return fmt.Sprintf(`
 resource "clickhouse_clickstack_connection" "test" {

@@ -284,6 +284,17 @@ func TestServiceResource_Equals(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "ReplicaAwareRouting.HTTPEnabled changed",
+			a:    base,
+			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
+				src.ReplicaAwareRouting = ReplicaAwareRouting{
+					HTTPEnabled:   types.BoolValue(true),
+					NativeEnabled: types.BoolValue(false),
+				}.ObjectValue()
+			}).Get(),
+			want: false,
+		},
+		{
 			name: "SnapshotConfiguration.Enabled changed",
 			a:    base,
 			b: test.NewUpdater(base).Update(func(src *ServiceResourceModel) {
@@ -425,6 +436,7 @@ func getBaseModel() ServiceResourceModel {
 		EncryptionAssumedRoleIdentifier: types.String{},
 		BackupConfiguration:             BackupConfiguration{}.ObjectValue(),
 		SnapshotConfiguration:           SnapshotConfiguration{}.ObjectValue(),
+		ReplicaAwareRouting:             ReplicaAwareRouting{}.ObjectValue(),
 		Tags:                            types.MapNull(types.StringType),
 	}
 

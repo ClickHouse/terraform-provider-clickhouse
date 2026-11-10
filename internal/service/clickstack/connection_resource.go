@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -45,7 +46,7 @@ type connectionResourceModel struct {
 	Username             types.String `tfsdk:"username"`
 	Password             types.String `tfsdk:"password"`
 	HyperdxSettingPrefix types.String `tfsdk:"hyperdx_setting_prefix"`
-	PrometheusEndpoint   types.String `tfsdk:"prometheus_endpoint"`
+	IsPrometheusEndpoint types.Bool   `tfsdk:"is_prometheus_endpoint"`
 }
 
 func (r *connectionResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -55,7 +56,8 @@ func (r *connectionResource) Metadata(_ context.Context, req resource.MetadataRe
 func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a ClickHouse connection in ClickStack. Connections hold the " +
-			"credentials and endpoint used by sources to query ClickHouse. " +
+			"credentials and endpoint used by sources to query ClickHouse, or a Prometheus-compatible " +
+			"API for PromQL sources. " +
 			"**Note:** on ClickHouse Cloud the connections endpoint is not exposed, and each " +
 			"service has a single connection to itself that the platform creates; this resource " +
 			"is for self-hosted ClickStack. To point a source at the Cloud connection, read its " +
@@ -84,29 +86,37 @@ func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Description: "Display name for the connection.",
 			},
 			"host": schema.StringAttribute{
-				Required:    true,
-				Description: "ClickHouse HTTP endpoint URL, e.g. `https://clickhouse.example.com:8443`.",
+				Required: true,
+				Description: "ClickHouse HTTP endpoint URL, e.g. `https://clickhouse.example.com:8443`. When " +
+					"`is_prometheus_endpoint` is true, the Prometheus-compatible API URL instead, e.g. " +
+					"`http://prometheus:9090`; put any Basic auth credentials in the URL " +
+					"(`https://user:pass@prometheus.example.com`). This attribute is not sensitive, so " +
+					"credentials in it appear in plan output unless `host` comes from a sensitive variable.",
 			},
 			"username": schema.StringAttribute{
 				Required:    true,
-				Description: "ClickHouse username.",
+				Description: "ClickHouse username. Ignored when `is_prometheus_endpoint` is true; set it to `\"\"`.",
 			},
 			passwordAttr: schema.StringAttribute{
 				Optional:  true,
 				Sensitive: true,
 				Description: "ClickHouse password. The API never returns the password, so drift in " +
 					"this attribute cannot be detected. After import, the next apply re-sends the " +
-					"configured password.",
+					"configured password. Ignored when `is_prometheus_endpoint` is true.",
 			},
 			"hyperdx_setting_prefix": schema.StringAttribute{
 				Optional: true,
 				Description: "Prefix for HyperDX-specific ClickHouse settings. Must only contain " +
 					"alphanumeric characters and underscores.",
 			},
-			"prometheus_endpoint": schema.StringAttribute{
+			"is_prometheus_endpoint": schema.BoolAttribute{
 				Optional: true,
-				Description: "Prometheus-compatible API endpoint, e.g. `http://prometheus:9090`. " +
-					"When set, PromQL queries are proxied to this endpoint.",
+				Computed: true,
+				Default:  booldefault.StaticBool(false),
+				Description: "When true, `host` is a Prometheus-compatible API endpoint (e.g. Prometheus " +
+					"or Thanos) and PromQL sources on this connection proxy their queries to it. Such a " +
+					"connection serves only `promql` sources. Defaults to false, where `host` is a " +
+					"ClickHouse HTTP endpoint.",
 			},
 		},
 	}
@@ -148,7 +158,7 @@ func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequ
 		Username:             plan.Username.ValueString(),
 		Password:             plan.Password.ValueString(),
 		HyperdxSettingPrefix: plan.HyperdxSettingPrefix.ValueStringPointer(),
-		PrometheusEndpoint:   plan.PrometheusEndpoint.ValueStringPointer(),
+		IsPrometheusEndpoint: plan.IsPrometheusEndpoint.ValueBool(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Error Creating Connection", err.Error())
@@ -199,7 +209,7 @@ func (r *connectionResource) Update(ctx context.Context, req resource.UpdateRequ
 		Username: plan.Username.ValueString(),
 		// nil clears the value on the server; non-nil sets it.
 		HyperdxSettingPrefix: plan.HyperdxSettingPrefix.ValueStringPointer(),
-		PrometheusEndpoint:   plan.PrometheusEndpoint.ValueStringPointer(),
+		IsPrometheusEndpoint: plan.IsPrometheusEndpoint.ValueBool(),
 	}
 	// A nil password means "keep the existing password" server-side, which
 	// matches the write-only semantics of the attribute.
@@ -257,5 +267,5 @@ func (m *connectionResourceModel) applyConnection(conn *client.Connection) {
 	m.Host = types.StringValue(conn.Host)
 	m.Username = types.StringValue(conn.Username)
 	m.HyperdxSettingPrefix = types.StringPointerValue(conn.HyperdxSettingPrefix)
-	m.PrometheusEndpoint = types.StringPointerValue(conn.PrometheusEndpoint)
+	m.IsPrometheusEndpoint = types.BoolValue(conn.IsPrometheusEndpoint != nil && *conn.IsPrometheusEndpoint)
 }
