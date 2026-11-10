@@ -111,6 +111,10 @@ type Client interface {
 	ListMembers(ctx context.Context) ([]Member, error)
 	GetMember(ctx context.Context, userID string) (*Member, error)
 
+	ListMemberNotificationSettings(ctx context.Context, userID string) ([]NotificationSetting, error)
+	UpdateMemberNotificationSettings(ctx context.Context, userID string, rules []NotificationSettingRule) ([]NotificationSetting, error)
+	ListNotificationTypes(ctx context.Context) ([]NotificationType, error)
+
 	ListRoles(ctx context.Context) ([]RBACRole, error)
 	GetRole(ctx context.Context, roleId string) (*RBACRole, error)
 	CreateRole(ctx context.Context, req RoleCreateRequest) (*RBACRole, error)
