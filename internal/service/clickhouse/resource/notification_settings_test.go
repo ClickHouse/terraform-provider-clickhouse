@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
@@ -14,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 )
 
 // errNotFound is what the client returns for a 404, which api.IsNotFound matches
@@ -401,5 +403,147 @@ func TestNotificationSettingsRequestAcceptsTheMostSettingsOneRequestChanges(t *t
 	}
 	if addressed != api.NotificationSettingsMaxWrites {
 		t.Errorf("request addresses %d settings, want %d", addressed, api.NotificationSettingsMaxWrites)
+	}
+}
+
+func TestNotificationSettingsResourceMetadata(t *testing.T) {
+	resp := resource.MetadataResponse{}
+	NewNotificationSettingsResource().Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: "clickhouse"}, &resp)
+	if got, want := resp.TypeName, "clickhouse_notification_settings"; got != want {
+		t.Fatalf("type name = %q; want %q", got, want)
+	}
+}
+
+func TestNotificationSettingsResourceConfigure(t *testing.T) {
+	ctx := context.Background()
+
+	// Terraform configures resources before the provider has produced its data,
+	// so an absent one is the first of two calls, not a failure.
+	t.Run("absent provider data is accepted", func(t *testing.T) {
+		r := NewNotificationSettingsResource().(*NotificationSettingsResource)
+		resp := resource.ConfigureResponse{}
+		r.Configure(ctx, resource.ConfigureRequest{}, &resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Configure: %v", resp.Diagnostics.Errors())
+		}
+		if r.client != nil {
+			t.Errorf("client = %v, want it left unset", r.client)
+		}
+	})
+
+	t.Run("unexpected provider data is rejected", func(t *testing.T) {
+		r := NewNotificationSettingsResource().(*NotificationSettingsResource)
+		resp := resource.ConfigureResponse{}
+		r.Configure(ctx, resource.ConfigureRequest{ProviderData: "not provider data"}, &resp)
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("Configure accepted provider data of the wrong type")
+		}
+		if got := resp.Diagnostics.Errors()[0].Summary(); got != "Unexpected provider data" {
+			t.Errorf("summary = %q, want Unexpected provider data", got)
+		}
+	})
+
+	t.Run("missing API credentials are rejected", func(t *testing.T) {
+		r := NewNotificationSettingsResource().(*NotificationSettingsResource)
+		resp := resource.ConfigureResponse{}
+		r.Configure(ctx, resource.ConfigureRequest{ProviderData: &service.ProviderData{}}, &resp)
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("Configure accepted a provider with no ClickHouse Cloud API")
+		}
+		if got := resp.Diagnostics.Errors()[0].Summary(); got != "ClickHouse Cloud API not configured" {
+			t.Errorf("summary = %q, want ClickHouse Cloud API not configured", got)
+		}
+	})
+
+	t.Run("a configured API is kept", func(t *testing.T) {
+		r := NewNotificationSettingsResource().(*NotificationSettingsResource)
+		client := api.NewClientMock(minimock.NewController(t))
+		resp := resource.ConfigureResponse{}
+		r.Configure(ctx, resource.ConfigureRequest{ProviderData: &service.ProviderData{API: client}}, &resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Configure: %v", resp.Diagnostics.Errors())
+		}
+		if r.client != client {
+			t.Errorf("client = %v, want the API from the provider data", r.client)
+		}
+	})
+}
+
+// Only a missing member lets a read drop the resource. Any other failure is
+// surfaced, because dropping state there would make the next apply rewrite
+// settings that already exist.
+func TestNotificationSettingsReadReportsAFailedList(t *testing.T) {
+	ctx := context.Background()
+
+	client := api.NewClientMock(minimock.NewController(t)).
+		ListMemberNotificationSettingsMock.
+		Return(nil, errors.New("status: 503, body: service unavailable"))
+
+	r := &NotificationSettingsResource{client: client}
+	resourceSchema := notificationSettingsSchema(t)
+
+	priorState := tfsdk.State{Schema: resourceSchema}
+	if diags := priorState.Set(ctx, NotificationSettingsModel{
+		ID:       types.StringValue("user-1"),
+		UserID:   types.StringValue("user-1"),
+		Channels: strSetValue("email"),
+		Rules: notificationRulesValue(t,
+			notificationRuleValue(t, api.NotificationEffectEnabled, []string{"service_backup_failed"}, []string{"svc-1"}),
+		),
+	}); diags.HasError() {
+		t.Fatalf("seeding state: %v", diags.Errors())
+	}
+
+	resp := &resource.ReadResponse{State: tfsdk.State{Schema: resourceSchema, Raw: priorState.Raw}}
+	r.Read(ctx, resource.ReadRequest{State: priorState}, resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("Read hid the failure instead of reporting it")
+	}
+	if got := resp.Diagnostics.Errors()[0].Summary(); got != "Error reading notification settings" {
+		t.Errorf("summary = %q, want Error reading notification settings", got)
+	}
+	if got := resp.Diagnostics.Errors()[0].Detail(); !strings.Contains(got, "service unavailable") {
+		t.Errorf("detail = %q, want it to carry what the API said", got)
+	}
+	if resp.State.Raw.IsNull() {
+		t.Error("state was removed, want it kept so the settings are not rewritten")
+	}
+}
+
+// A rejected write fails the apply: the member being gone is the only error a
+// write forgives, and only while tearing the resource down.
+func TestNotificationSettingsCreateReportsARejectedWrite(t *testing.T) {
+	ctx := context.Background()
+
+	client := api.NewClientMock(minimock.NewController(t)).
+		UpdateMemberNotificationSettingsMock.
+		Return(nil, errors.New("status: 400, body: notification type is not configurable"))
+
+	r := &NotificationSettingsResource{client: client}
+	resourceSchema := notificationSettingsSchema(t)
+
+	plan := tfsdk.Plan{Schema: resourceSchema}
+	if diags := plan.Set(ctx, NotificationSettingsModel{
+		UserID:   types.StringValue("user-1"),
+		Channels: strSetValue("email"),
+		Rules: notificationRulesValue(t,
+			notificationRuleValue(t, api.NotificationEffectDisabled, []string{"service_backup_failed"}, []string{"svc-1"}),
+		),
+	}); diags.HasError() {
+		t.Fatalf("seeding the plan: %v", diags.Errors())
+	}
+
+	resp := &resource.CreateResponse{State: tfsdk.State{Schema: resourceSchema}}
+	r.Create(ctx, resource.CreateRequest{Plan: plan}, resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("Create reported success for a write the API rejected")
+	}
+	if got := resp.Diagnostics.Errors()[0].Summary(); got != "Error updating notification settings" {
+		t.Errorf("summary = %q, want Error updating notification settings", got)
+	}
+	if got := resp.Diagnostics.Errors()[0].Detail(); !strings.Contains(got, "not configurable") {
+		t.Errorf("detail = %q, want it to carry what the API said", got)
 	}
 }
