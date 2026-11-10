@@ -75,6 +75,10 @@ lint: ensure-golangci-lint ## Run go vet and golangci-lint
 sec: ensure-golangci-lint ## Run only the gosec security linter (honors .golangci.yml exclusions)
 	$(GOLANGCILINT) run --enable-only gosec ./...
 
+.PHONY: vulncheck
+vulncheck: ## Report known vulnerabilities in code paths the provider actually calls
+	go tool govulncheck ./...
+
 .PHONY: testacc
 testacc: ## Run acceptance tests (creates real resources)
 	TF_ACC=1 go test ./... -v -timeout=120m
@@ -90,6 +94,16 @@ cover: cover-profile ## Enforce coverage thresholds from .testcoverage.yml
 .PHONY: cover-html
 cover-html: cover-profile ## Open an HTML coverage report
 	go tool cover -html=cover.out -o=cover.html
+
+MUTATION_DIFF ?= origin/main
+.PHONY: mutation
+mutation: ## Mutation test code changed since MUTATION_DIFF (empty = whole module, takes hours)
+	@# gremlins treats an empty diff as "everything changed", so skip when there are no Go changes.
+	@if [ -n "$(MUTATION_DIFF)" ] && git diff --quiet --merge-base $(MUTATION_DIFF) -- '*.go'; then \
+		echo "No Go changes since $(MUTATION_DIFF), skipping mutation testing"; \
+	else \
+		go tool gremlins unleash --diff=$(MUTATION_DIFF); \
+	fi
 
 .PHONY: docs-check
 docs-check: docs ## Fail if generated docs are stale (mirrors docs.yaml)

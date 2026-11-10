@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -13,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -27,6 +30,9 @@ var (
 	_ resource.ResourceWithConfigure   = (*sourceResource)(nil)
 	_ resource.ResourceWithImportState = (*sourceResource)(nil)
 )
+
+// minAutoGranularityRegexp matches HyperDX's SQLIntervalSchema.
+var minAutoGranularityRegexp = regexp.MustCompile(`^\d+ (second|minute|hour|day)$`)
 
 // NewSourceResource is a helper to register the resource with the provider.
 func NewSourceResource() resource.Resource {
@@ -87,9 +93,10 @@ type metadataMVModel struct {
 }
 
 type filterSettingColumnModel struct {
-	Name     types.String `tfsdk:"name"`
-	Label    types.String `tfsdk:"label"`
-	AllowAll types.Bool   `tfsdk:"allow_all"`
+	Name            types.String `tfsdk:"name"`
+	Label           types.String `tfsdk:"label"`
+	ValueExpression types.String `tfsdk:"value_expression"`
+	AllowAll        types.Bool   `tfsdk:"allow_all"`
 }
 
 type filterSettingsModel struct {
@@ -143,7 +150,8 @@ type sourceResourceModel struct {
 	StatusMessageExpression   types.String `tfsdk:"status_message_expression"`
 	SpanEventsValueExpression types.String `tfsdk:"span_events_value_expression"`
 
-	MetricTables *metricTablesModel `tfsdk:"metric_tables"`
+	MetricTables       *metricTablesModel `tfsdk:"metric_tables"`
+	MinAutoGranularity types.String       `tfsdk:"min_auto_granularity"`
 
 	HighlightedTraceAttributeExpressions []highlightedAttrModel  `tfsdk:"highlighted_trace_attribute_expressions"`
 	HighlightedRowAttributeExpressions   []highlightedAttrModel  `tfsdk:"highlighted_row_attribute_expressions"`
@@ -168,7 +176,13 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"connection to a table and describes how to read one kind of data (log, trace, metric, " +
 			"session, or promql). The set of applicable fields depends on `kind`; the API validates " +
 			"per-kind requirements and returns an error at apply time if a required field for the " +
-			"chosen kind is missing.",
+			"chosen kind is missing.\n\n" +
+			"PromQL sources (`kind = \"promql\"`) are a preview feature and must be enabled on the " +
+			"ClickStack deployment (`ENABLE_PROMQL=true`); otherwise create and update fail with " +
+			"\"PromQL is not enabled on this deployment\". They use only `name`, `kind`, " +
+			"`connection_id`, `from`, `timestamp_value_expression`, `section`, `disabled`, " +
+			"`query_settings` and `min_auto_granularity`. The API drops any other attribute for this " +
+			"kind, which fails apply with an inconsistent-result error.",
 		Attributes: map[string]schema.Attribute{
 			idAttr: schema.StringAttribute{
 				Computed:      true,
@@ -191,27 +205,31 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Description: "Source kind: one of `log`, `trace`, `metric`, `session`, `promql`.",
 			},
 			"connection_id": schema.StringAttribute{
-				Required:    true,
-				Description: "ID of the ClickHouse connection used by this source.",
+				Required: true,
+				Description: "ID of the ClickHouse connection used by this source. For `promql`, this can " +
+					"also be a Prometheus-endpoint connection (`is_prometheus_endpoint = true`).",
 			},
 			"from": schema.SingleNestedAttribute{
 				Required:    true,
 				Description: "Database and table location of the source data.",
 				Attributes: map[string]schema.Attribute{
 					"database_name": schema.StringAttribute{
-						Required:    true,
-						Description: "ClickHouse database name.",
+						Required: true,
+						Description: "ClickHouse database name. Unused for `promql` on a Prometheus-endpoint " +
+							"connection, but must still be non-empty.",
 					},
 					"table_name": schema.StringAttribute{
 						Optional: true,
 						Description: "ClickHouse table name. Required for all kinds except `metric` " +
-							"(which locates tables via `metric_tables`).",
+							"(which locates tables via `metric_tables`). For `promql`, the TimeSeries table; " +
+							"unused on a Prometheus-endpoint connection, but must still be non-empty (e.g. `default`).",
 					},
 				},
 			},
 			"timestamp_value_expression": schema.StringAttribute{
-				Required:    true,
-				Description: "DateTime column or expression that is part of the table's primary key.",
+				Required: true,
+				Description: "DateTime column or expression that is part of the table's primary key. " +
+					"Required by the API but unused for `promql`, where any value works (e.g. `timestamp`).",
 			},
 			"section": optStr("Optional grouping label used to organize sources in the source selector."),
 			"disabled": schema.BoolAttribute{
@@ -232,8 +250,10 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 						Description: "Columns that must be filtered on every query against this source.",
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
-								"name":  schema.StringAttribute{Required: true, Description: "Column name to filter on."},
+								"name":  schema.StringAttribute{Required: true, Description: "Column of the source table that selected filter values are matched against."},
 								"label": optStr("Optional display label for the filter in the UI."),
+								"value_expression": optStr("SQL expression evaluated against the filter-values table (`database_name`.`table_name`) " +
+									"to produce this filter's options. Defaults to reading `name` from that table as a plain column."),
 								"allow_all": schema.BoolAttribute{
 									Optional: true,
 									Computed: true,
@@ -301,6 +321,18 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 					"sum":                   optStr("Table containing sum metrics data."),
 					"summary":               optStr("Table containing summary metrics data."),
 					"exponential_histogram": optStr("Table containing exponential histogram metrics data."),
+				},
+			},
+			"min_auto_granularity": schema.StringAttribute{
+				Optional: true,
+				Description: "Floor for \"auto\" chart granularity, so short time ranges don't pick buckets " +
+					"smaller than the scrape interval. Long form such as `1 minute` or `30 second`, not `1m` " +
+					"(unlike `materialized_views.min_granularity`). Granularities set explicitly on a tile are " +
+					"never overridden. PromQL sources also use it as the scrape interval for " +
+					"`$__rate_interval`. Applies to `metric` and `promql` only.",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(minAutoGranularityRegexp,
+						"must be a whole number, a space, then second, minute, hour or day, e.g. `1 minute`"),
 				},
 			},
 
@@ -577,6 +609,7 @@ func (m *sourceResourceModel) toClient() client.Source {
 			ExponentialHistogram: optStringPtr(m.MetricTables.ExponentialHistogram),
 		}
 	}
+	src.MinAutoGranularity = optStringPtr(m.MinAutoGranularity)
 
 	src.HighlightedTraceAttributeExpressions = toClientHighlighted(m.HighlightedTraceAttributeExpressions)
 	src.HighlightedRowAttributeExpressions = toClientHighlighted(m.HighlightedRowAttributeExpressions)
@@ -615,8 +648,9 @@ func (m *sourceResourceModel) toClient() client.Source {
 		}
 		for _, c := range m.FilterSettings.Columns {
 			col := client.FilterSettingColumn{
-				Name:  c.Name.ValueString(),
-				Label: optStringPtr(c.Label),
+				Name:            c.Name.ValueString(),
+				Label:           optStringPtr(c.Label),
+				ValueExpression: optStringPtr(c.ValueExpression),
 			}
 			// allow_all is Optional+Computed: omit it when unknown (Create) so the
 			// server applies its default rather than receiving a spurious false.
@@ -726,6 +760,7 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 	} else {
 		m.MetricTables = nil
 	}
+	m.MinAutoGranularity = keepUnset(m.MinAutoGranularity, src.MinAutoGranularity)
 
 	m.HighlightedTraceAttributeExpressions = fromClientHighlighted(m.HighlightedTraceAttributeExpressions, src.HighlightedTraceAttributeExpressions)
 	m.HighlightedRowAttributeExpressions = fromClientHighlighted(m.HighlightedRowAttributeExpressions, src.HighlightedRowAttributeExpressions)
@@ -784,9 +819,11 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 		for _, c := range src.FilterSettings.Columns {
 			fsm.Columns = append(fsm.Columns, filterSettingColumnModel{
 				Name: types.StringValue(c.Name),
-				// label is never echoed as "" (it is omitted when unset), so unlike
-				// the expression fields it needs no keepUnset: a nil pointer is null.
-				Label: types.StringPointerValue(c.Label),
+				// label and valueExpression are never echoed as "" (the API omits them
+				// when unset), so unlike the expression fields they need no keepUnset:
+				// a nil pointer is null.
+				Label:           types.StringPointerValue(c.Label),
+				ValueExpression: types.StringPointerValue(c.ValueExpression),
 				// The API omits allowAll when false; treat absent as an explicit false
 				// so an Optional+Computed value is always known after apply.
 				AllowAll: types.BoolValue(c.AllowAll != nil && *c.AllowAll),

@@ -45,12 +45,23 @@ func IsBadRequestWith(err error, needle string) bool {
 // A 424 for a stopped service does NOT match: stopping is an explicit user
 // action the provider must not override by waking the service.
 func IsServiceIdle(err error) bool {
+	return isServiceStateDependencyError(err, StateIdle)
+}
+
+// IsServiceAwaking returns true when err is the 424 FAILED_DEPENDENCY the
+// ClickPipes API returns because the target ClickHouse service is already
+// waking up, e.g. after another concurrent request woke it.
+func IsServiceAwaking(err error) bool {
+	return isServiceStateDependencyError(err, StateAwaking)
+}
+
+func isServiceStateDependencyError(err error, state string) bool {
 	if err == nil {
 		return false
 	}
 
 	msg := err.Error()
-	return strings.HasPrefix(msg, "status: 424") && strings.Contains(msg, "Current state: idle")
+	return strings.HasPrefix(msg, "status: 424") && strings.Contains(msg, "Current state: "+state)
 }
 
 func is5xx(err error) bool {
