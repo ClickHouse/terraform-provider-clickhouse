@@ -1,0 +1,12 @@
+# fill in your ClickHouse Cloud and Confluent Cloud credentials
+organization_id = ""
+token_key       = ""
+token_secret    = ""
+service_id      = ""
+
+confluent_cloud_api_key    = ""
+confluent_cloud_api_secret = ""
+
+region                    = "us-east-1"
+zones                     = ["use1-az1", "use1-az2", "use1-az4"]
+clickpipes_aws_account_id = "072088201116"
