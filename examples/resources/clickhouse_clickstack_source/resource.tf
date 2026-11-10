@@ -64,10 +64,51 @@ resource "clickhouse_clickstack_source" "metrics" {
 
   timestamp_value_expression     = "TimeUnix"
   resource_attributes_expression = "ResourceAttributes"
+  min_auto_granularity           = "1 minute"
 
   metric_tables = {
     gauge     = "otel_metrics_gauge"
     sum       = "otel_metrics_sum"
     histogram = "otel_metrics_histogram"
   }
+}
+
+# A PromQL source reading a ClickHouse TimeSeries table. PromQL is a preview
+# feature and must be enabled on the ClickStack deployment.
+resource "clickhouse_clickstack_source" "promql" {
+  name          = "PromQL"
+  kind          = "promql"
+  connection_id = clickhouse_clickstack_connection.main.id
+
+  from = {
+    database_name = "default"
+    table_name    = "metrics_ts"
+  }
+
+  # Required by the API but unused for promql.
+  timestamp_value_expression = "timestamp"
+
+  min_auto_granularity       = "1 minute"
+}
+
+# A PromQL source querying a Prometheus server. from is unused here, but the
+# API requires non-empty values.
+resource "clickhouse_clickstack_connection" "prometheus" {
+  name                   = "Prometheus"
+  host                   = "http://prometheus:9090"
+  username               = ""
+  is_prometheus_endpoint = true
+}
+
+resource "clickhouse_clickstack_source" "prometheus" {
+  name          = "Prometheus"
+  kind          = "promql"
+  connection_id = clickhouse_clickstack_connection.prometheus.id
+
+  from = {
+    database_name = "default"
+    table_name    = "default"
+  }
+
+  timestamp_value_expression = "timestamp"
 }
