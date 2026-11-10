@@ -140,6 +140,11 @@ type Source struct {
 
 	MetricTables *MetricTables `json:"metricTables,omitempty"`
 
+	// MinAutoGranularity floors "auto" chart granularity for metric and promql
+	// sources, in the long form "1 minute". Unlike MaterializedView's
+	// MinGranularity, the API does not map short forms like "1m".
+	MinAutoGranularity *string `json:"minAutoGranularity,omitempty"`
+
 	HighlightedTraceAttributeExpressions []HighlightedAttributeExpression `json:"highlightedTraceAttributeExpressions,omitempty"`
 	HighlightedRowAttributeExpressions   []HighlightedAttributeExpression `json:"highlightedRowAttributeExpressions,omitempty"`
 	MaterializedViews                    []MaterializedView               `json:"materializedViews,omitempty"`

@@ -62,7 +62,9 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"dashboard body: name, tiles, tags, filters, savedQuery, containers). The JSON is " +
 			"validated at plan time against the ClickStack API when the validate endpoint is " +
 			"available. Export an existing dashboard with `GET /api/v2/dashboards/{id}` or " +
-			"`terraform import`. PromQL tiles are not supported by the API and cannot be managed here. " +
+			"`terraform import`. PromQL tiles (`configType = \"promql\"`) and `PROMETHEUS_LABEL` filters " +
+			"are supported; both must reference a source of kind `promql`, a preview feature that must be " +
+			"enabled on the ClickStack deployment. Alerts cannot be attached to PromQL tiles. " +
 			"The `dashboard_json` configuration is the sole source of truth: this resource does not " +
 			"detect changes made to the dashboard outside Terraform (e.g. edits in the UI). Such " +
 			"out-of-band changes are not reported as drift on `terraform plan`; they persist until the " +
