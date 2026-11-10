@@ -91,7 +91,7 @@ func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					"`is_prometheus_endpoint` is true, the Prometheus-compatible API URL instead, e.g. " +
 					"`http://prometheus:9090`; put any Basic auth credentials in the URL " +
 					"(`https://user:pass@prometheus.example.com`). This attribute is not sensitive, so " +
-					"credentials in it appear in plan output.",
+					"credentials in it appear in plan output unless `host` comes from a sensitive variable.",
 			},
 			"username": schema.StringAttribute{
 				Required:    true,
