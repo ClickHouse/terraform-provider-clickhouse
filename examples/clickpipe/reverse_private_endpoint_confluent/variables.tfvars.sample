@@ -1,11 +1,11 @@
-# these keys are for example only and won't work when pointed to a deployed ClickHouse OpenAPI server
-organization_id = "aee076c1-3f83-4637-95b1-ad5a0a825b71"
-token_key       = "avhj1U5QCdWAE9CA9"
-token_secret    = "4b1dROiHQEuSXJHlV8zHFd0S7WQj7CGxz5kGJeJnca"
-service_id      = "aee076c1-3f83-4637-95b1-ad5a0a825b71"
+# fill in your ClickHouse Cloud and Confluent Cloud credentials
+organization_id = ""
+token_key       = ""
+token_secret    = ""
+service_id      = ""
 
-confluent_cloud_api_key    = "CONFLUENTKEY"
-confluent_cloud_api_secret = "confluent-secret"
+confluent_cloud_api_key    = ""
+confluent_cloud_api_secret = ""
 
 region                    = "us-east-1"
 zones                     = ["use1-az1", "use1-az2", "use1-az4"]
