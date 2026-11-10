@@ -77,7 +77,7 @@ resource "clickhouse_clickstack_source" "logs" {
 
 ### Required
 
-- `host` (String) ClickHouse HTTP endpoint URL, e.g. `https://clickhouse.example.com:8443`. When `is_prometheus_endpoint` is true, the Prometheus-compatible API URL instead, e.g. `http://prometheus:9090`; put any Basic auth credentials in the URL (`https://user:pass@prometheus.example.com`). This attribute is not sensitive, so credentials in it appear in plan output.
+- `host` (String) ClickHouse HTTP endpoint URL, e.g. `https://clickhouse.example.com:8443`. When `is_prometheus_endpoint` is true, the Prometheus-compatible API URL instead, e.g. `http://prometheus:9090`; put any Basic auth credentials in the URL (`https://user:pass@prometheus.example.com`). This attribute is not sensitive, so credentials in it appear in plan output unless `host` comes from a sensitive variable.
 - `name` (String) Display name for the connection.
 - `username` (String) ClickHouse username. Ignored when `is_prometheus_endpoint` is true; set it to `""`.
 
