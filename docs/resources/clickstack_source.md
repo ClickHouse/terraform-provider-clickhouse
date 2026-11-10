@@ -4,11 +4,14 @@ page_title: "clickhouse_clickstack_source Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
   Manages a ClickStack source (v2 sources API). A source ties a ClickHouse connection to a table and describes how to read one kind of data (log, trace, metric, session, or promql). The set of applicable fields depends on kind; the API validates per-kind requirements and returns an error at apply time if a required field for the chosen kind is missing.
+  PromQL sources (kind = "promql") are a preview feature and must be enabled on the ClickStack deployment (ENABLE_PROMQL=true); otherwise create and update fail with "PromQL is not enabled on this deployment". They use only name, kind, connection_id, from, timestamp_value_expression, section, disabled, query_settings and min_auto_granularity. The API drops any other attribute for this kind, which fails apply with an inconsistent-result error.
 ---
 
 # clickhouse_clickstack_source (Resource)
 
 Manages a ClickStack source (v2 sources API). A source ties a ClickHouse connection to a table and describes how to read one kind of data (log, trace, metric, session, or promql). The set of applicable fields depends on `kind`; the API validates per-kind requirements and returns an error at apply time if a required field for the chosen kind is missing.
+
+PromQL sources (`kind = "promql"`) are a preview feature and must be enabled on the ClickStack deployment (`ENABLE_PROMQL=true`); otherwise create and update fail with "PromQL is not enabled on this deployment". They use only `name`, `kind`, `connection_id`, `from`, `timestamp_value_expression`, `section`, `disabled`, `query_settings` and `min_auto_granularity`. The API drops any other attribute for this kind, which fails apply with an inconsistent-result error.
 
 ## Example Usage
 
@@ -79,12 +82,53 @@ resource "clickhouse_clickstack_source" "metrics" {
 
   timestamp_value_expression     = "TimeUnix"
   resource_attributes_expression = "ResourceAttributes"
+  min_auto_granularity           = "1 minute"
 
   metric_tables = {
     gauge     = "otel_metrics_gauge"
     sum       = "otel_metrics_sum"
     histogram = "otel_metrics_histogram"
   }
+}
+
+# A PromQL source reading a ClickHouse TimeSeries table. PromQL is a preview
+# feature and must be enabled on the ClickStack deployment.
+resource "clickhouse_clickstack_source" "promql" {
+  name          = "PromQL"
+  kind          = "promql"
+  connection_id = clickhouse_clickstack_connection.main.id
+
+  from = {
+    database_name = "default"
+    table_name    = "metrics_ts"
+  }
+
+  # Required by the API but unused for promql.
+  timestamp_value_expression = "timestamp"
+
+  min_auto_granularity       = "1 minute"
+}
+
+# A PromQL source querying a Prometheus server. from is unused here, but the
+# API requires non-empty values.
+resource "clickhouse_clickstack_connection" "prometheus" {
+  name                   = "Prometheus"
+  host                   = "http://prometheus:9090"
+  username               = ""
+  is_prometheus_endpoint = true
+}
+
+resource "clickhouse_clickstack_source" "prometheus" {
+  name          = "Prometheus"
+  kind          = "promql"
+  connection_id = clickhouse_clickstack_connection.prometheus.id
+
+  from = {
+    database_name = "default"
+    table_name    = "default"
+  }
+
+  timestamp_value_expression = "timestamp"
 }
 ```
 
@@ -93,11 +137,11 @@ resource "clickhouse_clickstack_source" "metrics" {
 
 ### Required
 
-- `connection_id` (String) ID of the ClickHouse connection used by this source.
+- `connection_id` (String) ID of the ClickHouse connection used by this source. For `promql`, this can also be a Prometheus-endpoint connection (`is_prometheus_endpoint = true`).
 - `from` (Attributes) Database and table location of the source data. (see [below for nested schema](#nestedatt--from))
 - `kind` (String) Source kind: one of `log`, `trace`, `metric`, `session`, `promql`.
 - `name` (String) Display name for the source.
-- `timestamp_value_expression` (String) DateTime column or expression that is part of the table's primary key.
+- `timestamp_value_expression` (String) DateTime column or expression that is part of the table's primary key. Required by the API but unused for `promql`, where any value works (e.g. `timestamp`).
 
 ### Optional
 
@@ -118,6 +162,7 @@ resource "clickhouse_clickstack_source" "metrics" {
 - `metadata_materialized_views` (Attributes) Materialized views for fast field discovery and value autocomplete (log, trace). (see [below for nested schema](#nestedatt--metadata_materialized_views))
 - `metric_source_id` (String) Correlated metric source ID.
 - `metric_tables` (Attributes) Mapping of metric data types to table names (metric). At least one must be set. (see [below for nested schema](#nestedatt--metric_tables))
+- `min_auto_granularity` (String) Floor for "auto" chart granularity, so short time ranges don't pick buckets smaller than the scrape interval. Long form such as `1 minute` or `30 second`, not `1m` (unlike `materialized_views.min_granularity`). Granularities set explicitly on a tile are never overridden. PromQL sources also use it as the scrape interval for `$__rate_interval`. Applies to `metric` and `promql` only.
 - `order_by_expression` (String) Expression used to order rows.
 - `parent_span_id_expression` (String) Expression to extract the parent span ID. Required for `trace`.
 - `query_settings` (Attributes List) Optional ClickHouse query settings applied when querying this source. (see [below for nested schema](#nestedatt--query_settings))
@@ -147,11 +192,11 @@ resource "clickhouse_clickstack_source" "metrics" {
 
 Required:
 
-- `database_name` (String) ClickHouse database name.
+- `database_name` (String) ClickHouse database name. Unused for `promql` on a Prometheus-endpoint connection, but must still be non-empty.
 
 Optional:
 
-- `table_name` (String) ClickHouse table name. Required for all kinds except `metric` (which locates tables via `metric_tables`).
+- `table_name` (String) ClickHouse table name. Required for all kinds except `metric` (which locates tables via `metric_tables`). For `promql`, the TimeSeries table; unused on a Prometheus-endpoint connection, but must still be non-empty (e.g. `default`).
 
 
 <a id="nestedatt--filter_settings"></a>
