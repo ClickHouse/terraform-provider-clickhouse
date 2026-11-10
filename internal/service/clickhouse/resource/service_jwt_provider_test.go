@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
 
@@ -117,6 +118,56 @@ func TestServiceJWTProviderResourceMetadata(t *testing.T) {
 	if got, want := resp.TypeName, "clickhouse_service_jwt_provider"; got != want {
 		t.Fatalf("type name = %q; want %q", got, want)
 	}
+}
+
+func TestServiceJWTProviderResourceConfigure(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("nil provider data is accepted", func(t *testing.T) {
+		r := NewServiceJWTProviderResource().(*ServiceJWTProviderResource)
+		resp := resource.ConfigureResponse{}
+		r.Configure(ctx, resource.ConfigureRequest{}, &resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Configure diagnostics: %v", resp.Diagnostics)
+		}
+	})
+
+	t.Run("unexpected provider data is rejected", func(t *testing.T) {
+		r := NewServiceJWTProviderResource().(*ServiceJWTProviderResource)
+		resp := resource.ConfigureResponse{}
+		r.Configure(ctx, resource.ConfigureRequest{ProviderData: "not provider data"}, &resp)
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("Configure should reject unexpected provider data")
+		}
+		if got := resp.Diagnostics.Errors()[0].Summary(); got != "Unexpected provider data" {
+			t.Errorf("diagnostic summary = %q", got)
+		}
+	})
+
+	t.Run("missing API is rejected", func(t *testing.T) {
+		r := NewServiceJWTProviderResource().(*ServiceJWTProviderResource)
+		resp := resource.ConfigureResponse{}
+		r.Configure(ctx, resource.ConfigureRequest{ProviderData: &service.ProviderData{}}, &resp)
+		if !resp.Diagnostics.HasError() {
+			t.Fatal("Configure should reject missing API")
+		}
+		if got := resp.Diagnostics.Errors()[0].Summary(); got != "ClickHouse Cloud API not configured" {
+			t.Errorf("diagnostic summary = %q", got)
+		}
+	})
+
+	t.Run("stores configured API", func(t *testing.T) {
+		r := NewServiceJWTProviderResource().(*ServiceJWTProviderResource)
+		client := api.NewClientMock(minimock.NewController(t))
+		resp := resource.ConfigureResponse{}
+		r.Configure(ctx, resource.ConfigureRequest{ProviderData: &service.ProviderData{API: client}}, &resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("Configure diagnostics: %v", resp.Diagnostics)
+		}
+		if r.client != client {
+			t.Fatal("Configure did not store the configured API")
+		}
+	})
 }
 
 func TestServiceJWTProviderResourceSchema(t *testing.T) {
