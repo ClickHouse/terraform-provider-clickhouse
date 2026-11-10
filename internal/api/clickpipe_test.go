@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -196,6 +197,10 @@ func TestCreateClickPipe_WakeFails_ReturnsError(t *testing.T) {
 		case r.Method == http.MethodPatch && r.URL.Path == testServiceStatePath:
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 
+		case r.Method == http.MethodGet && r.URL.Path == testServiceInstancePath:
+			// The service is still idle, so nobody else woke it up.
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: testServiceID, State: StateIdle}})
+
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -208,6 +213,176 @@ func TestCreateClickPipe_WakeFails_ReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "waking it up failed") {
 		t.Errorf("error = %v; want wake failure to be surfaced", err)
+	}
+}
+
+func TestCreateClickPipe_ContinuesWhenAnotherWakeWon(t *testing.T) {
+	var createCalls, wakeCalls, stateGetCalls int
+
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == testClickPipesPath:
+			createCalls++
+			if wakeCalls == 0 {
+				w.WriteHeader(http.StatusFailedDependency)
+				fmt.Fprintf(w, idle424BodyFormat, StateIdle)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[ClickPipe]{Result: ClickPipe{ID: "pipe-1", Name: "my-pipe", State: ClickPipeProvisioningState}})
+
+		case r.Method == http.MethodPatch && r.URL.Path == testServiceStatePath:
+			wakeCalls++
+			// Another pipe for the same service already woke it up, so this
+			// request's own wake attempt loses the race.
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"requestId":"x","error":"BAD_REQUEST: Service must be in idle state to awake","status":400}`))
+
+		case r.Method == http.MethodGet && r.URL.Path == testServiceInstancePath:
+			stateGetCalls++
+			state := StateRunning
+			if stateGetCalls == 1 {
+				state = StateAwaking
+			}
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: testServiceID, State: state}})
+
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	pipe, err := client.CreateClickPipe(context.Background(), testServiceID, ClickPipe{Name: "my-pipe"})
+	if err != nil {
+		t.Fatalf("CreateClickPipe: %v", err)
+	}
+	if pipe.ID != "pipe-1" {
+		t.Errorf("pipe ID = %q; want pipe-1", pipe.ID)
+	}
+	if createCalls != 2 {
+		t.Errorf("create calls = %d; want 2", createCalls)
+	}
+	if wakeCalls != 1 {
+		t.Errorf("wake calls = %d; want 1", wakeCalls)
+	}
+	if stateGetCalls < 2 {
+		t.Errorf("service state polls = %d; want at least 2 (race check + wait)", stateGetCalls)
+	}
+}
+
+func TestCreateClickPipe_WaitsForAwakingServiceAndRetries(t *testing.T) {
+	var createCalls, stateGetCalls int
+
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == testClickPipesPath:
+			createCalls++
+			if createCalls == 1 {
+				w.WriteHeader(http.StatusFailedDependency)
+				fmt.Fprintf(w, idle424BodyFormat, StateAwaking)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[ClickPipe]{Result: ClickPipe{ID: "pipe-1", Name: "my-pipe", State: ClickPipeProvisioningState}})
+
+		case r.Method == http.MethodGet && r.URL.Path == testServiceInstancePath:
+			stateGetCalls++
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: testServiceID, State: StateRunning}})
+
+		case r.Method == http.MethodPatch && r.URL.Path == testServiceStatePath:
+			t.Error("already-awaking service must not receive another awake command")
+			w.WriteHeader(http.StatusInternalServerError)
+
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	pipe, err := client.CreateClickPipe(context.Background(), testServiceID, ClickPipe{Name: "my-pipe"})
+	if err != nil {
+		t.Fatalf("CreateClickPipe: %v", err)
+	}
+	if pipe.ID != "pipe-1" {
+		t.Errorf("pipe ID = %q; want pipe-1", pipe.ID)
+	}
+	if createCalls != 2 {
+		t.Errorf("create calls = %d; want 2", createCalls)
+	}
+	if stateGetCalls < 1 {
+		t.Errorf("service state polls = %d; want at least 1", stateGetCalls)
+	}
+}
+
+func TestCreateClickPipe_ConcurrentCreatesOnIdleService(t *testing.T) {
+	const pipeCount = 3
+
+	var (
+		mu           sync.Mutex
+		serviceState = StateIdle
+		wakeCalls    int
+	)
+
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		mu.Lock()
+		defer mu.Unlock()
+
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == testClickPipesPath:
+			if serviceState != StateRunning {
+				w.WriteHeader(http.StatusFailedDependency)
+				fmt.Fprintf(w, idle424BodyFormat, serviceState)
+				return
+			}
+			var gotPipe ClickPipe
+			_ = json.NewDecoder(r.Body).Decode(&gotPipe)
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[ClickPipe]{Result: ClickPipe{ID: gotPipe.Name, Name: gotPipe.Name, State: ClickPipeProvisioningState}})
+
+		case r.Method == http.MethodPatch && r.URL.Path == testServiceStatePath:
+			wakeCalls++
+			if serviceState != StateIdle {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"requestId":"x","error":"BAD_REQUEST: Service must be in idle state to awake","status":400}`))
+				return
+			}
+			serviceState = StateAwaking
+			_, _ = w.Write([]byte(`{}`))
+
+		case r.Method == http.MethodGet && r.URL.Path == testServiceInstancePath:
+			state := serviceState
+			// The service finishes waking up once it has been polled while awaking.
+			if serviceState == StateAwaking {
+				serviceState = StateRunning
+			}
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: testServiceID, State: state}})
+
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	errs := make([]error, pipeCount)
+	var wg sync.WaitGroup
+	for i := range pipeCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, errs[i] = client.CreateClickPipe(context.Background(), testServiceID, ClickPipe{Name: fmt.Sprintf("pipe-%d", i)})
+		}()
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("CreateClickPipe(pipe-%d): %v", i, err)
+		}
+	}
+	if wakeCalls < 1 {
+		t.Errorf("wake calls = %d; want at least 1", wakeCalls)
 	}
 }
 

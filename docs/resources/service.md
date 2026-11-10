@@ -139,10 +139,11 @@ resource "clickhouse_service" "restored_service" {
 - `password_hash` (String, Sensitive) SHA256 hash of password for the default user. One of either `password`, `password_wo`, or `password_hash` must be specified.
 - `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Password for the default user (write-only, not persisted to state). Use this instead of `password` to avoid storing the password hash in Terraform state.
 - `password_wo_version` (Number) Version number for password_wo. Increment this to trigger a password update when using password_wo.
-- `profile` (String) Custom instance profile for the service, only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Can only be set at service creation time; changing it forces the service to be replaced. Use the 'available service profiles' OpenAPI endpoint to list the profiles available to your organization.
+- `profile` (String) Custom instance profile for the service, only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Changing the profile updates the service in place: a BYOC profile change must keep 'min_replica_memory_gb' and 'max_replica_memory_gb' equal to the new profile's memory size, and a non-BYOC custom profile cannot be changed in the same apply as a memory change. Use the 'clickhouse_service_profiles' data source to list the profiles available to your organization.
 - `query_api_endpoints` (Attributes) Configuration of the query API endpoints feature. (see [below for nested schema](#nestedatt--query_api_endpoints))
 - `readonly` (Boolean) Indicates if this service should be read only. Only allowed for secondary services, those which share data with another service (i.e. when `warehouse_id` field is set).
 - `release_channel` (String) Release channel to use for this service. Can be 'default', 'fast' or 'slow'.
+- `replica_aware_routing` (Attributes) Configuration of replica aware routing for this service. Routes later connections from the same client to the same replica. Omit this block to leave the setting unmanaged. Refresh of a managed block treats a missing feature (403) as unset. Applying this block without the feature fails. Requires an organization with the Enterprise plan. (see [below for nested schema](#nestedatt--replica_aware_routing))
 - `snapshot_configuration` (Attributes) Configuration of service snapshot settings. Snapshots are a beta feature that requires the snapshots feature enabled for your organization, a PPv2 tier, and the backups entitlement. When enabling snapshots, an ineligible organization is rejected at plan time (when the organization API reports eligibility); otherwise an ineligible organization can still fail at apply. When enabled, gap and time_frame must be supplied together as a supported preset: (gap 30, time_frame 1440) or (gap 60, time_frame 2880). (see [below for nested schema](#nestedatt--snapshot_configuration))
 - `tags` (Map of String) Tags associated with the service as key-value pairs.
 - `tier` (String) Tier of the service: 'development', 'production'. Required for organizations using the Legacy ClickHouse Cloud Tiers, must be omitted for organizations using the new ClickHouse Cloud Tiers.
@@ -234,6 +235,15 @@ Required:
 Optional:
 
 - `allowed_origins` (String) Comma separated list of domain names to be allowed cross-origin resource sharing (CORS) access to the query API. Leave this field empty to restrict access to backend servers only
+
+
+<a id="nestedatt--replica_aware_routing"></a>
+### Nested Schema for `replica_aware_routing`
+
+Required:
+
+- `http_enabled` (Boolean) Whether replica aware routing is enabled for HTTP connections. When enabled, clients must send the X-ClickHouse-Replica-Tag header.
+- `native_enabled` (Boolean) Whether replica aware routing is enabled for native protocol connections.
 
 
 <a id="nestedatt--snapshot_configuration"></a>
