@@ -3,13 +3,13 @@
 page_title: "clickhouse_clickstack_dashboard Resource - clickhouse"
 subcategory: "ClickStack"
 description: |-
-  Manages a ClickStack dashboard from a JSON document (the v2 API dashboard body: name, tiles, tags, filters, savedQuery, containers). The JSON is validated at plan time against the ClickStack API when the validate endpoint is available. Export an existing dashboard with GET /api/v2/dashboards/{id} or terraform import. PromQL tiles are not supported by the API and cannot be managed here. The dashboard_json configuration is the sole source of truth: this resource does not detect changes made to the dashboard outside Terraform (e.g. edits in the UI). Such out-of-band changes are not reported as drift on terraform plan; they persist until the dashboard_json value itself changes, at which point the entire dashboard is replaced and any manual edits are overwritten. Manage a dashboard either entirely in Terraform or entirely in the UI, not both.
+  Manages a ClickStack dashboard from a JSON document (the v2 API dashboard body: name, tiles, tags, filters, savedQuery, containers). The JSON is validated at plan time against the ClickStack API when the validate endpoint is available. Export an existing dashboard with GET /api/v2/dashboards/{id} or terraform import. PromQL tiles (configType = "promql") and PROMETHEUS_LABEL filters are supported; both must reference a source of kind promql, a preview feature that must be enabled on the ClickStack deployment. Alerts cannot be attached to PromQL tiles. The dashboard_json configuration is the sole source of truth: this resource does not detect changes made to the dashboard outside Terraform (e.g. edits in the UI). Such out-of-band changes are not reported as drift on terraform plan; they persist until the dashboard_json value itself changes, at which point the entire dashboard is replaced and any manual edits are overwritten. Manage a dashboard either entirely in Terraform or entirely in the UI, not both.
   Tile alerts are managed with clickhouse_clickstack_alert (source = "tile"), which references this dashboard's id and a tile id. Tile ids are assigned by the server and cannot be set in dashboard_json (an authored id is ignored on create and replaced on update unless the server already has it). Use the computed tile_ids map to reference a tile by name from clickhouse_clickstack_alert, and keep alerted tiles' names unique and stable: Terraform carries each tile's id forward by name across updates, so a tile that keeps its unique name keeps its id wherever it moves in the array, while a rename mints a new id and drops the tile's alert. Position only decides ids among blank- or duplicate-named tiles. Importing a dashboard does not import its tile alerts; import each alert separately.
 ---
 
 # clickhouse_clickstack_dashboard (Resource)
 
-Manages a ClickStack dashboard from a JSON document (the v2 API dashboard body: name, tiles, tags, filters, savedQuery, containers). The JSON is validated at plan time against the ClickStack API when the validate endpoint is available. Export an existing dashboard with `GET /api/v2/dashboards/{id}` or `terraform import`. PromQL tiles are not supported by the API and cannot be managed here. The `dashboard_json` configuration is the sole source of truth: this resource does not detect changes made to the dashboard outside Terraform (e.g. edits in the UI). Such out-of-band changes are not reported as drift on `terraform plan`; they persist until the `dashboard_json` value itself changes, at which point the entire dashboard is replaced and any manual edits are overwritten. Manage a dashboard either entirely in Terraform or entirely in the UI, not both.
+Manages a ClickStack dashboard from a JSON document (the v2 API dashboard body: name, tiles, tags, filters, savedQuery, containers). The JSON is validated at plan time against the ClickStack API when the validate endpoint is available. Export an existing dashboard with `GET /api/v2/dashboards/{id}` or `terraform import`. PromQL tiles (`configType = "promql"`) and `PROMETHEUS_LABEL` filters are supported; both must reference a source of kind `promql`, a preview feature that must be enabled on the ClickStack deployment. Alerts cannot be attached to PromQL tiles. The `dashboard_json` configuration is the sole source of truth: this resource does not detect changes made to the dashboard outside Terraform (e.g. edits in the UI). Such out-of-band changes are not reported as drift on `terraform plan`; they persist until the `dashboard_json` value itself changes, at which point the entire dashboard is replaced and any manual edits are overwritten. Manage a dashboard either entirely in Terraform or entirely in the UI, not both.
 
 Tile alerts are managed with `clickhouse_clickstack_alert` (`source = "tile"`), which references this dashboard's `id` and a tile `id`. Tile ids are assigned by the server and cannot be set in `dashboard_json` (an authored `id` is ignored on create and replaced on update unless the server already has it). Use the computed `tile_ids` map to reference a tile by name from `clickhouse_clickstack_alert`, and keep alerted tiles' names unique and stable: Terraform carries each tile's id forward by name across updates, so a tile that keeps its unique name keeps its id wherever it moves in the array, while a rename mints a new id and drops the tile's alert. Position only decides ids among blank- or duplicate-named tiles. Importing a dashboard does not import its tile alerts; import each alert separately.
 
@@ -19,12 +19,22 @@ Tile alerts are managed with `clickhouse_clickstack_alert` (`source = "tile"`), 
 # This Terraform resource maps directly to the HyperDX v2 API dashboard body.
 # You can obtain an existing dashboard's JSON from GET /api/v2/dashboards/{id},
 # or let Terraform import it with: terraform import clickhouse_clickstack_dashboard.<name> <id>
-# Note: PromQL tiles are not supported by the v2 API and cannot be managed here.
 
 resource "clickhouse_clickstack_dashboard" "collectors" {
   dashboard_json = jsonencode({
     name = "OTel Collectors"
     tags = ["otel"]
+    # PROMETHEUS_LABEL filters list a label's values from a promql source.
+    # Tiles reference the selection as $variableName.
+    filters = [
+      {
+        type         = "PROMETHEUS_LABEL"
+        name         = "Job"
+        sourceId     = var.promql_source_id
+        label        = "job"
+        variableName = "job"
+      }
+    ]
     tiles = [
       {
         name = "Exporter sent spans"
@@ -53,6 +63,17 @@ resource "clickhouse_clickstack_dashboard" "collectors" {
           connectionId = var.connection_id
           sqlTemplate  = "SELECT ServiceName, count() AS logs FROM otel_logs GROUP BY ServiceName ORDER BY logs DESC LIMIT 20"
         }
+      },
+      {
+        name = "Series per job"
+        x    = 0, y = 3, w = 6, h = 3
+        config = {
+          configType     = "promql"
+          displayType    = "line"
+          sourceId       = var.promql_source_id
+          expressions    = [{ expression = "count by (job) ({__name__=~\".+\", job=~\"$job\"})" }]
+          legendTemplate = "{{job}}"
+        }
       }
     ]
   })
@@ -60,6 +81,7 @@ resource "clickhouse_clickstack_dashboard" "collectors" {
 
 variable "metrics_source_id" { type = string }
 variable "connection_id" { type = string }
+variable "promql_source_id" { type = string }
 ```
 
 <!-- schema generated by tfplugindocs -->

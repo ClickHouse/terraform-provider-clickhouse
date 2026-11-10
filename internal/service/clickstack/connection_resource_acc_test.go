@@ -15,23 +15,33 @@ func TestAccConnectionResource(t *testing.T) {
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// Create with all attributes.
+			// Create a ClickHouse connection; the flag defaults to false.
 			{
-				Config: testAccConnectionResourceConfig("tf-acc-test", "http://localhost:8123", "default", "", "http://prometheus:9090"),
+				Config: testAccConnectionResourceConfig("tf-acc-test", "http://localhost:8123", "default", "", false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "name", "tf-acc-test"),
 					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "host", "http://localhost:8123"),
 					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "username", "default"),
-					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "prometheus_endpoint", "http://prometheus:9090"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "is_prometheus_endpoint", "false"),
 					resource.TestCheckResourceAttrSet("clickhouse_clickstack_connection.test", "id"),
 				),
 			},
-			// Update in place: rename and clear prometheus_endpoint.
+			// Update in place to a Prometheus endpoint.
 			{
-				Config: testAccConnectionResourceConfig("tf-acc-test-renamed", "http://localhost:8123", "default", "", ""),
+				Config: testAccConnectionResourceConfig("tf-acc-test-prom", "http://prometheus:9090", "", "", true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "name", "tf-acc-test-prom"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "host", "http://prometheus:9090"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "is_prometheus_endpoint", "true"),
+				),
+			},
+			// Back to ClickHouse by omitting the flag: the API keeps a stored
+			// true unless false is sent, so this covers the explicit clear.
+			{
+				Config: testAccConnectionResourceConfig("tf-acc-test-renamed", "http://localhost:8123", "default", "", false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "name", "tf-acc-test-renamed"),
-					resource.TestCheckNoResourceAttr("clickhouse_clickstack_connection.test", "prometheus_endpoint"),
+					resource.TestCheckResourceAttr("clickhouse_clickstack_connection.test", "is_prometheus_endpoint", "false"),
 				),
 			},
 			// Import. The password is write-only so it cannot be verified.
@@ -45,7 +55,7 @@ func TestAccConnectionResource(t *testing.T) {
 	})
 }
 
-func testAccConnectionResourceConfig(name, host, username, password, prometheusEndpoint string) string {
+func testAccConnectionResourceConfig(name, host, username, password string, isPrometheusEndpoint bool) string {
 	cfg := fmt.Sprintf(`
 resource "clickhouse_clickstack_connection" "test" {
   name     = %q
@@ -55,8 +65,8 @@ resource "clickhouse_clickstack_connection" "test" {
 	if password != "" {
 		cfg += fmt.Sprintf("  password = %q\n", password)
 	}
-	if prometheusEndpoint != "" {
-		cfg += fmt.Sprintf("  prometheus_endpoint = %q\n", prometheusEndpoint)
+	if isPrometheusEndpoint {
+		cfg += "  is_prometheus_endpoint = true\n"
 	}
 	return cfg + "}\n"
 }
