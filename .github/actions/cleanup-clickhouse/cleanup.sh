@@ -163,7 +163,8 @@ force_delete_stuck_services() {
 cleanup_services() {
   local deadline=$((SECONDS + SWEEP_TIMEOUT_SECONDS))
   local output entry id state name
-  local -a entries pass_endpoint_ids
+  local unprotect_warned=" "
+  local -a entries pass_endpoint_ids protected_ids
 
   echo "Deleting any service with suffix ${SUFFIX}..."
 
@@ -185,6 +186,21 @@ cleanup_services() {
     fi
 
     echo "There are ${#entries[@]} services to be cleaned up."
+
+    # A protected service refuses DELETE with 409 until protection is off, so turn it off first.
+    mapfile -t protected_ids < <(jq --arg suffix "${SUFFIX}" -r \
+      '.result[] | select(.name | contains($suffix)) | select(.deletionProtection == true) | .id' <<<"${output}")
+    if [[ "${#protected_ids[@]}" -gt 0 ]]; then
+      for id in "${protected_ids[@]}"; do
+        echo "Turning off deletion protection on service ${id}..."
+        if ! mutate -X PATCH "${ORG_URL}/services/${id}" \
+          -H 'Content-Type: application/json' --data '{"deletionProtection": false}' \
+          && [[ "${unprotect_warned}" != *" ${id} "* ]]; then
+          echo "::warning::could not turn off deletion protection on service ${id}; deleting it will keep failing"
+          unprotect_warned+="${id} "
+        fi
+      done
+    fi
 
     if [[ "${SECONDS}" -ge "${deadline}" ]]; then
       force_delete_stuck_services "${entries[@]}"

@@ -293,7 +293,14 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 		return nil, err
 	}
 
+	// Stopping a protected service would take it offline for a delete the API is going to refuse.
+	if service.DeletionProtection != nil && *service.DeletionProtection {
+		return nil, ErrServiceDeletionProtected
+	}
+
+	stopSent := false
 	if service.State != StateStopped && service.State != StateStopping {
+		stopSent = true
 		rb, _ := json.Marshal(ServiceStateUpdate{
 			Command: "stop",
 		})
@@ -331,6 +338,12 @@ func (c *ClientImpl) DeleteService(ctx context.Context, serviceId string) (*Serv
 		if IsNotFound(err) {
 			// That is what we want; signal success so the caller can return nil.
 			return nil
+		}
+		if IsDeletionProtected(err) && stopSent {
+			return backoff.Permanent(fmt.Errorf("%w: %w: %w", ErrServiceDeletionProtected, ErrDeleteRefusedAfterStop, err))
+		}
+		if IsDeletionProtected(err) {
+			return backoff.Permanent(fmt.Errorf("%w: %w", ErrServiceDeletionProtected, err))
 		}
 		if IsConflict(err) {
 			// Service is still transitioning; retry.
