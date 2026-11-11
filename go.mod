@@ -2,7 +2,7 @@ module github.com/ClickHouse/terraform-provider-clickhouse
 
 go 1.26.0
 
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
