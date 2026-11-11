@@ -290,6 +290,7 @@ type ServiceResourceModel struct {
 	ComplianceType                  types.String `tfsdk:"compliance_type"`
 	Tags                            types.Map    `tfsdk:"tags"`
 	EnableCoreDumps                 types.Bool   `tfsdk:"enable_core_dumps"`
+	DeletionProtection              types.Bool   `tfsdk:"deletion_protection"`
 }
 
 func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
@@ -331,7 +332,8 @@ func (m *ServiceResourceModel) Equals(b ServiceResourceModel) bool {
 		!m.SnapshotConfiguration.Equal(b.SnapshotConfiguration) ||
 		!m.ReplicaAwareRouting.Equal(b.ReplicaAwareRouting) ||
 		!m.Tags.Equal(b.Tags) ||
-		!m.EnableCoreDumps.Equal(b.EnableCoreDumps) {
+		!m.EnableCoreDumps.Equal(b.EnableCoreDumps) ||
+		!m.DeletionProtection.Equal(b.DeletionProtection) {
 		return false
 	}
 
