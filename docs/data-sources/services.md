@@ -76,7 +76,7 @@ Read-Only:
 - `name` (String) Human-readable name of the service.
 - `num_replicas` (Number) Number of replicas.
 - `private_endpoint_ids` (List of String) IDs of private endpoints attached to the service.
-- `profile` (String) Custom instance profile of the service, if any (e.g. a dynamic BYOC profile such as 'v1-standard-byoc-4').
+- `profile` (String) Custom instance profile of the service, if any (e.g. a dynamic BYOC profile such as 'v1-standard-byoc-4', or 'v2-default' for a Gen 2 hardware service).
 - `readonly` (Boolean) Whether the service is read-only.
 - `region` (String) Cloud region the service runs in.
 - `release_channel` (String) Release channel ('default' or 'fast').

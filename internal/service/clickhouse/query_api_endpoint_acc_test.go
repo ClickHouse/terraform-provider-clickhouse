@@ -33,7 +33,6 @@ func testAccClickHousePreCheck(t *testing.T, additionalVariables ...string) {
 		"CLICKHOUSE_ORG_ID",
 		"CLICKHOUSE_CLOUD_API_KEY",
 		"CLICKHOUSE_CLOUD_API_SECRET",
-		"CLICKHOUSE_TEST_SERVICE_ID",
 	}
 	requiredVariables = append(requiredVariables, additionalVariables...)
 	for _, name := range requiredVariables {
@@ -91,7 +90,7 @@ func TestAccQueryAPIEndpointResource(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccClickHousePreCheck(t, "CLICKHOUSE_TEST_DATABASE_ROLE") },
+		PreCheck:                 func() { testAccClickHousePreCheck(t, "CLICKHOUSE_TEST_SERVICE_ID", "CLICKHOUSE_TEST_DATABASE_ROLE") },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
