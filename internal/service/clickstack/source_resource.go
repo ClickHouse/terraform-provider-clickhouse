@@ -21,7 +21,6 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -416,8 +415,6 @@ func (r *sourceResource) Configure(_ context.Context, req resource.ConfigureRequ
 }
 
 func (r *sourceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
-
 	var plan sourceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -459,8 +456,6 @@ func (r *sourceResource) Read(ctx context.Context, req resource.ReadRequest, res
 }
 
 func (r *sourceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
-
 	var plan sourceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -494,8 +489,6 @@ func (r *sourceResource) Delete(ctx context.Context, req resource.DeleteRequest,
 }
 
 func (r *sourceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
-
 	// Accept "<id>" (default team) or "<team>/<id>" for a non-default team.
 	if team, id, ok := strings.Cut(req.ID, "/"); ok {
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("team"), team)...)
