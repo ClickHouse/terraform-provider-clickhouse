@@ -121,6 +121,11 @@ func TestRedactSensitiveBody(t *testing.T) {
 			want:  `{"credentials":"REDACTED"}`,
 		},
 		{
+			name:  "backupEncryptionConfig container redacted to scalar",
+			input: `{"backupId":"b","backupEncryptionConfig":{"schema_version":1,"restore_key_pairs":[{"wrapped_dek":"x"}]}}`,
+			want:  `{"backupEncryptionConfig":"REDACTED","backupId":"b"}`,
+		},
+		{
 			name:  "sensitive key nested under result envelope",
 			input: `{"result":{"id":"abc","password":"plaintext"}}`,
 			want:  `{"result":{"id":"abc","password":"REDACTED"}}`,
