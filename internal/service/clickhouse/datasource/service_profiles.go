@@ -110,11 +110,11 @@ func (d *serviceProfilesDataSource) Schema(_ context.Context, _ datasource.Schem
 							Computed:    true,
 						},
 						"cpu_cores": schema.Float64Attribute{
-							Description: "Number of CPU cores per replica.",
+							Description: "Number of CPU cores per replica. For 'v2-default', ignore this value: a Gen 2 service's size is set by its memory fields, not by the profile.",
 							Computed:    true,
 						},
 						"memory_gi": schema.Float64Attribute{
-							Description: "Memory per replica in GiB. For BYOC profiles, 'min_replica_memory_gb' and 'max_replica_memory_gb' on the service must both equal this value.",
+							Description: "Memory per replica in GiB. For BYOC profiles, 'min_replica_memory_gb' and 'max_replica_memory_gb' on the service must both equal this value. For 'v2-default', ignore this value: a Gen 2 service's size is set by 'min_replica_memory_gb' and 'max_replica_memory_gb' on the service, not by the profile.",
 							Computed:    true,
 						},
 					},

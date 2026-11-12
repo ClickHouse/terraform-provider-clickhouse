@@ -32,3 +32,28 @@ resource "clickhouse_service_scheduled_scaling" "example" {
     },
   ]
 }
+
+resource "clickhouse_service" "gen2_svc" {
+  profile = "v2-default"
+  ...
+}
+
+# On a Gen 2 service (profile = "v2-default") every entry is a fixed size and can't idle:
+# equal min/max memory, equal min/max replicas and idle_scaling = false.
+resource "clickhouse_service_scheduled_scaling" "gen2_example" {
+  service_id = clickhouse_service.gen2_svc.id
+
+  entries = [
+    {
+      name                  = "Business hours"
+      weekdays              = [1, 2, 3, 4, 5]
+      start_hour_utc        = 8
+      end_hour_utc          = 18
+      min_replicas          = 4
+      max_replicas          = 4
+      min_replica_memory_gb = 32
+      max_replica_memory_gb = 32
+      idle_scaling          = false
+    },
+  ]
+}

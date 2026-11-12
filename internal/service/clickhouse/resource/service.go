@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
@@ -222,7 +223,7 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"profile": schema.StringAttribute{
-				Description: "Custom instance profile for the service, only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Changing the profile updates the service in place: a BYOC profile change must keep 'min_replica_memory_gb' and 'max_replica_memory_gb' equal to the new profile's memory size, and a non-BYOC custom profile cannot be changed in the same apply as a memory change. Use the 'clickhouse_service_profiles' data source to list the profiles available to your organization.",
+				Description: "Custom instance profile for the service. 'v2-default' creates a Gen 2 hardware service: it needs an organization enabled for Gen 2 on a SCALE or ENTERPRISE plan (or through a per-organization override), an AWS region where Gen 2 is available, and no 'byoc_id'. Gen 2 services use a fixed size and can't idle: 'min_replica_memory_gb' must equal 'max_replica_memory_gb', the replica count is fixed ('num_replicas', or equal 'min_replicas' and 'max_replicas' with 'autoscaling_mode' set to 'horizontal'), and 'idle_scaling' must be false. An existing service can't be switched between Gen 1 and Gen 2 hardware (to or from 'v2-default'): the plan fails, including with 'terraform apply -replace'. Declare a new 'clickhouse_service' resource to get a service on the other hardware, or ask ClickHouse support to move the service. Other custom profiles are only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Changing the profile updates the service in place: a BYOC profile change must keep 'min_replica_memory_gb' and 'max_replica_memory_gb' equal to the new profile's memory size, and a non-BYOC custom profile cannot be changed in the same apply as a memory change. Use the 'clickhouse_service_profiles' data source to list the profiles available to your organization.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
@@ -1162,6 +1163,9 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 	}
 
+	// Runs after the mode normalization above so a replica band carried over from a horizontal state is already cleared.
+	validateGen2Profile(plan, state, hasState, &resp.Diagnostics)
+
 	// A per-replica field counts as "set" only when it holds a concrete value: a null (e.g. a module passing
 	// null) and an unknown (an omitted Optional+Computed per-replica field on a create, which UseStateForUnknown
 	// leaves unknown) both mean "not set", so a deprecated-totals-only config must not trip these conflicts.
@@ -1364,10 +1368,67 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 }
 
+// validateGen2Profile fails the plan for what the API always rejects on a Gen 2 (v2-default) service: switching an existing service between Gen 1 and Gen 2, a memory or replica range, or idling.
+// It reads the planned profile (carried over from state when the config leaves it out) and not the org's Gen 2 eligibility, because the API enforces fixed size even after an org loses it; unknown values are left to the API.
+func validateGen2Profile(plan, state models.ServiceResourceModel, hasState bool, diags *diag.Diagnostics) {
+	if plan.Profile.IsUnknown() {
+		return
+	}
+	isGen2 := plan.Profile.ValueString() == api.ProfileGen2
+
+	wasGen2 := state.Profile.ValueString() == api.ProfileGen2
+	if hasState && isGen2 != wasGen2 {
+		diags.AddAttributeError(
+			path.Root("profile"),
+			"Invalid Update",
+			fmt.Sprintf("ClickHouse can't switch an existing service between Gen 1 and Gen 2 hardware (changing profile to or from %q). Keep the current profile and declare a new clickhouse_service resource for a service on the other hardware, or contact ClickHouse support to move this service and then set profile to match the moved service.", api.ProfileGen2),
+		)
+	}
+
+	if !isGen2 {
+		return
+	}
+
+	unequal := func(minV, maxV types.Int64) bool {
+		return isKnown(minV) && isKnown(maxV) && minV.ValueInt64() != maxV.ValueInt64()
+	}
+
+	if unequal(plan.MinReplicaMemoryGb, plan.MaxReplicaMemoryGb) {
+		diags.AddAttributeError(
+			path.Root("min_replica_memory_gb"),
+			"Invalid Configuration",
+			fmt.Sprintf("Gen 2 services (profile %q) use a fixed size: min_replica_memory_gb must equal max_replica_memory_gb.", api.ProfileGen2),
+		)
+	}
+	if unequal(plan.MinTotalMemoryGb, plan.MaxTotalMemoryGb) {
+		diags.AddAttributeError(
+			path.Root("min_total_memory_gb"),
+			"Invalid Configuration",
+			fmt.Sprintf("Gen 2 services (profile %q) use a fixed size: min_total_memory_gb must equal max_total_memory_gb.", api.ProfileGen2),
+		)
+	}
+	// Skipped when the plan resolves to vertical, where ModifyPlan's vertical band guard already rejects any band.
+	if plan.AutoscalingMode.ValueString() != api.AutoscalingModeVertical && unequal(plan.MinReplicas, plan.MaxReplicas) {
+		diags.AddAttributeError(
+			path.Root("min_replicas"),
+			"Invalid Configuration",
+			fmt.Sprintf("Gen 2 services (profile %q) use a fixed replica count: set min_replicas equal to max_replicas, or remove min_replicas, max_replicas and autoscaling_mode and set num_replicas instead.", api.ProfileGen2),
+		)
+	}
+	if isKnown(plan.IdleScaling) && plan.IdleScaling.ValueBool() {
+		diags.AddAttributeError(
+			path.Root("idle_scaling"),
+			"Invalid Configuration",
+			fmt.Sprintf("Gen 2 services (profile %q) can't idle: set idle_scaling = false.", api.ProfileGen2),
+		)
+	}
+}
+
 // ValidateConfig applies the cheap, mode-agnostic ordering checks that give a clearer plan-time error than
 // the API's contradiction responses. The mode ↔ field combination rules — which fields each autoscaling_mode
 // accepts, num_replicas vs the band, ranged vs fixed per-replica memory — are owned by the API (UC-1173) and
-// deliberately not duplicated here. Runs at plan time for both create and update.
+// deliberately not duplicated here, except for Gen 2 services: validateGen2Profile (run from ModifyPlan, which
+// can see the planned profile) rejects their ranged sizing. Runs at plan time for both create and update.
 func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var config models.ServiceResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
