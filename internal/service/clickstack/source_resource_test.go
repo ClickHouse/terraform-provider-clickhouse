@@ -123,6 +123,22 @@ func TestSourceResource_Schema(t *testing.T) {
 	}
 }
 
+func TestMinAutoGranularityRegexp(t *testing.T) {
+	t.Parallel()
+
+	for _, v := range []string{"1 second", "30 second", "1 minute", "15 minute", "1 hour", "7 day"} {
+		if !minAutoGranularityRegexp.MatchString(v) {
+			t.Errorf("expected %q to be accepted", v)
+		}
+	}
+
+	for _, v := range []string{"", "1m", "5 minutes", "minute", "1minute", " 1 minute", "1 minute ", "1 week", "-1 minute"} {
+		if minAutoGranularityRegexp.MatchString(v) {
+			t.Errorf("expected %q to be rejected", v)
+		}
+	}
+}
+
 // TestSourceModel_ApplySourceEmptyStrings covers the import path: the API echoes
 // unset optional expressions back as "", and writing those into state made every
 // plan show a no-op update — and, once a plan modifier tried to hide it, made

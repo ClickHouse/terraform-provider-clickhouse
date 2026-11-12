@@ -17,7 +17,6 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -91,7 +90,7 @@ func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					"`is_prometheus_endpoint` is true, the Prometheus-compatible API URL instead, e.g. " +
 					"`http://prometheus:9090`; put any Basic auth credentials in the URL " +
 					"(`https://user:pass@prometheus.example.com`). This attribute is not sensitive, so " +
-					"credentials in it appear in plan output.",
+					"credentials in it appear in plan output unless `host` comes from a sensitive variable.",
 			},
 			"username": schema.StringAttribute{
 				Required:    true,
@@ -106,7 +105,7 @@ func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			},
 			"hyperdx_setting_prefix": schema.StringAttribute{
 				Optional: true,
-				Description: "Prefix for HyperDX-specific ClickHouse settings. Must only contain " +
+				Description: "Prefix for ClickStack-specific ClickHouse settings. Must only contain " +
 					"alphanumeric characters and underscores.",
 			},
 			"is_prometheus_endpoint": schema.BoolAttribute{
@@ -144,8 +143,6 @@ func (r *connectionResource) Configure(_ context.Context, req resource.Configure
 }
 
 func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
-
 	var plan connectionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -195,8 +192,6 @@ func (r *connectionResource) Read(ctx context.Context, req resource.ReadRequest,
 }
 
 func (r *connectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
-
 	var plan connectionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -245,8 +240,6 @@ func (r *connectionResource) Delete(ctx context.Context, req resource.DeleteRequ
 }
 
 func (r *connectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_connection", &resp.Diagnostics)
-
 	// Accept either "<id>" (default team) or "<team>/<id>" so connections in a
 	// non-default team can be imported. The team is required by the API to
 	// resolve the team-scoped connection ID during the import Read.

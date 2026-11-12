@@ -90,6 +90,7 @@ type Service struct {
 	ComplianceType                  *string                       `json:"complianceType,omitempty"`
 	Tags                            []Tag                         `json:"tags,omitempty"`
 	EnableCoreDumps                 *bool                         `json:"enableCoreDumps,omitempty"`
+	DeletionProtection              *bool                         `json:"deletionProtection,omitempty"`
 }
 
 type ServiceUpdate struct {
@@ -100,6 +101,7 @@ type ServiceUpdate struct {
 	Endpoints          []Endpoint                `json:"endpoints,omitempty"`
 	Tags               *TagUpdate                `json:"tags,omitempty"`
 	EnableCoreDumps    *bool                     `json:"enableCoreDumps,omitempty"`
+	DeletionProtection *bool                     `json:"deletionProtection,omitempty"`
 }
 
 type ServiceKeyRotation struct {

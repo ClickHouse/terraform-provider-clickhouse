@@ -132,6 +132,7 @@ func TestCustomPrivateDNSMappingsTargetIDRoundTrip(t *testing.T) {
 	want := []api.CustomPrivateDNSMapping{
 		{PrivateDNSName: "node-00-pri.example.com", TargetID: "rcfg-097648d8068504966"},
 		{PrivateDNSName: "default.example.com"},
+		{PrivateDNSName: "*.use1-az1.abc123.us-east-1.aws.confluent.cloud", TargetID: "use1-az1"},
 	}
 
 	list, diags := customPrivateDNSMappingsToModel(want)
@@ -148,6 +149,9 @@ func TestCustomPrivateDNSMappingsTargetIDRoundTrip(t *testing.T) {
 	}
 	if !mappings[1].TargetID.IsNull() {
 		t.Fatalf("target_id = %v; want null so unset config does not drift", mappings[1].TargetID)
+	}
+	if mappings[2].TargetID.ValueString() != "use1-az1" {
+		t.Fatalf("target_id = %v; want use1-az1", mappings[2].TargetID)
 	}
 
 	got, diags := customPrivateDNSMappingsFromPlan(ctx, list)
@@ -212,7 +216,7 @@ func TestApplyReversePrivateEndpointToModel_DNSTargetsAndPrivateDNSMappings(t *t
 		t.Fatalf("private_dns_mappings = %#v", private)
 	}
 
-	// Non-VPC_RESOURCE endpoints (and older API responses) report no targets.
+	// Endpoint types without targets (and older API responses) report no targets.
 	if d := applyReversePrivateEndpointToModel(ctx, "svc-1", &api.ReversePrivateEndpoint{ID: "rpe-2"}, &state); d.HasError() {
 		t.Fatalf("applyReversePrivateEndpointToModel: %v", d)
 	}
@@ -318,5 +322,33 @@ func TestUpdateCustomPrivateDNSMappings_SendsTargetIDWithoutReadyWait(t *testing
 				t.Fatalf("ok = %v, diags = %v, endpoint = %#v", ok, diags, endpoint)
 			}
 		})
+	}
+}
+
+func TestApplyReversePrivateEndpointToModel_AvailabilityZoneDNSTargets(t *testing.T) {
+	ctx := context.Background()
+	zonal := "vpce-0abc-1234-us-east-1a.vpce-svc-0def.us-east-1.vpce.amazonaws.com"
+	endpoint := &api.ReversePrivateEndpoint{
+		ID:     "rpe-1",
+		Status: api.ReversePrivateEndpointStatusReady,
+		DNSTargets: []api.DNSTarget{
+			{ID: "use1-az1", Kind: "AVAILABILITY_ZONE", InternalDNSName: zonal},
+		},
+	}
+
+	state := models.ClickPipeReversePrivateEndpointResourceModel{}
+	if d := applyReversePrivateEndpointToModel(ctx, "svc-1", endpoint, &state); d.HasError() {
+		t.Fatalf("applyReversePrivateEndpointToModel: %v", d)
+	}
+
+	var targets []models.DNSTargetModel
+	if d := state.DNSTargets.ElementsAs(ctx, &targets, false); d.HasError() {
+		t.Fatalf("DNSTargets.ElementsAs: %v", d)
+	}
+	if len(targets) != 1 ||
+		targets[0].ID.ValueString() != "use1-az1" ||
+		targets[0].Kind.ValueString() != "AVAILABILITY_ZONE" ||
+		targets[0].InternalDNSName.ValueString() != zonal {
+		t.Fatalf("dns_targets = %#v", targets)
 	}
 }

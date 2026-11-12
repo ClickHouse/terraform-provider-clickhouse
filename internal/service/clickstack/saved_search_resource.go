@@ -21,7 +21,6 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -219,8 +218,6 @@ func (m *savedSearchResourceModel) validate() diag.Diagnostics {
 }
 
 func (r *savedSearchResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_saved_search", &resp.Diagnostics)
-
 	var plan savedSearchResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -266,8 +263,6 @@ func (r *savedSearchResource) Read(ctx context.Context, req resource.ReadRequest
 }
 
 func (r *savedSearchResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_saved_search", &resp.Diagnostics)
-
 	var plan savedSearchResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -314,8 +309,6 @@ func (r *savedSearchResource) Delete(ctx context.Context, req resource.DeleteReq
 }
 
 func (r *savedSearchResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_saved_search", &resp.Diagnostics)
-
 	if team, id, ok := strings.Cut(req.ID, "/"); ok {
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("team"), team)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)

@@ -3,15 +3,152 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
+
+// A protected service must not be stopped by a delete that cannot succeed: DeleteService returns before any write.
+func TestDeleteService_protectedServiceFailsBeforeStopping(t *testing.T) {
+	var writes int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			atomic.AddInt32(&writes, 1)
+			t.Errorf("unexpected %s %s; a protected service must not be stopped or deleted", r.Method, r.URL.Path)
+		}
+		switch r.URL.Path {
+		case "/organizations/org-1/services/svc-1":
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: StateRunning, DeletionProtection: boolPtr(true)}})
+		case "/organizations/org-1/services/svc-1/privateEndpointConfig":
+			_, _ = w.Write([]byte(`{"result":{}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	_, err := client.DeleteService(context.Background(), "svc-1")
+	if !errors.Is(err, ErrServiceDeletionProtected) {
+		t.Fatalf("DeleteService error = %v; want ErrServiceDeletionProtected", err)
+	}
+	if errors.Is(err, ErrDeleteRefusedAfterStop) {
+		t.Errorf("DeleteService error = %v; must not say the service was stopped", err)
+	}
+	if n := atomic.LoadInt32(&writes); n != 0 {
+		t.Errorf("DeleteService sent %d write requests; want 0", n)
+	}
+}
+
+// The protection 409 never clears by waiting, unlike the 409 for a service still stopping, so it is not retried.
+func TestDeleteService_protection409IsNotRetried(t *testing.T) {
+	var deletes int32
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodDelete:
+			atomic.AddInt32(&deletes, 1)
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":"CONFLICT: Deletion protection is enabled for this service. Turn it off before deleting the service.","status":409}`))
+		case r.URL.Path == "/organizations/org-1/services/svc-1":
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: StateStopped}})
+		case r.URL.Path == "/organizations/org-1/services/svc-1/privateEndpointConfig":
+			_, _ = w.Write([]byte(`{"result":{}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	_, err := client.DeleteService(context.Background(), "svc-1")
+	if !errors.Is(err, ErrServiceDeletionProtected) {
+		t.Fatalf("DeleteService error = %v; want ErrServiceDeletionProtected", err)
+	}
+	if errors.Is(err, ErrDeleteRefusedAfterStop) {
+		t.Errorf("DeleteService error = %v; the service was already stopped, so it must not say DeleteService stopped it", err)
+	}
+	if !strings.Contains(err.Error(), "CONFLICT: Deletion protection is enabled for this service") {
+		t.Errorf("DeleteService error = %v; want it to carry the API's 409 message", err)
+	}
+	if n := atomic.LoadInt32(&deletes); n != 1 {
+		t.Errorf("DeleteService sent %d DELETE requests; want exactly 1 (no retries)", n)
+	}
+}
+
+type deleteFlowCalls struct{ stops, deletes int32 }
+
+// newDeleteFlowClient serves a running service that stops on the stop PATCH and answers each DELETE with deleteStatus and deleteBody.
+func newDeleteFlowClient(t *testing.T, protection *bool, deleteStatus int, deleteBody string) (*ClientImpl, *deleteFlowCalls) {
+	t.Helper()
+	calls := &deleteFlowCalls{}
+	var stopped, deleted atomic.Bool
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPatch && r.URL.Path == "/organizations/org-1/services/svc-1/state":
+			atomic.AddInt32(&calls.stops, 1)
+			stopped.Store(true)
+			_, _ = w.Write([]byte(`{"result":{}}`))
+		case r.Method == http.MethodDelete:
+			atomic.AddInt32(&calls.deletes, 1)
+			if deleteStatus < 300 {
+				deleted.Store(true)
+			}
+			w.WriteHeader(deleteStatus)
+			_, _ = w.Write([]byte(deleteBody))
+		case deleted.Load():
+			w.WriteHeader(http.StatusNotFound)
+		case r.URL.Path == "/organizations/org-1/services/svc-1":
+			state := StateRunning
+			if stopped.Load() {
+				state = StateStopped
+			}
+			_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1", State: state, DeletionProtection: protection}})
+		case r.URL.Path == "/organizations/org-1/services/svc-1/privateEndpointConfig":
+			_, _ = w.Write([]byte(`{"result":{}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+	return client, calls
+}
+
+// Flagged organizations report deletionProtection=false on every unprotected service; that must not block the delete.
+func TestDeleteService_unprotectedServiceIsStoppedAndDeleted(t *testing.T) {
+	client, calls := newDeleteFlowClient(t, boolPtr(false), http.StatusOK, `{"result":{}}`)
+
+	if _, err := client.DeleteService(context.Background(), "svc-1"); err != nil {
+		t.Fatalf("DeleteService error = %v; want nil", err)
+	}
+	if n := atomic.LoadInt32(&calls.stops); n != 1 {
+		t.Errorf("DeleteService sent %d stop requests; want 1", n)
+	}
+	if n := atomic.LoadInt32(&calls.deletes); n != 1 {
+		t.Errorf("DeleteService sent %d DELETE requests; want 1", n)
+	}
+}
+
+// Protection turned on after the GET: DeleteService has already stopped the service, and the error says so.
+func TestDeleteService_protection409AfterStopSaysStopped(t *testing.T) {
+	client, calls := newDeleteFlowClient(t, nil, http.StatusConflict,
+		`{"error":"CONFLICT: Deletion protection is enabled for this service. Turn it off before deleting the service.","status":409}`)
+
+	_, err := client.DeleteService(context.Background(), "svc-1")
+	if !errors.Is(err, ErrServiceDeletionProtected) {
+		t.Fatalf("DeleteService error = %v; want ErrServiceDeletionProtected", err)
+	}
+	if !errors.Is(err, ErrDeleteRefusedAfterStop) {
+		t.Errorf("DeleteService error = %v; want ErrDeleteRefusedAfterStop", err)
+	}
+	if n := atomic.LoadInt32(&calls.stops); n != 1 {
+		t.Errorf("DeleteService sent %d stop requests; want 1", n)
+	}
+	if n := atomic.LoadInt32(&calls.deletes); n != 1 {
+		t.Errorf("DeleteService sent %d DELETE requests; want exactly 1 (no retries)", n)
+	}
+}
 
 // A horizontal create must pass the mode, the replica band, and the fixed (min == max) per-replica memory
 // through on POST /services, and must not fabricate any vertical-only fields (num_replicas or the deprecated
