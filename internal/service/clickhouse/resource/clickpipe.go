@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -2050,6 +2051,64 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												stringvalidator.OneOf(api.ClickPipeMongoDBTableEngines...),
 											},
 										},
+										"persist_deleted_documents": schema.BoolAttribute{
+											MarkdownDescription: "Persist the full document as it was right before it was deleted, instead of just its `_id`, when MongoDB delete events are ingested. " +
+												"Requires `changeStreamPreAndPostImages` to be enabled on the source collection. " +
+												"Has no effect on `snapshot` only pipes.",
+											Optional: true,
+										},
+										"structured_ingestion": schema.SingleNestedAttribute{
+											MarkdownDescription: "Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. " +
+												"When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. " +
+												"Cannot be changed on an existing table mapping: remove the mapping and add it again instead.",
+											Optional: true,
+											Attributes: map[string]schema.Attribute{
+												"drop_unexpected_values": schema.BoolAttribute{
+													MarkdownDescription: "When `true`, values that don't fit their inferred schema column are reported with only the field name and reason, without the value. Defaults to `false`.",
+													Optional:            true,
+												},
+												"columns": schema.ListNestedAttribute{
+													MarkdownDescription: "Typed columns of the collection to replicate, taken as provided. When omitted, the columns are inferred from a sample of the collection documents when the mapping is created (not available with `ssh_key_resource_id`), and the state holds the inferred columns that are not excluded. " +
+														"Must not include any of `excluded_columns`. " +
+														"The `_id` document key is always replicated as `String` and must not be listed.",
+													Optional: true,
+													Computed: true,
+													Validators: []validator.List{
+														listvalidator.SizeAtLeast(1),
+													},
+													NestedObject: schema.NestedAttributeObject{
+														Attributes: map[string]schema.Attribute{
+															"name": schema.StringAttribute{
+																Description: "Top-level document field name.",
+																Required:    true,
+															},
+															"type": schema.StringAttribute{
+																Description: "ClickHouse type the field is replicated as, e.g. `Float64` or `DateTime64(9)`. Must be a ClickHouse column type supported by structured ingestion.",
+																Required:    true,
+															},
+														},
+													},
+												},
+												"excluded_columns": schema.SetAttribute{
+													MarkdownDescription: "Names of inferred columns to leave out of replication. Names that match no column are ignored. Must not overlap with `columns`. `_id` cannot be excluded.",
+													ElementType:         types.StringType,
+													Optional:            true,
+												},
+												"sorting_keys": schema.ListAttribute{
+													MarkdownDescription: "Ordered list of column names to use as the sorting (`ORDER BY`) key. Each must be `_id` or one of the collection columns, and not excluded. Defaults to the `_id` document key.",
+													ElementType:         types.StringType,
+													Optional:            true,
+													Validators: []validator.List{
+														listvalidator.SizeAtLeast(1),
+														listvalidator.UniqueValues(),
+													},
+												},
+												"partition_by_expr": schema.StringAttribute{
+													MarkdownDescription: "ClickHouse `PARTITION BY` expression applied to the destination table when ClickPipes creates it, e.g. `toYYYYMM(created_at)`.",
+													Optional:            true,
+												},
+											},
+										},
 									},
 								},
 							},
@@ -2640,6 +2699,19 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 		response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
 	}
 
+	// Keep the inferred columns of existing MongoDB structured ingestion mappings.
+	// Must run before the table_mappings checks below, which compare plan and state.
+	if !request.State.Raw.IsNull() {
+		repaired, diags := repairMongoDBInferredColumnsPlan(ctx, &plan, state)
+		response.Diagnostics.Append(diags...)
+		if response.Diagnostics.HasError() {
+			return
+		}
+		if repaired {
+			response.Diagnostics.Append(response.Plan.Set(ctx, plan)...)
+		}
+	}
+
 	// Validate Postgres table mappings changes
 	if !request.State.Raw.IsNull() {
 		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
@@ -2891,6 +2963,12 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 										} else if !stateMapping.TableEngine.Equal(planMapping.TableEngine) {
 											changed = true
 											changeDetail = "table_engine"
+										} else if stateMapping.PersistDeletedDocuments.ValueBool() != planMapping.PersistDeletedDocuments.ValueBool() {
+											changed = true
+											changeDetail = "persist_deleted_documents"
+										} else if !stateMapping.StructuredIngestion.Equal(planMapping.StructuredIngestion) {
+											changed = true
+											changeDetail = "structured_ingestion"
 										}
 
 										if changed {
@@ -4481,6 +4559,12 @@ func convertMongoDBTableMappingModelToAPI(ctx context.Context, diagnostics *diag
 	if !mappingModel.TableEngine.IsNull() {
 		mapping.TableEngine = mappingModel.TableEngine.ValueStringPointer()
 	}
+	if !mappingModel.PersistDeletedDocuments.IsNull() && !mappingModel.PersistDeletedDocuments.IsUnknown() {
+		mapping.MongoConfig = &api.ClickPipeMongoDBTableConfig{
+			PersistDeletedDocuments: mappingModel.PersistDeletedDocuments.ValueBoolPointer(),
+		}
+	}
+	mapping.StructuredIngestion = convertMongoDBStructuredIngestionModelToAPI(ctx, diagnostics, mappingModel.StructuredIngestion)
 	return mapping
 }
 
@@ -5573,6 +5657,25 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				tableMappingModel.TableEngine = types.StringValue(api.ClickPipeTableEngineReplacingMergeTree)
 			}
 
+			// The API only returns mongoConfig when deleted documents are persisted, so an
+			// absent value means false. Keep null when the practitioner left it unset.
+			persistDeleted := mapping.MongoConfig != nil && mapping.MongoConfig.PersistDeletedDocuments != nil && *mapping.MongoConfig.PersistDeletedDocuments
+			if persistDeleted || (hasStateMapping && !stateMapping.PersistDeletedDocuments.IsNull()) {
+				tableMappingModel.PersistDeletedDocuments = types.BoolValue(persistDeleted)
+			} else {
+				tableMappingModel.PersistDeletedDocuments = types.BoolNull()
+			}
+
+			stateStructuredIngestion := types.ObjectNull(models.ClickPipeMongoDBStructuredIngestionModel{}.ObjectType().AttrTypes)
+			if hasStateMapping {
+				stateStructuredIngestion = stateMapping.StructuredIngestion
+			}
+			structuredIngestion, diags := mongoDBStructuredIngestionFromAPI(ctx, mapping.StructuredIngestion, stateStructuredIngestion)
+			if diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe MongoDB structured ingestion: %v", diags)
+			}
+			tableMappingModel.StructuredIngestion = structuredIngestion
+
 			tableMappingList = append(tableMappingList, tableMappingModel.ObjectValue())
 		}
 
@@ -6254,6 +6357,9 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 					var tableMappingsToRemove []api.ClickPipeMongoDBTableMapping
 					for key, mapping := range stateMappingsMap {
 						if _, exists := planMappingsMap[key]; !exists {
+							// A removal only identifies the collection: the API rejects mongoConfig and structuredIngestion here.
+							mapping.MongoConfig = nil
+							mapping.StructuredIngestion = nil
 							tableMappingsToRemove = append(tableMappingsToRemove, mapping)
 						}
 					}

@@ -7,7 +7,7 @@ The following service groups can be managed using the ClickHouse Cloud Terraform
 | Service group | What you can manage |
 |---|---|
 | **ClickHouse Cloud** | Cloud services and their lifecycle (e.g., auto-scaling, scheduled scaling, upgrade windows), SQL console access control (e.g., organization members, custom roles, API keys), **[ClickPipes](https://clickhouse.com/docs/integrations/clickpipes)**, and other resources. |
-| **ClickStack** | [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) observability resources (e.g., connections, sources, dashboards, alerts, saved searches, teams, roles, webhooks). |
+| **ClickStack** | [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) observability resources (e.g., connections, sources, dashboards, alerts, saved searches, teams, roles, webhooks). |
 | **Postgres** | [Managed Postgres](https://clickhouse.com/docs/cloud/postgres) services and their lifecycle. |
 
 > This provider allows managing **SQL console-level** access control (i.e., organization roles and permissions). To manage **database-level** access control (i.e., database users, roles, grants), use the separate [`clickhousedbops`](https://github.com/ClickHouse/terraform-provider-clickhousedbops) provider.
@@ -54,9 +54,9 @@ Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaki
 If you are upgrading from version < 1.0.0 to anything >= 1.0.0 and you are using the `clickhouse_private_endpoint_registration` resource or the `private_endpoint_ids` attribute of the `clickhouse_service` resource,
 then a manual process is required after the upgrade. Please visit [https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations](https://github.com/ClickHouse/terraform-provider-clickhouse#breaking-changes-and-deprecations) for more details.
 
-## ClickStack (beta)
+## ClickStack
 
-This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) resources via the `clickhouse_clickstack_*` resources and data sources. These are in **beta**: their behavior may change in future releases, and they emit a beta notice on create, update and import (see [Beta resources](#beta-resources)).
+This provider also manages [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) resources via the `clickhouse_clickstack_*` resources and data sources.
 
 How the `clickhouse_clickstack_*` resources authenticate depends on where ClickStack runs:
 
@@ -77,7 +77,7 @@ On ClickHouse Cloud, ClickStack manages sources, dashboards, alerts, saved searc
 
 **Self-hosted ClickStack** (open source or EE) authenticates with its own credentials, separate from the ClickHouse Cloud credentials above:
 
-- `clickstack_api_key` (or the `CLICKSTACK_API_KEY` environment variable) — a personal API access key from the HyperDX UI.
+- `clickstack_api_key` (or the `CLICKSTACK_API_KEY` environment variable) — a personal API access key from the ClickStack UI.
 - `clickstack_endpoint` (or `CLICKSTACK_ENDPOINT`) — the API base URL of the deployment, e.g. `http://localhost:8000`. Required together with `clickstack_api_key`.
 
 Cloud and self-hosted ClickStack credentials are independent. You can configure only one set: a provider block with just self-hosted ClickStack credentials is valid (Cloud resources then error if used, and vice versa). To manage both from one configuration, use an aliased provider:

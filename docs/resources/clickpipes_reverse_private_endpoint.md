@@ -7,7 +7,9 @@ description: |-
   Supported endpoint types: VPC_ENDPOINT_SERVICE, VPC_RESOURCE, MSK_MULTI_VPC, and GCP_PSC_SERVICE_ATTACHMENT.
   ~> Note: All fields on this resource are immutable after creation. Any change will force replacement (destroy and recreate).
   Use clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns to manage custom private DNS mappings for a reverse private endpoint.
-  dns_targets lists the DNS targets the endpoint reports, which custom private DNS mappings can reference by target_id. It is populated only for VPC_RESOURCE endpoints, with one entry per VPC resource configuration association; for a GROUP resource configuration, each entry's id is a CHILD resource configuration ID. Targets appear once the endpoint has provisioned them, so the list can be empty right after creation.
+  dns_targets lists the DNS targets the endpoint reports, which custom private DNS mappings can reference by target_id:
+  VPC_RESOURCE endpoints report one RESOURCE_CONFIGURATION entry per VPC resource configuration association. For a GROUP resource configuration, each entry's id is a CHILD resource configuration ID.Same-region VPC_ENDPOINT_SERVICE endpoints report one AVAILABILITY_ZONE entry per zonal endpoint DNS name. Each entry's id is an AWS availability zone ID, for example use1-az1. The regional DNS name is the default target and is not listed.Cross-region VPC_ENDPOINT_SERVICE endpoints and other endpoint types report no targets.
+  Targets appear once the endpoint has provisioned them, so the list can be empty right after creation. New target kinds may be added.
 ---
 
 # clickhouse_clickpipes_reverse_private_endpoint (Resource)
@@ -20,7 +22,13 @@ Supported endpoint types: `VPC_ENDPOINT_SERVICE`, `VPC_RESOURCE`, `MSK_MULTI_VPC
 
 Use *clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns* to manage custom private DNS mappings for a reverse private endpoint.
 
-`dns_targets` lists the DNS targets the endpoint reports, which custom private DNS mappings can reference by `target_id`. It is populated only for `VPC_RESOURCE` endpoints, with one entry per VPC resource configuration association; for a GROUP resource configuration, each entry's `id` is a CHILD resource configuration ID. Targets appear once the endpoint has provisioned them, so the list can be empty right after creation.
+`dns_targets` lists the DNS targets the endpoint reports, which custom private DNS mappings can reference by `target_id`:
+
+- `VPC_RESOURCE` endpoints report one `RESOURCE_CONFIGURATION` entry per VPC resource configuration association. For a GROUP resource configuration, each entry's `id` is a CHILD resource configuration ID.
+- Same-region `VPC_ENDPOINT_SERVICE` endpoints report one `AVAILABILITY_ZONE` entry per zonal endpoint DNS name. Each entry's `id` is an AWS availability zone ID, for example `use1-az1`. The regional DNS name is the default target and is not listed.
+- Cross-region `VPC_ENDPOINT_SERVICE` endpoints and other endpoint types report no targets.
+
+Targets appear once the endpoint has provisioned them, so the list can be empty right after creation. New target kinds may be added.
 
 ## Example Usage
 
@@ -77,7 +85,7 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "gcp_psc_service_attac
 ### Read-Only
 
 - `dns_names` (List of String) Reverse private endpoint internal DNS names
-- `dns_targets` (Attributes List) DNS targets reported by the reverse private endpoint. Custom private DNS mappings can reference a target by `id` using `target_id`. Only populated for VPC_RESOURCE endpoints, with one target per VPC resource configuration association. (see [below for nested schema](#nestedatt--dns_targets))
+- `dns_targets` (Attributes List) DNS targets reported by the reverse private endpoint. Custom private DNS mappings can reference a target by `id` using `target_id`. VPC_RESOURCE endpoints report one `RESOURCE_CONFIGURATION` target per VPC resource configuration association. Same-region VPC_ENDPOINT_SERVICE endpoints report one `AVAILABILITY_ZONE` target per zonal endpoint DNS name. Other endpoint types, including cross-region VPC_ENDPOINT_SERVICE endpoints, report no targets. (see [below for nested schema](#nestedatt--dns_targets))
 - `endpoint_id` (String) Reverse private endpoint endpoint ID
 - `id` (String) Unique identifier for the reverse private endpoint
 - `private_dns_mappings` (Attributes List) Private DNS names and the internal DNS names they resolve to, as reported by the reverse private endpoint. (see [below for nested schema](#nestedatt--private_dns_mappings))
@@ -89,9 +97,9 @@ resource "clickhouse_clickpipes_reverse_private_endpoint" "gcp_psc_service_attac
 
 Read-Only:
 
-- `id` (String) Target ID. For VPC_RESOURCE, the resource configuration ID (`rcfg-...`); for a GROUP, the CHILD resource configuration ID.
+- `id` (String) Target ID. For `RESOURCE_CONFIGURATION`, the resource configuration ID (`rcfg-...`); for a GROUP, the CHILD resource configuration ID. For `AVAILABILITY_ZONE`, the AWS availability zone ID, for example `use1-az1`.
 - `internal_dns_name` (String) Internal DNS name of the target.
-- `kind` (String) Target kind, for example `RESOURCE_CONFIGURATION`.
+- `kind` (String) Target kind: `RESOURCE_CONFIGURATION` or `AVAILABILITY_ZONE`. New kinds may be added.
 
 
 <a id="nestedatt--private_dns_mappings"></a>

@@ -51,6 +51,10 @@ resource "clickhouse_clickpipe" "mongodb_cdc_clickpipe" {
         source_database_name = "mydb"
         source_collection    = "orders"
         target_table         = "mydb_orders"
+
+        # Optional: Persist the full deleted document instead of only its _id.
+        # Requires changeStreamPreAndPostImages on the source collection.
+        # persist_deleted_documents = true
       }
     }
   }

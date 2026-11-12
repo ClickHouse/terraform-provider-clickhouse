@@ -698,6 +698,24 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			updateTimestamp: false,
 			wantErr:         false,
 		},
+		{
+			name:  "Deletion protection turned on outside Terraform shows up in state",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.DeletionProtection = boolPtr(true)
+			}).GetPtr(),
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.DeletionProtection = types.BoolValue(true)
+			}).Get(),
+		},
+		{
+			name:  "Deletion protection false from the API leaves an unset attribute unset",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.DeletionProtection = boolPtr(false)
+			}).GetPtr(),
+			desiredState: state,
+		},
 	}
 
 	for _, tt := range tests {
@@ -793,9 +811,10 @@ func getInitialState() models.ServiceResourceModel {
 			Enabled: types.BoolValue(false),
 			RoleID:  types.StringNull(),
 		}.ObjectValue(),
-		ComplianceType:  types.StringNull(),
-		Tags:            tags,
-		EnableCoreDumps: types.BoolNull(),
+		ComplianceType:     types.StringNull(),
+		Tags:               tags,
+		EnableCoreDumps:    types.BoolNull(),
+		DeletionProtection: types.BoolNull(),
 	}
 
 	return state
@@ -2351,11 +2370,150 @@ func TestServiceResource_Create_generatedPassword_emptyResponseStaysNull(t *test
 	}
 }
 
-// When Update itself changes the password, any generated_password carried
-// forward from create is known-wrong (not merely possibly-stale), so it must
-// be cleared rather than left in state via UseStateForUnknown.
-// The profile can only be set at service creation time (the Cloud API has no
-// PATCH support for it), so Create is the only path that can send it.
+// A profile change is an in-place update carried on the replicaScaling PATCH. A BYOC profile is a pin
+// the API checks against both per-replica memory bounds in the same request, so the planned memory
+// must ride along even when unchanged; a non-BYOC profile change sends only the profile.
+func TestServiceResource_Update_profile(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	byocState := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.Tier = types.StringValue(api.TierProduction)
+		s.BYOCID = types.StringValue("byoc-1")
+		s.Profile = types.StringValue("v1-standard-byoc-16")
+		s.MinReplicaMemoryGb = types.Int64Value(48)
+		s.MaxReplicaMemoryGb = types.Int64Value(48)
+		s.MinTotalMemoryGb = types.Int64Null()
+		s.MaxTotalMemoryGb = types.Int64Null()
+	}).Get()
+	byocPlan := test.NewUpdater(byocState).Update(func(s *models.ServiceResourceModel) {
+		s.Profile = types.StringValue("v1-highcpu-byoc-16")
+	}).Get()
+	enterpriseState := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.Tier = types.StringValue(api.TierProduction)
+		s.Profile = types.StringValue("v1-default")
+		s.MinReplicaMemoryGb = types.Int64Null()
+		s.MaxReplicaMemoryGb = types.Int64Null()
+		s.MinTotalMemoryGb = types.Int64Null()
+		s.MaxTotalMemoryGb = types.Int64Null()
+	}).Get()
+	enterprisePlan := test.NewUpdater(enterpriseState).Update(func(s *models.ServiceResourceModel) {
+		s.Profile = types.StringValue("v1-highmem-m")
+	}).Get()
+
+	responseWithProfile := func(profile string, memoryGb *int) *api.Service {
+		return test.NewUpdater(getBaseResponse(encodableInitialState().ID.ValueString())).Update(func(src *api.Service) {
+			src.Tier = api.TierProduction
+			src.Profile = &profile
+			src.MinReplicaMemoryGb = memoryGb
+			src.MaxReplicaMemoryGb = memoryGb
+		}).GetPtr()
+	}
+	memory48 := 48
+
+	tests := []struct {
+		name        string
+		state       models.ServiceResourceModel
+		plan        models.ServiceResourceModel
+		response    *api.Service
+		wantPatch   bool
+		wantProfile string
+		check       func(t *testing.T, u api.ReplicaScalingUpdate)
+	}{
+		{
+			name:        "BYOC profile change sends the profile with both unchanged memory bounds",
+			state:       byocState,
+			plan:        byocPlan,
+			response:    responseWithProfile("v1-highcpu-byoc-16", &memory48),
+			wantPatch:   true,
+			wantProfile: "v1-highcpu-byoc-16",
+			check: func(t *testing.T, u api.ReplicaScalingUpdate) {
+				if u.Profile == nil || *u.Profile != "v1-highcpu-byoc-16" {
+					t.Errorf("profile not sent: %v", u.Profile)
+				}
+				if u.MinReplicaMemoryGb == nil || *u.MinReplicaMemoryGb != 48 || u.MaxReplicaMemoryGb == nil || *u.MaxReplicaMemoryGb != 48 {
+					t.Errorf("unchanged per-replica memory must ride along with a BYOC profile pin: minMem=%v maxMem=%v", u.MinReplicaMemoryGb, u.MaxReplicaMemoryGb)
+				}
+			},
+		},
+		{
+			name:        "non-BYOC profile change sends only the profile",
+			state:       enterpriseState,
+			plan:        enterprisePlan,
+			response:    responseWithProfile("v1-highmem-m", nil),
+			wantPatch:   true,
+			wantProfile: "v1-highmem-m",
+			check: func(t *testing.T, u api.ReplicaScalingUpdate) {
+				if u.Profile == nil || *u.Profile != "v1-highmem-m" {
+					t.Errorf("profile not sent: %v", u.Profile)
+				}
+				if u.MinReplicaMemoryGb != nil || u.MaxReplicaMemoryGb != nil {
+					t.Errorf("memory must not be sent when it is not configured: minMem=%v maxMem=%v", u.MinReplicaMemoryGb, u.MaxReplicaMemoryGb)
+				}
+			},
+		},
+		{
+			name:        "unchanged profile does not trigger a scaling PATCH",
+			state:       byocState,
+			plan:        byocState,
+			response:    responseWithProfile("v1-standard-byoc-16", &memory48),
+			wantPatch:   false,
+			wantProfile: "v1-standard-byoc-16",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := minimock.NewController(t)
+			patched := false
+			var captured api.ReplicaScalingUpdate
+			apiClientMock := api.NewClientMock(mc).
+				UpdateReplicaScalingMock.Optional().Set(func(_ context.Context, _ string, u api.ReplicaScalingUpdate) (*api.Service, error) {
+				patched = true
+				captured = u
+				return tt.response, nil
+			}).
+				GetServiceMock.Return(tt.response, nil)
+
+			r.client = apiClientMock
+
+			stateVal := tfsdk.State{Schema: sch}
+			if d := stateVal.Set(ctx, &tt.state); d.HasError() {
+				t.Fatalf("encoding state: %v", d.Errors())
+			}
+			planVal := tfsdk.Plan{Schema: sch}
+			if d := planVal.Set(ctx, &tt.plan); d.HasError() {
+				t.Fatalf("encoding plan: %v", d.Errors())
+			}
+			req := resource.UpdateRequest{
+				State:  stateVal,
+				Plan:   planVal,
+				Config: tfsdk.Config{Schema: sch, Raw: planVal.Raw},
+			}
+			resp := &resource.UpdateResponse{State: tfsdk.State{Schema: sch}}
+			r.Update(ctx, req, resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("Update returned errors: %v", resp.Diagnostics.Errors())
+			}
+			if patched != tt.wantPatch {
+				t.Fatalf("replicaScaling PATCH sent = %v, want %v", patched, tt.wantPatch)
+			}
+			if tt.check != nil {
+				tt.check(t, captured)
+			}
+
+			var out models.ServiceResourceModel
+			if d := resp.State.Get(ctx, &out); d.HasError() {
+				t.Fatalf("decoding post-apply state: %v", d.Errors())
+			}
+			if out.Profile.ValueString() != tt.wantProfile {
+				t.Errorf("post-apply profile = %v, want %q", out.Profile, tt.wantProfile)
+			}
+		})
+	}
+}
+
 func TestServiceResource_Create_profile(t *testing.T) {
 	ctx := context.Background()
 	r := &ServiceResource{}
@@ -2450,6 +2608,9 @@ func TestServiceResource_Create_profile(t *testing.T) {
 	}
 }
 
+// When Update itself changes the password, any generated_password carried
+// forward from create is known-wrong (not merely possibly-stale), so it must
+// be cleared rather than left in state via UseStateForUnknown.
 func TestServiceResource_Update_generatedPasswordClearedOnPasswordChange(t *testing.T) {
 	ctx := context.Background()
 	r := &ServiceResource{}

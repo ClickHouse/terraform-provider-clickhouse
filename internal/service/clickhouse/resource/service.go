@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	internalplanmodifier "github.com/ClickHouse/terraform-provider-clickhouse/internal/planmodifier"
@@ -221,12 +222,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"profile": schema.StringAttribute{
-				Description: "Custom instance profile for the service, only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Can only be set at service creation time; changing it forces the service to be replaced. Use the 'available service profiles' OpenAPI endpoint to list the profiles available to your organization.",
+				Description: "Custom instance profile for the service, only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Changing the profile updates the service in place: a BYOC profile change must keep 'min_replica_memory_gb' and 'max_replica_memory_gb' equal to the new profile's memory size, and a non-BYOC custom profile cannot be changed in the same apply as a memory change. Use the 'clickhouse_service_profiles' data source to list the profiles available to your organization.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"release_channel": schema.StringAttribute{
@@ -630,6 +630,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"deletion_protection": schema.BoolAttribute{
+				Description: "Prevent the service from being deleted. While `true`, `terraform destroy` and any change that replaces the service fail. To delete the service, first set this to `false` in its own apply. Removing the attribute from configuration leaves the current setting unchanged. Setting it to `true` when creating a service needs an API key that can delete all services in the organization, and changing it later needs delete permission on the service.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					internalplanmodifier.UseStateWhenConfigNull(),
 				},
 			},
 		},
@@ -1687,6 +1695,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.EnableCoreDumps = plan.EnableCoreDumps.ValueBoolPointer()
 	}
 
+	if !plan.DeletionProtection.IsNull() && !plan.DeletionProtection.IsUnknown() {
+		service.DeletionProtection = plan.DeletionProtection.ValueBoolPointer()
+	}
+
 	// Create new service
 	s, generatedPassword, err := r.client.CreateService(ctx, service)
 	if err != nil {
@@ -1869,6 +1881,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Map response body to schema and populate Computed attribute values
 	plan.ID = types.StringValue(s.Id)
+	plannedProtection := plan.DeletionProtection
 	err = r.syncServiceState(ctx, &plan, true)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -1876,6 +1889,9 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			"Could not read ClickHouse service id "+plan.ID.ValueString()+": "+err.Error(),
 		)
 		return
+	}
+	if detail := settleAppliedProtection(plannedProtection, service.DeletionProtection, s.DeletionProtection, &plan); detail != "" {
+		resp.Diagnostics.AddError("ClickHouse Service Deletion Protection Not Applied", detail+" Terraform marks the new service as tainted, so run terraform untaint on it before applying again, or the next apply replaces it.")
 	}
 
 	// Set state to fully populated data
@@ -2064,16 +2080,24 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		service.EnableCoreDumps = plan.EnableCoreDumps.ValueBoolPointer()
 	}
 
+	if !plan.DeletionProtection.IsNull() && !plan.DeletionProtection.IsUnknown() && !plan.DeletionProtection.Equal(state.DeletionProtection) {
+		serviceChange = true
+		service.DeletionProtection = plan.DeletionProtection.ValueBoolPointer()
+	}
+
 	// Update existing service
+	var reportedProtection *bool
 	if serviceChange {
-		var err error
-		_, err = r.client.UpdateService(ctx, serviceId, service)
+		updated, err := r.client.UpdateService(ctx, serviceId, service)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service",
 				"Could not update service, unexpected error: "+err.Error(),
 			)
 			return
+		}
+		if updated != nil {
+			reportedProtection = updated.DeletionProtection
 		}
 	}
 
@@ -2159,6 +2183,22 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		if !plan.IdleTimeoutMinutes.IsNull() {
 			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
 			replicaScaling.IdleTimeoutMinutes = &idleTimeoutMinutes
+		}
+	}
+	// A profile change rides on the same PATCH. A BYOC profile is a pin the API validates against both
+	// per-replica memory bounds in the same request, so send the planned memory alongside even when it is
+	// unchanged — the API only treats memory as a change when it differs from the stored value, so an
+	// echoed bound does not trip the "non-BYOC profile rejects a memory change" rule either.
+	if !plan.Profile.IsUnknown() && !plan.Profile.IsNull() && plan.Profile != state.Profile {
+		scalingChange = true
+		replicaScaling.Profile = plan.Profile.ValueStringPointer()
+		if replicaScaling.MinReplicaMemoryGb == nil && !plan.MinReplicaMemoryGb.IsUnknown() && !plan.MinReplicaMemoryGb.IsNull() {
+			minReplicaMemoryGb := int(plan.MinReplicaMemoryGb.ValueInt64())
+			replicaScaling.MinReplicaMemoryGb = &minReplicaMemoryGb
+		}
+		if replicaScaling.MaxReplicaMemoryGb == nil && !plan.MaxReplicaMemoryGb.IsUnknown() && !plan.MaxReplicaMemoryGb.IsNull() {
+			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
+			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
 	}
 
@@ -2362,6 +2402,7 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	plannedProtection := plan.DeletionProtection
 	err := r.syncServiceState(ctx, &plan, true)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -2369,6 +2410,9 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			"Could not sync service state, unexpected error: "+err.Error(),
 		)
 		return
+	}
+	if detail := settleAppliedProtection(plannedProtection, service.DeletionProtection, reportedProtection, &plan); detail != "" {
+		resp.Diagnostics.AddError("ClickHouse Service Deletion Protection Not Applied", detail)
 	}
 
 	// CMEK->TDE migration.
@@ -2397,6 +2441,20 @@ func (r *ServiceResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 	// Delete existing order
 	_, err := r.client.DeleteService(ctx, state.ID.ValueString())
+	if errors.Is(err, api.ErrServiceDeletionProtected) {
+		detail := "Deletion protection is enabled for this service. Set deletion_protection = false and run terraform apply, then delete the service. " +
+			"If this delete is part of a change that replaces the service (any attribute that forces replacement, or -replace), " +
+			"turn protection off in its own apply, without that change, first. " +
+			"If the resource is tainted, run terraform untaint first. " +
+			"If the resource is no longer in your configuration, add it back with deletion_protection = false and apply, or turn protection off in the ClickHouse Cloud console. " +
+			"If Terraform already created a replacement (create_before_destroy), turn protection off for service " + state.ID.ValueString() + " in the ClickHouse Cloud console, then apply again."
+		if errors.Is(err, api.ErrDeleteRefusedAfterStop) {
+			detail += " The service is now stopped: start it again if you still need it."
+		}
+		tflog.Warn(ctx, "delete refused by deletion protection", map[string]interface{}{"error": err.Error()})
+		resp.Diagnostics.AddError("ClickHouse Service Is Protected From Deletion", detail)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting ClickHouse Service",
@@ -2998,7 +3056,41 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EnableCoreDumps = types.BoolNull()
 	}
 
+	state.DeletionProtection = deletionProtectionFromAPI(state.DeletionProtection, service.DeletionProtection)
+
 	return nil
+}
+
+// deletionProtectionFromAPI reads an omitted field as off (the API always reports a protected service) and never turns an unset value into false, so organizations without the feature see no drift.
+func deletionProtectionFromAPI(current types.Bool, apiValue *bool) types.Bool {
+	switch {
+	case apiValue != nil && *apiValue:
+		return types.BoolValue(true)
+	case current.IsNull() || current.IsUnknown():
+		return types.BoolNull()
+	default:
+		return types.BoolValue(false)
+	}
+}
+
+// settleAppliedProtection sets the value to record after an apply, and returns an error detail when the API didn't confirm a sent value, replacing Terraform's "inconsistent result after apply" failure.
+func settleAppliedProtection(planned types.Bool, sent, reported *bool, state *models.ServiceResourceModel) string {
+	switch {
+	case sent == nil:
+		if !planned.IsUnknown() {
+			state.DeletionProtection = planned
+		}
+		return ""
+	case reported == nil && *sent:
+		state.DeletionProtection = types.BoolNull()
+		return "ClickHouse Cloud did not confirm deletion_protection = true, so the service may not be protected. Check that deletion protection is available for your organization, then apply again."
+	case reported != nil && *reported != *sent:
+		state.DeletionProtection = types.BoolValue(*reported)
+		return fmt.Sprintf("ClickHouse Cloud returned deletion_protection = %t after the provider sent %t. Apply again, or check the setting in the ClickHouse Cloud console.", *reported, *sent)
+	default:
+		state.DeletionProtection = types.BoolValue(*sent)
+		return ""
+	}
 }
 
 func servicePasswordUpdateFromPlainPassword(password string) api.ServicePasswordUpdate {

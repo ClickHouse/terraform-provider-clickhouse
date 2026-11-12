@@ -107,3 +107,32 @@ resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "mo
 output "mongo_dns_targets" {
   value = clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_targets
 }
+
+# VPC_ENDPOINT_SERVICE for a Confluent Cloud PrivateLink network. Confluent
+# brokers use per-zone hostnames, so each zonal subdomain targets the endpoint's
+# DNS name in the same AWS availability zone ID. The Confluent network must be
+# in the same region as the ClickHouse service. confluent_network.aws is a
+# PRIVATELINK network; see examples/clickpipe/reverse_private_endpoint_confluent
+# for the full configuration.
+resource "clickhouse_clickpipes_reverse_private_endpoint" "confluent" {
+  service_id                = var.service_id
+  description               = "Confluent Cloud PrivateLink"
+  type                      = "VPC_ENDPOINT_SERVICE"
+  vpc_endpoint_service_name = confluent_network.aws.aws[0].private_link_endpoint_service
+}
+
+resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "confluent" {
+  service_id                  = var.service_id
+  reverse_private_endpoint_id = clickhouse_clickpipes_reverse_private_endpoint.confluent.id
+
+  # The bootstrap wildcard uses the default (regional) target. Each zonal
+  # wildcard uses the availability zone target with the same ID, for example
+  # use1-az1. ClickHouse Cloud adds a targeted zone to the endpoint if needed.
+  mapping = concat(
+    [{ private_dns_name = "*.${confluent_network.aws.dns_domain}" }],
+    [for az_id, subdomain in confluent_network.aws.zonal_subdomains : {
+      private_dns_name = "*.${subdomain}"
+      target_id        = az_id
+    }],
+  )
+}
