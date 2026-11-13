@@ -292,6 +292,13 @@ type ClientMock struct {
 	beforeGetByocInfrastructureCounter uint64
 	GetByocInfrastructureMock          mClientMockGetByocInfrastructure
 
+	funcGetByocInfrastructureCustomerAuthorizedAccess          func(ctx context.Context, byocId string) (bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error)
+	funcGetByocInfrastructureCustomerAuthorizedAccessOrigin    string
+	inspectFuncGetByocInfrastructureCustomerAuthorizedAccess   func(ctx context.Context, byocId string)
+	afterGetByocInfrastructureCustomerAuthorizedAccessCounter  uint64
+	beforeGetByocInfrastructureCustomerAuthorizedAccessCounter uint64
+	GetByocInfrastructureCustomerAuthorizedAccessMock          mClientMockGetByocInfrastructureCustomerAuthorizedAccess
+
 	funcGetByocInfrastructurePrivateEndpointConfig          func(ctx context.Context, byocId string) (bp1 *ByocInfrastructurePrivateEndpointConfig, err error)
 	funcGetByocInfrastructurePrivateEndpointConfigOrigin    string
 	inspectFuncGetByocInfrastructurePrivateEndpointConfig   func(ctx context.Context, byocId string)
@@ -613,6 +620,13 @@ type ClientMock struct {
 	afterUpdateByocInfrastructureCounter  uint64
 	beforeUpdateByocInfrastructureCounter uint64
 	UpdateByocInfrastructureMock          mClientMockUpdateByocInfrastructure
+
+	funcUpdateByocInfrastructureCustomerAuthorizedAccess          func(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest) (bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error)
+	funcUpdateByocInfrastructureCustomerAuthorizedAccessOrigin    string
+	inspectFuncUpdateByocInfrastructureCustomerAuthorizedAccess   func(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest)
+	afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter  uint64
+	beforeUpdateByocInfrastructureCustomerAuthorizedAccessCounter uint64
+	UpdateByocInfrastructureCustomerAuthorizedAccessMock          mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess
 
 	funcUpdateClickPipe          func(ctx context.Context, serviceId string, clickPipeId string, request ClickPipeUpdate) (cp1 *ClickPipe, err error)
 	funcUpdateClickPipeOrigin    string
@@ -950,6 +964,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetByocInfrastructureMock = mClientMockGetByocInfrastructure{mock: m}
 	m.GetByocInfrastructureMock.callArgs = []*ClientMockGetByocInfrastructureParams{}
 
+	m.GetByocInfrastructureCustomerAuthorizedAccessMock = mClientMockGetByocInfrastructureCustomerAuthorizedAccess{mock: m}
+	m.GetByocInfrastructureCustomerAuthorizedAccessMock.callArgs = []*ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams{}
+
 	m.GetByocInfrastructurePrivateEndpointConfigMock = mClientMockGetByocInfrastructurePrivateEndpointConfig{mock: m}
 	m.GetByocInfrastructurePrivateEndpointConfigMock.callArgs = []*ClientMockGetByocInfrastructurePrivateEndpointConfigParams{}
 
@@ -1087,6 +1104,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateByocInfrastructureMock = mClientMockUpdateByocInfrastructure{mock: m}
 	m.UpdateByocInfrastructureMock.callArgs = []*ClientMockUpdateByocInfrastructureParams{}
+
+	m.UpdateByocInfrastructureCustomerAuthorizedAccessMock = mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess{mock: m}
+	m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.callArgs = []*ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams{}
 
 	m.UpdateClickPipeMock = mClientMockUpdateClickPipe{mock: m}
 	m.UpdateClickPipeMock.callArgs = []*ClientMockUpdateClickPipeParams{}
@@ -15163,6 +15183,349 @@ func (m *ClientMock) MinimockGetByocInfrastructureInspect() {
 	if !m.GetByocInfrastructureMock.invocationsDone() && afterGetByocInfrastructureCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetByocInfrastructure at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetByocInfrastructureMock.expectedInvocations), m.GetByocInfrastructureMock.expectedInvocationsOrigin, afterGetByocInfrastructureCounter)
+	}
+}
+
+type mClientMockGetByocInfrastructureCustomerAuthorizedAccess struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation
+	expectations       []*ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation
+
+	callArgs []*ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation specifies expectation struct of the Client.GetByocInfrastructureCustomerAuthorizedAccess
+type ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams
+	paramPtrs          *ClientMockGetByocInfrastructureCustomerAuthorizedAccessParamPtrs
+	expectationOrigins ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectationOrigins
+	results            *ClientMockGetByocInfrastructureCustomerAuthorizedAccessResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams contains parameters of the Client.GetByocInfrastructureCustomerAuthorizedAccess
+type ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams struct {
+	ctx    context.Context
+	byocId string
+}
+
+// ClientMockGetByocInfrastructureCustomerAuthorizedAccessParamPtrs contains pointers to parameters of the Client.GetByocInfrastructureCustomerAuthorizedAccess
+type ClientMockGetByocInfrastructureCustomerAuthorizedAccessParamPtrs struct {
+	ctx    *context.Context
+	byocId *string
+}
+
+// ClientMockGetByocInfrastructureCustomerAuthorizedAccessResults contains results of the Client.GetByocInfrastructureCustomerAuthorizedAccess
+type ClientMockGetByocInfrastructureCustomerAuthorizedAccessResults struct {
+	bp1 *ByocInfrastructureCustomerAuthorizedAccess
+	err error
+}
+
+// ClientMockGetByocInfrastructureCustomerAuthorizedAccessOrigins contains origins of expectations of the Client.GetByocInfrastructureCustomerAuthorizedAccess
+type ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originByocId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) Optional() *mClientMockGetByocInfrastructureCustomerAuthorizedAccess {
+	mmGetByocInfrastructureCustomerAuthorizedAccess.optional = true
+	return mmGetByocInfrastructureCustomerAuthorizedAccess
+}
+
+// Expect sets up expected params for Client.GetByocInfrastructureCustomerAuthorizedAccess
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) Expect(ctx context.Context, byocId string) *mClientMockGetByocInfrastructureCustomerAuthorizedAccess {
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.mock.funcGetByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation = &ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation{}
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess mock is already set by ExpectParams functions")
+	}
+
+	mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params = &ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams{ctx, byocId}
+	mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetByocInfrastructureCustomerAuthorizedAccess.expectations {
+		if minimock.Equal(e.params, mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params) {
+			mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params)
+		}
+	}
+
+	return mmGetByocInfrastructureCustomerAuthorizedAccess
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetByocInfrastructureCustomerAuthorizedAccess
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) ExpectCtxParam1(ctx context.Context) *mClientMockGetByocInfrastructureCustomerAuthorizedAccess {
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.mock.funcGetByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation = &ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation{}
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess mock is already set by Expect")
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs == nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs = &ClientMockGetByocInfrastructureCustomerAuthorizedAccessParamPtrs{}
+	}
+	mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetByocInfrastructureCustomerAuthorizedAccess
+}
+
+// ExpectByocIdParam2 sets up expected param byocId for Client.GetByocInfrastructureCustomerAuthorizedAccess
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) ExpectByocIdParam2(byocId string) *mClientMockGetByocInfrastructureCustomerAuthorizedAccess {
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.mock.funcGetByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation = &ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation{}
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess mock is already set by Expect")
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs == nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs = &ClientMockGetByocInfrastructureCustomerAuthorizedAccessParamPtrs{}
+	}
+	mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs.byocId = &byocId
+	mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmGetByocInfrastructureCustomerAuthorizedAccess
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetByocInfrastructureCustomerAuthorizedAccess
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) Inspect(f func(ctx context.Context, byocId string)) *mClientMockGetByocInfrastructureCustomerAuthorizedAccess {
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.mock.inspectFuncGetByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Inspect function is already set for ClientMock.GetByocInfrastructureCustomerAuthorizedAccess")
+	}
+
+	mmGetByocInfrastructureCustomerAuthorizedAccess.mock.inspectFuncGetByocInfrastructureCustomerAuthorizedAccess = f
+
+	return mmGetByocInfrastructureCustomerAuthorizedAccess
+}
+
+// Return sets up results that will be returned by Client.GetByocInfrastructureCustomerAuthorizedAccess
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) Return(bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error) *ClientMock {
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.mock.funcGetByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation = &ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation{mock: mmGetByocInfrastructureCustomerAuthorizedAccess.mock}
+	}
+	mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.results = &ClientMockGetByocInfrastructureCustomerAuthorizedAccessResults{bp1, err}
+	mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructureCustomerAuthorizedAccess.mock
+}
+
+// Set uses given function f to mock the Client.GetByocInfrastructureCustomerAuthorizedAccess method
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) Set(f func(ctx context.Context, byocId string) (bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error)) *ClientMock {
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Default expectation is already set for the Client.GetByocInfrastructureCustomerAuthorizedAccess method")
+	}
+
+	if len(mmGetByocInfrastructureCustomerAuthorizedAccess.expectations) > 0 {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Some expectations are already set for the Client.GetByocInfrastructureCustomerAuthorizedAccess method")
+	}
+
+	mmGetByocInfrastructureCustomerAuthorizedAccess.mock.funcGetByocInfrastructureCustomerAuthorizedAccess = f
+	mmGetByocInfrastructureCustomerAuthorizedAccess.mock.funcGetByocInfrastructureCustomerAuthorizedAccessOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructureCustomerAuthorizedAccess.mock
+}
+
+// When sets expectation for the Client.GetByocInfrastructureCustomerAuthorizedAccess which will trigger the result defined by the following
+// Then helper
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) When(ctx context.Context, byocId string) *ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation {
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.mock.funcGetByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation{
+		mock:               mmGetByocInfrastructureCustomerAuthorizedAccess.mock,
+		params:             &ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams{ctx, byocId},
+		expectationOrigins: ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetByocInfrastructureCustomerAuthorizedAccess.expectations = append(mmGetByocInfrastructureCustomerAuthorizedAccess.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetByocInfrastructureCustomerAuthorizedAccess return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetByocInfrastructureCustomerAuthorizedAccessExpectation) Then(bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error) *ClientMock {
+	e.results = &ClientMockGetByocInfrastructureCustomerAuthorizedAccessResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetByocInfrastructureCustomerAuthorizedAccess should be invoked
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) Times(n uint64) *mClientMockGetByocInfrastructureCustomerAuthorizedAccess {
+	if n == 0 {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Times of ClientMock.GetByocInfrastructureCustomerAuthorizedAccess mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetByocInfrastructureCustomerAuthorizedAccess.expectedInvocations, n)
+	mmGetByocInfrastructureCustomerAuthorizedAccess.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetByocInfrastructureCustomerAuthorizedAccess
+}
+
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) invocationsDone() bool {
+	if len(mmGetByocInfrastructureCustomerAuthorizedAccess.expectations) == 0 && mmGetByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil && mmGetByocInfrastructureCustomerAuthorizedAccess.mock.funcGetByocInfrastructureCustomerAuthorizedAccess == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetByocInfrastructureCustomerAuthorizedAccess.mock.afterGetByocInfrastructureCustomerAuthorizedAccessCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetByocInfrastructureCustomerAuthorizedAccess.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetByocInfrastructureCustomerAuthorizedAccess implements Client
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *ClientMock) GetByocInfrastructureCustomerAuthorizedAccess(ctx context.Context, byocId string) (bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error) {
+	mm_atomic.AddUint64(&mmGetByocInfrastructureCustomerAuthorizedAccess.beforeGetByocInfrastructureCustomerAuthorizedAccessCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetByocInfrastructureCustomerAuthorizedAccess.afterGetByocInfrastructureCustomerAuthorizedAccessCounter, 1)
+
+	mmGetByocInfrastructureCustomerAuthorizedAccess.t.Helper()
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.inspectFuncGetByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmGetByocInfrastructureCustomerAuthorizedAccess.inspectFuncGetByocInfrastructureCustomerAuthorizedAccess(ctx, byocId)
+	}
+
+	mm_params := ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams{ctx, byocId}
+
+	// Record call args
+	mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.mutex.Lock()
+	mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.callArgs = append(mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.callArgs, &mm_params)
+	mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.mutex.Unlock()
+
+	for _, e := range mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.params
+		mm_want_ptrs := mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams{ctx, byocId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetByocInfrastructureCustomerAuthorizedAccess.t.Errorf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmGetByocInfrastructureCustomerAuthorizedAccess.t.Errorf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetByocInfrastructureCustomerAuthorizedAccess.t.Errorf("ClientMock.GetByocInfrastructureCustomerAuthorizedAccess got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetByocInfrastructureCustomerAuthorizedAccess.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetByocInfrastructureCustomerAuthorizedAccess.t.Fatal("No results are set for the ClientMock.GetByocInfrastructureCustomerAuthorizedAccess")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmGetByocInfrastructureCustomerAuthorizedAccess.funcGetByocInfrastructureCustomerAuthorizedAccess != nil {
+		return mmGetByocInfrastructureCustomerAuthorizedAccess.funcGetByocInfrastructureCustomerAuthorizedAccess(ctx, byocId)
+	}
+	mmGetByocInfrastructureCustomerAuthorizedAccess.t.Fatalf("Unexpected call to ClientMock.GetByocInfrastructureCustomerAuthorizedAccess. %v %v", ctx, byocId)
+	return
+}
+
+// GetByocInfrastructureCustomerAuthorizedAccessAfterCounter returns a count of finished ClientMock.GetByocInfrastructureCustomerAuthorizedAccess invocations
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *ClientMock) GetByocInfrastructureCustomerAuthorizedAccessAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetByocInfrastructureCustomerAuthorizedAccess.afterGetByocInfrastructureCustomerAuthorizedAccessCounter)
+}
+
+// GetByocInfrastructureCustomerAuthorizedAccessBeforeCounter returns a count of ClientMock.GetByocInfrastructureCustomerAuthorizedAccess invocations
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *ClientMock) GetByocInfrastructureCustomerAuthorizedAccessBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetByocInfrastructureCustomerAuthorizedAccess.beforeGetByocInfrastructureCustomerAuthorizedAccessCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetByocInfrastructureCustomerAuthorizedAccess.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetByocInfrastructureCustomerAuthorizedAccess *mClientMockGetByocInfrastructureCustomerAuthorizedAccess) Calls() []*ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams {
+	mmGetByocInfrastructureCustomerAuthorizedAccess.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetByocInfrastructureCustomerAuthorizedAccessParams, len(mmGetByocInfrastructureCustomerAuthorizedAccess.callArgs))
+	copy(argCopy, mmGetByocInfrastructureCustomerAuthorizedAccess.callArgs)
+
+	mmGetByocInfrastructureCustomerAuthorizedAccess.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetByocInfrastructureCustomerAuthorizedAccessDone returns true if the count of the GetByocInfrastructureCustomerAuthorizedAccess invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetByocInfrastructureCustomerAuthorizedAccessDone() bool {
+	if m.GetByocInfrastructureCustomerAuthorizedAccessMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetByocInfrastructureCustomerAuthorizedAccessMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetByocInfrastructureCustomerAuthorizedAccessMock.invocationsDone()
+}
+
+// MinimockGetByocInfrastructureCustomerAuthorizedAccessInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetByocInfrastructureCustomerAuthorizedAccessInspect() {
+	for _, e := range m.GetByocInfrastructureCustomerAuthorizedAccessMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructureCustomerAuthorizedAccess at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetByocInfrastructureCustomerAuthorizedAccessCounter := mm_atomic.LoadUint64(&m.afterGetByocInfrastructureCustomerAuthorizedAccessCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation != nil && afterGetByocInfrastructureCustomerAuthorizedAccessCounter < 1 {
+		if m.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructureCustomerAuthorizedAccess at\n%s", m.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetByocInfrastructureCustomerAuthorizedAccess at\n%s with params: %#v", m.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.expectationOrigins.origin, *m.GetByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetByocInfrastructureCustomerAuthorizedAccess != nil && afterGetByocInfrastructureCustomerAuthorizedAccessCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetByocInfrastructureCustomerAuthorizedAccess at\n%s", m.funcGetByocInfrastructureCustomerAuthorizedAccessOrigin)
+	}
+
+	if !m.GetByocInfrastructureCustomerAuthorizedAccessMock.invocationsDone() && afterGetByocInfrastructureCustomerAuthorizedAccessCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetByocInfrastructureCustomerAuthorizedAccess at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetByocInfrastructureCustomerAuthorizedAccessMock.expectedInvocations), m.GetByocInfrastructureCustomerAuthorizedAccessMock.expectedInvocationsOrigin, afterGetByocInfrastructureCustomerAuthorizedAccessCounter)
 	}
 }
 
@@ -31375,6 +31738,380 @@ func (m *ClientMock) MinimockUpdateByocInfrastructureInspect() {
 	}
 }
 
+type mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation
+	expectations       []*ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation
+
+	callArgs []*ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation specifies expectation struct of the Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+type ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams
+	paramPtrs          *ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParamPtrs
+	expectationOrigins ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectationOrigins
+	results            *ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams contains parameters of the Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+type ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams struct {
+	ctx    context.Context
+	byocId string
+	r      ByocInfrastructureCustomerAuthorizedAccessUpdateRequest
+}
+
+// ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParamPtrs contains pointers to parameters of the Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+type ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParamPtrs struct {
+	ctx    *context.Context
+	byocId *string
+	r      *ByocInfrastructureCustomerAuthorizedAccessUpdateRequest
+}
+
+// ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessResults contains results of the Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+type ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessResults struct {
+	bp1 *ByocInfrastructureCustomerAuthorizedAccess
+	err error
+}
+
+// ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessOrigins contains origins of expectations of the Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+type ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originByocId string
+	originR      string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) Optional() *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess {
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.optional = true
+	return mmUpdateByocInfrastructureCustomerAuthorizedAccess
+}
+
+// Expect sets up expected params for Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) Expect(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest) *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess {
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.funcUpdateByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation{}
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams{ctx, byocId, r}
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateByocInfrastructureCustomerAuthorizedAccess.expectations {
+		if minimock.Equal(e.params, mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params) {
+			mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateByocInfrastructureCustomerAuthorizedAccess
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess {
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.funcUpdateByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation{}
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by Expect")
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs == nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParamPtrs{}
+	}
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateByocInfrastructureCustomerAuthorizedAccess
+}
+
+// ExpectByocIdParam2 sets up expected param byocId for Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) ExpectByocIdParam2(byocId string) *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess {
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.funcUpdateByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation{}
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by Expect")
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs == nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParamPtrs{}
+	}
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs.byocId = &byocId
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.expectationOrigins.originByocId = minimock.CallerInfo(1)
+
+	return mmUpdateByocInfrastructureCustomerAuthorizedAccess
+}
+
+// ExpectRParam3 sets up expected param r for Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) ExpectRParam3(r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest) *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess {
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.funcUpdateByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation{}
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.params != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by Expect")
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs == nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParamPtrs{}
+	}
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.paramPtrs.r = &r
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.expectationOrigins.originR = minimock.CallerInfo(1)
+
+	return mmUpdateByocInfrastructureCustomerAuthorizedAccess
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) Inspect(f func(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest)) *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess {
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.inspectFuncUpdateByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess")
+	}
+
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.inspectFuncUpdateByocInfrastructureCustomerAuthorizedAccess = f
+
+	return mmUpdateByocInfrastructureCustomerAuthorizedAccess
+}
+
+// Return sets up results that will be returned by Client.UpdateByocInfrastructureCustomerAuthorizedAccess
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) Return(bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error) *ClientMock {
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.funcUpdateByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation{mock: mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock}
+	}
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.results = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessResults{bp1, err}
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock
+}
+
+// Set uses given function f to mock the Client.UpdateByocInfrastructureCustomerAuthorizedAccess method
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) Set(f func(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest) (bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error)) *ClientMock {
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Default expectation is already set for the Client.UpdateByocInfrastructureCustomerAuthorizedAccess method")
+	}
+
+	if len(mmUpdateByocInfrastructureCustomerAuthorizedAccess.expectations) > 0 {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Some expectations are already set for the Client.UpdateByocInfrastructureCustomerAuthorizedAccess method")
+	}
+
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.funcUpdateByocInfrastructureCustomerAuthorizedAccess = f
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.funcUpdateByocInfrastructureCustomerAuthorizedAccessOrigin = minimock.CallerInfo(1)
+	return mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock
+}
+
+// When sets expectation for the Client.UpdateByocInfrastructureCustomerAuthorizedAccess which will trigger the result defined by the following
+// Then helper
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) When(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest) *ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation {
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.funcUpdateByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation{
+		mock:               mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock,
+		params:             &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams{ctx, byocId, r},
+		expectationOrigins: ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.expectations = append(mmUpdateByocInfrastructureCustomerAuthorizedAccess.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateByocInfrastructureCustomerAuthorizedAccess return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessExpectation) Then(bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error) *ClientMock {
+	e.results = &ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessResults{bp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateByocInfrastructureCustomerAuthorizedAccess should be invoked
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) Times(n uint64) *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess {
+	if n == 0 {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.t.Fatalf("Times of ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateByocInfrastructureCustomerAuthorizedAccess.expectedInvocations, n)
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateByocInfrastructureCustomerAuthorizedAccess
+}
+
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) invocationsDone() bool {
+	if len(mmUpdateByocInfrastructureCustomerAuthorizedAccess.expectations) == 0 && mmUpdateByocInfrastructureCustomerAuthorizedAccess.defaultExpectation == nil && mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.funcUpdateByocInfrastructureCustomerAuthorizedAccess == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateByocInfrastructureCustomerAuthorizedAccess.mock.afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateByocInfrastructureCustomerAuthorizedAccess.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateByocInfrastructureCustomerAuthorizedAccess implements Client
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *ClientMock) UpdateByocInfrastructureCustomerAuthorizedAccess(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest) (bp1 *ByocInfrastructureCustomerAuthorizedAccess, err error) {
+	mm_atomic.AddUint64(&mmUpdateByocInfrastructureCustomerAuthorizedAccess.beforeUpdateByocInfrastructureCustomerAuthorizedAccessCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateByocInfrastructureCustomerAuthorizedAccess.afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter, 1)
+
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.t.Helper()
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.inspectFuncUpdateByocInfrastructureCustomerAuthorizedAccess != nil {
+		mmUpdateByocInfrastructureCustomerAuthorizedAccess.inspectFuncUpdateByocInfrastructureCustomerAuthorizedAccess(ctx, byocId, r)
+	}
+
+	mm_params := ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams{ctx, byocId, r}
+
+	// Record call args
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.mutex.Lock()
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.callArgs = append(mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.callArgs, &mm_params)
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.mutex.Unlock()
+
+	for _, e := range mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.bp1, e.results.err
+		}
+	}
+
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams{ctx, byocId, r}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateByocInfrastructureCustomerAuthorizedAccess.t.Errorf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.byocId != nil && !minimock.Equal(*mm_want_ptrs.byocId, mm_got.byocId) {
+				mmUpdateByocInfrastructureCustomerAuthorizedAccess.t.Errorf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess got unexpected parameter byocId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.expectationOrigins.originByocId, *mm_want_ptrs.byocId, mm_got.byocId, minimock.Diff(*mm_want_ptrs.byocId, mm_got.byocId))
+			}
+
+			if mm_want_ptrs.r != nil && !minimock.Equal(*mm_want_ptrs.r, mm_got.r) {
+				mmUpdateByocInfrastructureCustomerAuthorizedAccess.t.Errorf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess got unexpected parameter r, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.expectationOrigins.originR, *mm_want_ptrs.r, mm_got.r, minimock.Diff(*mm_want_ptrs.r, mm_got.r))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateByocInfrastructureCustomerAuthorizedAccess.t.Errorf("ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateByocInfrastructureCustomerAuthorizedAccess.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateByocInfrastructureCustomerAuthorizedAccess.t.Fatal("No results are set for the ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess")
+		}
+		return (*mm_results).bp1, (*mm_results).err
+	}
+	if mmUpdateByocInfrastructureCustomerAuthorizedAccess.funcUpdateByocInfrastructureCustomerAuthorizedAccess != nil {
+		return mmUpdateByocInfrastructureCustomerAuthorizedAccess.funcUpdateByocInfrastructureCustomerAuthorizedAccess(ctx, byocId, r)
+	}
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.t.Fatalf("Unexpected call to ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess. %v %v %v", ctx, byocId, r)
+	return
+}
+
+// UpdateByocInfrastructureCustomerAuthorizedAccessAfterCounter returns a count of finished ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess invocations
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *ClientMock) UpdateByocInfrastructureCustomerAuthorizedAccessAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateByocInfrastructureCustomerAuthorizedAccess.afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter)
+}
+
+// UpdateByocInfrastructureCustomerAuthorizedAccessBeforeCounter returns a count of ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess invocations
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *ClientMock) UpdateByocInfrastructureCustomerAuthorizedAccessBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateByocInfrastructureCustomerAuthorizedAccess.beforeUpdateByocInfrastructureCustomerAuthorizedAccessCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateByocInfrastructureCustomerAuthorizedAccess *mClientMockUpdateByocInfrastructureCustomerAuthorizedAccess) Calls() []*ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams {
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateByocInfrastructureCustomerAuthorizedAccessParams, len(mmUpdateByocInfrastructureCustomerAuthorizedAccess.callArgs))
+	copy(argCopy, mmUpdateByocInfrastructureCustomerAuthorizedAccess.callArgs)
+
+	mmUpdateByocInfrastructureCustomerAuthorizedAccess.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateByocInfrastructureCustomerAuthorizedAccessDone returns true if the count of the UpdateByocInfrastructureCustomerAuthorizedAccess invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateByocInfrastructureCustomerAuthorizedAccessDone() bool {
+	if m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.invocationsDone()
+}
+
+// MinimockUpdateByocInfrastructureCustomerAuthorizedAccessInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateByocInfrastructureCustomerAuthorizedAccessInspect() {
+	for _, e := range m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter := mm_atomic.LoadUint64(&m.afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation != nil && afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter < 1 {
+		if m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess at\n%s", m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess at\n%s with params: %#v", m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.expectationOrigins.origin, *m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateByocInfrastructureCustomerAuthorizedAccess != nil && afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess at\n%s", m.funcUpdateByocInfrastructureCustomerAuthorizedAccessOrigin)
+	}
+
+	if !m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.invocationsDone() && afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateByocInfrastructureCustomerAuthorizedAccess at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.expectedInvocations), m.UpdateByocInfrastructureCustomerAuthorizedAccessMock.expectedInvocationsOrigin, afterUpdateByocInfrastructureCustomerAuthorizedAccessCounter)
+	}
+}
+
 type mClientMockUpdateClickPipe struct {
 	optional           bool
 	mock               *ClientMock
@@ -43012,6 +43749,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetByocInfrastructureInspect()
 
+			m.MinimockGetByocInfrastructureCustomerAuthorizedAccessInspect()
+
 			m.MinimockGetByocInfrastructurePrivateEndpointConfigInspect()
 
 			m.MinimockGetByocInfrastructureTagsInspect()
@@ -43103,6 +43842,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateBackupConfigurationInspect()
 
 			m.MinimockUpdateByocInfrastructureInspect()
+
+			m.MinimockUpdateByocInfrastructureCustomerAuthorizedAccessInspect()
 
 			m.MinimockUpdateClickPipeInspect()
 
@@ -43225,6 +43966,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetApiKeyIDDone() &&
 		m.MinimockGetBackupConfigurationDone() &&
 		m.MinimockGetByocInfrastructureDone() &&
+		m.MinimockGetByocInfrastructureCustomerAuthorizedAccessDone() &&
 		m.MinimockGetByocInfrastructurePrivateEndpointConfigDone() &&
 		m.MinimockGetByocInfrastructureTagsDone() &&
 		m.MinimockGetClickPipeDone() &&
@@ -43271,6 +44013,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateApiKeyDone() &&
 		m.MinimockUpdateBackupConfigurationDone() &&
 		m.MinimockUpdateByocInfrastructureDone() &&
+		m.MinimockUpdateByocInfrastructureCustomerAuthorizedAccessDone() &&
 		m.MinimockUpdateClickPipeDone() &&
 		m.MinimockUpdateClickPipeCdcScalingDone() &&
 		m.MinimockUpdateClickPipeSettingsDone() &&
