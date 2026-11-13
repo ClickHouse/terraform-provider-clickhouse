@@ -507,6 +507,7 @@ Optional:
 - `snapshot_number_of_parallel_tables` (Number) Number of parallel tables to snapshot.
 - `sync_interval_seconds` (Number) Interval in seconds to sync data from MySQL.
 - `use_compression` (Boolean) Enable compression for the MySQL replication connection.
+- `use_json_native_format` (Boolean) Store `json`/`jsonb` (Postgres) and `JSON` (MySQL) columns as native ClickHouse `JSON` instead of `String`. Non-object values (scalars, arrays, JSON `null`) are wrapped as `{"_value": ...}`; `json[]`/`jsonb[]` become `Array(JSON)`. Requires ClickHouse 25.3 or later. Can only be set at creation time; changing it forces pipe replacement. Defaults to `false`.
 
 
 <a id="nestedatt--source--mysql--table_mappings"></a>
@@ -620,6 +621,7 @@ Optional:
 - `snapshot_num_rows_per_partition` (Number) Number of rows to snapshot per partition.
 - `snapshot_number_of_parallel_tables` (Number) Number of parallel tables to snapshot.
 - `sync_interval_seconds` (Number) Interval in seconds to sync data from Postgres.
+- `use_json_native_format` (Boolean) Store `json`/`jsonb` (Postgres) and `JSON` (MySQL) columns as native ClickHouse `JSON` instead of `String`. Non-object values (scalars, arrays, JSON `null`) are wrapped as `{"_value": ...}`; `json[]`/`jsonb[]` become `Array(JSON)`. Requires ClickHouse 25.3 or later. Can only be set at creation time; changing it forces pipe replacement. Defaults to `false`.
 
 
 <a id="nestedatt--source--postgres--table_mappings"></a>

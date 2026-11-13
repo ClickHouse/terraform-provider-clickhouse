@@ -1163,6 +1163,15 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											boolplanmodifier.UseStateForUnknown(),
 										},
 									},
+									"use_json_native_format": schema.BoolAttribute{
+										MarkdownDescription: "Store `json`/`jsonb` (Postgres) and `JSON` (MySQL) columns as native ClickHouse `JSON` instead of `String`. Non-object values (scalars, arrays, JSON `null`) are wrapped as `{\"_value\": ...}`; `json[]`/`jsonb[]` become `Array(JSON)`. Requires ClickHouse 25.3 or later. Can only be set at creation time; changing it forces pipe replacement. Defaults to `false`.",
+										Optional:            true,
+										Computed:            true,
+										Default:             booldefault.StaticBool(false),
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.RequiresReplace(),
+										},
+									},
 									"initial_load_parallelism": schema.Int64Attribute{
 										Description: "Number of parallel connections to use during initial load.",
 										Optional:    true,
@@ -1489,6 +1498,15 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										PlanModifiers: []planmodifier.Bool{
 											boolplanmodifier.RequiresReplace(),
 											boolplanmodifier.UseStateForUnknown(),
+										},
+									},
+									"use_json_native_format": schema.BoolAttribute{
+										MarkdownDescription: "Store `json`/`jsonb` (Postgres) and `JSON` (MySQL) columns as native ClickHouse `JSON` instead of `String`. Non-object values (scalars, arrays, JSON `null`) are wrapped as `{\"_value\": ...}`; `json[]`/`jsonb[]` become `Array(JSON)`. Requires ClickHouse 25.3 or later. Can only be set at creation time; changing it forces pipe replacement. Defaults to `false`.",
+										Optional:            true,
+										Computed:            true,
+										Default:             booldefault.StaticBool(false),
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.RequiresReplace(),
 										},
 									},
 									"initial_load_parallelism": schema.Int64Attribute{
@@ -4058,6 +4076,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			val := settingsModel.AllowNullableColumns.ValueBool()
 			settings.AllowNullableColumns = &val
 		}
+		if !settingsModel.UseJsonNativeFormat.IsNull() && !settingsModel.UseJsonNativeFormat.IsUnknown() {
+			val := settingsModel.UseJsonNativeFormat.ValueBool()
+			settings.UseJsonNativeFormat = &val
+		}
 		if !settingsModel.InitialLoadParallelism.IsNull() && !settingsModel.InitialLoadParallelism.IsUnknown() {
 			val := int(settingsModel.InitialLoadParallelism.ValueInt64())
 			settings.InitialLoadParallelism = &val
@@ -4272,6 +4294,10 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		if !settingsModel.AllowNullableColumns.IsNull() && !settingsModel.AllowNullableColumns.IsUnknown() {
 			val := settingsModel.AllowNullableColumns.ValueBool()
 			settings.AllowNullableColumns = &val
+		}
+		if !settingsModel.UseJsonNativeFormat.IsNull() && !settingsModel.UseJsonNativeFormat.IsUnknown() {
+			val := settingsModel.UseJsonNativeFormat.ValueBool()
+			settings.UseJsonNativeFormat = &val
 		}
 		if !settingsModel.InitialLoadParallelism.IsNull() && !settingsModel.InitialLoadParallelism.IsUnknown() {
 			val := int(settingsModel.InitialLoadParallelism.ValueInt64())
@@ -5086,6 +5112,15 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.AllowNullableColumns = types.BoolNull()
 		}
 
+		// UseJsonNativeFormat: preserve state/plan value when API doesn't return this field
+		if clickPipe.Source.Postgres.Settings.UseJsonNativeFormat != nil {
+			settingsModel.UseJsonNativeFormat = types.BoolValue(*clickPipe.Source.Postgres.Settings.UseJsonNativeFormat)
+		} else if !stateSettingsModel.UseJsonNativeFormat.IsNull() {
+			settingsModel.UseJsonNativeFormat = stateSettingsModel.UseJsonNativeFormat
+		} else {
+			settingsModel.UseJsonNativeFormat = types.BoolNull()
+		}
+
 		if clickPipe.Source.Postgres.Settings.InitialLoadParallelism != nil {
 			settingsModel.InitialLoadParallelism = types.Int64Value(int64(*clickPipe.Source.Postgres.Settings.InitialLoadParallelism))
 		} else {
@@ -5345,6 +5380,15 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			settingsModel.AllowNullableColumns = types.BoolValue(*clickPipe.Source.MySQL.Settings.AllowNullableColumns)
 		} else {
 			settingsModel.AllowNullableColumns = types.BoolNull()
+		}
+
+		// UseJsonNativeFormat: preserve state/plan value when API doesn't return this field
+		if clickPipe.Source.MySQL.Settings.UseJsonNativeFormat != nil {
+			settingsModel.UseJsonNativeFormat = types.BoolValue(*clickPipe.Source.MySQL.Settings.UseJsonNativeFormat)
+		} else if !stateSettingsModel.UseJsonNativeFormat.IsNull() {
+			settingsModel.UseJsonNativeFormat = stateSettingsModel.UseJsonNativeFormat
+		} else {
+			settingsModel.UseJsonNativeFormat = types.BoolNull()
 		}
 
 		if clickPipe.Source.MySQL.Settings.InitialLoadParallelism != nil {
