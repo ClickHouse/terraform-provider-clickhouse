@@ -14,6 +14,7 @@ import (
 	"github.com/gojuno/minimock/v3"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -698,6 +699,24 @@ func TestServiceResource_syncServiceState(t *testing.T) {
 			updateTimestamp: false,
 			wantErr:         false,
 		},
+		{
+			name:  "Deletion protection turned on outside Terraform shows up in state",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.DeletionProtection = boolPtr(true)
+			}).GetPtr(),
+			desiredState: test.NewUpdater(state).Update(func(src *models.ServiceResourceModel) {
+				src.DeletionProtection = types.BoolValue(true)
+			}).Get(),
+		},
+		{
+			name:  "Deletion protection false from the API leaves an unset attribute unset",
+			state: state,
+			response: test.NewUpdater(getBaseResponse(state.ID.ValueString())).Update(func(src *api.Service) {
+				src.DeletionProtection = boolPtr(false)
+			}).GetPtr(),
+			desiredState: state,
+		},
 	}
 
 	for _, tt := range tests {
@@ -793,9 +812,10 @@ func getInitialState() models.ServiceResourceModel {
 			Enabled: types.BoolValue(false),
 			RoleID:  types.StringNull(),
 		}.ObjectValue(),
-		ComplianceType:  types.StringNull(),
-		Tags:            tags,
-		EnableCoreDumps: types.BoolNull(),
+		ComplianceType:     types.StringNull(),
+		Tags:               tags,
+		EnableCoreDumps:    types.BoolNull(),
+		DeletionProtection: types.BoolNull(),
 	}
 
 	return state
@@ -1368,6 +1388,419 @@ func TestServiceResource_ModifyPlan_horizontal(t *testing.T) {
 		}).Get()
 		if !detailContains(run(t, horizontalWithCount), "num_replicas can't be set when autoscaling_mode is \"horizontal\"") {
 			t.Errorf("horizontal + num_replicas must be rejected at plan time")
+		}
+	})
+}
+
+func TestValidateGen2Profile(t *testing.T) {
+	gen2 := func(mut func(*models.ServiceResourceModel)) models.ServiceResourceModel {
+		return test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+			s.Tier = types.StringValue(api.TierPPv2)
+			s.Profile = types.StringValue(api.ProfileGen2)
+			s.IdleScaling = types.BoolValue(false)
+			s.NumReplicas = types.Int64Value(3)
+			s.MinReplicas = types.Int64Null()
+			s.MaxReplicas = types.Int64Null()
+			s.MinReplicaMemoryGb = types.Int64Value(16)
+			s.MaxReplicaMemoryGb = types.Int64Value(16)
+			s.MinTotalMemoryGb = types.Int64Null()
+			s.MaxTotalMemoryGb = types.Int64Null()
+			if mut != nil {
+				mut(s)
+			}
+		}).Get()
+	}
+	gen1 := func(profile types.String) models.ServiceResourceModel {
+		return gen2(func(s *models.ServiceResourceModel) {
+			s.Profile = profile
+			s.MaxReplicaMemoryGb = types.Int64Value(64)
+		})
+	}
+	byoc := func(profile string) models.ServiceResourceModel {
+		return gen2(func(s *models.ServiceResourceModel) {
+			s.BYOCID = types.StringValue("byoc-1")
+			s.Profile = types.StringValue(profile)
+		})
+	}
+	ptr := func(m models.ServiceResourceModel) *models.ServiceResourceModel { return &m }
+
+	tests := []struct {
+		name      string
+		plan      models.ServiceResourceModel
+		state     *models.ServiceResourceModel
+		wantPath  string
+		wantError string
+	}{
+		{
+			name: "fixed-size Gen 2 create plans cleanly",
+			plan: gen2(nil),
+		},
+		{
+			name: "a Gen 2 create with idle_scaling left out plans cleanly",
+			// An omitted Optional+Computed attribute plans as unknown on create.
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.IdleScaling = types.BoolUnknown()
+			}),
+		},
+		{
+			name: "an incomplete replica pair is left to the schema's AlsoRequires validator",
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.MinReplicas = types.Int64Value(3)
+				s.MaxReplicas = types.Int64Null()
+			}),
+		},
+		{
+			name: "Gen 2 with a per-replica memory range is rejected",
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.MaxReplicaMemoryGb = types.Int64Value(32)
+			}),
+			wantPath:  "min_replica_memory_gb",
+			wantError: "min_replica_memory_gb must equal max_replica_memory_gb",
+		},
+		{
+			name: "Gen 2 with a deprecated total memory range is rejected",
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.MinReplicaMemoryGb = types.Int64Unknown()
+				s.MaxReplicaMemoryGb = types.Int64Unknown()
+				s.MinTotalMemoryGb = types.Int64Value(48)
+				s.MaxTotalMemoryGb = types.Int64Value(96)
+			}),
+			wantPath:  "min_total_memory_gb",
+			wantError: "min_total_memory_gb must equal max_total_memory_gb",
+		},
+		{
+			name: "Gen 2 with a replica band is rejected",
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.AutoscalingMode = types.StringValue(api.AutoscalingModeHorizontal)
+				s.NumReplicas = types.Int64Null()
+				s.MinReplicas = types.Int64Value(3)
+				s.MaxReplicas = types.Int64Value(6)
+			}),
+			wantPath:  "min_replicas",
+			wantError: "fixed replica count",
+		},
+		{
+			name: "Gen 2 with idling on is rejected",
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.IdleScaling = types.BoolValue(true)
+			}),
+			wantPath:  "idle_scaling",
+			wantError: "can't idle",
+		},
+		{
+			name: "Gen 2 values not known yet are left to the API",
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.MaxReplicaMemoryGb = types.Int64Unknown()
+				s.MaxReplicas = types.Int64Unknown()
+				s.MinReplicas = types.Int64Value(3)
+				s.IdleScaling = types.BoolUnknown()
+			}),
+		},
+		{
+			name: "a ranged Gen 1 service is not checked",
+			plan: gen1(types.StringNull()),
+		},
+		{
+			name: "an unknown profile is not checked",
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.Profile = types.StringUnknown()
+				s.MaxReplicaMemoryGb = types.Int64Value(32)
+			}),
+		},
+		{
+			name: "a ranged update of an existing Gen 2 service reports only the sizing error",
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.MaxReplicaMemoryGb = types.Int64Value(32)
+			}),
+			state:     ptr(gen2(nil)),
+			wantPath:  "min_replica_memory_gb",
+			wantError: "min_replica_memory_gb must equal max_replica_memory_gb",
+		},
+		{
+			name:      "switching a service with no profile to Gen 2 is rejected",
+			plan:      gen2(nil),
+			state:     ptr(gen1(types.StringNull())),
+			wantPath:  "profile",
+			wantError: "can't switch an existing service between Gen 1 and Gen 2 hardware",
+		},
+		{
+			name:      "switching a v1-default service to Gen 2 is rejected",
+			plan:      gen2(nil),
+			state:     ptr(gen1(types.StringValue("v1-default"))),
+			wantPath:  "profile",
+			wantError: "can't switch an existing service between Gen 1 and Gen 2 hardware",
+		},
+		{
+			name:      "switching a Gen 2 service to a Gen 1 profile is rejected",
+			plan:      gen1(types.StringValue("v1-default")),
+			state:     ptr(gen2(nil)),
+			wantPath:  "profile",
+			wantError: "can't switch an existing service between Gen 1 and Gen 2 hardware",
+		},
+		{
+			name: "a switch to Gen 2 is rejected even when another change replaces the service",
+			plan: gen2(func(s *models.ServiceResourceModel) {
+				s.ComplianceType = types.StringValue(api.ComplianceTypeHIPAA)
+			}),
+			state:     ptr(gen1(types.StringValue("v1-default"))),
+			wantPath:  "profile",
+			wantError: "can't switch an existing service between Gen 1 and Gen 2 hardware",
+		},
+		{
+			name: "an unknown profile on an existing Gen 1 service is left to the API",
+			plan: test.NewUpdater(gen1(types.StringValue("v1-default"))).Update(func(s *models.ServiceResourceModel) {
+				s.Profile = types.StringUnknown()
+			}).Get(),
+			state: ptr(gen1(types.StringValue("v1-default"))),
+		},
+		{
+			name:  "a non-BYOC Gen 1 profile change stays in place",
+			plan:  gen1(types.StringValue("v1-highmem-m")),
+			state: ptr(gen1(types.StringValue("v1-default"))),
+		},
+		{
+			name:  "a BYOC profile change stays in place",
+			plan:  byoc("v1-highcpu-byoc-16"),
+			state: ptr(byoc("v1-standard-byoc-16")),
+		},
+		{
+			name:  "an unchanged Gen 2 service plans cleanly",
+			plan:  gen2(nil),
+			state: ptr(gen2(nil)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			var state models.ServiceResourceModel
+			if tt.state != nil {
+				state = *tt.state
+			}
+			validateGen2Profile(tt.plan, state, tt.state != nil, &diags)
+
+			if tt.wantError == "" {
+				if diags.HasError() {
+					t.Fatalf("expected no errors, got: %v", diags.Errors())
+				}
+				return
+			}
+			if len(diags.Errors()) != 1 {
+				t.Fatalf("expected exactly one error, got: %v", diags.Errors())
+			}
+			if !detailContains(diags, tt.wantError) {
+				t.Errorf("expected an error containing %q, got: %v", tt.wantError, diags.Errors())
+			}
+			withPath, ok := diags.Errors()[0].(diag.DiagnosticWithPath)
+			if !ok || !withPath.Path().Equal(path.Root(tt.wantPath)) {
+				t.Errorf("expected the error on %q, got: %v", tt.wantPath, diags.Errors()[0])
+			}
+		})
+	}
+
+	t.Run("a switch with ranged, idling Gen 2 sizing reports every rule", func(t *testing.T) {
+		var diags diag.Diagnostics
+		plan := gen2(func(s *models.ServiceResourceModel) {
+			s.MaxReplicaMemoryGb = types.Int64Value(32)
+			s.IdleScaling = types.BoolValue(true)
+		})
+		validateGen2Profile(plan, gen1(types.StringValue("v1-default")), true, &diags)
+
+		var got []string
+		for _, d := range diags.Errors() {
+			if withPath, ok := d.(diag.DiagnosticWithPath); ok {
+				got = append(got, withPath.Path().String())
+			}
+		}
+		want := []string{"profile", "min_replica_memory_gb", "idle_scaling"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("expected errors on %v, got: %v", want, diags.Errors())
+		}
+	})
+}
+
+// ModifyPlan runs the Gen 2 check on both a create and an update.
+func TestServiceResource_ModifyPlan_gen2(t *testing.T) {
+	ctx := context.Background()
+	r := &ServiceResource{}
+	sch := buildServiceSchema(t, ctx, r)
+
+	runWithConfig := func(t *testing.T, state *models.ServiceResourceModel, config, plan models.ServiceResourceModel) diag.Diagnostics {
+		t.Helper()
+		planVal := tfsdk.Plan{Schema: sch}
+		if d := planVal.Set(ctx, &plan); d.HasError() {
+			t.Fatalf("encoding plan failed: %v", d.Errors())
+		}
+		configVal := tfsdk.Plan{Schema: sch}
+		if d := configVal.Set(ctx, &config); d.HasError() {
+			t.Fatalf("encoding config failed: %v", d.Errors())
+		}
+		stateVal := tfsdk.State{Schema: sch}
+		if state != nil {
+			if d := stateVal.Set(ctx, state); d.HasError() {
+				t.Fatalf("encoding state failed: %v", d.Errors())
+			}
+		}
+		req := resource.ModifyPlanRequest{
+			State:  stateVal,
+			Plan:   planVal,
+			Config: tfsdk.Config{Schema: sch, Raw: configVal.Raw},
+		}
+		resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: sch, Raw: planVal.Raw}}
+		r.ModifyPlan(ctx, req, resp)
+		return resp.Diagnostics
+	}
+	run := func(t *testing.T, state *models.ServiceResourceModel, plan models.ServiceResourceModel) diag.Diagnostics {
+		t.Helper()
+		return runWithConfig(t, state, plan, plan)
+	}
+
+	gen2 := test.NewUpdater(encodableInitialState()).Update(func(s *models.ServiceResourceModel) {
+		s.Tier = types.StringValue(api.TierPPv2)
+		s.Profile = types.StringValue(api.ProfileGen2)
+		s.NumReplicas = types.Int64Value(3)
+		s.MinReplicaMemoryGb = types.Int64Value(16)
+		s.MaxReplicaMemoryGb = types.Int64Value(16)
+		s.MinTotalMemoryGb = types.Int64Null()
+		s.MaxTotalMemoryGb = types.Int64Null()
+	}).Get()
+
+	t.Run("a fixed-size Gen 2 create plans cleanly", func(t *testing.T) {
+		if diags := run(t, nil, gen2); diags.HasError() {
+			t.Errorf("a fixed-size Gen 2 create must plan cleanly; got: %v", diags.Errors())
+		}
+	})
+
+	t.Run("a ranged Gen 2 create fails at plan time", func(t *testing.T) {
+		ranged := test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.MaxReplicaMemoryGb = types.Int64Value(32)
+		}).Get()
+		if !detailContains(run(t, nil, ranged), "min_replica_memory_gb must equal max_replica_memory_gb") {
+			t.Errorf("a ranged Gen 2 create must fail at plan time")
+		}
+	})
+
+	t.Run("a fixed-size Gen 2 resize plans cleanly", func(t *testing.T) {
+		resized := test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.NumReplicas = types.Int64Value(4)
+			s.MinReplicaMemoryGb = types.Int64Value(32)
+			s.MaxReplicaMemoryGb = types.Int64Value(32)
+		}).Get()
+		if diags := run(t, &gen2, resized); diags.HasError() {
+			t.Errorf("a fixed-size Gen 2 resize must plan cleanly; got: %v", diags.Errors())
+		}
+	})
+
+	t.Run("switching a Gen 1 service to Gen 2 fails at plan time", func(t *testing.T) {
+		gen1 := test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.Profile = types.StringValue("v1-default")
+		}).Get()
+		if !detailContains(run(t, &gen1, gen2), "can't switch an existing service between Gen 1 and Gen 2 hardware") {
+			t.Errorf("a Gen 1 to Gen 2 profile change must fail at plan time")
+		}
+	})
+
+	t.Run("switching a Gen 2 service to Gen 1 fails at plan time", func(t *testing.T) {
+		gen1 := test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.Profile = types.StringValue("v1-default")
+		}).Get()
+		if !detailContains(run(t, &gen2, gen1), "can't switch an existing service between Gen 1 and Gen 2 hardware") {
+			t.Errorf("a Gen 2 to Gen 1 profile change must fail at plan time")
+		}
+	})
+
+	t.Run("an idling Gen 2 create fails at plan time", func(t *testing.T) {
+		idling := test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.IdleScaling = types.BoolValue(true)
+			s.IdleTimeoutMinutes = types.Int64Value(5)
+		}).Get()
+		if !detailContains(run(t, nil, idling), "can't idle") {
+			t.Errorf("an idling Gen 2 create must fail at plan time")
+		}
+	})
+
+	t.Run("an update whose config leaves profile out is checked against the Gen 2 profile carried from state", func(t *testing.T) {
+		omitProfile := func(m models.ServiceResourceModel) models.ServiceResourceModel {
+			return test.NewUpdater(m).Update(func(s *models.ServiceResourceModel) {
+				s.Profile = types.StringNull()
+			}).Get()
+		}
+		ranged := test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.MaxReplicaMemoryGb = types.Int64Value(32)
+		}).Get()
+		if !detailContains(runWithConfig(t, &gen2, omitProfile(ranged), ranged), "min_replica_memory_gb must equal max_replica_memory_gb") {
+			t.Errorf("a ranged update of a Gen 2 service must fail even when the config omits profile")
+		}
+		resized := test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.MinReplicaMemoryGb = types.Int64Value(32)
+			s.MaxReplicaMemoryGb = types.Int64Value(32)
+		}).Get()
+		if diags := runWithConfig(t, &gen2, omitProfile(resized), resized); diags.HasError() {
+			t.Errorf("a fixed-size resize of a Gen 2 service must plan cleanly when the config omits profile; got: %v", diags.Errors())
+		}
+	})
+
+	band := func(mode types.String, minV, maxV int64) models.ServiceResourceModel {
+		return test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.AutoscalingMode = mode
+			s.NumReplicas = types.Int64Null()
+			s.MinReplicas = types.Int64Value(minV)
+			s.MaxReplicas = types.Int64Value(maxV)
+		}).Get()
+	}
+
+	t.Run("a horizontal Gen 2 create with an equal replica band plans cleanly", func(t *testing.T) {
+		if diags := run(t, nil, band(types.StringValue(api.AutoscalingModeHorizontal), 3, 3)); diags.HasError() {
+			t.Errorf("an equal horizontal band is a fixed Gen 2 replica count; got: %v", diags.Errors())
+		}
+	})
+
+	t.Run("an unequal Gen 2 replica band reports a single error", func(t *testing.T) {
+		for _, mode := range []types.String{types.StringNull(), types.StringValue(api.AutoscalingModeVertical), types.StringValue(api.AutoscalingModeHorizontal)} {
+			diags := run(t, nil, band(mode, 3, 6))
+			if len(diags.Errors()) != 1 {
+				t.Errorf("autoscaling_mode %s: expected exactly one error, got: %v", mode, diags.Errors())
+			}
+		}
+	})
+
+	t.Run("an unequal Gen 2 band with a not-yet-known autoscaling_mode reports a single error", func(t *testing.T) {
+		withUnknownMode := func(m models.ServiceResourceModel) models.ServiceResourceModel {
+			return test.NewUpdater(m).Update(func(s *models.ServiceResourceModel) {
+				s.AutoscalingMode = types.StringUnknown()
+			}).Get()
+		}
+		ranged := withUnknownMode(band(types.StringNull(), 3, 6))
+		diags := runWithConfig(t, nil, ranged, ranged)
+		if len(diags.Errors()) != 1 || !detailContains(diags, "use a fixed replica count") {
+			t.Errorf("expected only the Gen 2 replica-count error, got: %v", diags.Errors())
+		}
+		equal := withUnknownMode(band(types.StringNull(), 3, 3))
+		if diags := runWithConfig(t, nil, equal, equal); diags.HasError() {
+			t.Errorf("an equal band with an unknown mode must plan cleanly; got: %v", diags.Errors())
+		}
+	})
+
+	t.Run("a switch from horizontal Gen 1 reports only the profile error, not the replica band carried from state", func(t *testing.T) {
+		horizontalGen1 := test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.Profile = types.StringValue("v1-default")
+			s.AutoscalingMode = types.StringValue(api.AutoscalingModeHorizontal)
+			s.NumReplicas = types.Int64Null()
+			s.MinReplicas = types.Int64Value(3)
+			s.MaxReplicas = types.Int64Value(10)
+		}).Get()
+		config := test.NewUpdater(gen2).Update(func(s *models.ServiceResourceModel) {
+			s.AutoscalingMode = types.StringNull()
+			s.ComplianceType = types.StringValue(api.ComplianceTypeHIPAA)
+		}).Get()
+		plan := test.NewUpdater(config).Update(func(s *models.ServiceResourceModel) {
+			s.AutoscalingMode = types.StringValue(api.AutoscalingModeHorizontal)
+			s.MinReplicas = types.Int64Value(3)
+			s.MaxReplicas = types.Int64Value(10)
+		}).Get()
+		diags := runWithConfig(t, &horizontalGen1, config, plan)
+		if len(diags.Errors()) != 1 || !detailContains(diags, "can't switch an existing service between Gen 1 and Gen 2 hardware") {
+			t.Errorf("expected only the generation-switch error, got: %v", diags.Errors())
 		}
 	})
 }

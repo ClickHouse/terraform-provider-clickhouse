@@ -9,7 +9,7 @@ import (
 
 // TestAccConnectionResource exercises the full CRUD + import lifecycle against
 // a real ClickStack API. It requires TF_ACC, CLICKSTACK_API_KEY, and
-// CLICKSTACK_ENDPOINT (e.g. http://localhost:8000 for a local HyperDX).
+// CLICKSTACK_ENDPOINT (e.g. http://localhost:8000 for a local ClickStack).
 func TestAccConnectionResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },

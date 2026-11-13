@@ -25,4 +25,7 @@ const (
 
 	AutoscalingModeVertical   = "vertical"
 	AutoscalingModeHorizontal = "horizontal"
+
+	// ProfileGen2 is the instance profile of a service on Gen 2 hardware.
+	ProfileGen2 = "v2-default"
 )

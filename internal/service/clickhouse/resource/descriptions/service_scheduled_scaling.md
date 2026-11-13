@@ -4,6 +4,16 @@ A schedule is a set of recurring weekly windows. The server rejects any pair of 
 
 ~> **Note:** This resource is in beta. Scheduled scaling must be enabled for your organization (`canUseScheduledAutoscaling`). Reach out to ClickHouse support if the API returns `403 FORBIDDEN`. Each entry is vertical by default — a fixed replica count (`min_replicas == max_replicas`); set `autoscaling_mode = "horizontal"` to scale the replica count across a `min_replicas`–`max_replicas` band at fixed per-replica memory. A schedule allows a maximum of 10 entries.
 
+## Gen 2 services
+
+A Gen 2 service (`profile = "v2-default"` on `clickhouse_service`) uses a fixed size and can't idle, and so does every schedule entry on it:
+
+- `min_replica_memory_gb` must equal `max_replica_memory_gb`.
+- The replica count is fixed: `min_replicas` must equal `max_replicas`.
+- `idle_scaling` can't be `true`.
+
+This resource can't see the service's profile, so these rules are checked by the API when the schedule is applied, and a rejected entry fails the apply with the API's error message.
+
 ## Hour ranges
 
 Hour ranges are asymmetric:
