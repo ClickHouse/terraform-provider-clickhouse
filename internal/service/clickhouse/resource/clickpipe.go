@@ -1889,8 +1889,24 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								Computed:    true,
 								Default:     booldefault.StaticBool(false),
 							},
+							"authentication": schema.StringAttribute{
+								MarkdownDescription: fmt.Sprintf(
+									"Authentication method for the MongoDB connection. Supported values: %s. Default is `basic`. `IAM_ROLE` is supported for Amazon DocumentDB on an AWS ClickHouse service only, and is in Private Preview. Can be changed in place; switching to `basic` requires `credentials` with a password.",
+									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMongoDBAuthenticationMethods),
+								),
+								Optional: true,
+								Computed: true,
+								Default:  stringdefault.StaticString(clickPipeAuthBasic),
+								Validators: []validator.String{
+									stringvalidator.OneOf(api.ClickPipeMongoDBAuthenticationMethods...),
+								},
+							},
+							"iam_role": schema.StringAttribute{
+								Description: "IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`. Register the role as a DocumentDB user in the `$external` database.",
+								Optional:    true,
+							},
 							"credentials": schema.SingleNestedAttribute{
-								MarkdownDescription: "The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI.",
+								MarkdownDescription: "The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI. Must be omitted with `IAM_ROLE` authentication.",
 								Optional:            true,
 								Sensitive:           true,
 								Attributes: map[string]schema.Attribute{
@@ -4428,6 +4444,31 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			}
 		}
 
+		authentication := clickPipeAuthBasic
+		if !mongodbModel.Authentication.IsNull() && !mongodbModel.Authentication.IsUnknown() {
+			authentication = mongodbModel.Authentication.ValueString()
+		}
+		if authentication == api.ClickPipeAuthenticationIAMRole {
+			if mongodbModel.IAMRole.IsNull() {
+				diagnostics.AddError(
+					"Missing required attribute",
+					"IAM role is required when authentication is set to 'IAM_ROLE'.",
+				)
+			}
+			// DocumentDB IAM logs in as the role, so a username or password would be ignored.
+			if credentials != nil {
+				diagnostics.AddError(
+					"Invalid attribute combination",
+					"Credentials should not be set when authentication is set to 'IAM_ROLE'.",
+				)
+			}
+		} else if !mongodbModel.IAMRole.IsNull() {
+			diagnostics.AddError(
+				"Invalid attribute combination",
+				"IAM role should not be set when authentication is set to 'basic'.",
+			)
+		}
+
 		mongodbSource := &api.ClickPipeMongoDBSource{
 			URI:            mongodbModel.URI.ValueString(),
 			ReadPreference: mongodbModel.ReadPreference.ValueString(),
@@ -4452,6 +4493,13 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		}
 		if !isUpdate {
 			mongodbSource.SSHKeyResourceID = mongodbModel.SSHKeyResourceID.ValueStringPointer()
+		}
+		// Omitted on basic creates so older API versions, which don't accept these fields, keep working.
+		if isUpdate || authentication == api.ClickPipeAuthenticationIAMRole {
+			mongodbSource.Authentication = &authentication
+			if !mongodbModel.IAMRole.IsNull() && !mongodbModel.IAMRole.IsUnknown() {
+				mongodbSource.IAMRole = mongodbModel.IAMRole.ValueStringPointer()
+			}
 		}
 
 		source.MongoDB = mongodbSource
@@ -5726,6 +5774,17 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 
 		mongodbModel.Settings = settingsModel.ObjectValue()
 
+		if clickPipe.Source.MongoDB.Authentication != nil && *clickPipe.Source.MongoDB.Authentication != "" {
+			mongodbModel.Authentication = types.StringValue(*clickPipe.Source.MongoDB.Authentication)
+		} else {
+			mongodbModel.Authentication = types.StringValue(clickPipeAuthBasic)
+		}
+		if clickPipe.Source.MongoDB.IAMRole != nil && *clickPipe.Source.MongoDB.IAMRole != "" {
+			mongodbModel.IAMRole = types.StringValue(*clickPipe.Source.MongoDB.IAMRole)
+		} else {
+			mongodbModel.IAMRole = types.StringNull()
+		}
+
 		if clickPipe.Source.MongoDB.SSHKeyResourceID != nil {
 			mongodbModel.SSHKeyResourceID = types.StringValue(*clickPipe.Source.MongoDB.SSHKeyResourceID)
 		} else if !stateMongoDBModel.SSHKeyResourceID.IsNull() {
@@ -6323,6 +6382,23 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, true)
 				if !credentialsChanged && source.MongoDB != nil {
 					source.MongoDB.Credentials = nil
+				}
+				authChanged := !planMongoDBModel.Authentication.Equal(stateMongoDBModel.Authentication) ||
+					!planMongoDBModel.IAMRole.Equal(stateMongoDBModel.IAMRole)
+				// Sent only when changed, so edits keep working against API versions without Mongo IAM.
+				if !authChanged && source.MongoDB != nil {
+					source.MongoDB.Authentication = nil
+					source.MongoDB.IAMRole = nil
+				}
+				// An IAM pipe has no stored password to fall back on.
+				if authChanged && stateMongoDBModel.Authentication.ValueString() == api.ClickPipeAuthenticationIAMRole &&
+					planMongoDBModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole &&
+					(source.MongoDB == nil || source.MongoDB.Credentials == nil || source.MongoDB.Credentials.Password == "") {
+					response.Diagnostics.AddError(
+						"Missing required attribute",
+						"Credentials with a password are required to switch from 'IAM_ROLE' to 'basic' authentication.",
+					)
+					return
 				}
 				clickPipeUpdate.Source = source
 				if tableMappingsChanged && source.MongoDB != nil {
