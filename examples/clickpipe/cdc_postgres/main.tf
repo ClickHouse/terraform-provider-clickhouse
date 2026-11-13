@@ -77,6 +77,7 @@ resource "clickhouse_clickpipe" "postgres_cdc" {
         # sync_interval_seconds = 60
         # pull_batch_size = 1000
         # allow_nullable_columns = true
+        # use_json_native_format = true # store json/jsonb columns as native ClickHouse JSON (requires ClickHouse 25.3+)
       }
 
       table_mappings = [

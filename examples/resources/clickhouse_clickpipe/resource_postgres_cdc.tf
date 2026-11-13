@@ -27,6 +27,11 @@ resource "clickhouse_clickpipe" "postgres_cdc_clickpipe" {
         # Optional: Allow nullable columns in destination tables
         allow_nullable_columns = true
 
+        # Optional: Store Postgres json/jsonb columns as native ClickHouse JSON instead of String.
+        # Non-object values are wrapped as {"_value": ...}; json[]/jsonb[] become Array(JSON).
+        # Requires ClickHouse 25.3+. Can only be set at creation time.
+        # use_json_native_format = true
+
         # Optional: Number of parallel workers for initial snapshot load
         initial_load_parallelism = 4
 
