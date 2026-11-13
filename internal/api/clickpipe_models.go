@@ -237,6 +237,7 @@ type ClickPipePostgresSettings struct {
 	ReplicationMode                string  `json:"replicationMode,omitempty"`
 	ReplicationSlotName            *string `json:"replicationSlotName,omitempty"`
 	AllowNullableColumns           *bool   `json:"allowNullableColumns,omitempty"`
+	UseJsonNativeFormat            *bool   `json:"useJsonNativeFormat,omitempty"`
 	InitialLoadParallelism         *int    `json:"initialLoadParallelism,omitempty"`
 	SnapshotNumRowsPerPartition    *int    `json:"snapshotNumRowsPerPartition,omitempty"`
 	SnapshotNumberOfParallelTables *int    `json:"snapshotNumberOfParallelTables,omitempty"`
@@ -282,6 +283,7 @@ type ClickPipeMySQLSettings struct {
 	ReplicationMechanism           *string `json:"replicationMechanism,omitempty"`
 	UseCompression                 *bool   `json:"useCompression,omitempty"`
 	AllowNullableColumns           *bool   `json:"allowNullableColumns,omitempty"`
+	UseJsonNativeFormat            *bool   `json:"useJsonNativeFormat,omitempty"`
 	InitialLoadParallelism         *int    `json:"initialLoadParallelism,omitempty"`
 	SnapshotNumRowsPerPartition    *int    `json:"snapshotNumRowsPerPartition,omitempty"`
 	SnapshotNumberOfParallelTables *int    `json:"snapshotNumberOfParallelTables,omitempty"`
