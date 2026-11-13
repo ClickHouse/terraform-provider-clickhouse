@@ -502,12 +502,26 @@ type ClientMock struct {
 	beforeGetUpgradeWindowCounter uint64
 	GetUpgradeWindowMock          mClientMockGetUpgradeWindow
 
+	funcListMemberNotificationSettings          func(ctx context.Context, userID string) (na1 []NotificationSetting, err error)
+	funcListMemberNotificationSettingsOrigin    string
+	inspectFuncListMemberNotificationSettings   func(ctx context.Context, userID string)
+	afterListMemberNotificationSettingsCounter  uint64
+	beforeListMemberNotificationSettingsCounter uint64
+	ListMemberNotificationSettingsMock          mClientMockListMemberNotificationSettings
+
 	funcListMembers          func(ctx context.Context) (ma1 []Member, err error)
 	funcListMembersOrigin    string
 	inspectFuncListMembers   func(ctx context.Context)
 	afterListMembersCounter  uint64
 	beforeListMembersCounter uint64
 	ListMembersMock          mClientMockListMembers
+
+	funcListNotificationTypes          func(ctx context.Context) (na1 []NotificationType, err error)
+	funcListNotificationTypesOrigin    string
+	inspectFuncListNotificationTypes   func(ctx context.Context)
+	afterListNotificationTypesCounter  uint64
+	beforeListNotificationTypesCounter uint64
+	ListNotificationTypesMock          mClientMockListNotificationTypes
 
 	funcListPostgres          func(ctx context.Context) (pa1 []PostgresListItem, err error)
 	funcListPostgresOrigin    string
@@ -641,6 +655,13 @@ type ClientMock struct {
 	afterUpdateJWTProviderCounter  uint64
 	beforeUpdateJWTProviderCounter uint64
 	UpdateJWTProviderMock          mClientMockUpdateJWTProvider
+
+	funcUpdateMemberNotificationSettings          func(ctx context.Context, userID string, rules []NotificationSettingRule) (na1 []NotificationSetting, err error)
+	funcUpdateMemberNotificationSettingsOrigin    string
+	inspectFuncUpdateMemberNotificationSettings   func(ctx context.Context, userID string, rules []NotificationSettingRule)
+	afterUpdateMemberNotificationSettingsCounter  uint64
+	beforeUpdateMemberNotificationSettingsCounter uint64
+	UpdateMemberNotificationSettingsMock          mClientMockUpdateMemberNotificationSettings
 
 	funcUpdateOrganization          func(ctx context.Context, orgUpdate OrganizationUpdate) (op1 *OrgResult, err error)
 	funcUpdateOrganizationOrigin    string
@@ -1040,8 +1061,14 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.GetUpgradeWindowMock = mClientMockGetUpgradeWindow{mock: m}
 	m.GetUpgradeWindowMock.callArgs = []*ClientMockGetUpgradeWindowParams{}
 
+	m.ListMemberNotificationSettingsMock = mClientMockListMemberNotificationSettings{mock: m}
+	m.ListMemberNotificationSettingsMock.callArgs = []*ClientMockListMemberNotificationSettingsParams{}
+
 	m.ListMembersMock = mClientMockListMembers{mock: m}
 	m.ListMembersMock.callArgs = []*ClientMockListMembersParams{}
+
+	m.ListNotificationTypesMock = mClientMockListNotificationTypes{mock: m}
+	m.ListNotificationTypesMock.callArgs = []*ClientMockListNotificationTypesParams{}
 
 	m.ListPostgresMock = mClientMockListPostgres{mock: m}
 	m.ListPostgresMock.callArgs = []*ClientMockListPostgresParams{}
@@ -1099,6 +1126,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.UpdateJWTProviderMock = mClientMockUpdateJWTProvider{mock: m}
 	m.UpdateJWTProviderMock.callArgs = []*ClientMockUpdateJWTProviderParams{}
+
+	m.UpdateMemberNotificationSettingsMock = mClientMockUpdateMemberNotificationSettings{mock: m}
+	m.UpdateMemberNotificationSettingsMock.callArgs = []*ClientMockUpdateMemberNotificationSettingsParams{}
 
 	m.UpdateOrganizationMock = mClientMockUpdateOrganization{mock: m}
 	m.UpdateOrganizationMock.callArgs = []*ClientMockUpdateOrganizationParams{}
@@ -25671,6 +25701,349 @@ func (m *ClientMock) MinimockGetUpgradeWindowInspect() {
 	}
 }
 
+type mClientMockListMemberNotificationSettings struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListMemberNotificationSettingsExpectation
+	expectations       []*ClientMockListMemberNotificationSettingsExpectation
+
+	callArgs []*ClientMockListMemberNotificationSettingsParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListMemberNotificationSettingsExpectation specifies expectation struct of the Client.ListMemberNotificationSettings
+type ClientMockListMemberNotificationSettingsExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListMemberNotificationSettingsParams
+	paramPtrs          *ClientMockListMemberNotificationSettingsParamPtrs
+	expectationOrigins ClientMockListMemberNotificationSettingsExpectationOrigins
+	results            *ClientMockListMemberNotificationSettingsResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListMemberNotificationSettingsParams contains parameters of the Client.ListMemberNotificationSettings
+type ClientMockListMemberNotificationSettingsParams struct {
+	ctx    context.Context
+	userID string
+}
+
+// ClientMockListMemberNotificationSettingsParamPtrs contains pointers to parameters of the Client.ListMemberNotificationSettings
+type ClientMockListMemberNotificationSettingsParamPtrs struct {
+	ctx    *context.Context
+	userID *string
+}
+
+// ClientMockListMemberNotificationSettingsResults contains results of the Client.ListMemberNotificationSettings
+type ClientMockListMemberNotificationSettingsResults struct {
+	na1 []NotificationSetting
+	err error
+}
+
+// ClientMockListMemberNotificationSettingsOrigins contains origins of expectations of the Client.ListMemberNotificationSettings
+type ClientMockListMemberNotificationSettingsExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originUserID string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) Optional() *mClientMockListMemberNotificationSettings {
+	mmListMemberNotificationSettings.optional = true
+	return mmListMemberNotificationSettings
+}
+
+// Expect sets up expected params for Client.ListMemberNotificationSettings
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) Expect(ctx context.Context, userID string) *mClientMockListMemberNotificationSettings {
+	if mmListMemberNotificationSettings.mock.funcListMemberNotificationSettings != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("ClientMock.ListMemberNotificationSettings mock is already set by Set")
+	}
+
+	if mmListMemberNotificationSettings.defaultExpectation == nil {
+		mmListMemberNotificationSettings.defaultExpectation = &ClientMockListMemberNotificationSettingsExpectation{}
+	}
+
+	if mmListMemberNotificationSettings.defaultExpectation.paramPtrs != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("ClientMock.ListMemberNotificationSettings mock is already set by ExpectParams functions")
+	}
+
+	mmListMemberNotificationSettings.defaultExpectation.params = &ClientMockListMemberNotificationSettingsParams{ctx, userID}
+	mmListMemberNotificationSettings.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListMemberNotificationSettings.expectations {
+		if minimock.Equal(e.params, mmListMemberNotificationSettings.defaultExpectation.params) {
+			mmListMemberNotificationSettings.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListMemberNotificationSettings.defaultExpectation.params)
+		}
+	}
+
+	return mmListMemberNotificationSettings
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListMemberNotificationSettings
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) ExpectCtxParam1(ctx context.Context) *mClientMockListMemberNotificationSettings {
+	if mmListMemberNotificationSettings.mock.funcListMemberNotificationSettings != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("ClientMock.ListMemberNotificationSettings mock is already set by Set")
+	}
+
+	if mmListMemberNotificationSettings.defaultExpectation == nil {
+		mmListMemberNotificationSettings.defaultExpectation = &ClientMockListMemberNotificationSettingsExpectation{}
+	}
+
+	if mmListMemberNotificationSettings.defaultExpectation.params != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("ClientMock.ListMemberNotificationSettings mock is already set by Expect")
+	}
+
+	if mmListMemberNotificationSettings.defaultExpectation.paramPtrs == nil {
+		mmListMemberNotificationSettings.defaultExpectation.paramPtrs = &ClientMockListMemberNotificationSettingsParamPtrs{}
+	}
+	mmListMemberNotificationSettings.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListMemberNotificationSettings.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListMemberNotificationSettings
+}
+
+// ExpectUserIDParam2 sets up expected param userID for Client.ListMemberNotificationSettings
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) ExpectUserIDParam2(userID string) *mClientMockListMemberNotificationSettings {
+	if mmListMemberNotificationSettings.mock.funcListMemberNotificationSettings != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("ClientMock.ListMemberNotificationSettings mock is already set by Set")
+	}
+
+	if mmListMemberNotificationSettings.defaultExpectation == nil {
+		mmListMemberNotificationSettings.defaultExpectation = &ClientMockListMemberNotificationSettingsExpectation{}
+	}
+
+	if mmListMemberNotificationSettings.defaultExpectation.params != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("ClientMock.ListMemberNotificationSettings mock is already set by Expect")
+	}
+
+	if mmListMemberNotificationSettings.defaultExpectation.paramPtrs == nil {
+		mmListMemberNotificationSettings.defaultExpectation.paramPtrs = &ClientMockListMemberNotificationSettingsParamPtrs{}
+	}
+	mmListMemberNotificationSettings.defaultExpectation.paramPtrs.userID = &userID
+	mmListMemberNotificationSettings.defaultExpectation.expectationOrigins.originUserID = minimock.CallerInfo(1)
+
+	return mmListMemberNotificationSettings
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListMemberNotificationSettings
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) Inspect(f func(ctx context.Context, userID string)) *mClientMockListMemberNotificationSettings {
+	if mmListMemberNotificationSettings.mock.inspectFuncListMemberNotificationSettings != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("Inspect function is already set for ClientMock.ListMemberNotificationSettings")
+	}
+
+	mmListMemberNotificationSettings.mock.inspectFuncListMemberNotificationSettings = f
+
+	return mmListMemberNotificationSettings
+}
+
+// Return sets up results that will be returned by Client.ListMemberNotificationSettings
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) Return(na1 []NotificationSetting, err error) *ClientMock {
+	if mmListMemberNotificationSettings.mock.funcListMemberNotificationSettings != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("ClientMock.ListMemberNotificationSettings mock is already set by Set")
+	}
+
+	if mmListMemberNotificationSettings.defaultExpectation == nil {
+		mmListMemberNotificationSettings.defaultExpectation = &ClientMockListMemberNotificationSettingsExpectation{mock: mmListMemberNotificationSettings.mock}
+	}
+	mmListMemberNotificationSettings.defaultExpectation.results = &ClientMockListMemberNotificationSettingsResults{na1, err}
+	mmListMemberNotificationSettings.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListMemberNotificationSettings.mock
+}
+
+// Set uses given function f to mock the Client.ListMemberNotificationSettings method
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) Set(f func(ctx context.Context, userID string) (na1 []NotificationSetting, err error)) *ClientMock {
+	if mmListMemberNotificationSettings.defaultExpectation != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("Default expectation is already set for the Client.ListMemberNotificationSettings method")
+	}
+
+	if len(mmListMemberNotificationSettings.expectations) > 0 {
+		mmListMemberNotificationSettings.mock.t.Fatalf("Some expectations are already set for the Client.ListMemberNotificationSettings method")
+	}
+
+	mmListMemberNotificationSettings.mock.funcListMemberNotificationSettings = f
+	mmListMemberNotificationSettings.mock.funcListMemberNotificationSettingsOrigin = minimock.CallerInfo(1)
+	return mmListMemberNotificationSettings.mock
+}
+
+// When sets expectation for the Client.ListMemberNotificationSettings which will trigger the result defined by the following
+// Then helper
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) When(ctx context.Context, userID string) *ClientMockListMemberNotificationSettingsExpectation {
+	if mmListMemberNotificationSettings.mock.funcListMemberNotificationSettings != nil {
+		mmListMemberNotificationSettings.mock.t.Fatalf("ClientMock.ListMemberNotificationSettings mock is already set by Set")
+	}
+
+	expectation := &ClientMockListMemberNotificationSettingsExpectation{
+		mock:               mmListMemberNotificationSettings.mock,
+		params:             &ClientMockListMemberNotificationSettingsParams{ctx, userID},
+		expectationOrigins: ClientMockListMemberNotificationSettingsExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListMemberNotificationSettings.expectations = append(mmListMemberNotificationSettings.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListMemberNotificationSettings return parameters for the expectation previously defined by the When method
+func (e *ClientMockListMemberNotificationSettingsExpectation) Then(na1 []NotificationSetting, err error) *ClientMock {
+	e.results = &ClientMockListMemberNotificationSettingsResults{na1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListMemberNotificationSettings should be invoked
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) Times(n uint64) *mClientMockListMemberNotificationSettings {
+	if n == 0 {
+		mmListMemberNotificationSettings.mock.t.Fatalf("Times of ClientMock.ListMemberNotificationSettings mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListMemberNotificationSettings.expectedInvocations, n)
+	mmListMemberNotificationSettings.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListMemberNotificationSettings
+}
+
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) invocationsDone() bool {
+	if len(mmListMemberNotificationSettings.expectations) == 0 && mmListMemberNotificationSettings.defaultExpectation == nil && mmListMemberNotificationSettings.mock.funcListMemberNotificationSettings == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListMemberNotificationSettings.mock.afterListMemberNotificationSettingsCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListMemberNotificationSettings.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListMemberNotificationSettings implements Client
+func (mmListMemberNotificationSettings *ClientMock) ListMemberNotificationSettings(ctx context.Context, userID string) (na1 []NotificationSetting, err error) {
+	mm_atomic.AddUint64(&mmListMemberNotificationSettings.beforeListMemberNotificationSettingsCounter, 1)
+	defer mm_atomic.AddUint64(&mmListMemberNotificationSettings.afterListMemberNotificationSettingsCounter, 1)
+
+	mmListMemberNotificationSettings.t.Helper()
+
+	if mmListMemberNotificationSettings.inspectFuncListMemberNotificationSettings != nil {
+		mmListMemberNotificationSettings.inspectFuncListMemberNotificationSettings(ctx, userID)
+	}
+
+	mm_params := ClientMockListMemberNotificationSettingsParams{ctx, userID}
+
+	// Record call args
+	mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.mutex.Lock()
+	mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.callArgs = append(mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.callArgs, &mm_params)
+	mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.mutex.Unlock()
+
+	for _, e := range mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.na1, e.results.err
+		}
+	}
+
+	if mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.defaultExpectation.Counter, 1)
+		mm_want := mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.defaultExpectation.params
+		mm_want_ptrs := mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListMemberNotificationSettingsParams{ctx, userID}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListMemberNotificationSettings.t.Errorf("ClientMock.ListMemberNotificationSettings got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.userID != nil && !minimock.Equal(*mm_want_ptrs.userID, mm_got.userID) {
+				mmListMemberNotificationSettings.t.Errorf("ClientMock.ListMemberNotificationSettings got unexpected parameter userID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.defaultExpectation.expectationOrigins.originUserID, *mm_want_ptrs.userID, mm_got.userID, minimock.Diff(*mm_want_ptrs.userID, mm_got.userID))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListMemberNotificationSettings.t.Errorf("ClientMock.ListMemberNotificationSettings got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListMemberNotificationSettings.ListMemberNotificationSettingsMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListMemberNotificationSettings.t.Fatal("No results are set for the ClientMock.ListMemberNotificationSettings")
+		}
+		return (*mm_results).na1, (*mm_results).err
+	}
+	if mmListMemberNotificationSettings.funcListMemberNotificationSettings != nil {
+		return mmListMemberNotificationSettings.funcListMemberNotificationSettings(ctx, userID)
+	}
+	mmListMemberNotificationSettings.t.Fatalf("Unexpected call to ClientMock.ListMemberNotificationSettings. %v %v", ctx, userID)
+	return
+}
+
+// ListMemberNotificationSettingsAfterCounter returns a count of finished ClientMock.ListMemberNotificationSettings invocations
+func (mmListMemberNotificationSettings *ClientMock) ListMemberNotificationSettingsAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListMemberNotificationSettings.afterListMemberNotificationSettingsCounter)
+}
+
+// ListMemberNotificationSettingsBeforeCounter returns a count of ClientMock.ListMemberNotificationSettings invocations
+func (mmListMemberNotificationSettings *ClientMock) ListMemberNotificationSettingsBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListMemberNotificationSettings.beforeListMemberNotificationSettingsCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListMemberNotificationSettings.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListMemberNotificationSettings *mClientMockListMemberNotificationSettings) Calls() []*ClientMockListMemberNotificationSettingsParams {
+	mmListMemberNotificationSettings.mutex.RLock()
+
+	argCopy := make([]*ClientMockListMemberNotificationSettingsParams, len(mmListMemberNotificationSettings.callArgs))
+	copy(argCopy, mmListMemberNotificationSettings.callArgs)
+
+	mmListMemberNotificationSettings.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListMemberNotificationSettingsDone returns true if the count of the ListMemberNotificationSettings invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListMemberNotificationSettingsDone() bool {
+	if m.ListMemberNotificationSettingsMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListMemberNotificationSettingsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListMemberNotificationSettingsMock.invocationsDone()
+}
+
+// MinimockListMemberNotificationSettingsInspect logs each unmet expectation
+func (m *ClientMock) MinimockListMemberNotificationSettingsInspect() {
+	for _, e := range m.ListMemberNotificationSettingsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListMemberNotificationSettings at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListMemberNotificationSettingsCounter := mm_atomic.LoadUint64(&m.afterListMemberNotificationSettingsCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListMemberNotificationSettingsMock.defaultExpectation != nil && afterListMemberNotificationSettingsCounter < 1 {
+		if m.ListMemberNotificationSettingsMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListMemberNotificationSettings at\n%s", m.ListMemberNotificationSettingsMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListMemberNotificationSettings at\n%s with params: %#v", m.ListMemberNotificationSettingsMock.defaultExpectation.expectationOrigins.origin, *m.ListMemberNotificationSettingsMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListMemberNotificationSettings != nil && afterListMemberNotificationSettingsCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListMemberNotificationSettings at\n%s", m.funcListMemberNotificationSettingsOrigin)
+	}
+
+	if !m.ListMemberNotificationSettingsMock.invocationsDone() && afterListMemberNotificationSettingsCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListMemberNotificationSettings at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListMemberNotificationSettingsMock.expectedInvocations), m.ListMemberNotificationSettingsMock.expectedInvocationsOrigin, afterListMemberNotificationSettingsCounter)
+	}
+}
+
 type mClientMockListMembers struct {
 	optional           bool
 	mock               *ClientMock
@@ -25980,6 +26353,318 @@ func (m *ClientMock) MinimockListMembersInspect() {
 	if !m.ListMembersMock.invocationsDone() && afterListMembersCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.ListMembers at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.ListMembersMock.expectedInvocations), m.ListMembersMock.expectedInvocationsOrigin, afterListMembersCounter)
+	}
+}
+
+type mClientMockListNotificationTypes struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockListNotificationTypesExpectation
+	expectations       []*ClientMockListNotificationTypesExpectation
+
+	callArgs []*ClientMockListNotificationTypesParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockListNotificationTypesExpectation specifies expectation struct of the Client.ListNotificationTypes
+type ClientMockListNotificationTypesExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockListNotificationTypesParams
+	paramPtrs          *ClientMockListNotificationTypesParamPtrs
+	expectationOrigins ClientMockListNotificationTypesExpectationOrigins
+	results            *ClientMockListNotificationTypesResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockListNotificationTypesParams contains parameters of the Client.ListNotificationTypes
+type ClientMockListNotificationTypesParams struct {
+	ctx context.Context
+}
+
+// ClientMockListNotificationTypesParamPtrs contains pointers to parameters of the Client.ListNotificationTypes
+type ClientMockListNotificationTypesParamPtrs struct {
+	ctx *context.Context
+}
+
+// ClientMockListNotificationTypesResults contains results of the Client.ListNotificationTypes
+type ClientMockListNotificationTypesResults struct {
+	na1 []NotificationType
+	err error
+}
+
+// ClientMockListNotificationTypesOrigins contains origins of expectations of the Client.ListNotificationTypes
+type ClientMockListNotificationTypesExpectationOrigins struct {
+	origin    string
+	originCtx string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmListNotificationTypes *mClientMockListNotificationTypes) Optional() *mClientMockListNotificationTypes {
+	mmListNotificationTypes.optional = true
+	return mmListNotificationTypes
+}
+
+// Expect sets up expected params for Client.ListNotificationTypes
+func (mmListNotificationTypes *mClientMockListNotificationTypes) Expect(ctx context.Context) *mClientMockListNotificationTypes {
+	if mmListNotificationTypes.mock.funcListNotificationTypes != nil {
+		mmListNotificationTypes.mock.t.Fatalf("ClientMock.ListNotificationTypes mock is already set by Set")
+	}
+
+	if mmListNotificationTypes.defaultExpectation == nil {
+		mmListNotificationTypes.defaultExpectation = &ClientMockListNotificationTypesExpectation{}
+	}
+
+	if mmListNotificationTypes.defaultExpectation.paramPtrs != nil {
+		mmListNotificationTypes.mock.t.Fatalf("ClientMock.ListNotificationTypes mock is already set by ExpectParams functions")
+	}
+
+	mmListNotificationTypes.defaultExpectation.params = &ClientMockListNotificationTypesParams{ctx}
+	mmListNotificationTypes.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmListNotificationTypes.expectations {
+		if minimock.Equal(e.params, mmListNotificationTypes.defaultExpectation.params) {
+			mmListNotificationTypes.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmListNotificationTypes.defaultExpectation.params)
+		}
+	}
+
+	return mmListNotificationTypes
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.ListNotificationTypes
+func (mmListNotificationTypes *mClientMockListNotificationTypes) ExpectCtxParam1(ctx context.Context) *mClientMockListNotificationTypes {
+	if mmListNotificationTypes.mock.funcListNotificationTypes != nil {
+		mmListNotificationTypes.mock.t.Fatalf("ClientMock.ListNotificationTypes mock is already set by Set")
+	}
+
+	if mmListNotificationTypes.defaultExpectation == nil {
+		mmListNotificationTypes.defaultExpectation = &ClientMockListNotificationTypesExpectation{}
+	}
+
+	if mmListNotificationTypes.defaultExpectation.params != nil {
+		mmListNotificationTypes.mock.t.Fatalf("ClientMock.ListNotificationTypes mock is already set by Expect")
+	}
+
+	if mmListNotificationTypes.defaultExpectation.paramPtrs == nil {
+		mmListNotificationTypes.defaultExpectation.paramPtrs = &ClientMockListNotificationTypesParamPtrs{}
+	}
+	mmListNotificationTypes.defaultExpectation.paramPtrs.ctx = &ctx
+	mmListNotificationTypes.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmListNotificationTypes
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.ListNotificationTypes
+func (mmListNotificationTypes *mClientMockListNotificationTypes) Inspect(f func(ctx context.Context)) *mClientMockListNotificationTypes {
+	if mmListNotificationTypes.mock.inspectFuncListNotificationTypes != nil {
+		mmListNotificationTypes.mock.t.Fatalf("Inspect function is already set for ClientMock.ListNotificationTypes")
+	}
+
+	mmListNotificationTypes.mock.inspectFuncListNotificationTypes = f
+
+	return mmListNotificationTypes
+}
+
+// Return sets up results that will be returned by Client.ListNotificationTypes
+func (mmListNotificationTypes *mClientMockListNotificationTypes) Return(na1 []NotificationType, err error) *ClientMock {
+	if mmListNotificationTypes.mock.funcListNotificationTypes != nil {
+		mmListNotificationTypes.mock.t.Fatalf("ClientMock.ListNotificationTypes mock is already set by Set")
+	}
+
+	if mmListNotificationTypes.defaultExpectation == nil {
+		mmListNotificationTypes.defaultExpectation = &ClientMockListNotificationTypesExpectation{mock: mmListNotificationTypes.mock}
+	}
+	mmListNotificationTypes.defaultExpectation.results = &ClientMockListNotificationTypesResults{na1, err}
+	mmListNotificationTypes.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmListNotificationTypes.mock
+}
+
+// Set uses given function f to mock the Client.ListNotificationTypes method
+func (mmListNotificationTypes *mClientMockListNotificationTypes) Set(f func(ctx context.Context) (na1 []NotificationType, err error)) *ClientMock {
+	if mmListNotificationTypes.defaultExpectation != nil {
+		mmListNotificationTypes.mock.t.Fatalf("Default expectation is already set for the Client.ListNotificationTypes method")
+	}
+
+	if len(mmListNotificationTypes.expectations) > 0 {
+		mmListNotificationTypes.mock.t.Fatalf("Some expectations are already set for the Client.ListNotificationTypes method")
+	}
+
+	mmListNotificationTypes.mock.funcListNotificationTypes = f
+	mmListNotificationTypes.mock.funcListNotificationTypesOrigin = minimock.CallerInfo(1)
+	return mmListNotificationTypes.mock
+}
+
+// When sets expectation for the Client.ListNotificationTypes which will trigger the result defined by the following
+// Then helper
+func (mmListNotificationTypes *mClientMockListNotificationTypes) When(ctx context.Context) *ClientMockListNotificationTypesExpectation {
+	if mmListNotificationTypes.mock.funcListNotificationTypes != nil {
+		mmListNotificationTypes.mock.t.Fatalf("ClientMock.ListNotificationTypes mock is already set by Set")
+	}
+
+	expectation := &ClientMockListNotificationTypesExpectation{
+		mock:               mmListNotificationTypes.mock,
+		params:             &ClientMockListNotificationTypesParams{ctx},
+		expectationOrigins: ClientMockListNotificationTypesExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmListNotificationTypes.expectations = append(mmListNotificationTypes.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.ListNotificationTypes return parameters for the expectation previously defined by the When method
+func (e *ClientMockListNotificationTypesExpectation) Then(na1 []NotificationType, err error) *ClientMock {
+	e.results = &ClientMockListNotificationTypesResults{na1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.ListNotificationTypes should be invoked
+func (mmListNotificationTypes *mClientMockListNotificationTypes) Times(n uint64) *mClientMockListNotificationTypes {
+	if n == 0 {
+		mmListNotificationTypes.mock.t.Fatalf("Times of ClientMock.ListNotificationTypes mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmListNotificationTypes.expectedInvocations, n)
+	mmListNotificationTypes.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmListNotificationTypes
+}
+
+func (mmListNotificationTypes *mClientMockListNotificationTypes) invocationsDone() bool {
+	if len(mmListNotificationTypes.expectations) == 0 && mmListNotificationTypes.defaultExpectation == nil && mmListNotificationTypes.mock.funcListNotificationTypes == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmListNotificationTypes.mock.afterListNotificationTypesCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmListNotificationTypes.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// ListNotificationTypes implements Client
+func (mmListNotificationTypes *ClientMock) ListNotificationTypes(ctx context.Context) (na1 []NotificationType, err error) {
+	mm_atomic.AddUint64(&mmListNotificationTypes.beforeListNotificationTypesCounter, 1)
+	defer mm_atomic.AddUint64(&mmListNotificationTypes.afterListNotificationTypesCounter, 1)
+
+	mmListNotificationTypes.t.Helper()
+
+	if mmListNotificationTypes.inspectFuncListNotificationTypes != nil {
+		mmListNotificationTypes.inspectFuncListNotificationTypes(ctx)
+	}
+
+	mm_params := ClientMockListNotificationTypesParams{ctx}
+
+	// Record call args
+	mmListNotificationTypes.ListNotificationTypesMock.mutex.Lock()
+	mmListNotificationTypes.ListNotificationTypesMock.callArgs = append(mmListNotificationTypes.ListNotificationTypesMock.callArgs, &mm_params)
+	mmListNotificationTypes.ListNotificationTypesMock.mutex.Unlock()
+
+	for _, e := range mmListNotificationTypes.ListNotificationTypesMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.na1, e.results.err
+		}
+	}
+
+	if mmListNotificationTypes.ListNotificationTypesMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmListNotificationTypes.ListNotificationTypesMock.defaultExpectation.Counter, 1)
+		mm_want := mmListNotificationTypes.ListNotificationTypesMock.defaultExpectation.params
+		mm_want_ptrs := mmListNotificationTypes.ListNotificationTypesMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockListNotificationTypesParams{ctx}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmListNotificationTypes.t.Errorf("ClientMock.ListNotificationTypes got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmListNotificationTypes.ListNotificationTypesMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmListNotificationTypes.t.Errorf("ClientMock.ListNotificationTypes got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmListNotificationTypes.ListNotificationTypesMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmListNotificationTypes.ListNotificationTypesMock.defaultExpectation.results
+		if mm_results == nil {
+			mmListNotificationTypes.t.Fatal("No results are set for the ClientMock.ListNotificationTypes")
+		}
+		return (*mm_results).na1, (*mm_results).err
+	}
+	if mmListNotificationTypes.funcListNotificationTypes != nil {
+		return mmListNotificationTypes.funcListNotificationTypes(ctx)
+	}
+	mmListNotificationTypes.t.Fatalf("Unexpected call to ClientMock.ListNotificationTypes. %v", ctx)
+	return
+}
+
+// ListNotificationTypesAfterCounter returns a count of finished ClientMock.ListNotificationTypes invocations
+func (mmListNotificationTypes *ClientMock) ListNotificationTypesAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListNotificationTypes.afterListNotificationTypesCounter)
+}
+
+// ListNotificationTypesBeforeCounter returns a count of ClientMock.ListNotificationTypes invocations
+func (mmListNotificationTypes *ClientMock) ListNotificationTypesBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmListNotificationTypes.beforeListNotificationTypesCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.ListNotificationTypes.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmListNotificationTypes *mClientMockListNotificationTypes) Calls() []*ClientMockListNotificationTypesParams {
+	mmListNotificationTypes.mutex.RLock()
+
+	argCopy := make([]*ClientMockListNotificationTypesParams, len(mmListNotificationTypes.callArgs))
+	copy(argCopy, mmListNotificationTypes.callArgs)
+
+	mmListNotificationTypes.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockListNotificationTypesDone returns true if the count of the ListNotificationTypes invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockListNotificationTypesDone() bool {
+	if m.ListNotificationTypesMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.ListNotificationTypesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.ListNotificationTypesMock.invocationsDone()
+}
+
+// MinimockListNotificationTypesInspect logs each unmet expectation
+func (m *ClientMock) MinimockListNotificationTypesInspect() {
+	for _, e := range m.ListNotificationTypesMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.ListNotificationTypes at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterListNotificationTypesCounter := mm_atomic.LoadUint64(&m.afterListNotificationTypesCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.ListNotificationTypesMock.defaultExpectation != nil && afterListNotificationTypesCounter < 1 {
+		if m.ListNotificationTypesMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.ListNotificationTypes at\n%s", m.ListNotificationTypesMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.ListNotificationTypes at\n%s with params: %#v", m.ListNotificationTypesMock.defaultExpectation.expectationOrigins.origin, *m.ListNotificationTypesMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcListNotificationTypes != nil && afterListNotificationTypesCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.ListNotificationTypes at\n%s", m.funcListNotificationTypesOrigin)
+	}
+
+	if !m.ListNotificationTypesMock.invocationsDone() && afterListNotificationTypesCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.ListNotificationTypes at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.ListNotificationTypesMock.expectedInvocations), m.ListNotificationTypesMock.expectedInvocationsOrigin, afterListNotificationTypesCounter)
 	}
 }
 
@@ -32961,6 +33646,380 @@ func (m *ClientMock) MinimockUpdateJWTProviderInspect() {
 	if !m.UpdateJWTProviderMock.invocationsDone() && afterUpdateJWTProviderCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.UpdateJWTProvider at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.UpdateJWTProviderMock.expectedInvocations), m.UpdateJWTProviderMock.expectedInvocationsOrigin, afterUpdateJWTProviderCounter)
+	}
+}
+
+type mClientMockUpdateMemberNotificationSettings struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdateMemberNotificationSettingsExpectation
+	expectations       []*ClientMockUpdateMemberNotificationSettingsExpectation
+
+	callArgs []*ClientMockUpdateMemberNotificationSettingsParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdateMemberNotificationSettingsExpectation specifies expectation struct of the Client.UpdateMemberNotificationSettings
+type ClientMockUpdateMemberNotificationSettingsExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdateMemberNotificationSettingsParams
+	paramPtrs          *ClientMockUpdateMemberNotificationSettingsParamPtrs
+	expectationOrigins ClientMockUpdateMemberNotificationSettingsExpectationOrigins
+	results            *ClientMockUpdateMemberNotificationSettingsResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdateMemberNotificationSettingsParams contains parameters of the Client.UpdateMemberNotificationSettings
+type ClientMockUpdateMemberNotificationSettingsParams struct {
+	ctx    context.Context
+	userID string
+	rules  []NotificationSettingRule
+}
+
+// ClientMockUpdateMemberNotificationSettingsParamPtrs contains pointers to parameters of the Client.UpdateMemberNotificationSettings
+type ClientMockUpdateMemberNotificationSettingsParamPtrs struct {
+	ctx    *context.Context
+	userID *string
+	rules  *[]NotificationSettingRule
+}
+
+// ClientMockUpdateMemberNotificationSettingsResults contains results of the Client.UpdateMemberNotificationSettings
+type ClientMockUpdateMemberNotificationSettingsResults struct {
+	na1 []NotificationSetting
+	err error
+}
+
+// ClientMockUpdateMemberNotificationSettingsOrigins contains origins of expectations of the Client.UpdateMemberNotificationSettings
+type ClientMockUpdateMemberNotificationSettingsExpectationOrigins struct {
+	origin       string
+	originCtx    string
+	originUserID string
+	originRules  string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) Optional() *mClientMockUpdateMemberNotificationSettings {
+	mmUpdateMemberNotificationSettings.optional = true
+	return mmUpdateMemberNotificationSettings
+}
+
+// Expect sets up expected params for Client.UpdateMemberNotificationSettings
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) Expect(ctx context.Context, userID string, rules []NotificationSettingRule) *mClientMockUpdateMemberNotificationSettings {
+	if mmUpdateMemberNotificationSettings.mock.funcUpdateMemberNotificationSettings != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by Set")
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation == nil {
+		mmUpdateMemberNotificationSettings.defaultExpectation = &ClientMockUpdateMemberNotificationSettingsExpectation{}
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by ExpectParams functions")
+	}
+
+	mmUpdateMemberNotificationSettings.defaultExpectation.params = &ClientMockUpdateMemberNotificationSettingsParams{ctx, userID, rules}
+	mmUpdateMemberNotificationSettings.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdateMemberNotificationSettings.expectations {
+		if minimock.Equal(e.params, mmUpdateMemberNotificationSettings.defaultExpectation.params) {
+			mmUpdateMemberNotificationSettings.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdateMemberNotificationSettings.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdateMemberNotificationSettings
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdateMemberNotificationSettings
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) ExpectCtxParam1(ctx context.Context) *mClientMockUpdateMemberNotificationSettings {
+	if mmUpdateMemberNotificationSettings.mock.funcUpdateMemberNotificationSettings != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by Set")
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation == nil {
+		mmUpdateMemberNotificationSettings.defaultExpectation = &ClientMockUpdateMemberNotificationSettingsExpectation{}
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation.params != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by Expect")
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs == nil {
+		mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs = &ClientMockUpdateMemberNotificationSettingsParamPtrs{}
+	}
+	mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdateMemberNotificationSettings.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdateMemberNotificationSettings
+}
+
+// ExpectUserIDParam2 sets up expected param userID for Client.UpdateMemberNotificationSettings
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) ExpectUserIDParam2(userID string) *mClientMockUpdateMemberNotificationSettings {
+	if mmUpdateMemberNotificationSettings.mock.funcUpdateMemberNotificationSettings != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by Set")
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation == nil {
+		mmUpdateMemberNotificationSettings.defaultExpectation = &ClientMockUpdateMemberNotificationSettingsExpectation{}
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation.params != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by Expect")
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs == nil {
+		mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs = &ClientMockUpdateMemberNotificationSettingsParamPtrs{}
+	}
+	mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs.userID = &userID
+	mmUpdateMemberNotificationSettings.defaultExpectation.expectationOrigins.originUserID = minimock.CallerInfo(1)
+
+	return mmUpdateMemberNotificationSettings
+}
+
+// ExpectRulesParam3 sets up expected param rules for Client.UpdateMemberNotificationSettings
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) ExpectRulesParam3(rules []NotificationSettingRule) *mClientMockUpdateMemberNotificationSettings {
+	if mmUpdateMemberNotificationSettings.mock.funcUpdateMemberNotificationSettings != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by Set")
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation == nil {
+		mmUpdateMemberNotificationSettings.defaultExpectation = &ClientMockUpdateMemberNotificationSettingsExpectation{}
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation.params != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by Expect")
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs == nil {
+		mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs = &ClientMockUpdateMemberNotificationSettingsParamPtrs{}
+	}
+	mmUpdateMemberNotificationSettings.defaultExpectation.paramPtrs.rules = &rules
+	mmUpdateMemberNotificationSettings.defaultExpectation.expectationOrigins.originRules = minimock.CallerInfo(1)
+
+	return mmUpdateMemberNotificationSettings
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdateMemberNotificationSettings
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) Inspect(f func(ctx context.Context, userID string, rules []NotificationSettingRule)) *mClientMockUpdateMemberNotificationSettings {
+	if mmUpdateMemberNotificationSettings.mock.inspectFuncUpdateMemberNotificationSettings != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdateMemberNotificationSettings")
+	}
+
+	mmUpdateMemberNotificationSettings.mock.inspectFuncUpdateMemberNotificationSettings = f
+
+	return mmUpdateMemberNotificationSettings
+}
+
+// Return sets up results that will be returned by Client.UpdateMemberNotificationSettings
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) Return(na1 []NotificationSetting, err error) *ClientMock {
+	if mmUpdateMemberNotificationSettings.mock.funcUpdateMemberNotificationSettings != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by Set")
+	}
+
+	if mmUpdateMemberNotificationSettings.defaultExpectation == nil {
+		mmUpdateMemberNotificationSettings.defaultExpectation = &ClientMockUpdateMemberNotificationSettingsExpectation{mock: mmUpdateMemberNotificationSettings.mock}
+	}
+	mmUpdateMemberNotificationSettings.defaultExpectation.results = &ClientMockUpdateMemberNotificationSettingsResults{na1, err}
+	mmUpdateMemberNotificationSettings.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdateMemberNotificationSettings.mock
+}
+
+// Set uses given function f to mock the Client.UpdateMemberNotificationSettings method
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) Set(f func(ctx context.Context, userID string, rules []NotificationSettingRule) (na1 []NotificationSetting, err error)) *ClientMock {
+	if mmUpdateMemberNotificationSettings.defaultExpectation != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("Default expectation is already set for the Client.UpdateMemberNotificationSettings method")
+	}
+
+	if len(mmUpdateMemberNotificationSettings.expectations) > 0 {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("Some expectations are already set for the Client.UpdateMemberNotificationSettings method")
+	}
+
+	mmUpdateMemberNotificationSettings.mock.funcUpdateMemberNotificationSettings = f
+	mmUpdateMemberNotificationSettings.mock.funcUpdateMemberNotificationSettingsOrigin = minimock.CallerInfo(1)
+	return mmUpdateMemberNotificationSettings.mock
+}
+
+// When sets expectation for the Client.UpdateMemberNotificationSettings which will trigger the result defined by the following
+// Then helper
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) When(ctx context.Context, userID string, rules []NotificationSettingRule) *ClientMockUpdateMemberNotificationSettingsExpectation {
+	if mmUpdateMemberNotificationSettings.mock.funcUpdateMemberNotificationSettings != nil {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("ClientMock.UpdateMemberNotificationSettings mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdateMemberNotificationSettingsExpectation{
+		mock:               mmUpdateMemberNotificationSettings.mock,
+		params:             &ClientMockUpdateMemberNotificationSettingsParams{ctx, userID, rules},
+		expectationOrigins: ClientMockUpdateMemberNotificationSettingsExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdateMemberNotificationSettings.expectations = append(mmUpdateMemberNotificationSettings.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdateMemberNotificationSettings return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdateMemberNotificationSettingsExpectation) Then(na1 []NotificationSetting, err error) *ClientMock {
+	e.results = &ClientMockUpdateMemberNotificationSettingsResults{na1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdateMemberNotificationSettings should be invoked
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) Times(n uint64) *mClientMockUpdateMemberNotificationSettings {
+	if n == 0 {
+		mmUpdateMemberNotificationSettings.mock.t.Fatalf("Times of ClientMock.UpdateMemberNotificationSettings mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdateMemberNotificationSettings.expectedInvocations, n)
+	mmUpdateMemberNotificationSettings.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdateMemberNotificationSettings
+}
+
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) invocationsDone() bool {
+	if len(mmUpdateMemberNotificationSettings.expectations) == 0 && mmUpdateMemberNotificationSettings.defaultExpectation == nil && mmUpdateMemberNotificationSettings.mock.funcUpdateMemberNotificationSettings == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdateMemberNotificationSettings.mock.afterUpdateMemberNotificationSettingsCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdateMemberNotificationSettings.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdateMemberNotificationSettings implements Client
+func (mmUpdateMemberNotificationSettings *ClientMock) UpdateMemberNotificationSettings(ctx context.Context, userID string, rules []NotificationSettingRule) (na1 []NotificationSetting, err error) {
+	mm_atomic.AddUint64(&mmUpdateMemberNotificationSettings.beforeUpdateMemberNotificationSettingsCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdateMemberNotificationSettings.afterUpdateMemberNotificationSettingsCounter, 1)
+
+	mmUpdateMemberNotificationSettings.t.Helper()
+
+	if mmUpdateMemberNotificationSettings.inspectFuncUpdateMemberNotificationSettings != nil {
+		mmUpdateMemberNotificationSettings.inspectFuncUpdateMemberNotificationSettings(ctx, userID, rules)
+	}
+
+	mm_params := ClientMockUpdateMemberNotificationSettingsParams{ctx, userID, rules}
+
+	// Record call args
+	mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.mutex.Lock()
+	mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.callArgs = append(mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.callArgs, &mm_params)
+	mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.mutex.Unlock()
+
+	for _, e := range mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.na1, e.results.err
+		}
+	}
+
+	if mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdateMemberNotificationSettingsParams{ctx, userID, rules}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdateMemberNotificationSettings.t.Errorf("ClientMock.UpdateMemberNotificationSettings got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.userID != nil && !minimock.Equal(*mm_want_ptrs.userID, mm_got.userID) {
+				mmUpdateMemberNotificationSettings.t.Errorf("ClientMock.UpdateMemberNotificationSettings got unexpected parameter userID, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.defaultExpectation.expectationOrigins.originUserID, *mm_want_ptrs.userID, mm_got.userID, minimock.Diff(*mm_want_ptrs.userID, mm_got.userID))
+			}
+
+			if mm_want_ptrs.rules != nil && !minimock.Equal(*mm_want_ptrs.rules, mm_got.rules) {
+				mmUpdateMemberNotificationSettings.t.Errorf("ClientMock.UpdateMemberNotificationSettings got unexpected parameter rules, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.defaultExpectation.expectationOrigins.originRules, *mm_want_ptrs.rules, mm_got.rules, minimock.Diff(*mm_want_ptrs.rules, mm_got.rules))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdateMemberNotificationSettings.t.Errorf("ClientMock.UpdateMemberNotificationSettings got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdateMemberNotificationSettings.UpdateMemberNotificationSettingsMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdateMemberNotificationSettings.t.Fatal("No results are set for the ClientMock.UpdateMemberNotificationSettings")
+		}
+		return (*mm_results).na1, (*mm_results).err
+	}
+	if mmUpdateMemberNotificationSettings.funcUpdateMemberNotificationSettings != nil {
+		return mmUpdateMemberNotificationSettings.funcUpdateMemberNotificationSettings(ctx, userID, rules)
+	}
+	mmUpdateMemberNotificationSettings.t.Fatalf("Unexpected call to ClientMock.UpdateMemberNotificationSettings. %v %v %v", ctx, userID, rules)
+	return
+}
+
+// UpdateMemberNotificationSettingsAfterCounter returns a count of finished ClientMock.UpdateMemberNotificationSettings invocations
+func (mmUpdateMemberNotificationSettings *ClientMock) UpdateMemberNotificationSettingsAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateMemberNotificationSettings.afterUpdateMemberNotificationSettingsCounter)
+}
+
+// UpdateMemberNotificationSettingsBeforeCounter returns a count of ClientMock.UpdateMemberNotificationSettings invocations
+func (mmUpdateMemberNotificationSettings *ClientMock) UpdateMemberNotificationSettingsBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdateMemberNotificationSettings.beforeUpdateMemberNotificationSettingsCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdateMemberNotificationSettings.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdateMemberNotificationSettings *mClientMockUpdateMemberNotificationSettings) Calls() []*ClientMockUpdateMemberNotificationSettingsParams {
+	mmUpdateMemberNotificationSettings.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdateMemberNotificationSettingsParams, len(mmUpdateMemberNotificationSettings.callArgs))
+	copy(argCopy, mmUpdateMemberNotificationSettings.callArgs)
+
+	mmUpdateMemberNotificationSettings.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdateMemberNotificationSettingsDone returns true if the count of the UpdateMemberNotificationSettings invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdateMemberNotificationSettingsDone() bool {
+	if m.UpdateMemberNotificationSettingsMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdateMemberNotificationSettingsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdateMemberNotificationSettingsMock.invocationsDone()
+}
+
+// MinimockUpdateMemberNotificationSettingsInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdateMemberNotificationSettingsInspect() {
+	for _, e := range m.UpdateMemberNotificationSettingsMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdateMemberNotificationSettings at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdateMemberNotificationSettingsCounter := mm_atomic.LoadUint64(&m.afterUpdateMemberNotificationSettingsCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdateMemberNotificationSettingsMock.defaultExpectation != nil && afterUpdateMemberNotificationSettingsCounter < 1 {
+		if m.UpdateMemberNotificationSettingsMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdateMemberNotificationSettings at\n%s", m.UpdateMemberNotificationSettingsMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdateMemberNotificationSettings at\n%s with params: %#v", m.UpdateMemberNotificationSettingsMock.defaultExpectation.expectationOrigins.origin, *m.UpdateMemberNotificationSettingsMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdateMemberNotificationSettings != nil && afterUpdateMemberNotificationSettingsCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdateMemberNotificationSettings at\n%s", m.funcUpdateMemberNotificationSettingsOrigin)
+	}
+
+	if !m.UpdateMemberNotificationSettingsMock.invocationsDone() && afterUpdateMemberNotificationSettingsCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdateMemberNotificationSettings at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdateMemberNotificationSettingsMock.expectedInvocations), m.UpdateMemberNotificationSettingsMock.expectedInvocationsOrigin, afterUpdateMemberNotificationSettingsCounter)
 	}
 }
 
@@ -43072,7 +44131,11 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockGetUpgradeWindowInspect()
 
+			m.MinimockListMemberNotificationSettingsInspect()
+
 			m.MinimockListMembersInspect()
+
+			m.MinimockListNotificationTypesInspect()
 
 			m.MinimockListPostgresInspect()
 
@@ -43111,6 +44174,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockUpdateClickPipeSettingsInspect()
 
 			m.MinimockUpdateJWTProviderInspect()
+
+			m.MinimockUpdateMemberNotificationSettingsInspect()
 
 			m.MinimockUpdateOrganizationInspect()
 
@@ -43255,7 +44320,9 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetUDFDone() &&
 		m.MinimockGetUDFAttachmentDone() &&
 		m.MinimockGetUpgradeWindowDone() &&
+		m.MinimockListMemberNotificationSettingsDone() &&
 		m.MinimockListMembersDone() &&
+		m.MinimockListNotificationTypesDone() &&
 		m.MinimockListPostgresDone() &&
 		m.MinimockListReversePrivateEndpointsDone() &&
 		m.MinimockListRolesDone() &&
@@ -43275,6 +44342,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateClickPipeCdcScalingDone() &&
 		m.MinimockUpdateClickPipeSettingsDone() &&
 		m.MinimockUpdateJWTProviderDone() &&
+		m.MinimockUpdateMemberNotificationSettingsDone() &&
 		m.MinimockUpdateOrganizationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdatePostgresDone() &&
