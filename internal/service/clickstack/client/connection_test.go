@@ -72,8 +72,8 @@ func TestCreateConnection(t *testing.T) {
 		if body["name"] != "Test" || body["password"] != "secret" {
 			t.Errorf("unexpected body: %v", body)
 		}
-		if _, ok := body["prometheusEndpoint"]; ok {
-			t.Error("expected nil prometheusEndpoint to be omitted from create body")
+		if body["isPrometheusEndpoint"] != true {
+			t.Errorf("expected isPrometheusEndpoint true, got %v", body["isPrometheusEndpoint"])
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -81,10 +81,11 @@ func TestCreateConnection(t *testing.T) {
 	})
 
 	conn, err := c.CreateConnection(context.Background(), CreateConnectionInput{
-		Name:     "Test",
-		Host:     "http://ch:8123",
-		Username: "default",
-		Password: "secret",
+		Name:                 "Test",
+		Host:                 "http://ch:8123",
+		Username:             "default",
+		Password:             "secret",
+		IsPrometheusEndpoint: true,
 	})
 	if err != nil {
 		t.Fatalf("CreateConnection: %v", err)
@@ -112,8 +113,25 @@ func TestGetConnection(t *testing.T) {
 	if conn.HyperdxSettingPrefix == nil || *conn.HyperdxSettingPrefix != "hdx_" {
 		t.Errorf("expected hyperdxSettingPrefix hdx_, got %v", conn.HyperdxSettingPrefix)
 	}
-	if conn.PrometheusEndpoint != nil {
-		t.Errorf("expected nil prometheusEndpoint, got %v", *conn.PrometheusEndpoint)
+	if conn.IsPrometheusEndpoint != nil {
+		t.Errorf("expected absent isPrometheusEndpoint to decode as nil, got %v", *conn.IsPrometheusEndpoint)
+	}
+}
+
+func TestGetConnection_PrometheusEndpoint(t *testing.T) {
+	t.Parallel()
+
+	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":{"id":"abc123","name":"Prom","host":"http://prometheus:9090","username":"","isPrometheusEndpoint":true}}`)
+	})
+
+	conn, err := c.GetConnection(context.Background(), "abc123")
+	if err != nil {
+		t.Fatalf("GetConnection: %v", err)
+	}
+	if conn.IsPrometheusEndpoint == nil || !*conn.IsPrometheusEndpoint {
+		t.Errorf("expected isPrometheusEndpoint true, got %v", conn.IsPrometheusEndpoint)
 	}
 }
 
@@ -167,16 +185,17 @@ func TestUpdateConnection_NullSemantics(t *testing.T) {
 			t.Fatalf("decode request body: %v", err)
 		}
 
-		// nil password must be omitted (keep existing); nil prefix/endpoint
-		// must be serialized as explicit null (clear existing).
+		// nil password must be omitted (keep existing); nil prefix must be
+		// serialized as explicit null (clear existing); false must be sent,
+		// since the API keeps the stored isPrometheusEndpoint when it is omitted.
 		if _, ok := body["password"]; ok {
 			t.Error("expected nil password to be omitted from update body")
 		}
 		if string(body["hyperdxSettingPrefix"]) != "null" {
 			t.Errorf("expected hyperdxSettingPrefix null, got %s", body["hyperdxSettingPrefix"])
 		}
-		if string(body["prometheusEndpoint"]) != "null" {
-			t.Errorf("expected prometheusEndpoint null, got %s", body["prometheusEndpoint"])
+		if string(body["isPrometheusEndpoint"]) != "false" {
+			t.Errorf("expected isPrometheusEndpoint false, got %s", body["isPrometheusEndpoint"])
 		}
 
 		w.Header().Set("Content-Type", "application/json")

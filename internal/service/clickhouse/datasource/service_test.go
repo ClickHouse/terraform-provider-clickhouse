@@ -18,20 +18,21 @@ func ptrBool(b bool) *bool { return &b }
 func TestServiceToObjectValue_MapsScalarsAndNulls(t *testing.T) {
 	ctx := context.Background()
 	svc := api.Service{
-		Id:                "svc-1",
-		Name:              "prod",
-		Provider:          "aws",
-		Region:            "us-east-1",
-		Tier:              "production",
-		State:             "running",
-		ClickHouseVersion: "24.5",
-		CreatedAt:         "2026-07-12T00:00:00Z",
-		ReleaseChannel:    "default",
-		IsPrimary:         ptrBool(true),
-		ReadOnly:          false,
-		NumReplicas:       ptrInt(3),
-		IdleScaling:       true,
-		IAMRole:           "arn:aws:iam::123:role/x",
+		Id:                 "svc-1",
+		Name:               "prod",
+		Provider:           "aws",
+		Region:             "us-east-1",
+		Tier:               "production",
+		State:              "running",
+		ClickHouseVersion:  "24.5",
+		CreatedAt:          "2026-07-12T00:00:00Z",
+		ReleaseChannel:     "default",
+		IsPrimary:          ptrBool(true),
+		ReadOnly:           false,
+		NumReplicas:        ptrInt(3),
+		IdleScaling:        true,
+		IAMRole:            "arn:aws:iam::123:role/x",
+		DeletionProtection: ptrBool(true),
 		Endpoints: []api.Endpoint{
 			{Protocol: "nativesecure", Host: "h1", Port: 9440, Enabled: true},
 		},
@@ -57,6 +58,9 @@ func TestServiceToObjectValue_MapsScalarsAndNulls(t *testing.T) {
 	}
 	if got := attrs["num_replicas"].(types.Int64).ValueInt64(); got != 3 {
 		t.Errorf("num_replicas = %d; want 3", got)
+	}
+	if got := attrs["deletion_protection"].(types.Bool).ValueBool(); got != true {
+		t.Errorf("deletion_protection = %v; want true", got)
 	}
 	// nil pointers -> null
 	if !attrs["byoc_id"].(types.String).IsNull() {
@@ -168,6 +172,9 @@ func TestServiceObjectRoundTripsToModel(t *testing.T) {
 	}
 	if m.NumReplicas.ValueInt64() != 2 {
 		t.Errorf("NumReplicas = %d; want 2", m.NumReplicas.ValueInt64())
+	}
+	if !m.DeletionProtection.IsNull() {
+		t.Errorf("DeletionProtection = %v; want null when the API omits it", m.DeletionProtection)
 	}
 }
 

@@ -365,14 +365,8 @@ func (c *ClientImpl) doUDFAttachmentRequest(ctx context.Context, serviceID strin
 			logFieldServiceID: serviceID,
 		})
 
-		if wakeErr := c.wakeService(ctx, serviceID); wakeErr != nil {
-			state, stateErr := c.getServiceState(ctx, serviceID)
-			if stateErr != nil || (state != StateAwaking && state != StateRunning) {
-				return nil, fmt.Errorf("service %s is idle and waking it up failed: %w", serviceID, wakeErr)
-			}
-			tflog.Info(ctx, "ClickHouse service was already woken up by another request; continuing", map[string]any{
-				logFieldServiceID: serviceID,
-			})
+		if wakeErr := c.wakeIdleService(ctx, serviceID); wakeErr != nil {
+			return nil, fmt.Errorf("service %s is idle and waking it up failed: %w", serviceID, wakeErr)
 		}
 	} else {
 		tflog.Info(ctx, "ClickHouse service is already awaking; waiting before retrying the UDF attachment", map[string]any{

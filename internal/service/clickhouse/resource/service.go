@@ -18,12 +18,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
 	internalplanmodifier "github.com/ClickHouse/terraform-provider-clickhouse/internal/planmodifier"
@@ -221,12 +223,11 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"profile": schema.StringAttribute{
-				Description: "Custom instance profile for the service, only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Can only be set at service creation time; changing it forces the service to be replaced. Use the 'available service profiles' OpenAPI endpoint to list the profiles available to your organization.",
+				Description: "Custom instance profile for the service. 'v2-default' creates a Gen 2 hardware service: it needs an organization enabled for Gen 2 on a SCALE or ENTERPRISE plan (or through a per-organization override), an AWS region where Gen 2 is available, and no 'byoc_id'. Gen 2 services use a fixed size and can't idle: 'min_replica_memory_gb' must equal 'max_replica_memory_gb', the replica count is fixed ('num_replicas', or equal 'min_replicas' and 'max_replicas' with 'autoscaling_mode' set to 'horizontal'), and 'idle_scaling' must be false. An existing service can't be switched between Gen 1 and Gen 2 hardware (to or from 'v2-default'): the plan fails, including with 'terraform apply -replace'. Declare a new 'clickhouse_service' resource to get a service on the other hardware, or ask ClickHouse support to move the service. Other custom profiles are only available for ENTERPRISE and BYOC organization tiers. BYOC services may use a dynamic BYOC profile configured for their infrastructure (e.g. 'v1-standard-byoc-4'); this requires 'byoc_id' to be set, and 'min_replica_memory_gb' and 'max_replica_memory_gb' must both equal the profile's per-replica memory size. Changing the profile updates the service in place: a BYOC profile change must keep 'min_replica_memory_gb' and 'max_replica_memory_gb' equal to the new profile's memory size, and a non-BYOC custom profile cannot be changed in the same apply as a memory change. Use the 'clickhouse_service_profiles' data source to list the profiles available to your organization.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"release_channel": schema.StringAttribute{
@@ -585,6 +586,20 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"replica_aware_routing": schema.SingleNestedAttribute{
+				Description: "Configuration of replica aware routing for this service. Routes later connections from the same client to the same replica. Omit this block to leave the setting unmanaged. Refresh of a managed block treats a missing feature (403) as unset. Applying this block without the feature fails. Requires an organization with the Enterprise plan.",
+				Optional:    true,
+				Attributes: map[string]schema.Attribute{
+					"http_enabled": schema.BoolAttribute{
+						Description: "Whether replica aware routing is enabled for HTTP connections. When enabled, clients must send the X-ClickHouse-Replica-Tag header.",
+						Required:    true,
+					},
+					"native_enabled": schema.BoolAttribute{
+						Description: "Whether replica aware routing is enabled for native protocol connections.",
+						Required:    true,
+					},
+				},
+			},
 			"compliance_type": schema.StringAttribute{
 				Description: "Compliance type of the service. Can be 'hipaa', 'pci'. Required for organizations that wish to deploy their services in the hipaa/pci compliant environment. NOTE: hipaa/pci compliance should be enabled for your ClickHouse organization before using this field.",
 				Optional:    true,
@@ -616,6 +631,14 @@ func (r *ServiceResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"deletion_protection": schema.BoolAttribute{
+				Description: "Prevent the service from being deleted. While `true`, `terraform destroy` and any change that replaces the service fail. To delete the service, first set this to `false` in its own apply. Removing the attribute from configuration leaves the current setting unchanged. Setting it to `true` when creating a service needs an API key that can delete all services in the organization, and changing it later needs delete permission on the service.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					internalplanmodifier.UseStateWhenConfigNull(),
 				},
 			},
 		},
@@ -1140,6 +1163,9 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 	}
 
+	// Runs after the mode normalization above so a replica band carried over from a horizontal state is already cleared.
+	validateGen2Profile(plan, state, hasState, &resp.Diagnostics)
+
 	// A per-replica field counts as "set" only when it holds a concrete value: a null (e.g. a module passing
 	// null) and an unknown (an omitted Optional+Computed per-replica field on a create, which UseStateForUnknown
 	// leaves unknown) both mean "not set", so a deprecated-totals-only config must not trip these conflicts.
@@ -1342,10 +1368,67 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 }
 
+// validateGen2Profile fails the plan for what the API always rejects on a Gen 2 (v2-default) service: switching an existing service between Gen 1 and Gen 2, a memory or replica range, or idling.
+// It reads the planned profile (carried over from state when the config leaves it out) and not the org's Gen 2 eligibility, because the API enforces fixed size even after an org loses it; unknown values are left to the API.
+func validateGen2Profile(plan, state models.ServiceResourceModel, hasState bool, diags *diag.Diagnostics) {
+	if plan.Profile.IsUnknown() {
+		return
+	}
+	isGen2 := plan.Profile.ValueString() == api.ProfileGen2
+
+	wasGen2 := state.Profile.ValueString() == api.ProfileGen2
+	if hasState && isGen2 != wasGen2 {
+		diags.AddAttributeError(
+			path.Root("profile"),
+			"Invalid Update",
+			fmt.Sprintf("ClickHouse can't switch an existing service between Gen 1 and Gen 2 hardware (changing profile to or from %q). Keep the current profile and declare a new clickhouse_service resource for a service on the other hardware, or contact ClickHouse support to move this service and then set profile to match the moved service.", api.ProfileGen2),
+		)
+	}
+
+	if !isGen2 {
+		return
+	}
+
+	unequal := func(minV, maxV types.Int64) bool {
+		return isKnown(minV) && isKnown(maxV) && minV.ValueInt64() != maxV.ValueInt64()
+	}
+
+	if unequal(plan.MinReplicaMemoryGb, plan.MaxReplicaMemoryGb) {
+		diags.AddAttributeError(
+			path.Root("min_replica_memory_gb"),
+			"Invalid Configuration",
+			fmt.Sprintf("Gen 2 services (profile %q) use a fixed size: min_replica_memory_gb must equal max_replica_memory_gb.", api.ProfileGen2),
+		)
+	}
+	if unequal(plan.MinTotalMemoryGb, plan.MaxTotalMemoryGb) {
+		diags.AddAttributeError(
+			path.Root("min_total_memory_gb"),
+			"Invalid Configuration",
+			fmt.Sprintf("Gen 2 services (profile %q) use a fixed size: min_total_memory_gb must equal max_total_memory_gb.", api.ProfileGen2),
+		)
+	}
+	// Skipped when the plan resolves to vertical, where ModifyPlan's vertical band guard already rejects any band.
+	if plan.AutoscalingMode.ValueString() != api.AutoscalingModeVertical && unequal(plan.MinReplicas, plan.MaxReplicas) {
+		diags.AddAttributeError(
+			path.Root("min_replicas"),
+			"Invalid Configuration",
+			fmt.Sprintf("Gen 2 services (profile %q) use a fixed replica count: set min_replicas equal to max_replicas, or remove min_replicas, max_replicas and autoscaling_mode and set num_replicas instead.", api.ProfileGen2),
+		)
+	}
+	if isKnown(plan.IdleScaling) && plan.IdleScaling.ValueBool() {
+		diags.AddAttributeError(
+			path.Root("idle_scaling"),
+			"Invalid Configuration",
+			fmt.Sprintf("Gen 2 services (profile %q) can't idle: set idle_scaling = false.", api.ProfileGen2),
+		)
+	}
+}
+
 // ValidateConfig applies the cheap, mode-agnostic ordering checks that give a clearer plan-time error than
 // the API's contradiction responses. The mode ↔ field combination rules — which fields each autoscaling_mode
 // accepts, num_replicas vs the band, ranged vs fixed per-replica memory — are owned by the API (UC-1173) and
-// deliberately not duplicated here. Runs at plan time for both create and update.
+// deliberately not duplicated here, except for Gen 2 services: validateGen2Profile (run from ModifyPlan, which
+// can see the planned profile) rejects their ranged sizing. Runs at plan time for both create and update.
 func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var config models.ServiceResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
@@ -1408,6 +1491,69 @@ func (r *ServiceResource) ValidateConfig(ctx context.Context, req resource.Valid
 			}
 		}
 	}
+}
+
+// updateReplicaAwareRouting PATCHes both flags when the block is configured. An absent block is left unmanaged.
+func (r *ServiceResource) updateReplicaAwareRouting(ctx context.Context, serviceId string, routing types.Object) error {
+	if routing.IsNull() || routing.IsUnknown() {
+		return nil
+	}
+
+	parsed := models.ReplicaAwareRouting{}
+	diag := routing.As(ctx, &parsed, basetypes.ObjectAsOptions{
+		UnhandledNullAsEmpty:    false,
+		UnhandledUnknownAsEmpty: false,
+	})
+	if diag.HasError() {
+		return errors.New(diag.Errors()[0].Detail())
+	}
+
+	_, err := r.client.UpdateReplicaAwareRouting(ctx, serviceId, toAPIReplicaAwareRouting(parsed))
+	return err
+}
+
+// toAPIReplicaAwareRouting sends both flags. The block requires each one, and an omitted PATCH field would keep the stored value.
+func toAPIReplicaAwareRouting(routing models.ReplicaAwareRouting) api.ReplicaAwareRouting {
+	out := api.ReplicaAwareRouting{}
+	if !routing.HTTPEnabled.IsNull() && !routing.HTTPEnabled.IsUnknown() {
+		out.HTTPEnabled = routing.HTTPEnabled.ValueBoolPointer()
+	}
+	if !routing.NativeEnabled.IsNull() && !routing.NativeEnabled.IsUnknown() {
+		out.NativeEnabled = routing.NativeEnabled.ValueBoolPointer()
+	}
+	return out
+}
+
+// syncReplicaAwareRouting refreshes a managed block. An omitted block is left null and does not call the API.
+// A 403 means the organization feature is missing, which refresh records as unset.
+func (r *ServiceResource) syncReplicaAwareRouting(ctx context.Context, state *models.ServiceResourceModel, serviceId string) error {
+	nullRouting := types.ObjectNull(models.ReplicaAwareRouting{}.ObjectType().AttrTypes)
+	if state.ReplicaAwareRouting.IsNull() || state.ReplicaAwareRouting.IsUnknown() {
+		state.ReplicaAwareRouting = nullRouting
+		return nil
+	}
+
+	routing, err := r.client.GetReplicaAwareRouting(ctx, serviceId)
+	if err != nil {
+		if api.IsForbidden(err) {
+			state.ReplicaAwareRouting = nullRouting
+			return nil
+		}
+		return err
+	}
+
+	mapped := models.ReplicaAwareRouting{
+		HTTPEnabled:   types.BoolValue(false),
+		NativeEnabled: types.BoolValue(false),
+	}
+	if routing != nil && routing.HTTPEnabled != nil {
+		mapped.HTTPEnabled = types.BoolValue(*routing.HTTPEnabled)
+	}
+	if routing != nil && routing.NativeEnabled != nil {
+		mapped.NativeEnabled = types.BoolValue(*routing.NativeEnabled)
+	}
+	state.ReplicaAwareRouting = mapped.ObjectValue()
+	return nil
 }
 
 // toAPISnapshotConfiguration maps the model to the API payload, skipping Unknown fields: for an omitted (Unknown)
@@ -1610,6 +1756,10 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		service.EnableCoreDumps = plan.EnableCoreDumps.ValueBoolPointer()
 	}
 
+	if !plan.DeletionProtection.IsNull() && !plan.DeletionProtection.IsUnknown() {
+		service.DeletionProtection = plan.DeletionProtection.ValueBoolPointer()
+	}
+
 	// Create new service
 	s, generatedPassword, err := r.client.CreateService(ctx, service)
 	if err != nil {
@@ -1742,6 +1892,14 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		plan.GeneratedPassword = types.StringNull()
 	}
 
+	if err = r.updateReplicaAwareRouting(ctx, s.Id, plan.ReplicaAwareRouting); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting replica aware routing",
+			"Could not set replica aware routing after creation, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
 	// Set query api endpoints
 	if !plan.QueryAPIEndpoints.IsNull() {
 		qae := models.QueryAPIEndpoints{}
@@ -1784,6 +1942,7 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Map response body to schema and populate Computed attribute values
 	plan.ID = types.StringValue(s.Id)
+	plannedProtection := plan.DeletionProtection
 	err = r.syncServiceState(ctx, &plan, true)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -1791,6 +1950,9 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 			"Could not read ClickHouse service id "+plan.ID.ValueString()+": "+err.Error(),
 		)
 		return
+	}
+	if detail := settleAppliedProtection(plannedProtection, service.DeletionProtection, s.DeletionProtection, &plan); detail != "" {
+		resp.Diagnostics.AddError("ClickHouse Service Deletion Protection Not Applied", detail+" Terraform marks the new service as tainted, so run terraform untaint on it before applying again, or the next apply replaces it.")
 	}
 
 	// Set state to fully populated data
@@ -1979,16 +2141,24 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		service.EnableCoreDumps = plan.EnableCoreDumps.ValueBoolPointer()
 	}
 
+	if !plan.DeletionProtection.IsNull() && !plan.DeletionProtection.IsUnknown() && !plan.DeletionProtection.Equal(state.DeletionProtection) {
+		serviceChange = true
+		service.DeletionProtection = plan.DeletionProtection.ValueBoolPointer()
+	}
+
 	// Update existing service
+	var reportedProtection *bool
 	if serviceChange {
-		var err error
-		_, err = r.client.UpdateService(ctx, serviceId, service)
+		updated, err := r.client.UpdateService(ctx, serviceId, service)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error Updating ClickHouse Service",
 				"Could not update service, unexpected error: "+err.Error(),
 			)
 			return
+		}
+		if updated != nil {
+			reportedProtection = updated.DeletionProtection
 		}
 	}
 
@@ -2062,25 +2232,34 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 	// The API clears the dropped fields server-side: both modes write the same min/max replica + per-replica
 	// memory storage (num_replicas is derived on read, not stored), and the switch requires the new mode's
 	// fields, so sending them overwrites the old shape — no explicit nulls needed (confirmed against UC-1173).
-	if !plan.MinReplicas.IsUnknown() && (modeSwitch || plan.MinReplicas != state.MinReplicas) {
+	// The API rejects a PATCH carrying only one of minReplicas/maxReplicas, so a change to either sends both.
+	if !plan.MinReplicas.IsUnknown() && !plan.MaxReplicas.IsUnknown() &&
+		(modeSwitch || plan.MinReplicas != state.MinReplicas || plan.MaxReplicas != state.MaxReplicas) {
 		scalingChange = true
-		if !plan.MinReplicas.IsNull() {
-			minReplicas := int(plan.MinReplicas.ValueInt64())
-			replicaScaling.MinReplicas = &minReplicas
-		}
-	}
-	if !plan.MaxReplicas.IsUnknown() && (modeSwitch || plan.MaxReplicas != state.MaxReplicas) {
-		scalingChange = true
-		if !plan.MaxReplicas.IsNull() {
-			maxReplicas := int(plan.MaxReplicas.ValueInt64())
-			replicaScaling.MaxReplicas = &maxReplicas
-		}
+		replicaScaling.MinReplicas = knownInt64ToIntPointer(plan.MinReplicas)
+		replicaScaling.MaxReplicas = knownInt64ToIntPointer(plan.MaxReplicas)
 	}
 	if plan.IdleTimeoutMinutes != state.IdleTimeoutMinutes {
 		scalingChange = true
 		if !plan.IdleTimeoutMinutes.IsNull() {
 			idleTimeoutMinutes := int(plan.IdleTimeoutMinutes.ValueInt64())
 			replicaScaling.IdleTimeoutMinutes = &idleTimeoutMinutes
+		}
+	}
+	// A profile change rides on the same PATCH. A BYOC profile is a pin the API validates against both
+	// per-replica memory bounds in the same request, so send the planned memory alongside even when it is
+	// unchanged — the API only treats memory as a change when it differs from the stored value, so an
+	// echoed bound does not trip the "non-BYOC profile rejects a memory change" rule either.
+	if !plan.Profile.IsUnknown() && !plan.Profile.IsNull() && plan.Profile != state.Profile {
+		scalingChange = true
+		replicaScaling.Profile = plan.Profile.ValueStringPointer()
+		if replicaScaling.MinReplicaMemoryGb == nil && !plan.MinReplicaMemoryGb.IsUnknown() && !plan.MinReplicaMemoryGb.IsNull() {
+			minReplicaMemoryGb := int(plan.MinReplicaMemoryGb.ValueInt64())
+			replicaScaling.MinReplicaMemoryGb = &minReplicaMemoryGb
+		}
+		if replicaScaling.MaxReplicaMemoryGb == nil && !plan.MaxReplicaMemoryGb.IsUnknown() && !plan.MaxReplicaMemoryGb.IsNull() {
+			maxReplicaMemoryGb := int(plan.MaxReplicaMemoryGb.ValueInt64())
+			replicaScaling.MaxReplicaMemoryGb = &maxReplicaMemoryGb
 		}
 	}
 
@@ -2274,6 +2453,17 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
+	if !plan.ReplicaAwareRouting.IsNull() && !plan.ReplicaAwareRouting.IsUnknown() && !plan.ReplicaAwareRouting.Equal(state.ReplicaAwareRouting) {
+		if err := r.updateReplicaAwareRouting(ctx, serviceId, plan.ReplicaAwareRouting); err != nil {
+			resp.Diagnostics.AddError(
+				"Error setting replica aware routing",
+				"Could not update replica aware routing, unexpected error: "+err.Error(),
+			)
+			return
+		}
+	}
+
+	plannedProtection := plan.DeletionProtection
 	err := r.syncServiceState(ctx, &plan, true)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -2281,6 +2471,9 @@ func (r *ServiceResource) Update(ctx context.Context, req resource.UpdateRequest
 			"Could not sync service state, unexpected error: "+err.Error(),
 		)
 		return
+	}
+	if detail := settleAppliedProtection(plannedProtection, service.DeletionProtection, reportedProtection, &plan); detail != "" {
+		resp.Diagnostics.AddError("ClickHouse Service Deletion Protection Not Applied", detail)
 	}
 
 	// CMEK->TDE migration.
@@ -2309,6 +2502,20 @@ func (r *ServiceResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 	// Delete existing order
 	_, err := r.client.DeleteService(ctx, state.ID.ValueString())
+	if errors.Is(err, api.ErrServiceDeletionProtected) {
+		detail := "Deletion protection is enabled for this service. Set deletion_protection = false and run terraform apply, then delete the service. " +
+			"If this delete is part of a change that replaces the service (any attribute that forces replacement, or -replace), " +
+			"turn protection off in its own apply, without that change, first. " +
+			"If the resource is tainted, run terraform untaint first. " +
+			"If the resource is no longer in your configuration, add it back with deletion_protection = false and apply, or turn protection off in the ClickHouse Cloud console. " +
+			"If Terraform already created a replacement (create_before_destroy), turn protection off for service " + state.ID.ValueString() + " in the ClickHouse Cloud console, then apply again."
+		if errors.Is(err, api.ErrDeleteRefusedAfterStop) {
+			detail += " The service is now stopped: start it again if you still need it."
+		}
+		tflog.Warn(ctx, "delete refused by deletion protection", map[string]interface{}{"error": err.Error()})
+		resp.Diagnostics.AddError("ClickHouse Service Is Protected From Deletion", detail)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Deleting ClickHouse Service",
@@ -2631,6 +2838,7 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					BackupConfiguration:             priorStateData.BackupConfiguration,
 					// Not present in V0 state; left null here and populated from the API on the next refresh.
 					SnapshotConfiguration:     types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes),
+					ReplicaAwareRouting:       types.ObjectNull(models.ReplicaAwareRouting{}.ObjectType().AttrTypes),
 					TransparentEncryptionData: models.TransparentEncryptionData{}.ObjectValue(),
 					Tags:                      types.MapNull(types.StringType),
 				}
@@ -2885,6 +3093,10 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.SnapshotConfiguration = types.ObjectNull(models.SnapshotConfiguration{}.ObjectType().AttrTypes)
 	}
 
+	if err := r.syncReplicaAwareRouting(ctx, state, service.Id); err != nil {
+		return err
+	}
+
 	if service.ComplianceType != nil {
 		state.ComplianceType = types.StringValue(*service.ComplianceType)
 	} else {
@@ -2905,7 +3117,41 @@ func (r *ServiceResource) syncServiceState(ctx context.Context, state *models.Se
 		state.EnableCoreDumps = types.BoolNull()
 	}
 
+	state.DeletionProtection = deletionProtectionFromAPI(state.DeletionProtection, service.DeletionProtection)
+
 	return nil
+}
+
+// deletionProtectionFromAPI reads an omitted field as off (the API always reports a protected service) and never turns an unset value into false, so organizations without the feature see no drift.
+func deletionProtectionFromAPI(current types.Bool, apiValue *bool) types.Bool {
+	switch {
+	case apiValue != nil && *apiValue:
+		return types.BoolValue(true)
+	case current.IsNull() || current.IsUnknown():
+		return types.BoolNull()
+	default:
+		return types.BoolValue(false)
+	}
+}
+
+// settleAppliedProtection sets the value to record after an apply, and returns an error detail when the API didn't confirm a sent value, replacing Terraform's "inconsistent result after apply" failure.
+func settleAppliedProtection(planned types.Bool, sent, reported *bool, state *models.ServiceResourceModel) string {
+	switch {
+	case sent == nil:
+		if !planned.IsUnknown() {
+			state.DeletionProtection = planned
+		}
+		return ""
+	case reported == nil && *sent:
+		state.DeletionProtection = types.BoolNull()
+		return "ClickHouse Cloud did not confirm deletion_protection = true, so the service may not be protected. Check that deletion protection is available for your organization, then apply again."
+	case reported != nil && *reported != *sent:
+		state.DeletionProtection = types.BoolValue(*reported)
+		return fmt.Sprintf("ClickHouse Cloud returned deletion_protection = %t after the provider sent %t. Apply again, or check the setting in the ClickHouse Cloud console.", *reported, *sent)
+	default:
+		state.DeletionProtection = types.BoolValue(*sent)
+		return ""
+	}
 }
 
 func servicePasswordUpdateFromPlainPassword(password string) api.ServicePasswordUpdate {

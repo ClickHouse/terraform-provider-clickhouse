@@ -1,0 +1,36 @@
+name: Mutation testing
+
+on:
+  pull_request: {}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    runs-on: k8s-medium
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # gremlins --diff needs the base branch history.
+          fetch-depth: 0
+
+      - name: Setup go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      # gremlins is pinned in go.mod, same as go-test-coverage, so CI and `make mutation` match.
+      - name: Mutation test changed code
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          # gremlins defaults to runtime.NumCPU, which on k8s is the node's cores, not the pod's limit.
+          GREMLINS_UNLEASH_WORKERS: 4
+        run: make mutation MUTATION_DIFF="origin/$BASE_REF"

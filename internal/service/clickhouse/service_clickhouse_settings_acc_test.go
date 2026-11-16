@@ -18,7 +18,7 @@ func TestAccServiceClickhouseSettingsResource(t *testing.T) {
 	updatedConfig := serviceClickhouseSettingsAccConfig(serviceID, `http_max_field_value_size = "262144"`)
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccClickHousePreCheck(t) },
+		PreCheck:                 func() { testAccClickHousePreCheck(t, "CLICKHOUSE_TEST_SERVICE_ID") },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{

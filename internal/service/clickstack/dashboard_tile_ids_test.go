@@ -463,3 +463,112 @@ func TestStripServerIDs_NoIDsUnchanged(t *testing.T) {
 		t.Errorf("expected body unchanged, got %s", stripped)
 	}
 }
+
+// setFilterID returns body with the id of the filter named name set to id.
+func setFilterID(t *testing.T, body json.RawMessage, name, id string) json.RawMessage {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	filters, _ := doc["filters"].([]any)
+	for _, fe := range filters {
+		if f, ok := fe.(map[string]any); ok && f["name"] == name {
+			f["id"] = id
+		}
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return out
+}
+
+// TestDashboard_PromQLTilesAndFiltersPassThrough checks that PromQL tiles and
+// PROMETHEUS_LABEL filters get the same id handling as any other tile or
+// filter. The resource has no PromQL-specific code, and its docs say PromQL is
+// supported because of that; this test keeps it true.
+func TestDashboard_PromQLTilesAndFiltersPassThrough(t *testing.T) {
+	t.Parallel()
+
+	// Every step below must leave this config unchanged, including the $job
+	// variable and the {{job}} legend template.
+	const promqlConfig = `{
+		"configType": "promql",
+		"displayType": "line",
+		"sourceId": "p1",
+		"expressions": [{"expression": "count by (job) ({__name__=~\".+\", job=~\"$job\"})"}],
+		"legendTemplate": "{{job}}"
+	}`
+
+	// The dashboard as the server returns it, with the ids it assigned.
+	server := json.RawMessage(`{
+		"id": "d1",
+		"tiles": [{"id": "t-1", "name": "Series", "config": ` + promqlConfig + `}],
+		"filters": [{"id": "f-1", "type": "PROMETHEUS_LABEL", "name": "Job", "sourceId": "p1", "label": "job", "variableName": "job"}]
+	}`)
+
+	t.Run("update: ids carried forward by name, new filter gets a generated id", func(t *testing.T) {
+		t.Parallel()
+		// The dashboard as authored: no ids, plus a "Metric" filter the server
+		// does not have yet.
+		authored := json.RawMessage(`{
+			"tiles": [{"name": "Series", "config": ` + promqlConfig + `}],
+			"filters": [
+				{"type": "PROMETHEUS_LABEL", "name": "Job", "sourceId": "p1", "label": "job", "variableName": "job"},
+				{"type": "PROMETHEUS_LABEL", "name": "Metric", "sourceId": "p1", "label": "__name__", "variableName": "metric"}
+			]
+		}`)
+		// "Series" and "Job" get their server ids back: a tile sent without its
+		// id loses its alerts. "Metric" needs an id too: ClickHouse Cloud
+		// rejects an update with an id-less filter, and the server replaces
+		// whatever id is sent.
+		want := json.RawMessage(`{
+			"tiles": [{"id": "t-1", "name": "Series", "config": ` + promqlConfig + `}],
+			"filters": [
+				{"id": "f-1", "type": "PROMETHEUS_LABEL", "name": "Job", "sourceId": "p1", "label": "job", "variableName": "job"},
+				{"id": "<generated>", "type": "PROMETHEUS_LABEL", "name": "Metric", "sourceId": "p1", "label": "__name__", "variableName": "metric"}
+			]
+		}`)
+
+		withTileIDs, err := mergeTileIDs(authored, server)
+		if err != nil {
+			t.Fatalf("mergeTileIDs: %v", err)
+		}
+		got, err := mergeFilterIDs(withTileIDs, server)
+		if err != nil {
+			t.Fatalf("mergeFilterIDs: %v", err)
+		}
+		if id := filterID(t, got, "Metric"); !isObjectID(id) {
+			t.Errorf("filter Metric id = %q, want a generated 24-hex ObjectId", id)
+		}
+		got = setFilterID(t, got, "Metric", "<generated>")
+		if !jsonEqual(t, got, want) {
+			t.Errorf("got %s, want %s", got, want)
+		}
+	})
+
+	t.Run("import: dashboard and filter ids removed, tile id kept", func(t *testing.T) {
+		t.Parallel()
+		// The API rejects the dashboard id and filter ids on write, so import
+		// drops them. The tile id stays so the tile's alerts stay attached. The
+		// select-field cleanup only touches objects with an aggFn key, which a
+		// PromQL tile does not have.
+		want := json.RawMessage(`{
+			"tiles": [{"id": "t-1", "name": "Series", "config": ` + promqlConfig + `}],
+			"filters": [{"type": "PROMETHEUS_LABEL", "name": "Job", "sourceId": "p1", "label": "job", "variableName": "job"}]
+		}`)
+
+		stripped, err := stripServerIDs(server)
+		if err != nil {
+			t.Fatalf("stripServerIDs: %v", err)
+		}
+		got, err := dropInvalidSelectFields(stripped)
+		if err != nil {
+			t.Fatalf("dropInvalidSelectFields: %v", err)
+		}
+		if !jsonEqual(t, got, want) {
+			t.Errorf("got %s, want %s", got, want)
+		}
+	})
+}

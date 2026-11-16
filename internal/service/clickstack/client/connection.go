@@ -18,7 +18,9 @@ type Connection struct {
 	Host                 string  `json:"host"`
 	Username             string  `json:"username"`
 	HyperdxSettingPrefix *string `json:"hyperdxSettingPrefix,omitempty"`
-	PrometheusEndpoint   *string `json:"prometheusEndpoint,omitempty"`
+	// IsPrometheusEndpoint is a pointer because the API omits it for a
+	// connection that never set it. Treat an absent value as false.
+	IsPrometheusEndpoint *bool `json:"isPrometheusEndpoint,omitempty"`
 }
 
 // CreateConnectionInput is the request body for creating a connection.
@@ -29,21 +31,22 @@ type CreateConnectionInput struct {
 	Username             string  `json:"username"`
 	Password             string  `json:"password"`
 	HyperdxSettingPrefix *string `json:"hyperdxSettingPrefix,omitempty"`
-	PrometheusEndpoint   *string `json:"prometheusEndpoint,omitempty"`
+	IsPrometheusEndpoint bool    `json:"isPrometheusEndpoint"`
 }
 
 // UpdateConnectionInput is the request body for updating a connection.
-// HyperdxSettingPrefix and PrometheusEndpoint are always serialized so that
-// nil is sent as JSON null, which the API treats as "clear the existing
-// value". Password is omitted when nil, which the API treats as "keep the
-// existing password".
+// HyperdxSettingPrefix is always serialized so that nil is sent as JSON null,
+// which the API treats as "clear the existing value". IsPrometheusEndpoint is
+// always serialized because the API keeps the stored value when it is omitted,
+// so false has to be sent to turn it off. Password is omitted when nil, which
+// the API treats as "keep the existing password".
 type UpdateConnectionInput struct {
 	Name                 string  `json:"name"`
 	Host                 string  `json:"host"`
 	Username             string  `json:"username"`
 	Password             *string `json:"password,omitempty"`
 	HyperdxSettingPrefix *string `json:"hyperdxSettingPrefix"`
-	PrometheusEndpoint   *string `json:"prometheusEndpoint"`
+	IsPrometheusEndpoint bool    `json:"isPrometheusEndpoint"`
 }
 
 // connectionEnvelope wraps single-connection API responses.

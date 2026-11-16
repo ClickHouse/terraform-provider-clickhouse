@@ -32,6 +32,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		resource.NewClickPipeReversePrivateEndpointResource,
 		resource.NewClickPipeReversePrivateEndpointCustomPrivateDNSResource,
 		resource.NewClickPipeSSHKeyResource,
+		resource.NewNotificationSettingsResource,
 		resource.NewOrganizationSettingsResource,
 		resource.NewPrivateEndpointRegistrationResource,
 		resource.NewQueryAPIEndpointResource,
@@ -41,6 +42,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		resource.NewServicePrivateEndpointsAttachmentResource,
 		resource.NewServiceClickhouseSettingsResource,
 		resource.NewServiceScheduledScalingResource,
+		resource.NewServiceJWTProviderResource,
 		resource.NewServiceTransparentDataEncryptionKeyAssociationResource,
 		resource.NewServiceUpgradeWindowResource,
 		resource.NewUDFResource,
@@ -52,6 +54,7 @@ func (servicePackage) DataSources() []func() upstreamdatasource.DataSource {
 	return []func() upstreamdatasource.DataSource{
 		datasource.NewPrivateEndpointConfigDataSource,
 		datasource.NewApiKeyIDDataSource,
+		datasource.NewNotificationTypesDataSource,
 		datasource.NewRolesDataSource,
 		datasource.NewRoleDataSource,
 		datasource.NewUserDataSource,

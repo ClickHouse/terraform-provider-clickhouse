@@ -19,7 +19,6 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -62,7 +61,9 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"dashboard body: name, tiles, tags, filters, savedQuery, containers). The JSON is " +
 			"validated at plan time against the ClickStack API when the validate endpoint is " +
 			"available. Export an existing dashboard with `GET /api/v2/dashboards/{id}` or " +
-			"`terraform import`. PromQL tiles are not supported by the API and cannot be managed here. " +
+			"`terraform import`. PromQL tiles (`configType = \"promql\"`) and `PROMETHEUS_LABEL` filters " +
+			"are supported; both must reference a source of kind `promql`, a preview feature that must be " +
+			"enabled on the ClickStack deployment. Alerts cannot be attached to PromQL tiles. " +
 			"The `dashboard_json` configuration is the sole source of truth: this resource does not " +
 			"detect changes made to the dashboard outside Terraform (e.g. edits in the UI). Such " +
 			"out-of-band changes are not reported as drift on `terraform plan`; they persist until the " +
@@ -369,8 +370,6 @@ func (r *dashboardResource) bodyWithDefaultTags(body []byte) ([]byte, types.Set,
 }
 
 func (r *dashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
-
 	var plan dashboardResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -484,8 +483,6 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 }
 
 func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
-
 	var plan dashboardResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	// The prior state holds the server-canonical body with its assigned tile IDs.
@@ -564,8 +561,6 @@ func (r *dashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 }
 
 func (r *dashboardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	utils.BetaWarning("clickhouse_clickstack_dashboard", &resp.Diagnostics)
-
 	// Accept either "<id>" (default team) or "<team>/<id>" so dashboards in a
 	// non-default team can be imported. The team is required by the API to
 	// resolve the team-scoped dashboard ID during the import Read.

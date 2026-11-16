@@ -25,3 +25,6 @@ jobs:
 
       - name: Run fmt
         run: make test
+
+      - name: Run the shell script tests
+        run: make test-shell

@@ -6,6 +6,10 @@ description: |-
   You can use the clickhouse_service_scheduled_scaling resource to manage time-based scaling rules for a ClickHouse Cloud service.
   A schedule is a set of recurring weekly windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment. While a window is active the service uses the replica count, memory bounds, and idle-scaling settings declared on that entry; otherwise the service falls back to its base auto-scaling configuration.
   ~> Note: This resource is in beta. Scheduled scaling must be enabled for your organization (canUseScheduledAutoscaling). Reach out to ClickHouse support if the API returns 403 FORBIDDEN. Each entry is vertical by default — a fixed replica count (min_replicas == max_replicas); set autoscaling_mode = "horizontal" to scale the replica count across a min_replicas–max_replicas band at fixed per-replica memory. A schedule allows a maximum of 10 entries.
+  Gen 2 services
+  A Gen 2 service (profile = "v2-default" on clickhouse_service) uses a fixed size and can't idle, and so does every schedule entry on it:
+  min_replica_memory_gb must equal max_replica_memory_gb.The replica count is fixed: min_replicas must equal max_replicas.idle_scaling can't be true.
+  This resource can't see the service's profile, so these rules are checked by the API when the schedule is applied, and a rejected entry fails the apply with the API's error message.
   Hour ranges
   Hour ranges are asymmetric:
   start_hour_utc accepts 0–23.end_hour_utc accepts 1–24.start_hour_utc and end_hour_utc must differ.Set start_hour_utc = 0 and end_hour_utc = 24 for a 24-hour window.Set end_hour_utc < start_hour_utc to wrap overnight (e.g. 22 to 6 covers 22:00–06:00 next day).
@@ -18,6 +22,16 @@ You can use the *clickhouse_service_scheduled_scaling* resource to manage time-b
 A schedule is a set of recurring weekly windows. The server rejects any pair of entries that overlap in time, so at most one window is active at any moment. While a window is active the service uses the replica count, memory bounds, and idle-scaling settings declared on that entry; otherwise the service falls back to its base auto-scaling configuration.
 
 ~> **Note:** This resource is in beta. Scheduled scaling must be enabled for your organization (`canUseScheduledAutoscaling`). Reach out to ClickHouse support if the API returns `403 FORBIDDEN`. Each entry is vertical by default — a fixed replica count (`min_replicas == max_replicas`); set `autoscaling_mode = "horizontal"` to scale the replica count across a `min_replicas`–`max_replicas` band at fixed per-replica memory. A schedule allows a maximum of 10 entries.
+
+## Gen 2 services
+
+A Gen 2 service (`profile = "v2-default"` on `clickhouse_service`) uses a fixed size and can't idle, and so does every schedule entry on it:
+
+- `min_replica_memory_gb` must equal `max_replica_memory_gb`.
+- The replica count is fixed: `min_replicas` must equal `max_replicas`.
+- `idle_scaling` can't be `true`.
+
+This resource can't see the service's profile, so these rules are checked by the API when the schedule is applied, and a rejected entry fails the apply with the API's error message.
 
 ## Hour ranges
 
@@ -63,6 +77,31 @@ resource "clickhouse_service_scheduled_scaling" "example" {
       max_replicas         = 1
       idle_scaling         = true
       idle_timeout_minutes = 5
+    },
+  ]
+}
+
+resource "clickhouse_service" "gen2_svc" {
+  profile = "v2-default"
+  ...
+}
+
+# On a Gen 2 service (profile = "v2-default") every entry is a fixed size and can't idle:
+# equal min/max memory, equal min/max replicas and idle_scaling = false.
+resource "clickhouse_service_scheduled_scaling" "gen2_example" {
+  service_id = clickhouse_service.gen2_svc.id
+
+  entries = [
+    {
+      name                  = "Business hours"
+      weekdays              = [1, 2, 3, 4, 5]
+      start_hour_utc        = 8
+      end_hour_utc          = 18
+      min_replicas          = 4
+      max_replicas          = 4
+      min_replica_memory_gb = 32
+      max_replica_memory_gb = 32
+      idle_scaling          = false
     },
   ]
 }

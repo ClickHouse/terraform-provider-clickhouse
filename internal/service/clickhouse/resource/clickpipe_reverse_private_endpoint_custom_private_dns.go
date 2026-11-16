@@ -83,7 +83,7 @@ func (r *ClickPipeReversePrivateEndpointCustomPrivateDNSResource) Schema(ctx con
 						},
 						"target_id": schema.StringAttribute{
 							Optional:            true,
-							MarkdownDescription: "ID of the DNS target this private DNS name resolves to, from the reverse private endpoint's `dns_targets`. Supported only for VPC_RESOURCE endpoints, where it is the resource configuration ID (`rcfg-...`); for a GROUP, use the CHILD resource configuration ID. If unset, the endpoint's default target is used.",
+							MarkdownDescription: "ID of the DNS target this private DNS name resolves to, from the reverse private endpoint's `dns_targets`. For VPC_RESOURCE endpoints, use the resource configuration ID (`rcfg-...`); for a GROUP, use the CHILD resource configuration ID. For same-region VPC_ENDPOINT_SERVICE endpoints, use an AWS availability zone ID that the endpoint service offers, for example `use1-az1`; ClickHouse Cloud adds that zone to the endpoint if needed. Cross-region VPC_ENDPOINT_SERVICE endpoints and other endpoint types do not support `target_id`. If unset, the endpoint's default target is used.",
 							Validators: []validator.String{
 								stringvalidator.LengthAtLeast(1),
 							},

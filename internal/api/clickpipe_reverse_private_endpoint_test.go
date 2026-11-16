@@ -212,6 +212,35 @@ func TestGetReversePrivateEndpoint_DecodesDNSTargetsAndPrivateDNSMappings(t *tes
 	}
 }
 
+func TestGetReversePrivateEndpoint_DecodesAvailabilityZoneDNSTargets(t *testing.T) {
+	zonal := "vpce-0abc-1234-us-east-1a.vpce-svc-0def.us-east-1.vpce.amazonaws.com"
+	client, _ := newReversePrivateEndpointTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"result":{
+			"id":"rpe-1",
+			"type":"VPC_ENDPOINT_SERVICE",
+			"status":"Ready",
+			"dnsNames":["vpce-0abc-1234.vpce-svc-0def.us-east-1.vpce.amazonaws.com","`+zonal+`"],
+			"dnsTargets":[{"id":"use1-az1","kind":"AVAILABILITY_ZONE","internalDnsName":"`+zonal+`"}],
+			"customPrivateDnsMappings":[{"privateDnsName":"*.use1-az1.abc123.us-east-1.aws.confluent.cloud","targetId":"use1-az1"}]
+		}}`)
+	})
+
+	got, err := client.GetReversePrivateEndpoint(context.Background(), "svc-1", "rpe-1")
+	if err != nil {
+		t.Fatalf("GetReversePrivateEndpoint: %v", err)
+	}
+
+	wantTargets := []DNSTarget{{ID: "use1-az1", Kind: "AVAILABILITY_ZONE", InternalDNSName: zonal}}
+	if !reflect.DeepEqual(got.DNSTargets, wantTargets) {
+		t.Fatalf("DNSTargets = %#v; want %#v", got.DNSTargets, wantTargets)
+	}
+	wantCustom := []CustomPrivateDNSMapping{{PrivateDNSName: "*.use1-az1.abc123.us-east-1.aws.confluent.cloud", TargetID: "use1-az1"}}
+	if !reflect.DeepEqual(got.CustomPrivateDNSMappings, wantCustom) {
+		t.Fatalf("CustomPrivateDNSMappings = %#v; want %#v", got.CustomPrivateDNSMappings, wantCustom)
+	}
+}
+
 func TestUpdateReversePrivateEndpoint_PreservesEmptyCustomDNSMappings(t *testing.T) {
 	mappings := []CustomPrivateDNSMapping{}
 	request := UpdateReversePrivateEndpoint{CustomPrivateDNSMappings: &mappings}

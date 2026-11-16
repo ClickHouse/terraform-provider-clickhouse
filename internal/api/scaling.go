@@ -16,6 +16,7 @@ type ReplicaScalingUpdate struct {
 	MinReplicas        *int    `json:"minReplicas,omitempty"`
 	MaxReplicas        *int    `json:"maxReplicas,omitempty"`
 	IdleTimeoutMinutes *int    `json:"idleTimeoutMinutes,omitempty"`
+	Profile            *string `json:"profile,omitempty"`
 }
 
 func (c *ClientImpl) UpdateReplicaScaling(ctx context.Context, serviceId string, s ReplicaScalingUpdate) (*Service, error) {

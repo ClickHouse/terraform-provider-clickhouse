@@ -11,7 +11,7 @@ The following service groups can be managed using the ClickHouse Cloud Terraform
 | Service group | What you can manage |
 |---|---|
 | **ClickHouse Cloud** | Cloud services and their lifecycle (e.g., auto-scaling, scheduled scaling, upgrade windows), SQL console access control (e.g., organization members, custom roles, API keys), **[ClickPipes](https://clickhouse.com/docs/integrations/clickpipes)**, and other resources. |
-| **ClickStack** | [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) (HyperDX) observability resources (e.g., connections, sources, dashboards, alerts, saved searches, teams, roles, webhooks). |
+| **ClickStack** | [ClickStack](https://clickhouse.com/docs/use-cases/observability/clickstack) observability resources (e.g., connections, sources, dashboards, alerts, saved searches, teams, roles, webhooks). |
 | **Postgres** | [Managed Postgres](https://clickhouse.com/docs/cloud/postgres) services and their lifecycle. |
 
 > This provider allows managing **SQL console-level** access control (i.e., organization roles and permissions). To manage **database-level** access control (i.e., database users, roles, grants), use the separate [`clickhousedbops`](https://github.com/ClickHouse/terraform-provider-clickhousedbops) provider.

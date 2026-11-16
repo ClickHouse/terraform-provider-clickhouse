@@ -1,8 +1,15 @@
 package api
 
 import (
+	"errors"
 	"strings"
 )
+
+// ErrServiceDeletionProtected is returned by DeleteService when the service has deletion protection turned on.
+var ErrServiceDeletionProtected = errors.New("deletion protection is enabled for this service, turn it off before deleting the service")
+
+// ErrDeleteRefusedAfterStop is wrapped with ErrServiceDeletionProtected only when DeleteService sent the stop before the API refused the DELETE.
+var ErrDeleteRefusedAfterStop = errors.New("the service is stopped, start it again if you still need it")
 
 func IsNotFound(err error) bool {
 	if err == nil {
@@ -18,6 +25,12 @@ func IsConflict(err error) bool {
 	}
 
 	return strings.HasPrefix(err.Error(), "status: 409")
+}
+
+// IsDeletionProtected returns true when err is the 409 the API returns for a
+// DELETE on a service that has deletion protection turned on.
+func IsDeletionProtected(err error) bool {
+	return IsConflict(err) && strings.Contains(strings.ToLower(err.Error()), "deletion protection is enabled")
 }
 
 func IsForbidden(err error) bool {
@@ -45,12 +58,23 @@ func IsBadRequestWith(err error, needle string) bool {
 // A 424 for a stopped service does NOT match: stopping is an explicit user
 // action the provider must not override by waking the service.
 func IsServiceIdle(err error) bool {
+	return isServiceStateDependencyError(err, StateIdle)
+}
+
+// IsServiceAwaking returns true when err is the 424 FAILED_DEPENDENCY the
+// ClickPipes API returns because the target ClickHouse service is already
+// waking up, e.g. after another concurrent request woke it.
+func IsServiceAwaking(err error) bool {
+	return isServiceStateDependencyError(err, StateAwaking)
+}
+
+func isServiceStateDependencyError(err error, state string) bool {
 	if err == nil {
 		return false
 	}
 
 	msg := err.Error()
-	return strings.HasPrefix(msg, "status: 424") && strings.Contains(msg, "Current state: idle")
+	return strings.HasPrefix(msg, "status: 424") && strings.Contains(msg, "Current state: "+state)
 }
 
 func is5xx(err error) bool {

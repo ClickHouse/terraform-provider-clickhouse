@@ -700,6 +700,14 @@ func TestAlertResource_Validate(t *testing.T) {
 		{"inline with malformed chart_config", func(m *alertResourceModel) { asInline(m); m.ChartConfig = types.StringValue("{nope") }, true},
 		{"inline with non-object chart_config", func(m *alertResourceModel) { asInline(m); m.ChartConfig = types.StringValue(`["line"]`) }, true},
 		{"inline with null chart_config document", func(m *alertResourceModel) { asInline(m); m.ChartConfig = types.StringValue("null") }, true},
+		{"inline with promql chart_config", func(m *alertResourceModel) {
+			asInline(m)
+			m.ChartConfig = types.StringValue(`{"configType":"promql","displayType":"line","sourceId":"s1","expressions":[{"expression":"up"}]}`)
+		}, true},
+		{"inline with sql chart_config", func(m *alertResourceModel) {
+			asInline(m)
+			m.ChartConfig = types.StringValue(`{"configType":"sql","displayType":"line","connectionId":"c1","sqlTemplate":"SELECT 1"}`)
+		}, false},
 		{
 			// A config built from another resource's attributes is unknown until
 			// Terraform resolves it, so no syntax rule can run against it.

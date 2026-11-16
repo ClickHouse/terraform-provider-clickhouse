@@ -1,6 +1,3 @@
-
-* @ClickHouse/cloud-platform-engineering
-
 # Service groups (AWS-style internal/service/<group>/ layout).
 /internal/service/clickhouse/ @ClickHouse/cloud-platform-engineering
 /internal/service/postgres/   @ClickHouse/clickgres
@@ -32,8 +29,12 @@
 # Service profiles are BYOC-driven (dynamic BYOC profile discovery).
 **/*service_profile* @ClickHouse/byoc-infrastructure
 **/*service_profile*/** @ClickHouse/byoc-infrastructure
+**/*notification* @ClickHouse/openapi
+**/*notification*/** @ClickHouse/openapi
 # ClickPipes goes last on purpose: its examples are named after the systems they
 # connect to, so examples/clickpipe/cdc_postgres/ is ClickPipes' to review, not
 # ClickGres'.
 **/*clickpipe* @ClickHouse/clickpipes
 **/*clickpipe*/** @ClickHouse/clickpipes
+# Global
+/.github/ @ClickHouse/cloud-platform-engineering

@@ -161,16 +161,16 @@ func (r *ClickPipeReversePrivateEndpointResource) Schema(ctx context.Context, re
 			},
 			"dns_targets": schema.ListNestedAttribute{
 				Computed:            true,
-				MarkdownDescription: "DNS targets reported by the reverse private endpoint. Custom private DNS mappings can reference a target by `id` using `target_id`. Only populated for VPC_RESOURCE endpoints, with one target per VPC resource configuration association.",
+				MarkdownDescription: "DNS targets reported by the reverse private endpoint. Custom private DNS mappings can reference a target by `id` using `target_id`. VPC_RESOURCE endpoints report one `RESOURCE_CONFIGURATION` target per VPC resource configuration association. Same-region VPC_ENDPOINT_SERVICE endpoints report one `AVAILABILITY_ZONE` target per zonal endpoint DNS name. Other endpoint types, including cross-region VPC_ENDPOINT_SERVICE endpoints, report no targets.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "Target ID. For VPC_RESOURCE, the resource configuration ID (`rcfg-...`); for a GROUP, the CHILD resource configuration ID.",
+							MarkdownDescription: "Target ID. For `RESOURCE_CONFIGURATION`, the resource configuration ID (`rcfg-...`); for a GROUP, the CHILD resource configuration ID. For `AVAILABILITY_ZONE`, the AWS availability zone ID, for example `use1-az1`.",
 						},
 						"kind": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "Target kind, for example `RESOURCE_CONFIGURATION`.",
+							MarkdownDescription: "Target kind: `RESOURCE_CONFIGURATION` or `AVAILABILITY_ZONE`. New kinds may be added.",
 						},
 						"internal_dns_name": schema.StringAttribute{
 							Computed:            true,

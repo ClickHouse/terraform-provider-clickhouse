@@ -1,0 +1,12 @@
+# Mutation testing config for github.com/go-gremlins/gremlins (run with `make mutation`).
+# https://gremlins.dev/latest/usage/configuration/
+unleash:
+  # Print only lived, not covered and timed out mutants; the rest are noise in CI logs.
+  output-statuses: lct
+  # Thresholds start at 0 (report only) and are raised once the baseline is known.
+  threshold:
+    efficacy: 0
+    mutant-coverage: 0
+  exclude-files:
+    - main\.go$
+    - internal/api/client_mock\.go$

@@ -3,9 +3,16 @@ resource "clickhouse_clickstack_connection" "main" {
   host     = "https://clickhouse.example.com:8443"
   username = "default"
   password = var.clickhouse_password
+}
 
-  # Optional: proxy PromQL queries to a Prometheus-compatible endpoint.
-  # prometheus_endpoint = "http://prometheus:9090"
+# A Prometheus-compatible endpoint (e.g. Prometheus or Thanos). PromQL sources
+# on this connection proxy their queries to host. Username and password are
+# ignored; put any Basic auth credentials in the host URL.
+resource "clickhouse_clickstack_connection" "prometheus" {
+  name                   = "Prometheus"
+  host                   = "http://prometheus:9090"
+  username               = ""
+  is_prometheus_endpoint = true
 }
 
 # Managing connections across multiple teams from one configuration. (Enterprise Only)

@@ -69,6 +69,89 @@ func TestAccDashboardResource(t *testing.T) {
 	})
 }
 
+// TestAccDashboardResource_Promql covers a dashboard with a PromQL tile and a
+// PROMETHEUS_LABEL filter, both reading a promql source the config creates.
+// Creating that source needs PromQL enabled on the API (ENABLE_PROMQL=true).
+func TestAccDashboardResource_Promql(t *testing.T) {
+	const res = "clickhouse_clickstack_dashboard.test"
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccDashboardPromqlConfig("Series", `count by (job) ({__name__=~".+", job=~"$job"})`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(res, "id"),
+					resource.TestCheckResourceAttrSet(res, "tile_ids.Series"),
+				),
+			},
+			// Rename the tile and change its expression: the filter is updated in
+			// place and the renamed tile gets a new id.
+			{
+				Config: testAccDashboardPromqlConfig("Jobs", `count by (job) (up{job=~"$job"})`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(res, "tile_ids.Jobs"),
+					resource.TestCheckNoResourceAttr(res, "tile_ids.Series"),
+				),
+			},
+			{
+				ResourceName:            res,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"team", "dashboard_json"},
+				ImportStateCheck:        checkImportedDashboardJSON,
+			},
+		},
+	})
+}
+
+func testAccDashboardPromqlConfig(tileName, expr string) string {
+	return fmt.Sprintf(`
+resource "clickhouse_clickstack_connection" "test" {
+  name     = "tf-acc-dashboard-promql-conn"
+  host     = "http://localhost:8123"
+  username = "default"
+}
+
+resource "clickhouse_clickstack_source" "test" {
+  name          = "tf-acc-dashboard-promql"
+  kind          = "promql"
+  connection_id = clickhouse_clickstack_connection.test.id
+
+  from = {
+    database_name = "default"
+    table_name    = "metrics_ts"
+  }
+
+  timestamp_value_expression = "timestamp"
+}
+
+resource "clickhouse_clickstack_dashboard" "test" {
+  dashboard_json = jsonencode({
+    name = "tf-acc-dashboard-promql"
+    filters = [{
+      type         = "PROMETHEUS_LABEL"
+      name         = "Job"
+      sourceId     = clickhouse_clickstack_source.test.id
+      label        = "job"
+      variableName = "job"
+    }]
+    tiles = [{
+      name = %q
+      x    = 0, y = 0, w = 6, h = 3
+      config = {
+        configType     = "promql"
+        displayType    = "line"
+        sourceId       = clickhouse_clickstack_source.test.id
+        expressions    = [{ expression = %q }]
+        legendTemplate = "{{job}}"
+      }
+    }]
+  })
+}
+`, tileName, expr)
+}
+
 // checkImportedDashboardJSON asserts the imported dashboard_json drops the ids
 // the write path rejects (the dashboard's own id, and filter ids) while keeping
 // the tile ids that hold UI-created tile alerts.

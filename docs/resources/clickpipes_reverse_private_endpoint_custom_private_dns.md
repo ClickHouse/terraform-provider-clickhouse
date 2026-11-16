@@ -5,7 +5,8 @@ subcategory: "ClickHouse Cloud"
 description: |-
   Use the clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns resource to manage the full set of custom private DNS mappings for an existing ClickPipes reverse private endpoint.
   This resource updates only custom private DNS mappings. The mapping list is a full replacement list, and deleting this resource clears all custom private DNS mappings on the reverse private endpoint.
-  By default, each private_dns_name resolves to the endpoint's default target. For VPC_RESOURCE endpoints, set target_id to a resource configuration ID to resolve the name to that target instead. For a GROUP resource configuration, use the CHILD resource configuration ID, for example to give each database node its own hostname. The reverse private endpoint's dns_targets attribute shows which targets are reported.
+  By default, each private_dns_name resolves to the endpoint's default target. Set target_id to resolve the name to a specific target instead. The reverse private endpoint's dns_targets attribute shows which targets are reported.
+  VPC_RESOURCE: set target_id to a resource configuration ID. For a GROUP resource configuration, use the CHILD resource configuration ID, for example to give each database node its own hostname.Same-region VPC_ENDPOINT_SERVICE: set target_id to an AWS availability zone ID that the endpoint service offers, for example use1-az1. Use this for providers that address nodes through per-zone hostnames, such as Confluent Cloud brokers. If the endpoint is not in that zone yet, ClickHouse Cloud adds it, and the mapping is served once the zone appears in dns_targets.Cross-region VPC_ENDPOINT_SERVICE endpoints and other endpoint types do not support target_id.
 ---
 
 # clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns (Resource)
@@ -14,7 +15,11 @@ Use the *clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns* reso
 
 This resource updates only custom private DNS mappings. The mapping list is a full replacement list, and deleting this resource clears all custom private DNS mappings on the reverse private endpoint.
 
-By default, each `private_dns_name` resolves to the endpoint's default target. For `VPC_RESOURCE` endpoints, set `target_id` to a resource configuration ID to resolve the name to that target instead. For a GROUP resource configuration, use the CHILD resource configuration ID, for example to give each database node its own hostname. The reverse private endpoint's `dns_targets` attribute shows which targets are reported.
+By default, each `private_dns_name` resolves to the endpoint's default target. Set `target_id` to resolve the name to a specific target instead. The reverse private endpoint's `dns_targets` attribute shows which targets are reported.
+
+- **`VPC_RESOURCE`:** set `target_id` to a resource configuration ID. For a GROUP resource configuration, use the CHILD resource configuration ID, for example to give each database node its own hostname.
+- **Same-region `VPC_ENDPOINT_SERVICE`:** set `target_id` to an AWS availability zone ID that the endpoint service offers, for example `use1-az1`. Use this for providers that address nodes through per-zone hostnames, such as Confluent Cloud brokers. If the endpoint is not in that zone yet, ClickHouse Cloud adds it, and the mapping is served once the zone appears in `dns_targets`.
+- Cross-region `VPC_ENDPOINT_SERVICE` endpoints and other endpoint types do not support `target_id`.
 
 ## Example Usage
 
@@ -128,6 +133,35 @@ resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "mo
 output "mongo_dns_targets" {
   value = clickhouse_clickpipes_reverse_private_endpoint.mongo.dns_targets
 }
+
+# VPC_ENDPOINT_SERVICE for a Confluent Cloud PrivateLink network. Confluent
+# brokers use per-zone hostnames, so each zonal subdomain targets the endpoint's
+# DNS name in the same AWS availability zone ID. The Confluent network must be
+# in the same region as the ClickHouse service. confluent_network.aws is a
+# PRIVATELINK network; see examples/clickpipe/reverse_private_endpoint_confluent
+# for the full configuration.
+resource "clickhouse_clickpipes_reverse_private_endpoint" "confluent" {
+  service_id                = var.service_id
+  description               = "Confluent Cloud PrivateLink"
+  type                      = "VPC_ENDPOINT_SERVICE"
+  vpc_endpoint_service_name = confluent_network.aws.aws[0].private_link_endpoint_service
+}
+
+resource "clickhouse_clickpipes_reverse_private_endpoint_custom_private_dns" "confluent" {
+  service_id                  = var.service_id
+  reverse_private_endpoint_id = clickhouse_clickpipes_reverse_private_endpoint.confluent.id
+
+  # The bootstrap wildcard uses the default (regional) target. Each zonal
+  # wildcard uses the availability zone target with the same ID, for example
+  # use1-az1. ClickHouse Cloud adds a targeted zone to the endpoint if needed.
+  mapping = concat(
+    [{ private_dns_name = "*.${confluent_network.aws.dns_domain}" }],
+    [for az_id, subdomain in confluent_network.aws.zonal_subdomains : {
+      private_dns_name = "*.${subdomain}"
+      target_id        = az_id
+    }],
+  )
+}
 ```
 
 <!-- schema generated by tfplugindocs -->
@@ -152,7 +186,7 @@ Required:
 
 Optional:
 
-- `target_id` (String) ID of the DNS target this private DNS name resolves to, from the reverse private endpoint's `dns_targets`. Supported only for VPC_RESOURCE endpoints, where it is the resource configuration ID (`rcfg-...`); for a GROUP, use the CHILD resource configuration ID. If unset, the endpoint's default target is used.
+- `target_id` (String) ID of the DNS target this private DNS name resolves to, from the reverse private endpoint's `dns_targets`. For VPC_RESOURCE endpoints, use the resource configuration ID (`rcfg-...`); for a GROUP, use the CHILD resource configuration ID. For same-region VPC_ENDPOINT_SERVICE endpoints, use an AWS availability zone ID that the endpoint service offers, for example `use1-az1`; ClickHouse Cloud adds that zone to the endpoint if needed. Cross-region VPC_ENDPOINT_SERVICE endpoints and other endpoint types do not support `target_id`. If unset, the endpoint's default target is used.
 
 ## Import
 

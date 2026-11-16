@@ -440,21 +440,31 @@ const serviceWakeMaxWaitSeconds = 10 * 60
 
 // doClickPipeRequest sends a ClickPipes API request through doRequest.
 // The ClickPipes API rejects requests with 424 FAILED_DEPENDENCY while the
-// target service is idle; in that case the service is woken up, we wait for it
-// to reach the running state and the original request is retried once.
+// target service is idle or awaking. An idle service is woken up, an awaking
+// one is left alone; either way we wait for it to reach the running state and
+// the original request is retried once. Concurrent requests for the same
+// service (e.g. several pipes created in parallel) may race to wake it, so
+// losing that race is not an error.
 // https://github.com/ClickHouse/terraform-provider-clickhouse/issues/376
 func (c *ClientImpl) doClickPipeRequest(ctx context.Context, serviceId string, req *http.Request) ([]byte, error) {
 	body, err := c.doRequest(ctx, req)
-	if !IsServiceIdle(err) {
+	serviceIdle := IsServiceIdle(err)
+	if !serviceIdle && !IsServiceAwaking(err) {
 		return body, err
 	}
 
-	tflog.Info(ctx, "ClickHouse service is idle; waking it up before retrying the ClickPipes request", map[string]any{
-		"serviceId": serviceId,
-	})
+	if serviceIdle {
+		tflog.Info(ctx, "ClickHouse service is idle; waking it up before retrying the ClickPipes request", map[string]any{
+			logFieldServiceID: serviceId,
+		})
 
-	if wakeErr := c.wakeService(ctx, serviceId); wakeErr != nil {
-		return nil, fmt.Errorf("service %s is idle and waking it up failed: %w", serviceId, wakeErr)
+		if wakeErr := c.wakeIdleService(ctx, serviceId); wakeErr != nil {
+			return nil, fmt.Errorf("service %s is idle and waking it up failed: %w", serviceId, wakeErr)
+		}
+	} else {
+		tflog.Info(ctx, "ClickHouse service is already awaking; waiting before retrying the ClickPipes request", map[string]any{
+			logFieldServiceID: serviceId,
+		})
 	}
 
 	if waitErr := c.waitForServiceRunning(ctx, serviceId, serviceWakeMaxWaitSeconds); waitErr != nil {

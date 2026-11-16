@@ -1,0 +1,22 @@
+terraform {
+  required_providers {
+    clickhouse = {
+      version = "${CLICKHOUSE_TERRAFORM_PROVIDER_VERSION}"
+      source  = "ClickHouse/clickhouse"
+    }
+    confluent = {
+      source = "confluentinc/confluent"
+    }
+  }
+}
+
+provider "clickhouse" {
+  organization_id = var.organization_id
+  token_key       = var.token_key
+  token_secret    = var.token_secret
+}
+
+provider "confluent" {
+  cloud_api_key    = var.confluent_cloud_api_key
+  cloud_api_secret = var.confluent_cloud_api_secret
+}

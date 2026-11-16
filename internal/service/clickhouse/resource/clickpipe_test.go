@@ -1657,10 +1657,12 @@ func getMongoDBInitialState() models.ClickPipeResourceModel {
 							types.ObjectValueMust(
 								models.ClickPipeMongoDBTableMappingModel{}.ObjectType().AttrTypes,
 								map[string]attr.Value{
-									"source_database_name": types.StringValue("mydb"),
-									"source_collection":    types.StringValue("users"),
-									"target_table":         types.StringValue("mydb_users"),
-									"table_engine":         types.StringNull(),
+									"source_database_name":      types.StringValue("mydb"),
+									"source_collection":         types.StringValue("users"),
+									"target_table":              types.StringValue("mydb_users"),
+									"table_engine":              types.StringNull(),
+									"persist_deleted_documents": types.BoolNull(),
+									"structured_ingestion":      types.ObjectNull(models.ClickPipeMongoDBStructuredIngestionModel{}.ObjectType().AttrTypes),
 								},
 							),
 						},
