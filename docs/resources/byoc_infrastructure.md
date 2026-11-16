@@ -78,6 +78,14 @@ resource "clickhouse_byoc_infrastructure" "example" {
   tags = {
     environment = "production"
   }
+
+  # Optional: allow ClickHouse personnel access only during a 4 hour window.
+  # Omit the block to leave the setting unmanaged; set enabled = false to deny.
+  customer_authorized_access = {
+    enabled          = true
+    duration_seconds = 14400
+    start_timestamp  = "2026-06-01T12:00:00Z"
+  }
 }
 
 # Deploy a service into the BYOC infrastructure once it is ready.
@@ -107,6 +115,7 @@ resource "clickhouse_service" "byoc" {
 ### Optional
 
 - `availability_zone_suffixes` (List of String) Availability zone suffixes (e.g. ['a', 'b', 'c']) for the ClickHouse-managed VPC. Write-only; the resolved zones are returned by the data source as 'vpc_availability_zone_list'.
+- `customer_authorized_access` (Attributes) Controls when ClickHouse personnel may access the infrastructure. Omit the block to leave the setting unmanaged (the ClickHouse Cloud default allows access). Removing the block leaves the last applied setting in place. (see [below for nested schema](#nestedatt--customer_authorized_access))
 - `display_name` (String) Human readable name of the infrastructure. Defaults to a server-generated name.
 - `enable_private_link` (Boolean) Enable private link connectivity (AWS PrivateLink, GCP Private Service Connect or Azure Private Link).
 - `enable_private_load_balancer` (Boolean) Enable the internal (VPC-private) load balancer.
@@ -130,6 +139,18 @@ resource "clickhouse_service" "byoc" {
 - `id` (String) Unique ID of the BYOC infrastructure.
 - `is_byo_vpc` (Boolean) Whether the infrastructure runs inside a customer-managed VPC.
 - `state` (String) Provisioning state of the infrastructure (e.g. 'infra-provisioning', 'infra-ready').
+
+<a id="nestedatt--customer_authorized_access"></a>
+### Nested Schema for `customer_authorized_access`
+
+Required:
+
+- `enabled` (Boolean) Whether ClickHouse personnel may access the infrastructure. 'false' denies access regardless of the other fields.
+
+Optional:
+
+- `duration_seconds` (Number) Length of the access window in seconds, counted from 'start_timestamp' (max 172800, 48 hours). Defaults to 0, which allows access without a deadline while 'enabled' is true.
+- `start_timestamp` (String) Start of the access window as an RFC3339 timestamp (e.g. '2026-06-01T12:00:00Z'). Required when 'duration_seconds' is greater than 0.
 
 ## Import
 
