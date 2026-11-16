@@ -68,6 +68,13 @@ type ClientMock struct {
 	beforeCreatePostgresCounter uint64
 	CreatePostgresMock          mClientMockCreatePostgres
 
+	funcCreatePostgresPrivateEndpoint          func(ctx context.Context, postgresId string, body PostgresPrivateEndpointCreate) (pp1 *PostgresPrivateEndpoint, err error)
+	funcCreatePostgresPrivateEndpointOrigin    string
+	inspectFuncCreatePostgresPrivateEndpoint   func(ctx context.Context, postgresId string, body PostgresPrivateEndpointCreate)
+	afterCreatePostgresPrivateEndpointCounter  uint64
+	beforeCreatePostgresPrivateEndpointCounter uint64
+	CreatePostgresPrivateEndpointMock          mClientMockCreatePostgresPrivateEndpoint
+
 	funcCreatePostgresReadReplica          func(ctx context.Context, sourceId string, body PostgresReadReplicaRequest) (pp1 *Postgres, err error)
 	funcCreatePostgresReadReplicaOrigin    string
 	inspectFuncCreatePostgresReadReplica   func(ctx context.Context, sourceId string, body PostgresReadReplicaRequest)
@@ -179,6 +186,13 @@ type ClientMock struct {
 	afterDeletePostgresCounter  uint64
 	beforeDeletePostgresCounter uint64
 	DeletePostgresMock          mClientMockDeletePostgres
+
+	funcDeletePostgresPrivateEndpoint          func(ctx context.Context, postgresId string) (err error)
+	funcDeletePostgresPrivateEndpointOrigin    string
+	inspectFuncDeletePostgresPrivateEndpoint   func(ctx context.Context, postgresId string)
+	afterDeletePostgresPrivateEndpointCounter  uint64
+	beforeDeletePostgresPrivateEndpointCounter uint64
+	DeletePostgresPrivateEndpointMock          mClientMockDeletePostgresPrivateEndpoint
 
 	funcDeleteQueryAPIEndpoint          func(ctx context.Context, serviceID string, endpointID string) (err error)
 	funcDeleteQueryAPIEndpointOrigin    string
@@ -396,6 +410,13 @@ type ClientMock struct {
 	afterGetPostgresConfigCounter  uint64
 	beforeGetPostgresConfigCounter uint64
 	GetPostgresConfigMock          mClientMockGetPostgresConfig
+
+	funcGetPostgresPrivateEndpoint          func(ctx context.Context, postgresId string) (pp1 *PostgresPrivateEndpoint, err error)
+	funcGetPostgresPrivateEndpointOrigin    string
+	inspectFuncGetPostgresPrivateEndpoint   func(ctx context.Context, postgresId string)
+	afterGetPostgresPrivateEndpointCounter  uint64
+	beforeGetPostgresPrivateEndpointCounter uint64
+	GetPostgresPrivateEndpointMock          mClientMockGetPostgresPrivateEndpoint
 
 	funcGetQueryAPIEndpoint          func(ctx context.Context, serviceID string, endpointID string) (qp1 *QueryAPIEndpoint, err error)
 	funcGetQueryAPIEndpointOrigin    string
@@ -698,6 +719,13 @@ type ClientMock struct {
 	beforeUpdatePostgresCounter uint64
 	UpdatePostgresMock          mClientMockUpdatePostgres
 
+	funcUpdatePostgresPrivateEndpoint          func(ctx context.Context, postgresId string, body PostgresPrivateEndpointUpdate) (pp1 *PostgresPrivateEndpoint, err error)
+	funcUpdatePostgresPrivateEndpointOrigin    string
+	inspectFuncUpdatePostgresPrivateEndpoint   func(ctx context.Context, postgresId string, body PostgresPrivateEndpointUpdate)
+	afterUpdatePostgresPrivateEndpointCounter  uint64
+	beforeUpdatePostgresPrivateEndpointCounter uint64
+	UpdatePostgresPrivateEndpointMock          mClientMockUpdatePostgresPrivateEndpoint
+
 	funcUpdateQueryAPIEndpoint          func(ctx context.Context, serviceID string, endpointID string, endpoint QueryAPIEndpointRequest) (qp1 *QueryAPIEndpoint, err error)
 	funcUpdateQueryAPIEndpointOrigin    string
 	inspectFuncUpdateQueryAPIEndpoint   func(ctx context.Context, serviceID string, endpointID string, endpoint QueryAPIEndpointRequest)
@@ -831,6 +859,13 @@ type ClientMock struct {
 	beforeWaitForPostgresMatchCounter uint64
 	WaitForPostgresMatchMock          mClientMockWaitForPostgresMatch
 
+	funcWaitForPostgresPrivateEndpoint          func(ctx context.Context, postgresId string, done func(*PostgresPrivateEndpoint) bool, maxWaitSeconds int) (err error)
+	funcWaitForPostgresPrivateEndpointOrigin    string
+	inspectFuncWaitForPostgresPrivateEndpoint   func(ctx context.Context, postgresId string, done func(*PostgresPrivateEndpoint) bool, maxWaitSeconds int)
+	afterWaitForPostgresPrivateEndpointCounter  uint64
+	beforeWaitForPostgresPrivateEndpointCounter uint64
+	WaitForPostgresPrivateEndpointMock          mClientMockWaitForPostgresPrivateEndpoint
+
 	funcWaitForPostgresState          func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int) (err error)
 	funcWaitForPostgresStateOrigin    string
 	inspectFuncWaitForPostgresState   func(ctx context.Context, postgresId string, stateChecker func(string) bool, maxWaitSeconds int)
@@ -889,6 +924,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.CreatePostgresMock = mClientMockCreatePostgres{mock: m}
 	m.CreatePostgresMock.callArgs = []*ClientMockCreatePostgresParams{}
 
+	m.CreatePostgresPrivateEndpointMock = mClientMockCreatePostgresPrivateEndpoint{mock: m}
+	m.CreatePostgresPrivateEndpointMock.callArgs = []*ClientMockCreatePostgresPrivateEndpointParams{}
+
 	m.CreatePostgresReadReplicaMock = mClientMockCreatePostgresReadReplica{mock: m}
 	m.CreatePostgresReadReplicaMock.callArgs = []*ClientMockCreatePostgresReadReplicaParams{}
 
@@ -936,6 +974,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.DeletePostgresMock = mClientMockDeletePostgres{mock: m}
 	m.DeletePostgresMock.callArgs = []*ClientMockDeletePostgresParams{}
+
+	m.DeletePostgresPrivateEndpointMock = mClientMockDeletePostgresPrivateEndpoint{mock: m}
+	m.DeletePostgresPrivateEndpointMock.callArgs = []*ClientMockDeletePostgresPrivateEndpointParams{}
 
 	m.DeleteQueryAPIEndpointMock = mClientMockDeleteQueryAPIEndpoint{mock: m}
 	m.DeleteQueryAPIEndpointMock.callArgs = []*ClientMockDeleteQueryAPIEndpointParams{}
@@ -1029,6 +1070,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.GetPostgresConfigMock = mClientMockGetPostgresConfig{mock: m}
 	m.GetPostgresConfigMock.callArgs = []*ClientMockGetPostgresConfigParams{}
+
+	m.GetPostgresPrivateEndpointMock = mClientMockGetPostgresPrivateEndpoint{mock: m}
+	m.GetPostgresPrivateEndpointMock.callArgs = []*ClientMockGetPostgresPrivateEndpointParams{}
 
 	m.GetQueryAPIEndpointMock = mClientMockGetQueryAPIEndpoint{mock: m}
 	m.GetQueryAPIEndpointMock.callArgs = []*ClientMockGetQueryAPIEndpointParams{}
@@ -1159,6 +1203,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 	m.UpdatePostgresMock = mClientMockUpdatePostgres{mock: m}
 	m.UpdatePostgresMock.callArgs = []*ClientMockUpdatePostgresParams{}
 
+	m.UpdatePostgresPrivateEndpointMock = mClientMockUpdatePostgresPrivateEndpoint{mock: m}
+	m.UpdatePostgresPrivateEndpointMock.callArgs = []*ClientMockUpdatePostgresPrivateEndpointParams{}
+
 	m.UpdateQueryAPIEndpointMock = mClientMockUpdateQueryAPIEndpoint{mock: m}
 	m.UpdateQueryAPIEndpointMock.callArgs = []*ClientMockUpdateQueryAPIEndpointParams{}
 
@@ -1215,6 +1262,9 @@ func NewClientMock(t minimock.Tester) *ClientMock {
 
 	m.WaitForPostgresMatchMock = mClientMockWaitForPostgresMatch{mock: m}
 	m.WaitForPostgresMatchMock.callArgs = []*ClientMockWaitForPostgresMatchParams{}
+
+	m.WaitForPostgresPrivateEndpointMock = mClientMockWaitForPostgresPrivateEndpoint{mock: m}
+	m.WaitForPostgresPrivateEndpointMock.callArgs = []*ClientMockWaitForPostgresPrivateEndpointParams{}
 
 	m.WaitForPostgresStateMock = mClientMockWaitForPostgresState{mock: m}
 	m.WaitForPostgresStateMock.callArgs = []*ClientMockWaitForPostgresStateParams{}
@@ -3818,6 +3868,380 @@ func (m *ClientMock) MinimockCreatePostgresInspect() {
 	if !m.CreatePostgresMock.invocationsDone() && afterCreatePostgresCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.CreatePostgres at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.CreatePostgresMock.expectedInvocations), m.CreatePostgresMock.expectedInvocationsOrigin, afterCreatePostgresCounter)
+	}
+}
+
+type mClientMockCreatePostgresPrivateEndpoint struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockCreatePostgresPrivateEndpointExpectation
+	expectations       []*ClientMockCreatePostgresPrivateEndpointExpectation
+
+	callArgs []*ClientMockCreatePostgresPrivateEndpointParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockCreatePostgresPrivateEndpointExpectation specifies expectation struct of the Client.CreatePostgresPrivateEndpoint
+type ClientMockCreatePostgresPrivateEndpointExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockCreatePostgresPrivateEndpointParams
+	paramPtrs          *ClientMockCreatePostgresPrivateEndpointParamPtrs
+	expectationOrigins ClientMockCreatePostgresPrivateEndpointExpectationOrigins
+	results            *ClientMockCreatePostgresPrivateEndpointResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockCreatePostgresPrivateEndpointParams contains parameters of the Client.CreatePostgresPrivateEndpoint
+type ClientMockCreatePostgresPrivateEndpointParams struct {
+	ctx        context.Context
+	postgresId string
+	body       PostgresPrivateEndpointCreate
+}
+
+// ClientMockCreatePostgresPrivateEndpointParamPtrs contains pointers to parameters of the Client.CreatePostgresPrivateEndpoint
+type ClientMockCreatePostgresPrivateEndpointParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+	body       *PostgresPrivateEndpointCreate
+}
+
+// ClientMockCreatePostgresPrivateEndpointResults contains results of the Client.CreatePostgresPrivateEndpoint
+type ClientMockCreatePostgresPrivateEndpointResults struct {
+	pp1 *PostgresPrivateEndpoint
+	err error
+}
+
+// ClientMockCreatePostgresPrivateEndpointOrigins contains origins of expectations of the Client.CreatePostgresPrivateEndpoint
+type ClientMockCreatePostgresPrivateEndpointExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+	originBody       string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) Optional() *mClientMockCreatePostgresPrivateEndpoint {
+	mmCreatePostgresPrivateEndpoint.optional = true
+	return mmCreatePostgresPrivateEndpoint
+}
+
+// Expect sets up expected params for Client.CreatePostgresPrivateEndpoint
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) Expect(ctx context.Context, postgresId string, body PostgresPrivateEndpointCreate) *mClientMockCreatePostgresPrivateEndpoint {
+	if mmCreatePostgresPrivateEndpoint.mock.funcCreatePostgresPrivateEndpoint != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmCreatePostgresPrivateEndpoint.defaultExpectation = &ClientMockCreatePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by ExpectParams functions")
+	}
+
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.params = &ClientMockCreatePostgresPrivateEndpointParams{ctx, postgresId, body}
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCreatePostgresPrivateEndpoint.expectations {
+		if minimock.Equal(e.params, mmCreatePostgresPrivateEndpoint.defaultExpectation.params) {
+			mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCreatePostgresPrivateEndpoint.defaultExpectation.params)
+		}
+	}
+
+	return mmCreatePostgresPrivateEndpoint
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.CreatePostgresPrivateEndpoint
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) ExpectCtxParam1(ctx context.Context) *mClientMockCreatePostgresPrivateEndpoint {
+	if mmCreatePostgresPrivateEndpoint.mock.funcCreatePostgresPrivateEndpoint != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmCreatePostgresPrivateEndpoint.defaultExpectation = &ClientMockCreatePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockCreatePostgresPrivateEndpointParamPtrs{}
+	}
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCreatePostgresPrivateEndpoint
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.CreatePostgresPrivateEndpoint
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) ExpectPostgresIdParam2(postgresId string) *mClientMockCreatePostgresPrivateEndpoint {
+	if mmCreatePostgresPrivateEndpoint.mock.funcCreatePostgresPrivateEndpoint != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmCreatePostgresPrivateEndpoint.defaultExpectation = &ClientMockCreatePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockCreatePostgresPrivateEndpointParamPtrs{}
+	}
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmCreatePostgresPrivateEndpoint
+}
+
+// ExpectBodyParam3 sets up expected param body for Client.CreatePostgresPrivateEndpoint
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) ExpectBodyParam3(body PostgresPrivateEndpointCreate) *mClientMockCreatePostgresPrivateEndpoint {
+	if mmCreatePostgresPrivateEndpoint.mock.funcCreatePostgresPrivateEndpoint != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmCreatePostgresPrivateEndpoint.defaultExpectation = &ClientMockCreatePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockCreatePostgresPrivateEndpointParamPtrs{}
+	}
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.paramPtrs.body = &body
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originBody = minimock.CallerInfo(1)
+
+	return mmCreatePostgresPrivateEndpoint
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.CreatePostgresPrivateEndpoint
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) Inspect(f func(ctx context.Context, postgresId string, body PostgresPrivateEndpointCreate)) *mClientMockCreatePostgresPrivateEndpoint {
+	if mmCreatePostgresPrivateEndpoint.mock.inspectFuncCreatePostgresPrivateEndpoint != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("Inspect function is already set for ClientMock.CreatePostgresPrivateEndpoint")
+	}
+
+	mmCreatePostgresPrivateEndpoint.mock.inspectFuncCreatePostgresPrivateEndpoint = f
+
+	return mmCreatePostgresPrivateEndpoint
+}
+
+// Return sets up results that will be returned by Client.CreatePostgresPrivateEndpoint
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) Return(pp1 *PostgresPrivateEndpoint, err error) *ClientMock {
+	if mmCreatePostgresPrivateEndpoint.mock.funcCreatePostgresPrivateEndpoint != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmCreatePostgresPrivateEndpoint.defaultExpectation = &ClientMockCreatePostgresPrivateEndpointExpectation{mock: mmCreatePostgresPrivateEndpoint.mock}
+	}
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.results = &ClientMockCreatePostgresPrivateEndpointResults{pp1, err}
+	mmCreatePostgresPrivateEndpoint.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCreatePostgresPrivateEndpoint.mock
+}
+
+// Set uses given function f to mock the Client.CreatePostgresPrivateEndpoint method
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) Set(f func(ctx context.Context, postgresId string, body PostgresPrivateEndpointCreate) (pp1 *PostgresPrivateEndpoint, err error)) *ClientMock {
+	if mmCreatePostgresPrivateEndpoint.defaultExpectation != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("Default expectation is already set for the Client.CreatePostgresPrivateEndpoint method")
+	}
+
+	if len(mmCreatePostgresPrivateEndpoint.expectations) > 0 {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("Some expectations are already set for the Client.CreatePostgresPrivateEndpoint method")
+	}
+
+	mmCreatePostgresPrivateEndpoint.mock.funcCreatePostgresPrivateEndpoint = f
+	mmCreatePostgresPrivateEndpoint.mock.funcCreatePostgresPrivateEndpointOrigin = minimock.CallerInfo(1)
+	return mmCreatePostgresPrivateEndpoint.mock
+}
+
+// When sets expectation for the Client.CreatePostgresPrivateEndpoint which will trigger the result defined by the following
+// Then helper
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) When(ctx context.Context, postgresId string, body PostgresPrivateEndpointCreate) *ClientMockCreatePostgresPrivateEndpointExpectation {
+	if mmCreatePostgresPrivateEndpoint.mock.funcCreatePostgresPrivateEndpoint != nil {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.CreatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	expectation := &ClientMockCreatePostgresPrivateEndpointExpectation{
+		mock:               mmCreatePostgresPrivateEndpoint.mock,
+		params:             &ClientMockCreatePostgresPrivateEndpointParams{ctx, postgresId, body},
+		expectationOrigins: ClientMockCreatePostgresPrivateEndpointExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCreatePostgresPrivateEndpoint.expectations = append(mmCreatePostgresPrivateEndpoint.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.CreatePostgresPrivateEndpoint return parameters for the expectation previously defined by the When method
+func (e *ClientMockCreatePostgresPrivateEndpointExpectation) Then(pp1 *PostgresPrivateEndpoint, err error) *ClientMock {
+	e.results = &ClientMockCreatePostgresPrivateEndpointResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.CreatePostgresPrivateEndpoint should be invoked
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) Times(n uint64) *mClientMockCreatePostgresPrivateEndpoint {
+	if n == 0 {
+		mmCreatePostgresPrivateEndpoint.mock.t.Fatalf("Times of ClientMock.CreatePostgresPrivateEndpoint mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCreatePostgresPrivateEndpoint.expectedInvocations, n)
+	mmCreatePostgresPrivateEndpoint.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCreatePostgresPrivateEndpoint
+}
+
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) invocationsDone() bool {
+	if len(mmCreatePostgresPrivateEndpoint.expectations) == 0 && mmCreatePostgresPrivateEndpoint.defaultExpectation == nil && mmCreatePostgresPrivateEndpoint.mock.funcCreatePostgresPrivateEndpoint == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCreatePostgresPrivateEndpoint.mock.afterCreatePostgresPrivateEndpointCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCreatePostgresPrivateEndpoint.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CreatePostgresPrivateEndpoint implements Client
+func (mmCreatePostgresPrivateEndpoint *ClientMock) CreatePostgresPrivateEndpoint(ctx context.Context, postgresId string, body PostgresPrivateEndpointCreate) (pp1 *PostgresPrivateEndpoint, err error) {
+	mm_atomic.AddUint64(&mmCreatePostgresPrivateEndpoint.beforeCreatePostgresPrivateEndpointCounter, 1)
+	defer mm_atomic.AddUint64(&mmCreatePostgresPrivateEndpoint.afterCreatePostgresPrivateEndpointCounter, 1)
+
+	mmCreatePostgresPrivateEndpoint.t.Helper()
+
+	if mmCreatePostgresPrivateEndpoint.inspectFuncCreatePostgresPrivateEndpoint != nil {
+		mmCreatePostgresPrivateEndpoint.inspectFuncCreatePostgresPrivateEndpoint(ctx, postgresId, body)
+	}
+
+	mm_params := ClientMockCreatePostgresPrivateEndpointParams{ctx, postgresId, body}
+
+	// Record call args
+	mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.mutex.Lock()
+	mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.callArgs = append(mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.callArgs, &mm_params)
+	mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.mutex.Unlock()
+
+	for _, e := range mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.defaultExpectation.Counter, 1)
+		mm_want := mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.defaultExpectation.params
+		mm_want_ptrs := mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockCreatePostgresPrivateEndpointParams{ctx, postgresId, body}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCreatePostgresPrivateEndpoint.t.Errorf("ClientMock.CreatePostgresPrivateEndpoint got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmCreatePostgresPrivateEndpoint.t.Errorf("ClientMock.CreatePostgresPrivateEndpoint got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.body != nil && !minimock.Equal(*mm_want_ptrs.body, mm_got.body) {
+				mmCreatePostgresPrivateEndpoint.t.Errorf("ClientMock.CreatePostgresPrivateEndpoint got unexpected parameter body, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originBody, *mm_want_ptrs.body, mm_got.body, minimock.Diff(*mm_want_ptrs.body, mm_got.body))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCreatePostgresPrivateEndpoint.t.Errorf("ClientMock.CreatePostgresPrivateEndpoint got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCreatePostgresPrivateEndpoint.CreatePostgresPrivateEndpointMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCreatePostgresPrivateEndpoint.t.Fatal("No results are set for the ClientMock.CreatePostgresPrivateEndpoint")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmCreatePostgresPrivateEndpoint.funcCreatePostgresPrivateEndpoint != nil {
+		return mmCreatePostgresPrivateEndpoint.funcCreatePostgresPrivateEndpoint(ctx, postgresId, body)
+	}
+	mmCreatePostgresPrivateEndpoint.t.Fatalf("Unexpected call to ClientMock.CreatePostgresPrivateEndpoint. %v %v %v", ctx, postgresId, body)
+	return
+}
+
+// CreatePostgresPrivateEndpointAfterCounter returns a count of finished ClientMock.CreatePostgresPrivateEndpoint invocations
+func (mmCreatePostgresPrivateEndpoint *ClientMock) CreatePostgresPrivateEndpointAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreatePostgresPrivateEndpoint.afterCreatePostgresPrivateEndpointCounter)
+}
+
+// CreatePostgresPrivateEndpointBeforeCounter returns a count of ClientMock.CreatePostgresPrivateEndpoint invocations
+func (mmCreatePostgresPrivateEndpoint *ClientMock) CreatePostgresPrivateEndpointBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCreatePostgresPrivateEndpoint.beforeCreatePostgresPrivateEndpointCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.CreatePostgresPrivateEndpoint.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCreatePostgresPrivateEndpoint *mClientMockCreatePostgresPrivateEndpoint) Calls() []*ClientMockCreatePostgresPrivateEndpointParams {
+	mmCreatePostgresPrivateEndpoint.mutex.RLock()
+
+	argCopy := make([]*ClientMockCreatePostgresPrivateEndpointParams, len(mmCreatePostgresPrivateEndpoint.callArgs))
+	copy(argCopy, mmCreatePostgresPrivateEndpoint.callArgs)
+
+	mmCreatePostgresPrivateEndpoint.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCreatePostgresPrivateEndpointDone returns true if the count of the CreatePostgresPrivateEndpoint invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockCreatePostgresPrivateEndpointDone() bool {
+	if m.CreatePostgresPrivateEndpointMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CreatePostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CreatePostgresPrivateEndpointMock.invocationsDone()
+}
+
+// MinimockCreatePostgresPrivateEndpointInspect logs each unmet expectation
+func (m *ClientMock) MinimockCreatePostgresPrivateEndpointInspect() {
+	for _, e := range m.CreatePostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.CreatePostgresPrivateEndpoint at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCreatePostgresPrivateEndpointCounter := mm_atomic.LoadUint64(&m.afterCreatePostgresPrivateEndpointCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CreatePostgresPrivateEndpointMock.defaultExpectation != nil && afterCreatePostgresPrivateEndpointCounter < 1 {
+		if m.CreatePostgresPrivateEndpointMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.CreatePostgresPrivateEndpoint at\n%s", m.CreatePostgresPrivateEndpointMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.CreatePostgresPrivateEndpoint at\n%s with params: %#v", m.CreatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *m.CreatePostgresPrivateEndpointMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCreatePostgresPrivateEndpoint != nil && afterCreatePostgresPrivateEndpointCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.CreatePostgresPrivateEndpoint at\n%s", m.funcCreatePostgresPrivateEndpointOrigin)
+	}
+
+	if !m.CreatePostgresPrivateEndpointMock.invocationsDone() && afterCreatePostgresPrivateEndpointCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.CreatePostgresPrivateEndpoint at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CreatePostgresPrivateEndpointMock.expectedInvocations), m.CreatePostgresPrivateEndpointMock.expectedInvocationsOrigin, afterCreatePostgresPrivateEndpointCounter)
 	}
 }
 
@@ -9550,6 +9974,348 @@ func (m *ClientMock) MinimockDeletePostgresInspect() {
 	if !m.DeletePostgresMock.invocationsDone() && afterDeletePostgresCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.DeletePostgres at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.DeletePostgresMock.expectedInvocations), m.DeletePostgresMock.expectedInvocationsOrigin, afterDeletePostgresCounter)
+	}
+}
+
+type mClientMockDeletePostgresPrivateEndpoint struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockDeletePostgresPrivateEndpointExpectation
+	expectations       []*ClientMockDeletePostgresPrivateEndpointExpectation
+
+	callArgs []*ClientMockDeletePostgresPrivateEndpointParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockDeletePostgresPrivateEndpointExpectation specifies expectation struct of the Client.DeletePostgresPrivateEndpoint
+type ClientMockDeletePostgresPrivateEndpointExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockDeletePostgresPrivateEndpointParams
+	paramPtrs          *ClientMockDeletePostgresPrivateEndpointParamPtrs
+	expectationOrigins ClientMockDeletePostgresPrivateEndpointExpectationOrigins
+	results            *ClientMockDeletePostgresPrivateEndpointResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockDeletePostgresPrivateEndpointParams contains parameters of the Client.DeletePostgresPrivateEndpoint
+type ClientMockDeletePostgresPrivateEndpointParams struct {
+	ctx        context.Context
+	postgresId string
+}
+
+// ClientMockDeletePostgresPrivateEndpointParamPtrs contains pointers to parameters of the Client.DeletePostgresPrivateEndpoint
+type ClientMockDeletePostgresPrivateEndpointParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+}
+
+// ClientMockDeletePostgresPrivateEndpointResults contains results of the Client.DeletePostgresPrivateEndpoint
+type ClientMockDeletePostgresPrivateEndpointResults struct {
+	err error
+}
+
+// ClientMockDeletePostgresPrivateEndpointOrigins contains origins of expectations of the Client.DeletePostgresPrivateEndpoint
+type ClientMockDeletePostgresPrivateEndpointExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) Optional() *mClientMockDeletePostgresPrivateEndpoint {
+	mmDeletePostgresPrivateEndpoint.optional = true
+	return mmDeletePostgresPrivateEndpoint
+}
+
+// Expect sets up expected params for Client.DeletePostgresPrivateEndpoint
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) Expect(ctx context.Context, postgresId string) *mClientMockDeletePostgresPrivateEndpoint {
+	if mmDeletePostgresPrivateEndpoint.mock.funcDeletePostgresPrivateEndpoint != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.DeletePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmDeletePostgresPrivateEndpoint.defaultExpectation = &ClientMockDeletePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation.paramPtrs != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.DeletePostgresPrivateEndpoint mock is already set by ExpectParams functions")
+	}
+
+	mmDeletePostgresPrivateEndpoint.defaultExpectation.params = &ClientMockDeletePostgresPrivateEndpointParams{ctx, postgresId}
+	mmDeletePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmDeletePostgresPrivateEndpoint.expectations {
+		if minimock.Equal(e.params, mmDeletePostgresPrivateEndpoint.defaultExpectation.params) {
+			mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeletePostgresPrivateEndpoint.defaultExpectation.params)
+		}
+	}
+
+	return mmDeletePostgresPrivateEndpoint
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.DeletePostgresPrivateEndpoint
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) ExpectCtxParam1(ctx context.Context) *mClientMockDeletePostgresPrivateEndpoint {
+	if mmDeletePostgresPrivateEndpoint.mock.funcDeletePostgresPrivateEndpoint != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.DeletePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmDeletePostgresPrivateEndpoint.defaultExpectation = &ClientMockDeletePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.DeletePostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmDeletePostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockDeletePostgresPrivateEndpointParamPtrs{}
+	}
+	mmDeletePostgresPrivateEndpoint.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeletePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeletePostgresPrivateEndpoint
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.DeletePostgresPrivateEndpoint
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) ExpectPostgresIdParam2(postgresId string) *mClientMockDeletePostgresPrivateEndpoint {
+	if mmDeletePostgresPrivateEndpoint.mock.funcDeletePostgresPrivateEndpoint != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.DeletePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmDeletePostgresPrivateEndpoint.defaultExpectation = &ClientMockDeletePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.DeletePostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmDeletePostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockDeletePostgresPrivateEndpointParamPtrs{}
+	}
+	mmDeletePostgresPrivateEndpoint.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmDeletePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmDeletePostgresPrivateEndpoint
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.DeletePostgresPrivateEndpoint
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) Inspect(f func(ctx context.Context, postgresId string)) *mClientMockDeletePostgresPrivateEndpoint {
+	if mmDeletePostgresPrivateEndpoint.mock.inspectFuncDeletePostgresPrivateEndpoint != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("Inspect function is already set for ClientMock.DeletePostgresPrivateEndpoint")
+	}
+
+	mmDeletePostgresPrivateEndpoint.mock.inspectFuncDeletePostgresPrivateEndpoint = f
+
+	return mmDeletePostgresPrivateEndpoint
+}
+
+// Return sets up results that will be returned by Client.DeletePostgresPrivateEndpoint
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) Return(err error) *ClientMock {
+	if mmDeletePostgresPrivateEndpoint.mock.funcDeletePostgresPrivateEndpoint != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.DeletePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmDeletePostgresPrivateEndpoint.defaultExpectation = &ClientMockDeletePostgresPrivateEndpointExpectation{mock: mmDeletePostgresPrivateEndpoint.mock}
+	}
+	mmDeletePostgresPrivateEndpoint.defaultExpectation.results = &ClientMockDeletePostgresPrivateEndpointResults{err}
+	mmDeletePostgresPrivateEndpoint.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmDeletePostgresPrivateEndpoint.mock
+}
+
+// Set uses given function f to mock the Client.DeletePostgresPrivateEndpoint method
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) Set(f func(ctx context.Context, postgresId string) (err error)) *ClientMock {
+	if mmDeletePostgresPrivateEndpoint.defaultExpectation != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("Default expectation is already set for the Client.DeletePostgresPrivateEndpoint method")
+	}
+
+	if len(mmDeletePostgresPrivateEndpoint.expectations) > 0 {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("Some expectations are already set for the Client.DeletePostgresPrivateEndpoint method")
+	}
+
+	mmDeletePostgresPrivateEndpoint.mock.funcDeletePostgresPrivateEndpoint = f
+	mmDeletePostgresPrivateEndpoint.mock.funcDeletePostgresPrivateEndpointOrigin = minimock.CallerInfo(1)
+	return mmDeletePostgresPrivateEndpoint.mock
+}
+
+// When sets expectation for the Client.DeletePostgresPrivateEndpoint which will trigger the result defined by the following
+// Then helper
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) When(ctx context.Context, postgresId string) *ClientMockDeletePostgresPrivateEndpointExpectation {
+	if mmDeletePostgresPrivateEndpoint.mock.funcDeletePostgresPrivateEndpoint != nil {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.DeletePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	expectation := &ClientMockDeletePostgresPrivateEndpointExpectation{
+		mock:               mmDeletePostgresPrivateEndpoint.mock,
+		params:             &ClientMockDeletePostgresPrivateEndpointParams{ctx, postgresId},
+		expectationOrigins: ClientMockDeletePostgresPrivateEndpointExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmDeletePostgresPrivateEndpoint.expectations = append(mmDeletePostgresPrivateEndpoint.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.DeletePostgresPrivateEndpoint return parameters for the expectation previously defined by the When method
+func (e *ClientMockDeletePostgresPrivateEndpointExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockDeletePostgresPrivateEndpointResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.DeletePostgresPrivateEndpoint should be invoked
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) Times(n uint64) *mClientMockDeletePostgresPrivateEndpoint {
+	if n == 0 {
+		mmDeletePostgresPrivateEndpoint.mock.t.Fatalf("Times of ClientMock.DeletePostgresPrivateEndpoint mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmDeletePostgresPrivateEndpoint.expectedInvocations, n)
+	mmDeletePostgresPrivateEndpoint.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmDeletePostgresPrivateEndpoint
+}
+
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) invocationsDone() bool {
+	if len(mmDeletePostgresPrivateEndpoint.expectations) == 0 && mmDeletePostgresPrivateEndpoint.defaultExpectation == nil && mmDeletePostgresPrivateEndpoint.mock.funcDeletePostgresPrivateEndpoint == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmDeletePostgresPrivateEndpoint.mock.afterDeletePostgresPrivateEndpointCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmDeletePostgresPrivateEndpoint.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// DeletePostgresPrivateEndpoint implements Client
+func (mmDeletePostgresPrivateEndpoint *ClientMock) DeletePostgresPrivateEndpoint(ctx context.Context, postgresId string) (err error) {
+	mm_atomic.AddUint64(&mmDeletePostgresPrivateEndpoint.beforeDeletePostgresPrivateEndpointCounter, 1)
+	defer mm_atomic.AddUint64(&mmDeletePostgresPrivateEndpoint.afterDeletePostgresPrivateEndpointCounter, 1)
+
+	mmDeletePostgresPrivateEndpoint.t.Helper()
+
+	if mmDeletePostgresPrivateEndpoint.inspectFuncDeletePostgresPrivateEndpoint != nil {
+		mmDeletePostgresPrivateEndpoint.inspectFuncDeletePostgresPrivateEndpoint(ctx, postgresId)
+	}
+
+	mm_params := ClientMockDeletePostgresPrivateEndpointParams{ctx, postgresId}
+
+	// Record call args
+	mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.mutex.Lock()
+	mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.callArgs = append(mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.callArgs, &mm_params)
+	mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.mutex.Unlock()
+
+	for _, e := range mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.defaultExpectation.Counter, 1)
+		mm_want := mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.defaultExpectation.params
+		mm_want_ptrs := mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockDeletePostgresPrivateEndpointParams{ctx, postgresId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeletePostgresPrivateEndpoint.t.Errorf("ClientMock.DeletePostgresPrivateEndpoint got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmDeletePostgresPrivateEndpoint.t.Errorf("ClientMock.DeletePostgresPrivateEndpoint got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmDeletePostgresPrivateEndpoint.t.Errorf("ClientMock.DeletePostgresPrivateEndpoint got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmDeletePostgresPrivateEndpoint.DeletePostgresPrivateEndpointMock.defaultExpectation.results
+		if mm_results == nil {
+			mmDeletePostgresPrivateEndpoint.t.Fatal("No results are set for the ClientMock.DeletePostgresPrivateEndpoint")
+		}
+		return (*mm_results).err
+	}
+	if mmDeletePostgresPrivateEndpoint.funcDeletePostgresPrivateEndpoint != nil {
+		return mmDeletePostgresPrivateEndpoint.funcDeletePostgresPrivateEndpoint(ctx, postgresId)
+	}
+	mmDeletePostgresPrivateEndpoint.t.Fatalf("Unexpected call to ClientMock.DeletePostgresPrivateEndpoint. %v %v", ctx, postgresId)
+	return
+}
+
+// DeletePostgresPrivateEndpointAfterCounter returns a count of finished ClientMock.DeletePostgresPrivateEndpoint invocations
+func (mmDeletePostgresPrivateEndpoint *ClientMock) DeletePostgresPrivateEndpointAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeletePostgresPrivateEndpoint.afterDeletePostgresPrivateEndpointCounter)
+}
+
+// DeletePostgresPrivateEndpointBeforeCounter returns a count of ClientMock.DeletePostgresPrivateEndpoint invocations
+func (mmDeletePostgresPrivateEndpoint *ClientMock) DeletePostgresPrivateEndpointBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmDeletePostgresPrivateEndpoint.beforeDeletePostgresPrivateEndpointCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.DeletePostgresPrivateEndpoint.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmDeletePostgresPrivateEndpoint *mClientMockDeletePostgresPrivateEndpoint) Calls() []*ClientMockDeletePostgresPrivateEndpointParams {
+	mmDeletePostgresPrivateEndpoint.mutex.RLock()
+
+	argCopy := make([]*ClientMockDeletePostgresPrivateEndpointParams, len(mmDeletePostgresPrivateEndpoint.callArgs))
+	copy(argCopy, mmDeletePostgresPrivateEndpoint.callArgs)
+
+	mmDeletePostgresPrivateEndpoint.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockDeletePostgresPrivateEndpointDone returns true if the count of the DeletePostgresPrivateEndpoint invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockDeletePostgresPrivateEndpointDone() bool {
+	if m.DeletePostgresPrivateEndpointMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.DeletePostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.DeletePostgresPrivateEndpointMock.invocationsDone()
+}
+
+// MinimockDeletePostgresPrivateEndpointInspect logs each unmet expectation
+func (m *ClientMock) MinimockDeletePostgresPrivateEndpointInspect() {
+	for _, e := range m.DeletePostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.DeletePostgresPrivateEndpoint at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterDeletePostgresPrivateEndpointCounter := mm_atomic.LoadUint64(&m.afterDeletePostgresPrivateEndpointCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.DeletePostgresPrivateEndpointMock.defaultExpectation != nil && afterDeletePostgresPrivateEndpointCounter < 1 {
+		if m.DeletePostgresPrivateEndpointMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.DeletePostgresPrivateEndpoint at\n%s", m.DeletePostgresPrivateEndpointMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.DeletePostgresPrivateEndpoint at\n%s with params: %#v", m.DeletePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *m.DeletePostgresPrivateEndpointMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcDeletePostgresPrivateEndpoint != nil && afterDeletePostgresPrivateEndpointCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.DeletePostgresPrivateEndpoint at\n%s", m.funcDeletePostgresPrivateEndpointOrigin)
+	}
+
+	if !m.DeletePostgresPrivateEndpointMock.invocationsDone() && afterDeletePostgresPrivateEndpointCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.DeletePostgresPrivateEndpoint at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.DeletePostgresPrivateEndpointMock.expectedInvocations), m.DeletePostgresPrivateEndpointMock.expectedInvocationsOrigin, afterDeletePostgresPrivateEndpointCounter)
 	}
 }
 
@@ -20420,6 +21186,349 @@ func (m *ClientMock) MinimockGetPostgresConfigInspect() {
 	if !m.GetPostgresConfigMock.invocationsDone() && afterGetPostgresConfigCounter > 0 {
 		m.t.Errorf("Expected %d calls to ClientMock.GetPostgresConfig at\n%s but found %d calls",
 			mm_atomic.LoadUint64(&m.GetPostgresConfigMock.expectedInvocations), m.GetPostgresConfigMock.expectedInvocationsOrigin, afterGetPostgresConfigCounter)
+	}
+}
+
+type mClientMockGetPostgresPrivateEndpoint struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockGetPostgresPrivateEndpointExpectation
+	expectations       []*ClientMockGetPostgresPrivateEndpointExpectation
+
+	callArgs []*ClientMockGetPostgresPrivateEndpointParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockGetPostgresPrivateEndpointExpectation specifies expectation struct of the Client.GetPostgresPrivateEndpoint
+type ClientMockGetPostgresPrivateEndpointExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockGetPostgresPrivateEndpointParams
+	paramPtrs          *ClientMockGetPostgresPrivateEndpointParamPtrs
+	expectationOrigins ClientMockGetPostgresPrivateEndpointExpectationOrigins
+	results            *ClientMockGetPostgresPrivateEndpointResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockGetPostgresPrivateEndpointParams contains parameters of the Client.GetPostgresPrivateEndpoint
+type ClientMockGetPostgresPrivateEndpointParams struct {
+	ctx        context.Context
+	postgresId string
+}
+
+// ClientMockGetPostgresPrivateEndpointParamPtrs contains pointers to parameters of the Client.GetPostgresPrivateEndpoint
+type ClientMockGetPostgresPrivateEndpointParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+}
+
+// ClientMockGetPostgresPrivateEndpointResults contains results of the Client.GetPostgresPrivateEndpoint
+type ClientMockGetPostgresPrivateEndpointResults struct {
+	pp1 *PostgresPrivateEndpoint
+	err error
+}
+
+// ClientMockGetPostgresPrivateEndpointOrigins contains origins of expectations of the Client.GetPostgresPrivateEndpoint
+type ClientMockGetPostgresPrivateEndpointExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) Optional() *mClientMockGetPostgresPrivateEndpoint {
+	mmGetPostgresPrivateEndpoint.optional = true
+	return mmGetPostgresPrivateEndpoint
+}
+
+// Expect sets up expected params for Client.GetPostgresPrivateEndpoint
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) Expect(ctx context.Context, postgresId string) *mClientMockGetPostgresPrivateEndpoint {
+	if mmGetPostgresPrivateEndpoint.mock.funcGetPostgresPrivateEndpoint != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.GetPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmGetPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmGetPostgresPrivateEndpoint.defaultExpectation = &ClientMockGetPostgresPrivateEndpointExpectation{}
+	}
+
+	if mmGetPostgresPrivateEndpoint.defaultExpectation.paramPtrs != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.GetPostgresPrivateEndpoint mock is already set by ExpectParams functions")
+	}
+
+	mmGetPostgresPrivateEndpoint.defaultExpectation.params = &ClientMockGetPostgresPrivateEndpointParams{ctx, postgresId}
+	mmGetPostgresPrivateEndpoint.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmGetPostgresPrivateEndpoint.expectations {
+		if minimock.Equal(e.params, mmGetPostgresPrivateEndpoint.defaultExpectation.params) {
+			mmGetPostgresPrivateEndpoint.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetPostgresPrivateEndpoint.defaultExpectation.params)
+		}
+	}
+
+	return mmGetPostgresPrivateEndpoint
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.GetPostgresPrivateEndpoint
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) ExpectCtxParam1(ctx context.Context) *mClientMockGetPostgresPrivateEndpoint {
+	if mmGetPostgresPrivateEndpoint.mock.funcGetPostgresPrivateEndpoint != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.GetPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmGetPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmGetPostgresPrivateEndpoint.defaultExpectation = &ClientMockGetPostgresPrivateEndpointExpectation{}
+	}
+
+	if mmGetPostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.GetPostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmGetPostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmGetPostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockGetPostgresPrivateEndpointParamPtrs{}
+	}
+	mmGetPostgresPrivateEndpoint.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetPostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetPostgresPrivateEndpoint
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.GetPostgresPrivateEndpoint
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) ExpectPostgresIdParam2(postgresId string) *mClientMockGetPostgresPrivateEndpoint {
+	if mmGetPostgresPrivateEndpoint.mock.funcGetPostgresPrivateEndpoint != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.GetPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmGetPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmGetPostgresPrivateEndpoint.defaultExpectation = &ClientMockGetPostgresPrivateEndpointExpectation{}
+	}
+
+	if mmGetPostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.GetPostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmGetPostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmGetPostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockGetPostgresPrivateEndpointParamPtrs{}
+	}
+	mmGetPostgresPrivateEndpoint.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmGetPostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmGetPostgresPrivateEndpoint
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.GetPostgresPrivateEndpoint
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) Inspect(f func(ctx context.Context, postgresId string)) *mClientMockGetPostgresPrivateEndpoint {
+	if mmGetPostgresPrivateEndpoint.mock.inspectFuncGetPostgresPrivateEndpoint != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("Inspect function is already set for ClientMock.GetPostgresPrivateEndpoint")
+	}
+
+	mmGetPostgresPrivateEndpoint.mock.inspectFuncGetPostgresPrivateEndpoint = f
+
+	return mmGetPostgresPrivateEndpoint
+}
+
+// Return sets up results that will be returned by Client.GetPostgresPrivateEndpoint
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) Return(pp1 *PostgresPrivateEndpoint, err error) *ClientMock {
+	if mmGetPostgresPrivateEndpoint.mock.funcGetPostgresPrivateEndpoint != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.GetPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmGetPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmGetPostgresPrivateEndpoint.defaultExpectation = &ClientMockGetPostgresPrivateEndpointExpectation{mock: mmGetPostgresPrivateEndpoint.mock}
+	}
+	mmGetPostgresPrivateEndpoint.defaultExpectation.results = &ClientMockGetPostgresPrivateEndpointResults{pp1, err}
+	mmGetPostgresPrivateEndpoint.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmGetPostgresPrivateEndpoint.mock
+}
+
+// Set uses given function f to mock the Client.GetPostgresPrivateEndpoint method
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) Set(f func(ctx context.Context, postgresId string) (pp1 *PostgresPrivateEndpoint, err error)) *ClientMock {
+	if mmGetPostgresPrivateEndpoint.defaultExpectation != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("Default expectation is already set for the Client.GetPostgresPrivateEndpoint method")
+	}
+
+	if len(mmGetPostgresPrivateEndpoint.expectations) > 0 {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("Some expectations are already set for the Client.GetPostgresPrivateEndpoint method")
+	}
+
+	mmGetPostgresPrivateEndpoint.mock.funcGetPostgresPrivateEndpoint = f
+	mmGetPostgresPrivateEndpoint.mock.funcGetPostgresPrivateEndpointOrigin = minimock.CallerInfo(1)
+	return mmGetPostgresPrivateEndpoint.mock
+}
+
+// When sets expectation for the Client.GetPostgresPrivateEndpoint which will trigger the result defined by the following
+// Then helper
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) When(ctx context.Context, postgresId string) *ClientMockGetPostgresPrivateEndpointExpectation {
+	if mmGetPostgresPrivateEndpoint.mock.funcGetPostgresPrivateEndpoint != nil {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.GetPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	expectation := &ClientMockGetPostgresPrivateEndpointExpectation{
+		mock:               mmGetPostgresPrivateEndpoint.mock,
+		params:             &ClientMockGetPostgresPrivateEndpointParams{ctx, postgresId},
+		expectationOrigins: ClientMockGetPostgresPrivateEndpointExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmGetPostgresPrivateEndpoint.expectations = append(mmGetPostgresPrivateEndpoint.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.GetPostgresPrivateEndpoint return parameters for the expectation previously defined by the When method
+func (e *ClientMockGetPostgresPrivateEndpointExpectation) Then(pp1 *PostgresPrivateEndpoint, err error) *ClientMock {
+	e.results = &ClientMockGetPostgresPrivateEndpointResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.GetPostgresPrivateEndpoint should be invoked
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) Times(n uint64) *mClientMockGetPostgresPrivateEndpoint {
+	if n == 0 {
+		mmGetPostgresPrivateEndpoint.mock.t.Fatalf("Times of ClientMock.GetPostgresPrivateEndpoint mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmGetPostgresPrivateEndpoint.expectedInvocations, n)
+	mmGetPostgresPrivateEndpoint.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmGetPostgresPrivateEndpoint
+}
+
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) invocationsDone() bool {
+	if len(mmGetPostgresPrivateEndpoint.expectations) == 0 && mmGetPostgresPrivateEndpoint.defaultExpectation == nil && mmGetPostgresPrivateEndpoint.mock.funcGetPostgresPrivateEndpoint == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmGetPostgresPrivateEndpoint.mock.afterGetPostgresPrivateEndpointCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmGetPostgresPrivateEndpoint.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// GetPostgresPrivateEndpoint implements Client
+func (mmGetPostgresPrivateEndpoint *ClientMock) GetPostgresPrivateEndpoint(ctx context.Context, postgresId string) (pp1 *PostgresPrivateEndpoint, err error) {
+	mm_atomic.AddUint64(&mmGetPostgresPrivateEndpoint.beforeGetPostgresPrivateEndpointCounter, 1)
+	defer mm_atomic.AddUint64(&mmGetPostgresPrivateEndpoint.afterGetPostgresPrivateEndpointCounter, 1)
+
+	mmGetPostgresPrivateEndpoint.t.Helper()
+
+	if mmGetPostgresPrivateEndpoint.inspectFuncGetPostgresPrivateEndpoint != nil {
+		mmGetPostgresPrivateEndpoint.inspectFuncGetPostgresPrivateEndpoint(ctx, postgresId)
+	}
+
+	mm_params := ClientMockGetPostgresPrivateEndpointParams{ctx, postgresId}
+
+	// Record call args
+	mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.mutex.Lock()
+	mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.callArgs = append(mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.callArgs, &mm_params)
+	mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.mutex.Unlock()
+
+	for _, e := range mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.defaultExpectation.Counter, 1)
+		mm_want := mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.defaultExpectation.params
+		mm_want_ptrs := mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockGetPostgresPrivateEndpointParams{ctx, postgresId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetPostgresPrivateEndpoint.t.Errorf("ClientMock.GetPostgresPrivateEndpoint got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmGetPostgresPrivateEndpoint.t.Errorf("ClientMock.GetPostgresPrivateEndpoint got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmGetPostgresPrivateEndpoint.t.Errorf("ClientMock.GetPostgresPrivateEndpoint got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmGetPostgresPrivateEndpoint.GetPostgresPrivateEndpointMock.defaultExpectation.results
+		if mm_results == nil {
+			mmGetPostgresPrivateEndpoint.t.Fatal("No results are set for the ClientMock.GetPostgresPrivateEndpoint")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmGetPostgresPrivateEndpoint.funcGetPostgresPrivateEndpoint != nil {
+		return mmGetPostgresPrivateEndpoint.funcGetPostgresPrivateEndpoint(ctx, postgresId)
+	}
+	mmGetPostgresPrivateEndpoint.t.Fatalf("Unexpected call to ClientMock.GetPostgresPrivateEndpoint. %v %v", ctx, postgresId)
+	return
+}
+
+// GetPostgresPrivateEndpointAfterCounter returns a count of finished ClientMock.GetPostgresPrivateEndpoint invocations
+func (mmGetPostgresPrivateEndpoint *ClientMock) GetPostgresPrivateEndpointAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetPostgresPrivateEndpoint.afterGetPostgresPrivateEndpointCounter)
+}
+
+// GetPostgresPrivateEndpointBeforeCounter returns a count of ClientMock.GetPostgresPrivateEndpoint invocations
+func (mmGetPostgresPrivateEndpoint *ClientMock) GetPostgresPrivateEndpointBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmGetPostgresPrivateEndpoint.beforeGetPostgresPrivateEndpointCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.GetPostgresPrivateEndpoint.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmGetPostgresPrivateEndpoint *mClientMockGetPostgresPrivateEndpoint) Calls() []*ClientMockGetPostgresPrivateEndpointParams {
+	mmGetPostgresPrivateEndpoint.mutex.RLock()
+
+	argCopy := make([]*ClientMockGetPostgresPrivateEndpointParams, len(mmGetPostgresPrivateEndpoint.callArgs))
+	copy(argCopy, mmGetPostgresPrivateEndpoint.callArgs)
+
+	mmGetPostgresPrivateEndpoint.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockGetPostgresPrivateEndpointDone returns true if the count of the GetPostgresPrivateEndpoint invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockGetPostgresPrivateEndpointDone() bool {
+	if m.GetPostgresPrivateEndpointMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.GetPostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.GetPostgresPrivateEndpointMock.invocationsDone()
+}
+
+// MinimockGetPostgresPrivateEndpointInspect logs each unmet expectation
+func (m *ClientMock) MinimockGetPostgresPrivateEndpointInspect() {
+	for _, e := range m.GetPostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.GetPostgresPrivateEndpoint at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterGetPostgresPrivateEndpointCounter := mm_atomic.LoadUint64(&m.afterGetPostgresPrivateEndpointCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.GetPostgresPrivateEndpointMock.defaultExpectation != nil && afterGetPostgresPrivateEndpointCounter < 1 {
+		if m.GetPostgresPrivateEndpointMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.GetPostgresPrivateEndpoint at\n%s", m.GetPostgresPrivateEndpointMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.GetPostgresPrivateEndpoint at\n%s with params: %#v", m.GetPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *m.GetPostgresPrivateEndpointMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcGetPostgresPrivateEndpoint != nil && afterGetPostgresPrivateEndpointCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.GetPostgresPrivateEndpoint at\n%s", m.funcGetPostgresPrivateEndpointOrigin)
+	}
+
+	if !m.GetPostgresPrivateEndpointMock.invocationsDone() && afterGetPostgresPrivateEndpointCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.GetPostgresPrivateEndpoint at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.GetPostgresPrivateEndpointMock.expectedInvocations), m.GetPostgresPrivateEndpointMock.expectedInvocationsOrigin, afterGetPostgresPrivateEndpointCounter)
 	}
 }
 
@@ -35820,6 +36929,380 @@ func (m *ClientMock) MinimockUpdatePostgresInspect() {
 	}
 }
 
+type mClientMockUpdatePostgresPrivateEndpoint struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockUpdatePostgresPrivateEndpointExpectation
+	expectations       []*ClientMockUpdatePostgresPrivateEndpointExpectation
+
+	callArgs []*ClientMockUpdatePostgresPrivateEndpointParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockUpdatePostgresPrivateEndpointExpectation specifies expectation struct of the Client.UpdatePostgresPrivateEndpoint
+type ClientMockUpdatePostgresPrivateEndpointExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockUpdatePostgresPrivateEndpointParams
+	paramPtrs          *ClientMockUpdatePostgresPrivateEndpointParamPtrs
+	expectationOrigins ClientMockUpdatePostgresPrivateEndpointExpectationOrigins
+	results            *ClientMockUpdatePostgresPrivateEndpointResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockUpdatePostgresPrivateEndpointParams contains parameters of the Client.UpdatePostgresPrivateEndpoint
+type ClientMockUpdatePostgresPrivateEndpointParams struct {
+	ctx        context.Context
+	postgresId string
+	body       PostgresPrivateEndpointUpdate
+}
+
+// ClientMockUpdatePostgresPrivateEndpointParamPtrs contains pointers to parameters of the Client.UpdatePostgresPrivateEndpoint
+type ClientMockUpdatePostgresPrivateEndpointParamPtrs struct {
+	ctx        *context.Context
+	postgresId *string
+	body       *PostgresPrivateEndpointUpdate
+}
+
+// ClientMockUpdatePostgresPrivateEndpointResults contains results of the Client.UpdatePostgresPrivateEndpoint
+type ClientMockUpdatePostgresPrivateEndpointResults struct {
+	pp1 *PostgresPrivateEndpoint
+	err error
+}
+
+// ClientMockUpdatePostgresPrivateEndpointOrigins contains origins of expectations of the Client.UpdatePostgresPrivateEndpoint
+type ClientMockUpdatePostgresPrivateEndpointExpectationOrigins struct {
+	origin           string
+	originCtx        string
+	originPostgresId string
+	originBody       string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) Optional() *mClientMockUpdatePostgresPrivateEndpoint {
+	mmUpdatePostgresPrivateEndpoint.optional = true
+	return mmUpdatePostgresPrivateEndpoint
+}
+
+// Expect sets up expected params for Client.UpdatePostgresPrivateEndpoint
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) Expect(ctx context.Context, postgresId string, body PostgresPrivateEndpointUpdate) *mClientMockUpdatePostgresPrivateEndpoint {
+	if mmUpdatePostgresPrivateEndpoint.mock.funcUpdatePostgresPrivateEndpoint != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmUpdatePostgresPrivateEndpoint.defaultExpectation = &ClientMockUpdatePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by ExpectParams functions")
+	}
+
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.params = &ClientMockUpdatePostgresPrivateEndpointParams{ctx, postgresId, body}
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmUpdatePostgresPrivateEndpoint.expectations {
+		if minimock.Equal(e.params, mmUpdatePostgresPrivateEndpoint.defaultExpectation.params) {
+			mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmUpdatePostgresPrivateEndpoint.defaultExpectation.params)
+		}
+	}
+
+	return mmUpdatePostgresPrivateEndpoint
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.UpdatePostgresPrivateEndpoint
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) ExpectCtxParam1(ctx context.Context) *mClientMockUpdatePostgresPrivateEndpoint {
+	if mmUpdatePostgresPrivateEndpoint.mock.funcUpdatePostgresPrivateEndpoint != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmUpdatePostgresPrivateEndpoint.defaultExpectation = &ClientMockUpdatePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockUpdatePostgresPrivateEndpointParamPtrs{}
+	}
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs.ctx = &ctx
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmUpdatePostgresPrivateEndpoint
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.UpdatePostgresPrivateEndpoint
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) ExpectPostgresIdParam2(postgresId string) *mClientMockUpdatePostgresPrivateEndpoint {
+	if mmUpdatePostgresPrivateEndpoint.mock.funcUpdatePostgresPrivateEndpoint != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmUpdatePostgresPrivateEndpoint.defaultExpectation = &ClientMockUpdatePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockUpdatePostgresPrivateEndpointParamPtrs{}
+	}
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmUpdatePostgresPrivateEndpoint
+}
+
+// ExpectBodyParam3 sets up expected param body for Client.UpdatePostgresPrivateEndpoint
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) ExpectBodyParam3(body PostgresPrivateEndpointUpdate) *mClientMockUpdatePostgresPrivateEndpoint {
+	if mmUpdatePostgresPrivateEndpoint.mock.funcUpdatePostgresPrivateEndpoint != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmUpdatePostgresPrivateEndpoint.defaultExpectation = &ClientMockUpdatePostgresPrivateEndpointExpectation{}
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockUpdatePostgresPrivateEndpointParamPtrs{}
+	}
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.paramPtrs.body = &body
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originBody = minimock.CallerInfo(1)
+
+	return mmUpdatePostgresPrivateEndpoint
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.UpdatePostgresPrivateEndpoint
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) Inspect(f func(ctx context.Context, postgresId string, body PostgresPrivateEndpointUpdate)) *mClientMockUpdatePostgresPrivateEndpoint {
+	if mmUpdatePostgresPrivateEndpoint.mock.inspectFuncUpdatePostgresPrivateEndpoint != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("Inspect function is already set for ClientMock.UpdatePostgresPrivateEndpoint")
+	}
+
+	mmUpdatePostgresPrivateEndpoint.mock.inspectFuncUpdatePostgresPrivateEndpoint = f
+
+	return mmUpdatePostgresPrivateEndpoint
+}
+
+// Return sets up results that will be returned by Client.UpdatePostgresPrivateEndpoint
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) Return(pp1 *PostgresPrivateEndpoint, err error) *ClientMock {
+	if mmUpdatePostgresPrivateEndpoint.mock.funcUpdatePostgresPrivateEndpoint != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation == nil {
+		mmUpdatePostgresPrivateEndpoint.defaultExpectation = &ClientMockUpdatePostgresPrivateEndpointExpectation{mock: mmUpdatePostgresPrivateEndpoint.mock}
+	}
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.results = &ClientMockUpdatePostgresPrivateEndpointResults{pp1, err}
+	mmUpdatePostgresPrivateEndpoint.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmUpdatePostgresPrivateEndpoint.mock
+}
+
+// Set uses given function f to mock the Client.UpdatePostgresPrivateEndpoint method
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) Set(f func(ctx context.Context, postgresId string, body PostgresPrivateEndpointUpdate) (pp1 *PostgresPrivateEndpoint, err error)) *ClientMock {
+	if mmUpdatePostgresPrivateEndpoint.defaultExpectation != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("Default expectation is already set for the Client.UpdatePostgresPrivateEndpoint method")
+	}
+
+	if len(mmUpdatePostgresPrivateEndpoint.expectations) > 0 {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("Some expectations are already set for the Client.UpdatePostgresPrivateEndpoint method")
+	}
+
+	mmUpdatePostgresPrivateEndpoint.mock.funcUpdatePostgresPrivateEndpoint = f
+	mmUpdatePostgresPrivateEndpoint.mock.funcUpdatePostgresPrivateEndpointOrigin = minimock.CallerInfo(1)
+	return mmUpdatePostgresPrivateEndpoint.mock
+}
+
+// When sets expectation for the Client.UpdatePostgresPrivateEndpoint which will trigger the result defined by the following
+// Then helper
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) When(ctx context.Context, postgresId string, body PostgresPrivateEndpointUpdate) *ClientMockUpdatePostgresPrivateEndpointExpectation {
+	if mmUpdatePostgresPrivateEndpoint.mock.funcUpdatePostgresPrivateEndpoint != nil {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.UpdatePostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	expectation := &ClientMockUpdatePostgresPrivateEndpointExpectation{
+		mock:               mmUpdatePostgresPrivateEndpoint.mock,
+		params:             &ClientMockUpdatePostgresPrivateEndpointParams{ctx, postgresId, body},
+		expectationOrigins: ClientMockUpdatePostgresPrivateEndpointExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmUpdatePostgresPrivateEndpoint.expectations = append(mmUpdatePostgresPrivateEndpoint.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.UpdatePostgresPrivateEndpoint return parameters for the expectation previously defined by the When method
+func (e *ClientMockUpdatePostgresPrivateEndpointExpectation) Then(pp1 *PostgresPrivateEndpoint, err error) *ClientMock {
+	e.results = &ClientMockUpdatePostgresPrivateEndpointResults{pp1, err}
+	return e.mock
+}
+
+// Times sets number of times Client.UpdatePostgresPrivateEndpoint should be invoked
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) Times(n uint64) *mClientMockUpdatePostgresPrivateEndpoint {
+	if n == 0 {
+		mmUpdatePostgresPrivateEndpoint.mock.t.Fatalf("Times of ClientMock.UpdatePostgresPrivateEndpoint mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmUpdatePostgresPrivateEndpoint.expectedInvocations, n)
+	mmUpdatePostgresPrivateEndpoint.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmUpdatePostgresPrivateEndpoint
+}
+
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) invocationsDone() bool {
+	if len(mmUpdatePostgresPrivateEndpoint.expectations) == 0 && mmUpdatePostgresPrivateEndpoint.defaultExpectation == nil && mmUpdatePostgresPrivateEndpoint.mock.funcUpdatePostgresPrivateEndpoint == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmUpdatePostgresPrivateEndpoint.mock.afterUpdatePostgresPrivateEndpointCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmUpdatePostgresPrivateEndpoint.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// UpdatePostgresPrivateEndpoint implements Client
+func (mmUpdatePostgresPrivateEndpoint *ClientMock) UpdatePostgresPrivateEndpoint(ctx context.Context, postgresId string, body PostgresPrivateEndpointUpdate) (pp1 *PostgresPrivateEndpoint, err error) {
+	mm_atomic.AddUint64(&mmUpdatePostgresPrivateEndpoint.beforeUpdatePostgresPrivateEndpointCounter, 1)
+	defer mm_atomic.AddUint64(&mmUpdatePostgresPrivateEndpoint.afterUpdatePostgresPrivateEndpointCounter, 1)
+
+	mmUpdatePostgresPrivateEndpoint.t.Helper()
+
+	if mmUpdatePostgresPrivateEndpoint.inspectFuncUpdatePostgresPrivateEndpoint != nil {
+		mmUpdatePostgresPrivateEndpoint.inspectFuncUpdatePostgresPrivateEndpoint(ctx, postgresId, body)
+	}
+
+	mm_params := ClientMockUpdatePostgresPrivateEndpointParams{ctx, postgresId, body}
+
+	// Record call args
+	mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.mutex.Lock()
+	mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.callArgs = append(mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.callArgs, &mm_params)
+	mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.mutex.Unlock()
+
+	for _, e := range mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.pp1, e.results.err
+		}
+	}
+
+	if mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.defaultExpectation.Counter, 1)
+		mm_want := mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.defaultExpectation.params
+		mm_want_ptrs := mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockUpdatePostgresPrivateEndpointParams{ctx, postgresId, body}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmUpdatePostgresPrivateEndpoint.t.Errorf("ClientMock.UpdatePostgresPrivateEndpoint got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmUpdatePostgresPrivateEndpoint.t.Errorf("ClientMock.UpdatePostgresPrivateEndpoint got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.body != nil && !minimock.Equal(*mm_want_ptrs.body, mm_got.body) {
+				mmUpdatePostgresPrivateEndpoint.t.Errorf("ClientMock.UpdatePostgresPrivateEndpoint got unexpected parameter body, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originBody, *mm_want_ptrs.body, mm_got.body, minimock.Diff(*mm_want_ptrs.body, mm_got.body))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmUpdatePostgresPrivateEndpoint.t.Errorf("ClientMock.UpdatePostgresPrivateEndpoint got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmUpdatePostgresPrivateEndpoint.UpdatePostgresPrivateEndpointMock.defaultExpectation.results
+		if mm_results == nil {
+			mmUpdatePostgresPrivateEndpoint.t.Fatal("No results are set for the ClientMock.UpdatePostgresPrivateEndpoint")
+		}
+		return (*mm_results).pp1, (*mm_results).err
+	}
+	if mmUpdatePostgresPrivateEndpoint.funcUpdatePostgresPrivateEndpoint != nil {
+		return mmUpdatePostgresPrivateEndpoint.funcUpdatePostgresPrivateEndpoint(ctx, postgresId, body)
+	}
+	mmUpdatePostgresPrivateEndpoint.t.Fatalf("Unexpected call to ClientMock.UpdatePostgresPrivateEndpoint. %v %v %v", ctx, postgresId, body)
+	return
+}
+
+// UpdatePostgresPrivateEndpointAfterCounter returns a count of finished ClientMock.UpdatePostgresPrivateEndpoint invocations
+func (mmUpdatePostgresPrivateEndpoint *ClientMock) UpdatePostgresPrivateEndpointAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdatePostgresPrivateEndpoint.afterUpdatePostgresPrivateEndpointCounter)
+}
+
+// UpdatePostgresPrivateEndpointBeforeCounter returns a count of ClientMock.UpdatePostgresPrivateEndpoint invocations
+func (mmUpdatePostgresPrivateEndpoint *ClientMock) UpdatePostgresPrivateEndpointBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmUpdatePostgresPrivateEndpoint.beforeUpdatePostgresPrivateEndpointCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.UpdatePostgresPrivateEndpoint.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmUpdatePostgresPrivateEndpoint *mClientMockUpdatePostgresPrivateEndpoint) Calls() []*ClientMockUpdatePostgresPrivateEndpointParams {
+	mmUpdatePostgresPrivateEndpoint.mutex.RLock()
+
+	argCopy := make([]*ClientMockUpdatePostgresPrivateEndpointParams, len(mmUpdatePostgresPrivateEndpoint.callArgs))
+	copy(argCopy, mmUpdatePostgresPrivateEndpoint.callArgs)
+
+	mmUpdatePostgresPrivateEndpoint.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockUpdatePostgresPrivateEndpointDone returns true if the count of the UpdatePostgresPrivateEndpoint invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockUpdatePostgresPrivateEndpointDone() bool {
+	if m.UpdatePostgresPrivateEndpointMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.UpdatePostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.UpdatePostgresPrivateEndpointMock.invocationsDone()
+}
+
+// MinimockUpdatePostgresPrivateEndpointInspect logs each unmet expectation
+func (m *ClientMock) MinimockUpdatePostgresPrivateEndpointInspect() {
+	for _, e := range m.UpdatePostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.UpdatePostgresPrivateEndpoint at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterUpdatePostgresPrivateEndpointCounter := mm_atomic.LoadUint64(&m.afterUpdatePostgresPrivateEndpointCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.UpdatePostgresPrivateEndpointMock.defaultExpectation != nil && afterUpdatePostgresPrivateEndpointCounter < 1 {
+		if m.UpdatePostgresPrivateEndpointMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.UpdatePostgresPrivateEndpoint at\n%s", m.UpdatePostgresPrivateEndpointMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.UpdatePostgresPrivateEndpoint at\n%s with params: %#v", m.UpdatePostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *m.UpdatePostgresPrivateEndpointMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcUpdatePostgresPrivateEndpoint != nil && afterUpdatePostgresPrivateEndpointCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.UpdatePostgresPrivateEndpoint at\n%s", m.funcUpdatePostgresPrivateEndpointOrigin)
+	}
+
+	if !m.UpdatePostgresPrivateEndpointMock.invocationsDone() && afterUpdatePostgresPrivateEndpointCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.UpdatePostgresPrivateEndpoint at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.UpdatePostgresPrivateEndpointMock.expectedInvocations), m.UpdatePostgresPrivateEndpointMock.expectedInvocationsOrigin, afterUpdatePostgresPrivateEndpointCounter)
+	}
+}
+
 type mClientMockUpdateQueryAPIEndpoint struct {
 	optional           bool
 	mock               *ClientMock
@@ -43140,6 +44623,410 @@ func (m *ClientMock) MinimockWaitForPostgresMatchInspect() {
 	}
 }
 
+type mClientMockWaitForPostgresPrivateEndpoint struct {
+	optional           bool
+	mock               *ClientMock
+	defaultExpectation *ClientMockWaitForPostgresPrivateEndpointExpectation
+	expectations       []*ClientMockWaitForPostgresPrivateEndpointExpectation
+
+	callArgs []*ClientMockWaitForPostgresPrivateEndpointParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// ClientMockWaitForPostgresPrivateEndpointExpectation specifies expectation struct of the Client.WaitForPostgresPrivateEndpoint
+type ClientMockWaitForPostgresPrivateEndpointExpectation struct {
+	mock               *ClientMock
+	params             *ClientMockWaitForPostgresPrivateEndpointParams
+	paramPtrs          *ClientMockWaitForPostgresPrivateEndpointParamPtrs
+	expectationOrigins ClientMockWaitForPostgresPrivateEndpointExpectationOrigins
+	results            *ClientMockWaitForPostgresPrivateEndpointResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// ClientMockWaitForPostgresPrivateEndpointParams contains parameters of the Client.WaitForPostgresPrivateEndpoint
+type ClientMockWaitForPostgresPrivateEndpointParams struct {
+	ctx            context.Context
+	postgresId     string
+	done           func(*PostgresPrivateEndpoint) bool
+	maxWaitSeconds int
+}
+
+// ClientMockWaitForPostgresPrivateEndpointParamPtrs contains pointers to parameters of the Client.WaitForPostgresPrivateEndpoint
+type ClientMockWaitForPostgresPrivateEndpointParamPtrs struct {
+	ctx            *context.Context
+	postgresId     *string
+	done           *func(*PostgresPrivateEndpoint) bool
+	maxWaitSeconds *int
+}
+
+// ClientMockWaitForPostgresPrivateEndpointResults contains results of the Client.WaitForPostgresPrivateEndpoint
+type ClientMockWaitForPostgresPrivateEndpointResults struct {
+	err error
+}
+
+// ClientMockWaitForPostgresPrivateEndpointOrigins contains origins of expectations of the Client.WaitForPostgresPrivateEndpoint
+type ClientMockWaitForPostgresPrivateEndpointExpectationOrigins struct {
+	origin               string
+	originCtx            string
+	originPostgresId     string
+	originDone           string
+	originMaxWaitSeconds string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) Optional() *mClientMockWaitForPostgresPrivateEndpoint {
+	mmWaitForPostgresPrivateEndpoint.optional = true
+	return mmWaitForPostgresPrivateEndpoint
+}
+
+// Expect sets up expected params for Client.WaitForPostgresPrivateEndpoint
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) Expect(ctx context.Context, postgresId string, done func(*PostgresPrivateEndpoint) bool, maxWaitSeconds int) *mClientMockWaitForPostgresPrivateEndpoint {
+	if mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpoint != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation = &ClientMockWaitForPostgresPrivateEndpointExpectation{}
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by ExpectParams functions")
+	}
+
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.params = &ClientMockWaitForPostgresPrivateEndpointParams{ctx, postgresId, done, maxWaitSeconds}
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmWaitForPostgresPrivateEndpoint.expectations {
+		if minimock.Equal(e.params, mmWaitForPostgresPrivateEndpoint.defaultExpectation.params) {
+			mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmWaitForPostgresPrivateEndpoint.defaultExpectation.params)
+		}
+	}
+
+	return mmWaitForPostgresPrivateEndpoint
+}
+
+// ExpectCtxParam1 sets up expected param ctx for Client.WaitForPostgresPrivateEndpoint
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) ExpectCtxParam1(ctx context.Context) *mClientMockWaitForPostgresPrivateEndpoint {
+	if mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpoint != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation = &ClientMockWaitForPostgresPrivateEndpointExpectation{}
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresPrivateEndpointParamPtrs{}
+	}
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs.ctx = &ctx
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresPrivateEndpoint
+}
+
+// ExpectPostgresIdParam2 sets up expected param postgresId for Client.WaitForPostgresPrivateEndpoint
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) ExpectPostgresIdParam2(postgresId string) *mClientMockWaitForPostgresPrivateEndpoint {
+	if mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpoint != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation = &ClientMockWaitForPostgresPrivateEndpointExpectation{}
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresPrivateEndpointParamPtrs{}
+	}
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs.postgresId = &postgresId
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originPostgresId = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresPrivateEndpoint
+}
+
+// ExpectDoneParam3 sets up expected param done for Client.WaitForPostgresPrivateEndpoint
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) ExpectDoneParam3(done func(*PostgresPrivateEndpoint) bool) *mClientMockWaitForPostgresPrivateEndpoint {
+	if mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpoint != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation = &ClientMockWaitForPostgresPrivateEndpointExpectation{}
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresPrivateEndpointParamPtrs{}
+	}
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs.done = &done
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originDone = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresPrivateEndpoint
+}
+
+// ExpectMaxWaitSecondsParam4 sets up expected param maxWaitSeconds for Client.WaitForPostgresPrivateEndpoint
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) ExpectMaxWaitSecondsParam4(maxWaitSeconds int) *mClientMockWaitForPostgresPrivateEndpoint {
+	if mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpoint != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation = &ClientMockWaitForPostgresPrivateEndpointExpectation{}
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation.params != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Expect")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs = &ClientMockWaitForPostgresPrivateEndpointParamPtrs{}
+	}
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.paramPtrs.maxWaitSeconds = &maxWaitSeconds
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.expectationOrigins.originMaxWaitSeconds = minimock.CallerInfo(1)
+
+	return mmWaitForPostgresPrivateEndpoint
+}
+
+// Inspect accepts an inspector function that has same arguments as the Client.WaitForPostgresPrivateEndpoint
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) Inspect(f func(ctx context.Context, postgresId string, done func(*PostgresPrivateEndpoint) bool, maxWaitSeconds int)) *mClientMockWaitForPostgresPrivateEndpoint {
+	if mmWaitForPostgresPrivateEndpoint.mock.inspectFuncWaitForPostgresPrivateEndpoint != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("Inspect function is already set for ClientMock.WaitForPostgresPrivateEndpoint")
+	}
+
+	mmWaitForPostgresPrivateEndpoint.mock.inspectFuncWaitForPostgresPrivateEndpoint = f
+
+	return mmWaitForPostgresPrivateEndpoint
+}
+
+// Return sets up results that will be returned by Client.WaitForPostgresPrivateEndpoint
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) Return(err error) *ClientMock {
+	if mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpoint != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation == nil {
+		mmWaitForPostgresPrivateEndpoint.defaultExpectation = &ClientMockWaitForPostgresPrivateEndpointExpectation{mock: mmWaitForPostgresPrivateEndpoint.mock}
+	}
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.results = &ClientMockWaitForPostgresPrivateEndpointResults{err}
+	mmWaitForPostgresPrivateEndpoint.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresPrivateEndpoint.mock
+}
+
+// Set uses given function f to mock the Client.WaitForPostgresPrivateEndpoint method
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) Set(f func(ctx context.Context, postgresId string, done func(*PostgresPrivateEndpoint) bool, maxWaitSeconds int) (err error)) *ClientMock {
+	if mmWaitForPostgresPrivateEndpoint.defaultExpectation != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("Default expectation is already set for the Client.WaitForPostgresPrivateEndpoint method")
+	}
+
+	if len(mmWaitForPostgresPrivateEndpoint.expectations) > 0 {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("Some expectations are already set for the Client.WaitForPostgresPrivateEndpoint method")
+	}
+
+	mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpoint = f
+	mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpointOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresPrivateEndpoint.mock
+}
+
+// When sets expectation for the Client.WaitForPostgresPrivateEndpoint which will trigger the result defined by the following
+// Then helper
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) When(ctx context.Context, postgresId string, done func(*PostgresPrivateEndpoint) bool, maxWaitSeconds int) *ClientMockWaitForPostgresPrivateEndpointExpectation {
+	if mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpoint != nil {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("ClientMock.WaitForPostgresPrivateEndpoint mock is already set by Set")
+	}
+
+	expectation := &ClientMockWaitForPostgresPrivateEndpointExpectation{
+		mock:               mmWaitForPostgresPrivateEndpoint.mock,
+		params:             &ClientMockWaitForPostgresPrivateEndpointParams{ctx, postgresId, done, maxWaitSeconds},
+		expectationOrigins: ClientMockWaitForPostgresPrivateEndpointExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmWaitForPostgresPrivateEndpoint.expectations = append(mmWaitForPostgresPrivateEndpoint.expectations, expectation)
+	return expectation
+}
+
+// Then sets up Client.WaitForPostgresPrivateEndpoint return parameters for the expectation previously defined by the When method
+func (e *ClientMockWaitForPostgresPrivateEndpointExpectation) Then(err error) *ClientMock {
+	e.results = &ClientMockWaitForPostgresPrivateEndpointResults{err}
+	return e.mock
+}
+
+// Times sets number of times Client.WaitForPostgresPrivateEndpoint should be invoked
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) Times(n uint64) *mClientMockWaitForPostgresPrivateEndpoint {
+	if n == 0 {
+		mmWaitForPostgresPrivateEndpoint.mock.t.Fatalf("Times of ClientMock.WaitForPostgresPrivateEndpoint mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmWaitForPostgresPrivateEndpoint.expectedInvocations, n)
+	mmWaitForPostgresPrivateEndpoint.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmWaitForPostgresPrivateEndpoint
+}
+
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) invocationsDone() bool {
+	if len(mmWaitForPostgresPrivateEndpoint.expectations) == 0 && mmWaitForPostgresPrivateEndpoint.defaultExpectation == nil && mmWaitForPostgresPrivateEndpoint.mock.funcWaitForPostgresPrivateEndpoint == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresPrivateEndpoint.mock.afterWaitForPostgresPrivateEndpointCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmWaitForPostgresPrivateEndpoint.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// WaitForPostgresPrivateEndpoint implements Client
+func (mmWaitForPostgresPrivateEndpoint *ClientMock) WaitForPostgresPrivateEndpoint(ctx context.Context, postgresId string, done func(*PostgresPrivateEndpoint) bool, maxWaitSeconds int) (err error) {
+	mm_atomic.AddUint64(&mmWaitForPostgresPrivateEndpoint.beforeWaitForPostgresPrivateEndpointCounter, 1)
+	defer mm_atomic.AddUint64(&mmWaitForPostgresPrivateEndpoint.afterWaitForPostgresPrivateEndpointCounter, 1)
+
+	mmWaitForPostgresPrivateEndpoint.t.Helper()
+
+	if mmWaitForPostgresPrivateEndpoint.inspectFuncWaitForPostgresPrivateEndpoint != nil {
+		mmWaitForPostgresPrivateEndpoint.inspectFuncWaitForPostgresPrivateEndpoint(ctx, postgresId, done, maxWaitSeconds)
+	}
+
+	mm_params := ClientMockWaitForPostgresPrivateEndpointParams{ctx, postgresId, done, maxWaitSeconds}
+
+	// Record call args
+	mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.mutex.Lock()
+	mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.callArgs = append(mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.callArgs, &mm_params)
+	mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.mutex.Unlock()
+
+	for _, e := range mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation.Counter, 1)
+		mm_want := mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation.params
+		mm_want_ptrs := mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation.paramPtrs
+
+		mm_got := ClientMockWaitForPostgresPrivateEndpointParams{ctx, postgresId, done, maxWaitSeconds}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmWaitForPostgresPrivateEndpoint.t.Errorf("ClientMock.WaitForPostgresPrivateEndpoint got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.postgresId != nil && !minimock.Equal(*mm_want_ptrs.postgresId, mm_got.postgresId) {
+				mmWaitForPostgresPrivateEndpoint.t.Errorf("ClientMock.WaitForPostgresPrivateEndpoint got unexpected parameter postgresId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originPostgresId, *mm_want_ptrs.postgresId, mm_got.postgresId, minimock.Diff(*mm_want_ptrs.postgresId, mm_got.postgresId))
+			}
+
+			if mm_want_ptrs.done != nil && !minimock.Equal(*mm_want_ptrs.done, mm_got.done) {
+				mmWaitForPostgresPrivateEndpoint.t.Errorf("ClientMock.WaitForPostgresPrivateEndpoint got unexpected parameter done, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originDone, *mm_want_ptrs.done, mm_got.done, minimock.Diff(*mm_want_ptrs.done, mm_got.done))
+			}
+
+			if mm_want_ptrs.maxWaitSeconds != nil && !minimock.Equal(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds) {
+				mmWaitForPostgresPrivateEndpoint.t.Errorf("ClientMock.WaitForPostgresPrivateEndpoint got unexpected parameter maxWaitSeconds, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.originMaxWaitSeconds, *mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds, minimock.Diff(*mm_want_ptrs.maxWaitSeconds, mm_got.maxWaitSeconds))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmWaitForPostgresPrivateEndpoint.t.Errorf("ClientMock.WaitForPostgresPrivateEndpoint got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmWaitForPostgresPrivateEndpoint.WaitForPostgresPrivateEndpointMock.defaultExpectation.results
+		if mm_results == nil {
+			mmWaitForPostgresPrivateEndpoint.t.Fatal("No results are set for the ClientMock.WaitForPostgresPrivateEndpoint")
+		}
+		return (*mm_results).err
+	}
+	if mmWaitForPostgresPrivateEndpoint.funcWaitForPostgresPrivateEndpoint != nil {
+		return mmWaitForPostgresPrivateEndpoint.funcWaitForPostgresPrivateEndpoint(ctx, postgresId, done, maxWaitSeconds)
+	}
+	mmWaitForPostgresPrivateEndpoint.t.Fatalf("Unexpected call to ClientMock.WaitForPostgresPrivateEndpoint. %v %v %v %v", ctx, postgresId, done, maxWaitSeconds)
+	return
+}
+
+// WaitForPostgresPrivateEndpointAfterCounter returns a count of finished ClientMock.WaitForPostgresPrivateEndpoint invocations
+func (mmWaitForPostgresPrivateEndpoint *ClientMock) WaitForPostgresPrivateEndpointAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresPrivateEndpoint.afterWaitForPostgresPrivateEndpointCounter)
+}
+
+// WaitForPostgresPrivateEndpointBeforeCounter returns a count of ClientMock.WaitForPostgresPrivateEndpoint invocations
+func (mmWaitForPostgresPrivateEndpoint *ClientMock) WaitForPostgresPrivateEndpointBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmWaitForPostgresPrivateEndpoint.beforeWaitForPostgresPrivateEndpointCounter)
+}
+
+// Calls returns a list of arguments used in each call to ClientMock.WaitForPostgresPrivateEndpoint.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmWaitForPostgresPrivateEndpoint *mClientMockWaitForPostgresPrivateEndpoint) Calls() []*ClientMockWaitForPostgresPrivateEndpointParams {
+	mmWaitForPostgresPrivateEndpoint.mutex.RLock()
+
+	argCopy := make([]*ClientMockWaitForPostgresPrivateEndpointParams, len(mmWaitForPostgresPrivateEndpoint.callArgs))
+	copy(argCopy, mmWaitForPostgresPrivateEndpoint.callArgs)
+
+	mmWaitForPostgresPrivateEndpoint.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockWaitForPostgresPrivateEndpointDone returns true if the count of the WaitForPostgresPrivateEndpoint invocations corresponds
+// the number of defined expectations
+func (m *ClientMock) MinimockWaitForPostgresPrivateEndpointDone() bool {
+	if m.WaitForPostgresPrivateEndpointMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.WaitForPostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.WaitForPostgresPrivateEndpointMock.invocationsDone()
+}
+
+// MinimockWaitForPostgresPrivateEndpointInspect logs each unmet expectation
+func (m *ClientMock) MinimockWaitForPostgresPrivateEndpointInspect() {
+	for _, e := range m.WaitForPostgresPrivateEndpointMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresPrivateEndpoint at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterWaitForPostgresPrivateEndpointCounter := mm_atomic.LoadUint64(&m.afterWaitForPostgresPrivateEndpointCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.WaitForPostgresPrivateEndpointMock.defaultExpectation != nil && afterWaitForPostgresPrivateEndpointCounter < 1 {
+		if m.WaitForPostgresPrivateEndpointMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresPrivateEndpoint at\n%s", m.WaitForPostgresPrivateEndpointMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to ClientMock.WaitForPostgresPrivateEndpoint at\n%s with params: %#v", m.WaitForPostgresPrivateEndpointMock.defaultExpectation.expectationOrigins.origin, *m.WaitForPostgresPrivateEndpointMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcWaitForPostgresPrivateEndpoint != nil && afterWaitForPostgresPrivateEndpointCounter < 1 {
+		m.t.Errorf("Expected call to ClientMock.WaitForPostgresPrivateEndpoint at\n%s", m.funcWaitForPostgresPrivateEndpointOrigin)
+	}
+
+	if !m.WaitForPostgresPrivateEndpointMock.invocationsDone() && afterWaitForPostgresPrivateEndpointCounter > 0 {
+		m.t.Errorf("Expected %d calls to ClientMock.WaitForPostgresPrivateEndpoint at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.WaitForPostgresPrivateEndpointMock.expectedInvocations), m.WaitForPostgresPrivateEndpointMock.expectedInvocationsOrigin, afterWaitForPostgresPrivateEndpointCounter)
+	}
+}
+
 type mClientMockWaitForPostgresState struct {
 	optional           bool
 	mock               *ClientMock
@@ -44744,6 +46631,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockCreatePostgresInspect()
 
+			m.MinimockCreatePostgresPrivateEndpointInspect()
+
 			m.MinimockCreatePostgresReadReplicaInspect()
 
 			m.MinimockCreateQueryAPIEndpointInspect()
@@ -44775,6 +46664,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockDeleteJWTProviderInspect()
 
 			m.MinimockDeletePostgresInspect()
+
+			m.MinimockDeletePostgresPrivateEndpointInspect()
 
 			m.MinimockDeleteQueryAPIEndpointInspect()
 
@@ -44837,6 +46728,8 @@ func (m *ClientMock) MinimockFinish() {
 			m.MinimockGetPostgresCaCertificatesInspect()
 
 			m.MinimockGetPostgresConfigInspect()
+
+			m.MinimockGetPostgresPrivateEndpointInspect()
 
 			m.MinimockGetQueryAPIEndpointInspect()
 
@@ -44924,6 +46817,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockUpdatePostgresInspect()
 
+			m.MinimockUpdatePostgresPrivateEndpointInspect()
+
 			m.MinimockUpdateQueryAPIEndpointInspect()
 
 			m.MinimockUpdateReplicaAwareRoutingInspect()
@@ -44962,6 +46857,8 @@ func (m *ClientMock) MinimockFinish() {
 
 			m.MinimockWaitForPostgresMatchInspect()
 
+			m.MinimockWaitForPostgresPrivateEndpointInspect()
+
 			m.MinimockWaitForPostgresStateInspect()
 
 			m.MinimockWaitForReversePrivateEndpointStateInspect()
@@ -44999,6 +46896,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockCreateClickPipeDone() &&
 		m.MinimockCreateJWTProviderDone() &&
 		m.MinimockCreatePostgresDone() &&
+		m.MinimockCreatePostgresPrivateEndpointDone() &&
 		m.MinimockCreatePostgresReadReplicaDone() &&
 		m.MinimockCreateQueryAPIEndpointDone() &&
 		m.MinimockCreateQueryEndpointDone() &&
@@ -45015,6 +46913,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockDeleteClickPipeDone() &&
 		m.MinimockDeleteJWTProviderDone() &&
 		m.MinimockDeletePostgresDone() &&
+		m.MinimockDeletePostgresPrivateEndpointDone() &&
 		m.MinimockDeleteQueryAPIEndpointDone() &&
 		m.MinimockDeleteQueryEndpointDone() &&
 		m.MinimockDeleteReversePrivateEndpointDone() &&
@@ -45046,6 +46945,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockGetPostgresDone() &&
 		m.MinimockGetPostgresCaCertificatesDone() &&
 		m.MinimockGetPostgresConfigDone() &&
+		m.MinimockGetPostgresPrivateEndpointDone() &&
 		m.MinimockGetQueryAPIEndpointDone() &&
 		m.MinimockGetQueryEndpointDone() &&
 		m.MinimockGetReplicaAwareRoutingDone() &&
@@ -45089,6 +46989,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockUpdateOrganizationDone() &&
 		m.MinimockUpdateOrganizationPrivateEndpointsDone() &&
 		m.MinimockUpdatePostgresDone() &&
+		m.MinimockUpdatePostgresPrivateEndpointDone() &&
 		m.MinimockUpdateQueryAPIEndpointDone() &&
 		m.MinimockUpdateReplicaAwareRoutingDone() &&
 		m.MinimockUpdateReplicaScalingDone() &&
@@ -45108,6 +47009,7 @@ func (m *ClientMock) minimockDone() bool {
 		m.MinimockWaitForClickPipeStateDone() &&
 		m.MinimockWaitForClickPipesGCPWorkloadIdentityDone() &&
 		m.MinimockWaitForPostgresMatchDone() &&
+		m.MinimockWaitForPostgresPrivateEndpointDone() &&
 		m.MinimockWaitForPostgresStateDone() &&
 		m.MinimockWaitForReversePrivateEndpointStateDone() &&
 		m.MinimockWaitForServiceStateDone() &&
