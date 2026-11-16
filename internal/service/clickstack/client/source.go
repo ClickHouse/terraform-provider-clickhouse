@@ -126,6 +126,7 @@ type Source struct {
 	ImplicitColumnExpression          *string `json:"implicitColumnExpression,omitempty"`
 	KnownColumnsListExpression        *string `json:"knownColumnsListExpression,omitempty"`
 	OrderByExpression                 *string `json:"orderByExpression,omitempty"`
+	RowKeyExpression                  *string `json:"rowKeyExpression,omitempty"`
 	UseTextIndexForImplicitColumn     *string `json:"useTextIndexForImplicitColumn,omitempty"`
 
 	DurationExpression        *string `json:"durationExpression,omitempty"`
