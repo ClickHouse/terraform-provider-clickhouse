@@ -83,7 +83,7 @@ resource "clickhouse_clickstack_source" "logs" {
 
 ### Optional
 
-- `hyperdx_setting_prefix` (String) Prefix for HyperDX-specific ClickHouse settings. Must only contain alphanumeric characters and underscores.
+- `hyperdx_setting_prefix` (String) Prefix for ClickStack-specific ClickHouse settings. Must only contain alphanumeric characters and underscores.
 - `is_prometheus_endpoint` (Boolean) When true, `host` is a Prometheus-compatible API endpoint (e.g. Prometheus or Thanos) and PromQL sources on this connection proxy their queries to it. Such a connection serves only `promql` sources. Defaults to false, where `host` is a ClickHouse HTTP endpoint.
 - `password` (String, Sensitive) ClickHouse password. The API never returns the password, so drift in this attribute cannot be detected. After import, the next apply re-sends the configured password. Ignored when `is_prometheus_endpoint` is true.
 - `team` (String) Team ID to manage this connection under, sent as the `x-hdx-team` header. Defaults to the API key's team. Only honored by multi-team (EE) deployments, which validate the API key's membership in the team; single-team (OSS) deployments ignore it. Changing this forces the connection to be replaced, since a connection ID is scoped to a single team.

@@ -25,6 +25,43 @@ func TestIsForbidden(t *testing.T) {
 	}
 }
 
+func TestIsDeletionProtected(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{
+			name: "409 for a protected service",
+			err:  errors.New(`status: 409, body: {"error":"CONFLICT: Deletion protection is enabled for this service. Turn it off before deleting the service.","status":409}`),
+			want: true,
+		},
+		{
+			name: "409 for a protected service with different casing",
+			err:  errors.New(`status: 409, body: {"error":"CONFLICT: deletion protection is enabled for this service.","status":409}`),
+			want: true,
+		},
+		{
+			name: "409 for a service still transitioning",
+			err:  errors.New(`status: 409, body: {"error":"CONFLICT: Service is not stopped","status":409}`),
+			want: false,
+		},
+		{
+			name: "non-409 mentioning deletion protection",
+			err:  errors.New("status: 400, body: Deletion protection is enabled"),
+			want: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsDeletionProtected(tc.err); got != tc.want {
+				t.Errorf("IsDeletionProtected(%v) = %v; want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestIsServiceIdle(t *testing.T) {
 	cases := []struct {
 		name string

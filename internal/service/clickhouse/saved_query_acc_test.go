@@ -44,7 +44,7 @@ func TestAccSavedQueryResource(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccClickHousePreCheck(t) },
+		PreCheck:                 func() { testAccClickHousePreCheck(t, "CLICKHOUSE_TEST_SERVICE_ID") },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{

@@ -23,6 +23,8 @@ type Client interface {
 	DeleteByocInfrastructure(ctx context.Context, byocId string) error
 	GetByocInfrastructureTags(ctx context.Context, byocId string) (map[string]string, error)
 	GetByocInfrastructurePrivateEndpointConfig(ctx context.Context, byocId string) (*ByocInfrastructurePrivateEndpointConfig, error)
+	GetByocInfrastructureCustomerAuthorizedAccess(ctx context.Context, byocId string) (*ByocInfrastructureCustomerAuthorizedAccess, error)
+	UpdateByocInfrastructureCustomerAuthorizedAccess(ctx context.Context, byocId string, r ByocInfrastructureCustomerAuthorizedAccessUpdateRequest) (*ByocInfrastructureCustomerAuthorizedAccess, error)
 	WaitForByocInfrastructureState(ctx context.Context, byocId string, stateChecker func(string) bool, maxWaitSeconds int) error
 	GetOrgPrivateEndpointConfig(ctx context.Context, cloudProvider string, region string) (*OrgPrivateEndpointConfig, error)
 	CreateService(ctx context.Context, s Service) (*Service, string, error)
@@ -110,6 +112,10 @@ type Client interface {
 
 	ListMembers(ctx context.Context) ([]Member, error)
 	GetMember(ctx context.Context, userID string) (*Member, error)
+
+	ListMemberNotificationSettings(ctx context.Context, userID string) ([]NotificationSetting, error)
+	UpdateMemberNotificationSettings(ctx context.Context, userID string, rules []NotificationSettingRule) ([]NotificationSetting, error)
+	ListNotificationTypes(ctx context.Context) ([]NotificationType, error)
 
 	ListRoles(ctx context.Context) ([]RBACRole, error)
 	GetRole(ctx context.Context, roleId string) (*RBACRole, error)

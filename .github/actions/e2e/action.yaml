@@ -401,7 +401,9 @@ runs:
     - shell: bash
       name: Terraform import test
       # Opt-in: runs the example's own e2e-import.sh, which re-imports what the
-      # apply created and checks the imported state is usable. Most of the bugs
+      # apply created and checks the imported state is usable. An example may run
+      # other post-apply checks there too (deletion_protection checks that a
+      # destroy is refused). Most of the bugs
       # the ClickStack resources have shipped were import bugs, and nothing else
       # in this workflow touches the import path.
       #

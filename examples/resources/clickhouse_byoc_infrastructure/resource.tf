@@ -19,6 +19,14 @@ resource "clickhouse_byoc_infrastructure" "example" {
   tags = {
     environment = "production"
   }
+
+  # Optional: allow ClickHouse personnel access only during a 4 hour window.
+  # Omit the block to leave the setting unmanaged; set enabled = false to deny.
+  customer_authorized_access = {
+    enabled          = true
+    duration_seconds = 14400
+    start_timestamp  = "2026-06-01T12:00:00Z"
+  }
 }
 
 # Deploy a service into the BYOC infrastructure once it is ready.

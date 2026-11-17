@@ -41,6 +41,7 @@ output "service_endpoints" {
 - `cloud_provider` (String) Cloud provider hosting the service ('aws', 'gcp', or 'azure').
 - `compliance_type` (String) Compliance regime the service was created under, if any (e.g. 'hipaa', 'pci').
 - `created_at` (String) RFC3339 creation timestamp.
+- `deletion_protection` (Boolean) Whether the service is protected from deletion. `false` and unset both mean it is not protected; ClickHouse Cloud leaves the field out for an unprotected service when the feature is not enabled for the organization.
 - `enable_core_dumps` (Boolean) Whether core dumps are enabled for debugging.
 - `encryption_assumed_role_identifier` (String) IAM role assumed to use the customer-managed encryption key, if any.
 - `encryption_key` (String) Customer-managed encryption key (CMK) protecting the service, if any.
@@ -61,7 +62,7 @@ output "service_endpoints" {
 - `name` (String) Human-readable name of the service.
 - `num_replicas` (Number) Number of replicas.
 - `private_endpoint_ids` (List of String) IDs of private endpoints attached to the service.
-- `profile` (String) Custom instance profile of the service, if any (e.g. a dynamic BYOC profile such as 'v1-standard-byoc-4').
+- `profile` (String) Custom instance profile of the service, if any (e.g. a dynamic BYOC profile such as 'v1-standard-byoc-4', or 'v2-default' for a Gen 2 hardware service).
 - `readonly` (Boolean) Whether the service is read-only.
 - `region` (String) Cloud region the service runs in.
 - `release_channel` (String) Release channel ('default' or 'fast').

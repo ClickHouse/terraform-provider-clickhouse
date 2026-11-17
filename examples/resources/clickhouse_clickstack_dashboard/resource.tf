@@ -1,4 +1,4 @@
-# This Terraform resource maps directly to the HyperDX v2 API dashboard body.
+# This Terraform resource maps directly to the ClickStack v2 API dashboard body.
 # You can obtain an existing dashboard's JSON from GET /api/v2/dashboards/{id},
 # or let Terraform import it with: terraform import clickhouse_clickstack_dashboard.<name> <id>
 

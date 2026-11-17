@@ -45,6 +45,7 @@ func TestSourceModel_RoundTrip(t *testing.T) {
 		ParentSpanIDExpression:       ptr("ParentSpanId"),
 		SpanNameExpression:           ptr("SpanName"),
 		SpanKindExpression:           ptr("SpanKind"),
+		RowKeyExpression:             ptr("Timestamp, ServiceName"),
 		MetricTables:                 &client.MetricTables{Gauge: ptr("g"), ExponentialHistogram: ptr("eh")},
 		MinAutoGranularity:           ptr("1 minute"),
 		HighlightedTraceAttributeExpressions: []client.HighlightedAttributeExpression{
@@ -102,6 +103,7 @@ func TestSourceResource_Schema(t *testing.T) {
 		"id", "team", "name", "kind", "connection_id", "from",
 		"timestamp_value_expression", "duration_precision", "metric_tables",
 		"min_auto_granularity", "materialized_views", "query_settings", "filter_settings",
+		"row_key_expression",
 	} {
 		if _, ok := resp.Schema.Attributes[attr]; !ok {
 			t.Errorf("expected resource schema to contain attribute %q", attr)

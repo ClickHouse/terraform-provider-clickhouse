@@ -11,7 +11,6 @@ import (
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickstack/client"
-	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -108,7 +107,6 @@ func (d *sourceDataSource) Configure(_ context.Context, req datasource.Configure
 }
 
 func (d *sourceDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	utils.BetaWarning("clickhouse_clickstack_source", &resp.Diagnostics)
 	var config sourceDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {

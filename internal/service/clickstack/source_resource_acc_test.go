@@ -9,7 +9,7 @@ import (
 
 // TestAccSourceResource exercises the full CRUD + import lifecycle against a
 // real ClickStack API. It requires TF_ACC, CLICKSTACK_API_KEY, and
-// CLICKSTACK_ENDPOINT (e.g. http://localhost:8000 for a local HyperDX). The
+// CLICKSTACK_ENDPOINT (e.g. http://localhost:8000 for a local ClickStack). The
 // config includes a nested list block (query_settings and a highlighted
 // attribute expression) so the ImportStateVerify step round-trips the nested
 // mappers, not just the scalar fields. Cross-kind mapping fidelity is covered
@@ -56,7 +56,7 @@ func TestAccSourceResource(t *testing.T) {
 // TestAccSourceResource_Promql covers min_auto_granularity on a promql source:
 // set, removed (the PUT is a full replace, so omitting it clears it), set again,
 // then imported so the value round-trips through Read. It needs
-// ENABLE_PROMQL=true on the API. HyperDX doesn't check that the TimeSeries table
+// ENABLE_PROMQL=true on the API. ClickStack doesn't check that the TimeSeries table
 // exists when saving.
 func TestAccSourceResource_Promql(t *testing.T) {
 	const res = "clickhouse_clickstack_source.test"

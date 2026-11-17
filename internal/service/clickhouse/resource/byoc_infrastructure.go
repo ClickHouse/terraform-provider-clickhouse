@@ -480,6 +480,7 @@ func (r *ByocInfrastructureResource) Schema(_ context.Context, _ resource.Schema
 				Description: "Skip the preflight cloud permission validation before creating. Defaults to false.",
 				Optional:    true,
 			},
+			"customer_authorized_access": byocCustomerAuthorizedAccessSchema(),
 		},
 	}
 }
@@ -495,6 +496,7 @@ func (r *ByocInfrastructureResource) ValidateConfig(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	byocValidateCustomerAccess(ctx, config.CustomerAuthorizedAccess, &resp.Diagnostics)
 	if config.GcpPscSubnetID.IsNull() || config.GcpPscSubnetID.IsUnknown() || config.EnablePrivateLink.IsUnknown() {
 		return
 	}
@@ -626,8 +628,14 @@ func (r *ByocInfrastructureResource) Create(ctx context.Context, req resource.Cr
 		}
 	}
 
+	customerAccess, ok := r.applyByocCustomerAccess(ctx, infra.Id, planned.CustomerAuthorizedAccess, &resp.Diagnostics)
+	if !ok {
+		return
+	}
+
 	// Persist state even when this refresh fails: the pre-wait snapshot
 	// (infra-provisioning, pre-patch toggles) must not outlive the create.
+	plan.CustomerAuthorizedAccess = customerAccess
 	if !r.syncByocResourceState(ctx, infra.Id, &plan, &resp.Diagnostics) {
 		plan.State = types.StringValue(details.State)
 		if patch.EnablePrivateLink != nil {
@@ -679,7 +687,57 @@ func (r *ByocInfrastructureResource) Read(ctx context.Context, req resource.Read
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.refreshByocCustomerAccess(ctx, state.ID.ValueString(), &state, &resp.Diagnostics) {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+// applyByocCustomerAccess sends the configured customer-authorized access
+// setting and returns the value to store. A null or unknown plan leaves the
+// setting untouched: the block is opt-in and removing it is not a reset.
+func (r *ByocInfrastructureResource) applyByocCustomerAccess(ctx context.Context, byocId string, planned types.Object, diags *diag.Diagnostics) (types.Object, bool) {
+	if !isKnown(planned) {
+		return types.ObjectNull(byocCustomerAccessAttrTypes()), true
+	}
+	request, d := byocCustomerAccessRequestFromObject(ctx, planned)
+	diags.Append(d...)
+	if d.HasError() {
+		return planned, false
+	}
+	access, err := r.client.UpdateByocInfrastructureCustomerAuthorizedAccess(ctx, byocId, request)
+	if err != nil {
+		diags.AddAttributeError(path.Root("customer_authorized_access"), "Error updating BYOC infrastructure customer-authorized access", err.Error())
+		return planned, false
+	}
+	obj, d := byocCustomerAccessObjectFromAPI(ctx, access, planned)
+	diags.Append(d...)
+	return obj, !d.HasError()
+}
+
+// refreshByocCustomerAccess re-reads the setting only while it is managed
+// (non-null in state): unmanaged infrastructures must not start tracking it,
+// and a 404 (feature not enabled for the organization) keeps the prior value.
+func (r *ByocInfrastructureResource) refreshByocCustomerAccess(ctx context.Context, byocId string, model *models.ByocInfrastructureResourceModel, diags *diag.Diagnostics) bool {
+	if !isKnown(model.CustomerAuthorizedAccess) {
+		return true
+	}
+	access, err := r.client.GetByocInfrastructureCustomerAuthorizedAccess(ctx, byocId)
+	if err != nil {
+		if api.IsNotFound(err) {
+			diags.AddWarning("Could not refresh BYOC infrastructure customer-authorized access", fmt.Sprintf("Customer-authorized access is not available for BYOC infrastructure %s; keeping the last applied value.", byocId))
+			return true
+		}
+		diags.AddError("Error reading BYOC infrastructure customer-authorized access", err.Error())
+		return false
+	}
+	obj, d := byocCustomerAccessObjectFromAPI(ctx, access, model.CustomerAuthorizedAccess)
+	diags.Append(d...)
+	if d.HasError() {
+		return false
+	}
+	model.CustomerAuthorizedAccess = obj
+	return true
 }
 
 func (r *ByocInfrastructureResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -703,6 +761,14 @@ func (r *ByocInfrastructureResource) Update(ctx context.Context, req resource.Up
 			resp.Diagnostics.AddError("Error updating BYOC infrastructure", err.Error())
 			return
 		}
+	}
+
+	if isKnown(plan.CustomerAuthorizedAccess) && !plan.CustomerAuthorizedAccess.Equal(state.CustomerAuthorizedAccess) {
+		customerAccess, ok := r.applyByocCustomerAccess(ctx, state.ID.ValueString(), plan.CustomerAuthorizedAccess, &resp.Diagnostics)
+		if !ok {
+			return
+		}
+		plan.CustomerAuthorizedAccess = customerAccess
 	}
 
 	// Persist the plan even when the refresh fails: returning without state
@@ -765,6 +831,9 @@ func resolveUnknownComputedFromState(plan, state *models.ByocInfrastructureResou
 	}
 	if plan.IsByoVpc.IsUnknown() {
 		plan.IsByoVpc = state.IsByoVpc
+	}
+	if plan.CustomerAuthorizedAccess.IsUnknown() {
+		plan.CustomerAuthorizedAccess = state.CustomerAuthorizedAccess
 	}
 }
 
@@ -901,6 +970,9 @@ func applyByocSummaryFallback(infra *api.ByocInfrastructure, model *models.ByocI
 	}
 	if model.IsByoVpc.IsUnknown() {
 		model.IsByoVpc = types.BoolNull()
+	}
+	if model.CustomerAuthorizedAccess.IsUnknown() {
+		model.CustomerAuthorizedAccess = types.ObjectNull(byocCustomerAccessAttrTypes())
 	}
 }
 

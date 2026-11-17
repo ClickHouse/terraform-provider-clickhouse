@@ -75,6 +75,7 @@ func serviceObjectType() types.ObjectType {
 		"transparent_data_encryption_key_id": types.StringType,
 		"encryption_role_id":                 types.StringType,
 		"enable_core_dumps":                  types.BoolType,
+		"deletion_protection":                types.BoolType,
 		"endpoints":                          types.ListType{ElemType: endpointObjectType()},
 		"tags":                               types.MapType{ElemType: types.StringType},
 	}}
@@ -206,6 +207,7 @@ func serviceToObjectValue(ctx context.Context, svc api.Service) (types.Object, d
 		"transparent_data_encryption_key_id": strOrNull(svc.TransparentEncryptionDataKeyID),
 		"encryption_role_id":                 strOrNull(svc.EncryptionRoleID),
 		"enable_core_dumps":                  boolPtrOrNull(svc.EnableCoreDumps),
+		"deletion_protection":                boolPtrOrNull(svc.DeletionProtection),
 		"endpoints":                          endpoints,
 		"tags":                               tags,
 	})
@@ -221,7 +223,7 @@ func serviceComputedAttributes() map[string]schema.Attribute {
 		"cloud_provider":        schema.StringAttribute{Description: "Cloud provider hosting the service ('aws', 'gcp', or 'azure').", Computed: true},
 		"region":                schema.StringAttribute{Description: "Cloud region the service runs in.", Computed: true},
 		"tier":                  schema.StringAttribute{Description: "Service tier.", Computed: true},
-		"profile":               schema.StringAttribute{Description: "Custom instance profile of the service, if any (e.g. a dynamic BYOC profile such as 'v1-standard-byoc-4').", Computed: true},
+		"profile":               schema.StringAttribute{Description: "Custom instance profile of the service, if any (e.g. a dynamic BYOC profile such as 'v1-standard-byoc-4', or 'v2-default' for a Gen 2 hardware service).", Computed: true},
 		"state":                 schema.StringAttribute{Description: "Current service state (e.g. 'running', 'idle', 'stopped').", Computed: true},
 		"clickhouse_version":    schema.StringAttribute{Description: "ClickHouse version running on the service.", Computed: true},
 		"created_at":            schema.StringAttribute{Description: "RFC3339 creation timestamp.", Computed: true},
@@ -255,6 +257,7 @@ func serviceComputedAttributes() map[string]schema.Attribute {
 		"transparent_data_encryption_key_id": schema.StringAttribute{Description: "Key ID used for Transparent Data Encryption, if enabled.", Computed: true},
 		"encryption_role_id":                 schema.StringAttribute{Description: "Role ID used for encryption, if any.", Computed: true},
 		"enable_core_dumps":                  schema.BoolAttribute{Description: "Whether core dumps are enabled for debugging.", Computed: true},
+		"deletion_protection":                schema.BoolAttribute{Description: "Whether the service is protected from deletion. `false` and unset both mean it is not protected; ClickHouse Cloud leaves the field out for an unprotected service when the feature is not enabled for the organization.", Computed: true},
 		"endpoints": schema.ListNestedAttribute{Description: "Network endpoints exposed by the service.", Computed: true, NestedObject: schema.NestedAttributeObject{
 			Attributes: map[string]schema.Attribute{
 				"protocol": schema.StringAttribute{Description: "Endpoint protocol (e.g. 'nativesecure', 'https', 'mysql').", Computed: true},
@@ -351,6 +354,7 @@ type serviceDataSourceModel struct {
 	TransparentDataEncryptionKeyID types.String `tfsdk:"transparent_data_encryption_key_id"`
 	EncryptionRoleID               types.String `tfsdk:"encryption_role_id"`
 	EnableCoreDumps                types.Bool   `tfsdk:"enable_core_dumps"`
+	DeletionProtection             types.Bool   `tfsdk:"deletion_protection"`
 	Endpoints                      types.List   `tfsdk:"endpoints"`
 	Tags                           types.Map    `tfsdk:"tags"`
 }
