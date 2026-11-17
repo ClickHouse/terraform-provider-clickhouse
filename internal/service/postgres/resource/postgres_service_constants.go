@@ -9,6 +9,7 @@ var postgresCloudProviders = []string{
 }
 
 var postgresVersions = []string{
+	"19",
 	"18",
 	"17",
 }
