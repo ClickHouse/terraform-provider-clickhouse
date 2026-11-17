@@ -389,7 +389,7 @@ Required:
 
 Optional:
 
-- `authentication` (String) Authentication method for the MongoDB connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`. `IAM_ROLE` is supported for Amazon DocumentDB on an AWS ClickHouse service only, and is in Private Preview. Can be changed in place; switching to `basic` requires `credentials` with a password.
+- `authentication` (String) Authentication method for the MongoDB connection. Supported values: `basic`, `IAM_ROLE`. Default is `basic`. `IAM_ROLE` is supported for Amazon DocumentDB on an AWS ClickHouse service only. Can be changed in place; switching to `basic` requires `credentials` with a password.
 - `ca_certificate` (String) PEM encoded CA certificate to validate the MongoDB server certificate.
 - `credentials` (Attributes, Sensitive) The credentials for the MongoDB instance (username and password). Optional if credentials are embedded in the URI. Must be omitted with `IAM_ROLE` authentication. (see [below for nested schema](#nestedatt--source--mongodb--credentials))
 - `disable_tls` (Boolean) Disable TLS for the MongoDB connection. Defaults to false (TLS enabled).

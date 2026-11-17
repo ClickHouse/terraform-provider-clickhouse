@@ -1890,7 +1890,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 							},
 							"authentication": schema.StringAttribute{
 								MarkdownDescription: fmt.Sprintf(
-									"Authentication method for the MongoDB connection. Supported values: %s. Default is `basic`. `IAM_ROLE` is supported for Amazon DocumentDB on an AWS ClickHouse service only, and is in Private Preview. Can be changed in place; switching to `basic` requires `credentials` with a password.",
+									"Authentication method for the MongoDB connection. Supported values: %s. Default is `basic`. `IAM_ROLE` is supported for Amazon DocumentDB on an AWS ClickHouse service only. Can be changed in place; switching to `basic` requires `credentials` with a password.",
 									wrapStringsWithBackticksAndJoinCommaSeparated(api.ClickPipeMongoDBAuthenticationMethods),
 								),
 								Optional: true,
@@ -4387,7 +4387,7 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 		} else if !mongodbModel.IAMRole.IsNull() {
 			diagnostics.AddError(
 				"Invalid attribute combination",
-				"IAM role should not be set when authentication is set to 'basic'.",
+				"IAM role is only allowed when authentication is set to 'IAM_ROLE'.",
 			)
 		}
 
@@ -6289,7 +6289,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				}
 				// An IAM pipe has no stored password to fall back on.
 				if authChanged && stateMongoDBModel.Authentication.ValueString() == api.ClickPipeAuthenticationIAMRole &&
-					planMongoDBModel.Authentication.ValueString() != api.ClickPipeAuthenticationIAMRole &&
+					planMongoDBModel.Authentication.ValueString() == api.ClickPipeAuthenticationBasic &&
 					(source.MongoDB == nil || source.MongoDB.Credentials == nil || source.MongoDB.Credentials.Password == "") {
 					response.Diagnostics.AddError(
 						"Missing required attribute",
