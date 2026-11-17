@@ -80,7 +80,7 @@ func TestCreateConnection(t *testing.T) {
 		_, _ = io.WriteString(w, `{"data":{"id":"abc123","name":"Test","host":"http://ch:8123","username":"default"}}`)
 	})
 
-	conn, err := c.CreateConnection(context.Background(), CreateConnectionInput{
+	conn, _, err := c.CreateConnection(context.Background(), CreateConnectionInput{
 		Name:                 "Test",
 		Host:                 "http://ch:8123",
 		Username:             "default",
@@ -115,6 +115,9 @@ func TestGetConnection(t *testing.T) {
 	}
 	if conn.IsPrometheusEndpoint != nil {
 		t.Errorf("expected absent isPrometheusEndpoint to decode as nil, got %v", *conn.IsPrometheusEndpoint)
+	}
+	if conn.AgentClickhouseRoleName != nil {
+		t.Errorf("expected absent agentClickhouseRoleName to decode as nil, got %q", *conn.AgentClickhouseRoleName)
 	}
 }
 
@@ -197,12 +200,17 @@ func TestUpdateConnection_NullSemantics(t *testing.T) {
 		if string(body["isPrometheusEndpoint"]) != "false" {
 			t.Errorf("expected isPrometheusEndpoint false, got %s", body["isPrometheusEndpoint"])
 		}
+		// nil agent role must be omitted (keep existing), so servers that do
+		// not know the field never see it.
+		if _, ok := body["agentClickhouseRoleName"]; ok {
+			t.Errorf("expected nil agentClickhouseRoleName to be omitted, got %s", body["agentClickhouseRoleName"])
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"data":{"id":"abc123","name":"Renamed","host":"http://ch:8123","username":"default"}}`)
 	})
 
-	conn, err := c.UpdateConnection(context.Background(), "abc123", UpdateConnectionInput{
+	conn, _, err := c.UpdateConnection(context.Background(), "abc123", UpdateConnectionInput{
 		Name:     "Renamed",
 		Host:     "http://ch:8123",
 		Username: "default",
@@ -215,6 +223,123 @@ func TestUpdateConnection_NullSemantics(t *testing.T) {
 	}
 }
 
+func TestCreateConnection_AgentRole(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		role     *string
+		wantSent string // "" means the field must be omitted
+	}{
+		"unset is omitted": {nil, ""},
+		"set is sent":      {strPtr("agent_ro"), `"agent_ro"`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				var body map[string]json.RawMessage
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatalf("decode request body: %v", err)
+				}
+				got, ok := body["agentClickhouseRoleName"]
+				if tc.wantSent == "" && ok {
+					t.Errorf("expected agentClickhouseRoleName omitted, got %s", got)
+				}
+				if tc.wantSent != "" && string(got) != tc.wantSent {
+					t.Errorf("agentClickhouseRoleName=%s, want %s", got, tc.wantSent)
+				}
+				_, _ = io.WriteString(w, `{"data":{"id":"abc123"}}`)
+			})
+
+			if _, _, err := c.CreateConnection(context.Background(), CreateConnectionInput{AgentClickhouseRoleName: tc.role}); err != nil {
+				t.Fatalf("CreateConnection: %v", err)
+			}
+		})
+	}
+}
+
+func TestUpdateConnection_AgentRole(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		role     *string
+		wantSent string // "" means the field must be omitted
+	}{
+		"nil keeps existing (omitted)": {nil, ""},
+		"empty clears":                 {strPtr(""), `""`},
+		"set is sent":                  {strPtr("agent_ro"), `"agent_ro"`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				var body map[string]json.RawMessage
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatalf("decode request body: %v", err)
+				}
+				got, ok := body["agentClickhouseRoleName"]
+				if tc.wantSent == "" && ok {
+					t.Errorf("expected agentClickhouseRoleName omitted, got %s", got)
+				}
+				if tc.wantSent != "" && string(got) != tc.wantSent {
+					t.Errorf("agentClickhouseRoleName=%s, want %s", got, tc.wantSent)
+				}
+				_, _ = io.WriteString(w, `{"data":{"id":"abc123"}}`)
+			})
+
+			if _, _, err := c.UpdateConnection(context.Background(), "abc123", UpdateConnectionInput{AgentClickhouseRoleName: tc.role}); err != nil {
+				t.Fatalf("UpdateConnection: %v", err)
+			}
+		})
+	}
+}
+
+// The API attaches a top-level warning next to data when the agent role is
+// not granted to the connection user; the save still succeeds.
+func TestConnectionWrite_Warning(t *testing.T) {
+	t.Parallel()
+
+	const resp = `{"data":{"id":"abc123","agentClickhouseRoleName":"agent_ro"},"warning":"role agent_ro is not granted to user default"}`
+	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, resp)
+	})
+
+	conn, warning, err := c.CreateConnection(context.Background(), CreateConnectionInput{})
+	if err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	if warning != "role agent_ro is not granted to user default" {
+		t.Errorf("create warning=%q", warning)
+	}
+	if conn.AgentClickhouseRoleName == nil || *conn.AgentClickhouseRoleName != "agent_ro" {
+		t.Errorf("expected agentClickhouseRoleName agent_ro, got %v", conn.AgentClickhouseRoleName)
+	}
+
+	_, warning, err = c.UpdateConnection(context.Background(), "abc123", UpdateConnectionInput{})
+	if err != nil {
+		t.Fatalf("UpdateConnection: %v", err)
+	}
+	if warning != "role agent_ro is not granted to user default" {
+		t.Errorf("update warning=%q", warning)
+	}
+}
+
+func TestConnectionWrite_NoWarning(t *testing.T) {
+	t.Parallel()
+
+	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"data":{"id":"abc123"}}`)
+	})
+
+	_, warning, err := c.CreateConnection(context.Background(), CreateConnectionInput{})
+	if err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	if warning != "" {
+		t.Errorf("expected no warning, got %q", warning)
+	}
+}
+
 func TestUpdateConnection_NotFound(t *testing.T) {
 	t.Parallel()
 
@@ -222,7 +347,7 @@ func TestUpdateConnection_NotFound(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 	})
 
-	_, err := c.UpdateConnection(context.Background(), "missing", UpdateConnectionInput{})
+	_, _, err := c.UpdateConnection(context.Background(), "missing", UpdateConnectionInput{})
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
@@ -289,7 +414,7 @@ func TestDo_APIErrorMessage(t *testing.T) {
 		_, _ = io.WriteString(w, `{"message":"Body validation failed: host: Required"}`)
 	})
 
-	_, err := c.CreateConnection(context.Background(), CreateConnectionInput{})
+	_, _, err := c.CreateConnection(context.Background(), CreateConnectionInput{})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -298,3 +423,5 @@ func TestDo_APIErrorMessage(t *testing.T) {
 		t.Errorf("expected error containing %q, got %q", want, got)
 	}
 }
+
+func strPtr(s string) *string { return &s }

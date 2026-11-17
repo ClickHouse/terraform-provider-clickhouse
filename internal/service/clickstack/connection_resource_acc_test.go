@@ -2,6 +2,7 @@ package clickstack_test
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -69,4 +70,50 @@ resource "clickhouse_clickstack_connection" "test" {
 		cfg += "  is_prometheus_endpoint = true\n"
 	}
 	return cfg + "}\n"
+}
+
+// TestAccConnectionResource_AgentRole sets, changes, imports and clears
+// agent_clickhouse_role_name. It needs an EE ClickStack and is skipped unless
+// CLICKSTACK_AGENT_ROLE names a ClickHouse role (a second role, granted or
+// not, is derived by suffixing "_alt"; an ungranted role only adds a warning).
+func TestAccConnectionResource_AgentRole(t *testing.T) {
+	role := os.Getenv("CLICKSTACK_AGENT_ROLE")
+	if role == "" {
+		t.Skip("CLICKSTACK_AGENT_ROLE must be set to run agent role acceptance tests against an EE ClickStack (skipping)")
+	}
+	const res = "clickhouse_clickstack_connection.test"
+	config := func(role string) string {
+		cfg := testAccConnectionResourceConfig("tf-acc-test-agent-role", "http://localhost:8123", "default", "", false)
+		if role == "" {
+			return cfg
+		}
+		return cfg[:len(cfg)-2] + fmt.Sprintf("  agent_clickhouse_role_name = %q\n}\n", role)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config(role),
+				Check:  resource.TestCheckResourceAttr(res, "agent_clickhouse_role_name", role),
+			},
+			{
+				Config: config(role + "_alt"),
+				Check:  resource.TestCheckResourceAttr(res, "agent_clickhouse_role_name", role+"_alt"),
+			},
+			{
+				ResourceName:            res,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"password"},
+			},
+			// Removing the attribute must clear the role server-side; the
+			// post-apply refresh and empty-plan check prove it stayed cleared.
+			{
+				Config: config(""),
+				Check:  resource.TestCheckNoResourceAttr(res, "agent_clickhouse_role_name"),
+			},
+		},
+	})
 }

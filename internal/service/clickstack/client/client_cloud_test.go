@@ -288,7 +288,7 @@ func TestCloudUnroutedPathSurfacesServerError(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	if _, err := c.CreateConnection(ctx, CreateConnectionInput{Name: "n"}); err == nil || errors.Is(err, ErrNotFound) {
+	if _, _, err := c.CreateConnection(ctx, CreateConnectionInput{Name: "n"}); err == nil || errors.Is(err, ErrNotFound) {
 		t.Errorf("create connection: expected hard error for unrouted path, got %v", err)
 	}
 	if err := c.DeleteSource(ctx, "s1"); err == nil || errors.Is(err, ErrNotFound) {

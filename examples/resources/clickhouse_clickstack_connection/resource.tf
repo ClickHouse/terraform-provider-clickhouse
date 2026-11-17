@@ -5,6 +5,22 @@ resource "clickhouse_clickstack_connection" "main" {
   password = var.clickhouse_password
 }
 
+# Restricting what AI agents can read on a connection. (Enterprise Only)
+#
+# Every query an AI agent runs on its own, in any of ClickStack's AI features,
+# runs under the ClickHouse role below, so the role's column and row access
+# policies are enforced by ClickHouse. The role must already exist and be
+# granted to the connection's username; if it is not, the connection is still
+# saved and apply shows the API's warning. Remove the attribute to clear the
+# role. OSS deployments ignore it.
+resource "clickhouse_clickstack_connection" "restricted_agents" {
+  name                       = "Production ClickHouse (agent-restricted)"
+  host                       = "https://clickhouse.example.com:8443"
+  username                   = "hyperdx"
+  password                   = var.clickhouse_password
+  agent_clickhouse_role_name = "hyperdx_agent_readonly"
+}
+
 # A Prometheus-compatible endpoint (e.g. Prometheus or Thanos). PromQL sources
 # on this connection proxy their queries to host. Username and password are
 # ignored; put any Basic auth credentials in the host URL.
