@@ -24,6 +24,7 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/provider"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres"
+	postgresresource "github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres/resource"
 )
 
 // Exercise Terraform's plan/apply/refresh/import consistency checks against
@@ -74,6 +75,22 @@ func (m *postgresIPMockAPI) normalize(rule api.PostgresIpAccess) api.PostgresIpA
 	return rule
 }
 
+// setHA mirrors the server's haType / standbyCount rules: an omitted count
+// keeps the current one while haType is unchanged, else takes the default.
+func (m *postgresIPMockAPI) setHA(haType string, standbyCount *int) {
+	if haType == "" {
+		haType = "none"
+	}
+	if standbyCount == nil && haType == m.pg.HaType {
+		return
+	}
+	if standbyCount == nil {
+		n := int(postgresresource.PostgresStandbyCounts[haType][0])
+		standbyCount = &n
+	}
+	m.pg.HaType, m.pg.StandbyCount = haType, standbyCount
+}
+
 func (m *postgresIPMockAPI) handle(w http.ResponseWriter, r *http.Request) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -92,11 +109,12 @@ func (m *postgresIPMockAPI) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		m.pg = &api.Postgres{
 			Id: "pg-test", Name: body.Name, Provider: body.Provider, Region: body.Region,
-			Size: body.Size, HaType: "none", PostgresVersion: "18", IsPrimary: true,
+			Size: body.Size, PostgresVersion: "18", IsPrimary: true,
 			State: "running", CreatedAt: "2026-10-01T00:00:00Z",
 			Hostname: "pg.example.test", Username: "postgres", Tags: body.Tags,
 			IpAccessList: make([]api.PostgresIpAccess, 0, len(rules)),
 		}
+		m.setHA(body.HaType, body.StandbyCount)
 		for _, rule := range rules {
 			m.pg.IpAccessList = append(m.pg.IpAccessList, m.normalize(rule))
 		}
@@ -136,6 +154,14 @@ func (m *postgresIPMockAPI) handle(w http.ResponseWriter, r *http.Request) {
 					require.NotEqual(m.t, -1, index, "unknown edit ID")
 					m.pg.IpAccessList[index] = m.normalize(add)
 				}
+			}
+		} else if body.HaType != "" {
+			m.patches++
+			m.setHA(body.HaType, body.StandbyCount)
+			// Omitted tags are cleared, as on the server.
+			m.pg.Tags = nil
+			if body.Tags != nil {
+				m.pg.Tags = *body.Tags
 			}
 		} else if body.Tags != nil {
 			m.pg.Tags = *body.Tags
