@@ -5,6 +5,9 @@ import (
 	_ "embed"
 	"fmt"
 	"regexp"
+	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
@@ -78,11 +81,69 @@ func (r *PostgresServiceResource) ValidateConfig(ctx context.Context, req resour
 			"Postgres on GCP is in private preview. Your organization must have access to GCP and the selected Postgres region. Contact ClickHouse support to request access.",
 		)
 	}
+	var haType types.String
+	var standbyCount types.Int64
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("ha_type"), &haType)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("standby_count"), &standbyCount)...)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(validateStandbyCount(haType, standbyCount)...)
+	}
 	var ipAccess types.List
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("ip_access"), &ipAccess)...)
 	if !resp.Diagnostics.HasError() {
 		resp.Diagnostics.Append(validatePostgresIPAccess(ipAccess)...)
 	}
+}
+
+// validateStandbyCount rejects a standby_count that ha_type does not accept.
+// Unknown (interpolated) values and unlisted ha_type values are left to their
+// own validators and the server.
+func validateStandbyCount(haType types.String, standbyCount types.Int64) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if haType.IsNull() || haType.IsUnknown() || standbyCount.IsNull() || standbyCount.IsUnknown() {
+		return diags
+	}
+	allowed, ok := PostgresStandbyCounts[haType.ValueString()]
+	if !ok || slices.Contains(allowed, standbyCount.ValueInt64()) {
+		return diags
+	}
+	supported := make([]string, len(allowed))
+	for i, n := range slices.Sorted(slices.Values(allowed)) {
+		supported[i] = strconv.FormatInt(n, 10)
+	}
+	diags.AddAttributeError(
+		path.Root("standby_count"),
+		"Unsupported standby_count for ha_type",
+		fmt.Sprintf("`standby_count` %d is not supported for `ha_type` %q. Supported values: %s.", standbyCount.ValueInt64(), haType.ValueString(), strings.Join(supported, ", ")),
+	)
+	return diags
+}
+
+// defaultStandbyCount returns the standby count the server assigns to haType
+// when none is requested, or unknown for an unknown or unlisted haType.
+func defaultStandbyCount(haType types.String) types.Int64 {
+	if counts, ok := PostgresStandbyCounts[haType.ValueString()]; ok && !haType.IsNull() && !haType.IsUnknown() {
+		return types.Int64Value(counts[0])
+	}
+	return types.Int64Unknown()
+}
+
+// planStandbyCount resolves standby_count when the config omits it: the prior
+// value while ha_type is unchanged, otherwise the default for the planned
+// ha_type, matching the server's PATCH behavior. state is nil on create. A
+// state written before standby_count existed has no prior value, so the count
+// stays unknown and the post-apply read fills it.
+func planStandbyCount(config, plan models.PostgresServiceResourceModel, state *models.PostgresServiceResourceModel) types.Int64 {
+	if !config.StandbyCount.IsNull() {
+		return plan.StandbyCount
+	}
+	if state != nil && plan.HaType.Equal(state.HaType) {
+		if state.StandbyCount.IsNull() {
+			return types.Int64Unknown()
+		}
+		return state.StandbyCount
+	}
+	return defaultStandbyCount(plan.HaType)
 }
 
 // configIsOrigin reports whether the config declares a read replica or restore.
@@ -139,8 +200,8 @@ func forbidEmptyConfigOnCreate(config models.PostgresServiceResourceModel) diag.
 // (and, for a replica, size) are reproduced verbatim on the new instance, so a
 // supplied value that differs from the source's is an error; omitting them
 // inherits the source's value. size on a restore (the new instance comes up at
-// the backup's size, not the source's current one) and ha_type (server-assigned
-// for a new replica/restore, set in place afterward) are NOT taken from the
+// the backup's size, not the source's current one) and ha_type / standby_count
+// (server-assigned for a new replica/restore, set in place afterward) are NOT taken from the
 // source, so they must be omitted entirely — setting them would make a known
 // planned value that the apply contradicts. The caller fetches src.
 func sourceAttributeConflicts(config models.PostgresServiceResourceModel, src *api.Postgres, isReplica bool) diag.Diagnostics {
@@ -157,7 +218,7 @@ func sourceAttributeConflicts(config models.PostgresServiceResourceModel, src *a
 			)
 		}
 	}
-	mustOmit := func(name string, configVal types.String, reason string) {
+	mustOmit := func(name string, configVal attr.Value, reason string) {
 		if configVal.IsNull() || configVal.IsUnknown() {
 			return
 		}
@@ -178,6 +239,7 @@ func sourceAttributeConflicts(config models.PostgresServiceResourceModel, src *a
 		mustOmit("size", config.Size, "a restored instance comes up at the backup's size")
 	}
 	mustOmit("ha_type", config.HaType, "HA mode is server-assigned for a new replica/restore and changed in place afterward")
+	mustOmit("standby_count", config.StandbyCount, "HA mode is server-assigned for a new replica/restore and changed in place afterward")
 	return diags
 }
 
@@ -268,7 +330,7 @@ func requireStandardCreateAttributes(config models.PostgresServiceResourceModel)
 // replicaUpdateForbidden blocks the in-place edits the server rejects on a LIVE
 // read replica. Ubicloud refuses any direct PATCH to a read replica with
 // "Read replicas cannot be modified directly! Please modify the parent database
-// instead." (a 400 before it even reads the body), and size / ha_type / tags all
+// instead." (a 400 before it even reads the body), and size / ha_type / standby_count / tags all
 // travel on that PATCH endpoint — so changing them on a live replica can never
 // succeed and would otherwise surface only as an apply-time error plus a
 // non-converging plan. pg_config / pgbouncer_config are NOT blocked: they use a
@@ -294,6 +356,7 @@ func replicaUpdateForbidden(plan, state models.PostgresServiceResourceModel) dia
 	}
 	forbid("size", plan.Size, state.Size)
 	forbid("ha_type", plan.HaType, state.HaType)
+	forbid("standby_count", plan.StandbyCount, state.StandbyCount)
 	forbid("tags", plan.Tags, state.Tags)
 	return diags
 }
@@ -378,6 +441,15 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf(postgresHaTypes...),
+				},
+			},
+			"standby_count": schema.Int64Attribute{
+				Description: "Optional number of standbys. For 1 Standby Synchronous (Preview), which uses one standby and a WAL listener, set `ha_type = \"sync\"` and `standby_count = 1`. See [High availability](https://clickhouse.com/docs/cloud/managed-postgres/high-availability) for the options.",
+				Optional:    true,
+				Computed:    true,
+				Validators: []validator.Int64{
+					int64validator.OneOf(0, 1, 2),
+					int64validator.AlsoRequires(path.MatchRoot("ha_type")),
 				},
 			},
 			"ip_access": postgresIPAccessSchema(),
@@ -532,7 +604,7 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 				},
 			},
 			"restore_to_point_in_time": schema.SingleNestedAttribute{
-				Description: "Create this instance by restoring another Postgres instance's backup to a point in time. The whole block is create-time only: changing source_id / restore_target (re-restore to a new point) OR removing it both destroy and recreate the instance. The restored instance's name is this resource's top-level `name` and it is independent of its source. cloud_provider / region / postgres_version are inherited from the source — omit them, or set them to match (a mismatch is a plan-time error); size and ha_type must be omitted (the restored instance comes up at the backup's size and a server-assigned HA mode). Mutually exclusive with read_replica_of.",
+				Description: "Create this instance by restoring another Postgres instance's backup to a point in time. The whole block is create-time only: changing source_id / restore_target (re-restore to a new point) OR removing it both destroy and recreate the instance. The restored instance's name is this resource's top-level `name` and it is independent of its source. cloud_provider / region / postgres_version are inherited from the source — omit them, or set them to match (a mismatch is a plan-time error); size, ha_type and standby_count must be omitted (the restored instance comes up at the backup's size and a server-assigned HA mode). Mutually exclusive with read_replica_of.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.RequiresReplace(),
@@ -765,7 +837,7 @@ func (r *PostgresServiceResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Update applies in-place mutations: size / ha_type / tags / ip_access (PATCH /postgres),
+// Update applies in-place mutations: size / ha_type / standby_count / tags / ip_access (PATCH /postgres),
 // pg_config / pgbouncer_config (POST /config), and password rotation
 // (PATCH /password). name / cloud_provider / region / postgres_version and
 // restore_to_point_in_time are RequiresReplace; read_replica_of is
@@ -792,12 +864,14 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 	rotateValue, rotate := decidePasswordRotationOnUpdate(plan, state, config)
 	ipAccessChanged := !plan.IpAccessList.IsNull() && !plan.IpAccessList.IsUnknown() && !plan.IpAccessList.Equal(state.IpAccessList)
 
-	if updatePlan.Body == nil && !configUpdate.Changed && !rotate && !ipAccessChanged {
+	// An unknown standby_count (state written before the attribute existed)
+	// needs the read below to resolve it.
+	if updatePlan.Body == nil && !configUpdate.Changed && !rotate && !ipAccessChanged && !plan.StandbyCount.IsUnknown() {
 		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 		return
 	}
 
-	// Instance-level PATCH (size / ha_type / tags).
+	// Instance-level PATCH (size / ha_type / standby_count / tags).
 	if updatePlan.Body != nil {
 		if _, err := r.client.UpdatePostgres(ctx, state.ID.ValueString(), *updatePlan.Body); err != nil {
 			resp.Diagnostics.AddError(
@@ -808,7 +882,7 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		}
 		if updatePlan.TransitionExpected {
 			// Field-aware wait: poll until the server reflects the PATCHed
-			// values (size / ha_type / tags) AND is running, held for a settle
+			// values (size / ha_type / standby_count / tags) AND is running, held for a settle
 			// window. A state-only wait would race the Ubicloud queue.
 			predicate := buildPostgresMatchPredicate(updatePlan.Body)
 			if err := r.client.WaitForPostgresMatch(ctx, state.ID.ValueString(), predicate, postgresDefaultUpdateTimeoutSeconds); err != nil {
@@ -959,6 +1033,7 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 		if resp.Diagnostics.HasError() {
 			return
 		}
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("standby_count"), planStandbyCount(config, plan, nil))...)
 		// For a read replica / restore, fetch the source, validate any supplied
 		// attributes against it (a conflict is an error), and pin the inherited
 		// values so the plan shows real values that match the post-apply read.
@@ -971,6 +1046,9 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	plan.StandbyCount = planStandbyCount(config, plan, &state)
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("standby_count"), plan.StandbyCount)...)
 
 	// Primaries must declare a credential (or an origin). A live replica —
 	// known is_primary=false, including one adopted by import where
@@ -1020,7 +1098,7 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 
 	// A live read replica (is_primary false — the promotion case returned above —
 	// with read_replica_of still declared) cannot be modified directly: the server
-	// 400s any size / ha_type / tags PATCH. Surface that at plan time instead of an
+	// 400s any size / ha_type / standby_count / tags PATCH. Surface that at plan time instead of an
 	// apply-time error and a plan that never converges. (read_replica_of changes
 	// are handled earlier: a re-point re-derives via originSourceChanged, and a
 	// removal replaces via readReplicaOfRequiresReplace.)
@@ -1043,7 +1121,7 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 // replica matches its primary's SKU). size is NOT pinned for a restore: it can
 // come up at the backup's size, which may differ from the source's current
 // size, and pinning a KNOWN value the apply contradicts trips an
-// inconsistent-result error. ha_type and (for restore) size are left for apply
+// inconsistent-result error. ha_type, standby_count and (for restore) size are left for apply
 // (sourceAttributeConflicts requires them omitted, so they stay unknown and
 // syncPostgresState resolves them). Skipped when the source id is unknown
 // (interpolated) or the client isn't configured — the Computed attributes then
@@ -1100,8 +1178,9 @@ func (r *PostgresServiceResource) planInheritedAttributes(ctx context.Context, c
 		// restore: the new instance comes up at the backup's size, not the source's.
 		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("size"), types.StringUnknown())...)
 	}
-	// ha_type is server-assigned for a new replica/restore.
+	// ha_type and standby_count are server-assigned for a new replica/restore.
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("ha_type"), types.StringUnknown())...)
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("standby_count"), types.Int64Unknown())...)
 }
 
 // stringOrUnknown returns a known value, or Unknown for an empty string, so an
@@ -1169,6 +1248,7 @@ func planToPostgresCreate(ctx context.Context, plan models.PostgresServiceResour
 	if !plan.HaType.IsNull() && !plan.HaType.IsUnknown() {
 		body.HaType = plan.HaType.ValueString()
 	}
+	body.StandbyCount = standbyCountToAPI(plan.StandbyCount)
 
 	tags, d := planTagsToAPI(ctx, plan.Tags)
 	diags.Append(d...)
@@ -1247,9 +1327,9 @@ func planToRestoreRequest(ctx context.Context, plan models.PostgresServiceResour
 // postgresUpdatePlan bundles the two artifacts buildPostgresUpdate produces.
 //
 //   - Body == nil           → no diff; caller skips the PATCH entirely.
-//   - Body != nil           → sparse PATCH body (size, ha_type, tags).
+//   - Body != nil           → sparse PATCH body (size, ha_type, standby_count, tags).
 //   - TransitionExpected    → server processes the mutation as a state
-//     transition (size, ha_type); caller follows up with WaitForPostgresMatch
+//     transition (size, ha_type, standby_count); caller follows up with WaitForPostgresMatch
 //     using buildPostgresMatchPredicate(Body).
 type postgresUpdatePlan struct {
 	Body               *api.PostgresUpdate
@@ -1270,8 +1350,11 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		changed = true
 		transitionExpected = true
 	}
-	if !plan.HaType.Equal(state.HaType) {
+	// The pair travels together: the server validates standbyCount against
+	// haType, and haType alone would keep or reset the count.
+	if !plan.HaType.Equal(state.HaType) || (!plan.StandbyCount.IsUnknown() && !plan.StandbyCount.Equal(state.StandbyCount)) {
 		update.HaType = plan.HaType.ValueString()
+		update.StandbyCount = standbyCountToAPI(plan.StandbyCount)
 		changed = true
 		transitionExpected = true
 	}
@@ -1285,7 +1368,7 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		update.Tags = mappedFromPlan
 		changed = true
 	} else if changed {
-		// Tags unchanged but size/ha_type changing — re-assert state tags so
+		// Tags unchanged but size/ha_type/standby_count changing — re-assert state tags so
 		// the server's PUT-like tag semantics don't wipe them.
 		preserved, d := planTagsToAPI(ctx, state.Tags)
 		diags.Append(d...)
@@ -1305,13 +1388,24 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 	return postgresUpdatePlan{Body: &update, TransitionExpected: transitionExpected}, diags
 }
 
+// standbyCountToAPI returns the wire value for a known standby_count, or nil
+// (field omitted) when it is null or unknown.
+func standbyCountToAPI(v types.Int64) *int {
+	if v.IsNull() || v.IsUnknown() {
+		return nil
+	}
+	n := int(v.ValueInt64())
+	return &n
+}
+
 // buildPostgresMatchPredicate returns a predicate for WaitForPostgresMatch that
 // succeeds once the instance is running AND the server reflects the values we
-// PATCHed (size / ha_type / tags). This is field-aware so the wait doesn't
+// PATCHed (size / ha_type / standby_count / tags). This is field-aware so the wait doesn't
 // settle on a stale 'running' before Ubicloud commits the queued change.
 func buildPostgresMatchPredicate(body *api.PostgresUpdate) func(*api.Postgres) bool {
 	expectSize := body.Size
 	expectHaType := body.HaType
+	expectStandbyCount := body.StandbyCount
 	var expectTags map[string]string
 	tagsRequested := body.Tags != nil
 	if tagsRequested {
@@ -1328,6 +1422,9 @@ func buildPostgresMatchPredicate(body *api.PostgresUpdate) func(*api.Postgres) b
 			return false
 		}
 		if expectHaType != "" && pg.HaType != expectHaType {
+			return false
+		}
+		if expectStandbyCount != nil && (pg.StandbyCount == nil || *pg.StandbyCount != *expectStandbyCount) {
 			return false
 		}
 		if tagsRequested {
@@ -1416,6 +1513,12 @@ func syncPostgresState(ctx context.Context, pg *api.Postgres, state *models.Post
 		out.HaType = types.StringValue(pg.HaType)
 	} else {
 		out.HaType = types.StringValue("none")
+	}
+	// standbyCount is schema-optional too; fall back to the ha_type default.
+	if pg.StandbyCount != nil {
+		out.StandbyCount = types.Int64Value(int64(*pg.StandbyCount))
+	} else {
+		out.StandbyCount = defaultStandbyCount(out.HaType)
 	}
 	out.IsPrimary = types.BoolValue(pg.IsPrimary)
 	if pg.Hostname != "" {
