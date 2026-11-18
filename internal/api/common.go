@@ -234,12 +234,17 @@ func (c *ClientImpl) doRequestWithStatus(
 			var resetSeconds float64
 			if res.StatusCode == http.StatusTooManyRequests { // 429
 				// Try to read rate limiting headers from the response.
-				resetSecondsStr := res.Header.Get(ResponseHeaderRateLimitReset)
+				resetHeader := ResponseHeaderRateLimitReset
+				resetSecondsStr := res.Header.Get(resetHeader)
+				if resetSecondsStr == "" {
+					resetHeader = ResponseHeaderRetryAfter
+					resetSecondsStr = res.Header.Get(resetHeader)
+				}
 				if resetSecondsStr != "" {
 					// Try parsing the string as an integer
 					i, err := strconv.ParseFloat(resetSecondsStr, 64)
 					if err != nil {
-						tflog.Warn(ctx, fmt.Sprintf("Error parsing X-RateLimit-Reset header %q as a float64: %s", resetSecondsStr, err))
+						tflog.Warn(ctx, fmt.Sprintf("Error parsing %s header %q as a float64: %s", resetHeader, resetSecondsStr, err))
 					} else {
 						// Give 1 more second after the server returned reset.
 						resetSeconds = i + 1

@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -285,4 +287,34 @@ func walkFind(v interface{}, predicate func(k string, val interface{}) bool) boo
 		}
 	}
 	return false
+}
+
+func TestDoRequest_429WithOnlyRetryAfterWaitsBeforeRetrying(t *testing.T) {
+	var mu sync.Mutex
+	var arrivals []time.Time
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		arrivals = append(arrivals, time.Now())
+		n := len(arrivals)
+		mu.Unlock()
+		if n == 1 {
+			w.Header().Set("Retry-After", "2")
+			http.Error(w, `{"error":"Too many requests"}`, http.StatusTooManyRequests)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(ResponseWithResult[Service]{Result: Service{Id: "svc-1"}})
+	})
+
+	if _, err := client.GetServiceBase(context.Background(), "svc-1"); err != nil {
+		t.Fatalf("GetServiceBase should retry past 429; got %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(arrivals) != 2 {
+		t.Fatalf("expected 2 requests (429 then 200); got %d", len(arrivals))
+	}
+	if gap := arrivals[1].Sub(arrivals[0]); gap < 2*time.Second {
+		t.Errorf("expected retry at least 2s after the 429 (Retry-After: 2); got %v", gap)
+	}
 }
