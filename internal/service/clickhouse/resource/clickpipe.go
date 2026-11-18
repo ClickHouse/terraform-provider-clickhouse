@@ -1101,6 +1101,22 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 									},
 								},
 							},
+							"mutual_tls": schema.SingleNestedAttribute{
+								MarkdownDescription: "Client certificate for mutual TLS (mTLS) authentication to the Postgres instance. When set, ClickPipes presents this certificate during the TLS handshake, in addition to the configured `credentials`. Requires TLS, so it cannot be combined with `disable_tls = true`, and is not supported with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication. The values are never returned by the API. Changing or removing it updates the pipe in place and re-validates the source connection.",
+								Optional:            true,
+								Attributes: map[string]schema.Attribute{
+									"certificate": schema.StringAttribute{
+										MarkdownDescription: "PEM encoded client certificate presented to the Postgres server for mutual TLS.",
+										Required:            true,
+										Sensitive:           true,
+									},
+									"private_key": schema.StringAttribute{
+										MarkdownDescription: "PEM encoded private key for the client `certificate`.",
+										Required:            true,
+										Sensitive:           true,
+									},
+								},
+							},
 							"settings": schema.SingleNestedAttribute{
 								MarkdownDescription: "Settings for the Postgres CDC pipe.",
 								Required:            true,
@@ -2278,6 +2294,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 	}
 
 	validateGCPWorkloadIdentityConfiguration(ctx, plan.Source, &response.Diagnostics)
+	validatePostgresMutualTLSConfiguration(ctx, plan.Source, &response.Diagnostics)
 	if response.Diagnostics.HasError() {
 		return
 	}
@@ -3424,6 +3441,58 @@ func validateCloudSQLWorkloadIdentity(ctx context.Context, sourceName, cloudSQLT
 	}
 }
 
+// validatePostgresMutualTLSConfiguration rejects the mutual_tls combinations the
+// API refuses: a client certificate needs a TLS connection, and Cloud SQL IAM
+// (workload identity) connections do not accept one.
+func validatePostgresMutualTLSConfiguration(ctx context.Context, sourceValue types.Object, diagnostics *diag.Diagnostics) {
+	if sourceValue.IsNull() || sourceValue.IsUnknown() {
+		return
+	}
+	var source models.ClickPipeSourceModel
+	diagnostics.Append(sourceValue.As(ctx, &source, basetypes.ObjectAsOptions{})...)
+	if diagnostics.HasError() || source.Postgres.IsNull() || source.Postgres.IsUnknown() {
+		return
+	}
+	var postgres models.ClickPipePostgresSourceModel
+	diagnostics.Append(source.Postgres.As(ctx, &postgres, basetypes.ObjectAsOptions{})...)
+	if diagnostics.HasError() {
+		return
+	}
+	// An unknown block may still resolve to null, so only a known block is checked.
+	if postgres.MutualTLS.IsNull() || postgres.MutualTLS.IsUnknown() {
+		return
+	}
+	if !postgres.DisableTLS.IsUnknown() && postgres.DisableTLS.ValueBool() {
+		diagnostics.AddError(
+			"Invalid attribute combination",
+			"Postgres mutual_tls requires TLS and cannot be set when disable_tls is true.",
+		)
+	}
+	if !postgres.Authentication.IsUnknown() && postgres.Authentication.ValueString() == api.ClickPipeAuthenticationServiceAccountWorkloadIdentity {
+		diagnostics.AddError(
+			"Invalid attribute combination",
+			"Postgres mutual_tls must not be set when authentication is set to 'SERVICE_ACCOUNT_WORKLOAD_IDENTITY'.",
+		)
+	}
+}
+
+// postgresMutualTLSFromModel converts a known, non-null mutual_tls block to its
+// API form. It returns nil when the block is null or unknown.
+func postgresMutualTLSFromModel(ctx context.Context, diagnostics *diag.Diagnostics, mutualTLS types.Object) *api.Nullable[api.ClickPipePostgresMutualTLS] {
+	if mutualTLS.IsNull() || mutualTLS.IsUnknown() {
+		return nil
+	}
+	var model models.ClickPipePostgresMutualTLSModel
+	diagnostics.Append(mutualTLS.As(ctx, &model, basetypes.ObjectAsOptions{})...)
+	if diagnostics.HasError() {
+		return nil
+	}
+	return api.NullableValue(api.ClickPipePostgresMutualTLS{
+		Certificate: model.Certificate.ValueString(),
+		PrivateKey:  model.PrivateKey.ValueString(),
+	})
+}
+
 func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
 	if source == nil {
 		return false
@@ -3543,6 +3612,7 @@ func sourceFieldsChangedIgnoringMappings(planObj, stateObj types.Object) bool {
 func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnostics *diag.Diagnostics, plan models.ClickPipeResourceModel, config *models.ClickPipeResourceModel, isUpdate bool) *api.ClickPipeSource {
 	source := &api.ClickPipeSource{}
 	validateGCPWorkloadIdentityConfiguration(ctx, plan.Source, diagnostics)
+	validatePostgresMutualTLSConfiguration(ctx, plan.Source, diagnostics)
 	if diagnostics.HasError() {
 		return nil
 	}
@@ -4175,6 +4245,9 @@ func (c *ClickPipeResource) extractSourceFromPlan(ctx context.Context, diagnosti
 			val := postgresModel.SkipCertVerification.ValueBool()
 			postgresSource.SkipCertVerification = &val
 		}
+		// Sent whenever the plan carries it. Update narrows this to the PATCH
+		// semantics (omit when unchanged, explicit null when removed).
+		postgresSource.MutualTLS = postgresMutualTLSFromModel(ctx, diagnostics, postgresModel.MutualTLS)
 
 		source.Postgres = postgresSource
 	} else if !sourceModel.MySQL.IsNull() {
@@ -5281,6 +5354,18 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			postgresModel.Credentials = stateCredentialsModel.ObjectValue()
 		} else {
 			postgresModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
+		}
+
+		// mutual_tls is write-only: the API never returns it, so carry over
+		// whatever state already holds (null after an import).
+		if !statePostgresModel.MutualTLS.IsNull() {
+			stateMutualTLSModel := models.ClickPipePostgresMutualTLSModel{}
+			if diags := statePostgresModel.MutualTLS.As(ctx, &stateMutualTLSModel, basetypes.ObjectAsOptions{}); diags.HasError() {
+				return fmt.Errorf("error reading ClickPipe Postgres source mutual TLS: %v", diags)
+			}
+			postgresModel.MutualTLS = stateMutualTLSModel.ObjectValue()
+		} else {
+			postgresModel.MutualTLS = types.ObjectNull(models.ClickPipePostgresMutualTLSModel{}.ObjectType().AttrTypes)
 		}
 
 		if clickPipe.Source.Postgres.SSHKeyResourceID != nil {
