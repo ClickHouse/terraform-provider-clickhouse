@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
@@ -258,4 +259,168 @@ func TestClickPipeResource_syncClickPipeState_PostgresMutualTLS(t *testing.T) {
 			assert.True(t, pg.MutualTLS.Equal(tt.mutualTLS), "mutual_tls must round-trip through a read unchanged, got %s", pg.MutualTLS)
 		})
 	}
+}
+
+// drivePostgresMutualTLSUpdate runs Update from state to plan against a mock
+// API and returns every PATCH payload the provider sent.
+func drivePostgresMutualTLSUpdate(ctx context.Context, t *testing.T, state, plan models.ClickPipeResourceModel, tables ...string) []api.ClickPipeUpdate {
+	t.Helper()
+
+	syncPipe := postgresAPIPipe(api.ClickPipeRunningState, tables...)
+	mock, calls := pauseEditClientMock(minimock.NewController(t), syncPipe, func(int) (*api.ClickPipe, error) {
+		return postgresAPIPipe(api.ClickPipePausedState, tables...), nil
+	})
+	var captured []api.ClickPipeUpdate
+	mock.UpdateClickPipeMock.Set(func(_ context.Context, _, _ string, update api.ClickPipeUpdate) (*api.ClickPipe, error) {
+		*calls = append(*calls, "update")
+		captured = append(captured, update)
+		return postgresAPIPipe(api.ClickPipePausedState, tables...), nil
+	})
+	expectSyncRead(mock, calls, syncPipe)
+
+	resp := driveClickPipeUpdate(ctx, t, &ClickPipeResource{client: mock}, state, plan)
+	require.False(t, resp.Diagnostics.HasError(), "update must succeed: %v", resp.Diagnostics.Errors())
+
+	// The write-only block must survive the post-update read exactly as planned.
+	var finalState models.ClickPipeResourceModel
+	require.False(t, resp.State.Get(ctx, &finalState).HasError())
+	wantMutualTLS := postgresSourceFromModel(ctx, t, plan).MutualTLS
+	assert.True(t, postgresSourceFromModel(ctx, t, finalState).MutualTLS.Equal(wantMutualTLS), "state must hold the planned mutual_tls")
+
+	return captured
+}
+
+// The mutualTls PATCH contract: an object replaces the stored client
+// certificate, an explicit null removes it and omitting the field keeps it.
+func TestClickPipeUpdate_PostgresMutualTLS(t *testing.T) {
+	ctx := context.Background()
+	oldCert := postgresMutualTLSValue("OLD-CERT", "OLD-KEY")
+	newCert := postgresMutualTLSValue("NEW-CERT", "NEW-KEY")
+
+	// requireSinglePostgresPatch returns the Postgres source of the only PATCH.
+	requireSinglePostgresPatch := func(t *testing.T, captured []api.ClickPipeUpdate) *api.ClickPipePostgresSource {
+		t.Helper()
+		require.Len(t, captured, 1, "the change must go in one PATCH")
+		require.NotNil(t, captured[0].Source)
+		require.NotNil(t, captured[0].Source.Postgres, "update payload carries no postgres source")
+		return captured[0].Source.Postgres
+	}
+
+	t.Run("added is sent", func(t *testing.T) {
+		state := postgresMutualTLSModel(ctx, t, postgresMutualTLSNull(), "users")
+		plan := postgresMutualTLSModel(ctx, t, newCert, "users")
+
+		pg := requireSinglePostgresPatch(t, drivePostgresMutualTLSUpdate(ctx, t, state, plan, "users"))
+
+		require.NotNil(t, pg.MutualTLS, "a mutual_tls-only change must be detected as a source change")
+		require.False(t, pg.MutualTLS.IsNull())
+		assert.Equal(t, api.ClickPipePostgresMutualTLS{Certificate: "NEW-CERT", PrivateKey: "NEW-KEY"}, *pg.MutualTLS.Value)
+		assert.Nil(t, pg.Credentials, "unchanged credentials must not be re-sent")
+	})
+
+	t.Run("changed is sent", func(t *testing.T) {
+		state := postgresMutualTLSModel(ctx, t, oldCert, "users")
+		plan := postgresMutualTLSModel(ctx, t, newCert, "users")
+
+		pg := requireSinglePostgresPatch(t, drivePostgresMutualTLSUpdate(ctx, t, state, plan, "users"))
+
+		require.NotNil(t, pg.MutualTLS)
+		require.False(t, pg.MutualTLS.IsNull())
+		assert.Equal(t, api.ClickPipePostgresMutualTLS{Certificate: "NEW-CERT", PrivateKey: "NEW-KEY"}, *pg.MutualTLS.Value)
+	})
+
+	t.Run("only the private key changed is sent", func(t *testing.T) {
+		state := postgresMutualTLSModel(ctx, t, postgresMutualTLSValue("CERT", "OLD-KEY"), "users")
+		plan := postgresMutualTLSModel(ctx, t, postgresMutualTLSValue("CERT", "NEW-KEY"), "users")
+
+		pg := requireSinglePostgresPatch(t, drivePostgresMutualTLSUpdate(ctx, t, state, plan, "users"))
+
+		require.NotNil(t, pg.MutualTLS)
+		assert.Equal(t, api.ClickPipePostgresMutualTLS{Certificate: "CERT", PrivateKey: "NEW-KEY"}, *pg.MutualTLS.Value)
+	})
+
+	t.Run("removed is sent as an explicit null", func(t *testing.T) {
+		state := postgresMutualTLSModel(ctx, t, oldCert, "users")
+		plan := postgresMutualTLSModel(ctx, t, postgresMutualTLSNull(), "users")
+
+		captured := drivePostgresMutualTLSUpdate(ctx, t, state, plan, "users")
+		pg := requireSinglePostgresPatch(t, captured)
+
+		require.NotNil(t, pg.MutualTLS, "a removed mutual_tls must be sent, not omitted")
+		assert.True(t, pg.MutualTLS.IsNull())
+
+		payload, err := json.Marshal(captured[0])
+		require.NoError(t, err)
+		assert.Contains(t, string(payload), `"mutualTls":null`)
+	})
+
+	t.Run("unchanged is omitted when another source field changes", func(t *testing.T) {
+		state := postgresMutualTLSModel(ctx, t, oldCert, "users")
+		plan := withPostgresSource(ctx, t, postgresMutualTLSModel(ctx, t, oldCert, "users"), func(pg *models.ClickPipePostgresSourceModel) {
+			pg.Host = types.StringValue("new-host.example.com")
+		})
+
+		captured := drivePostgresMutualTLSUpdate(ctx, t, state, plan, "users")
+		pg := requireSinglePostgresPatch(t, captured)
+
+		assert.Equal(t, "new-host.example.com", pg.Host)
+		assert.Nil(t, pg.MutualTLS, "an unchanged mutual_tls must not be re-sent")
+
+		payload, err := json.Marshal(captured[0])
+		require.NoError(t, err)
+		assert.NotContains(t, string(payload), "mutualTls")
+	})
+
+	t.Run("never set stays omitted when another source field changes", func(t *testing.T) {
+		state := postgresMutualTLSModel(ctx, t, postgresMutualTLSNull(), "users")
+		plan := withPostgresSource(ctx, t, postgresMutualTLSModel(ctx, t, postgresMutualTLSNull(), "users"), func(pg *models.ClickPipePostgresSourceModel) {
+			pg.Host = types.StringValue("new-host.example.com")
+		})
+
+		pg := requireSinglePostgresPatch(t, drivePostgresMutualTLSUpdate(ctx, t, state, plan, "users"))
+
+		assert.Nil(t, pg.MutualTLS, "a null-to-null mutual_tls must be omitted, not sent as null")
+	})
+
+	t.Run("mappings-only edit omits it", func(t *testing.T) {
+		state := postgresMutualTLSModel(ctx, t, oldCert, "users", "orders")
+		plan := postgresMutualTLSModel(ctx, t, oldCert, "users")
+
+		pg := requireSinglePostgresPatch(t, drivePostgresMutualTLSUpdate(ctx, t, state, plan, "users"))
+
+		assert.Nil(t, pg.MutualTLS, "mutual_tls must not be re-sent on a mappings-only edit")
+		assert.Empty(t, pg.Host, "the mappings-only shortcut must still apply with mutual_tls configured")
+		require.Len(t, pg.TableMappingsToRemove, 1)
+		assert.Equal(t, "orders", pg.TableMappingsToRemove[0].SourceTable)
+	})
+
+	t.Run("changed alongside mappings is sent with the mapping delta", func(t *testing.T) {
+		state := postgresMutualTLSModel(ctx, t, oldCert, "users")
+		plan := postgresMutualTLSModel(ctx, t, newCert, "users", "orders")
+
+		pg := requireSinglePostgresPatch(t, drivePostgresMutualTLSUpdate(ctx, t, state, plan, "users", "orders"))
+
+		require.NotNil(t, pg.MutualTLS)
+		assert.Equal(t, api.ClickPipePostgresMutualTLS{Certificate: "NEW-CERT", PrivateKey: "NEW-KEY"}, *pg.MutualTLS.Value)
+		require.Len(t, pg.TableMappingsToAdd, 1)
+		assert.Equal(t, "orders", pg.TableMappingsToAdd[0].SourceTable)
+	})
+}
+
+func TestPostgresMutualTLSForUpdate(t *testing.T) {
+	cert := postgresMutualTLSValue("CERT", "KEY")
+	unknown := types.ObjectUnknown(models.ClickPipePostgresMutualTLSModel{}.ObjectType().AttrTypes)
+	planned := api.NullableValue(api.ClickPipePostgresMutualTLS{Certificate: "CERT", PrivateKey: "KEY"})
+
+	assert.Nil(t, postgresMutualTLSForUpdate(cert, cert, planned), "unchanged must be omitted")
+	assert.Nil(t, postgresMutualTLSForUpdate(postgresMutualTLSNull(), postgresMutualTLSNull(), nil), "null to null must be omitted")
+	assert.Same(t, planned, postgresMutualTLSForUpdate(cert, postgresMutualTLSNull(), planned), "added must be sent")
+
+	removed := postgresMutualTLSForUpdate(postgresMutualTLSNull(), cert, nil)
+	require.NotNil(t, removed)
+	assert.True(t, removed.IsNull(), "removed must be an explicit null")
+
+	// An unknown plan converts to nil, so the stored certificate is left alone
+	// rather than removed.
+	assert.Nil(t, postgresMutualTLSForUpdate(unknown, cert, nil))
 }

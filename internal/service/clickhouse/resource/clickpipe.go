@@ -3493,6 +3493,23 @@ func postgresMutualTLSFromModel(ctx context.Context, diagnostics *diag.Diagnosti
 	})
 }
 
+// postgresMutualTLSForUpdate maps a mutual_tls plan/state pair to the PATCH
+// form of mutualTls: nil (field omitted, keep the stored certificate) when the
+// block is unchanged, an explicit null when it was removed from the
+// configuration, and planned (the block converted from plan) when it was added
+// or changed.
+func postgresMutualTLSForUpdate(planMutualTLS, stateMutualTLS types.Object, planned *api.Nullable[api.ClickPipePostgresMutualTLS]) *api.Nullable[api.ClickPipePostgresMutualTLS] {
+	if planMutualTLS.Equal(stateMutualTLS) {
+		return nil
+	}
+	if planMutualTLS.IsNull() {
+		return api.NullableNull[api.ClickPipePostgresMutualTLS]()
+	}
+	// An unknown block converts to nil, which leaves the stored certificate
+	// alone rather than risking its removal.
+	return planned
+}
+
 func clickPipeSourceUsesGCPWorkloadIdentity(source *api.ClickPipeSource) bool {
 	if source == nil {
 		return false
@@ -6238,9 +6255,20 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 				pipeChanged = true
 				source := c.extractSourceFromPlan(ctx, &response.Diagnostics, plan, &config, true)
 
+				if source == nil {
+					// The plan failed validation; the diagnostics carry the error.
+					return
+				}
+
 				// Omit unchanged credentials from PATCH to avoid server-side re-encryption.
 				if !credentialsChanged && source.Postgres != nil {
 					source.Postgres.Credentials = nil
+				}
+
+				// mutual_tls is write-only too: omit it when unchanged so the stored
+				// certificate is kept, and send an explicit null when it was removed.
+				if source.Postgres != nil {
+					source.Postgres.MutualTLS = postgresMutualTLSForUpdate(planPostgresModel.MutualTLS, statePostgresModel.MutualTLS, source.Postgres.MutualTLS)
 				}
 
 				// If table_mappings changed, set TableMappingsToAdd/Remove on Postgres source
