@@ -137,6 +137,7 @@ type sourceResourceModel struct {
 	ImplicitColumnExpression          types.String `tfsdk:"implicit_column_expression"`
 	KnownColumnsListExpression        types.String `tfsdk:"known_columns_list_expression"`
 	OrderByExpression                 types.String `tfsdk:"order_by_expression"`
+	RowKeyExpression                  types.String `tfsdk:"row_key_expression"`
 	UseTextIndexForImplicitColumn     types.String `tfsdk:"use_text_index_for_implicit_column"`
 
 	DurationExpression        types.String `tfsdk:"duration_expression"`
@@ -293,7 +294,11 @@ func (r *sourceResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"implicit_column_expression":           optStr("Column used for full-text search when no property is specified in a Lucene search."),
 			"known_columns_list_expression":        optStr("For distributed tables with non-matching column sets: columns supported across all target tables."),
 			"order_by_expression":                  optStr("Expression used to order rows."),
-			"use_text_index_for_implicit_column":   optStr("Whether to use ClickHouse text indices for the implicit column: `auto`, `enabled`, or `disabled`."),
+			"row_key_expression": optStr("Comma-separated expressions that uniquely identify a row, used by the row side panel " +
+				"to look up the selected row (log, trace). When set, the lookup selects and filters on only these " +
+				"expressions instead of keys detected from table metadata. Useful when the queried table hides its keys, " +
+				"e.g. a `Distributed` table over a `Merge` table."),
+			"use_text_index_for_implicit_column": optStr("Whether to use ClickHouse text indices for the implicit column: `auto`, `enabled`, or `disabled`."),
 
 			"duration_expression": optStr("Expression to extract span duration. Required for `trace`."),
 			"duration_precision": schema.Int64Attribute{
@@ -554,6 +559,7 @@ func (m *sourceResourceModel) toClient() client.Source {
 		ImplicitColumnExpression:          optStringPtr(m.ImplicitColumnExpression),
 		KnownColumnsListExpression:        optStringPtr(m.KnownColumnsListExpression),
 		OrderByExpression:                 optStringPtr(m.OrderByExpression),
+		RowKeyExpression:                  optStringPtr(m.RowKeyExpression),
 		UseTextIndexForImplicitColumn:     optStringPtr(m.UseTextIndexForImplicitColumn),
 
 		DurationExpression:        optStringPtr(m.DurationExpression),
@@ -710,6 +716,7 @@ func (m *sourceResourceModel) applySource(src *client.Source) {
 	m.ImplicitColumnExpression = keepUnset(m.ImplicitColumnExpression, src.ImplicitColumnExpression)
 	m.KnownColumnsListExpression = keepUnset(m.KnownColumnsListExpression, src.KnownColumnsListExpression)
 	m.OrderByExpression = keepUnset(m.OrderByExpression, src.OrderByExpression)
+	m.RowKeyExpression = keepUnset(m.RowKeyExpression, src.RowKeyExpression)
 	m.UseTextIndexForImplicitColumn = keepUnset(m.UseTextIndexForImplicitColumn, src.UseTextIndexForImplicitColumn)
 
 	m.DurationExpression = keepUnset(m.DurationExpression, src.DurationExpression)

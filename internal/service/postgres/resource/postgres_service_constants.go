@@ -20,6 +20,14 @@ var postgresHaTypes = []string{
 	"sync",
 }
 
+// PostgresStandbyCounts lists the standby counts each ha_type accepts, the
+// server default first.
+var PostgresStandbyCounts = map[string][]int64{
+	"none":  {0},
+	"async": {1},
+	"sync":  {2, 1},
+}
+
 const (
 	postgresInstanceNameMin = 1
 	postgresInstanceNameMax = 50

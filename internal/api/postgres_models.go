@@ -57,6 +57,7 @@ type Postgres struct {
 	PostgresVersion  string             `json:"postgresVersion,omitempty"`
 	Size             string             `json:"size,omitempty"`
 	HaType           string             `json:"haType,omitempty"`
+	StandbyCount     *int               `json:"standbyCount,omitempty"`
 	State            string             `json:"state,omitempty"`
 	CreatedAt        string             `json:"createdAt,omitempty"`
 	IsPrimary        bool               `json:"isPrimary"`
@@ -95,6 +96,7 @@ type PostgresListItem struct {
 	PostgresVersion string `json:"postgresVersion,omitempty"`
 	Size            string `json:"size,omitempty"`
 	HaType          string `json:"haType,omitempty"`
+	StandbyCount    *int   `json:"standbyCount,omitempty"`
 	State           string `json:"state"`
 	CreatedAt       string `json:"createdAt"`
 	IsPrimary       bool   `json:"isPrimary"`
@@ -114,6 +116,7 @@ type PostgresCreate struct {
 	Size            string      `json:"size"`
 	PostgresVersion string      `json:"postgresVersion,omitempty"`
 	HaType          string      `json:"haType,omitempty"`
+	StandbyCount    *int        `json:"standbyCount,omitempty"`
 	Tags            []Tag       `json:"tags,omitempty"`
 	PgConfig        PgConfigMap `json:"pgConfig,omitempty"`
 	PgBouncerConfig PgConfigMap `json:"pgBouncerConfig,omitempty"`
@@ -130,6 +133,7 @@ type PostgresCreate struct {
 type PostgresUpdate struct {
 	Size         string                  `json:"size,omitempty"`
 	HaType       string                  `json:"haType,omitempty"`
+	StandbyCount *int                    `json:"standbyCount,omitempty"`
 	Tags         *[]Tag                  `json:"tags,omitempty"`
 	IpAccessList *PostgresIpAccessUpdate `json:"ipAccessList,omitempty"`
 }

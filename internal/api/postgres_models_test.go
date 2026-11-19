@@ -132,6 +132,24 @@ func TestPostgresUpdate_OmitsUnsetFields(t *testing.T) {
 	}
 }
 
+func TestPostgresUpdate_StandbyCountZeroIsSent(t *testing.T) {
+	zero := 0
+	body, err := json.Marshal(PostgresUpdate{HaType: "none", StandbyCount: &zero})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(body), `"standbyCount":0`) {
+		t.Errorf("PostgresUpdate must send an explicit standbyCount of 0; got %s", body)
+	}
+	body, err = json.Marshal(PostgresUpdate{HaType: "none"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(body), "standbyCount") {
+		t.Errorf("PostgresUpdate must omit unset standbyCount; got %s", body)
+	}
+}
+
 func TestPostgresUpdate_ExplicitEmptyTagsMarshalsAsEmptyArray(t *testing.T) {
 	// The whole point of using *[]Tag: an explicit empty list must produce
 	// `"tags":[]` on the wire so the server replaces the tag list with
