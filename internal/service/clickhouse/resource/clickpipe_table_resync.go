@@ -58,29 +58,9 @@ func sameStringList(a, b types.List) bool {
 
 // postgresTableMappingChange returns the first attribute that differs between
 // the prior and planned mapping of the same source table, or "" when none
-// does.
+// does. MySQL mappings have the same attributes, so they are converted and
+// compared here too.
 func postgresTableMappingChange(prior, planned models.ClickPipePostgresTableMappingModel) string {
-	switch {
-	case prior.TargetTable.ValueString() != planned.TargetTable.ValueString():
-		return clickPipeTargetTable
-	case !sameStringSet(prior.ExcludedColumns, planned.ExcludedColumns):
-		return "excluded_columns"
-	case !sameStringList(prior.SortingKeys, planned.SortingKeys):
-		return "sorting_keys"
-	case !prior.UseCustomSortingKey.Equal(planned.UseCustomSortingKey):
-		return "use_custom_sorting_key"
-	case !prior.TableEngine.Equal(planned.TableEngine):
-		return "table_engine"
-	case !prior.PartitionKey.Equal(planned.PartitionKey):
-		return "partition_key"
-	case !prior.PartitionByExpr.Equal(planned.PartitionByExpr):
-		return "partition_by_expr"
-	}
-	return ""
-}
-
-// mySQLTableMappingChange is postgresTableMappingChange for MySQL mappings.
-func mySQLTableMappingChange(prior, planned models.ClickPipeMySQLTableMappingModel) string {
 	switch {
 	case prior.TargetTable.ValueString() != planned.TargetTable.ValueString():
 		return clickPipeTargetTable
@@ -162,117 +142,97 @@ func validateMongoDBResyncColumns(ctx context.Context, diagnostics *diag.Diagnos
 	}
 }
 
-// postgresTableMappingDeltas splits the difference between the prior and
-// planned mappings into the tables to add, remove and resync. A mapping is
-// identified by source table and target table, so a changed target_table is
-// an add plus a remove, which ModifyPlan rejects. A changed mapping is only
-// resynced when resync is true; ModifyPlan rejects it otherwise.
+// tableMappingDeltas splits the difference between the prior and planned
+// mappings into the tables to add, remove and resync. Mappings with the same
+// key are the same table. A planned mapping that changed is only resynced when
+// resync is true; ModifyPlan rejects it otherwise.
+func tableMappingDeltas[M any](ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool, key func(M) string, change func(prior, planned M) string) (toAdd, toRemove, toResync []M) {
+	var planMappings, stateMappings []M
+	diagnostics.Append(planSet.ElementsAs(ctx, &planMappings, false)...)
+	diagnostics.Append(stateSet.ElementsAs(ctx, &stateMappings, false)...)
+	if diagnostics.HasError() {
+		return nil, nil, nil
+	}
+
+	stateByKey := make(map[string]M, len(stateMappings))
+	for _, m := range stateMappings {
+		stateByKey[key(m)] = m
+	}
+	planKeys := make(map[string]bool, len(planMappings))
+	for _, planned := range planMappings {
+		planKeys[key(planned)] = true
+		prior, exists := stateByKey[key(planned)]
+		switch {
+		case !exists:
+			toAdd = append(toAdd, planned)
+		case resync && change(prior, planned) != "":
+			toResync = append(toResync, planned)
+		}
+	}
+	for _, prior := range stateMappings {
+		if !planKeys[key(prior)] {
+			toRemove = append(toRemove, prior)
+		}
+	}
+	return toAdd, toRemove, toResync
+}
+
+func convertAll[M, A any](mappings []M, convert func(M) A) []A {
+	if len(mappings) == 0 {
+		return nil
+	}
+	converted := make([]A, len(mappings))
+	for i, m := range mappings {
+		converted[i] = convert(m)
+	}
+	return converted
+}
+
+// postgresTableMappingKey identifies a Postgres or MySQL mapping by source and
+// target table, so a changed target_table is an add plus a remove, which
+// ModifyPlan rejects.
+func postgresTableMappingKey(m models.ClickPipePostgresTableMappingModel) string {
+	return fmt.Sprintf("%s.%s->%s", m.SourceSchemaName.ValueString(), m.SourceTable.ValueString(), m.TargetTable.ValueString())
+}
+
 func (c *ClickPipeResource) postgresTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool) (toAdd, toRemove, toResync []api.ClickPipePostgresTableMapping) {
-	var planMappings, stateMappings []models.ClickPipePostgresTableMappingModel
-	diagnostics.Append(planSet.ElementsAs(ctx, &planMappings, false)...)
-	diagnostics.Append(stateSet.ElementsAs(ctx, &stateMappings, false)...)
-	if diagnostics.HasError() {
-		return nil, nil, nil
+	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, resync, postgresTableMappingKey, postgresTableMappingChange)
+	toAPI := func(m models.ClickPipePostgresTableMappingModel) api.ClickPipePostgresTableMapping {
+		return c.convertTableMappingModelToAPI(ctx, *diagnostics, m)
 	}
-
-	key := func(m models.ClickPipePostgresTableMappingModel) string {
-		return fmt.Sprintf("%s.%s->%s", m.SourceSchemaName.ValueString(), m.SourceTable.ValueString(), m.TargetTable.ValueString())
-	}
-	stateByKey := make(map[string]models.ClickPipePostgresTableMappingModel, len(stateMappings))
-	for _, m := range stateMappings {
-		stateByKey[key(m)] = m
-	}
-	planKeys := make(map[string]bool, len(planMappings))
-	for _, planned := range planMappings {
-		planKeys[key(planned)] = true
-		prior, exists := stateByKey[key(planned)]
-		switch {
-		case !exists:
-			toAdd = append(toAdd, c.convertTableMappingModelToAPI(ctx, *diagnostics, planned))
-		case resync && postgresTableMappingChange(prior, planned) != "":
-			toResync = append(toResync, c.convertTableMappingModelToAPI(ctx, *diagnostics, planned))
-		}
-	}
-	for _, prior := range stateMappings {
-		if !planKeys[key(prior)] {
-			toRemove = append(toRemove, c.convertTableMappingModelToAPI(ctx, *diagnostics, prior))
-		}
-	}
-	return toAdd, toRemove, toResync
+	return convertAll(add, toAPI), convertAll(remove, toAPI), convertAll(res, toAPI)
 }
 
-// mySQLTableMappingDeltas is postgresTableMappingDeltas for MySQL mappings.
 func mySQLTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool) (toAdd, toRemove, toResync []api.ClickPipeMySQLTableMapping) {
-	var planMappings, stateMappings []models.ClickPipeMySQLTableMappingModel
-	diagnostics.Append(planSet.ElementsAs(ctx, &planMappings, false)...)
-	diagnostics.Append(stateSet.ElementsAs(ctx, &stateMappings, false)...)
-	if diagnostics.HasError() {
-		return nil, nil, nil
-	}
-
 	key := func(m models.ClickPipeMySQLTableMappingModel) string {
-		return fmt.Sprintf("%s.%s->%s", m.SourceSchemaName.ValueString(), m.SourceTable.ValueString(), m.TargetTable.ValueString())
+		return postgresTableMappingKey(models.ClickPipePostgresTableMappingModel(m))
 	}
-	stateByKey := make(map[string]models.ClickPipeMySQLTableMappingModel, len(stateMappings))
-	for _, m := range stateMappings {
-		stateByKey[key(m)] = m
+	change := func(prior, planned models.ClickPipeMySQLTableMappingModel) string {
+		return postgresTableMappingChange(models.ClickPipePostgresTableMappingModel(prior), models.ClickPipePostgresTableMappingModel(planned))
 	}
-	planKeys := make(map[string]bool, len(planMappings))
-	for _, planned := range planMappings {
-		planKeys[key(planned)] = true
-		prior, exists := stateByKey[key(planned)]
-		switch {
-		case !exists:
-			toAdd = append(toAdd, convertMySQLTableMappingModelToAPI(ctx, diagnostics, planned))
-		case resync && mySQLTableMappingChange(prior, planned) != "":
-			toResync = append(toResync, convertMySQLTableMappingModelToAPI(ctx, diagnostics, planned))
-		}
+	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, resync, key, change)
+	toAPI := func(m models.ClickPipeMySQLTableMappingModel) api.ClickPipeMySQLTableMapping {
+		return convertMySQLTableMappingModelToAPI(ctx, diagnostics, m)
 	}
-	for _, prior := range stateMappings {
-		if !planKeys[key(prior)] {
-			toRemove = append(toRemove, convertMySQLTableMappingModelToAPI(ctx, diagnostics, prior))
-		}
-	}
-	return toAdd, toRemove, toResync
+	return convertAll(add, toAPI), convertAll(remove, toAPI), convertAll(res, toAPI)
 }
 
-// mongoDBTableMappingDeltas is postgresTableMappingDeltas for MongoDB
-// mappings, which are identified by source collection only.
+// mongoDBTableMappingDeltas identifies collections by source only.
 func mongoDBTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool) (toAdd, toRemove, toResync []api.ClickPipeMongoDBTableMapping) {
-	var planMappings, stateMappings []models.ClickPipeMongoDBTableMappingModel
-	diagnostics.Append(planSet.ElementsAs(ctx, &planMappings, false)...)
-	diagnostics.Append(stateSet.ElementsAs(ctx, &stateMappings, false)...)
-	if diagnostics.HasError() {
-		return nil, nil, nil
-	}
-
 	key := func(m models.ClickPipeMongoDBTableMappingModel) string {
 		return fmt.Sprintf("%s.%s", m.SourceDatabaseName.ValueString(), m.SourceCollection.ValueString())
 	}
-	stateByKey := make(map[string]models.ClickPipeMongoDBTableMappingModel, len(stateMappings))
-	for _, m := range stateMappings {
-		stateByKey[key(m)] = m
+	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, resync, key, mongoDBTableMappingChange)
+	// Additions and resyncs carry the whole mapping: the API replaces a resynced one entirely.
+	toAPI := func(m models.ClickPipeMongoDBTableMappingModel) api.ClickPipeMongoDBTableMapping {
+		return convertMongoDBTableMappingModelToAPI(ctx, diagnostics, m)
 	}
-	planKeys := make(map[string]bool, len(planMappings))
-	for _, planned := range planMappings {
-		planKeys[key(planned)] = true
-		prior, exists := stateByKey[key(planned)]
-		switch {
-		case !exists:
-			toAdd = append(toAdd, convertMongoDBTableMappingModelToAPI(ctx, diagnostics, planned))
-		case resync && mongoDBTableMappingChange(prior, planned) != "":
-			// The API replaces the whole mapping, mongoConfig and structuredIngestion included.
-			toResync = append(toResync, convertMongoDBTableMappingModelToAPI(ctx, diagnostics, planned))
-		}
+	// A removal only identifies the collection: the API rejects mongoConfig and structuredIngestion here.
+	toRemovalAPI := func(m models.ClickPipeMongoDBTableMappingModel) api.ClickPipeMongoDBTableMapping {
+		mapping := toAPI(m)
+		mapping.MongoConfig = nil
+		mapping.StructuredIngestion = nil
+		return mapping
 	}
-	for _, prior := range stateMappings {
-		if !planKeys[key(prior)] {
-			mapping := convertMongoDBTableMappingModelToAPI(ctx, diagnostics, prior)
-			// A removal only identifies the collection: the API rejects mongoConfig and structuredIngestion here.
-			mapping.MongoConfig = nil
-			mapping.StructuredIngestion = nil
-			toRemove = append(toRemove, mapping)
-		}
-	}
-	return toAdd, toRemove, toResync
+	return convertAll(add, toAPI), convertAll(remove, toRemovalAPI), convertAll(res, toAPI)
 }

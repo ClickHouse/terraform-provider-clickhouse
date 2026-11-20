@@ -2836,7 +2836,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 								for key, stateMapping := range stateMap {
 									if planMapping, exists := planMap[key]; exists {
 										table := key.sourceSchemaName + "." + key.sourceTable
-										changed := mySQLTableMappingChange(stateMapping, planMapping)
+										changed := postgresTableMappingChange(models.ClickPipePostgresTableMappingModel(stateMapping), models.ClickPipePostgresTableMappingModel(planMapping))
 										validateTableMappingChange(&response.Diagnostics, table, changed, resyncTablesOnChange)
 									}
 								}
