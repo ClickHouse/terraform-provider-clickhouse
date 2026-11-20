@@ -1267,7 +1267,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Optional:    true,
 										},
 										"partition_by_expr": schema.StringAttribute{
-											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe, or removing the mapping in one apply and re-adding it with the new value in a subsequent apply (re-adding re-snapshots the table).",
+											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe.",
 											Optional:    true,
 											Validators: []validator.String{
 												// The API stores a blank expression as unset, which reads
@@ -2060,7 +2060,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										"structured_ingestion": schema.SingleNestedAttribute{
 											MarkdownDescription: "Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. " +
 												"When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. " +
-												"Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe, with `columns` set as they are not inferred on resync. Otherwise, remove the mapping and add it again.",
+												"Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe, with `columns` set as they are not inferred on resync.",
 											Optional: true,
 											Attributes: map[string]schema.Attribute{
 												"drop_unexpected_values": schema.BoolAttribute{

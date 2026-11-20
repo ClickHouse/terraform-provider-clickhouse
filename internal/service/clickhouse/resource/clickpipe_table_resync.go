@@ -130,7 +130,7 @@ func validateTableMappingChange(diagnostics *diag.Diagnostics, table, changed st
 	case !resyncTablesOnChange:
 		diagnostics.AddError(
 			"Invalid table_mappings configuration",
-			fmt.Sprintf("Cannot modify %s for existing table mapping '%s'. Set %s = true on the pipe to resync the table with its new settings, which rebuilds its destination table from a fresh snapshot, or remove the mapping and add a new one.", changed, table, clickPipeResyncTablesOnChange),
+			fmt.Sprintf("Cannot modify %s for existing table mapping '%s'. Set %s = true on the pipe to resync the table with its new settings, which rebuilds its destination table from a fresh snapshot.", changed, table, clickPipeResyncTablesOnChange),
 		)
 	default:
 		diagnostics.AddWarning(
