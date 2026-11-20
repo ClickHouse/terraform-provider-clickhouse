@@ -6,7 +6,9 @@ description: |-
   You can use the clickhouse_service_clickhouse_settings resource to configure ClickHouse settings, such as max_query_size, on a ClickHouse Cloud service.
   For more information, see Update ClickHouse settings https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-update. The settings schema endpoint https://clickhouse.com/docs/products/cloud/api-reference/service/service-clickhouse-settings-schema-get lists the settings you can configure, with their types and warnings. The API is in beta and the list can change, so the resource takes a map instead of one attribute per setting.
   ~> Note: This resource is in beta. The ClickHouse settings API must be enabled for your organization. Reach out to ClickHouse support if the API returns 403 FORBIDDEN. Writing settings needs an API key with the control-plane:service:manage permission.
-  Only the settings listed in settings are managed. Settings configured outside Terraform are left alone. Removing a setting from settings, or destroying the resource, resets it to the platform default. Some settings restart the service when changed or reset; the API returns a warning for these, which shows as a Terraform warning.
+  Only the settings listed in settings are managed. Settings configured outside Terraform are left alone. Removing a setting from settings, or destroying the resource, resets it to the platform default.
+  Some settings restart the service when changed or reset. terraform plan shows a warning naming them before you confirm the apply. It reads each setting's warning from the settings schema endpoint. The check covers creating, updating and destroying the resource, and moving it to a different service_id.
+  The plan can only check a service whose service_id is known at plan time, so it shows no warning when the service is created in the same apply. A forced replacement (-replace or a tainted resource) may not show a plan warning, even though it resets and rewrites every setting. If the plan can't tell which settings change, or can't read the schema within 30 seconds, it shows a warning saying so. Apply can still show the warnings the API returns for each setting it writes.
   Values are strings. A value that is a whole number, such as "262144", is sent to the API as an integer, and any other value as a string.
   Pausing background merges
   Set shared_merge_tree_disable_merges_and_mutations_assignment to "1" to stop new merges and mutations from being assigned, and remove it to resume them. Applying it restarts the service, and table size and read amplification grow while merges are off, so keep it to short debugging windows.
@@ -25,7 +27,11 @@ For more information, see [Update ClickHouse settings](https://clickhouse.com/do
 
 ~> **Note:** This resource is in beta. The ClickHouse settings API must be enabled for your organization. Reach out to ClickHouse support if the API returns `403 FORBIDDEN`. Writing settings needs an API key with the `control-plane:service:manage` permission.
 
-Only the settings listed in `settings` are managed. Settings configured outside Terraform are left alone. Removing a setting from `settings`, or destroying the resource, resets it to the platform default. Some settings restart the service when changed or reset; the API returns a warning for these, which shows as a Terraform warning.
+Only the settings listed in `settings` are managed. Settings configured outside Terraform are left alone. Removing a setting from `settings`, or destroying the resource, resets it to the platform default.
+
+Some settings restart the service when changed or reset. `terraform plan` shows a warning naming them before you confirm the apply. It reads each setting's `warning` from the settings schema endpoint. The check covers creating, updating and destroying the resource, and moving it to a different `service_id`.
+
+The plan can only check a service whose `service_id` is known at plan time, so it shows no warning when the service is created in the same apply. A forced replacement (`-replace` or a tainted resource) may not show a plan warning, even though it resets and rewrites every setting. If the plan can't tell which settings change, or can't read the schema within 30 seconds, it shows a warning saying so. Apply can still show the warnings the API returns for each setting it writes.
 
 Values are strings. A value that is a whole number, such as `"262144"`, is sent to the API as an integer, and any other value as a string.
 

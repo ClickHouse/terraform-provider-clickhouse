@@ -262,8 +262,14 @@ func (c *ClientImpl) doRequestWithStatus(
 				return nil, backoff.Permanent(fmt.Errorf("status: %d, body: %s", res.StatusCode, body))
 			}
 
-			// Wait for the calculated exponential backoff number of seconds.
-			time.Sleep(time.Second * time.Duration(resetSeconds))
+			// Wait for the calculated exponential backoff number of seconds, or stop early when ctx ends.
+			wait := time.NewTimer(time.Second * time.Duration(resetSeconds))
+			select {
+			case <-ctx.Done():
+				wait.Stop()
+				return nil, backoff.Permanent(ctx.Err())
+			case <-wait.C:
+			}
 
 			// Double wait time for next loop
 			currentExponentialBackoff = currentExponentialBackoff * 2

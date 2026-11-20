@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -316,5 +317,43 @@ func TestDoRequest_429WithOnlyRetryAfterWaitsBeforeRetrying(t *testing.T) {
 	}
 	if gap := arrivals[1].Sub(arrivals[0]); gap < 2*time.Second {
 		t.Errorf("expected retry at least 2s after the 429 (Retry-After: 2); got %v", gap)
+	}
+}
+
+func TestDoRequest_RetryWaitStopsWhenContextEnds(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{
+			name: "429 with Retry-After",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Retry-After", "120")
+				http.Error(w, `{"error":"Too many requests"}`, http.StatusTooManyRequests)
+			},
+		},
+		{
+			// The first 5xx backoff is 4s.
+			name: "5xx backoff",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, `{"error":"Internal error"}`, http.StatusInternalServerError)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, _ := newTestClient(t, tt.handler)
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+
+			start := time.Now()
+			_, err := client.GetServiceBase(ctx, "svc-1")
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("err = %v; want context.DeadlineExceeded", err)
+			}
+			if elapsed := time.Since(start); elapsed > 2*time.Second {
+				t.Errorf("GetServiceBase took %v; want it to stop soon after the 200ms deadline", elapsed)
+			}
+		})
 	}
 }

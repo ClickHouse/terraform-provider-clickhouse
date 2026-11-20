@@ -3,9 +3,13 @@ package resource
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -29,6 +33,7 @@ var (
 	_ resource.Resource                = &ServiceClickhouseSettingsResource{}
 	_ resource.ResourceWithConfigure   = &ServiceClickhouseSettingsResource{}
 	_ resource.ResourceWithImportState = &ServiceClickhouseSettingsResource{}
+	_ resource.ResourceWithModifyPlan  = &ServiceClickhouseSettingsResource{}
 )
 
 //go:embed descriptions/service_clickhouse_settings.md
@@ -239,6 +244,198 @@ func (r *ServiceClickhouseSettingsResource) ImportState(ctx context.Context, req
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("settings"), settings)...)
 }
 
+// ModifyPlan warns before apply when the plan changes or resets a setting
+// whose schema warning says it restarts the service.
+func (r *ServiceClickhouseSettingsResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if r.client == nil {
+		return
+	}
+
+	var plan, state *models.ServiceClickhouseSettingsResourceModel
+	if !req.Plan.Raw.IsNull() {
+		plan = &models.ServiceClickhouseSettingsResourceModel{}
+		resp.Diagnostics.Append(req.Plan.Get(ctx, plan)...)
+	}
+	if !req.State.Raw.IsNull() {
+		state = &models.ServiceClickhouseSettingsResourceModel{}
+		resp.Diagnostics.Append(req.State.Get(ctx, state)...)
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	touched, diags := touchedClickhouseSettings(ctx, plan, state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Warnings follow service ID order so the plan output is stable.
+	for _, serviceID := range sortedKeys(touched) {
+		r.warnRestartingSettings(ctx, serviceID, touched[serviceID], &resp.Diagnostics)
+	}
+}
+
+// plannedSettingsChange is what a plan does to one service's settings.
+type plannedSettingsChange struct {
+	// names lists the settings the plan writes or resets on this service.
+	names []string
+	// unknownValues holds the names whose new value is not known until apply.
+	unknownValues map[string]bool
+	// teardown means the settings are reset because the resource is destroyed or moves to another service.
+	teardown bool
+	// unknownSettings means the whole new settings map is not known until apply.
+	unknownSettings bool
+}
+
+// touchedClickhouseSettings returns, per service ID, what the plan does to its
+// settings. The schema lookup is skipped for a service ID that is not known
+// yet, so no plan warning can be given for it.
+func touchedClickhouseSettings(ctx context.Context, plan, state *models.ServiceClickhouseSettingsResourceModel) (map[string]*plannedSettingsChange, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	touched := map[string]*plannedSettingsChange{}
+	add := func(serviceID types.String, change plannedSettingsChange) {
+		if serviceID.IsUnknown() || serviceID.IsNull() || (len(change.names) == 0 && !change.unknownSettings) {
+			return
+		}
+		touched[serviceID.ValueString()] = &change
+	}
+
+	desired := map[string]types.String{}
+	desiredKnown := false
+	if plan != nil && !plan.Settings.IsUnknown() && !plan.Settings.IsNull() {
+		diags.Append(plan.Settings.ElementsAs(ctx, &desired, false)...)
+		desiredKnown = true
+	}
+	previous := map[string]string{}
+	if state != nil {
+		diags.Append(state.Settings.ElementsAs(ctx, &previous, false)...)
+	}
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	// changedFrom lists the settings the plan adds or changes compared with
+	// before, and records which of them have no known value until apply.
+	changedFrom := func(before map[string]string) plannedSettingsChange {
+		change := plannedSettingsChange{unknownValues: map[string]bool{}}
+		for _, name := range sortedKeys(desired) {
+			value := desired[name]
+			if value.IsUnknown() {
+				change.unknownValues[name] = true
+			}
+			if prev, ok := before[name]; !ok || value.IsUnknown() || prev != value.ValueString() {
+				change.names = append(change.names, name)
+			}
+		}
+		return change
+	}
+
+	switch {
+	case plan == nil && state == nil:
+		// Nothing planned and nothing in state.
+	case plan == nil:
+		// Destroy resets every managed setting.
+		add(state.ServiceID, plannedSettingsChange{names: sortedKeys(previous), teardown: true})
+	case state == nil || !plan.ServiceID.Equal(state.ServiceID):
+		// Create, or a replace that resets the old service and sets every value on the new one.
+		if state != nil {
+			add(state.ServiceID, plannedSettingsChange{names: sortedKeys(previous), teardown: true})
+		}
+		if !desiredKnown {
+			add(plan.ServiceID, plannedSettingsChange{unknownSettings: true})
+			break
+		}
+		add(plan.ServiceID, changedFrom(nil))
+	case !desiredKnown:
+		add(plan.ServiceID, plannedSettingsChange{unknownSettings: true})
+	default:
+		change := changedFrom(previous)
+		for _, name := range sortedKeys(previous) {
+			if _, ok := desired[name]; !ok {
+				change.names = append(change.names, name)
+			}
+		}
+		add(plan.ServiceID, change)
+	}
+
+	return touched, diags
+}
+
+// rolloutRestartMarker identifies a restart setting in the schema's free-text
+// warning. It matches control-plane's ROLLOUT_RESTART_NOTE in
+// CustomerSettingsAllowlist.ts; the API has no structured restart flag.
+const rolloutRestartMarker = "rollout restart"
+
+// settingsSchemaTimeout bounds the plan-time schema lookup, which only adds a warning.
+const settingsSchemaTimeout = 30 * time.Second
+
+// warnRestartingSettings reads the service's settings schema and adds one
+// warning listing the touched settings that restart the service. It never adds
+// an error: a failed lookup must not block the plan.
+func (r *ServiceClickhouseSettingsResource) warnRestartingSettings(ctx context.Context, serviceID string, change *plannedSettingsChange, diags *diag.Diagnostics) {
+	const uncheckedSummary = "Could not check whether this change restarts the ClickHouse service"
+	if change.unknownSettings {
+		diags.AddWarning(uncheckedSummary,
+			fmt.Sprintf("The settings for service %s are not known until apply, so this plan cannot say whether applying it restarts the service.", serviceID))
+		return
+	}
+
+	lookupCtx, cancel := context.WithTimeout(ctx, settingsSchemaTimeout)
+	defer cancel()
+	entries, err := r.client.GetServiceClickhouseSettingsSchema(lookupCtx, serviceID)
+	if err != nil && ctx.Err() != nil {
+		// The plan itself is being cancelled or has run out of time.
+		return
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		diags.AddWarning(uncheckedSummary,
+			fmt.Sprintf("The ClickHouse settings schema for service %s did not load within %s, so this plan cannot say whether applying it restarts the service.", serviceID, settingsSchemaTimeout))
+		return
+	}
+	if err != nil {
+		diags.AddWarning(uncheckedSummary,
+			fmt.Sprintf("Reading the ClickHouse settings schema for service %s failed, so this plan cannot say whether applying it restarts the service: %s", serviceID, err.Error()))
+		return
+	}
+
+	warnings := make(map[string]string, len(entries))
+	for _, e := range entries {
+		warnings[e.Name] = e.Warning
+	}
+
+	names := slices.Sorted(slices.Values(change.names))
+	var lines []string
+	// definite is true when at least one listed setting has a known new value, so the restart is certain.
+	definite := false
+	for _, name := range names {
+		warning := warnings[name]
+		if !strings.Contains(strings.ToLower(warning), rolloutRestartMarker) {
+			continue
+		}
+		if change.unknownValues[name] {
+			lines = append(lines, fmt.Sprintf("%q (new value not known until apply; restarts only if it changes): %s", name, warning))
+			continue
+		}
+		definite = true
+		lines = append(lines, fmt.Sprintf("%q: %s", name, warning))
+	}
+	if len(lines) == 0 {
+		return
+	}
+
+	summary := "This change restarts the ClickHouse service"
+	intro := fmt.Sprintf("Applying this plan restarts service %s.", serviceID)
+	switch {
+	case change.teardown:
+		intro = fmt.Sprintf("Applying this plan resets these settings on service %s, which restarts it. If this apply also deletes the service, the restart does not matter.", serviceID)
+	case !definite:
+		summary = "This change may restart the ClickHouse service"
+		intro = fmt.Sprintf("Applying this plan may restart service %s.", serviceID)
+	}
+	diags.AddWarning(summary, intro+"\n\n"+strings.Join(lines, "\n"))
+}
+
 // applySettings PATCHes the settings and shows the server's warnings. It
 // returns false when it added an error.
 func (r *ServiceClickhouseSettingsResource) applySettings(ctx context.Context, serviceID string, settings map[string]string, diags *diag.Diagnostics) bool {
@@ -299,11 +496,6 @@ func managedClickhouseSettings(managed, current map[string]string) map[string]st
 	return result
 }
 
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+func sortedKeys[V any](m map[string]V) []string {
+	return slices.Sorted(maps.Keys(m))
 }

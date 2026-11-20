@@ -120,9 +120,14 @@ func clickhouseSettingsRaw(ctx context.Context, sch schema.Schema, serviceID str
 	for k, v := range settings {
 		values[k] = tftypes.NewValue(tftypes.String, v)
 	}
-	return tftypes.NewValue(sch.Type().TerraformType(ctx), map[string]tftypes.Value{
-		"id":         tftypes.NewValue(tftypes.String, serviceID),
-		"service_id": tftypes.NewValue(tftypes.String, serviceID),
-		"settings":   tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, values),
+	return clickhouseSettingsValue(sch, tftypes.NewValue(tftypes.String, serviceID), tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, values))
+}
+
+// clickhouseSettingsValue builds the resource object from Terraform values, which may be unknown.
+func clickhouseSettingsValue(sch schema.Schema, serviceID, settings tftypes.Value) tftypes.Value {
+	return tftypes.NewValue(sch.Type().TerraformType(context.Background()), map[string]tftypes.Value{
+		"id":         serviceID,
+		"service_id": serviceID,
+		"settings":   settings,
 	})
 }
