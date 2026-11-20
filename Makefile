@@ -106,7 +106,7 @@ mutation: ## Mutation test code changed since MUTATION_DIFF (empty = whole modul
 	@if [ -n "$(MUTATION_DIFF)" ] && git diff --quiet --merge-base $(MUTATION_DIFF) -- '*.go'; then \
 		echo "No Go changes since $(MUTATION_DIFF), skipping mutation testing"; \
 	else \
-		go tool gremlins unleash --diff=$(MUTATION_DIFF); \
+		go tool gremlins unleash $(if $(GREMLINS_UNLEASH_WORKERS),--workers=$(GREMLINS_UNLEASH_WORKERS)) --diff=$(MUTATION_DIFF); \
 	fi
 
 .PHONY: docs-check
