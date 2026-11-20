@@ -56,11 +56,11 @@ func sameStringList(a, b types.List) bool {
 	return a.Equal(b) || (isNullOrEmptyList(a) && isNullOrEmptyList(b))
 }
 
-// postgresTableMappingChange returns the first attribute that differs between
-// the prior and planned mapping of the same source table, or "" when none
-// does. MySQL mappings have the same attributes, so they are converted and
-// compared here too.
-func postgresTableMappingChange(prior, planned models.ClickPipePostgresTableMappingModel) string {
+// sqlTableMappingChange returns the first attribute that differs between the
+// prior and planned mapping of the same Postgres or MySQL source table, or ""
+// when none does. Both sources share the mapping attributes, so MySQL mappings
+// are converted to the Postgres model, which has the same fields.
+func sqlTableMappingChange(prior, planned models.ClickPipePostgresTableMappingModel) string {
 	switch {
 	case prior.TargetTable.ValueString() != planned.TargetTable.ValueString():
 		return clickPipeTargetTable
@@ -80,7 +80,7 @@ func postgresTableMappingChange(prior, planned models.ClickPipePostgresTableMapp
 	return ""
 }
 
-// mongoDBTableMappingChange is postgresTableMappingChange for MongoDB mappings.
+// mongoDBTableMappingChange is sqlTableMappingChange for MongoDB mappings.
 func mongoDBTableMappingChange(prior, planned models.ClickPipeMongoDBTableMappingModel) string {
 	switch {
 	case prior.TargetTable.ValueString() != planned.TargetTable.ValueString():
@@ -188,15 +188,15 @@ func convertAll[M, A any](mappings []M, convert func(M) A) []A {
 	return converted
 }
 
-// postgresTableMappingKey identifies a Postgres or MySQL mapping by source and
+// sqlTableMappingKey identifies a Postgres or MySQL mapping by source and
 // target table, so a changed target_table is an add plus a remove, which
 // ModifyPlan rejects.
-func postgresTableMappingKey(m models.ClickPipePostgresTableMappingModel) string {
+func sqlTableMappingKey(m models.ClickPipePostgresTableMappingModel) string {
 	return fmt.Sprintf("%s.%s->%s", m.SourceSchemaName.ValueString(), m.SourceTable.ValueString(), m.TargetTable.ValueString())
 }
 
 func (c *ClickPipeResource) postgresTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool) (toAdd, toRemove, toResync []api.ClickPipePostgresTableMapping) {
-	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, resync, postgresTableMappingKey, postgresTableMappingChange)
+	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, resync, sqlTableMappingKey, sqlTableMappingChange)
 	toAPI := func(m models.ClickPipePostgresTableMappingModel) api.ClickPipePostgresTableMapping {
 		return c.convertTableMappingModelToAPI(ctx, *diagnostics, m)
 	}
@@ -205,10 +205,10 @@ func (c *ClickPipeResource) postgresTableMappingDeltas(ctx context.Context, diag
 
 func mySQLTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool) (toAdd, toRemove, toResync []api.ClickPipeMySQLTableMapping) {
 	key := func(m models.ClickPipeMySQLTableMappingModel) string {
-		return postgresTableMappingKey(models.ClickPipePostgresTableMappingModel(m))
+		return sqlTableMappingKey(models.ClickPipePostgresTableMappingModel(m))
 	}
 	change := func(prior, planned models.ClickPipeMySQLTableMappingModel) string {
-		return postgresTableMappingChange(models.ClickPipePostgresTableMappingModel(prior), models.ClickPipePostgresTableMappingModel(planned))
+		return sqlTableMappingChange(models.ClickPipePostgresTableMappingModel(prior), models.ClickPipePostgresTableMappingModel(planned))
 	}
 	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, resync, key, change)
 	toAPI := func(m models.ClickPipeMySQLTableMappingModel) api.ClickPipeMySQLTableMapping {

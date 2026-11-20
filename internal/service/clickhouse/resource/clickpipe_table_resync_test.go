@@ -85,10 +85,10 @@ func TestTableMappingChange_NullAndEmptyCollectionsMatch(t *testing.T) {
 	planned.ExcludedColumns = types.SetValueMust(types.StringType, []attr.Value{})
 	planned.SortingKeys = types.ListNull(types.StringType)
 
-	assert.Empty(t, postgresTableMappingChange(prior, planned))
+	assert.Empty(t, sqlTableMappingChange(prior, planned))
 
 	planned.SortingKeys = stringListValue([]string{"id"})
-	assert.Equal(t, "sorting_keys", postgresTableMappingChange(prior, planned))
+	assert.Equal(t, "sorting_keys", sqlTableMappingChange(prior, planned))
 }
 
 // withResyncPartitionByExpr returns the fixture pipe with its single mapping

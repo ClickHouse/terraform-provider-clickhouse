@@ -2775,7 +2775,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 								for key, stateMapping := range stateMap {
 									if planMapping, exists := planMap[key]; exists {
 										table := key.sourceSchemaName + "." + key.sourceTable
-										changed := postgresTableMappingChange(stateMapping, planMapping)
+										changed := sqlTableMappingChange(stateMapping, planMapping)
 										validateTableMappingChange(&response.Diagnostics, table, changed, resyncTablesOnChange)
 									}
 								}
@@ -2836,7 +2836,7 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 								for key, stateMapping := range stateMap {
 									if planMapping, exists := planMap[key]; exists {
 										table := key.sourceSchemaName + "." + key.sourceTable
-										changed := postgresTableMappingChange(models.ClickPipePostgresTableMappingModel(stateMapping), models.ClickPipePostgresTableMappingModel(planMapping))
+										changed := sqlTableMappingChange(models.ClickPipePostgresTableMappingModel(stateMapping), models.ClickPipePostgresTableMappingModel(planMapping))
 										validateTableMappingChange(&response.Diagnostics, table, changed, resyncTablesOnChange)
 									}
 								}
