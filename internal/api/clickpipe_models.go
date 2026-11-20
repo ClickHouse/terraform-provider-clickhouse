@@ -227,6 +227,7 @@ type ClickPipePostgresSource struct {
 	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipePostgresTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipePostgresTableMapping `json:"tableMappingsToAdd,omitempty"`
+	TableMappingsToResync []ClickPipePostgresTableMapping `json:"tableMappingsToResync,omitempty"`
 	SSHKeyResourceID      *string                         `json:"sshKeyResourceId,omitempty"`
 }
 
@@ -272,6 +273,7 @@ type ClickPipeMySQLSource struct {
 	Mappings              []ClickPipeMySQLTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipeMySQLTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipeMySQLTableMapping `json:"tableMappingsToAdd,omitempty"`
+	TableMappingsToResync []ClickPipeMySQLTableMapping `json:"tableMappingsToResync,omitempty"`
 	SSHKeyResourceID      *string                      `json:"sshKeyResourceId,omitempty"`
 }
 
@@ -355,6 +357,7 @@ type ClickPipeMongoDBSource struct {
 	Mappings              []ClickPipeMongoDBTableMapping `json:"tableMappings,omitempty"`
 	TableMappingsToRemove []ClickPipeMongoDBTableMapping `json:"tableMappingsToRemove,omitempty"`
 	TableMappingsToAdd    []ClickPipeMongoDBTableMapping `json:"tableMappingsToAdd,omitempty"`
+	TableMappingsToResync []ClickPipeMongoDBTableMapping `json:"tableMappingsToResync,omitempty"`
 	SSHKeyResourceID      *string                        `json:"sshKeyResourceId,omitempty"`
 }
 

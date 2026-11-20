@@ -1243,6 +1243,8 @@ type ClickPipeResourceModel struct {
 	FieldMappings types.List    `tfsdk:"field_mappings"`
 	Settings      types.Dynamic `tfsdk:"settings"`
 	TriggerResync types.Bool    `tfsdk:"trigger_resync"`
+	// ResyncTablesOnChange is provider-side only, it is never sent to the API.
+	ResyncTablesOnChange types.Bool `tfsdk:"resync_tables_on_change"`
 }
 
 type ClickPipeCdcInfrastructureModel struct {
