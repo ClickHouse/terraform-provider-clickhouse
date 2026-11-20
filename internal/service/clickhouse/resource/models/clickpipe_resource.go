@@ -395,6 +395,7 @@ type ClickPipePostgresSettingsModel struct {
 	ReplicationMode                types.String `tfsdk:"replication_mode"`
 	ReplicationSlotName            types.String `tfsdk:"replication_slot_name"`
 	AllowNullableColumns           types.Bool   `tfsdk:"allow_nullable_columns"`
+	UseJsonNativeFormat            types.Bool   `tfsdk:"use_json_native_format"`
 	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
 	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
 	SnapshotNumberOfParallelTables types.Int64  `tfsdk:"snapshot_number_of_parallel_tables"`
@@ -411,6 +412,7 @@ func (m ClickPipePostgresSettingsModel) ObjectType() types.ObjectType {
 			"replication_mode":                   types.StringType,
 			"replication_slot_name":              types.StringType,
 			"allow_nullable_columns":             types.BoolType,
+			"use_json_native_format":             types.BoolType,
 			"initial_load_parallelism":           types.Int64Type,
 			"snapshot_num_rows_per_partition":    types.Int64Type,
 			"snapshot_number_of_parallel_tables": types.Int64Type,
@@ -428,6 +430,7 @@ func (m ClickPipePostgresSettingsModel) ObjectValue() types.Object {
 		"replication_mode":                   m.ReplicationMode,
 		"replication_slot_name":              m.ReplicationSlotName,
 		"allow_nullable_columns":             m.AllowNullableColumns,
+		"use_json_native_format":             m.UseJsonNativeFormat,
 		"initial_load_parallelism":           m.InitialLoadParallelism,
 		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
 		"snapshot_number_of_parallel_tables": m.SnapshotNumberOfParallelTables,
@@ -750,6 +753,7 @@ type ClickPipeMySQLSettingsModel struct {
 	ReplicationMechanism           types.String `tfsdk:"replication_mechanism"`
 	UseCompression                 types.Bool   `tfsdk:"use_compression"`
 	AllowNullableColumns           types.Bool   `tfsdk:"allow_nullable_columns"`
+	UseJsonNativeFormat            types.Bool   `tfsdk:"use_json_native_format"`
 	InitialLoadParallelism         types.Int64  `tfsdk:"initial_load_parallelism"`
 	SnapshotNumRowsPerPartition    types.Int64  `tfsdk:"snapshot_num_rows_per_partition"`
 	SnapshotNumberOfParallelTables types.Int64  `tfsdk:"snapshot_number_of_parallel_tables"`
@@ -765,6 +769,7 @@ func (m ClickPipeMySQLSettingsModel) ObjectType() types.ObjectType {
 			"replication_mechanism":              types.StringType,
 			"use_compression":                    types.BoolType,
 			"allow_nullable_columns":             types.BoolType,
+			"use_json_native_format":             types.BoolType,
 			"initial_load_parallelism":           types.Int64Type,
 			"snapshot_num_rows_per_partition":    types.Int64Type,
 			"snapshot_number_of_parallel_tables": types.Int64Type,
@@ -781,6 +786,7 @@ func (m ClickPipeMySQLSettingsModel) ObjectValue() types.Object {
 		"replication_mechanism":              m.ReplicationMechanism,
 		"use_compression":                    m.UseCompression,
 		"allow_nullable_columns":             m.AllowNullableColumns,
+		"use_json_native_format":             m.UseJsonNativeFormat,
 		"initial_load_parallelism":           m.InitialLoadParallelism,
 		"snapshot_num_rows_per_partition":    m.SnapshotNumRowsPerPartition,
 		"snapshot_number_of_parallel_tables": m.SnapshotNumberOfParallelTables,
