@@ -19,6 +19,7 @@ const (
 	serviceStateCommandAwake = "awake"
 
 	ResponseHeaderRateLimitReset = "X-RateLimit-Reset"
+	ResponseHeaderRetryAfter     = "Retry-After"
 
 	ComplianceTypeHIPAA = "hipaa"
 	ComplianceTypePCI   = "pci"
