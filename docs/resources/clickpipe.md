@@ -103,6 +103,7 @@ resource "clickhouse_clickpipe" "kafka_clickpipe" {
 ### Optional
 
 - `field_mappings` (Attributes List) Field mapping between source and destination table. (see [below for nested schema](#nestedatt--field_mappings))
+- `resync_tables_on_change` (Boolean) Postgres, MySQL and MongoDB pipes only. When `true`, changing an existing table mapping in `table_mappings`, other than its `target_table`, resyncs that table: it is copied again from the source with the new settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes. Track the resync progress in the ClickHouse Cloud console. When `false`, such a change fails at plan time. Changing only this attribute resyncs nothing. Defaults to `false`.
 - `scaling` (Attributes) (see [below for nested schema](#nestedatt--scaling))
 - `settings` (Dynamic) Advanced configuration options for the ClickPipe. These settings are specific to each pipe. For the complete list of available options, see the OpenAPI documentation at https://clickhouse.com/docs/cloud/manage/api/swagger (search for the ClickPipes settings endpoint).
 - `stopped` (Boolean) Whether the ClickPipe should be stopped. Default is `false`. For streaming and object-storage ClickPipes, set to `true` to create the pipe without starting ingestion, then set to `false` and apply to start it. Database ClickPipes cannot be created stopped. This is the configured intent; `state` reports the live status.
@@ -426,7 +427,7 @@ Required:
 Optional:
 
 - `persist_deleted_documents` (Boolean) Persist the full document as it was right before it was deleted, instead of just its `_id`, when MongoDB delete events are ingested. Requires `changeStreamPreAndPostImages` to be enabled on the source collection. Has no effect on `snapshot` only pipes.
-- `structured_ingestion` (Attributes) Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. Cannot be changed on an existing table mapping: remove the mapping and add it again instead. (see [below for nested schema](#nestedatt--source--mongodb--table_mappings--structured_ingestion))
+- `structured_ingestion` (Attributes) Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe, with `columns` set as they are not inferred on resync. (see [below for nested schema](#nestedatt--source--mongodb--table_mappings--structured_ingestion))
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
 
 <a id="nestedatt--source--mongodb--table_mappings--structured_ingestion"></a>
@@ -521,7 +522,7 @@ Required:
 Optional:
 
 - `excluded_columns` (Set of String) Columns to exclude from replication.
-- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping.
+- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Must be an indexed column of integer, date, datetime, or timestamp type.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)
@@ -634,7 +635,7 @@ Required:
 Optional:
 
 - `excluded_columns` (Set of String) Columns to exclude from replication.
-- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Cannot be changed on an existing table mapping: remove the mapping in one apply, then re-add it with the new value in a subsequent apply (re-adding re-snapshots the table).
+- `partition_by_expr` (String) ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe.
 - `partition_key` (String) Custom partitioning column used for parallel snapshotting. Only beneficial for PostgreSQL 13 (no benefit for PG14+, which supports indexed ctid scans). Must be an indexed column of type: `smallint`, `integer`, `bigint`, `timestamp without time zone`, or `timestamp with time zone`. Unrelated to ClickHouse partitioning.
 - `sorting_keys` (List of String) Ordered list of columns to use as sorting key for the target table. Required when use_custom_sorting_key is true.
 - `table_engine` (String) Table engine to use for the target table. (`MergeTree`, `ReplacingMergeTree`, `Null`)

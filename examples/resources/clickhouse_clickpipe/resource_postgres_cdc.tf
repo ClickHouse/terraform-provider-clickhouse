@@ -2,6 +2,11 @@ resource "clickhouse_clickpipe" "postgres_cdc_clickpipe" {
   name       = "My Postgres CDC ClickPipe"
   service_id = "e9465b4b-f7e5-4937-8e21-8d508b02843d"
 
+  # Optional: changing an existing table mapping (excluded columns, sorting key,
+  # table engine, partitioning) resyncs that table from a fresh snapshot,
+  # instead of failing the plan.
+  # resync_tables_on_change = true
+
   source {
     postgres {
       # Can also use a reverse private endpoint DNS name for secure private connectivity:
