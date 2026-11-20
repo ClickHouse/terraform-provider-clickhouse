@@ -40,6 +40,7 @@ type Client interface {
 	ListServiceClickhouseSettings(ctx context.Context, serviceId string) (map[string]string, error)
 	UpdateServiceClickhouseSettings(ctx context.Context, serviceId string, settings map[string]any) (*ServiceClickhouseSettingsUpdateResult, error)
 	DeleteServiceClickhouseSetting(ctx context.Context, serviceId string, settingName string) error
+	GetServiceClickhouseSettingsSchema(ctx context.Context, serviceId string) ([]ServiceClickhouseSettingSchemaEntry, error)
 	GetJWTProvider(ctx context.Context, serviceID, name string) (*JWTProvider, error)
 	CreateJWTProvider(ctx context.Context, serviceID string, provider JWTProvider) (*JWTProvider, error)
 	UpdateJWTProvider(ctx context.Context, serviceID, name string, update JWTProviderUpdate) (*JWTProvider, error)
