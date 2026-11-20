@@ -75,6 +75,32 @@ func TestUpdateServiceClickhouseSettings_SendsNativeTypes(t *testing.T) {
 	}
 }
 
+func TestGetServiceClickhouseSettingsSchema(t *testing.T) {
+	expectedPath := "/organizations/org-1/services/svc-1/clickhouseSettings/schema"
+
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %q; want GET", r.Method)
+		}
+		if r.URL.Path != expectedPath {
+			t.Errorf("path = %q; want %q", r.URL.Path, expectedPath)
+		}
+		_, _ = w.Write([]byte(`{"result":{"settings":[{"name":"compatibility","type":"string","description":"d","warning":"Applying this setting triggers a ClickHouse server rollout restart."},{"name":"max_query_size","type":"integer","description":"d"}]}}`))
+	})
+
+	got, err := client.GetServiceClickhouseSettingsSchema(context.Background(), "svc-1")
+	if err != nil {
+		t.Fatalf("GetServiceClickhouseSettingsSchema: %v", err)
+	}
+	want := []ServiceClickhouseSettingSchemaEntry{
+		{Name: "compatibility", Warning: "Applying this setting triggers a ClickHouse server rollout restart."},
+		{Name: "max_query_size"},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("GetServiceClickhouseSettingsSchema mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestDeleteServiceClickhouseSetting(t *testing.T) {
 	expectedPath := "/organizations/org-1/services/svc-1/clickhouseSettings/max_query_size"
 	var sawDelete bool

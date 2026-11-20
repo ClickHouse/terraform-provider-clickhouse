@@ -115,6 +115,38 @@ func (c *ClientImpl) DeleteServiceClickhouseSetting(ctx context.Context, service
 	return err
 }
 
+// ServiceClickhouseSettingSchemaEntry is one configurable setting. Warning is
+// free text describing how a change takes effect, such as a rollout restart or
+// a short propagation delay. It can be empty.
+type ServiceClickhouseSettingSchemaEntry struct {
+	Name    string `json:"name"`
+	Warning string `json:"warning"`
+}
+
+type serviceClickhouseSettingsSchema struct {
+	Settings []ServiceClickhouseSettingSchemaEntry `json:"settings"`
+}
+
+// GetServiceClickhouseSettingsSchema lists every setting the service accepts.
+func (c *ClientImpl) GetServiceClickhouseSettingsSchema(ctx context.Context, serviceId string) ([]ServiceClickhouseSettingSchemaEntry, error) {
+	req, err := http.NewRequest(http.MethodGet, c.getServicePath(serviceId, "/clickhouseSettings/schema"), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	response := ResponseWithResult[serviceClickhouseSettingsSchema]{}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, err
+	}
+
+	return response.Result.Settings, nil
+}
+
 func clickhouseSettingValueString(raw json.RawMessage) (string, error) {
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
