@@ -81,22 +81,7 @@ type RoleUpdateRequest struct {
 }
 
 func (c *ClientImpl) ListRoles(ctx context.Context) ([]RBACRole, error) {
-	req, err := http.NewRequest(http.MethodGet, c.getOrgPath("/roles"), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := c.doRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	rolesResponse := ResponseWithResult[[]RBACRole]{}
-	if err = json.Unmarshal(body, &rolesResponse); err != nil {
-		return nil, err
-	}
-
-	return rolesResponse.Result, nil
+	return listAll[RBACRole](ctx, c, c.getOrgPath("/roles"), nil)
 }
 
 func (c *ClientImpl) GetRole(ctx context.Context, roleId string) (*RBACRole, error) {

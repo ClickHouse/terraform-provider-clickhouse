@@ -129,3 +129,34 @@ func TestListAll_RequestErrorIsUnwrapped(t *testing.T) {
 		t.Fatalf("expected IsNotFound to match, got %v", err)
 	}
 }
+
+func TestListRoles_WalksEveryPage(t *testing.T) {
+	t.Parallel()
+
+	var queries []url.Values
+	pages := cursorPages(t, map[string]string{
+		"":   `{"result":[{"id":"r1","name":"one"}],"limit":1,"nextCursor":"c1"}`,
+		"c1": `{"result":[{"id":"r2","name":"two"}],"limit":1,"nextCursor":null}`,
+	}, &queries)
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if want := "/organizations/" + testOrgID + "/roles"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
+		}
+		pages(w, r)
+	})
+
+	roles, err := c.ListRoles(context.Background())
+	if err != nil {
+		t.Fatalf("ListRoles: %v", err)
+	}
+	got := make([]string, len(roles))
+	for i, r := range roles {
+		got[i] = r.ID
+	}
+	if want := []string{"r1", "r2"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("role ids = %v, want %v", got, want)
+	}
+	if want := []url.Values{{}, {"cursor": {"c1"}}}; !reflect.DeepEqual(queries, want) {
+		t.Errorf("queries = %v, want %v", queries, want)
+	}
+}

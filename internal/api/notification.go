@@ -74,14 +74,6 @@ type notificationSettingsUpdateResponse struct {
 	Settings []NotificationSetting `json:"settings"`
 }
 
-// notificationSettingsPage is the settings list response. Unlike every other
-// list in this client it is cursor-paginated, so it carries nextCursor beside
-// the result rather than the whole collection.
-type notificationSettingsPage struct {
-	Result     []NotificationSetting `json:"result"`
-	NextCursor *string               `json:"nextCursor"`
-}
-
 func (c *ClientImpl) memberNotificationSettingsPath(userID string) string {
 	return c.getOrgPath(fmt.Sprintf("/members/%s/notificationSettings", userID))
 }
@@ -91,43 +83,7 @@ func (c *ClientImpl) memberNotificationSettingsPath(userID string) string {
 // empty result means the member follows the platform default everywhere, not
 // that their notifications are off.
 func (c *ClientImpl) ListMemberNotificationSettings(ctx context.Context, userID string) ([]NotificationSetting, error) {
-	settings := []NotificationSetting{}
-	cursor := ""
-	seen := map[string]struct{}{}
-
-	for {
-		req, err := http.NewRequest(http.MethodGet, c.memberNotificationSettingsPath(userID), nil)
-		if err != nil {
-			return nil, err
-		}
-		if cursor != "" {
-			q := req.URL.Query()
-			q.Set("cursor", cursor)
-			req.URL.RawQuery = q.Encode()
-		}
-
-		body, err := c.doRequest(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-
-		page := notificationSettingsPage{}
-		if err := json.Unmarshal(body, &page); err != nil {
-			return nil, fmt.Errorf("unmarshal notification settings page: %w", err)
-		}
-
-		settings = append(settings, page.Result...)
-		if page.NextCursor == nil || *page.NextCursor == "" {
-			return settings, nil
-		}
-		// A server handing back a cursor it already gave would page forever,
-		// collecting the same settings until the context is cancelled.
-		if _, repeated := seen[*page.NextCursor]; repeated {
-			return nil, fmt.Errorf("notification settings pagination repeated cursor %q", *page.NextCursor)
-		}
-		seen[*page.NextCursor] = struct{}{}
-		cursor = *page.NextCursor
-	}
+	return listAll[NotificationSetting](ctx, c, c.memberNotificationSettingsPath(userID), nil)
 }
 
 // UpdateMemberNotificationSettings applies rules to a member's settings and

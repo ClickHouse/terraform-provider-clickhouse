@@ -53,10 +53,10 @@ func eachItem[T any](ctx context.Context, c *ClientImpl, path string, query url.
 	return err
 }
 
-// listAll returns every item of a cursor-paginated OpenAPI list endpoint. See
-// eachItem.
+// listAll returns every item of a cursor-paginated OpenAPI list endpoint, never
+// nil on success, like decoding an empty "result": [] would be. See eachItem.
 func listAll[T any](ctx context.Context, c *ClientImpl, path string, query url.Values) ([]T, error) {
-	var all []T
+	all := []T{}
 	err := eachItem(ctx, c, path, query, func(item T) bool {
 		all = append(all, item)
 		return false
