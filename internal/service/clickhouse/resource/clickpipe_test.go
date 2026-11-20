@@ -442,6 +442,7 @@ func getPostgresInitialState() models.ClickPipeResourceModel {
 					"ca_certificate":         types.StringNull(),
 					"disable_tls":            types.BoolNull(),
 					"skip_cert_verification": types.BoolNull(),
+					"mutual_tls":             types.ObjectNull(models.ClickPipePostgresMutualTLSModel{}.ObjectType().AttrTypes),
 					"credentials": types.ObjectValueMust(
 						models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes,
 						map[string]attr.Value{
@@ -837,6 +838,7 @@ func buildPostgresCredentialsPlan(password, passwordWO types.String, passwordWOV
 			"disable_tls":            types.BoolNull(),
 			"skip_cert_verification": types.BoolNull(),
 			"credentials":            types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+			"mutual_tls":             types.ObjectNull(models.ClickPipePostgresMutualTLSModel{}.ObjectType().AttrTypes),
 			"settings":               types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
 			"table_mappings":         types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{}),
 		}
@@ -942,6 +944,7 @@ func buildPostgresIAMRolePlan(authentication, iamRole types.String) (plan, confi
 		"disable_tls":            types.BoolNull(),
 		"skip_cert_verification": types.BoolNull(),
 		"credentials":            types.ObjectValueMust(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes, credAttrs),
+		"mutual_tls":             types.ObjectNull(models.ClickPipePostgresMutualTLSModel{}.ObjectType().AttrTypes),
 		"settings":               types.ObjectValueMust(models.ClickPipePostgresSettingsModel{}.ObjectType().AttrTypes, settingsAttrs),
 		"table_mappings":         types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{}),
 	}

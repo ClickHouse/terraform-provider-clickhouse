@@ -70,6 +70,14 @@ resource "clickhouse_clickpipe" "postgres_cdc" {
         password = var.postgres_password
       }
 
+      # Optional: Uncomment to authenticate with a client certificate (mutual TLS).
+      # Requires TLS (not compatible with disable_tls = true).
+      # See ../cdc_postgres_mutual_tls for a complete example.
+      # mutual_tls = {
+      #   certificate = var.client_certificate
+      #   private_key = var.client_private_key
+      # }
+
       settings = {
         replication_mode = "cdc" # Options: "cdc", "snapshot", "cdc_only"
         # Optional: Uncomment to customize

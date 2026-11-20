@@ -212,22 +212,33 @@ type ClickPipePubSubSource struct {
 }
 
 type ClickPipePostgresSource struct {
-	Type                  string                          `json:"type,omitempty"`
-	Host                  string                          `json:"host,omitempty"`
-	Port                  int                             `json:"port,omitempty"`
-	Database              string                          `json:"database,omitempty"`
-	Authentication        *string                         `json:"authentication,omitempty"`
-	IAMRole               *string                         `json:"iamRole,omitempty"`
-	TLSHost               *string                         `json:"tlsHost,omitempty"`
-	CACertificate         *string                         `json:"caCertificate,omitempty"`
-	DisableTLS            *bool                           `json:"disableTls,omitempty"`
-	SkipCertVerification  *bool                           `json:"skipCertVerification,omitempty"`
-	Credentials           *ClickPipeSourceCredentials     `json:"credentials,omitempty"`
-	Settings              *ClickPipePostgresSettings      `json:"settings,omitempty"`
-	Mappings              []ClickPipePostgresTableMapping `json:"tableMappings,omitempty"`
-	TableMappingsToRemove []ClickPipePostgresTableMapping `json:"tableMappingsToRemove,omitempty"`
-	TableMappingsToAdd    []ClickPipePostgresTableMapping `json:"tableMappingsToAdd,omitempty"`
-	SSHKeyResourceID      *string                         `json:"sshKeyResourceId,omitempty"`
+	Type                 string                      `json:"type,omitempty"`
+	Host                 string                      `json:"host,omitempty"`
+	Port                 int                         `json:"port,omitempty"`
+	Database             string                      `json:"database,omitempty"`
+	Authentication       *string                     `json:"authentication,omitempty"`
+	IAMRole              *string                     `json:"iamRole,omitempty"`
+	TLSHost              *string                     `json:"tlsHost,omitempty"`
+	CACertificate        *string                     `json:"caCertificate,omitempty"`
+	DisableTLS           *bool                       `json:"disableTls,omitempty"`
+	SkipCertVerification *bool                       `json:"skipCertVerification,omitempty"`
+	Credentials          *ClickPipeSourceCredentials `json:"credentials,omitempty"`
+	// MutualTLS is the client certificate used for mutual TLS. Write-only; never
+	// returned by GET. On PATCH: nil keeps the stored certificate, a value
+	// replaces it and NullableNull removes it.
+	MutualTLS             *Nullable[ClickPipePostgresMutualTLS] `json:"mutualTls,omitempty"`
+	Settings              *ClickPipePostgresSettings            `json:"settings,omitempty"`
+	Mappings              []ClickPipePostgresTableMapping       `json:"tableMappings,omitempty"`
+	TableMappingsToRemove []ClickPipePostgresTableMapping       `json:"tableMappingsToRemove,omitempty"`
+	TableMappingsToAdd    []ClickPipePostgresTableMapping       `json:"tableMappingsToAdd,omitempty"`
+	SSHKeyResourceID      *string                               `json:"sshKeyResourceId,omitempty"`
+}
+
+// ClickPipePostgresMutualTLS is the PEM encoded client certificate and private
+// key a Postgres ClickPipe presents to the source for mutual TLS.
+type ClickPipePostgresMutualTLS struct {
+	Certificate string `json:"certificate"`
+	PrivateKey  string `json:"privateKey"`
 }
 
 type ClickPipePostgresSettings struct {

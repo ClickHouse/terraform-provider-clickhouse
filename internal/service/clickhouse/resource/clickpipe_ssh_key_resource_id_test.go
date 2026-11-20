@@ -206,6 +206,7 @@ func buildPostgresSSHKeyResourcePlan(sshKeyResourceID types.String) models.Click
 		"disable_tls":            types.BoolNull(),
 		"skip_cert_verification": types.BoolNull(),
 		"credentials":            dbSourceCredentials(),
+		"mutual_tls":             types.ObjectNull(models.ClickPipePostgresMutualTLSModel{}.ObjectType().AttrTypes),
 		"settings":               settingsModel.ObjectValue(),
 		"table_mappings":         types.SetValueMust(models.ClickPipePostgresTableMappingModel{}.ObjectType(), []attr.Value{}),
 		"ssh_key_resource_id":    sshKeyResourceID,

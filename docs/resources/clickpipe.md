@@ -595,6 +595,7 @@ Optional:
 - `credentials` (Attributes, Sensitive) The credentials for the Postgres instance. Required unless authentication is `SERVICE_ACCOUNT_WORKLOAD_IDENTITY`. For `basic` authentication, supply either `password` or `password_wo`. For `IAM_ROLE` authentication, password is optional. For `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication, only `username` may be set (defaults to the service's Cloud SQL IAM user) and password must be omitted. (see [below for nested schema](#nestedatt--source--postgres--credentials))
 - `disable_tls` (Boolean) Disable TLS for the Postgres connection.
 - `iam_role` (String) IAM role ARN for IAM authentication. Required when authentication is set to `IAM_ROLE`.
+- `mutual_tls` (Attributes) Client certificate for mutual TLS (mTLS) authentication to the Postgres instance. When set, ClickPipes presents this certificate during the TLS handshake, in addition to the configured `credentials`. Requires TLS, so it cannot be combined with `disable_tls = true`, and is not supported with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication. The values are never returned by the API. Changing or removing it updates the pipe in place and re-validates the source connection. (see [below for nested schema](#nestedatt--source--postgres--mutual_tls))
 - `port` (Number) The port of the Postgres instance. Default is 5432.
 - `skip_cert_verification` (Boolean) Skip certificate verification for the Postgres connection.
 - `ssh_key_resource_id` (String) ID of a standalone SSH key resource (`clickhouse_clickpipes_ssh_key`) to tunnel the connection through. Mutually exclusive with inline SSH configuration. Immutable; changing it forces resource replacement.
@@ -653,6 +654,15 @@ Optional:
 - `password` (String, Sensitive) The password for the Postgres instance. Use `password_wo` instead to keep the value out of state.
 - `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for the Postgres instance. Not persisted to state. Pair with `password_wo_version` to trigger updates.
 - `password_wo_version` (Number) Version trigger for `password_wo`. Increment to push a new password to the API.
+
+
+<a id="nestedatt--source--postgres--mutual_tls"></a>
+### Nested Schema for `source.postgres.mutual_tls`
+
+Required:
+
+- `certificate` (String, Sensitive) PEM encoded client certificate presented to the Postgres server for mutual TLS.
+- `private_key` (String, Sensitive) PEM encoded private key for the client `certificate`.
 
 
 
