@@ -92,8 +92,8 @@ func (c *ClientImpl) DeletePostgresPrivateEndpoint(ctx context.Context, postgres
 
 // WaitForPostgresPrivateEndpoint polls until done returns true. done receives
 // nil once the private endpoint service no longer exists, so the same helper
-// waits for creation and for deletion. 5xx bails immediately; other errors
-// retry until the budget runs out.
+// waits for creation and for deletion. 5xx and permanent 4xx errors bail
+// immediately; other errors retry until the budget runs out.
 func (c *ClientImpl) WaitForPostgresPrivateEndpoint(ctx context.Context, postgresId string, done func(*PostgresPrivateEndpoint) bool, maxWaitSeconds int) error {
 	maxRetries := uint64(maxWaitSeconds / int(postgresPrivateEndpointPollInterval/time.Second)) //nolint:gosec
 	return c.waitForPostgresPrivateEndpointWithInterval(ctx, postgresId, done, postgresPrivateEndpointPollInterval, maxRetries)
@@ -108,7 +108,7 @@ func (c *ClientImpl) waitForPostgresPrivateEndpointWithInterval(ctx context.Cont
 		switch {
 		case IsNotFound(err):
 			endpoint, lastSeenState = nil, "not found"
-		case is5xx(err):
+		case is5xx(err) || Is4xxPermanent(err):
 			return backoff.Permanent(err)
 		case err != nil:
 			return err

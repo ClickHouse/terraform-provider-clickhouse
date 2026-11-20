@@ -126,6 +126,7 @@ func TestWaitForPostgresPrivateEndpoint(t *testing.T) {
 		"waits until gone":            {responses: []int{200, 404}, done: gone, wantCalls: 2},
 		"retries a 404 while waiting": {responses: []int{404, 201}, done: available, wantCalls: 2},
 		"reports the last state":      {responses: []int{200, 200, 200}, done: available, wantErr: "last seen state: creating", wantCalls: 3},
+		"fails fast on a 403":         {responses: []int{403, 201}, done: available, wantErr: "status: 403", wantCalls: 1},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var calls atomic.Int32
