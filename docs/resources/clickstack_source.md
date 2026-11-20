@@ -167,6 +167,7 @@ resource "clickhouse_clickstack_source" "prometheus" {
 - `parent_span_id_expression` (String) Expression to extract the parent span ID. Required for `trace`.
 - `query_settings` (Attributes List) Optional ClickHouse query settings applied when querying this source. (see [below for nested schema](#nestedatt--query_settings))
 - `resource_attributes_expression` (String) Expression to extract resource-level attributes. Required for `metric`.
+- `row_key_expression` (String) Comma-separated expressions that uniquely identify a row, used by the row side panel to look up the selected row (log, trace). When set, the lookup selects and filters on only these expressions instead of keys detected from table metadata. Useful when the queried table hides its keys, e.g. a `Distributed` table over a `Merge` table.
 - `sample_rate_expression` (String) Expression to extract the trace sample rate.
 - `section` (String) Optional grouping label used to organize sources in the source selector.
 - `service_name_expression` (String) Expression to extract the service name.

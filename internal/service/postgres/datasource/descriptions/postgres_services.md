@@ -3,7 +3,7 @@
 Lists all [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)
 services in the organization. Returns a `services` list of summary objects
 (`id`, `name`, `cloud_provider`, `region`, `postgres_version`, `size`,
-`ha_type`, `state`, `created_at`, `is_primary`).
+`ha_type`, `standby_count`, `state`, `created_at`, `is_primary`).
 
 The list endpoint returns summary fields only; look up a single service by ID
 (`clickhouse_postgres_service`) for `pg_config` / `pgbouncer_config`.

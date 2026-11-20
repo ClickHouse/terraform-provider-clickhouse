@@ -40,6 +40,7 @@ type postgresServiceDataSourceModel struct {
 	PostgresVersion types.String `tfsdk:"postgres_version"`
 	Size            types.String `tfsdk:"size"`
 	HaType          types.String `tfsdk:"ha_type"`
+	StandbyCount    types.Int64  `tfsdk:"standby_count"`
 	State           types.String `tfsdk:"state"`
 	CreatedAt       types.String `tfsdk:"created_at"`
 	IsPrimary       types.Bool   `tfsdk:"is_primary"`
@@ -85,6 +86,7 @@ func (d *postgresServiceDataSource) Schema(_ context.Context, _ datasource.Schem
 			"postgres_version": schema.StringAttribute{Description: "Major Postgres version.", Computed: true},
 			"size":             schema.StringAttribute{Description: "Instance size (VM SKU).", Computed: true},
 			"ha_type":          schema.StringAttribute{Description: "High-availability mode ('none', 'async', 'sync').", Computed: true},
+			"standby_count":    schema.Int64Attribute{Description: "Number of standbys.", Computed: true},
 			"state":            schema.StringAttribute{Description: "Server-reported state.", Computed: true},
 			"created_at":       schema.StringAttribute{Description: "RFC3339 creation timestamp.", Computed: true},
 			"is_primary":       schema.BoolAttribute{Description: "True for a primary; false for a read replica.", Computed: true},
@@ -148,6 +150,7 @@ func (d *postgresServiceDataSource) Read(ctx context.Context, req datasource.Rea
 	} else {
 		data.HaType = types.StringValue("none")
 	}
+	data.StandbyCount = standbyCountValue(pg.StandbyCount)
 	data.State = types.StringValue(pg.State)
 	data.CreatedAt = types.StringValue(pg.CreatedAt)
 	data.IsPrimary = types.BoolValue(pg.IsPrimary)
@@ -226,4 +229,12 @@ func pgConfigToStringMap(c api.PgConfigMap) (types.Map, diag.Diagnostics) {
 		m[k] = types.StringValue(v)
 	}
 	return types.MapValue(types.StringType, m)
+}
+
+// standbyCountValue maps the API's optional standbyCount to a Terraform value.
+func standbyCountValue(n *int) types.Int64 {
+	if n == nil {
+		return types.Int64Null()
+	}
+	return types.Int64Value(int64(*n))
 }
