@@ -13,7 +13,7 @@ Supports AWS (`cloud_provider = "aws"`) and GCP (`cloud_provider = "gcp"`).
 - Create — standard, as a read replica (`read_replica_of`), or by
   point-in-time restore (`restore_to_point_in_time`)
 - Read
-- Update — `size`, `ha_type`, `tags`, `ip_access`, `pg_config`, `pgbouncer_config`,
+- Update — `size`, `ha_type`, `standby_count`, `tags`, `ip_access`, `pg_config`, `pgbouncer_config`,
   `password` rotation
 - Delete
 - Import
@@ -63,7 +63,7 @@ Computed + UseStateForUnknown`).
 The Postgres PATCH endpoint has PUT-like semantics specifically for the
 `tags` field: omitting it from the request body clears all tags
 server-side. The provider works around this by re-asserting the current
-state tags in every PATCH that mutates `size` or `ha_type`, so users
+state tags in every PATCH that mutates `size`, `ha_type` or `standby_count`, so users
 won't lose tags when they resize or change HA mode. This is invisible
 end-to-end but worth knowing if you inspect `TF_LOG=DEBUG` request
 bodies — you'll see tags repeated on non-tag mutations.
@@ -138,12 +138,12 @@ them. The provider reads the source at plan time and fills them in:
   source — a mismatch is a plan-time error ("conflicts with the source
   instance"). The provider pins these into the plan so it shows real values.
 - `size` on a **restore** (the restored instance comes up at the **backup's**
-  size) and `ha_type` (server-assigned for a new replica/restore) are **not**
+  size) and `ha_type` / `standby_count` (server-assigned for a new replica/restore) are **not**
   taken from the source — they must be **omitted**; setting them is a plan-time
   error. They show as "(known after apply)".
 
 If the source ID doesn't exist, the plan errors. (A standalone primary or a
-restored instance can be resized or have its `ha_type` changed in place — those
+restored instance can be resized or have its `ha_type` / `standby_count` changed in place — those
 are normal in-place updates. A **live read replica cannot** — see below.)
 
 - **`read_replica_of`** — set to a primary's ID to create a streaming read
@@ -153,7 +153,7 @@ are normal in-place updates. A **live read replica cannot** — see below.)
   standalone primary — a live replica can't be converted in place (see
   "Out-of-band changes" for the promotion exception).
   A **live read replica cannot be modified directly**: changing `size`,
-  `ha_type`, or `tags` is a **plan-time error** ("read replica cannot be
+  `ha_type`, `standby_count`, or `tags` is a **plan-time error** ("read replica cannot be
   modified directly"), because the server rejects any such change on a replica.
   Resize/retag the **parent** instead. (Removing `read_replica_of` turns this
   into a standalone primary, but — as noted above — that **destroys and

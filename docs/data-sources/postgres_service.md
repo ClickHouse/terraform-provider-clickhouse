@@ -7,7 +7,7 @@ description: |-
   Fetches a single ClickHouse Cloud Managed Postgres https://clickhouse.com/cloud/postgres
   service by ID, including its current ip_access, pg_config, and pgbouncer_config.
   Returns the service's server-reported attributes: cloud_provider, region,
-  size, ha_type, postgres_version, status (state, created_at,
+  size, ha_type, standby_count, postgres_version, status (state, created_at,
   is_primary), connectivity (hostname, port, username), and
   tags / pg_config / pgbouncer_config (port is the fixed default 5432 —
   the server doesn't expose a per-instance port). The API returns no credentials:
@@ -35,7 +35,7 @@ Fetches a single [ClickHouse Cloud Managed Postgres](https://clickhouse.com/clou
 service by ID, including its current `ip_access`, `pg_config`, and `pgbouncer_config`.
 
 Returns the service's server-reported attributes: `cloud_provider`, `region`,
-`size`, `ha_type`, `postgres_version`, status (`state`, `created_at`,
+`size`, `ha_type`, `standby_count`, `postgres_version`, status (`state`, `created_at`,
 `is_primary`), connectivity (`hostname`, `port`, `username`), and
 `tags` / `pg_config` / `pgbouncer_config` (`port` is the fixed default 5432 —
 the server doesn't expose a per-instance port). The API returns no credentials:
@@ -81,6 +81,7 @@ output "host" {
 - `postgres_version` (String) Major Postgres version.
 - `region` (String) Cloud region.
 - `size` (String) Instance size (VM SKU).
+- `standby_count` (Number) Number of standbys.
 - `state` (String) Server-reported state.
 - `tags` (Map of String) User tags. Read-only; a string map.
 - `username` (String) Default superuser name.

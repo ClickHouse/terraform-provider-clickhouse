@@ -9,6 +9,7 @@ var postgresCloudProviders = []string{
 }
 
 var postgresVersions = []string{
+	"19",
 	"18",
 	"17",
 }
@@ -17,6 +18,14 @@ var postgresHaTypes = []string{
 	"none",
 	"async",
 	"sync",
+}
+
+// PostgresStandbyCounts lists the standby counts each ha_type accepts, the
+// server default first.
+var PostgresStandbyCounts = map[string][]int64{
+	"none":  {0},
+	"async": {1},
+	"sync":  {2, 1},
 }
 
 const (

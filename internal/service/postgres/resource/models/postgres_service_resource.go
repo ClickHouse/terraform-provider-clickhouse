@@ -18,6 +18,7 @@ type PostgresServiceResourceModel struct {
 	// Mutable.
 	Size         types.String `tfsdk:"size"`
 	HaType       types.String `tfsdk:"ha_type"`
+	StandbyCount types.Int64  `tfsdk:"standby_count"`
 	Tags         types.Map    `tfsdk:"tags"`
 	IpAccessList types.List   `tfsdk:"ip_access"`
 
