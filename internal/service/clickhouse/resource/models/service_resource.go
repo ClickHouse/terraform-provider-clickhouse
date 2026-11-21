@@ -287,6 +287,7 @@ type ServiceResourceModel struct {
 	SnapshotConfiguration           types.Object `tfsdk:"snapshot_configuration"`
 	ReplicaAwareRouting             types.Object `tfsdk:"replica_aware_routing"`
 	BackupID                        types.String `tfsdk:"backup_id"`
+	BackupEncryptionConfig          types.String `tfsdk:"backup_encryption_config"`
 	ComplianceType                  types.String `tfsdk:"compliance_type"`
 	Tags                            types.Map    `tfsdk:"tags"`
 	EnableCoreDumps                 types.Bool   `tfsdk:"enable_core_dumps"`
