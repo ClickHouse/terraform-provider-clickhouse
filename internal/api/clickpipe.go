@@ -65,6 +65,7 @@ var ClickPipeKinesisFormats = []string{
 }
 
 const (
+	ClickPipeAuthenticationBasic                          = "basic"
 	ClickPipeAuthenticationIAMRole                        = "IAM_ROLE"
 	ClickPipeAuthenticationIAMUser                        = "IAM_USER"
 	ClickPipeAuthenticationConnectionString               = "CONNECTION_STRING"
@@ -394,6 +395,13 @@ var ClickPipeMongoDBReadPreferences = []string{
 	ClickPipeMongoDBReadPreferenceSecondary,
 	ClickPipeMongoDBReadPreferenceSecondaryPreferred,
 	ClickPipeMongoDBReadPreferenceNearest,
+}
+
+// ClickPipeMongoDBAuthenticationMethods lists the values accepted by the API for
+// source.mongodb.authentication. IAM_ROLE is supported for Amazon DocumentDB only.
+var ClickPipeMongoDBAuthenticationMethods = []string{
+	ClickPipeAuthenticationBasic,
+	ClickPipeAuthenticationIAMRole,
 }
 
 var ClickPipeMongoDBReplicationModes = []string{
