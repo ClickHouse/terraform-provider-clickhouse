@@ -238,27 +238,41 @@ func TestValidatePostgresMutualTLSConfiguration(t *testing.T) {
 func TestClickPipeResource_syncClickPipeState_PostgresMutualTLS(t *testing.T) {
 	ctx := context.Background()
 
+	stored := postgresMutualTLSValue("PEM-CERT", "PEM-KEY")
 	tests := []struct {
 		name      string
-		mutualTLS types.Object
+		state     types.Object
+		apiStored bool
+		want      types.Object
 	}{
-		{name: "preserved from state", mutualTLS: postgresMutualTLSValue("PEM-CERT", "PEM-KEY")},
-		{name: "stays null when state has none", mutualTLS: postgresMutualTLSNull()},
+		{name: "preserved from state while the API reports one", state: stored, apiStored: true, want: stored},
+		{name: "dropped when it was removed outside Terraform", state: stored, apiStored: false, want: postgresMutualTLSNull()},
+		{name: "stays null when state has none", state: postgresMutualTLSNull(), apiStored: false, want: postgresMutualTLSNull()},
+		{name: "stays null after an import, since it cannot be read back", state: postgresMutualTLSNull(), apiStored: true, want: postgresMutualTLSNull()},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			state := postgresMutualTLSModel(ctx, t, tt.mutualTLS, "users")
+			state := postgresMutualTLSModel(ctx, t, tt.state, "users")
 
 			mock := api.NewClientMock(minimock.NewController(t))
-			mock.GetClickPipeMock.Return(postgresAPIPipe(api.ClickPipeRunningState, "users"), nil)
+			mock.GetClickPipeMock.Return(withStoredMutualTLS(postgresAPIPipe(api.ClickPipeRunningState, "users"), tt.apiStored), nil)
 
 			require.NoError(t, (&ClickPipeResource{client: mock}).syncClickPipeState(ctx, &state))
 
 			pg := postgresSourceFromModel(ctx, t, state)
-			assert.True(t, pg.MutualTLS.Equal(tt.mutualTLS), "mutual_tls must round-trip through a read unchanged, got %s", pg.MutualTLS)
+			assert.True(t, pg.MutualTLS.Equal(tt.want), "want mutual_tls %s, got %s", tt.want, pg.MutualTLS)
 		})
 	}
+}
+
+// withStoredMutualTLS makes a mock API pipe report a stored client certificate
+// the way the API does, with {"configured": true}.
+func withStoredMutualTLS(pipe *api.ClickPipe, stored bool) *api.ClickPipe {
+	if stored {
+		pipe.Source.Postgres.MutualTLS = api.NullableValue(api.ClickPipePostgresMutualTLS{Configured: true})
+	}
+	return pipe
 }
 
 // drivePostgresMutualTLSUpdate runs Update from state to plan against a mock
@@ -266,15 +280,17 @@ func TestClickPipeResource_syncClickPipeState_PostgresMutualTLS(t *testing.T) {
 func drivePostgresMutualTLSUpdate(ctx context.Context, t *testing.T, state, plan models.ClickPipeResourceModel, tables ...string) []api.ClickPipeUpdate {
 	t.Helper()
 
-	syncPipe := postgresAPIPipe(api.ClickPipeRunningState, tables...)
+	// The API reports a stored certificate whenever the plan ends with one.
+	stored := !postgresSourceFromModel(ctx, t, plan).MutualTLS.IsNull()
+	syncPipe := withStoredMutualTLS(postgresAPIPipe(api.ClickPipeRunningState, tables...), stored)
 	mock, calls := pauseEditClientMock(minimock.NewController(t), syncPipe, func(int) (*api.ClickPipe, error) {
-		return postgresAPIPipe(api.ClickPipePausedState, tables...), nil
+		return withStoredMutualTLS(postgresAPIPipe(api.ClickPipePausedState, tables...), stored), nil
 	})
 	var captured []api.ClickPipeUpdate
 	mock.UpdateClickPipeMock.Set(func(_ context.Context, _, _ string, update api.ClickPipeUpdate) (*api.ClickPipe, error) {
 		*calls = append(*calls, "update")
 		captured = append(captured, update)
-		return postgresAPIPipe(api.ClickPipePausedState, tables...), nil
+		return withStoredMutualTLS(postgresAPIPipe(api.ClickPipePausedState, tables...), stored), nil
 	})
 	expectSyncRead(mock, calls, syncPipe)
 

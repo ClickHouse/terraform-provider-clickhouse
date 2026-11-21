@@ -64,7 +64,7 @@ func containsKey(t *testing.T, raw json.RawMessage, key string) bool {
 	return ok
 }
 
-// GET never returns mutualTls, but decoding must tolerate every shape.
+// Responses only carry {"configured": true}, but decoding must tolerate every shape.
 func TestClickPipePostgresSource_MutualTLSUnmarshal(t *testing.T) {
 	var absent ClickPipePostgresSource
 	require.NoError(t, json.Unmarshal([]byte(`{"host":"pg.example.com"}`), &absent))
@@ -79,6 +79,20 @@ func TestClickPipePostgresSource_MutualTLSUnmarshal(t *testing.T) {
 	require.NotNil(t, set.MutualTLS)
 	require.False(t, set.MutualTLS.IsNull())
 	assert.Equal(t, ClickPipePostgresMutualTLS{Certificate: "CERT", PrivateKey: "KEY"}, *set.MutualTLS.Value)
+	assert.False(t, set.HasStoredPostgresMutualTLS())
+
+	var configured ClickPipePostgresSource
+	require.NoError(t, json.Unmarshal([]byte(`{"mutualTls":{"configured":true}}`), &configured))
+	assert.True(t, configured.HasStoredPostgresMutualTLS())
+	assert.False(t, absent.HasStoredPostgresMutualTLS())
+	assert.False(t, null.HasStoredPostgresMutualTLS())
+}
+
+// configured is response-only and must never be sent.
+func TestClickPipePostgresMutualTLS_RequestOmitsConfigured(t *testing.T) {
+	payload, err := json.Marshal(ClickPipePostgresMutualTLS{Certificate: "CERT", PrivateKey: "KEY"})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"certificate":"CERT","privateKey":"KEY"}`, string(payload))
 }
 
 func TestNullable_RoundTrip(t *testing.T) {

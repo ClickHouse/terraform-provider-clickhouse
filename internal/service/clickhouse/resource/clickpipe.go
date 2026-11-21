@@ -1102,7 +1102,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 								},
 							},
 							"mutual_tls": schema.SingleNestedAttribute{
-								MarkdownDescription: "Client certificate for mutual TLS (mTLS) authentication to the Postgres instance. When set, ClickPipes presents this certificate during the TLS handshake, in addition to the configured `credentials`. Requires TLS, so it cannot be combined with `disable_tls = true`, and is not supported with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication. The values are never returned by the API. Changing or removing it updates the pipe in place and re-validates the source connection.",
+								MarkdownDescription: "Client certificate for mutual TLS (mTLS) authentication to the Postgres instance. When set, ClickPipes presents this certificate during the TLS handshake, in addition to the configured `credentials`. Requires TLS, so it cannot be combined with `disable_tls = true`, and is not supported with `SERVICE_ACCOUNT_WORKLOAD_IDENTITY` authentication. The values are never returned by the API, which only reports whether a certificate is stored: one removed outside Terraform shows up as a change on the next plan. Changing or removing it updates the pipe in place and re-validates the source connection.",
 								Optional:            true,
 								Attributes: map[string]schema.Attribute{
 									"certificate": schema.StringAttribute{
@@ -5373,9 +5373,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 			postgresModel.Credentials = types.ObjectNull(models.ClickPipeSourceCredentialsModel{}.ObjectType().AttrTypes)
 		}
 
-		// mutual_tls is write-only: the API never returns it, so carry over
-		// whatever state already holds (null after an import).
-		if !statePostgresModel.MutualTLS.IsNull() {
+		// mutual_tls is write-only: the API only reports whether a certificate is
+		// stored. Carry over the state's while one is, and drop it when it was
+		// removed outside Terraform so the next plan sets it again (null after an
+		// import, since the certificate cannot be read back).
+		if !statePostgresModel.MutualTLS.IsNull() && clickPipe.Source.Postgres.HasStoredPostgresMutualTLS() {
 			stateMutualTLSModel := models.ClickPipePostgresMutualTLSModel{}
 			if diags := statePostgresModel.MutualTLS.As(ctx, &stateMutualTLSModel, basetypes.ObjectAsOptions{}); diags.HasError() {
 				return fmt.Errorf("error reading ClickPipe Postgres source mutual TLS: %v", diags)

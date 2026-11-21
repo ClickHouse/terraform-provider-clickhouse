@@ -223,9 +223,10 @@ type ClickPipePostgresSource struct {
 	DisableTLS           *bool                       `json:"disableTls,omitempty"`
 	SkipCertVerification *bool                       `json:"skipCertVerification,omitempty"`
 	Credentials          *ClickPipeSourceCredentials `json:"credentials,omitempty"`
-	// MutualTLS is the client certificate used for mutual TLS. Write-only; never
-	// returned by GET. On PATCH: nil keeps the stored certificate, a value
-	// replaces it and NullableNull removes it.
+	// MutualTLS is the client certificate used for mutual TLS. The certificate and
+	// key are write-only: responses only carry {"configured": true} when one is
+	// stored. On PATCH: nil keeps the stored certificate, a value replaces it and
+	// NullableNull removes it.
 	MutualTLS             *Nullable[ClickPipePostgresMutualTLS] `json:"mutualTls,omitempty"`
 	Settings              *ClickPipePostgresSettings            `json:"settings,omitempty"`
 	Mappings              []ClickPipePostgresTableMapping       `json:"tableMappings,omitempty"`
@@ -239,6 +240,14 @@ type ClickPipePostgresSource struct {
 type ClickPipePostgresMutualTLS struct {
 	Certificate string `json:"certificate"`
 	PrivateKey  string `json:"privateKey"`
+	// Configured is response-only: true when a client certificate is stored.
+	Configured bool `json:"configured,omitempty"`
+}
+
+// HasStoredPostgresMutualTLS reports whether a response says a client
+// certificate is stored for the pipe.
+func (s *ClickPipePostgresSource) HasStoredPostgresMutualTLS() bool {
+	return s != nil && s.MutualTLS != nil && !s.MutualTLS.IsNull() && s.MutualTLS.Value.Configured
 }
 
 type ClickPipePostgresSettings struct {
