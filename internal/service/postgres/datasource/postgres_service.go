@@ -51,6 +51,8 @@ type postgresServiceDataSourceModel struct {
 	IpAccessList    types.List   `tfsdk:"ip_access"`
 	PgConfig        types.Map    `tfsdk:"pg_config"`
 	PgBouncerConfig types.Map    `tfsdk:"pgbouncer_config"`
+	// DeletionProtection is null when the API omits it.
+	DeletionProtection types.Bool `tfsdk:"deletion_protection"`
 }
 
 func (d *postgresServiceDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -107,6 +109,7 @@ func (d *postgresServiceDataSource) Schema(_ context.Context, _ datasource.Schem
 					"description": schema.StringAttribute{Description: "Description of the IP address.", Computed: true},
 				}},
 			},
+			"deletion_protection": schema.BoolAttribute{Description: deletionProtectionDescription, Computed: true},
 			"pg_config": schema.MapAttribute{
 				Description: "Postgres server parameters currently set on the instance. Read-only; a string map.",
 				Computed:    true,
@@ -157,6 +160,7 @@ func (d *postgresServiceDataSource) Read(ctx context.Context, req datasource.Rea
 	data.Hostname = strOrNull(pg.Hostname)
 	data.Port = types.Int64Value(postgresDefaultPort)
 	data.Username = strOrNull(pg.Username)
+	data.DeletionProtection = boolPtrOrNull(pg.DeletionProtection)
 
 	tags, diags := apiTagsToStringMap(pg.Tags)
 	resp.Diagnostics.Append(diags...)
@@ -229,6 +233,17 @@ func pgConfigToStringMap(c api.PgConfigMap) (types.Map, diag.Diagnostics) {
 		m[k] = types.StringValue(v)
 	}
 	return types.MapValue(types.StringType, m)
+}
+
+// deletionProtectionDescription is shared by the single and list data sources.
+const deletionProtectionDescription = "Whether the Postgres service is protected from deletion. `false` and unset both mean it is not protected; ClickHouse Cloud leaves the field out when the feature is not enabled for the organization."
+
+// boolPtrOrNull maps an optional API bool to a Terraform value.
+func boolPtrOrNull(b *bool) types.Bool {
+	if b == nil {
+		return types.BoolNull()
+	}
+	return types.BoolValue(*b)
 }
 
 // standbyCountValue maps the API's optional standbyCount to a Terraform value.

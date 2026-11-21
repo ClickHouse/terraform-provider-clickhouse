@@ -67,6 +67,8 @@ type Postgres struct {
 	Password         string             `json:"password,omitempty"`
 	Tags             []Tag              `json:"tags,omitempty"`
 	IpAccessList     []PostgresIpAccess `json:"ipAccessList"`
+	// DeletionProtection is omitted by organizations without the feature.
+	DeletionProtection *bool `json:"deletionProtection,omitempty"`
 }
 
 type PostgresIpAccess struct {
@@ -101,6 +103,8 @@ type PostgresListItem struct {
 	CreatedAt       string `json:"createdAt"`
 	IsPrimary       bool   `json:"isPrimary"`
 	Tags            []Tag  `json:"tags,omitempty"`
+	// DeletionProtection is omitted by organizations without the feature.
+	DeletionProtection *bool `json:"deletionProtection,omitempty"`
 }
 
 // PostgresCreate is the POST /postgres request body (PostgresInstancePostRequestV1).
@@ -136,6 +140,9 @@ type PostgresUpdate struct {
 	StandbyCount *int                    `json:"standbyCount,omitempty"`
 	Tags         *[]Tag                  `json:"tags,omitempty"`
 	IpAccessList *PostgresIpAccessUpdate `json:"ipAccessList,omitempty"`
+	// DeletionProtection can only be set by PATCH: the create, restore and
+	// read-replica requests do not accept it.
+	DeletionProtection *bool `json:"deletionProtection,omitempty"`
 }
 
 // PostgresRestoreRequest is the POST /postgres/{id}/restoredService body. Same

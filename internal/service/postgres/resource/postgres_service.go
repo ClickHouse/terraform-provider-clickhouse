@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -28,6 +29,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/api"
+	internalplanmodifier "github.com/ClickHouse/terraform-provider-clickhouse/internal/planmodifier"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/postgres/resource/models"
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/utils"
@@ -358,6 +360,26 @@ func replicaUpdateForbidden(plan, state models.PostgresServiceResourceModel) dia
 	forbid("ha_type", plan.HaType, state.HaType)
 	forbid("standby_count", plan.StandbyCount, state.StandbyCount)
 	forbid("tags", plan.Tags, state.Tags)
+	forbid("deletion_protection", plan.DeletionProtection, state.DeletionProtection)
+	return diags
+}
+
+// forbidDeletionProtectionOnReplicaCreate rejects deletion_protection = true on
+// a new read replica: the setting is applied with a PATCH after create, and the
+// server rejects any direct PATCH to a read replica. Unknown values defer.
+func forbidDeletionProtectionOnReplicaCreate(config models.PostgresServiceResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if config.ReadReplicaOf.IsNull() || config.ReadReplicaOf.IsUnknown() {
+		return diags
+	}
+	if config.DeletionProtection.IsUnknown() || !config.DeletionProtection.ValueBool() {
+		return diags
+	}
+	diags.AddAttributeError(
+		path.Root("deletion_protection"),
+		"Deletion protection not available for a read replica",
+		"`deletion_protection = true` cannot be set on a read replica: the provider applies it with an update after create, and the server rejects direct modifications to a read replica. Omit it or set it to false.",
+	)
 	return diags
 }
 
@@ -465,6 +487,15 @@ func (r *PostgresServiceResource) Schema(_ context.Context, _ resource.SchemaReq
 					mapvalidator.SizeAtMost(50), // server MAX_TAGS_PER_RESOURCE
 					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
 					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+				},
+			},
+
+			"deletion_protection": schema.BoolAttribute{
+				Description: "Prevent the Postgres service from being deleted. While `true`, `terraform destroy` and any change that replaces the service fail. To delete the service, first set this to `false` in its own apply. Removing the attribute from configuration leaves the current setting unchanged. The API does not accept this setting on create, so the provider turns it on with an update once the new service is running. Only available for organizations with deletion protection enabled. Cannot be set on a live read replica (the server rejects direct modifications to replicas).",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					internalplanmodifier.UseStateWhenConfigNull(),
 				},
 			},
 
@@ -738,6 +769,35 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 		}
 	}
 
+	// Deletion protection is not accepted on create, so turn it on now. Done
+	// last so a failure in an earlier step never leaves a protected service
+	// that Terraform has to clean up.
+	var sentProtection, reportedProtection *bool
+	if !plan.DeletionProtection.IsNull() && !plan.DeletionProtection.IsUnknown() && plan.DeletionProtection.ValueBool() {
+		sentProtection = plan.DeletionProtection.ValueBoolPointer()
+		body := api.PostgresUpdate{DeletionProtection: sentProtection}
+		// The server treats tags as PUT-like on PATCH, so re-assert them.
+		tags, d := planTagsToAPI(ctx, plan.Tags)
+		resp.Diagnostics.Append(d...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if tags != nil && len(*tags) > 0 {
+			body.Tags = tags
+		}
+		updated, err := r.client.UpdatePostgres(ctx, pg.Id, body)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error enabling Postgres deletion protection",
+				"Provisioned Postgres service "+pg.Id+" but could not turn on deletion protection: "+err.Error(),
+			)
+			return
+		}
+		if updated != nil {
+			reportedProtection = updated.DeletionProtection
+		}
+	}
+
 	// Re-read to pick up hostname / created_at / final state.
 	final, err := r.client.GetPostgres(ctx, pg.Id)
 	if err != nil {
@@ -753,6 +813,12 @@ func (r *PostgresServiceResource) Create(ctx context.Context, req resource.Creat
 	resp.Diagnostics.Append(syncPostgresState(ctx, final, &model)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	if reportedProtection == nil {
+		reportedProtection = final.DeletionProtection
+	}
+	if detail := settlePostgresProtection(plan.DeletionProtection, sentProtection, reportedProtection, &model); detail != "" {
+		resp.Diagnostics.AddError("Postgres Deletion Protection Not Applied", detail+" Terraform marks the new service as tainted, so run terraform untaint on it before applying again, or the next apply replaces it.")
 	}
 	// postgres_version is Optional+Computed; on a replica/restore create the plan
 	// value is unknown unless planInheritedAttributes pinned it, and syncPostgresState
@@ -871,14 +937,21 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	// Instance-level PATCH (size / ha_type / standby_count / tags).
+	// Instance-level PATCH (size / ha_type / standby_count / tags / deletion_protection).
+	plannedProtection := plan.DeletionProtection
+	var sentProtection, reportedProtection *bool
 	if updatePlan.Body != nil {
-		if _, err := r.client.UpdatePostgres(ctx, state.ID.ValueString(), *updatePlan.Body); err != nil {
+		updated, err := r.client.UpdatePostgres(ctx, state.ID.ValueString(), *updatePlan.Body)
+		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating Postgres service",
 				"Could not update Postgres service "+state.ID.ValueString()+": "+err.Error(),
 			)
 			return
+		}
+		sentProtection = updatePlan.Body.DeletionProtection
+		if updated != nil {
+			reportedProtection = updated.DeletionProtection
 		}
 		if updatePlan.TransitionExpected {
 			// Field-aware wait: poll until the server reflects the PATCHed
@@ -949,6 +1022,13 @@ func (r *PostgresServiceResource) Update(ctx context.Context, req resource.Updat
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// The GET is the most recent value; fall back to the PATCH response.
+	if pg.DeletionProtection != nil {
+		reportedProtection = pg.DeletionProtection
+	}
+	if detail := settlePostgresProtection(plannedProtection, sentProtection, reportedProtection, &plan); detail != "" {
+		resp.Diagnostics.AddError("Postgres Deletion Protection Not Applied", detail)
+	}
 	cfg, err := r.client.GetPostgresConfig(ctx, state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -976,6 +1056,18 @@ func (r *PostgresServiceResource) Delete(ctx context.Context, req resource.Delet
 
 	if err := r.client.DeletePostgres(ctx, state.ID.ValueString()); err != nil {
 		if api.IsNotFound(err) {
+			return
+		}
+		if errors.Is(err, api.ErrPostgresDeletionProtected) {
+			resp.Diagnostics.AddError(
+				"Postgres Service Is Protected From Deletion",
+				"Deletion protection is enabled for this Postgres service. Set deletion_protection = false and run terraform apply, then delete the service. "+
+					"If this delete is part of a change that replaces the service (any attribute that forces replacement, or -replace), "+
+					"turn protection off in its own apply, without that change, first. "+
+					"If the resource is tainted, run terraform untaint first. "+
+					"If the resource is no longer in your configuration, add it back with deletion_protection = false and apply, or turn protection off in the ClickHouse Cloud console. "+
+					"If Terraform already created a replacement (create_before_destroy), turn protection off for Postgres service "+state.ID.ValueString()+" in the ClickHouse Cloud console, then apply again.",
+			)
 			return
 		}
 		resp.Diagnostics.AddError(
@@ -1030,6 +1122,7 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 		resp.Diagnostics.Append(requireStandardCreateAttributes(config)...)
 		resp.Diagnostics.Append(requireDeclaredCredential(config)...)
 		resp.Diagnostics.Append(forbidEmptyConfigOnCreate(config)...)
+		resp.Diagnostics.Append(forbidDeletionProtectionOnReplicaCreate(config)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -1075,6 +1168,7 @@ func (r *PostgresServiceResource) ModifyPlan(ctx context.Context, req resource.M
 	// Terraform reports as an inconsistent result.
 	if originSourceChanged(config, state) {
 		resp.Diagnostics.Append(forbidEmptyConfigOnCreate(config)...)
+		resp.Diagnostics.Append(forbidDeletionProtectionOnReplicaCreate(config)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -1359,6 +1453,12 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		transitionExpected = true
 	}
 
+	// Not a transition: the flag flips without changing the instance.
+	if !plan.DeletionProtection.IsNull() && !plan.DeletionProtection.IsUnknown() && !plan.DeletionProtection.Equal(state.DeletionProtection) {
+		update.DeletionProtection = plan.DeletionProtection.ValueBoolPointer()
+		changed = true
+	}
+
 	tagsChanged, mappedFromPlan, d := diffTags(ctx, plan, state)
 	diags.Append(d...)
 	if diags.HasError() {
@@ -1368,7 +1468,7 @@ func buildPostgresUpdate(ctx context.Context, plan, state models.PostgresService
 		update.Tags = mappedFromPlan
 		changed = true
 	} else if changed {
-		// Tags unchanged but size/ha_type/standby_count changing — re-assert state tags so
+		// Tags unchanged but size/ha_type/standby_count/deletion_protection changing — re-assert state tags so
 		// the server's PUT-like tag semantics don't wipe them.
 		preserved, d := planTagsToAPI(ctx, state.Tags)
 		diags.Append(d...)
@@ -1544,6 +1644,7 @@ func syncPostgresState(ctx context.Context, pg *api.Postgres, state *models.Post
 		return diags
 	}
 	out.IpAccessList = ipAccess
+	out.DeletionProtection = postgresDeletionProtectionFromAPI(state.DeletionProtection, pg.DeletionProtection)
 
 	*state = out
 	return diags
@@ -1564,6 +1665,43 @@ func apiTagsToMapValue(apiTags []api.Tag) (types.Map, diag.Diagnostics) {
 	m, d := types.MapValue(types.StringType, filtered)
 	diags.Append(d...)
 	return m, diags
+}
+
+// postgresDeletionProtectionFromAPI reads an omitted field as off (the API
+// reports a protected service) and never turns an unset value into false, so
+// organizations without the feature see no drift.
+func postgresDeletionProtectionFromAPI(current types.Bool, apiValue *bool) types.Bool {
+	switch {
+	case apiValue != nil && *apiValue:
+		return types.BoolValue(true)
+	case current.IsNull() || current.IsUnknown():
+		return types.BoolNull()
+	default:
+		return types.BoolValue(false)
+	}
+}
+
+// settlePostgresProtection sets the deletion_protection value to record after
+// an apply, and returns an error detail when the API did not confirm the sent
+// value (instead of Terraform's generic "inconsistent result after apply").
+// sent is nil when no value was sent.
+func settlePostgresProtection(planned types.Bool, sent, reported *bool, state *models.PostgresServiceResourceModel) string {
+	switch {
+	case sent == nil:
+		if !planned.IsUnknown() {
+			state.DeletionProtection = planned
+		}
+		return ""
+	case reported == nil && *sent:
+		state.DeletionProtection = types.BoolNull()
+		return "ClickHouse Cloud did not confirm deletion_protection = true, so the Postgres service may not be protected. Check that deletion protection is available for your organization, then apply again."
+	case reported != nil && *reported != *sent:
+		state.DeletionProtection = types.BoolValue(*reported)
+		return fmt.Sprintf("ClickHouse Cloud returned deletion_protection = %t after the provider sent %t. Apply again, or check the setting in the ClickHouse Cloud console.", *reported, *sent)
+	default:
+		state.DeletionProtection = types.BoolValue(*sent)
+		return ""
+	}
 }
 
 // ---------------------------------------------------------------------------

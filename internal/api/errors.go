@@ -8,6 +8,9 @@ import (
 // ErrServiceDeletionProtected is returned by DeleteService when the service has deletion protection turned on.
 var ErrServiceDeletionProtected = errors.New("deletion protection is enabled for this service, turn it off before deleting the service")
 
+// ErrPostgresDeletionProtected is returned by DeletePostgres when the Postgres service has deletion protection turned on.
+var ErrPostgresDeletionProtected = errors.New("deletion protection is enabled for this Postgres service, turn it off before deleting the service")
+
 // ErrDeleteRefusedAfterStop is wrapped with ErrServiceDeletionProtected only when DeleteService sent the stop before the API refused the DELETE.
 var ErrDeleteRefusedAfterStop = errors.New("the service is stopped, start it again if you still need it")
 

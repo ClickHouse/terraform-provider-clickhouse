@@ -345,6 +345,23 @@ restore_to_point_in_time = {
 }
 ```
 
+## Deletion protection
+
+Set `deletion_protection = true` to stop the service from being deleted. While
+it is on, `terraform destroy` and any change that replaces the service fail
+with a "protected from deletion" error. To delete the service, set
+`deletion_protection = false` in its own apply first.
+
+- The API does not accept the setting on create, so the provider creates the
+  service, waits for it to be running, and then turns protection on with an
+  update.
+- Removing the attribute from configuration leaves the current setting
+  unchanged.
+- Only available for organizations with deletion protection enabled. If
+  ClickHouse Cloud does not confirm the setting, the apply fails.
+- Cannot be set on a live read replica: the server rejects direct
+  modifications to replicas.
+
 ## Out-of-band changes
 
 - **Password rotated externally**: invisible to Terraform — the API does not
@@ -430,6 +447,7 @@ resource "clickhouse_postgres_service" "example" {
 > **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
 
 - `cloud_provider` (String) Cloud provider hosting the instance. Supported values are 'aws' and 'gcp'. Postgres on GCP is in private preview; contact ClickHouse support to enable access for your organization and region. Required for a standard create; omit for a read replica or point-in-time restore (inherited from the source).
+- `deletion_protection` (Boolean) Prevent the Postgres service from being deleted. While `true`, `terraform destroy` and any change that replaces the service fail. To delete the service, first set this to `false` in its own apply. Removing the attribute from configuration leaves the current setting unchanged. The API does not accept this setting on create, so the provider turns it on with an update once the new service is running. Only available for organizations with deletion protection enabled. Cannot be set on a live read replica (the server rejects direct modifications to replicas).
 - `ha_type` (String) High-availability mode. One of 'none' (single replica), 'async' (asynchronous replica), or 'sync' (synchronous replica). Mutable post-create; an HA flip triggers a transition. Omitting the attribute preserves the prior value (the server defaults to 'none' on Create); to actively downgrade, set 'ha_type = "none"' explicitly. Omit for a read replica or point-in-time restore (inherited from the source).
 - `ip_access` (Attributes List) IPv4 TCP access list. Omit to preserve existing rules or use the public defaults on creation. An empty list blocks public access on standard creation; on update it removes IPv4 rules only. IPv6 rules are not managed. (see [below for nested schema](#nestedatt--ip_access))
 - `password` (String, Sensitive) Superuser password. Config-owned: the API does not return the password, so Terraform manages exactly the value declared here and never reads it back. One of `password` or `password_wo` is required for a standard service; forbidden for a read replica (it inherits the primary's superuser); optional for a point-in-time restore (omit to keep the source's password, which Terraform then does not track). Changing this value rotates the password (PATCH /password). Must be ≥12 chars with at least one lowercase, one uppercase, and one digit. Stored in (sensitive) state — prefer `password_wo` to keep it out of state. `terraform import` cannot recover the live password — the configured value is rotated in on the first apply after import.
