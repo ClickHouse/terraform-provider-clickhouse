@@ -70,6 +70,7 @@ output "host" {
 
 - `cloud_provider` (String) Cloud provider hosting the instance.
 - `created_at` (String) RFC3339 creation timestamp.
+- `deletion_protection` (Boolean) Whether the Postgres service is protected from deletion. `false` and unset both mean it is not protected; ClickHouse Cloud leaves the field out when the feature is not enabled for the organization.
 - `ha_type` (String) High-availability mode ('none', 'async', 'sync').
 - `hostname` (String) Network hostname for client connections.
 - `ip_access` (Attributes List) IPv4 TCP access list. IPv6 rules are not included. (see [below for nested schema](#nestedatt--ip_access))

@@ -22,6 +22,10 @@ type PostgresServiceResourceModel struct {
 	Tags         types.Map    `tfsdk:"tags"`
 	IpAccessList types.List   `tfsdk:"ip_access"`
 
+	// DeletionProtection is Optional+Computed: null means unmanaged (or the
+	// organization does not have the feature).
+	DeletionProtection types.Bool `tfsdk:"deletion_protection"`
+
 	// Runtime configuration. Terraform-owned, full-replacement: whatever is
 	// declared is the desired state; omitting a key removes it server-side;
 	// omitting the attribute clears all parameters. Modeled as string maps to

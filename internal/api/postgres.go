@@ -125,7 +125,8 @@ func (c *ClientImpl) UpdatePostgres(ctx context.Context, postgresId string, body
 }
 
 // DeletePostgres deletes an instance. 404 → nil (idempotent). 409 retries
-// for ~15 min UNLESS the body indicates a dependent replica blocks deletion.
+// for ~15 min UNLESS the body indicates a dependent replica blocks deletion,
+// or deletion protection is on (wrapped in ErrPostgresDeletionProtected).
 func (c *ClientImpl) DeletePostgres(ctx context.Context, postgresId string) error {
 	return c.deletePostgresWithInterval(ctx, postgresId, postgresDeleteRetryInterval, postgresDeleteRetryAttempts)
 }
@@ -148,6 +149,9 @@ func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId 
 			if errIndicatesDependentReplica(err) {
 				return backoff.Permanent(err)
 			}
+			if c.postgresDeletionProtected(ctx, postgresId, err) {
+				return backoff.Permanent(fmt.Errorf("%w: %w", ErrPostgresDeletionProtected, err))
+			}
 			return err
 		}
 		return backoff.Permanent(err)
@@ -156,6 +160,21 @@ func (c *ClientImpl) deletePostgresWithInterval(ctx context.Context, postgresId 
 		interval = postgresDeleteRetryInterval
 	}
 	return backoff.Retry(deleteOnce, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), maxRetries))
+}
+
+// postgresDeletionProtected reports whether a 409 from DELETE was caused by
+// deletion protection, so the delete fails at once instead of retrying a
+// refusal for the whole budget. The documented message is matched first; a
+// GET confirms it when the wording differs. A failed GET keeps the retry.
+func (c *ClientImpl) postgresDeletionProtected(ctx context.Context, postgresId string, deleteErr error) bool {
+	if IsDeletionProtected(deleteErr) {
+		return true
+	}
+	pg, err := c.GetPostgres(ctx, postgresId)
+	if err != nil {
+		return false
+	}
+	return pg.DeletionProtection != nil && *pg.DeletionProtection
 }
 
 // errIndicatesDependentReplica fails fast on 409s caused by a read replica
