@@ -1267,7 +1267,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Optional:    true,
 										},
 										"partition_by_expr": schema.StringAttribute{
-											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe.",
+											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires changing `resync_version` in the same apply.",
 											Optional:    true,
 											Validators: []validator.String{
 												// The API stores a blank expression as unset, which reads
@@ -1279,6 +1279,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												),
 											},
 										},
+										clickPipeResyncVersion: clickPipeResyncVersionAttribute("table"),
 									},
 								},
 							},
@@ -1586,7 +1587,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 											Optional:    true,
 										},
 										"partition_by_expr": schema.StringAttribute{
-											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe.",
+											Description: "ClickHouse PARTITION BY expression applied to the destination table when ClickPipes creates it. Changing it on an existing table mapping requires changing `resync_version` in the same apply.",
 											Optional:    true,
 											Validators: []validator.String{
 												// The API stores a blank expression as unset, which reads
@@ -1598,6 +1599,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												),
 											},
 										},
+										clickPipeResyncVersion: clickPipeResyncVersionAttribute("table"),
 									},
 								},
 							},
@@ -2060,7 +2062,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 										"structured_ingestion": schema.SingleNestedAttribute{
 											MarkdownDescription: "Replicate the collection into typed ClickHouse columns instead of a single JSON document column. Setting this block enables structured ingestion. " +
 												"When `columns` is omitted, they are inferred from a sample of the collection documents, however inference is not available for pipes using `ssh_key_resource_id`. " +
-												"Changing it on an existing table mapping requires `resync_tables_on_change = true` on the pipe, with `columns` set as they are not inferred on resync.",
+												"Changing it on an existing table mapping requires changing `resync_version` in the same apply, with `columns` set as they are not inferred on resync.",
 											Optional: true,
 											Attributes: map[string]schema.Attribute{
 												"drop_unexpected_values": schema.BoolAttribute{
@@ -2109,6 +2111,7 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 												},
 											},
 										},
+										clickPipeResyncVersion: clickPipeResyncVersionAttribute("collection"),
 									},
 								},
 							},
@@ -2253,7 +2256,6 @@ func (c *ClickPipeResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
-			clickPipeResyncTablesOnChange: clickPipeResyncTablesOnChangeAttribute(),
 		},
 	}
 }
@@ -2715,7 +2717,6 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 
 	// Validate table mappings changes of CDC sources
 	if !request.State.Raw.IsNull() {
-		resyncTablesOnChange := plan.ResyncTablesOnChange.ValueBool()
 		var planSourceModel, stateSourceModel models.ClickPipeSourceModel
 		if diags := plan.Source.As(ctx, &planSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
 			if diags := state.Source.As(ctx, &stateSourceModel, basetypes.ObjectAsOptions{}); !diags.HasError() {
@@ -2776,7 +2777,8 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 									if planMapping, exists := planMap[key]; exists {
 										table := key.sourceSchemaName + "." + key.sourceTable
 										changed := sqlTableMappingChange(stateMapping, planMapping)
-										validateTableMappingChange(&response.Diagnostics, table, changed, resyncTablesOnChange)
+										resync := resyncVersionChanged(stateMapping.ResyncVersion, planMapping.ResyncVersion)
+										validateTableMappingChange(&response.Diagnostics, table, changed, resync)
 									}
 								}
 							}
@@ -2837,7 +2839,8 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 									if planMapping, exists := planMap[key]; exists {
 										table := key.sourceSchemaName + "." + key.sourceTable
 										changed := sqlTableMappingChange(models.ClickPipePostgresTableMappingModel(stateMapping), models.ClickPipePostgresTableMappingModel(planMapping))
-										validateTableMappingChange(&response.Diagnostics, table, changed, resyncTablesOnChange)
+										resync := resyncVersionChanged(stateMapping.ResyncVersion, planMapping.ResyncVersion)
+										validateTableMappingChange(&response.Diagnostics, table, changed, resync)
 									}
 								}
 							}
@@ -2898,8 +2901,9 @@ func (c *ClickPipeResource) ModifyPlan(ctx context.Context, request resource.Mod
 									if planMapping, exists := planMap[key]; exists {
 										table := key.sourceDatabaseName + "." + key.sourceCollection
 										changed := mongoDBTableMappingChange(stateMapping, planMapping)
-										validateTableMappingChange(&response.Diagnostics, table, changed, resyncTablesOnChange)
-										if resyncTablesOnChange && changed != "" && changed != clickPipeTargetTable {
+										resync := resyncVersionChanged(stateMapping.ResyncVersion, planMapping.ResyncVersion)
+										validateTableMappingChange(&response.Diagnostics, table, changed, resync)
+										if resync && changed != clickPipeTargetTable {
 											validateMongoDBResyncColumns(ctx, &response.Diagnostics, table, planMapping)
 										}
 									}
@@ -5082,6 +5086,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				SourceTable:      types.StringValue(mapping.SourceTable),
 				TargetTable:      types.StringValue(mapping.TargetTable),
 			}
+			// resync_version is not stored by the API: keep the configured value.
+			tableMappingModel.ResyncVersion = types.Int64Null()
+			if hasStateMapping {
+				tableMappingModel.ResyncVersion = stateMapping.ResyncVersion
+			}
 
 			if len(mapping.ExcludedColumns) > 0 {
 				excludedCols := make([]attr.Value, len(mapping.ExcludedColumns))
@@ -5332,6 +5341,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				SourceTable:      types.StringValue(mapping.SourceTable),
 				TargetTable:      types.StringValue(mapping.TargetTable),
 			}
+			// resync_version is not stored by the API: keep the configured value.
+			tableMappingModel.ResyncVersion = types.Int64Null()
+			if hasStateMapping {
+				tableMappingModel.ResyncVersion = stateMapping.ResyncVersion
+			}
 
 			if len(mapping.ExcludedColumns) > 0 {
 				excludedCols := make([]attr.Value, len(mapping.ExcludedColumns))
@@ -5570,6 +5584,11 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 				SourceDatabaseName: types.StringValue(mapping.SourceDatabaseName),
 				SourceCollection:   types.StringValue(mapping.SourceCollection),
 				TargetTable:        types.StringValue(mapping.TargetTable),
+			}
+			// resync_version is not stored by the API: keep the configured value.
+			tableMappingModel.ResyncVersion = types.Int64Null()
+			if hasStateMapping {
+				tableMappingModel.ResyncVersion = stateMapping.ResyncVersion
 			}
 
 			if hasStateMapping && stateMapping.TableEngine.IsNull() {
@@ -5971,12 +5990,6 @@ func (c *ClickPipeResource) syncClickPipeState(ctx context.Context, state *model
 	// It's not persisted by the API, so always set it to false in state
 	state.TriggerResync = types.BoolValue(false)
 
-	// resync_tables_on_change is not stored by the API: keep the configured
-	// value, and its default when there is none (after import).
-	if state.ResyncTablesOnChange.IsNull() || state.ResyncTablesOnChange.IsUnknown() {
-		state.ResyncTablesOnChange = types.BoolValue(false)
-	}
-
 	return nil
 }
 
@@ -6021,10 +6034,10 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 	// Check if pipe is in Completed state - only allow resync operations
 	if state.State.ValueString() == api.ClickPipeCompletedState {
-		// Allow trigger_resync operation on Completed pipes (e.g., snapshot-only Postgres pipes),
-		// and changes to provider-side attributes (resync_tables_on_change), which reach no API.
-		// trigger_resync is not compared because ModifyPlan already set plan.TriggerResync to false.
-		noPipeChange := plan.Name.Equal(state.Name) &&
+		// Allow trigger_resync operation on Completed pipes (e.g., snapshot-only Postgres pipes)
+		// Check config (not plan) because ModifyPlan already set plan.TriggerResync to false
+		isOnlyResync := !config.TriggerResync.IsNull() && config.TriggerResync.ValueBool() &&
+			plan.Name.Equal(state.Name) &&
 			plan.Source.Equal(state.Source) &&
 			plan.Destination.Equal(state.Destination) &&
 			plan.FieldMappings.Equal(state.FieldMappings) &&
@@ -6032,7 +6045,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			plan.Stopped.Equal(state.Stopped) &&
 			plan.Scaling.Equal(state.Scaling)
 
-		if !noPipeChange {
+		if !isOnlyResync {
 			response.Diagnostics.AddError(
 				"Error Modifying ClickPipe",
 				fmt.Sprintf("ClickPipe is in the %s state and cannot be modified. Only resync operations are allowed via trigger_resync attribute.", api.ClickPipeCompletedState),
@@ -6072,7 +6085,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 			// Check if table_mappings or other Postgres fields changed.
 			// table_mappings are compared through the deltas rather than set equality: switching an
 			// optional list between null and empty changes nothing in the API.
-			tableMappingsToAdd, tableMappingsToRemove, tableMappingsToResync := c.postgresTableMappingDeltas(ctx, &response.Diagnostics, planPostgresModel.TableMappings, statePostgresModel.TableMappings, plan.ResyncTablesOnChange.ValueBool())
+			tableMappingsToAdd, tableMappingsToRemove, tableMappingsToResync := c.postgresTableMappingDeltas(ctx, &response.Diagnostics, planPostgresModel.TableMappings, statePostgresModel.TableMappings)
 			tableMappingsChanged := len(tableMappingsToAdd)+len(tableMappingsToRemove)+len(tableMappingsToResync) > 0
 			credentialsChanged := credentialsObjectChanged(planPostgresModel.Credentials, statePostgresModel.Credentials)
 			// Any non-mapping source change (host/port/database/settings and
@@ -6123,7 +6136,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			// table_mappings are compared through the deltas rather than set equality: switching an
 			// optional list between null and empty changes nothing in the API.
-			tableMappingsToAdd, tableMappingsToRemove, tableMappingsToResync := mySQLTableMappingDeltas(ctx, &response.Diagnostics, planMySQLModel.TableMappings, stateMySQLModel.TableMappings, plan.ResyncTablesOnChange.ValueBool())
+			tableMappingsToAdd, tableMappingsToRemove, tableMappingsToResync := mySQLTableMappingDeltas(ctx, &response.Diagnostics, planMySQLModel.TableMappings, stateMySQLModel.TableMappings)
 			tableMappingsChanged := len(tableMappingsToAdd)+len(tableMappingsToRemove)+len(tableMappingsToResync) > 0
 			credentialsChanged := credentialsObjectChanged(planMySQLModel.Credentials, stateMySQLModel.Credentials)
 			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.MySQL, stateSourceModel.MySQL) || credentialsChanged
@@ -6166,7 +6179,7 @@ func (c *ClickPipeResource) Update(ctx context.Context, req resource.UpdateReque
 
 			// table_mappings are compared through the deltas rather than set equality: switching an
 			// optional list between null and empty changes nothing in the API.
-			tableMappingsToAdd, tableMappingsToRemove, tableMappingsToResync := mongoDBTableMappingDeltas(ctx, &response.Diagnostics, planMongoDBModel.TableMappings, stateMongoDBModel.TableMappings, plan.ResyncTablesOnChange.ValueBool())
+			tableMappingsToAdd, tableMappingsToRemove, tableMappingsToResync := mongoDBTableMappingDeltas(ctx, &response.Diagnostics, planMongoDBModel.TableMappings, stateMongoDBModel.TableMappings)
 			tableMappingsChanged := len(tableMappingsToAdd)+len(tableMappingsToRemove)+len(tableMappingsToResync) > 0
 			credentialsChanged := credentialsObjectChanged(planMongoDBModel.Credentials, stateMongoDBModel.Credentials)
 			otherFieldsChanged := sourceFieldsChangedIgnoringMappings(planSourceModel.MongoDB, stateSourceModel.MongoDB) || credentialsChanged

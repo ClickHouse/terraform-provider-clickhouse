@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,8 +18,8 @@ import (
 	"github.com/ClickHouse/terraform-provider-clickhouse/internal/service/clickhouse/resource/models"
 )
 
-// A change to an existing table mapping is rejected unless the pipe sets
-// resync_tables_on_change, and warns about the resync when it does.
+// A change to an existing table mapping is rejected unless its resync_version
+// changes too, and a changed resync_version warns about the resync.
 func TestClickPipeResource_ModifyPlan_TableResync(t *testing.T) {
 	ctx := context.Background()
 	unknownColumns := types.ListUnknown(models.ClickPipeMongoDBColumnModel{}.ObjectType())
@@ -31,65 +32,88 @@ func TestClickPipeResource_ModifyPlan_TableResync(t *testing.T) {
 		}
 		return false
 	}
+	postgresMapping := func(t *testing.T, excludedColumns []string, version types.Int64) models.ClickPipeResourceModel {
+		m := postgresPlanWithExcludedColumns(ctx, excludedColumns, "users")
+		setPostgresMappingAttr(ctx, t, &m, "resync_version", version)
+		return m
+	}
+	mongoDBMapping := func(m models.ClickPipeMongoDBTableMappingModel, version types.Int64) models.ClickPipeMongoDBTableMappingModel {
+		m.ResyncVersion = version
+		return m
+	}
 
 	tests := []struct {
 		name string
-		// build returns the prior state and the plan, before resync is applied to the plan.
-		build  func(t *testing.T) (state, plan models.ClickPipeResourceModel)
-		resync bool
+		// build returns the prior state and the plan.
+		build func(t *testing.T) (state, plan models.ClickPipeResourceModel)
 		// wantError is a substring of the expected error; when empty, the plan must have no error.
 		wantError string
-		// wantWarning is a substring of the expected resync warning.
+		// wantWarning is a substring of the expected resync warning; when both are empty, no resync is planned.
 		wantWarning string
 	}{
 		{
-			name: "postgres mapping change without resync_tables_on_change is rejected",
+			name: "postgres mapping change without a resync_version change is rejected",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
-				state = postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
-				plan = postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users")
+				state = postgresMapping(t, []string{"status"}, types.Int64Value(1))
+				plan = postgresMapping(t, []string{"status"}, types.Int64Value(1))
 				setPostgresMappingAttr(ctx, t, &plan, "partition_by_expr", types.StringValue("toYYYYMM(created_at)"))
 				return state, plan
 			},
-			wantError: "Cannot modify partition_by_expr for existing table mapping 'public.users'. Set resync_tables_on_change = true",
+			wantError: "Cannot modify partition_by_expr for existing table mapping 'public.users'. Change its resync_version",
 		},
 		{
-			name: "postgres mapping change with resync_tables_on_change warns",
+			name: "postgres mapping change with a resync_version change warns",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
-				return postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users"),
-					postgresPlanWithExcludedColumns(ctx, []string{"status", "email"}, "users")
+				return postgresMapping(t, []string{"status"}, types.Int64Value(1)),
+					postgresMapping(t, []string{"status", "email"}, types.Int64Value(2))
 			},
-			resync:      true,
-			wantWarning: "excluded_columns changed for table mapping 'public.users'",
+			wantWarning: "resync_version changed for table mapping 'public.users'",
+		},
+		{
+			name: "postgres resync_version change alone resyncs the unchanged table",
+			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
+				return postgresMapping(t, []string{"status"}, types.Int64Null()),
+					postgresMapping(t, []string{"status"}, types.Int64Value(1))
+			},
+			wantWarning: "resync_version changed for table mapping 'public.users'",
+		},
+		{
+			name: "postgres resync_version removal resyncs nothing",
+			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
+				return postgresMapping(t, []string{"status"}, types.Int64Value(1)),
+					postgresMapping(t, []string{"status"}, types.Int64Null())
+			},
 		},
 		{
 			name: "postgres excluded_columns null to empty is not a change",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
-				state = postgresPlanWithExcludedColumns(ctx, []string{}, "users")
+				state = postgresMapping(t, []string{}, types.Int64Null())
 				setPostgresMappingAttr(ctx, t, &state, "excluded_columns", types.SetNull(types.StringType))
-				return state, postgresPlanWithExcludedColumns(ctx, []string{}, "users")
+				return state, postgresMapping(t, []string{}, types.Int64Null())
 			},
 		},
 		{
-			name: "target_table cannot change even with resync_tables_on_change",
+			name: "target_table cannot change even on resync",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
-				return postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users"),
-					postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users_renamed")
+				state = postgresMapping(t, []string{"status"}, types.Int64Null())
+				plan = postgresPlanWithExcludedColumns(ctx, []string{"status"}, "users_renamed")
+				setPostgresMappingAttr(ctx, t, &plan, "resync_version", types.Int64Value(1))
+				return state, plan
 			},
-			resync:    true,
 			wantError: "Cannot modify target_table",
 		},
 		{
-			name: "mysql mapping change with resync_tables_on_change warns",
+			name: "mysql mapping change with a resync_version change warns",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
 				state, plan = mysqlPlanForModifyPlan(), mysqlPlanForModifyPlan()
 				setMySQLMappingAttr(ctx, t, &plan, "table_engine", types.StringValue("Null"))
+				setMySQLMappingAttr(ctx, t, &plan, "resync_version", types.Int64Value(1))
 				return state, plan
 			},
-			resync:      true,
-			wantWarning: "table_engine changed for table mapping 'public.users'",
+			wantWarning: "resync_version changed for table mapping 'public.users'",
 		},
 		{
-			name: "mongodb mapping change without resync_tables_on_change is rejected",
+			name: "mongodb mapping change without a resync_version change is rejected",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
 				return mongoDBModelWithMappings(t, mongoDBTableMappingModel(types.BoolNull())),
 					mongoDBModelWithMappings(t, mongoDBTableMappingModel(types.BoolValue(true)))
@@ -104,18 +128,16 @@ func TestClickPipeResource_ModifyPlan_TableResync(t *testing.T) {
 				changed := mongoDBStructuredIngestion(unknownColumns)
 				changed.SortingKeys = stringListValue([]string{"name"})
 				return mongoDBModelWithMappings(t, mongoDBStructuredMapping("replicants", mongoDBStructuredIngestion(mongoDBColumns("name", "String")))),
-					mongoDBModelWithMappings(t, mongoDBStructuredMapping("replicants", changed))
+					mongoDBModelWithMappings(t, mongoDBMapping(mongoDBStructuredMapping("replicants", changed), types.Int64Value(1)))
 			},
-			resync:      true,
-			wantWarning: "structured_ingestion changed for table mapping 'shop.replicants'",
+			wantWarning: "resync_version changed for table mapping 'shop.replicants'",
 		},
 		{
 			name: "mongodb enabling structured ingestion on resync requires columns",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel) {
 				return mongoDBModelWithMappings(t, mongoDBTableMappingModel(types.BoolNull())),
-					mongoDBModelWithMappings(t, mongoDBStructuredMapping("orders", mongoDBStructuredIngestion(unknownColumns)))
+					mongoDBModelWithMappings(t, mongoDBMapping(mongoDBStructuredMapping("orders", mongoDBStructuredIngestion(unknownColumns)), types.Int64Value(1)))
 			},
-			resync:    true,
 			wantError: "structured_ingestion.columns must be set to resync collection 'shop.orders'",
 		},
 	}
@@ -123,7 +145,6 @@ func TestClickPipeResource_ModifyPlan_TableResync(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			state, plan := tt.build(t)
-			plan.ResyncTablesOnChange = types.BoolValue(tt.resync)
 
 			diags := driveClickPipeModifyPlan(ctx, t, state, plan)
 
@@ -134,29 +155,32 @@ func TestClickPipeResource_ModifyPlan_TableResync(t *testing.T) {
 			}
 			if tt.wantWarning != "" {
 				assert.True(t, warningContains(diags, tt.wantWarning), "got: %v", diags.Warnings())
+			} else if tt.wantError == "" {
+				assert.False(t, warningContains(diags, "resync_version changed"), "no resync must be planned; got: %v", diags.Warnings())
 			}
 		})
 	}
 }
 
-// A changed mapping is sent in tableMappingsToResync, in a mappings-only PATCH
-// (#617) issued while the pipe is paused.
+// A mapping whose resync_version changed is sent in tableMappingsToResync, in
+// a mappings-only PATCH (#617) issued while the pipe is paused.
 func TestClickPipeResource_Update_TableResync(t *testing.T) {
 	ctx := context.Background()
 	const partitionByExpr = "toYYYYMM(created_at)"
 
 	tests := []struct {
 		name string
-		// build returns the prior state, the plan before resync is applied, and the pipe the API returns.
+		// build returns the prior state, the plan, and the pipe the API returns.
 		build func(t *testing.T) (state, plan models.ClickPipeResourceModel, apiPipe *api.ClickPipe)
 		check func(t *testing.T, update api.ClickPipeUpdate)
 	}{
 		{
-			name: "postgres",
+			name: "postgres mapping change",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel, apiPipe *api.ClickPipe) {
 				state = postgresUpdateModel(ctx, t, "users")
 				plan = postgresUpdateModel(ctx, t, "users")
 				setPostgresMappingAttr(ctx, t, &plan, "partition_by_expr", types.StringValue(partitionByExpr))
+				setPostgresMappingAttr(ctx, t, &plan, "resync_version", types.Int64Value(1))
 				return state, plan, postgresAPIPipe(api.ClickPipeRunningState, "users")
 			},
 			check: func(t *testing.T, update api.ClickPipeUpdate) {
@@ -174,13 +198,32 @@ func TestClickPipeResource_Update_TableResync(t *testing.T) {
 			},
 		},
 		{
-			name: "mysql",
+			name: "postgres resync_version change only",
+			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel, apiPipe *api.ClickPipe) {
+				state = postgresUpdateModel(ctx, t, "users")
+				setPostgresMappingAttr(ctx, t, &state, "resync_version", types.Int64Value(1))
+				plan = postgresUpdateModel(ctx, t, "users")
+				setPostgresMappingAttr(ctx, t, &plan, "resync_version", types.Int64Value(2))
+				return state, plan, postgresAPIPipe(api.ClickPipeRunningState, "users")
+			},
+			check: func(t *testing.T, update api.ClickPipeUpdate) {
+				require.NotNil(t, update.Source)
+				pg := update.Source.Postgres
+				require.NotNil(t, pg)
+				require.Len(t, pg.TableMappingsToResync, 1)
+				assert.Equal(t, "users", pg.TableMappingsToResync[0].SourceTable)
+				assert.Nil(t, pg.TableMappingsToResync[0].PartitionByExpr)
+			},
+		},
+		{
+			name: "mysql mapping change",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel, apiPipe *api.ClickPipe) {
 				state = mysqlPlanForModifyPlan()
 				state.State = types.StringValue(api.ClickPipeRunningState)
 				state.Stopped = types.BoolValue(false)
 				plan = state
 				setMySQLMappingAttr(ctx, t, &plan, "table_engine", types.StringValue("Null"))
+				setMySQLMappingAttr(ctx, t, &plan, "resync_version", types.Int64Value(1))
 				apiPipe = mysqlAPIResponse(nil)
 				apiPipe.Source.MySQL.Mappings[0].SourceSchemaName = "public"
 				return state, plan, apiPipe
@@ -204,7 +247,6 @@ func TestClickPipeResource_Update_TableResync(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			state, plan, apiPipe := tt.build(t)
-			plan.ResyncTablesOnChange = types.BoolValue(true)
 
 			mc := minimock.NewController(t)
 			mock, calls := pauseEditClientMock(mc, apiPipe, nil)
@@ -240,22 +282,11 @@ func TestClickPipeResource_Update_TableMappingNoOpSendsNothing(t *testing.T) {
 		build func(t *testing.T) (state, plan models.ClickPipeResourceModel, apiPipe *api.ClickPipe)
 	}{
 		{
-			name: "resync_tables_on_change only",
+			name: "resync_version removed",
 			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel, apiPipe *api.ClickPipe) {
 				state = postgresUpdateModel(ctx, t, "users")
-				plan = postgresUpdateModel(ctx, t, "users")
-				plan.ResyncTablesOnChange = types.BoolValue(true)
-				return state, plan, postgresAPIPipe(api.ClickPipeRunningState, "users")
-			},
-		},
-		{
-			name: "resync_tables_on_change only, on a Completed pipe",
-			build: func(t *testing.T) (state, plan models.ClickPipeResourceModel, apiPipe *api.ClickPipe) {
-				state = postgresUpdateModel(ctx, t, "users")
-				state.State = types.StringValue(api.ClickPipeCompletedState)
-				plan = state
-				plan.ResyncTablesOnChange = types.BoolValue(true)
-				return state, plan, postgresAPIPipe(api.ClickPipeCompletedState, "users")
+				setPostgresMappingAttr(ctx, t, &state, "resync_version", types.Int64Value(1))
+				return state, postgresUpdateModel(ctx, t, "users"), postgresAPIPipe(api.ClickPipeRunningState, "users")
 			},
 		},
 		{
@@ -296,55 +327,61 @@ func TestClickPipeResource_Update_TableMappingNoOpSendsNothing(t *testing.T) {
 
 			resp := driveClickPipeUpdate(ctx, t, &ClickPipeResource{client: mock}, state, plan)
 			require.False(t, resp.Diagnostics.HasError(), "update must succeed: %v", resp.Diagnostics.Errors())
-
-			var got models.ClickPipeResourceModel
-			require.False(t, resp.State.Get(ctx, &got).HasError())
-			assert.Equal(t, plan.ResyncTablesOnChange.ValueBool(), got.ResyncTablesOnChange.ValueBool(), "the configured resync_tables_on_change must be kept in state")
 		})
 	}
 }
 
-// A Completed pipe only accepts changes that reach no API, so a resync is
-// still rejected before any call is made.
+// A Completed pipe cannot be modified, so a resync is rejected before any
+// call is made.
 func TestClickPipeResource_Update_CompletedPipeRejectsTableResync(t *testing.T) {
 	ctx := context.Background()
 	state := postgresUpdateModel(ctx, t, "users")
 	state.State = types.StringValue(api.ClickPipeCompletedState)
 	plan := state
-	plan.ResyncTablesOnChange = types.BoolValue(true)
-	setPostgresMappingAttr(ctx, t, &plan, "partition_by_expr", types.StringValue("toYYYYMM(created_at)"))
+	setPostgresMappingAttr(ctx, t, &plan, "resync_version", types.Int64Value(1))
 
 	resp := driveClickPipeUpdate(ctx, t, &ClickPipeResource{client: api.NewClientMock(minimock.NewController(t))}, state, plan)
 
 	assert.True(t, errorDetailContains(resp.Diagnostics, "cannot be modified"), "got: %v", resp.Diagnostics.Errors())
 }
 
-// resync_tables_on_change is not stored by the API: a read keeps the
-// configured value, and fills in the default when state has none (import, or
-// state written by a provider version without the attribute).
-func TestClickPipeResource_syncClickPipeState_ResyncTablesOnChange(t *testing.T) {
+// resync_version is not stored by the API: a read keeps the configured value,
+// and leaves it null for a mapping state does not know (import).
+func TestClickPipeResource_syncClickPipeState_ResyncVersion(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name     string
-		state    types.Bool
-		expected types.Bool
+		name string
+		// stateTables are the mappings in state before the read.
+		stateTables []string
+		version     types.Int64
+		expected    types.Int64
 	}{
-		{name: "unset defaults to false", state: types.BoolNull(), expected: types.BoolValue(false)},
-		{name: "true is kept", state: types.BoolValue(true), expected: types.BoolValue(true)},
-		{name: "false is kept", state: types.BoolValue(false), expected: types.BoolValue(false)},
+		{name: "configured value is kept", stateTables: []string{"users"}, version: types.Int64Value(3), expected: types.Int64Value(3)},
+		{name: "unset stays null", stateTables: []string{"users"}, version: types.Int64Null(), expected: types.Int64Null()},
+		{name: "mapping unknown to state is null", stateTables: []string{}, expected: types.Int64Null()},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			state := postgresUpdateModel(ctx, t, "users")
-			state.ResyncTablesOnChange = tt.state
+			state := postgresUpdateModel(ctx, t, tt.stateTables...)
+			if len(tt.stateTables) > 0 {
+				setPostgresMappingAttr(ctx, t, &state, "resync_version", tt.version)
+			}
 
 			mock := api.NewClientMock(minimock.NewController(t))
 			mock.GetClickPipeMock.Return(postgresAPIPipe(api.ClickPipeRunningState, "users"), nil)
 
 			require.NoError(t, (&ClickPipeResource{client: mock}).syncClickPipeState(ctx, &state))
-			assert.True(t, tt.expected.Equal(state.ResyncTablesOnChange), "expected %v, got %v", tt.expected, state.ResyncTablesOnChange)
+
+			var src models.ClickPipeSourceModel
+			require.False(t, state.Source.As(ctx, &src, basetypes.ObjectAsOptions{}).HasError())
+			var pg models.ClickPipePostgresSourceModel
+			require.False(t, src.Postgres.As(ctx, &pg, basetypes.ObjectAsOptions{}).HasError())
+			var mappings []models.ClickPipePostgresTableMappingModel
+			require.False(t, pg.TableMappings.ElementsAs(ctx, &mappings, false).HasError())
+			require.Len(t, mappings, 1)
+			assert.True(t, tt.expected.Equal(mappings[0].ResyncVersion), "expected %v, got %v", tt.expected, mappings[0].ResyncVersion)
 		})
 	}
 }
@@ -374,6 +411,10 @@ func TestSQLTableMappingChange(t *testing.T) {
 			change: func(m *models.ClickPipePostgresTableMappingModel) { m.SortingKeys = types.ListNull(types.StringType) },
 		},
 		{
+			name:   "resync_version is not a mapping change",
+			change: func(m *models.ClickPipePostgresTableMappingModel) { m.ResyncVersion = types.Int64Value(1) },
+		},
+		{
 			name:     "sorting_keys set",
 			change:   func(m *models.ClickPipePostgresTableMappingModel) { m.SortingKeys = stringListValue([]string{"id"}) },
 			expected: "sorting_keys",
@@ -394,22 +435,20 @@ func TestSQLTableMappingChange(t *testing.T) {
 	}
 }
 
-// Mappings are split into the collections to add, remove and resync. A
-// removal only identifies its collection, while a resync carries the whole
-// mapping, as the API replaces it entirely.
+// Mappings are split into the collections to add, remove and resync. Only a
+// changed resync_version resyncs a collection. A removal only identifies its
+// collection, while a resync carries the whole mapping, as the API replaces it
+// entirely.
 func TestMongoDBTableMappingDeltas(t *testing.T) {
 	ctx := context.Background()
 	mappingType := models.ClickPipeMongoDBTableMappingModel{}.ObjectType()
 
 	orders := mongoDBTableMappingModel(types.BoolNull())
-	ordersPersistingDeletes := mongoDBTableMappingModel(types.BoolValue(true))
 	carts := mongoDBTableMappingModel(types.BoolValue(true))
 	carts.SourceCollection = types.StringValue("carts")
 	users := mongoDBTableMappingModel(types.BoolNull())
 	users.SourceCollection = types.StringValue("users")
-
 	stateSet := types.SetValueMust(mappingType, []attr.Value{orders.ObjectValue(), carts.ObjectValue()})
-	planSet := types.SetValueMust(mappingType, []attr.Value{ordersPersistingDeletes.ObjectValue(), users.ObjectValue()})
 
 	collections := func(mappings []api.ClickPipeMongoDBTableMapping) []string {
 		names := make([]string, len(mappings))
@@ -420,18 +459,22 @@ func TestMongoDBTableMappingDeltas(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		resync       bool
-		wantResynced []string
+		name          string
+		ordersVersion types.Int64
+		wantResynced  []string
 	}{
-		{name: "with resync", resync: true, wantResynced: []string{"orders"}},
-		{name: "without resync a changed mapping is not sent", resync: false, wantResynced: []string{}},
+		{name: "resync_version changed", ordersVersion: types.Int64Value(1), wantResynced: []string{"orders"}},
+		{name: "resync_version unchanged", ordersVersion: types.Int64Null(), wantResynced: []string{}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			plannedOrders := mongoDBTableMappingModel(types.BoolValue(true))
+			plannedOrders.ResyncVersion = tt.ordersVersion
+			planSet := types.SetValueMust(mappingType, []attr.Value{plannedOrders.ObjectValue(), users.ObjectValue()})
+
 			var diagnostics diag.Diagnostics
-			toAdd, toRemove, toResync := mongoDBTableMappingDeltas(ctx, &diagnostics, planSet, stateSet, tt.resync)
+			toAdd, toRemove, toResync := mongoDBTableMappingDeltas(ctx, &diagnostics, planSet, stateSet)
 			require.False(t, diagnostics.HasError(), "%v", diagnostics.Errors())
 
 			assert.Equal(t, []string{"users"}, collections(toAdd))

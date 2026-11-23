@@ -6,7 +6,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
@@ -16,26 +15,33 @@ import (
 
 // Table-level resync of CDC pipes (Postgres, MySQL, MongoDB).
 //
-// Changing an existing table mapping rebuilds its destination table from a
-// fresh snapshot, so it is opt-in with the pipe's resync_tables_on_change.
-// Without it the plan fails, as it did before resync existed: a plan warning
-// alone is not enough for pipelines that apply with -auto-approve.
+// A table is resynced when its mapping's resync_version changes. Like
+// password_wo_version, the version is an intent shown in the plan that needs
+// no reset after apply. Changing an existing mapping rebuilds its destination
+// table from a fresh snapshot, so it requires changing the version too:
+// otherwise the plan fails, as it did before resync existed.
 
-const clickPipeResyncTablesOnChange = "resync_tables_on_change"
+const clickPipeResyncVersion = "resync_version"
 
-// clickPipeResyncTablesOnChangeAttribute is the resync_tables_on_change
-// attribute of a ClickPipe. It is not sent to the API, it only decides how a
-// change to an existing table mapping is applied.
-func clickPipeResyncTablesOnChangeAttribute() schema.BoolAttribute {
-	return schema.BoolAttribute{
-		MarkdownDescription: "Postgres, MySQL and MongoDB pipes only. When `true`, changing an existing table mapping in `table_mappings`, other than its `target_table`, resyncs that table: " +
-			"it is copied again from the source with the new settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes. " +
-			"Track the resync progress in the ClickHouse Cloud console. " +
-			"When `false`, such a change fails at plan time. Changing only this attribute resyncs nothing. Defaults to `false`.",
+// clickPipeResyncVersionAttribute is the resync_version attribute of a CDC
+// table mapping. It is not sent to the API.
+func clickPipeResyncVersionAttribute(tableNoun string) schema.Int64Attribute {
+	return schema.Int64Attribute{
+		MarkdownDescription: fmt.Sprintf(
+			"Change this value, e.g. increment it, to resync the %[1]s: it is copied again from the source with the mapping's current settings, then replaces its current destination table. "+
+				"Replication of the other tables is paused until the resync completes; track its progress in the ClickHouse Cloud console. "+
+				"Changing any other attribute of an existing mapping, except `target_table`, requires changing this value in the same apply. "+
+				"Removing it, or setting it on a new mapping, resyncs nothing.",
+			tableNoun,
+		),
 		Optional: true,
-		Computed: true,
-		Default:  booldefault.StaticBool(false),
 	}
+}
+
+// resyncVersionChanged reports whether a mapping's resync_version asks for a
+// resync. An unknown planned version counts, as it is known at apply.
+func resyncVersionChanged(prior, planned types.Int64) bool {
+	return !planned.IsNull() && !planned.Equal(prior)
 }
 
 // sameStringSet and sameStringList treat null and empty as equal: the API
@@ -60,6 +66,7 @@ func sameStringList(a, b types.List) bool {
 // prior and planned mapping of the same Postgres or MySQL source table, or ""
 // when none does. Both sources share the mapping attributes, so MySQL mappings
 // are converted to the Postgres model, which has the same fields.
+// resync_version is not compared: it decides whether a change is applied.
 func sqlTableMappingChange(prior, planned models.ClickPipePostgresTableMappingModel) string {
 	switch {
 	case prior.TargetTable.ValueString() != planned.TargetTable.ValueString():
@@ -96,26 +103,25 @@ func mongoDBTableMappingChange(prior, planned models.ClickPipeMongoDBTableMappin
 }
 
 // validateTableMappingChange reports a planned change to an existing table
-// mapping: an error unless the pipe opted into table resync, a warning naming
-// the table to resync otherwise. A resynced table replaces its destination table
-// under the same name, so target_table can never change.
-func validateTableMappingChange(diagnostics *diag.Diagnostics, table, changed string, resyncTablesOnChange bool) {
+// mapping: an error unless its resync_version changed too, and a warning
+// naming the table when it is resynced. A resynced table replaces its
+// destination table under the same name, so target_table can never change.
+func validateTableMappingChange(diagnostics *diag.Diagnostics, table, changed string, resync bool) {
 	switch {
-	case changed == "":
 	case changed == clickPipeTargetTable:
 		diagnostics.AddError(
 			"Invalid table_mappings configuration",
-			fmt.Sprintf("Cannot modify %s for existing table mapping '%s'. A resynced table keeps its destination table, so target_table cannot be changed even with %s: remove the mapping and add a new one.", changed, table, clickPipeResyncTablesOnChange),
+			fmt.Sprintf("Cannot modify %s for existing table mapping '%s'. A resynced table keeps its destination table, so target_table cannot be changed even on resync: remove the mapping and add a new one.", changed, table),
 		)
-	case !resyncTablesOnChange:
+	case changed != "" && !resync:
 		diagnostics.AddError(
 			"Invalid table_mappings configuration",
-			fmt.Sprintf("Cannot modify %s for existing table mapping '%s'. Set %s = true on the pipe to resync the table with its new settings, which rebuilds its destination table from a fresh snapshot.", changed, table, clickPipeResyncTablesOnChange),
+			fmt.Sprintf("Cannot modify %s for existing table mapping '%s'. Change its %s in the same apply to resync the table with its new settings, which rebuilds its destination table from a fresh snapshot.", changed, table, clickPipeResyncVersion),
 		)
-	default:
+	case resync:
 		diagnostics.AddWarning(
 			"Table will be resynced",
-			fmt.Sprintf("%s changed for table mapping '%s' and the pipe has %s = true. Applying this plan copies the table again from the source with its new settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes. Track the resync progress in the ClickHouse Cloud console.", changed, table, clickPipeResyncTablesOnChange),
+			fmt.Sprintf("%s changed for table mapping '%s'. Applying this plan copies the table again from the source with its current settings, then replaces its current destination table. Replication of the other tables is paused until the resync completes. Track the resync progress in the ClickHouse Cloud console.", clickPipeResyncVersion, table),
 		)
 	}
 }
@@ -144,9 +150,9 @@ func validateMongoDBResyncColumns(ctx context.Context, diagnostics *diag.Diagnos
 
 // tableMappingDeltas splits the difference between the prior and planned
 // mappings into the tables to add, remove and resync. Mappings with the same
-// key are the same table. A planned mapping that changed is only resynced when
-// resync is true; ModifyPlan rejects it otherwise.
-func tableMappingDeltas[M any](ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool, key func(M) string, change func(prior, planned M) string) (toAdd, toRemove, toResync []M) {
+// key are the same table, and are resynced when resync says so. Other changes
+// to them are rejected by ModifyPlan.
+func tableMappingDeltas[M any](ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, key func(M) string, resync func(prior, planned M) bool) (toAdd, toRemove, toResync []M) {
 	var planMappings, stateMappings []M
 	diagnostics.Append(planSet.ElementsAs(ctx, &planMappings, false)...)
 	diagnostics.Append(stateSet.ElementsAs(ctx, &stateMappings, false)...)
@@ -165,7 +171,7 @@ func tableMappingDeltas[M any](ctx context.Context, diagnostics *diag.Diagnostic
 		switch {
 		case !exists:
 			toAdd = append(toAdd, planned)
-		case resync && change(prior, planned) != "":
+		case resync(prior, planned):
 			toResync = append(toResync, planned)
 		}
 	}
@@ -195,22 +201,25 @@ func sqlTableMappingKey(m models.ClickPipePostgresTableMappingModel) string {
 	return fmt.Sprintf("%s.%s->%s", m.SourceSchemaName.ValueString(), m.SourceTable.ValueString(), m.TargetTable.ValueString())
 }
 
-func (c *ClickPipeResource) postgresTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool) (toAdd, toRemove, toResync []api.ClickPipePostgresTableMapping) {
-	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, resync, sqlTableMappingKey, sqlTableMappingChange)
+func (c *ClickPipeResource) postgresTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set) (toAdd, toRemove, toResync []api.ClickPipePostgresTableMapping) {
+	resync := func(prior, planned models.ClickPipePostgresTableMappingModel) bool {
+		return resyncVersionChanged(prior.ResyncVersion, planned.ResyncVersion)
+	}
+	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, sqlTableMappingKey, resync)
 	toAPI := func(m models.ClickPipePostgresTableMappingModel) api.ClickPipePostgresTableMapping {
 		return c.convertTableMappingModelToAPI(ctx, *diagnostics, m)
 	}
 	return convertAll(add, toAPI), convertAll(remove, toAPI), convertAll(res, toAPI)
 }
 
-func mySQLTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool) (toAdd, toRemove, toResync []api.ClickPipeMySQLTableMapping) {
+func mySQLTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set) (toAdd, toRemove, toResync []api.ClickPipeMySQLTableMapping) {
 	key := func(m models.ClickPipeMySQLTableMappingModel) string {
 		return sqlTableMappingKey(models.ClickPipePostgresTableMappingModel(m))
 	}
-	change := func(prior, planned models.ClickPipeMySQLTableMappingModel) string {
-		return sqlTableMappingChange(models.ClickPipePostgresTableMappingModel(prior), models.ClickPipePostgresTableMappingModel(planned))
+	resync := func(prior, planned models.ClickPipeMySQLTableMappingModel) bool {
+		return resyncVersionChanged(prior.ResyncVersion, planned.ResyncVersion)
 	}
-	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, resync, key, change)
+	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, key, resync)
 	toAPI := func(m models.ClickPipeMySQLTableMappingModel) api.ClickPipeMySQLTableMapping {
 		return convertMySQLTableMappingModelToAPI(ctx, diagnostics, m)
 	}
@@ -218,11 +227,14 @@ func mySQLTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics,
 }
 
 // mongoDBTableMappingDeltas identifies collections by source only.
-func mongoDBTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set, resync bool) (toAdd, toRemove, toResync []api.ClickPipeMongoDBTableMapping) {
+func mongoDBTableMappingDeltas(ctx context.Context, diagnostics *diag.Diagnostics, planSet, stateSet types.Set) (toAdd, toRemove, toResync []api.ClickPipeMongoDBTableMapping) {
 	key := func(m models.ClickPipeMongoDBTableMappingModel) string {
 		return fmt.Sprintf("%s.%s", m.SourceDatabaseName.ValueString(), m.SourceCollection.ValueString())
 	}
-	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, resync, key, mongoDBTableMappingChange)
+	resync := func(prior, planned models.ClickPipeMongoDBTableMappingModel) bool {
+		return resyncVersionChanged(prior.ResyncVersion, planned.ResyncVersion)
+	}
+	add, remove, res := tableMappingDeltas(ctx, diagnostics, planSet, stateSet, key, resync)
 	// Additions and resyncs carry the whole mapping: the API replaces a resynced one entirely.
 	toAPI := func(m models.ClickPipeMongoDBTableMappingModel) api.ClickPipeMongoDBTableMapping {
 		return convertMongoDBTableMappingModelToAPI(ctx, diagnostics, m)

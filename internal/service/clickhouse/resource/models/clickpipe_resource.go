@@ -446,6 +446,8 @@ type ClickPipePostgresTableMappingModel struct {
 	TableEngine         types.String `tfsdk:"table_engine"`
 	PartitionKey        types.String `tfsdk:"partition_key"`
 	PartitionByExpr     types.String `tfsdk:"partition_by_expr"`
+	// ResyncVersion is provider-side only, it is never sent to the API.
+	ResyncVersion types.Int64 `tfsdk:"resync_version"`
 }
 
 func (m ClickPipePostgresTableMappingModel) ObjectType() types.ObjectType {
@@ -460,6 +462,7 @@ func (m ClickPipePostgresTableMappingModel) ObjectType() types.ObjectType {
 			"table_engine":           types.StringType,
 			"partition_key":          types.StringType,
 			"partition_by_expr":      types.StringType,
+			"resync_version":         types.Int64Type,
 		},
 	}
 }
@@ -475,6 +478,7 @@ func (m ClickPipePostgresTableMappingModel) ObjectValue() types.Object {
 		"table_engine":           m.TableEngine,
 		"partition_key":          m.PartitionKey,
 		"partition_by_expr":      m.PartitionByExpr,
+		"resync_version":         m.ResyncVersion,
 	})
 }
 
@@ -798,6 +802,8 @@ type ClickPipeMySQLTableMappingModel struct {
 	TableEngine         types.String `tfsdk:"table_engine"`
 	PartitionKey        types.String `tfsdk:"partition_key"`
 	PartitionByExpr     types.String `tfsdk:"partition_by_expr"`
+	// ResyncVersion is provider-side only, it is never sent to the API.
+	ResyncVersion types.Int64 `tfsdk:"resync_version"`
 }
 
 func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
@@ -812,6 +818,7 @@ func (m ClickPipeMySQLTableMappingModel) ObjectType() types.ObjectType {
 			"table_engine":           types.StringType,
 			"partition_key":          types.StringType,
 			"partition_by_expr":      types.StringType,
+			"resync_version":         types.Int64Type,
 		},
 	}
 }
@@ -827,6 +834,7 @@ func (m ClickPipeMySQLTableMappingModel) ObjectValue() types.Object {
 		"table_engine":           m.TableEngine,
 		"partition_key":          m.PartitionKey,
 		"partition_by_expr":      m.PartitionByExpr,
+		"resync_version":         m.ResyncVersion,
 	})
 }
 
@@ -992,6 +1000,8 @@ type ClickPipeMongoDBTableMappingModel struct {
 	// PersistDeletedDocuments maps to mongoConfig.persistDeletedDocuments in the API.
 	PersistDeletedDocuments types.Bool   `tfsdk:"persist_deleted_documents"`
 	StructuredIngestion     types.Object `tfsdk:"structured_ingestion"`
+	// ResyncVersion is provider-side only, it is never sent to the API.
+	ResyncVersion types.Int64 `tfsdk:"resync_version"`
 }
 
 func (m ClickPipeMongoDBTableMappingModel) ObjectType() types.ObjectType {
@@ -1003,6 +1013,7 @@ func (m ClickPipeMongoDBTableMappingModel) ObjectType() types.ObjectType {
 			"table_engine":              types.StringType,
 			"persist_deleted_documents": types.BoolType,
 			"structured_ingestion":      ClickPipeMongoDBStructuredIngestionModel{}.ObjectType(),
+			"resync_version":            types.Int64Type,
 		},
 	}
 }
@@ -1015,6 +1026,7 @@ func (m ClickPipeMongoDBTableMappingModel) ObjectValue() types.Object {
 		"table_engine":              m.TableEngine,
 		"persist_deleted_documents": m.PersistDeletedDocuments,
 		"structured_ingestion":      m.StructuredIngestion,
+		"resync_version":            m.ResyncVersion,
 	})
 }
 
@@ -1243,8 +1255,6 @@ type ClickPipeResourceModel struct {
 	FieldMappings types.List    `tfsdk:"field_mappings"`
 	Settings      types.Dynamic `tfsdk:"settings"`
 	TriggerResync types.Bool    `tfsdk:"trigger_resync"`
-	// ResyncTablesOnChange is provider-side only, it is never sent to the API.
-	ResyncTablesOnChange types.Bool `tfsdk:"resync_tables_on_change"`
 }
 
 type ClickPipeCdcInfrastructureModel struct {
