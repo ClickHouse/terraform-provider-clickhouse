@@ -18,16 +18,17 @@ Manages a ClickStack app: a single-file React (TSX) application that ClickStack 
 ```terraform
 # An app whose TSX source lives next to the configuration as a plain App.tsx.
 # Apps can't take parameters, so values such as source ids go into the code:
-# App.tsx holds a placeholder string, and replace() swaps in the real id. The
-# file stays valid TSX that editors and linters understand.
+# App.tsx holds one '__CONFIG__' placeholder, and replace() swaps in every value
+# at once as a jsonencode()d object. jsonencode() quotes and escapes strings
+# (so a value like "Bob's errors" is safe) and keeps numbers and booleans as
+# they are. The file stays valid TSX that editors and linters understand.
 resource "clickhouse_clickstack_app" "checkout_errors" {
   name    = "Checkout errors"
   purpose = "Shows checkout errors by service for on-call engineers."
-  code = replace(
-    file("${path.module}/App.tsx"),
-    "__SOURCE_ID__",
-    clickhouse_clickstack_source.logs.id,
-  )
+  code = replace(file("${path.module}/App.tsx"), "'__CONFIG__'", jsonencode({
+    sourceId = clickhouse_clickstack_source.logs.id
+    heading  = "Bob's checkout errors"
+  }))
 
   # Defaults to true. A private app is visible only to the API key's user.
   is_shared = true
@@ -39,7 +40,7 @@ resource "clickhouse_clickstack_app" "checkout_errors" {
 
 ### Required
 
-- `code` (String) The app's TSX source, up to 500000 characters. It must default-export a React component and import only modules the app runtime provides (such as `@hdx/app`). Typically read with `file()`. To pass in values such as source IDs, put a placeholder string in the code and swap it with `replace()`, as in the example; this keeps the file valid TSX, unlike `templatefile()`, which clashes with JavaScript's `${...}` syntax.
+- `code` (String) The app's TSX source, up to 500000 characters. It must default-export a React component and import only modules the app runtime provides (such as `@hdx/app`). Typically read with `file()`. To pass in values such as source IDs, put one quoted placeholder in the code and swap it with `replace()` for a `jsonencode()`d object, as in the example: strings are quoted and escaped, other types keep their type, and the file stays valid TSX, unlike with `templatefile()`, which clashes with JavaScript's `${...}` syntax.
 - `name` (String) App name, 1 to 60 characters, without leading or trailing whitespace.
 
 ### Optional

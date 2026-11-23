@@ -13,6 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -221,6 +223,73 @@ func TestAppResource_ValidateConfig_NoAPICall(t *testing.T) {
 	}
 }
 
+func TestPlanReplacesApp(t *testing.T) {
+	t.Parallel()
+	withTeam := func(team types.String) appResourceModel {
+		m := appModel("c", "p")
+		m.Team = team
+		return m
+	}
+	cases := []struct {
+		name      string
+		plan      appResourceModel
+		state     appResourceModel
+		hasState  bool
+		wantSwaps bool
+	}{
+		{"create", withTeam(types.StringValue("t1")), appResourceModel{}, false, false},
+		{"default team unchanged", withTeam(types.StringNull()), withTeam(types.StringNull()), true, false},
+		{"team unchanged", withTeam(types.StringValue("t1")), withTeam(types.StringValue("t1")), true, false},
+		{"team set", withTeam(types.StringValue("t2")), withTeam(types.StringNull()), true, true},
+		{"team changed", withTeam(types.StringValue("t2")), withTeam(types.StringValue("t1")), true, true},
+		{"team removed", withTeam(types.StringNull()), withTeam(types.StringValue("t1")), true, true},
+		// RequiresReplace treats an unknown planned value as a change too.
+		{"team unknown", withTeam(types.StringUnknown()), withTeam(types.StringValue("t1")), true, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := planReplacesApp(tc.plan, tc.state, tc.hasState); got != tc.wantSwaps {
+				t.Errorf("planReplacesApp = %v, want %v", got, tc.wantSwaps)
+			}
+		})
+	}
+}
+
+// planReplacesApp assumes team is the only attribute that forces a
+// replacement; this fails if another one gains RequiresReplace.
+func TestAppResource_Schema_OnlyTeamRequiresReplace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	replaceString := stringplanmodifier.RequiresReplace().Description(ctx)
+	replaceBool := boolplanmodifier.RequiresReplace().Description(ctx)
+
+	var replacing []string
+	for name, a := range appTestSchema(t).Attributes {
+		var descs []string
+		switch a := a.(type) {
+		case rschema.StringAttribute:
+			for _, m := range a.PlanModifiers {
+				descs = append(descs, m.Description(ctx))
+			}
+		case rschema.BoolAttribute:
+			for _, m := range a.PlanModifiers {
+				descs = append(descs, m.Description(ctx))
+			}
+		default:
+			t.Fatalf("attribute %q has unhandled type %T; extend this test", name, a)
+		}
+		for _, d := range descs {
+			if d == replaceString || d == replaceBool {
+				replacing = append(replacing, name)
+			}
+		}
+	}
+	if len(replacing) != 1 || replacing[0] != teamAttr {
+		t.Errorf("attributes with RequiresReplace = %v, want only %q; update planReplacesApp", replacing, teamAttr)
+	}
+}
+
 func TestNeedsAPIValidation(t *testing.T) {
 	t.Parallel()
 	state := appModel("c", "p")
@@ -269,6 +338,9 @@ func TestAppResource_ModifyPlan_Validation(t *testing.T) {
 	created := appModel("c", "p")
 	created.ID = types.StringUnknown()
 	created.VersionID = types.StringUnknown()
+	moved := appModel("c", "p")
+	moved.Team = types.StringValue("t2")
+	moved.VersionID = types.StringUnknown()
 
 	cases := []struct {
 		name      string
@@ -292,6 +364,8 @@ func TestAppResource_ModifyPlan_Validation(t *testing.T) {
 			"Invalid app configuration",
 		},
 		{"destroy is not sent", nil, &state, valid, 0, nil, ""},
+		// team forces a replacement, which creates a new app from this body.
+		{"team-only change is validated", &moved, &state, valid, 1, nil, ""},
 		{
 			"missing endpoint warns", &created, nil,
 			func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) }, 1,

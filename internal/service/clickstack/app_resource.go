@@ -134,9 +134,10 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				Required: true,
 				Description: fmt.Sprintf("The app's TSX source, up to %d characters. It must default-export a React "+
 					"component and import only modules the app runtime provides (such as `@hdx/app`). Typically "+
-					"read with `file()`. To pass in values such as source IDs, put a placeholder string in the "+
-					"code and swap it with `replace()`, as in the example; this keeps the file valid TSX, "+
-					"unlike `templatefile()`, which clashes with JavaScript's `${...}` syntax.", appCodeMaxLength),
+					"read with `file()`. To pass in values such as source IDs, put one quoted placeholder in the "+
+					"code and swap it with `replace()` for a `jsonencode()`d object, as in the example: strings are "+
+					"quoted and escaped, other types keep their type, and the file stays valid TSX, unlike with "+
+					"`templatefile()`, which clashes with JavaScript's `${...}` syntax.", appCodeMaxLength),
 			},
 			purposeAttr: schema.StringAttribute{
 				Optional: true,
@@ -195,9 +196,7 @@ func (r *appResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// resp.RequiresReplace is already filled in by the attribute plan
-	// modifiers (a team change) when ModifyPlan runs.
-	replaced := len(resp.RequiresReplace) > 0
+	replaced := planReplacesApp(plan, state, hasState)
 	if hasState {
 		canChange, diags := storedCanChangeIsShared(ctx, req.Private)
 		resp.Diagnostics.Append(diags...)
@@ -208,6 +207,16 @@ func (r *appResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanReq
 	if r.client != nil && needsAPIValidation(plan, state, hasState, replaced) {
 		resp.Diagnostics.Append(r.validateWithAPI(ctx, plan)...)
 	}
+}
+
+// planReplacesApp reports whether the plan replaces an existing app: team is
+// the only attribute with RequiresReplace, so a replacement is a team change.
+// resp.RequiresReplace can't tell: the framework hands ModifyPlan an empty list
+// and merges in the attribute plan modifiers' paths only afterwards.
+// TestAppResource_Schema_OnlyTeamRequiresReplace fails if another attribute
+// gains RequiresReplace without this being updated.
+func planReplacesApp(plan, state appResourceModel, hasState bool) bool {
+	return hasState && !plan.Team.Equal(state.Team)
 }
 
 // needsAPIValidation reports whether a plan sends the API anything it hasn't
