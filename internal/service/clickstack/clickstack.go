@@ -31,6 +31,7 @@ func (servicePackage) Resources() []func() upstreamresource.Resource {
 		NewWebhookResource,
 		NewSavedSearchResource,
 		NewAlertResource,
+		NewAppResource,
 	}
 }
 

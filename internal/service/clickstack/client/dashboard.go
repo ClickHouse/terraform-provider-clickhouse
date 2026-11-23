@@ -103,6 +103,12 @@ func (c *Client) DeleteDashboard(ctx context.Context, id string) error {
 
 // ValidateDashboard posts the dashboard body to the validate endpoint. It
 // returns ErrValidateUnsupported when the endpoint is absent (404).
+func (c *Client) ValidateDashboard(ctx context.Context, body json.RawMessage) (*ValidateResult, error) {
+	return c.validate(ctx, dashboardsPath+"/validate", body)
+}
+
+// validate posts body to a /validate endpoint and decodes its verdict. It
+// returns ErrValidateUnsupported when the endpoint is absent (404).
 //
 // Self-hosted /validate responds with a bare {"valid","errors","normalized"}
 // object, not the {"data":...} envelope the CRUD endpoints use. Cloud, though,
@@ -111,11 +117,11 @@ func (c *Client) DeleteDashboard(ctx context.Context, id string) error {
 // handled.
 //
 // Every unrecognized shape must fail loudly rather than decode to the zero
-// ValidateResult: the caller treats an error as "validation unavailable" (a
+// ValidateResult: callers treat an error as "validation unavailable" (a
 // warning, deferring to apply) but Valid=false as a hard plan failure, so a
-// silent zero value blocks every plan with an unexplained "invalid dashboard".
-func (c *Client) ValidateDashboard(ctx context.Context, body json.RawMessage) (*ValidateResult, error) {
-	raw, err := c.do(ctx, http.MethodPost, dashboardsPath+"/validate", body)
+// silent zero value blocks every plan with an unexplained "invalid" verdict.
+func (c *Client) validate(ctx context.Context, path string, body json.RawMessage) (*ValidateResult, error) {
+	raw, err := c.do(ctx, http.MethodPost, path, body)
 	if err != nil {
 		// Both 404 flavors mean the endpoint is absent: ErrNotFound
 		// (self-hosted older API) and errRouteNotFound (Cloud gateway).
@@ -140,9 +146,9 @@ func (c *Client) ValidateDashboard(ctx context.Context, body json.RawMessage) (*
 		res = inner
 	}
 	// No verdict in either shape means an unrecognized response, not a
-	// rejected dashboard. Returning an error routes the caller to its
+	// rejected body. Returning an error routes the caller to its
 	// "validation unavailable" warning instead of blocking every plan with an
-	// unexplained "invalid dashboard".
+	// unexplained "invalid" verdict.
 	if res.Valid == nil {
 		return nil, fmt.Errorf(`decode validate result: no "valid" field in response`)
 	}
