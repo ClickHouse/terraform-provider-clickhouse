@@ -132,6 +132,17 @@ description: |-
     restore_target = "2026-06-01T12:00:00Z"
   }
   
+  Deletion protection
+  Set deletion_protection = true to stop the service from being deleted. While
+  it is on, terraform destroy and any change that replaces the service fail
+  with a "protected from deletion" error. To delete the service, set
+  deletion_protection = false in its own apply first.
+  The API does not accept the setting on create, so the provider creates the
+  service, waits for it to be running, and then turns protection on with an
+  update.Removing the attribute from configuration leaves the current setting
+  unchanged.Only available for organizations with deletion protection enabled. If
+  ClickHouse Cloud does not confirm the setting, the apply fails.Cannot be set on a live read replica: the server rejects direct
+  modifications to replicas.
   Out-of-band changes
   Password rotated externally: invisible to Terraform — the API does not
   return credentials, so refresh cannot detect it. The next Terraform-driven
