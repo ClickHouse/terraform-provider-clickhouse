@@ -137,7 +137,7 @@ type Client interface {
 	ReplacePostgresConfig(ctx context.Context, postgresId string, body PostgresConfig) (*PostgresConfigUpdateResponse, error)
 	GetPostgresCaCertificates(ctx context.Context, postgresId string) ([]byte, error)
 	GetPostgresPrivateEndpoint(ctx context.Context, postgresId string) (*PostgresPrivateEndpoint, error)
-	CreatePostgresPrivateEndpoint(ctx context.Context, postgresId string, body PostgresPrivateEndpointCreate) (*PostgresPrivateEndpoint, error)
+	CreatePostgresPrivateEndpoint(ctx context.Context, postgresId string) (*PostgresPrivateEndpoint, error)
 	UpdatePostgresPrivateEndpoint(ctx context.Context, postgresId string, body PostgresPrivateEndpointUpdate) (*PostgresPrivateEndpoint, error)
 	DeletePostgresPrivateEndpoint(ctx context.Context, postgresId string) error
 	WaitForPostgresPrivateEndpoint(ctx context.Context, postgresId string, done func(*PostgresPrivateEndpoint) bool, maxWaitSeconds int) error

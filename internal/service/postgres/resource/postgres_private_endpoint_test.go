@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -23,7 +22,6 @@ var availablePrivateEndpoint = &api.PostgresPrivateEndpoint{
 	State:               api.PostgresPrivateEndpointStateAvailable,
 	EndpointServiceName: "com.amazonaws.vpce.us-east-1.vpce-svc-0123456789abcdef0",
 	PrivateHostname:     "pg.private.example.com",
-	SupportedRegions:    []string{"us-west-2"},
 }
 
 func resourceSchema(ctx context.Context, t *testing.T, r resource.Resource) resource.SchemaResponse {
@@ -45,26 +43,17 @@ func emptyState(ctx context.Context, s resource.SchemaResponse) tfsdk.State {
 	return tfsdk.State{Schema: s.Schema, Raw: tftypes.NewValue(s.Schema.Type().TerraformType(ctx), nil)}
 }
 
-func regionSet(regions ...string) types.Set {
-	set, diags := types.SetValueFrom(context.Background(), types.StringType, append([]string{}, regions...))
+func allowedVpcEndpointMap(endpoints ...api.PostgresAllowedVpcEndpoint) types.Map {
+	m, diags := allowedVpcEndpointsToMap(context.Background(), endpoints)
 	if diags.HasError() {
 		panic(diags)
 	}
-	return set
+	return m
 }
 
-func allowedVpcEndpointSet(endpoints ...api.PostgresAllowedVpcEndpoint) types.Set {
-	set, diags := allowedVpcEndpointsToSet(context.Background(), endpoints)
-	if diags.HasError() {
-		panic(diags)
-	}
-	return set
-}
-
-func privateEndpointModel(regions types.Set) models.PostgresPrivateEndpointResourceModel {
+func privateEndpointModel() models.PostgresPrivateEndpointResourceModel {
 	return models.PostgresPrivateEndpointResourceModel{
 		PostgresID:          types.StringValue(testPrivateEndpointPostgresID),
-		SupportedRegions:    regions,
 		State:               types.StringValue("available"),
 		EndpointServiceName: types.StringValue(availablePrivateEndpoint.EndpointServiceName),
 		PrivateHostname:     types.StringValue(availablePrivateEndpoint.PrivateHostname),
@@ -74,13 +63,10 @@ func privateEndpointModel(regions types.Set) models.PostgresPrivateEndpointResou
 func TestPostgresPrivateEndpointCreate(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
-		regions types.Set
-		body    api.PostgresPrivateEndpointCreate
 		waitErr error
 	}{
-		{name: "regions omitted", regions: types.SetUnknown(types.StringType)},
-		{name: "with regions", regions: regionSet("us-west-2"), body: api.PostgresPrivateEndpointCreate{SupportedRegions: []string{"us-west-2"}}},
-		{name: "wait fails", regions: types.SetUnknown(types.StringType), waitErr: errors.New("did not reach the expected state")},
+		{name: "waits until available"},
+		{name: "wait fails", waitErr: errors.New("did not reach the expected state")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -88,8 +74,8 @@ func TestPostgresPrivateEndpointCreate(t *testing.T) {
 			r := &PostgresPrivateEndpointResource{client: client}
 			s := resourceSchema(ctx, t, r)
 
-			client.CreatePostgresPrivateEndpointMock.Expect(ctx, testPrivateEndpointPostgresID, tc.body).
-				Return(&api.PostgresPrivateEndpoint{State: "creating", SupportedRegions: tc.body.SupportedRegions}, nil)
+			client.CreatePostgresPrivateEndpointMock.Expect(ctx, testPrivateEndpointPostgresID).
+				Return(&api.PostgresPrivateEndpoint{State: "creating"}, nil)
 			client.WaitForPostgresPrivateEndpointMock.Set(func(_ context.Context, id string, done func(*api.PostgresPrivateEndpoint) bool, _ int) error {
 				require.Equal(t, testPrivateEndpointPostgresID, id)
 				require.False(t, done(&api.PostgresPrivateEndpoint{State: "available"}), "needs the service name")
@@ -102,7 +88,6 @@ func TestPostgresPrivateEndpointCreate(t *testing.T) {
 
 			plan := encodeState(ctx, t, s, models.PostgresPrivateEndpointResourceModel{
 				PostgresID:          types.StringValue(testPrivateEndpointPostgresID),
-				SupportedRegions:    tc.regions,
 				State:               types.StringUnknown(),
 				EndpointServiceName: types.StringUnknown(),
 				PrivateHostname:     types.StringUnknown(),
@@ -122,86 +107,8 @@ func TestPostgresPrivateEndpointCreate(t *testing.T) {
 			require.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
 			require.Equal(t, availablePrivateEndpoint.EndpointServiceName, got.EndpointServiceName.ValueString())
 			require.Equal(t, availablePrivateEndpoint.PrivateHostname, got.PrivateHostname.ValueString())
-			require.True(t, got.SupportedRegions.Equal(regionSet("us-west-2")))
 		})
 	}
-}
-
-func TestPostgresPrivateEndpointUpdateRegions(t *testing.T) {
-	ctx := context.Background()
-	client := api.NewClientMock(minimock.NewController(t))
-	r := &PostgresPrivateEndpointResource{client: client}
-	s := resourceSchema(ctx, t, r)
-	none := []string{}
-	client.UpdatePostgresPrivateEndpointMock.Expect(ctx, testPrivateEndpointPostgresID, api.PostgresPrivateEndpointUpdate{SupportedRegions: &none}).
-		Return(&api.PostgresPrivateEndpoint{State: "available", EndpointServiceName: "svc", PrivateHostname: "h"}, nil)
-
-	prior := encodeState(ctx, t, s, privateEndpointModel(regionSet("us-west-2")))
-	planned := encodeState(ctx, t, s, privateEndpointModel(regionSet()))
-	resp := resource.UpdateResponse{State: prior}
-	r.Update(ctx, resource.UpdateRequest{Plan: tfsdk.Plan{Schema: s.Schema, Raw: planned.Raw}, State: prior}, &resp)
-	require.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
-
-	var got models.PostgresPrivateEndpointResourceModel
-	require.False(t, resp.State.Get(ctx, &got).HasError())
-	require.True(t, got.SupportedRegions.Equal(regionSet()))
-}
-
-func TestPostgresPrivateEndpointModifyPlanRejectsOwnRegion(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		regions types.Set
-		wantErr bool
-	}{
-		{name: "other region", regions: regionSet("us-west-2")},
-		{name: "own region", regions: regionSet("us-west-2", "us-east-1"), wantErr: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			client := api.NewClientMock(minimock.NewController(t))
-			r := &PostgresPrivateEndpointResource{client: client}
-			s := resourceSchema(ctx, t, r)
-			client.GetPostgresMock.Expect(ctx, testPrivateEndpointPostgresID).Return(&api.Postgres{Id: testPrivateEndpointPostgresID, Region: "us-east-1"}, nil)
-
-			planned := encodeState(ctx, t, s, privateEndpointModel(tc.regions))
-			plan := tfsdk.Plan{Schema: s.Schema, Raw: planned.Raw}
-			resp := resource.ModifyPlanResponse{Plan: plan}
-			r.ModifyPlan(ctx, resource.ModifyPlanRequest{Config: tfsdk.Config{Schema: s.Schema, Raw: planned.Raw}, Plan: plan, State: emptyState(ctx, s)}, &resp)
-			require.Equal(t, tc.wantErr, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
-		})
-	}
-}
-
-// Replacing postgres_id with a service in one of the old supported regions
-// plans those regions from state when supported_regions is omitted.
-func TestPostgresPrivateEndpointModifyPlanIgnoresInheritedRegions(t *testing.T) {
-	ctx := context.Background()
-	client := api.NewClientMock(minimock.NewController(t))
-	r := &PostgresPrivateEndpointResource{client: client}
-	s := resourceSchema(ctx, t, r)
-
-	configured := encodeState(ctx, t, s, privateEndpointModel(types.SetNull(types.StringType)))
-	planned := encodeState(ctx, t, s, privateEndpointModel(regionSet("us-west-2")))
-	plan := tfsdk.Plan{Schema: s.Schema, Raw: planned.Raw}
-	resp := resource.ModifyPlanResponse{Plan: plan}
-	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Config: tfsdk.Config{Schema: s.Schema, Raw: configured.Raw}, Plan: plan, State: emptyState(ctx, s)}, &resp)
-	require.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
-	require.Zero(t, client.GetPostgresAfterCounter(), "omitted regions are not checked")
-}
-
-func TestPostgresPrivateEndpointModifyPlanDefersUnknownRegions(t *testing.T) {
-	ctx := context.Background()
-	client := api.NewClientMock(minimock.NewController(t))
-	r := &PostgresPrivateEndpointResource{client: client}
-	s := resourceSchema(ctx, t, r)
-	regions := types.SetValueMust(types.StringType, []attr.Value{types.StringValue("us-west-2"), types.StringUnknown()})
-
-	planned := encodeState(ctx, t, s, privateEndpointModel(regions))
-	plan := tfsdk.Plan{Schema: s.Schema, Raw: planned.Raw}
-	resp := resource.ModifyPlanResponse{Plan: plan}
-	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Config: tfsdk.Config{Schema: s.Schema, Raw: planned.Raw}, Plan: plan, State: emptyState(ctx, s)}, &resp)
-	require.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
-	require.Zero(t, client.GetPostgresAfterCounter(), "the own-region check waits until every region is known")
 }
 
 func TestPostgresPrivateEndpointReadNotFound(t *testing.T) {
@@ -211,7 +118,7 @@ func TestPostgresPrivateEndpointReadNotFound(t *testing.T) {
 	s := resourceSchema(ctx, t, r)
 	client.GetPostgresPrivateEndpointMock.Return(nil, errors.New("status: 404, body: not found"))
 
-	state := encodeState(ctx, t, s, privateEndpointModel(regionSet()))
+	state := encodeState(ctx, t, s, privateEndpointModel())
 	resp := resource.ReadResponse{State: state}
 	r.Read(ctx, resource.ReadRequest{State: state}, &resp)
 	require.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
@@ -230,7 +137,7 @@ func TestPostgresPrivateEndpointDeleteWaitsUntilGone(t *testing.T) {
 		return nil
 	})
 
-	state := encodeState(ctx, t, s, privateEndpointModel(regionSet()))
+	state := encodeState(ctx, t, s, privateEndpointModel())
 	resp := resource.DeleteResponse{State: state}
 	r.Delete(ctx, resource.DeleteRequest{State: state}, &resp)
 	require.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
@@ -247,15 +154,13 @@ func TestPostgresPrivateEndpointAttachmentApply(t *testing.T) {
 	}
 	client.UpdatePostgresPrivateEndpointMock.Set(func(_ context.Context, id string, body api.PostgresPrivateEndpointUpdate) (*api.PostgresPrivateEndpoint, error) {
 		require.Equal(t, testPrivateEndpointPostgresID, id)
-		require.Nil(t, body.SupportedRegions, "the attachment must not touch the regions")
-		require.ElementsMatch(t, endpoints, *body.AllowedVpcEndpoints)
-		// The API returns endpoints sorted by ID, whatever order they were sent in.
+		require.Equal(t, endpoints, *body.AllowedVpcEndpoints, "sent sorted by ID")
 		return &api.PostgresPrivateEndpoint{State: "available", AllowedVpcEndpoints: endpoints}, nil
 	})
 
 	plan := encodeState(ctx, t, s, models.PostgresPrivateEndpointAttachmentResourceModel{
 		PostgresID:          types.StringValue(testPrivateEndpointPostgresID),
-		AllowedVpcEndpoints: allowedVpcEndpointSet(endpoints[1], endpoints[0]),
+		AllowedVpcEndpoints: allowedVpcEndpointMap(endpoints[1], endpoints[0]),
 	})
 	resp := resource.CreateResponse{State: emptyState(ctx, s)}
 	r.Create(ctx, resource.CreateRequest{Plan: tfsdk.Plan{Schema: s.Schema, Raw: plan.Raw}}, &resp)
@@ -263,7 +168,7 @@ func TestPostgresPrivateEndpointAttachmentApply(t *testing.T) {
 
 	var got models.PostgresPrivateEndpointAttachmentResourceModel
 	require.False(t, resp.State.Get(ctx, &got).HasError())
-	require.True(t, got.AllowedVpcEndpoints.Equal(allowedVpcEndpointSet(endpoints...)))
+	require.True(t, got.AllowedVpcEndpoints.Equal(allowedVpcEndpointMap(endpoints...)))
 }
 
 func TestPostgresPrivateEndpointAttachmentDelete(t *testing.T) {
@@ -287,7 +192,7 @@ func TestPostgresPrivateEndpointAttachmentDelete(t *testing.T) {
 
 			state := encodeState(ctx, t, s, models.PostgresPrivateEndpointAttachmentResourceModel{
 				PostgresID:          types.StringValue(testPrivateEndpointPostgresID),
-				AllowedVpcEndpoints: allowedVpcEndpointSet(api.PostgresAllowedVpcEndpoint{VpcEndpointId: "vpce-0123456789abcdef0"}),
+				AllowedVpcEndpoints: allowedVpcEndpointMap(api.PostgresAllowedVpcEndpoint{VpcEndpointId: "vpce-0123456789abcdef0"}),
 			})
 			resp := resource.DeleteResponse{State: state}
 			r.Delete(ctx, resource.DeleteRequest{State: state}, &resp)

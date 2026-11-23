@@ -6,11 +6,11 @@ description: |-
   ~> Note: This resource is in beta and its behavior may change in future provider versions.
   Manages the VPC endpoints allowed to connect to ClickHouse Cloud Managed Postgres https://clickhouse.com/cloud/postgres
   over AWS PrivateLink. First create the private endpoint service with clickhouse_postgres_private_endpoint.
-  This resource owns the whole list: VPC endpoints missing from allowed_vpc_endpoints can no longer connect, including
+  This resource owns the allow-list: VPC endpoints missing from allowed_vpc_endpoints can no longer connect, including
   ones added in the ClickHouse Cloud console. Use one clickhouse_postgres_private_endpoint_attachment per
   Postgres service; multiple attachments for the same service overwrite each other.
   Supported lifecycle
-  Create and update replace the whole list of allowed VPC endpoints.ReadDelete removes every allowed VPC endpoint. AWS then rejects their connections. If the aws_vpc_endpoint is
+  Create and update replace the whole allow-list.ReadDelete removes every allowed VPC endpoint. AWS then rejects their connections. If the aws_vpc_endpoint is
   destroyed in the same run, AWS can refuse to delete it with "The existing processing REJECT is too recent"; run
   terraform destroy again.Import by Postgres service ID
 ---
@@ -22,13 +22,13 @@ description: |-
 Manages the VPC endpoints allowed to connect to [ClickHouse Cloud Managed Postgres](https://clickhouse.com/cloud/postgres)
 over AWS PrivateLink. First create the private endpoint service with `clickhouse_postgres_private_endpoint`.
 
-This resource owns the whole list: VPC endpoints missing from `allowed_vpc_endpoints` can no longer connect, including
+This resource owns the allow-list: VPC endpoints missing from `allowed_vpc_endpoints` can no longer connect, including
 ones added in the ClickHouse Cloud console. Use one `clickhouse_postgres_private_endpoint_attachment` per
 Postgres service; multiple attachments for the same service overwrite each other.
 
 ## Supported lifecycle
 
-- Create and update replace the whole list of allowed VPC endpoints.
+- Create and update replace the whole allow-list.
 - Read
 - Delete removes every allowed VPC endpoint. AWS then rejects their connections. If the `aws_vpc_endpoint` is
   destroyed in the same run, AWS can refuse to delete it with "The existing processing REJECT is too recent"; run
@@ -44,10 +44,10 @@ resource "clickhouse_postgres_private_endpoint" "example" {
 
 resource "clickhouse_postgres_private_endpoint_attachment" "example" {
   postgres_id = clickhouse_postgres_private_endpoint.example.postgres_id
-  allowed_vpc_endpoints = [
-    { vpc_endpoint_id = "vpce-0123456789abcdef0", description = "Application VPC" },
-    { vpc_endpoint_id = "vpce-0123456789abcdef1" },
-  ]
+  allowed_vpc_endpoints = {
+    "vpce-0123456789abcdef0" = { description = "Application VPC" }
+    "vpce-0123456789abcdef1" = {}
+  }
 }
 ```
 
@@ -56,15 +56,11 @@ resource "clickhouse_postgres_private_endpoint_attachment" "example" {
 
 ### Required
 
-- `allowed_vpc_endpoints` (Attributes Set) Every VPC endpoint allowed to connect, at most 50. Endpoints left out can no longer connect, and an empty set removes all of them. (see [below for nested schema](#nestedatt--allowed_vpc_endpoints))
+- `allowed_vpc_endpoints` (Attributes Map) Every VPC endpoint allowed to connect, at most 50, keyed by the ID of the AWS VPC interface endpoint, such as `vpce-0123456789abcdef0`. Endpoints left out can no longer connect, and an empty map removes all of them. (see [below for nested schema](#nestedatt--allowed_vpc_endpoints))
 - `postgres_id` (String) ID of the Postgres service whose private endpoint service the VPC endpoints connect to.
 
 <a id="nestedatt--allowed_vpc_endpoints"></a>
 ### Nested Schema for `allowed_vpc_endpoints`
-
-Required:
-
-- `vpc_endpoint_id` (String) ID of the AWS VPC interface endpoint, such as `vpce-0123456789abcdef0`.
 
 Optional:
 

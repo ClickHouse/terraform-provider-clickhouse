@@ -4,9 +4,11 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -77,18 +79,16 @@ func (r *PostgresPrivateEndpointAttachmentResource) Schema(_ context.Context, _ 
 				Validators:    postgresIDValidators,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
-			"allowed_vpc_endpoints": schema.SetNestedAttribute{
-				Description: fmt.Sprintf("Every VPC endpoint allowed to connect, at most %d. Endpoints left out can no longer connect, and an empty set removes all of them.", postgresMaxAllowedVpcEndpoints),
-				Required:    true,
-				Validators:  []validator.Set{setvalidator.SizeAtMost(postgresMaxAllowedVpcEndpoints)},
+			"allowed_vpc_endpoints": schema.MapNestedAttribute{
+				Description: fmt.Sprintf("Every VPC endpoint allowed to connect, at most %d, keyed by the ID of the AWS VPC interface endpoint, such as `vpce-0123456789abcdef0`. "+
+					"Endpoints left out can no longer connect, and an empty map removes all of them.", postgresMaxAllowedVpcEndpoints),
+				Required: true,
+				Validators: []validator.Map{
+					mapvalidator.SizeAtMost(postgresMaxAllowedVpcEndpoints),
+					mapvalidator.NoNullValues(),
+					mapvalidator.KeysAre(stringvalidator.RegexMatches(postgresVpcEndpointIDRegexp, "must be an AWS VPC endpoint ID: vpce- followed by 17 lower-case hex characters")),
+				},
 				NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
-					"vpc_endpoint_id": schema.StringAttribute{
-						Description: "ID of the AWS VPC interface endpoint, such as `vpce-0123456789abcdef0`.",
-						Required:    true,
-						Validators: []validator.String{
-							stringvalidator.RegexMatches(postgresVpcEndpointIDRegexp, "must be an AWS VPC endpoint ID: vpce- followed by 17 lower-case hex characters"),
-						},
-					},
 					"description": schema.StringAttribute{
 						Description: fmt.Sprintf("Description of the VPC endpoint: one line of at most %d characters, without leading or trailing whitespace. Defaults to an empty string.", postgresVpcEndpointDescriptionMaxLen),
 						Optional:    true,
@@ -123,25 +123,26 @@ func (r *PostgresPrivateEndpointAttachmentResource) Configure(_ context.Context,
 	r.client = providerData.API
 }
 
-func planToAllowedVpcEndpoints(ctx context.Context, set types.Set) ([]api.PostgresAllowedVpcEndpoint, diag.Diagnostics) {
-	var elements []models.PostgresAllowedVpcEndpointModel
-	diags := set.ElementsAs(ctx, &elements, false)
+// planToAllowedVpcEndpoints returns the planned VPC endpoints sorted by ID.
+func planToAllowedVpcEndpoints(ctx context.Context, planned types.Map) ([]api.PostgresAllowedVpcEndpoint, diag.Diagnostics) {
+	var elements map[string]models.PostgresAllowedVpcEndpointModel
+	diags := planned.ElementsAs(ctx, &elements, false)
 	endpoints := make([]api.PostgresAllowedVpcEndpoint, 0, len(elements))
-	for _, e := range elements {
-		endpoints = append(endpoints, api.PostgresAllowedVpcEndpoint{VpcEndpointId: e.VpcEndpointID.ValueString(), Description: e.Description.ValueString()})
+	for _, id := range slices.Sorted(maps.Keys(elements)) {
+		endpoints = append(endpoints, api.PostgresAllowedVpcEndpoint{VpcEndpointId: id, Description: elements[id].Description.ValueString()})
 	}
 	return endpoints, diags
 }
 
-func allowedVpcEndpointsToSet(ctx context.Context, endpoints []api.PostgresAllowedVpcEndpoint) (types.Set, diag.Diagnostics) {
-	elements := make([]models.PostgresAllowedVpcEndpointModel, 0, len(endpoints))
+func allowedVpcEndpointsToMap(ctx context.Context, endpoints []api.PostgresAllowedVpcEndpoint) (types.Map, diag.Diagnostics) {
+	elements := make(map[string]models.PostgresAllowedVpcEndpointModel, len(endpoints))
 	for _, e := range endpoints {
-		elements = append(elements, models.PostgresAllowedVpcEndpointModel{VpcEndpointID: types.StringValue(e.VpcEndpointId), Description: types.StringValue(e.Description)})
+		elements[e.VpcEndpointId] = models.PostgresAllowedVpcEndpointModel{Description: types.StringValue(e.Description)}
 	}
-	return types.SetValueFrom(ctx, models.PostgresAllowedVpcEndpointModel{}.ObjectType(), elements)
+	return types.MapValueFrom(ctx, models.PostgresAllowedVpcEndpointModel{}.ObjectType(), elements)
 }
 
-// apply replaces the allowed VPC endpoints with the planned set and stores
+// apply replaces the allowed VPC endpoints with the planned ones and stores
 // what the API returns.
 func (r *PostgresPrivateEndpointAttachmentResource) apply(ctx context.Context, plan models.PostgresPrivateEndpointAttachmentResourceModel, state *tfsdk.State) diag.Diagnostics {
 	endpoints, diags := planToAllowedVpcEndpoints(ctx, plan.AllowedVpcEndpoints)
@@ -157,7 +158,7 @@ func (r *PostgresPrivateEndpointAttachmentResource) apply(ctx context.Context, p
 		)
 		return diags
 	}
-	plan.AllowedVpcEndpoints, diags = allowedVpcEndpointsToSet(ctx, e.AllowedVpcEndpoints)
+	plan.AllowedVpcEndpoints, diags = allowedVpcEndpointsToMap(ctx, e.AllowedVpcEndpoints)
 	if diags.HasError() {
 		return diags
 	}
@@ -195,7 +196,7 @@ func (r *PostgresPrivateEndpointAttachmentResource) Read(ctx context.Context, re
 		return
 	}
 	var d diag.Diagnostics
-	state.AllowedVpcEndpoints, d = allowedVpcEndpointsToSet(ctx, e.AllowedVpcEndpoints)
+	state.AllowedVpcEndpoints, d = allowedVpcEndpointsToMap(ctx, e.AllowedVpcEndpoints)
 	resp.Diagnostics.Append(d...)
 	if resp.Diagnostics.HasError() {
 		return

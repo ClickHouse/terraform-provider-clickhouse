@@ -37,21 +37,13 @@ type PostgresPrivateEndpoint struct {
 	State               string                       `json:"state"`
 	EndpointServiceName string                       `json:"endpointServiceName,omitempty"`
 	PrivateHostname     string                       `json:"privateHostname,omitempty"`
-	SupportedRegions    []string                     `json:"supportedRegions"`
 	AllowedVpcEndpoints []PostgresAllowedVpcEndpoint `json:"allowedVpcEndpoints"`
 }
 
-// PostgresPrivateEndpointCreate is the body of a create request.
-// SupportedRegions are AWS regions other than the service's own.
-type PostgresPrivateEndpointCreate struct {
-	SupportedRegions []string `json:"supportedRegions,omitempty"`
-}
-
-// PostgresPrivateEndpointUpdate is the body of an update request. Each field
-// that is set replaces that list in full; a nil field is left unchanged.
+// PostgresPrivateEndpointUpdate is the body of an update request. A set field
+// replaces that list in full; a nil field is left unchanged.
 type PostgresPrivateEndpointUpdate struct {
 	AllowedVpcEndpoints *[]PostgresAllowedVpcEndpoint `json:"allowedVpcEndpoints,omitempty"`
-	SupportedRegions    *[]string                     `json:"supportedRegions,omitempty"`
 }
 
 // GetPostgresPrivateEndpoint fetches the private endpoint service of a
@@ -67,12 +59,12 @@ func (c *ClientImpl) GetPostgresPrivateEndpoint(ctx context.Context, postgresId 
 
 // CreatePostgresPrivateEndpoint creates the private endpoint service of a
 // Postgres service. It returns while the service is still `creating`.
-func (c *ClientImpl) CreatePostgresPrivateEndpoint(ctx context.Context, postgresId string, body PostgresPrivateEndpointCreate) (*PostgresPrivateEndpoint, error) {
-	return c.sendPostgresPrivateEndpoint(ctx, http.MethodPost, postgresId, body)
+func (c *ClientImpl) CreatePostgresPrivateEndpoint(ctx context.Context, postgresId string) (*PostgresPrivateEndpoint, error) {
+	return c.sendPostgresPrivateEndpoint(ctx, http.MethodPost, postgresId, struct{}{})
 }
 
-// UpdatePostgresPrivateEndpoint replaces the allowed VPC endpoints and/or the
-// supported regions of the private endpoint service of a Postgres service.
+// UpdatePostgresPrivateEndpoint replaces the allowed VPC endpoints of the
+// private endpoint service of a Postgres service.
 func (c *ClientImpl) UpdatePostgresPrivateEndpoint(ctx context.Context, postgresId string, body PostgresPrivateEndpointUpdate) (*PostgresPrivateEndpoint, error) {
 	return c.sendPostgresPrivateEndpoint(ctx, http.MethodPatch, postgresId, body)
 }

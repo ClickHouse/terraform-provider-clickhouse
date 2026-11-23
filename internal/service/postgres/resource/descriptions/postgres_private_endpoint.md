@@ -4,21 +4,19 @@ Creates a private endpoint service for [ClickHouse Cloud Managed Postgres](https
 so VPC endpoints in your AWS account can connect over AWS PrivateLink:
 
 1. Create this resource. It waits until the service is available, which takes about 5 to 10 minutes.
-2. Create an `aws_vpc_endpoint` with `service_name = endpoint_service_name`. For a VPC endpoint in one of the
-   `supported_regions`, also set `service_region` to the Postgres service's region.
+2. Create an `aws_vpc_endpoint` with `service_name = endpoint_service_name` in the Postgres service's region.
 3. Allow the VPC endpoint with `clickhouse_postgres_private_endpoint_attachment`.
 4. Once AWS shows the VPC endpoint as available, turn on its private DNS. The VPC also needs DNS hostnames and
    DNS resolution turned on.
 5. Connect to `private_hostname` from that VPC.
 
-Available only for AWS Postgres services in organizations with Postgres private endpoints enabled.
-`supported_regions` also needs cross-region private endpoints enabled. Contact ClickHouse support to enable access.
+~> **Note:** Postgres private endpoints are available only for AWS Postgres services, and only once they are enabled
+for your organization. Contact ClickHouse support to enable access.
 
 ## Supported lifecycle
 
 - Create
 - Read
-- Update: `supported_regions`
 - Delete. Deleting waits until the private endpoint service is gone.
 - Import by Postgres service ID
 

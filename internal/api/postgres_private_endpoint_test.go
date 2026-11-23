@@ -29,7 +29,6 @@ func TestPostgresPrivateEndpoint_Requests(t *testing.T) {
 		State:               PostgresPrivateEndpointStateAvailable,
 		EndpointServiceName: "com.amazonaws.vpce.us-east-1.vpce-svc-0123456789abcdef0",
 		PrivateHostname:     "pg.private.example.com",
-		SupportedRegions:    []string{"us-west-2"},
 		AllowedVpcEndpoints: []PostgresAllowedVpcEndpoint{{VpcEndpointId: "vpce-0123456789abcdef0", Description: "app"}},
 	}
 	var requests []string
@@ -44,23 +43,16 @@ func TestPostgresPrivateEndpoint_Requests(t *testing.T) {
 	})
 	ctx := context.Background()
 	none := []PostgresAllowedVpcEndpoint{}
-	regions := []string{"us-west-2"}
 
 	for name, call := range map[string]func() (*PostgresPrivateEndpoint, error){
 		"get": func() (*PostgresPrivateEndpoint, error) {
 			return client.GetPostgresPrivateEndpoint(ctx, testPostgresID)
 		},
 		"create": func() (*PostgresPrivateEndpoint, error) {
-			return client.CreatePostgresPrivateEndpoint(ctx, testPostgresID, PostgresPrivateEndpointCreate{})
-		},
-		"create with regions": func() (*PostgresPrivateEndpoint, error) {
-			return client.CreatePostgresPrivateEndpoint(ctx, testPostgresID, PostgresPrivateEndpointCreate{SupportedRegions: regions})
+			return client.CreatePostgresPrivateEndpoint(ctx, testPostgresID)
 		},
 		"clear endpoints": func() (*PostgresPrivateEndpoint, error) {
 			return client.UpdatePostgresPrivateEndpoint(ctx, testPostgresID, PostgresPrivateEndpointUpdate{AllowedVpcEndpoints: &none})
-		},
-		"set regions": func() (*PostgresPrivateEndpoint, error) {
-			return client.UpdatePostgresPrivateEndpoint(ctx, testPostgresID, PostgresPrivateEndpointUpdate{SupportedRegions: &regions})
 		},
 	} {
 		got, err := call()
@@ -75,9 +67,7 @@ func TestPostgresPrivateEndpoint_Requests(t *testing.T) {
 	for _, want := range []string{
 		"GET ",
 		"POST {}",
-		`POST {"supportedRegions":["us-west-2"]}`,
 		`PATCH {"allowedVpcEndpoints":[]}`,
-		`PATCH {"supportedRegions":["us-west-2"]}`,
 	} {
 		if !slices.Contains(requests, want) {
 			t.Errorf("no request %q in %q", want, requests)

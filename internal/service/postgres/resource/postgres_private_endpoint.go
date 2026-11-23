@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"regexp"
-	"slices"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -13,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -38,7 +36,6 @@ var (
 	_ resource.Resource                = &PostgresPrivateEndpointResource{}
 	_ resource.ResourceWithConfigure   = &PostgresPrivateEndpointResource{}
 	_ resource.ResourceWithImportState = &PostgresPrivateEndpointResource{}
-	_ resource.ResourceWithModifyPlan  = &PostgresPrivateEndpointResource{}
 )
 
 //go:embed descriptions/postgres_private_endpoint.md
@@ -78,21 +75,7 @@ func (r *PostgresPrivateEndpointResource) Schema(_ context.Context, _ resource.S
 				Validators:    postgresIDValidators,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
-			"supported_regions": schema.SetAttribute{
-				Description: "AWS regions, other than the Postgres service's own, whose VPC endpoints may connect, such as `us-west-2`. " +
-					"Each needs cross-region private endpoints enabled for the organization. Omit to keep the current regions; set `[]` to remove them all.",
-				ElementType:   types.StringType,
-				Optional:      true,
-				Computed:      true,
-				PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
-			},
-			// No UseStateForUnknown: a supported_regions change makes the
-			// server reconcile, reporting `creating` until it finishes, so
-			// the state after an update can differ from the prior one.
-			"state": schema.StringAttribute{
-				Description: "State of the private endpoint service, such as `available`.",
-				Computed:    true,
-			},
+			"state":                 computed("State of the private endpoint service, such as `available`."),
 			"endpoint_service_name": computed("AWS endpoint service name. Use it as the `service_name` of an `aws_vpc_endpoint`."),
 			"private_hostname":      computed("Hostname for connecting to the Postgres service through an allowed VPC endpoint."),
 		},
@@ -117,46 +100,6 @@ func (r *PostgresPrivateEndpointResource) Configure(_ context.Context, req resou
 	r.client = providerData.API
 }
 
-// ModifyPlan rejects the Postgres service's own region in supported_regions.
-// The server always supports that region and drops it from the stored list,
-// so planning it would leave Terraform with a permanent diff. Only configured
-// regions are checked: an omitted supported_regions plans the prior state's
-// regions, which can include the new service's region when postgres_id changes.
-func (r *PostgresPrivateEndpointResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.Plan.Raw.IsNull() || r.client == nil {
-		return
-	}
-	var plan models.PostgresPrivateEndpointResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	var configured types.Set
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("supported_regions"), &configured)...)
-	if resp.Diagnostics.HasError() || plan.PostgresID.IsUnknown() || configured.IsUnknown() || configured.IsNull() {
-		return
-	}
-	for _, region := range configured.Elements() {
-		if region.IsUnknown() {
-			return
-		}
-	}
-	regions, d := setToStrings(ctx, configured)
-	resp.Diagnostics.Append(d...)
-	if resp.Diagnostics.HasError() || len(regions) == 0 {
-		return
-	}
-	pg, err := r.client.GetPostgres(ctx, plan.PostgresID.ValueString())
-	if err != nil {
-		// The source may not exist yet or be unreadable; the apply reports any real problem.
-		return
-	}
-	if slices.Contains(regions, pg.Region) {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("supported_regions"),
-			"Invalid supported_regions",
-			fmt.Sprintf("Remove %s: it is the Postgres service's own region, which is always supported.", pg.Region),
-		)
-	}
-}
-
 func isPostgresPrivateEndpointReady(e *api.PostgresPrivateEndpoint) bool {
 	return e != nil && e.State == api.PostgresPrivateEndpointStateAvailable && e.EndpointServiceName != ""
 }
@@ -165,23 +108,10 @@ func isPostgresPrivateEndpointGone(e *api.PostgresPrivateEndpoint) bool {
 	return e == nil
 }
 
-func setToStrings(ctx context.Context, set types.Set) ([]string, diag.Diagnostics) {
-	values := []string{}
-	diags := set.ElementsAs(ctx, &values, false)
-	return values, diags
-}
-
-func syncPostgresPrivateEndpoint(ctx context.Context, e *api.PostgresPrivateEndpoint, model *models.PostgresPrivateEndpointResourceModel) diag.Diagnostics {
-	regions := e.SupportedRegions
-	if regions == nil {
-		regions = []string{}
-	}
-	var diags diag.Diagnostics
-	model.SupportedRegions, diags = types.SetValueFrom(ctx, types.StringType, regions)
+func syncPostgresPrivateEndpoint(e *api.PostgresPrivateEndpoint, model *models.PostgresPrivateEndpointResourceModel) {
 	model.State = types.StringValue(e.State)
 	model.EndpointServiceName = stringOrNull(e.EndpointServiceName)
 	model.PrivateHostname = stringOrNull(e.PrivateHostname)
-	return diags
 }
 
 func stringOrNull(s string) types.String {
@@ -204,17 +134,7 @@ func (r *PostgresPrivateEndpointResource) Create(ctx context.Context, req resour
 	}
 	postgresID := plan.PostgresID.ValueString()
 
-	var body api.PostgresPrivateEndpointCreate
-	if !plan.SupportedRegions.IsUnknown() && !plan.SupportedRegions.IsNull() {
-		regions, d := setToStrings(ctx, plan.SupportedRegions)
-		resp.Diagnostics.Append(d...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		body.SupportedRegions = regions
-	}
-
-	created, err := r.client.CreatePostgresPrivateEndpoint(ctx, postgresID, body)
+	created, err := r.client.CreatePostgresPrivateEndpoint(ctx, postgresID)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating Postgres private endpoint",
@@ -222,7 +142,7 @@ func (r *PostgresPrivateEndpointResource) Create(ctx context.Context, req resour
 		)
 		return
 	}
-	resp.Diagnostics.Append(syncPostgresPrivateEndpoint(ctx, created, &plan)...)
+	syncPostgresPrivateEndpoint(created, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -257,37 +177,17 @@ func (r *PostgresPrivateEndpointResource) Read(ctx context.Context, req resource
 		)
 		return
 	}
-	resp.Diagnostics.Append(syncPostgresPrivateEndpoint(ctx, e, &state)...)
+	syncPostgresPrivateEndpoint(e, &state)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Update replaces supported_regions, the only attribute that can change in
-// place. It is called only when the planned regions differ from the state.
-func (r *PostgresPrivateEndpointResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	utils.BetaWarning(postgresPrivateEndpointResourceName, &resp.Diagnostics)
-
-	var plan models.PostgresPrivateEndpointResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	postgresID := plan.PostgresID.ValueString()
-	regions, d := setToStrings(ctx, plan.SupportedRegions)
-	resp.Diagnostics.Append(d...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	updated, err := r.client.UpdatePostgresPrivateEndpoint(ctx, postgresID, api.PostgresPrivateEndpointUpdate{SupportedRegions: &regions})
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating Postgres private endpoint regions",
-			"Could not set the supported regions of the private endpoint service of Postgres service "+postgresID+": "+err.Error(),
-		)
-		return
-	}
-	resp.Diagnostics.Append(syncPostgresPrivateEndpoint(ctx, updated, &plan)...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+// Update is never called: changing postgres_id replaces the resource, and
+// every other attribute is computed.
+func (r *PostgresPrivateEndpointResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
+	resp.Diagnostics.AddError(
+		"Update Not Supported",
+		"Postgres private endpoints do not support updates. Changing postgres_id replaces the private endpoint service.",
+	)
 }
 
 // Delete schedules deletion and waits until the private endpoint service is
@@ -343,6 +243,6 @@ func (r *PostgresPrivateEndpointResource) refresh(ctx context.Context, postgresI
 		)
 		return
 	}
-	diags.Append(syncPostgresPrivateEndpoint(ctx, e, model)...)
+	syncPostgresPrivateEndpoint(e, model)
 	diags.Append(state.Set(ctx, model)...)
 }

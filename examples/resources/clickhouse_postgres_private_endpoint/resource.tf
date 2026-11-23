@@ -16,9 +16,9 @@ resource "aws_vpc_endpoint" "postgres" {
 
 resource "clickhouse_postgres_private_endpoint_attachment" "example" {
   postgres_id = clickhouse_postgres_private_endpoint.example.postgres_id
-  allowed_vpc_endpoints = [
-    { vpc_endpoint_id = aws_vpc_endpoint.postgres.id, description = "Application VPC" },
-  ]
+  allowed_vpc_endpoints = {
+    (aws_vpc_endpoint.postgres.id) = { description = "Application VPC" }
+  }
 }
 
 output "postgres_private_hostname" {
